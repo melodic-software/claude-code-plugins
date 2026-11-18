@@ -111,8 +111,10 @@ failed read, a list cut short or no such run keeps the FAIL.
   line (`main_red_incident`), or is an own-agent filing intake admission
   admits (`own_agent_filing`, ADR 0111): an identity on admission's
   `own-agents` list wrote it, no other account edited its body, it carries
-  exactly one `source: <producer>` label, and a listed human or the lanes App
-  sized it small or medium (`counted_size`), else `verify:untrusted-spec`. A
+  exactly one `source: <producer>` label, a listed human or the lanes App
+  sized it small or medium (`counted_size`), and no run's patch stopped over
+  the scan job's cap since a listed human last added agent-ready
+  (`patch_cap_stopped`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -795,6 +797,13 @@ OWN_AGENT_ISSUE_QUERY = (
     f"{ACTOR_FRAGMENT}"
 )
 SIZE_FIELD_KEY = "models.issue-dimensions.fields.size"
+AGENT_READY_LABEL = "agent-ready"
+PATCH_CAP_STOP_LINE = (
+    "The work-resolve-issue lane stopped on this issue (`scan-refused-patch`):"
+)
+INTAKE_OUTCOME_RE = re.compile(
+    rf"<!-- work-resolve-issue outcome=intake(?: [a-z]+=[^{JS_SPACE}]+)* -->"
+)
 
 
 def split_child_header(
@@ -1032,6 +1041,49 @@ def counted_size(
     return size["options"].get(
         str(json_object(row.get("single_select_option")).get("id"))
     )
+
+
+def _event_time(text: Any) -> float | None:
+    """The epoch seconds of GitHub timestamp `text`, or None for what
+    JavaScript's Date.parse would read as NaN. Pure."""
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def patch_cap_stopped(
+    comments: list[Any], events: list[Any], humans: frozenset[int], app_id: int | None
+) -> bool:
+    """admit.mjs patchCapStopped: whether the lanes App's report-outcome
+    comment routed a scan-refused-patch stop to intake after a listed human
+    last added agent-ready. The App's own adds do not reset it. `comments` and
+    `events` are the issue's REST comments and events. Pure."""
+    added = [
+        _event_time(event.get("created_at"))
+        for event in map(json_object, events)
+        if event.get("event") == "labeled"
+        and json_object(event.get("label")).get("name") == AGENT_READY_LABEL
+        and json_object(event.get("actor")).get("id") in humans
+    ]
+    reset = max((at for at in added if at is not None), default=float("-inf"))
+
+    def stopped(comment: dict[str, Any]) -> bool:
+        rows = re.split(r"\r?\n", str(comment.get("body") or ""))
+        author = json_object(comment.get("user")).get("id")
+        at = _event_time(comment.get("created_at"))
+        return (
+            app_id is not None
+            and author is not None
+            and str(author) == str(app_id)
+            and INTAKE_OUTCOME_RE.fullmatch(rows[0]) is not None
+            and len(rows) > 1
+            and rows[1].startswith(PATCH_CAP_STOP_LINE)
+            and at is not None
+            and at > reset
+        )
+
+    return any(stopped(comment) for comment in map(json_object, comments))
 
 
 def page_pin(text: Any) -> str | None:
@@ -1732,6 +1784,9 @@ class Reader:
         default_factory=dict
     )
     _sizes: dict[int, tuple[str | None, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    _patch_caps: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     # Each pull request's RELINK_QUERY answer, or {} for a failed read.
@@ -3082,10 +3137,41 @@ class Reader:
             run_cache.note(at)
         return counted
 
+    def _issue_listing(self, number: int, kind: str) -> list[dict[str, Any]]:
+        """Every page of issue `number`'s REST `kind` listing, under the
+        Actions token. A failed read raises `_Unreadable`."""
+        label = f"#{number} {kind}"
+        endpoint = f"repos/{self.repo}/issues/{number}/{kind}?per_page=100"
+        pages = self._actions(["api", endpoint, "--paginate", "--slurp"], label)
+        try:
+            return flatten_paginated_items(pages, label)
+        except RuntimeError as exc:
+            raise _Unreadable(str(exc)) from exc
+
+    def _patch_capped(self, number: int) -> bool:
+        """Whether issue `number`'s last run stopped over the scan job's
+        patch cap (`patch_cap_stopped`), once per Reader. A failed read raises
+        `_Unreadable`."""
+        if number not in self._patch_caps:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                capped = patch_cap_stopped(
+                    self._issue_listing(number, "comments"),
+                    self._issue_listing(number, "events"),
+                    self._trusted_humans(),
+                    self._lane_app_id(),
+                )
+            self._patch_caps[number] = (capped, tuple(taken))
+        capped, read_at = self._patch_caps[number]
+        for at in read_at:
+            run_cache.note(at)
+        return capped
+
     def _own_agent(self, issue: dict[str, Any]) -> bool:
         """Whether recorded linked issue `issue` is an own-agent filing
-        admission admits (`own_agent_filing`) sized small or medium. Read
-        live: a label or Size changed since the verdict counts."""
+        admission admits (`own_agent_filing`) sized small or medium, with no
+        patch-cap stop standing. Read live: a label, Size or stop changed
+        since the verdict counts."""
         number = issue.get("number")
         author = issue.get("author_id")
         if (
@@ -3099,6 +3185,7 @@ class Reader:
             author in ids
             and own_agent_filing(self._own_agent_issue(number), ids)
             and self._size(number) in OWN_AGENT_SIZES
+            and not self._patch_capped(number)
         )
 
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:

@@ -68,6 +68,37 @@ ACTORS = {
 }
 
 
+OUTCOME = "<!-- work-resolve-issue outcome=intake -->"
+STOP_LINE = "The work-resolve-issue lane stopped on this issue (`scan-refused-patch`):"
+BEFORE, STOPPED, AFTER = (
+    "2026-11-10T01:00:00Z",
+    "2026-11-10T02:00:00Z",
+    "2026-11-10T03:00:00Z",
+)
+
+
+def stop_comment(
+    at: str = STOPPED,
+    user: int | None = APP_ID,
+    marker: str = OUTCOME,
+    line: str = STOP_LINE,
+    eol: str = "\n",
+) -> dict[str, Any]:
+    body = f"{marker}{eol}{line}{eol}{eol}The patch was over the cap."
+    return {"user": {"id": user}, "body": body, "created_at": at}
+
+
+def ready_added(
+    at: str, actor: int | None = HUMAN_ID, label: str = "agent-ready"
+) -> dict[str, Any]:
+    return {
+        "event": "labeled",
+        "label": {"name": label},
+        "actor": {"id": actor},
+        "created_at": at,
+    }
+
+
 def field_event(
     actor: dict[str, Any] | None,
     kind: str = "IssueFieldAddedEvent",
@@ -93,7 +124,11 @@ class FakeGitHub:
         rules: dict[str, Any],
         fail: str | None,
         config: str,
+        comments: list[dict[str, Any]] | None = None,
+        issue_events: list[dict[str, Any]] | None = None,
     ):
+        self.comments = comments or []
+        self.issue_events = issue_events or []
         self.issue = issue
         self.option = option
         self.events = events
@@ -140,6 +175,10 @@ class FakeGitHub:
                 answer = {"data": {"repository": {"issue": nodes}}}
                 return self.served("events", args, kwargs, answer)
             raise AssertionError(f"unexpected query: {args}")
+        if f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100" in args:
+            return self.served("comments", args, kwargs, [self.comments])
+        if f"repos/{REPO}/issues/{ISSUE}/events?per_page=100" in args:
+            return self.served("issue-events", args, kwargs, [self.issue_events])
         if any(a == f"repos/{REPO}/issues/{ISSUE}/issue-field-values" for a in args):
             assert f"X-GitHub-Api-Version: {ve.merge_policy.FIELD_API_VERSION}" in args
             rows = [
@@ -198,6 +237,8 @@ def judge(
     fail: str | None = None,
     config: str = CONFIG,
     identity: str | None = IDENTITY,
+    comments: list[dict[str, Any]] | None = None,
+    issue_events: list[dict[str, Any]] | None = None,
 ) -> tuple[bool, FakeGitHub]:
     names = ["source: improvement"] if labels is None else labels
     issue = {
@@ -218,6 +259,8 @@ def judge(
         {"task-list": "- [ ] "} if rules is None else rules,
         fail,
         config,
+        comments,
+        issue_events,
     )
     with (
         mock.patch.dict("os.environ", {}, clear=False) as env,
@@ -300,6 +343,48 @@ class EachAdmissionConditionHolds(unittest.TestCase):
         _, fake = judge(labels=["bug"])
         self.assertNotIn("values", fake.reads)
         self.assertNotIn("events", fake.reads)
+
+
+class ARunStoppedOverTheScanCap(unittest.TestCase):
+    def test_the_stop_refuses_the_filing(self) -> None:
+        self.assertIs(judge(comments=[stop_comment()])[0], False)
+
+    def test_a_listed_humans_later_agent_ready_lifts_the_stop(self) -> None:
+        trusted, _ = judge(comments=[stop_comment()], issue_events=[ready_added(AFTER)])
+        self.assertIs(trusted, True)
+
+    def test_an_add_that_does_not_reset_leaves_the_stop(self) -> None:
+        for why, event in {
+            "a listed human's add before the stop": ready_added(BEFORE),
+            "the lanes App's own add": ready_added(AFTER, APP_ID),
+            "an outsider's add": ready_added(AFTER, OUTSIDER_ID),
+            "a listed human adding another label": ready_added(
+                AFTER, label="status: ready"
+            ),
+        }.items():
+            with self.subTest(why):
+                trusted, _ = judge(comments=[stop_comment()], issue_events=[event])
+                self.assertIs(trusted, False)
+
+    def test_a_comment_that_is_no_stop_refuses_nothing(self) -> None:
+        for why, comment in {
+            "an outsider's copy of the comment": stop_comment(user=OUTSIDER_ID),
+            "another stop": stop_comment(line=STOP_LINE.replace("scan-refused", "x")),
+            "another outcome": stop_comment(marker=OUTCOME.replace("intake", "closed")),
+        }.items():
+            with self.subTest(why):
+                self.assertIs(judge(comments=[comment])[0], True)
+
+    def test_a_failed_read_is_unreadable(self) -> None:
+        for read in ("comments", "issue-events"):
+            with self.subTest(read), self.assertRaises(ve._Unreadable):
+                judge(fail=read)
+
+    def test_both_reads_use_the_actions_token(self) -> None:
+        _, fake = judge()
+        for read in ("comments", "issue-events"):
+            with self.subTest(read):
+                self.assertEqual(fake.tokens[read], {"GH_TOKEN": "actions-token"})
 
 
 class OnlyTheListedIdentitiesCount(unittest.TestCase):
@@ -392,7 +477,10 @@ class TheReadsAreTheGatesOwn(unittest.TestCase):
             record = {"linked_issues": [recorded(APP)]}
             self.assertIs(reader._trusted_spec(record), True)
             self.assertIs(reader._trusted_spec(record), True)
-        self.assertEqual((fake.reads["issue"], fake.reads["values"]), (1, 1))
+        self.assertEqual(
+            (fake.reads["issue"], fake.reads["values"], fake.reads["comments"]),
+            (1, 1, 1),
+        )
 
     def test_comments_stay_a_listed_humans(self) -> None:
         with mock.patch.object(
@@ -531,6 +619,110 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
                 self.assertEqual(js, expected, "admission")
                 got = ve.own_agent_ids({"identities": identities}, APP_ID)
                 self.assertEqual(sorted(got), expected, "the gate")
+
+    def test_both_read_the_same_patch_cap_stop(self) -> None:
+        cases = {
+            "no comments": ([], [], False),
+            "the App's stop": ([stop_comment()], [], True),
+            "the App's stop with CRLF": ([stop_comment(eol="\r\n")], [], True),
+            "a marker with fields": (
+                [stop_comment(marker=OUTCOME.replace(" -->", " run=12 -->"))],
+                [],
+                True,
+            ),
+            "a marker with an upper-case field": (
+                [stop_comment(marker=OUTCOME.replace(" -->", " RUN=12 -->"))],
+                [],
+                False,
+            ),
+            "a marker with a trailing space": (
+                [stop_comment(marker=f"{OUTCOME} ")],
+                [],
+                False,
+            ),
+            "an indented marker": ([stop_comment(marker=f" {OUTCOME}")], [], False),
+            "the stop line with more after it": (
+                [stop_comment(line=f"{STOP_LINE} more")],
+                [],
+                True,
+            ),
+            "the stop line indented": (
+                [stop_comment(line=f" {STOP_LINE}")],
+                [],
+                False,
+            ),
+            "another author": ([stop_comment(user=OUTSIDER_ID)], [], False),
+            "no author": ([stop_comment(user=None)], [], False),
+            "a human's later add": ([stop_comment()], [ready_added(AFTER)], False),
+            "a human's add at the same second": (
+                [stop_comment()],
+                [ready_added(STOPPED)],
+                False,
+            ),
+            "a human's earlier add": ([stop_comment()], [ready_added(BEFORE)], True),
+            "the App's later add": (
+                [stop_comment()],
+                [ready_added(AFTER, APP_ID)],
+                True,
+            ),
+            "another label's later add": (
+                [stop_comment()],
+                [ready_added(AFTER, label="agent-ready-x")],
+                True,
+            ),
+            "an unlabeled event": (
+                [stop_comment()],
+                [ready_added(AFTER) | {"event": "unlabeled"}],
+                True,
+            ),
+            "an add with no time": (
+                [stop_comment()],
+                [ready_added("not a time")],
+                True,
+            ),
+            "a stop with no time": ([stop_comment(at="not a time")], [], False),
+            "a stop after the newest of two adds": (
+                [stop_comment(AFTER)],
+                [ready_added(BEFORE), ready_added(STOPPED)],
+                True,
+            ),
+            "a stop between two adds": (
+                [stop_comment()],
+                [ready_added(BEFORE), ready_added(AFTER)],
+                False,
+            ),
+            "one stop before and one after the add": (
+                [stop_comment(BEFORE), stop_comment(AFTER)],
+                [ready_added(STOPPED)],
+                True,
+            ),
+        }
+        script = (
+            f"import {{ patchCapStopped }} from {json.dumps(ADMIT.as_uri())};"
+            " const { cases, humans, app } = JSON.parse(process.argv[1]);"
+            " console.log(JSON.stringify(cases.map(([comments, events]) =>"
+            " patchCapStopped(comments, events, new Set(humans), app))));"
+        )
+        payload = {
+            "cases": [case[:2] for case in cases.values()],
+            "humans": [HUMAN_ID],
+            "app": APP_ID,
+        }
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        for (why, (comments, events, expected)), js in zip(
+            cases.items(), json.loads(proc.stdout), strict=True
+        ):
+            with self.subTest(why):
+                self.assertEqual(js, expected, "admission")
+                gate = ve.patch_cap_stopped(
+                    comments, events, frozenset({HUMAN_ID}), APP_ID
+                )
+                self.assertEqual(gate, expected, "the gate")
 
     def test_both_take_the_same_newest_setter_of_the_size_field(self) -> None:
         tables = {

@@ -2889,8 +2889,9 @@ no `size-split child` marker) reaches the verifier with its body as spec while n
 edited it (`ownAgentText` in `admit.mjs`), so a lane pull request for it is judged against what the
 agent filed. The merge gate trusts the filing admission admits, read live at each judgment: an
 identity on main's `own-agents` list wrote it, no other account edited its body, it carries exactly
-one well-formed `source: <producer>` label, and its Size field holds small or medium, last set by a
-listed human or the lanes App. A filing short of any of these reads `verify:untrusted-spec`, and a
+one well-formed `source: <producer>` label, its Size field holds small or medium, last set by a
+listed human or the lanes App, and no run's patch stopped over the scan job's size cap
+(`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
 failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
 the list names it, and comments still count only when a listed human wrote them.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
@@ -3030,7 +3031,7 @@ head:
   from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
   upstream at the default branch's tip, read there, or is the main-red incident as above, its
   title, first body line, author and last editor read again, or is an own-agent filing as above, its
-  body, author, last editor, labels and Size field read again (otherwise `verify:untrusted-spec`; a
+  body, author, last editor, labels, Size field, comments and events read again (otherwise `verify:untrusted-spec`; a
   failed read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
