@@ -93,7 +93,7 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    tool, or a runtime it needs, leaves the check `blocked: tool missing: <tool>`. A blocked check
    still goes through step 3, its reading and classification going in the report, and gets no
    verification edit. A `## Run` slash command this session cannot invoke is run by following that
-   skill's steps by hand, with `<plugin-root>` for `${CLAUDE_PLUGIN_ROOT}` and, for any other
+   skill's steps by hand, with `<plugin-root>` for its plugin-folder variable and, for any other
    unexpanded `${...}` token, its value passed explicitly, or its option left out when it has none.
    A pass here does not tell you that the code is correct. It tells you that the old description still holds. A failure here can be drift or a
    bug. Do not decide which until step 5.
