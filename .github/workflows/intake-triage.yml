@@ -250,7 +250,7 @@ jobs:
           CAUSE: ${{ steps.kill.outputs.cause }}
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::notice::${WHY} this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
+          echo "::notice::${WHY} this triage; an opened or reopened issue with no label gets needs-triage from label-start-gated (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
   # The floor label, on an issues event only: a dispatch asks for triage. A
   # failed born-triaged gate leaves skip empty, so the label runs; a rate
@@ -266,6 +266,51 @@ jobs:
     with:
       runner: ubuntu-24.04
       label: needs-triage
+
+  label-start-gated:
+    name: Label Start-Gated Issue
+    needs: [check-kill-switch, check-born-triaged]
+    if: ${{ !cancelled() && github.event_name == 'issues' && needs.check-kill-switch.outputs.proceed == 'false' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+            /.github/actions/setup-pinned-node/
+            /.github/scripts/intake-triage/label-start-gated.mjs
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Add the floor label to an unlabeled issue
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: node .base/.github/scripts/intake-triage/label-start-gated.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A dispatch asks for triage, so the gate applies the born-triaged rule to
   # an opened issue only: intake-reenter.yml dispatches an answered issue that

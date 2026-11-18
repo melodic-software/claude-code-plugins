@@ -454,6 +454,43 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
   assert.deepEqual(label.with, { runner: "ubuntu-24.04", label: "needs-triage" });
 });
 
+test("intake-triage.yml: only a start-gate stop on an issue event labels the issue for the sweep", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const gated = jobs["label-start-gated"];
+  assert.deepEqual(gated.needs, ["check-kill-switch", "check-born-triaged"]);
+  const context = (proceed, { skip = "false", limited = "false", event = "issues" } = {}) => ({
+    "github.event_name": event,
+    "github.event.action": event === "issues" ? "opened" : "",
+    "github.ref": "refs/heads/main",
+    "inputs.issue-number": event === "issues" ? "" : "16908",
+    "needs.check-kill-switch.outputs.proceed": proceed,
+    "needs.check-kill-switch.outputs.upstream-degraded": "false",
+    "needs.check-born-triaged.outputs.skip": skip,
+    "needs.check-born-triaged.outputs.rate-limited": limited,
+    "needs.check-born-triaged.outputs.claude-args": "--model sonnet",
+  });
+  const labels = (...args) => evaluate(gated.if, context(...args));
+  assert.equal(labels("false"), true, "a stopped issue event labels");
+  assert.equal(labels("false", { skip: "" }), true, "a failed born-triaged check still labels");
+  assert.equal(labels("true"), false, "a run the gate lets through gets no extra job");
+  assert.equal(labels(""), false, "a failed check-kill-switch job writes nothing");
+  assert.equal(labels("false", { limited: "true" }), false, "a rate limit on the gate's read stops the write");
+  assert.equal(labels("false", { skip: "true" }), false, "a routed or born-triaged issue gets nothing");
+  assert.equal(labels("false", { event: "workflow_dispatch" }), false, "a dispatch has a sender to retry it");
+  for (const id of ["intake-label-needs-triage", "intake-triage"]) {
+    assert.equal(evaluate(jobs[id].if, context("true")), true, `${id} still runs when the gate proceeds`);
+    assert.equal(evaluate(jobs[id].if, context("false")), false, `${id} still stops on a start-gate stop`);
+  }
+  assert.deepEqual(gated.permissions, { contents: "read", issues: "write" });
+  const sparse = gated.steps.find((step) => step.uses?.startsWith("actions/checkout@")).with["sparse-checkout"].trim().split("\n");
+  for (const path of importClosure(".github/scripts/intake-triage/label-start-gated.mjs")) {
+    assert.ok(sparse.some((entry) => `/${path}` === entry || (entry.endsWith("/") && `/${path}`.startsWith(entry))), `the sparse checkout lacks ${path}`);
+  }
+  const run = gated.steps.find((step) => step.run?.includes("label-start-gated.mjs"));
+  assert.equal(run.env.ISSUE_NUMBER, "${{ github.event.issue.number }}");
+  assert.doesNotMatch(run.run, /\$\{\{/, "no expression in the script text");
+});
+
 // One run per issue event: intake-triage.yml takes the reopen too, for the
 // routing-label gate and the floor label only, so no job that triages, writes
 // through the broker or dispatches runs on it.
@@ -494,6 +531,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "check-born-triaged": { contents: "read", issues: "read" },
     "check-kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
+    "label-start-gated": { contents: "read", issues: "write" },
     "intake-triage": { actions: "read", contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
