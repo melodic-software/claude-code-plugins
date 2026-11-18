@@ -3,6 +3,24 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-11-18
+
+### Added
+
+- New `.claude/improvement.md` keys for unattended `/improvement:find`: `find_run_item_cap`, `find_run_item_cap_floor`, `find_run_item_cap_ceiling`, `find_size_band`, `find_scope` and `find_suppress_dismissed`. Each resolves from the invocation prompt, then config, then the bundled default, and the defaults match today's behavior.
+- Unattended `/improvement:find` runs `/architecture:improve deepening --unattended` inline when that skill is available, and files its verified `Strong` candidates under the `source: architecture-improve` label, with their own open cap.
+
+### Changed
+
+- `find_open_item_cap` applies to each source label separately, and personal layers can only lower it: a higher user-global or `.local` value is ignored and reported.
+
+- The synced standards contract copy (`reference/standards-contract.md`) moves to 1.1.6: its index
+  example drops the `csharp` row, the Surface column lists no example ecosystem ids, and the
+  pointer-pattern bullet drops its C# directive. The schema, index shape, resolution ladder and
+  migration rules are unchanged.
+
+- `/improvement:find` states once, in its Spoke paths section, why it never searches the plugin directory: the path is already known, and a sandbox denied those searches in our eval runs ([#13768](https://github.com/melodic-software/claude-code-plugins/issues/13768)). No behavior change.
+
 ## [0.5.0] - 2026-11-18
 
 ### Added
