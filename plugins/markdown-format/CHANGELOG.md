@@ -3,6 +3,12 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-11-18
+
+### Changed
+
+- The `setup` skill states the reason for three of its "never" rules: no `${user_config.*}` string in a shell command, no Glob or Grep over the plugin directory, and no competing lockfile ([#16878](https://github.com/melodic-software/claude-code-plugins/issues/16878)).
+
 ## [2.1.1] - 2026-11-18
 
 ### Security

@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-11-18
+
+### Fixed
+
+- The lint entry now refuses a commit that stages only a nested `.github/workflows/` file while the root `.github/actionlint.yaml` or `.github/actionlint.yml` differs between the index and the work tree. The root config governs every workflow, so a nested workflow change now gets the refusal a root one already got ([#16912](https://github.com/melodic-software/claude-code-plugins/issues/16912)). Installed hooks report drift until reinstalled.
+
 ## [2.1.1] - 2026-11-18
 
 ### Changed

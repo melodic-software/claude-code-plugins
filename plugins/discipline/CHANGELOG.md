@@ -5,6 +5,13 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.15] - 2026-11-18
+
+### Changed
+
+- `sweep-all` explains the audit phase's cost by how it grows (each fork's transcript, one fork per
+  in-scope corrector) and drops the token figures from one undated run.
+
 ## [0.28.14] - 2026-11-18
 
 ### Changed
