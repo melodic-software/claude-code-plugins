@@ -25,17 +25,21 @@ public skill on the topic is the `software-factory` row of
   audits:
   [mattpocock/skills@4ae2317](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/in-progress/software-factory).
 - **As of**: 2026-11-18
-- **Recheck trigger**: a row marked `pending` lands, or the `software-factory` row of
+- **Recheck trigger**: a row marked `pending` lands, the owner answers an
+  [open decision](#open-decisions), or the `software-factory` row of
   [mattpocock-skills.md](mattpocock-skills.md) is re-audited. Course page updates are not observable
   events.
 
 **Landed** names the merged pull request that carries the row. `pending` marks work not yet merged,
 with its pull request where one is open. `none` means no change to this repository.
+**Awaiting the owner** after a disposition marks a recommendation the owner has not decided; each is
+listed under [Open decisions](#open-decisions).
 
 ## Attribution table
 
 Disposition is `take`, `adapt`, `already have`, `reject`, `deferred` (decided to wait, listed under
-[Deferred](#deferred)) or `no change` (nothing to decide), with the reason. A row with two parts
+[Deferred](#deferred)) or `no change` (nothing to decide), with the reason; `deferred` and
+`no change` are additions to the usual four, **awaiting the owner**. A row with two parts
 leads with the disposition of its main idea. The upstream-problem cells are **Inference**
 throughout: the lesson pages that state them are paid and not linked.
 
@@ -49,7 +53,7 @@ throughout: the lesson pages that state them are paid and not linked.
 | The git host holds branches, reviews and merges | Lists self-hosted alternatives for code that cannot leave a network | Inference: some teams cannot use a public host | GitHub is fixed for us | **already have**: GitHub, plus a `gitea` tracker provider | none |
 | A runner is a disposable sandbox | Keeps no state on the machine, so every result returns to the tracker or git host | Inference: a throwaway machine limits what a bad run can damage | Same | **adapt**, names only: a fresh runner per job is already ADR 0049; our course notes map his run to one GitHub job | none |
 | The orchestrator starts runners on events and schedules | Compares CI, an own server and a hosted agent platform for that job | Inference: something must turn events into runs and handle their errors | Same | **already have**: Actions triggers lanes, with the org kill switch of ADR 0049. A hosted agent platform is rejected because it ties work to one account | none |
-| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046); pending: [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075) and the `ci-workflows` half |
+| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046), [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075), [provisioning#1052](https://github.com/melodic-software/provisioning/pull/1052); pending: the `ci-workflows` half |
 | Decide the slots in order | Fixes tracker and git host first, then prices the rest against real usage | Inference: the early choices constrain the later ones | Same | **already have**: numbered interview rounds, and skill bodies that point at live vendor pages | none |
 
 ### Lesson 2: Choosing Your Infrastructure
@@ -94,12 +98,12 @@ throughout: the lesson pages that state them are paid and not linked.
 |---|---|---|---|---|---|
 | A daily producer of design improvements | Runs an architecture scan on a schedule and files what it finds | Inference: improvement work stops when nobody asks for it | No scheduled design filer exists | **deferred**: waits for counts from the new source label | none |
 | List what speeds a loop up and slows it down | Treats each loop as bounded by design | Inference: an unbounded producer outruns its reviewers | Same | **already have**: brakes before accelerators | none |
-| A finished run files a ticket | Replaces an interactive report with a tracker item | Inference: an unattended run has nobody to read its report | [`/architecture:improve`](../../plugins/architecture/skills/improve/SKILL.md) ends in an interactive pick | **adapt**: an unattended scan writes its candidate file in the existing format and `/improvement:find` files it; schedules hold cadence and run time, and the caps and thresholds become settings | pending |
+| A finished run files a ticket | Replaces an interactive report with a tracker item | Inference: an unattended run has nobody to read its report | [`/architecture:improve`](../../plugins/architecture/skills/improve/SKILL.md) ends in an interactive pick | **adapt**: an unattended scan writes its candidate file in the existing format and `/improvement:find` files it; schedules hold cadence and run time, and the caps and thresholds become settings | pending: [#17091](https://github.com/melodic-software/claude-code-plugins/pull/17091) |
 | A person's label starts the build | Reviews the filed ticket, then labels it | Inference: a person should approve work before it is built | Same | **already have**: admission under closed rules | none |
 | A source label on each filing | Names the flow that filed a ticket so its runs can find their own | Inference: a loop needs to count its own output | `/improvement:find` filings carried no such label | **adapt**: every filing carries `source: improvement-find` | [#16995](https://github.com/melodic-software/claude-code-plugins/pull/16995) |
 | Stop when too many filings are open | Pauses the producer when reviewers fall behind | Inference: a queue limit makes review pace set production pace | The filing cap was soft and per run | **adapt**: a hard stop at 5 open filings, as the `find_open_item_cap` setting | [#16995](https://github.com/melodic-software/claude-code-plugins/pull/16995) |
 | File every candidate | Keeps each candidate as a ticket so nothing is lost | Inference: unfiled findings disappear | Filing everything defeats the cap | **reject**: each run's report and candidate file keep the rest | none |
-| A variant with no person before the build | Lets the producer judge its own candidates ready and build them | Inference: a person between proposal and build slows the loop | Own-agent filings waited for a person to file them again | **adapt**: own-agent filings sized small or medium admit themselves under a per-producer cap of 5; large ones wait for a person, and outside text never counts ([ADR 0111](../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md)) | [#16999](https://github.com/melodic-software/claude-code-plugins/pull/16999); pending: the merge gate still sends these pull requests to a person |
+| A variant with no person before the build | Lets the producer judge its own candidates ready and build them | Inference: a person between proposal and build slows the loop | Own-agent filings waited for a person to file them again | **adapt**: own-agent filings sized small or medium admit themselves under a per-producer cap of 5; large ones wait for a person, and outside text never counts ([ADR 0111](../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md)) | [#16999](https://github.com/melodic-software/claude-code-plugins/pull/16999); pending: [#17093](https://github.com/melodic-software/claude-code-plugins/pull/17093), until which the merge gate still sends these pull requests to a person |
 
 ### Lesson 5: The Ratchet
 
@@ -108,7 +112,7 @@ throughout: the lesson pages that state them are paid and not linked.
 | Rules checked only on staged files | Shows that old violations surface only where an agent happens to edit | Inference: a repository-wide fix is one large, risky change | CI already checks the whole tree | **already have**: CI is the hard stop | none |
 | A daily run that fixes one violation | Opens one small fix per run so the codebase tightens over time | Inference: a backlog of violations never shrinks without a steady worker | The main branch is mostly clean, so a fixing lane has little to do | **adapt**: no lint-fix pipeline; a [linter bump carries its own whole-tree fix](../review/linters.md), and [`/toolchain:ratchet`](../../plugins/toolchain/skills/ratchet/SKILL.md) stays our name for the count ceiling | [#17044](https://github.com/melodic-software/claude-code-plugins/pull/17044) |
 | Design checks for the fixing run | Avoids two fixes for one failure and stops above an open limit | Inference: parallel fixers collide | Same | **already have**: [tidy upkeep](../../.github/workflows/maintenance-tidy-code-upkeep.yml) selects areas under an open cap | none |
-| A merge starts the next run | Lets merge speed set the pace | Inference: the factory should run as fast as work is accepted | Merges here are already unattended, so the loop would close with no person | **reject**: dropped with the lint-fix pipeline | none |
+| A merge starts the next run | Lets merge speed set the pace | Inference: the factory should run as fast as work is accepted | Merges here are already unattended, so the loop would close with no person | **reject**: dropped with the lint-fix pipeline; **awaiting the owner** | none |
 | Two lint grades, with graduation | Moves a rule from a full set to a strict set once it reaches zero | Inference: a rule needs a path from advisory to enforced | A baseline does this with one rule set | **reject**: `/toolchain:ratchet` holds one rule set at error with a baseline | none |
 | Automatic review on ratchet pull requests | Adds a review step to the merge | Inference: small fixes should not wait for a person | Same | **already have**: the verifier verdict and both AI review lanes | none |
 | Failure text written for an agent | Words a check's failure as instructions | Inference: the agent reads the failure first | Same | **already have**: [ADR 0072](../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md) | none |
@@ -134,8 +138,8 @@ throughout: the lesson pages that state them are paid and not linked.
 | An input of unknown rate must not flood the factory | Avoids starting one run per alert | Inference: alert volume is outside the factory's control | No push-started agent run exists | **already have**: spending limits and lane kill switches | none |
 | Queue alerts and pull them on a schedule | Sets the pace from the consumer's side | Inference: a pull cannot be overrun | Same | **already have**: the monitor lane pulls on a schedule | none |
 | Group alerts and remove duplicates | Files one ticket per group, checked against existing tickets | Inference: repeated alerts become repeated tickets | Two places judged duplicates | **adapt**: intake triage alone decides a duplicate; a producer's search only skips an obvious repeat | [#16995](https://github.com/melodic-software/claude-code-plugins/pull/16995) |
-| A monitor's ticket starts a fix run | Opens a fix from an alert with no person involved before the pull request | Inference: small fixes should not wait | Alert text is outside text | **reject**: outside text keeps a person, and no production source feeds a lane | none |
-| Rate each group's severity | Sends only severe groups to a fix run | Inference: fix capacity should go to what matters | We have no alert intake | **adapt** if one is built: severity orders the queue and never drops an alert | none |
+| A monitor's ticket starts a fix run | Opens a fix from an alert with no person involved before the pull request | Inference: small fixes should not wait | Alert text is outside text | **reject**: outside text keeps a person, and no production source feeds a lane; **awaiting the owner** | none |
+| Rate each group's severity | Sends only severe groups to a fix run | Inference: fix capacity should go to what matters | We have no alert intake | **adapt** if one is built: severity orders the queue and never drops an alert; **awaiting the owner** | none |
 | Pull from the vendor's API | Gives the orchestrator a production read credential and puts alert text in a run's context | Inference: a pull needs access to the source | Production query text could carry data into agent context | **reject**: no production data in a pipeline for our repositories | none |
 
 ### Lesson 8: Prototyping
@@ -191,9 +195,13 @@ throughout: the lesson pages that state them are paid and not linked.
 | Choose question pacing by topic breadth | n/a (raised while absorbing) | n/a | `/planning:interview` had a fixed pacing | **take**: an `auto` value for `question_pacing`; rounds stay the default | [#17000](https://github.com/melodic-software/claude-code-plugins/pull/17000) |
 | Hand a confirmed interview on to a spec | n/a (raised while absorbing) | n/a | The interview did not name the next step for a confirmed design | **take**: `## Next` offers `/planning:prd` or `/planning:design` | [#17000](https://github.com/melodic-software/claude-code-plugins/pull/17000) |
 | Skill reference layout and examples | n/a (raised while absorbing) | n/a | Whether skills should move their references | **already have**: no layout change | none |
-| System design support | n/a (raised while absorbing) | n/a | No file-backed diagram target, no system-design steps, and event storming depended on Miro | **adapt** inside existing plugins, with no new plugin: an Excalidraw file target, then quality-scenario, capacity and risk steps in `/planning:design`, then event storming backends with Miro as one of them | [#17052](https://github.com/melodic-software/claude-code-plugins/pull/17052); pending: [#17062](https://github.com/melodic-software/claude-code-plugins/pull/17062) and the event storming backends |
+| System design support | n/a (raised while absorbing) | n/a | No file-backed diagram target, no system-design steps, and event storming depended on Miro | **adapt** inside existing plugins, with no new plugin: an Excalidraw file target, then quality-scenario, capacity and risk steps in `/planning:design`, then event storming backends with Miro as one of them | [#17052](https://github.com/melodic-software/claude-code-plugins/pull/17052), [#17062](https://github.com/melodic-software/claude-code-plugins/pull/17062), [#17087](https://github.com/melodic-software/claude-code-plugins/pull/17087) |
 | Improvement skills as factory tasks | n/a (raised while absorbing) | n/a | Simplify and similar passes run only by hand | **adapt**: a map of factory tasks from ideation to merge decides where each runs, including a simplify pass on every pull request that never slows it | pending |
 | A parent issue for agent-filed work | n/a (raised while absorbing) | n/a | Agent filings of one kind have no grouping | **no change**: the source label comes first, and a parent only if needed | none |
+| Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **no change**: nothing is built for it; the map of factory tasks takes it up; **awaiting the owner** | none |
+| Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **no change**: no new plugin; the map of factory tasks takes it up; **awaiting the owner** | none |
+| Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **deferred**: a direction for later private or own-product work, not this workshop's build; **awaiting the owner** | none |
+| Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **no change**: nothing is built for it; **awaiting the owner** | none |
 
 ### Deferred
 
@@ -204,7 +212,26 @@ These were decided to wait, each for the condition named:
   alert-started fix before it merges;
 - a private-repository runner, until that work starts, because of its cost;
 - a different runner per task, held for a later pass over the automation's shape; no condition is
-  recorded.
+  recorded;
+- vendor-agnostic providers, until private or own-product work starts; **awaiting the owner**.
+
+## Open decisions
+
+Open owner decisions, each with its recommendation:
+
+1. **A monitor's ticket starts a fix run (lesson 7).** Recommendation: reject; outside text keeps a
+   person, and no production source feeds a lane.
+2. **A merge starts the next run (lesson 5).** Recommendation: reject; it was dropped with the
+   lint-fix pipeline, and merges here are already unattended, so the loop would close with no person.
+3. **Rate each group's severity (lesson 7).** Recommendation: adapt only if an alert intake is built;
+   severity orders the queue and never drops an alert.
+4. **Owner notes with no traceable outcome.** Recommendation: no change for a factory spec handed to
+   an agent (lesson 1) and for a factory plugin (lesson 2), both taken up by the map of factory
+   tasks; deferred for vendor-agnostic providers (lesson 2).
+5. **Agent-built templates and palette (lesson 3).** Recommendation: no change; nothing is built for
+   it.
+6. **The added `deferred` and `no change` dispositions.** Recommendation: keep both beside `take`,
+   `adapt`, `already have` and `reject`.
 
 ## License notice
 
