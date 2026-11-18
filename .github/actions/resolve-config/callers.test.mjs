@@ -2510,20 +2510,22 @@ test("a job reads a Claude API key only when its catalog lane runs on run-claude
   }
 });
 
-// The one step outside a launcher that may read a Claude credential:
-// pr-verify-capture.yml's key proxy start, which pipes pr-verify's key on
-// stdin to a proxy running as its own OS user before the runner is isolated,
-// so the driven Claude Code and the pull request code beside it reach the API
-// with a dummy key (owner decision Q6, option A). Only in this shape: that
-// job, that step name, the key as its one env value PROXY_KEY, and no other
-// secret reference anywhere in the step.
+// The one step outside a launcher that may read a Claude credential: the key
+// proxy start in pr-verify-capture.yml and in maintenance-verify-whole-map.yml,
+// which shares the capture's steps. It pipes pr-verify's key on stdin to a
+// proxy running as its own OS user before the runner is isolated, so the
+// driven Claude Code and the code beside it reach the API with a dummy key
+// (owner decision Q6, option A). Only in this shape: those jobs, that step
+// name, the key as its one env value PROXY_KEY, and no other secret reference
+// anywhere in the step
+// (https://github.com/melodic-software/claude-code-plugins/issues/16564).
 const KEY_PROXY_START = {
-  key: "pr-verify-capture.yml capture",
+  keys: ["pr-verify-capture.yml capture", "maintenance-verify-whole-map.yml verify-map"],
   name: "Start the key proxy",
   env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}" },
 };
 const isKeyProxyStart = (key, step) =>
-  key === KEY_PROXY_START.key &&
+  KEY_PROXY_START.keys.includes(key) &&
   step.name === KEY_PROXY_START.name &&
   step.uses === undefined &&
   step.with === undefined &&
@@ -2540,22 +2542,26 @@ test("a Claude credential reaches only the launcher step of its catalog lane", (
 });
 
 test("the key proxy's start is the one step outside a launcher that reads a key, and only in its exact shape", () => {
-  const steps = workflow("pr-verify-capture.yml").jobs.capture.steps;
-  const start = steps.find((step) => step.name === KEY_PROXY_START.name);
+  for (const key of KEY_PROXY_START.keys) {
+    const [file, job] = key.split(" ");
+    const steps = workflow(file).jobs[job].steps;
+    assert.equal(steps.filter((step) => isKeyProxyStart(key, step)).length, 1, key);
+  }
+  const KEY = KEY_PROXY_START.keys[0];
+  const start = workflow("pr-verify-capture.yml").jobs.capture.steps.find((step) => step.name === KEY_PROXY_START.name);
   assert.ok(start);
-  assert.equal(steps.filter((step) => isKeyProxyStart(KEY_PROXY_START.key, step)).length, 1);
   // Without the exception it is a stray reader, so the exception is what lets it pass.
   assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [start] } }, "run-claude-cli"), [`step ${KEY_PROXY_START.name}`]);
   const stillStray = {
-    "another job": [KEY_PROXY_START.key.replace(" capture", " capture-subscription"), start],
-    "another workflow": [KEY_PROXY_START.key.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
-    "another step name": [KEY_PROXY_START.key, { ...start, name: "Start the proxy" }],
-    "the key under another name": [KEY_PROXY_START.key, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
-    "another secret as PROXY_KEY": [KEY_PROXY_START.key, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
-    "a second env value": [KEY_PROXY_START.key, { ...start, env: { ...start.env, OTHER: "x" } }],
-    "a secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
-    "every secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
-    "an action": [KEY_PROXY_START.key, { ...start, uses: "./x" }],
+    "another job": [KEY.replace(" capture", " capture-subscription"), start],
+    "another workflow": [KEY.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
+    "another step name": [KEY, { ...start, name: "Start the proxy" }],
+    "the key under another name": [KEY, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
+    "another secret as PROXY_KEY": [KEY, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
+    "a second env value": [KEY, { ...start, env: { ...start.env, OTHER: "x" } }],
+    "a secret in the script": [KEY, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
+    "every secret in the script": [KEY, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
+    "an action": [KEY, { ...start, uses: "./x" }],
   };
   for (const [why, [key, step]] of Object.entries(stillStray)) assert.equal(isKeyProxyStart(key, step), false, why);
 });
@@ -10612,6 +10618,11 @@ const LEG_EXEMPTIONS = {
     legs: ["subscription", "fallback"],
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
+  },
+  "maintenance-verify-whole-map.yml pr-verify verify-map": {
+    legs: ["subscription", "fallback"],
+    reason:
+      "the whole-map pass runs in the capture's sandbox behind the same key proxy, so it is key-only for the capture's reason and records blocked otherwise (#12232)",
   },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.
