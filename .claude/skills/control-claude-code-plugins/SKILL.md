@@ -22,8 +22,9 @@ or out.
 The driving tool's `## Launch`. Only terminal-session entry points need it: a `logs` capture runs
 Claude Code in print mode and starts and stops its own process.
 
-The pr-verify capture and the whole-map pass drive Claude Code on an API key whose credits do not
-pay for an interactive session, so a turn typed there is refused. What those credits cover:
+The pr-verify capture and the whole-map pass type no turn in a terminal session: our decision
+for a driven session that runs on the pr-verify API key. Before changing it, read which usage
+that key's credits pay for:
 <https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers#what-the-credits-cover>.
 In those two runs, launch the session, since the Mask's `values:` source reads it, and type no
 turn in it. Record each entry point typed at the prompt as
