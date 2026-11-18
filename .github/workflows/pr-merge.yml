@@ -2273,15 +2273,11 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
-      # Takes do-not-merge off a pull request held only for eval evidence
-      # (`<!-- pr-hold reason=eval -->`) once a listed human posts the VALID
-      # no-loss eval-pair record for its current head, after a comment naming
-      # the record and the head. At most five a run, under the same gate as
-      # the escalation clear. Rules: .github/scripts/pr-merge/release-eval-hold.mjs.
       - name: Release eval holds whose record matches the head
         id: release-eval
         if: >-
-          always() && github.event_name == 'schedule'
+          always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && !inputs.pr
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
           && steps.gate.outputs.rate-limited != 'true'
