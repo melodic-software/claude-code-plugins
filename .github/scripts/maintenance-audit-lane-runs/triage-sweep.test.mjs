@@ -470,6 +470,62 @@ test("a pass dispatches at most 5 issues, oldest first, and records each run on 
   assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
 });
 
+const onceDispatched = (run) => [{ id: 50 + run, user: BOT, body: renderState({ runs: [run], filed: null, runUrl: "u" }) }];
+
+test("a pass sends never-dispatched issues before older re-dispatches, oldest first within each, 5 in all", async () => {
+  const issues = Array.from({ length: 7 }, (_, i) => issue(i + 1, { created_at: `2026-10-1${i + 1}T00:00:00Z` }));
+  const gh = fakeGitHub({
+    issues,
+    comments: { 1: onceDispatched(11), 2: onceDispatched(12), 3: onceDispatched(13) },
+    runs: { 11: { status: "completed", conclusion: "success" }, 12: { status: "completed", conclusion: "success" }, 13: { status: "completed", conclusion: "success" } },
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [4, 5, 6, 7, 1], "the four never-dispatched issues go first, then the oldest re-dispatch fills the fifth slot");
+  assert.deepEqual(
+    gh.writes.filter((w) => w.path.endsWith("/dispatches")).map((w) => w.body.inputs["issue-number"]),
+    ["4", "5", "6", "7", "1"],
+  );
+  assert.deepEqual(
+    gh.writes.filter((w) => /\/issues\/comments\/\d+$/.test(w.path)).map((w) => w.path),
+    ["/repos/o/r/issues/comments/61"],
+    "only #1's state comment is edited; the re-dispatches of #2 and #3 past the cap are not touched",
+  );
+  assert.deepEqual(result.failed, []);
+});
+
+test("putting never-dispatched issues first keeps the cap of 5 and leaves out unlisted authors and github-actions[bot]", async () => {
+  const issues = [
+    issue(1, { user: { id: OUTSIDER }, created_at: "2026-10-10T00:00:00Z" }),
+    issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->", created_at: "2026-10-10T01:00:00Z" }),
+    issue(3, { created_at: "2026-10-10T02:00:00Z" }),
+    ...Array.from({ length: 6 }, (_, i) => issue(10 + i, { user: { id: i % 2 ? APP : HUMAN }, created_at: `2026-10-1${i + 1}T00:00:00Z` })),
+  ];
+  const gh = fakeGitHub({ issues, comments: { 3: onceDispatched(11) }, runs: { 11: { status: "completed", conclusion: "success" } } });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [10, 11, 12, 13, 14], "five never-dispatched issues fill the pass; #15 and the re-dispatch of #3 wait");
+  assert.equal(result.candidates, 7, "the outsider's issue and the bot's non-drift issue are no candidates");
+  const outsiders = ["/repos/o/r/issues/1/", "/repos/o/r/issues/2/"];
+  assert.ok(!gh.writes.some((w) => outsiders.some((p) => w.path.startsWith(p)) || ["1", "2"].includes(w.body?.inputs?.["issue-number"])), "nothing is written for #1 or #2");
+});
+
+test("a re-dispatch left for after the loop still stops when the budget cannot record it", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { created_at: "2026-10-18T08:00:00Z" }), issue(2)],
+    comments: { 1: onceDispatched(11) },
+    runs: { 11: { status: "completed", conclusion: "success" } },
+  });
+  let left = 9;
+  const call = async (...args) => {
+    if (left === 0) throw new Error("call budget of 9 reached");
+    left -= 1;
+    return gh.call(...args);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
+  assert.deepEqual(result.dispatched, [2], "8 calls (issues page, two hand-off searches, #1's comments and run, #2's comments, dispatch and state write) leave 1, too few for #1's re-dispatch");
+  assert.match(result.truncated, /^stopped at #1: too little call budget left$/);
+  assert.equal(left, 1, "the re-dispatch of #1 spends none of the call left");
+});
+
 // Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
 // filed reaches intake through this sweep, the only path for an issue a
 // GITHUB_TOKEN opens, when github-actions[bot] wrote it, nobody else last
