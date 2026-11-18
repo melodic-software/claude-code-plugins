@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.2.1] - 2026-11-18
+
+### Fixed
+
+- `control-claude-code`: the `## Mask` section gives the one command form that resolves its `values:` source, so a run whose shell runs only listed commands is not refused and left with nothing publishable.
+
 ## [10.2.0] - 2026-11-18
 
 ### Added
