@@ -360,6 +360,9 @@ jobs:
       - name: Test block-root-delete-target-resolve on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
         run: bash plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh
+      - name: Test block-main-checkout-edit on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-main-checkout-edit.test.sh')
+        run: bash plugins/guardrails/hooks/block-main-checkout-edit.test.sh
 
       - name: Log the API budget at the end
         if: always()
