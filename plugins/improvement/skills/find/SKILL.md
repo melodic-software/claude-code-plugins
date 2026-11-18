@@ -289,10 +289,12 @@ never Glob or Grep the plugin directory to find it. The path is already known, a
 runs a sandbox denied those searches and invalidated the runs
 ([#13768](https://github.com/melodic-software/claude-code-plugins/issues/13768)). The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
+
+- **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
+  carries, fetch
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
 
 ## Next
 
@@ -307,8 +309,8 @@ Known traps:
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the pointer
-  for that, and for the documented result cap behind the windowing rule, is in
+- **Never call the Actions `/timing` endpoint**. Durations come from run timestamps; the pointer
+  for the endpoint's status, and for the documented result cap behind the windowing rule, is in
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe
