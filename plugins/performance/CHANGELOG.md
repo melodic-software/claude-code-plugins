@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4] - 2026-11-17
+
+### Changed
+
+- The snapshot, target and verify skills now state each rule as our own and point at the upstream section instead of restating it: the variance refusal is a house rule with one pointer per tool, the interleaving advice and benchstat's comparison test sit behind section links, the counter-over-duration rule keeps its reason without quoting Valgrind, and the install-record rule names the probe behind its project-path match ([#16856](https://github.com/melodic-software/claude-code-plugins/issues/16856)).
+
 ## [0.15.3] - 2026-11-17
 
 ### Changed

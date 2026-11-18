@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-17
+
+### Added
+
+- The routines catalog has a `formal-verification-upkeep` row: a report, a work item and one pull request confined to the formal-area folder and the paths its sync file lists, deferred until a consumer records repeated manual runs of `/formal-verification:specify refresh`. A class parameter states how it differs from `formal-logic-modeling`.
+
 ## [5.2.1] - 2026-11-17
 
 ### Changed

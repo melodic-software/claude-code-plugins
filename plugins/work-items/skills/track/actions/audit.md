@@ -74,7 +74,7 @@ List open and closed items with their bodies (adapter: "List items", `body` adde
 ### Orphaned Recurring Entries
 | # | Schedule Item | Status |
 |---|--------------|--------|
-| 1 | Review biome.json | No matching item |
+| 1 | Review linter config | No matching item |
 
 ### Unclassified Items
 | # | Item | Missing |

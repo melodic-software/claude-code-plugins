@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.2.0
+enforcement-ladder: 3.3.0
 ---
 
 # Enforcement ladder
@@ -55,6 +55,7 @@ a row says otherwise, the same command runs at edit time and in CI, which is the
 | Rung | What it is | Runs at |
 |---|---|---|
 | `compiler-setting` | a stricter compiler or type-checker option (nullable reference types, `strict` mode, warnings as errors) that rejects the mistake at build time | edit time and CI |
+| `formatter` | have the repository's format command, or the format setting it reads, rewrite the code into the rule's shape; the check runs the command and fails when the tree changed | edit time and CI |
 | `editorconfig-severity` | raise the severity of a setting `.editorconfig` already supports | edit time and CI |
 | `analyzer-pack-rule` | turn on, or raise the severity of, a diagnostic an installed analyzer pack or linter already defines | edit time and CI |
 | `custom-analyzer` | write an analyzer the compiler or linter runs, for a project-specific invariant no installed pack checks | edit time and CI |
@@ -69,8 +70,14 @@ Alias: `semgrep-rule` is read as `syntax-pattern-rule`, with a printed notice, t
 A skill that meets the old id, in a consumer's instructions or a stub, takes it as the new id and
 prints a notice naming the rename. The alias is removed in 4.0.0.
 
+The `formatter` rung holds a style rule a formatter can enforce, and sits above the linter rungs
+because a formatter rewrites a violation as well as reporting it. The format command is the
+`fix-cmd` of the repository's ecosystem record (the ecosystem-commands contract,
+`docs/contracts/ecosystem-commands/`); the rule lands in that command or in the format setting it
+reads. A style rule no recorded format command can enforce takes a linter rung.
+
 The four linter rungs (`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`,
-`syntax-pattern-rule`) sit between the compiler settings and `architecture-test`, cheapest first.
+`syntax-pattern-rule`) sit between `formatter` and `architecture-test`, cheapest first.
 Which CI lane runs a check and how its result reaches the required status check belongs to the PR
 pipeline convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md>);

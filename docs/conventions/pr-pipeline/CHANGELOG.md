@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [10.8.0] - 2026-11-17
+
+### Added
+
+- The pr-unblock lane answers a top-level comment on a lanes App pull request when a person on the trusted-actor list wrote it with a line starting `PR-fix lane:` and the lanes App has not answered it. `pr-dispatch-feedback.yml`'s half-hourly sweep sends such a head after its fix requests, under the same bounds, and a review completion dispatches a head with one even with no unresolved thread. `address-feedback-select` lists up to ten in `threads.json`'s `pr_comments`, as data, and `publish-feedback` posts one top-level answer per comment, first line `<!-- pr-unblock:answered-comment <id> -->`. A round that answers only comments still counts toward the round cap, and a pull request that changes `.github/workflows/` takes no comment item. No workflow trigger, token, permission or trusted-actor source changes.
+
+## [10.7.4] - 2026-11-17
+
+### Fixed
+
+- The `claude-code-plugins` example config passes `--unattended` to `toolchain:check` in `run-tests` and `check-default-branch`, since that skill now takes the flag and a lane run has nobody to answer an ask.
+
 ## [10.7.3] - 2026-11-17
 
 ### Fixed

@@ -6,8 +6,10 @@ mockup through the notes host. The parts, their trust rules and the note contrac
 copies in `<plugin-root>/notes-bridge/`. The `file://` page stays the default and keeps its copy-out
 terminator: opened from `file://`, no notes reach the session.
 
-Only with the person at this machine and python3 and curl present; without them, say so in one
-line and hand over the `file://` page as usual.
+Only with the person at this machine, on a single-user machine, and python3 and curl present;
+without them, say so in one line and hand over the `file://` page as usual. The notes host hands
+its per-run token to any local process that asks the loopback port, so another OS user on the
+machine could read it and post notes.
 
 1. Serve the run directory the mockup is in, naming the page:
 

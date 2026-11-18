@@ -1,18 +1,3 @@
-// record-result.mjs: store the Overall line /toolchain:check or /toolchain:lint printed, keyed by
-// the hash of the working tree it ran on, so the turn-end result gate can read it.
-//
-// Usage:
-//   node record-result.mjs --skill check|lint --overall "<the Overall line>" [--dir <path>]
-//
-// --dir is any path inside the repository (default: the current directory). The line is stored
-// as given; this script does not judge it beyond checking it opens with
-// `Overall: PASS|FAIL|INCOMPLETE|STOPPED`.
-//
-// Exit codes:
-//   0  recorded
-//   1  invalid argument
-//   2  cannot record (not a git work tree, git failed, or the store cannot be written)
-
 import { record, repository, treeHash } from "../lib/tree-result.mjs";
 
 function fail(code, message) {

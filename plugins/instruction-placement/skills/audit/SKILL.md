@@ -31,8 +31,8 @@ metadata:
 ## Purpose
 
 Instruction content has a load cost set by the surface it sits on, and most repositories put
-everything on the most expensive one. A convention that only matters when someone edits a `.cs` file
-is paid for in every session, in every conversation, whether or not any C# is touched.
+everything on the most expensive one. A convention that only matters when someone edits one kind of file
+is paid for in every session, in every conversation, whether or not a file of that kind is touched.
 
 **The saving is context, not obedience.** What the official guidance says about file length and
 adherence is in
@@ -130,7 +130,7 @@ a range you inferred by reading is a guess that removes the wrong text. If a can
 correspond to a `SECTION` record, say so rather than inventing a boundary.
 
 **A `HINT` is raw material, not a decision.** The detector reports what the text literally says; it
-does not know whether `.ts` is the candidate's real scope. Derive the glob from the hints, then
+does not know whether an extension it names is the candidate's real scope. Derive the glob from the hints, then
 validate it. An unvalidated hint is not a proposal.
 
 ## Workflow

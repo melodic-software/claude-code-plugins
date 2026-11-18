@@ -524,5 +524,25 @@ disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarde
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a reply that would pass the cap with no body record to yield is refused" 1 "$?"
 
+setup
+assert_eq "comments prints [] when the round has no comment item" "[]" "$(run comments | jq -c .)"
+jq '.pr_comments = [{"id":"PRC_500","comment_id":500,"author":"kyle-sexton","body":"PR-fix lane: why?"}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+assert_eq "comments prints the round's comment items" "PRC_500" "$(run comments | jq -r 'map(.id) | join(" ")')"
+disposition '{"disposition":"answered","evidence":[],"note":"The cache is skipped on a cold start."}'
+run record PRC_500 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "record takes answered for a comment item" 0 "$?"
+assert_eq "the answer is recorded under the comment item's id" "PRC_500 answered" "$(jq -r '"\(.thread) \(.disposition)"' "$STUB/replies.jsonl")"
+setup
+jq '.pr_comments = [{"id":"PRC_500","comment_id":500}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"note":"Fixed."}'
+run record PRC_500 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "record refuses VALID for a comment item" 1 "$?"
+disposition '{"disposition":"answered","evidence":[],"note":"An answer."}'
+run record PRC_501 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "record refuses a comment id the round does not hold" 1 "$?"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "record refuses answered for a review thread" 1 "$?"
+assert_eq "nothing refused is recorded" 0 "$(recorded)"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

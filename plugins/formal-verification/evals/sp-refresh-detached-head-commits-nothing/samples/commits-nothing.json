@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): blocked: detached HEAD off the default branch's tip\n\nThe pass starts at e4e4e4e, which is not main's tip d3d3d3d, so it commits nothing. The model update, splitting the one step into check() then set(), passed its rerun and caught the seeded break that swaps them; it is in this report unwritten. Nothing is pushed, no branch is created and no pull request is opened. A pass on main or on the ticket's branch writes it.", "why": "every part"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): updated\n\nI create formal-verification-upkeep/formal-lock from main, commit the two-step model there and open one pull request.", "why": "commits from a detached HEAD off the tip"}
+  ]
+}
