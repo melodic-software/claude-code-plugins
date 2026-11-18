@@ -62,9 +62,8 @@ key, and screenshots that first screen.
 To drive the plugin beside the person's own setup, add `--real-setup` to `launch`, `ready` and
 `log`: it drops `--restricted` and `--strict-mcp-config` and nothing else, so Ready still requires
 `none`. What each flag withholds: <https://code.claude.com/docs/en/cli-reference#cli-flags>. The
-print-mode turns of `ready` and `log` keep `--strict-mcp-config`, so they load no MCP server: print
-mode has no trust dialog to ask before one connects
-(<https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>). It runs
+print-mode turns of `ready` and `log` keep `--strict-mcp-config`; why:
+<https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>. It runs
 only attended, at the person's request; the driver refuses it with `--unattended`, `--in-sandbox`,
 a kept credential, or through the launch broker. With it, `--launcher <word>` once per word
 (`--launcher=<word>` for one starting with `-`) runs that command in place of `claude`, followed
@@ -192,8 +191,7 @@ is running. It stops the session this run launched; the evidence files stay.
   take the next step only once the prompt shows:
   - Folder trust (the launched session's first screen): trust only the checkout the person
     already works in; for any other folder, stop the run. Run `--real-setup`, Ready included, only
-    from a folder the person already trusts, since Ready's print-mode turn gets no such dialog;
-    what an untrusted folder still loads:
+    from a folder the person already trusts; what an untrusted folder and print mode load:
     <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>.
   - External CLAUDE.md imports: decline; the drive needs no file from outside the project
     (<https://code.claude.com/docs/en/memory#import-additional-files>).

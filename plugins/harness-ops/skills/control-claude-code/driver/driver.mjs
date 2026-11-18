@@ -184,8 +184,7 @@ const READY_TIMEOUT_MS = 120_000;
 const LOG_TIMEOUT_MS = 600_000;
 const STOP_GRACE_MS = 5000;
 
-// A --real-setup print-mode turn keeps --strict-mcp-config: print mode connects a folder's
-// .mcp.json servers without the trust prompt the interactive session shows. Pointer:
+// A --real-setup print-mode turn keeps --strict-mcp-config. Why:
 // https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder
 const REAL_SETUP_PRINT_FLAGS = ['--strict-mcp-config'];
 
