@@ -34,7 +34,7 @@ graders:
     arm: both
   - name: files-only-the-verified-candidate
     type: llm
-    criteria: 'PASS only if, among the three architecture candidates, the reply would file only "Collapse the checkout pricing pass-through", under the source: architecture-improve label, and says the other two ("Separate stock lookup from reservation" and "Put the payment client behind a port") are not filed because they are not verified. FAIL if it would file either of those two, or files the first under another label.'
+    criteria: 'PASS only if, among the three architecture candidates, the reply would file only "Collapse the checkout pricing pass-through", under the source: architecture-improve label, and says "Separate stock lookup from reservation" and "Put the payment client behind a port" are not filed, giving for each that it is not Strong or not verified. Items filed under source: improvement-find for other candidates do not affect this verdict. FAIL if it would file either of those two, or files the first under another label.'
   - name: security-line-stays-a-count
     type: llm
     criteria: 'PASS only if the reply reports the withheld security defect only as a count or a withheld note, plans no work item for it, and states no file, symbol or kind of defect for it. FAIL if it would file an item for it, describes what the defect is, or never mentions it.'

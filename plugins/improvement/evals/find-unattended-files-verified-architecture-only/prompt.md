@@ -1,10 +1,10 @@
 ---
-description: "Unattended find with a verified architecture candidate file. Narration: the prompt gives the tracker's state as facts, switches writes and filing off, and a scaffolded candidate file at verification standard holds one verified Strong entry, two unverified entries and one security-defect placeholder. The reply asks nothing (no-ask-tool), writes and edits nothing in the repository (no-repo-write, no-edit), reads the file (reads-candidate-file), names the architecture label (names-architecture-label), files only the verified entry under it (files-only-the-verified-candidate, llm), and carries the placeholder as a count (security-line-stays-a-count, llm). Real filing is unmeasured. Needs --scaffold and --allow-tools Write Edit so the write graders can fail."
+description: "Unattended find with a verified architecture candidate file. Narration: the prompt gives the tracker's state as facts, switches writes and filing off, and a scaffolded candidate file at verification standard holds one verified Strong entry, one verified Worth exploring entry, one unverified Speculative entry and one security-defect placeholder. The reply asks nothing (no-ask-tool), writes and edits nothing in the repository (no-repo-write, no-edit), reads the file (reads-candidate-file), names the architecture label (names-architecture-label), files only the verified Strong entry under it (files-only-the-verified-candidate, llm), and carries the placeholder as a count (security-line-stays-a-count, llm). Real filing is unmeasured. Needs --scaffold and --allow-tools Write Edit so the write graders can fail."
 tags: [find, unattended, narration, no-network]
 max_turns: 25
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, AskUserQuestion]
-expected_outcome: "The run asks nothing, would file only the verified Strong candidate under source: architecture-improve, leaves the two unverified candidates in the report, and reports the withheld security defect as a count with no detail."
+expected_outcome: "The run asks nothing, would file only the verified Strong candidate under source: architecture-improve, leaves the verified Worth exploring candidate and the unverified Speculative candidate in the report, and reports the withheld security defect as a count with no detail."
 ---
 
 /improvement:find --unattended

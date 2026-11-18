@@ -33,7 +33,7 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - problem: One module answers stock questions and changes stock.
 - deepening: Callers must know the order of two calls the module could hide.
 - shallow-signal: src/inventory.js exposes lookup and reserve as separate steps.
-- signal-verified: false
+- signal-verified: true
 
 ## Put the payment client behind a port
 

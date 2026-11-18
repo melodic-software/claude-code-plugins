@@ -210,8 +210,9 @@ declared-by-the-caller convention. In unattended mode:
   - *Source label*. Every filed item carries exactly one source label: `source: architecture-improve`
     for a candidate from the architecture candidate file, `source: improvement-find` for every
     other. A missing label means nothing is filed under it this run; the skill never creates it.
-  - *Verified architecture candidates only*. An architecture candidate is filed only when its
-    entry says `signal-verified: true`; the others stay in the report.
+  - *Verified Strong architecture candidates only*. An architecture candidate is filed only when
+    its entry says `recommendation: Strong` and `signal-verified: true`; the others stay in the
+    report.
   - *Open cap, a hard stop per label*. When the open items carrying a source label number at or
     above `find_open_item_cap` (default 5, set in the config cascade), the run files nothing under
     that label and says so. The invocation prompt cannot raise it, and personal config can only

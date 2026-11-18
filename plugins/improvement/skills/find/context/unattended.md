@@ -167,9 +167,9 @@ the lane, and Tier 0 stands alone for the code dimension.
    `shallow-signal`. A `Strong` entry with `signal-verified: true` takes the confidence ranking.md
    gives a structural presence signal; every other entry takes the one it gives model judgment,
    labeled judgment.
-3. **Mark what may be filed.** Only an entry with `signal-verified: true`, under a header whose
-   verification level is `standard` or `strict`, may be filed. Every other entry stays in the report
-   and is counted in the Filing line. When the level is `light` or `off`, add
+3. **Mark what may be filed.** Only an entry with `recommendation: Strong` and
+   `signal-verified: true`, under a header whose verification level is `standard` or `strict`, may
+   be filed. Every other entry stays in the report and is counted in the Filing line. When the level is `light` or `off`, add
    `gap: architecture filing — verification level <level> reproduces no candidate — set verification_skills.improve to standard in the team architecture.yaml`.
 4. **Carry a `security-defect: withheld` line as a count only.** The report gets one `gap:` line
    with the count and the instruction to run `/architecture:improve` with a person present. It is

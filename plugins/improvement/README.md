@@ -87,7 +87,7 @@ handling resolve from the prompt, then `.claude/improvement.md`, then the bundle
 it, and personal settings can only lower it.
 
 Each item find files carries one source label the repository must already have:
-`source: architecture-improve` for a verified candidate from `/architecture:improve`, which find
+`source: architecture-improve` for a verified `Strong` candidate from `/architecture:improve`, which find
 runs inline when that plugin is installed, and `source: improvement-find` for every other. While the
 open items carrying a label number at or above `find_open_item_cap` (default 5), an unattended run
 files nothing under that label. Iterate on the wording after observing real runs; never fork the
