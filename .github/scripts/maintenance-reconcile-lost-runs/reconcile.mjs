@@ -59,7 +59,11 @@
 //   saw still going, inside the lookback. Only those an open head may own
 //   (followsNoOpenHead) have their jobs read, at most FAULT_HELD_READS a
 //   pass. A run held again at attempt 2 waits for the
-//   head's next checks run.
+//   head's next checks run. A pr-rate-merge-risk run the lanes kill switch
+//   stopped is taken the same way: it succeeds with no rating, its resolver
+//   skipped in every leg that ran (RATER_RESOLVE_STEP). This script reads
+//   nothing while the switch is on, so its first pass after the switch lifts
+//   re-runs it, once, at attempt 1 only.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
 //   pr-verify pass that the spec has since changed under (an issue edit or a
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
@@ -396,7 +400,15 @@ export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 // through an outage reads nothing and carries nothing, and holds cluster in
 // exactly those outages, or when a run created earlier was still going then
 // (pr-verify's three jobs can take about 17 hours).
-export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".github/workflows/pr-review-main.yml"]);
+export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".github/workflows/pr-review-main.yml", RATER]);
+/**
+ * The rater's kill-switch step and the resolver it gates: a rater run the
+ * lanes kill switch stopped succeeds with the switch step run and the resolver
+ * skipped in every leg that ran, and rates nothing (pr-rate-merge-risk.yml's
+ * report-only stop).
+ */
+export const RATER_SWITCH_STEP = "Check the kill switch";
+export const RATER_RESOLVE_STEP = "Resolve the pull request";
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.
@@ -1002,6 +1014,21 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
     return { held: true, final: false };
   }
   const listing = await firstAttemptJobs(call, repo, run.id);
+  if (run.path === RATER) {
+    const whole = wholeListing(listing) && listing.jobs.every((job) => stepsKnown(job));
+    const ran = listing.jobs.filter((job) => Array.isArray(job?.steps) && job.steps.length > 0);
+    const stopped =
+      ran.length > 0 &&
+      ran.every(
+        (job) =>
+          job.steps.some((step) => step?.name === RATER_SWITCH_STEP && step.conclusion === "success") &&
+          job.steps.some((step) => step?.name === RATER_RESOLVE_STEP && step.conclusion === "skipped"),
+      );
+    if (stopped && whole && typeof run.updated_at === "string") {
+      keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true });
+    }
+    return { held: stopped && whole, final: whole && !stopped };
+  }
   const marked = listing.jobs.filter(
     (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
   );
@@ -1682,7 +1709,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           if (hold) {
             say(`lane run ${r.id} (${r.path}) held on a GitHub fault; waiting, ${hold}`);
           } else {
-            lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
+            lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.path === RATER ? "success (kill switch stop)" : r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
           }
         } else if (final) {
           settle.push({ id: r.id, reason: "" });
@@ -1886,7 +1913,7 @@ async function act({ repo, call, say, since, sleep, items }) {
             : item.kind === "review"
             ? `${where}: re-ran review run ${item.id} (${item.path}), which ${item.conclusion === "success (rate-limit hold)" ? "held on a GitHub API rate limit" : "a kill switch stopped"}; its completion re-runs ci-status`
             : item.kind === "fault-held"
-            ? `${where}: re-ran run ${item.id} (${item.path}), which held on a GitHub fault`
+            ? `${where}: re-ran run ${item.id} (${item.path}), which ${item.path === RATER ? "the lanes kill switch stopped before it rated" : "held on a GitHub fault"}`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {
