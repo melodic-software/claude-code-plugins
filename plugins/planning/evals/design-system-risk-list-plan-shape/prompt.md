@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: "design-threads.md holds a Risks thread as a table headed Risk | Likelihood | Impact | Mitigation, with at least one row whose Likelihood and Impact read Low, Med or High and whose mitigation names a design decision, a check or a phase. No .js file is written or edited"
+expected_outcome: "design-threads.md holds a Risks thread as a table headed Risk | Likelihood | Impact | Mitigation, with at least two design-specific risk rows whose Likelihood and Impact read Low, Med or High and whose mitigations name a design decision, a check or a phase. No .js file is written or edited"
 ---
 
 /planning:design system
