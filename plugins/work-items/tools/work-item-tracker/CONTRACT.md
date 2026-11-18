@@ -299,7 +299,9 @@ child with neither counts as closed earlier. The gitea seed refuses `--parent`.
 admission. For every `--label`, the adapter takes the most recent application of that label
 (GitHub: the latest `labeled` event on the issue timeline by `created_at`), reads the actor's
 repository permission, and marks the label `trusted` only when that permission is `admin` or
-`write` (GitHub maps maintain to `write` and triage to `read`; pointer:
+`write` (GitHub: the response's `permission` field, never `role_name`, because the trust rule
+compares against a fixed set of roles and `role_name` can name a custom role; how each role
+reads in that field is at the pointer:
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)). Each row carries the
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
 GraphQL `lastEditedAt`, since REST carries no edit time: the

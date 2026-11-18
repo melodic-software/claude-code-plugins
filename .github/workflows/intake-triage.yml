@@ -305,6 +305,7 @@ jobs:
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.check-born-triaged.outputs.human-ids }}
       allowed-bot-sender-ids: ${{ needs.check-born-triaged.outputs.bot-ids }}
+      verdict-schema: '{"properties":{"size":{"type":"string","enum":["Small","Medium","Large"]},"complexity":{"type":"string","enum":["Low","Medium","High"]},"uncertainty":{"type":"string","enum":["Known","Knowable","Unknown"]},"flags":{"type":"array","maxItems":4,"uniqueItems":true,"items":{"type":"string","enum":["intent","security","cost","untrusted"]}},"blocked_by":{"type":"array","maxItems":20,"items":{"type":"integer","minimum":1,"maximum":999999999}}},"required":["size","complexity","uncertainty","flags","blocked_by"]}'
       # Re-entry after a recorded decision (intake-reenter.yml). The marker is
       # the first line isDecisionComment in select-trusted-text.mjs matches. An
       # escalated run posts only the reusable's fixed note, so the quote and
@@ -365,8 +366,10 @@ jobs:
         must be done before this one, or none. When the issue lane's latest stop comment on the
         issue is `blocked-by-issue` and names an open issue, list that issue there, unless the
         named issue is itself blocked by this one.
-        A step with no model reads only those five lines and sets the issue's fields, status and
-        blocked-by edges from them.
+        Give the same values in the typed fields size, complexity, uncertainty, flags (an empty
+        list for none) and blocked_by (the issue numbers, an empty list for none). A step with no
+        model reads those fields, or these five lines when the fields are unusable, and sets the
+        issue's fields, status and blocked-by edges from them.
 
         COMMENT BODY. After the verdict lines and any Cost line, write these two lines, each at the
         start of its own line:
@@ -597,6 +600,7 @@ jobs:
       # `true` when a GitHub fault held the verdict green (apply-verdict.mjs
       # closing): its result is unknown, so refine-select does not run.
       held: ${{ steps.verdict.outputs.held }}
+      verdict: ${{ needs.intake-triage.outputs.verdict }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -721,6 +725,7 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
+          VERDICT: ${{ needs.intake-triage.outputs.verdict }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           BASE_PATH: .base
@@ -866,6 +871,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
+          VERDICT: ${{ needs.apply-verdict.outputs.verdict }}
           KILL_SWITCH: proceed
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           CONTEXT_PATH: ${{ runner.temp }}/refine-context/context.json

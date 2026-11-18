@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.27] - 2026-11-18
+
+### Changed
+
+- The `generate` skill no longer restates which plugin variables reach a Bash tool command. It keeps the rule to set `CLAUDE_PLUGIN_DATA` from the skill's substituted value, with the reason, and points at the manifest reference's "Where each variable resolves" section ([#16844](https://github.com/melodic-software/claude-code-plugins/issues/16844)).
+
 ## [1.0.26] - 2026-11-17
 
 ### Changed

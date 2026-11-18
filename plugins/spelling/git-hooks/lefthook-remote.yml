@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: spelling-remote-lint
+      script: spelling-lint.sh
+      runner: sh

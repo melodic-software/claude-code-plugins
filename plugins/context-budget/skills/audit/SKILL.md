@@ -378,9 +378,9 @@ Write posture splits by scope, and the split is not negotiable:
   only when the guardrails plugin is enabled, and that without it the write goes through with no
   ask; give `claude plugin enable guardrails@<marketplace>`.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
-  edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
-  human-confirmation guarantee: in auto mode the classifier, not a person, decides a write there.
-  Print-only is the posture precisely because the prompt cannot be relied on. Pointer:
+  edit, fully resolved and paste-ready; applying it is the operator's. This skill never counts a
+  protected-path prompt as a person confirming the write, so print-only is the posture; say that
+  when you print. Who decides a protected-path write in each permission mode:
   [permission modes § Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths).
 - **Managed policy**: read-only by construction; never targeted, never suggested as a write.
 - **Env-var levers**: no persistent settings file exists; print the export line and where the

@@ -575,6 +575,16 @@ else
   OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
   RC=$?
   assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
+  git -C "$GITREPO" add .gitignore
+  printf '#!/bin/sh\ntouch "%s"\n' "$TEST_TMPDIR/fsm-ran" >"$TEST_TMPDIR/fsm.sh"
+  chmod +x "$TEST_TMPDIR/fsm.sh"
+  git -C "$GITREPO" config core.fsmonitor "$TEST_TMPDIR/fsm.sh"
+  OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
+  RC=$?
+  assert_exit "gitignored file, planted core.fsmonitor → exit 0" 0 "$RC"
+  assert_file_absent "gitignored file: a planted core.fsmonitor never runs" "$TEST_TMPDIR/fsm-ran"
+  git -C "$GITREPO" check-ignore -q -- ignored.txt >/dev/null 2>&1
+  if [[ -e "$TEST_TMPDIR/fsm-ran" ]]; then ok "fixture: plain git check-ignore runs the planted fsmonitor"; else bad "fixture: the planted fsmonitor never fires, so the check above proves nothing"; fi
 fi
 
 # Kill switch — disabled path is a clean no-op even on a real machine path.

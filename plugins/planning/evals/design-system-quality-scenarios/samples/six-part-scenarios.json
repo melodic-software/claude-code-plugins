@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Quality scenarios\n\n| Requirement | Source | Stimulus | Artifact | Environment | Response | Measure |\n|---|---|---|---|---|---|---|\n| performance | customer | places an order | notification worker | normal operation | sends the confirmation | within 60 s at p95 |\n",
+      "why": "the spoke's row header"
+    },
+    {
+      "answer": "| Scenario | Source of stimulus | Stimulus | Environment | Artifact stimulated | Response | Response measure |\n|---|---|---|---|---|---|---|\n",
+      "why": "SEI long names, other column order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "## Quality scenarios\n\n| Requirement | Stimulus | Response | Measure |\n|---|---|---|---|\n| performance | order placed | email sent | 60 s p95 |\n",
+      "why": "three-part form: no source, artifact or environment"
+    },
+    {
+      "answer": "Source: customer. Stimulus: order placed. Artifact: worker. Environment: normal. Response: email. Measure: 60 s.",
+      "why": "prose, not a scenario row"
+    }
+  ]
+}

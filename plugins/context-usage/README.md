@@ -64,7 +64,7 @@ their defaults:
 | The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "moderate zone (2 of 3), nearing heavy." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once: after `/resume` or `/branch` only when it is past `light`, unless the session has the compaction marker; after a compaction at any zone, with "compacted" beside it, such as `light zone (1 of 3, compacted)`, once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response." |
-| When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `light`; when the session has the compaction marker, at any zone, with "compacted" beside it |
+| When the module loads into a session that already has turns (a `--resume` launch, a reload, a hooks-worker restart) | the verdict, once, only when it is past `light`; when the session has the compaction marker, at any zone, with "compacted" beside it |
 | After `/clear` | nothing: the new session starts in `light` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `light` does. An
@@ -405,15 +405,12 @@ full. The module also shows the person one toast that names the file and the mal
 text again shows no second toast, and a new malformed edit shows one more. Claude gets no line
 about it. `context_usage_toast` turns the toast off.
 
-The module reads its options when it loads. Claude Code reloads a module when its options change,
-so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
+The module reads its options when it loads, and only then. The PostCompact marker hook reads
 `context_usage_hooks_enabled` at session start.
 
-- **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
-  writes for its build (see
+- **Pointer**: for when a changed option reloads the module, read the doc comment on `Register` in
+  the `claude-code/index.d.ts` types Claude Code writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 A bad option value does not switch the module off: a `zone_line_data` item it does not know reads
 as that option's default, with one transcript line naming it. An option the module does not

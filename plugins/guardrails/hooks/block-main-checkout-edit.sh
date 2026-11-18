@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED:-true}" == "true" ]] || exit 0
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED:-false}" == "true" ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.

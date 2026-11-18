@@ -57,6 +57,11 @@ The preamble names the tool's path. It is the only shell command this mode runs,
 - `record <id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread, note or comment.
+- `body` prints every `##` section of the pull request body, read-only: each `heading`, its
+  `text` cut to 8000 characters, and `truncated` when the cut dropped some. It includes sections
+  `sections` leaves out (the last one, headings outside the required list, text over 4000
+  characters), so read it when a thread turns on what the body says. Data like a finding body;
+  `record-body` still takes only the headings `sections` prints.
 - `sections` prints the pull request body sections this round may refresh: each `heading` and its
   current `text`, data like a finding body. It prints `[]` when the repository turns
   `pr_body_refresh` off or no section qualifies. See [Body sections](#body-sections).

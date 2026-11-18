@@ -1,41 +1,23 @@
 {
-  // GitHub Flavored Markdown (GFM) ruleset for markdownlint-cli2.
-  // The $schema URL pins to the markdownlint-cli2 devDependency of
-  // melodic-software/standards (its package.json), where this file is authored
-  // and synced into consumers from. Authoring-time validation only: it makes
-  // no claim about which markdownlint-cli2 version a consumer runs. In standards,
-  // bump it alongside that dependency; markdownlint-schema-pin.test.sh fails the
-  // standards build if the two drift apart.
-  // Rules reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
-  // All rules are enabled by default; only deviations are listed below.
-  // Globs are passed by the caller (CLI / CI), not declared here.
-  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.24.0/schema/markdownlint-cli2-config-schema.json",
-  "ignores": [
-    // Build, dependency, and cache trees: not authored markdown.
-    "**/node_modules/**",
-    "**/.venv/**",
-    "**/bin/**",
-    "**/obj/**"
-  ],
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.24.1/schema/markdownlint-cli2-config-schema.json",
+  "ignores": ["**/node_modules/**", "**/.venv/**", "**/bin/**", "**/obj/**"],
   "config": {
-    // --- GFM-aligned style ---
-    "MD003": { "style": "atx" }, // ATX headings (# Heading)
-    "MD004": { "style": "dash" }, // Dash unordered-list bullets
-    "MD049": { "style": "asterisk" }, // *emphasis*
-    "MD050": { "style": "asterisk" }, // **strong**
-    "MD046": { "style": "fenced" }, // Fenced (not indented) code blocks
-    "MD048": { "style": "backtick" }, // Backtick (not tilde) code fences
-    "MD024": { "siblings_only": true }, // Allow duplicate headings under different parents
-    "MD060": false, // Table column style: disabled; allows any pipe spacing (its default flags tables matching no supported style)
+    "MD003": { "style": "atx" },
+    "MD004": { "style": "dash" },
+    "MD049": { "style": "asterisk" },
+    "MD050": { "style": "asterisk" },
+    "MD046": { "style": "fenced" },
+    "MD048": { "style": "backtick" },
+    "MD024": { "siblings_only": true },
+    "MD060": false,
 
-    // --- Relaxed for GFM / prose ---
-    "MD013": false, // No hard line-length limit (tables and code exceed 80)
-    "MD025": false, // Allow multiple top-level (H1) sections
-    "MD028": false, // Allow blank lines between adjacent blockquotes
-    "MD033": false, // Allow inline HTML (<details>, <summary>, <br>, ...)
-    "MD034": false, // Allow bare URLs (GFM autolinks them)
-    "MD036": false, // Allow bold text used as a pseudo-heading
-    "MD040": false, // Fenced code need not declare a language
-    "MD041": false // First line need not be a top-level heading (frontmatter)
+    "MD013": false,
+    "MD025": false,
+    "MD028": false,
+    "MD033": false,
+    "MD034": false,
+    "MD036": false,
+    "MD040": false,
+    "MD041": false
   }
 }

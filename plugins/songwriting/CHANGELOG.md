@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.12] - 2026-11-18
+
+### Removed
+
+- `ai-tools.md`, the `rhyme` skill's page on external lookups, no longer points to the optional `pronouncing` and `pyphen` Python libraries. Datamuse's `syllables` mode is still the external syllable check ([#16802](https://github.com/melodic-software/claude-code-plugins/issues/16802)).
+
 ## [2.0.11] - 2026-11-17
 
 ### Changed

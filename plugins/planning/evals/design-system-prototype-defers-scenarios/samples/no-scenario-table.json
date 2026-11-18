@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Quality scenarios\n\nQuality scenarios: deferred (prototype) [RESEARCH: write the scenarios if it heads for production]\n",
+      "why": "deferred, no table"
+    },
+    {
+      "answer": "",
+      "why": "empty file holds no table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Requirement | Source | Stimulus | Artifact | Environment | Response | Measure |\n|---|---|---|---|---|---|---|\n",
+      "why": "a scenario table"
+    },
+    {
+      "answer": "| Stimulus | Environment | Response measure |",
+      "why": "a partial scenario table"
+    }
+  ]
+}

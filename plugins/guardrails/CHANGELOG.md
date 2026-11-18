@@ -3,6 +3,41 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.2] - 2026-11-18
+
+### Security
+
+- The git ignore checks in secret-pattern-detection (`secret_pattern_detection_skip_gitignored`),
+  hardcoded-path-check and the shared hook::file_is_gitignored run git with core.fsmonitor and
+  core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a
+  repository whose config names a command cannot make it run.
+
+## [3.10.1] - 2026-11-18
+
+### Fixed
+
+- The README intro and the manifest description now both count 22 toggleable guards, the guards
+  with their own `userConfig` switch; the README said twenty and the manifest 25.
+
+## [3.10.0] - 2026-11-18
+
+### Added
+
+- `apply install-git-hooks scope=shared` now commits a lefthook `remotes:` entry naming the
+  marketplace's root `lefthook-remote.yml`, which carries every plugin's git hooks; a consumer
+  whose entry names this plugin's own config still verifies `ok`.
+- A failing remote job now prints the per-clone `lefthook-local.yml` skip for that job, except the
+  secret and machine-path content scans, which still never suggest skipping them.
+- A remote plan naming the root `lefthook-remote.yml` lists the plugins it turns on and reports
+  a missing tool, decline or migration for each of their entries, and `verify` prints a
+  `tool` line for each of their entries whose tool is missing.
+
+## [3.9.0] - 2026-11-18
+
+### Added
+
+- Opt-in guard, off by default: `block-main-checkout-edit` denies a Write, Edit or NotebookEdit to a file that is not git-ignored in a repository's main checkout while it is on the remote default branch (`origin/HEAD`). The reason gives the steps to make the edit in a worktree. Linked worktrees, other branches, a detached HEAD, git-ignored paths, paths outside a repository and repositories with no `origin/HEAD` pass. Writes made by shell commands are not seen. To turn it on, set `block_main_checkout_edit_enabled` to `true` (README, "How to set these").
+
 ## [3.8.1] - 2026-11-17
 
 ### Changed

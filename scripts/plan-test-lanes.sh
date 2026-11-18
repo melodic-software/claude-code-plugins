@@ -16,8 +16,10 @@
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
 #                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
-#                             (the guardrails remote's end-to-end suite), demovideo (the
-#                             demo-video shell suite: its locked requirements and ffmpeg), mediarender
+#                             (every plugin's lefthook-remote suite: lefthook, typos, actionlint;
+#                             https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md),
+#                             demovideo (the demo-video shell suite: its locked requirements and
+#                             ffmpeg), mediarender
 #                             (the media-render and explainer-video suites: lib/media-render's locked
 #                             Playwright for Python and its Chromium)
 #   node_packages             the Node packages to install and test, space-separated

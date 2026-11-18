@@ -9,31 +9,27 @@ inventory**: where a snapshot can come from, and what to expect where none can.
 
 ## Verdict
 
-**The module is the capture path.** A mod reads the running session's context-window figures in
-process (`$.session.usage()`), with the window size, the percentage and the last API response's
-token breakdown, in every kind of session that loads the plugin: interactive, `-p`, the SDK and
-`--bg` alike. It writes the snapshot through `lib/write-snapshot.mjs`. Before the module, the only
+**The module is the capture path.** It reads the running session's context-window figures in
+process through `$.session.usage()`, in every kind of session where a mod runs, and writes the
+snapshot through `lib/write-snapshot.mjs`. The snapshot's window size and percentage come from
+that method, so the plugin depends on it reporting both. Before the module, the only
 writer was a statusline tee, which wrote nothing in a session that runs no status line; the
 measurements and channel checks below record that state, dated, because they are why no other
 channel was adopted.
 
-- **Pointer**: `$.session.usage()` in
+- **Pointer**: what `$.session.usage()` reports is in
   [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods);
-  where hooks run in
+  which kinds of session run a mod is in
   [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: the method stops reporting the window size or the percentage, or the table
-  removes a kind of session.
 
 A structural `unknown` remains only where the module does not run: a WSL session of the Desktop
-app, where plugins are not available; a session where mods are off; and a session the plugin is
+app (pointer below); a session where mods are off; and a session the plugin is
 not enabled in. There no snapshot is written, so `context-zone.sh` answers `unknown` and every
 zone consumer takes its conservative path. **That `unknown` is structural, not a defect and not a
 broken install.**
 
-- **Pointer**: the WSL clause rests on
-  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
-  which lists connectors and plugins among the features not available there.
+- **Pointer**: for whether plugins load in a WSL session of the Desktop app, see
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session).
 
 **As of 2026-08-21, no documented Claude Code channel other than the status line delivered
 per-session context-window occupancy to a local writer outside a mod.** Two other channels do carry
@@ -106,14 +102,14 @@ result for a settings hook rather than an assumption.
 
 ## Channels checked
 
-Every row but the mods API and hook stdin rows records what we read on the live page on
-**2026-08-21**, before mods shipped: a dated observation behind this file's verdict, not a
-statement of what the pages say today. To act on a row now, re-read the section its Source column
-points at.
+Every row but the mods API, hook stdin and `subagentStatusLine` rows records what we read on the
+live page on **2026-08-21**, before mods shipped: a dated observation behind this file's verdict,
+not a statement of what the pages say today. To act on a row now, re-read the section its Source
+column points at.
 
 - **Pointer**: the Source column, per row.
-- **As of**: 2026-10-11 for the section anchors; 2026-11-04 for the hook stdin row; 2026-08-21 for
-  the other cell contents.
+- **As of**: 2026-10-11 for the section anchors; 2026-11-04 for the hook stdin row; 2026-11-18 for
+  the `subagentStatusLine` row; 2026-08-21 for the other cell contents.
 - **Recheck trigger**: a row's page adds or removes a field in the Carries or Does-not-carry cell,
   or a section the Source column names is renamed.
 
@@ -122,7 +118,7 @@ points at.
 | Mods API `$.session.usage()` (read 2026-10-03, Claude Code 2.1.288; recheck when the mods API table renames or drops it) | <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods> | The running session's context-window use, read in process by a mod in any kind of session that loads it: tokens, window size, percentage, and with `breakdown: 'summary'` the last API response's token breakdown. **The capture path this plugin ships.** | Anything where the mod does not run (Desktop WSL sessions, mods off, the plugin not enabled); `prompt_cache` |
 | Hook stdin (all events) | [hooks: common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); [hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input); [hooks: SessionStart input](https://code.claude.com/docs/en/hooks#sessionstart-input); [hooks: PreModelSwitch input](https://code.claude.com/docs/en/hooks#premodelswitch-input) | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **Token figures on a few events:** `PostToolUse` on the `Agent` tool receives a token count for the subagent's final API request and a `usage` object in `tool_response`; `SessionStart` on a resume or fork and both model-switch events carry `context_tokens`, the main session's prompt size at that one moment | Any context-window size or percentage-of-window field for the **main session**, on any event, and any token figure on an ordinary turn: `context_tokens` arrives only on a resume, a fork or a model switch, so it is no running occupancy reading. The `Agent` exception is subagent-scoped and single-request-scoped, not a total across the run. It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
 | Status line stdin | [status line: available data](https://code.claude.com/docs/en/statusline#available-data) | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. It was the one sufficient channel before mods, and it exists only where a `statusLine` is configured *and* the environment runs it |
-| `subagentStatusLine` stdin | [status line: subagent status lines](https://code.claude.com/docs/en/statusline#subagent-status-lines) | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
+| `subagentStatusLine` stdin (removed in Claude Code 2.1.323) | [changelog, 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) | Nothing: the setting was removed and subagent rows always use the default look; the status line page no longer documents it | Everything. It never carried a **main session** figure either: it described subagent rows in the agent panel |
 | Non-interactive / Agent SDK output | [headless: get structured output](https://code.claude.com/docs/en/headless#get-structured-output) | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact. It cannot answer "how full is this session's window right now" |
 | OpenTelemetry **metrics** | [monitoring: token counter](https://code.claude.com/docs/en/monitoring-usage#token-counter) | `claude_code.token.usage`, a **counter** with `type` attributes `input` / `output` / `cacheRead` / `cacheCreation` | Any gauge of current occupancy or percentage of window. Every documented metric is a counter of cumulative activity, and a cumulative total is not observable as current occupancy |
 | OpenTelemetry **events** (`claude_code.api_request`) | [monitoring: API request event](https://code.claude.com/docs/en/monitoring-usage#api-request-event); [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes) | **Real live occupancy, per session.** The event carries `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` for each request, `query_source` naming the subsystem that issued it (`"repl_main_thread"`, `"compact"`, or a subagent name), `event.sequence` for ordering within a session, and `session.id` as a standard attribute (`OTEL_METRICS_INCLUDE_SESSION_ID`, default **true**). The three input addends on the latest `repl_main_thread` event are the same sum the statusline page gives for `used_percentage` | `context_window_size`, or any percentage. See below. And any local delivery: events go only to an OTLP receiver or the `console` exporter (`prometheus` accepts metrics only, and `console` writes to Claude Code's own stdout), and the `OTEL_*` variables did not reach the subprocesses Claude Code spawns, hooks included |
@@ -250,10 +246,9 @@ A configured `statusLine` decides neither branch: the module needs none.
 Nothing, for the sessions mods reach. The remaining gaps are where the module does not run, and
 each would close by a change to Claude Code, not to this plugin:
 
-- **Plugins in Desktop WSL sessions.** The Desktop WSL page lists plugins as unavailable there
-  ([What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session)),
-  and the mods overview's
-  "Where mods run" table repeats it.
+- **Plugins in Desktop WSL sessions.** Pointers:
+  [What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session)
+  and [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
 - **A context field on hook stdin**, so a settings hook could write the snapshot where mods are off
   and settings hooks still run (an organization's `allowManagedModsOnly`, for example): add the
   `context_window` object (or its `used_percentage` alone) to the documented common input fields.

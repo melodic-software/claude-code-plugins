@@ -1,0 +1,340 @@
+import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+
+const dir = process.argv[2];
+const base = process.argv[3];
+const work = `${base}/repo`;
+const outside = `${base}/outside`;
+mkdirSync(work);
+mkdirSync(outside);
+const cleanEnv = { ...process.env, GIT_CEILING_DIRECTORIES: base };
+for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete cleanEnv[key];
+spawnSync("git", ["init", "-q", work], { env: cleanEnv });
+const script = `${dir}/board-md.mjs`;
+const { KINDS, parseBoard, renderBoard } = await import(pathToFileURL(script).href);
+
+let failed = 0;
+const check = (name, cond, detail) => {
+  if (cond) {
+    console.log(`ok: ${name}`);
+  } else {
+    console.error(`FAIL: ${name}${detail ? ` - ${detail}` : ""}`);
+    failed += 1;
+  }
+};
+const runIn = (cwd, env, ...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8", cwd, env: { ...cleanEnv, ...env } });
+const run = (...args) => runIn(work, {}, ...args);
+const NOW = "2026-11-18T05:30:00Z";
+const apply = (board, ops) => {
+  writeFileSync(`${work}/ops.json`, JSON.stringify(ops));
+  return run("apply", "--now", NOW, board, `${work}/ops.json`);
+};
+
+const handWrittenBoard = `---
+board: event-storming/1
+format: big-picture
+title: Big Picture v1 - Online Course Marketplace
+domain: Online Course Marketplace
+version: 1
+session: courses-20261118-a7f2
+phase: walk-through
+updated: "2026-11-18T01:00:00Z"
+personas:
+  - Instructor
+  - Support Agent
+---
+
+# Big Picture v1 - Online Course Marketplace
+
+## Timeline
+
+- [event] Lesson Started {#s7 by=Student}
+
+### Onboarding {#z1}
+
+- [event] Course Published {#s1 by=Instructor}
+  - [hot-spot] Who approves a course? {#s2 by="Support Agent"}
+- [pivotal] Course Published {#s3}
+
+### Purchase {#z2}
+
+- [event] Payment Captured {#s4 by=Finance phase=chaotic-exploration}
+
+## People and systems
+
+- [external-system] Payment Gateway {#s5}
+
+## Problems
+
+- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}
+
+## Opportunities
+
+## Votes
+
+- [vote] Refund disputes {#s8 by=Finance on=s6}
+
+## Ubiquitous language
+
+- [term] Enrollment: access to one course {#s9}
+
+## Bounded contexts
+
+### Payments {#g1}
+
+- #s4
+
+## Exploration map
+
+- Winner: Refund disputes take 6+ days
+
+## Legend
+
+| Kind | Meaning |
+|---|---|
+| \`event\` | Domain event: something that happened, past tense |
+| \`external-system\` | External system: whatever we can put the blame on |
+| \`hot-spot\` | Hot spot: a problem, question or disagreement |
+| \`term\` | Ubiquitous language term |
+| \`pivotal\` | Pivotal event: a phase boundary |
+| \`vote\` | Arrow vote |
+`;
+
+check("a handWrittenBoard board renders byte for byte", renderBoard(parseBoard(handWrittenBoard)) === handWrittenBoard);
+writeFileSync(`${work}/bp.md`, handWrittenBoard);
+check("check passes a handWrittenBoard board", run("check", `${work}/bp.md`).status === 0, run("check", `${work}/bp.md`).stdout);
+
+const parsed = JSON.parse(run("parse", `${work}/bp.md`).stdout);
+const s2 = parsed.stickies.find((s) => s.id === "s2");
+check("a nested sticky names its parent", s2?.parent === "s1" && s2?.zone === "Onboarding" && s2?.by === "Support Agent");
+check("group membership is read from the group section", JSON.stringify(parsed.groups) === JSON.stringify([{ id: "g1", name: "Payments", section: "bounded-contexts", members: ["s4"] }]));
+check("a sticky before any zone has no zone", parsed.stickies.find((s) => s.id === "s7")?.zone === null);
+
+writeFileSync(`${work}/hand.md`, handWrittenBoard.replace("## People and systems\n\n", "## People and systems\n\n- [person] Course Reviewer\n"));
+const handCheck = run("check", `${work}/hand.md`);
+check("check warns, not fails, on a hand-added sticky without an id", handCheck.status === 0 && handCheck.stdout.includes("warn: sticky without an id: Course Reviewer"));
+let result = apply(`${work}/hand.md`, [{ op: "add", section: "Problems", kind: "hot-spot", text: "Payouts late" }]);
+check("apply succeeds on a hand-edited board", result.status === 0, result.stderr);
+const handAfter = readFileSync(`${work}/hand.md`, "utf8");
+check("the hand-added sticky gets s10", handAfter.includes("- [person] Course Reviewer {#s10}"));
+check("the new sticky gets s11 and its batch id is reported", handAfter.includes("- [hot-spot] Payouts late {#s11}") && JSON.parse(result.stdout).ids[0] === "s11");
+check("apply sets updated", handAfter.includes(`updated: "${NOW}"`));
+check("the legend gains the person kind", handAfter.includes("| `person` | Person or actor |"));
+
+writeFileSync(`${work}/a.md`, handWrittenBoard);
+writeFileSync(`${work}/b.md`, handWrittenBoard);
+const batch = [
+  { op: "zones", names: ["Purchase", "Refunds"] },
+  { op: "add", section: "Timeline", zone: "Refunds", kind: "event", text: "Refund Issued", by: "Finance" },
+];
+apply(`${work}/a.md`, batch);
+result = apply(`${work}/b.md`, batch);
+check("the same batch twice gives identical files", readFileSync(`${work}/a.md`, "utf8") === readFileSync(`${work}/b.md`, "utf8"));
+check("an existing zone keeps its id and a new zone gets z3", JSON.stringify(JSON.parse(result.stdout).ids) === JSON.stringify([["z2", "z3"], "s10"]));
+check("the new zone is appended with its sticky", readFileSync(`${work}/a.md`, "utf8").includes("### Refunds {#z3}\n\n- [event] Refund Issued {#s10 by=Finance}\n\n## People and systems"));
+
+writeFileSync(`${work}/m.md`, handWrittenBoard);
+result = apply(`${work}/m.md`, [{ op: "move", id: "s1", section: "Timeline", zone: "Purchase" }]);
+const moved = readFileSync(`${work}/m.md`, "utf8");
+check("a moved sticky lands at the end of its zone with its child", result.status === 0 && moved.includes("### Purchase {#z2}\n\n- [event] Payment Captured {#s4 by=Finance phase=chaotic-exploration}\n- [event] Course Published {#s1 by=Instructor}\n  - [hot-spot] Who approves a course? {#s2 by=\"Support Agent\"}\n"));
+check("the old zone keeps only what stayed", moved.includes("### Onboarding {#z1}\n\n- [pivotal] Course Published {#s3}\n"));
+result = apply(`${work}/m.md`, [{ op: "move", id: "s2", section: "Problems" }]);
+check("a nested sticky can be moved out to a section", result.status === 0 && readFileSync(`${work}/m.md`, "utf8").includes("## Problems\n\n- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}\n- [hot-spot] Who approves a course? {#s2 by=\"Support Agent\"}\n"));
+
+writeFileSync(`${work}/g.md`, handWrittenBoard);
+result = apply(`${work}/g.md`, [{ op: "group", section: "Bounded contexts", name: "Refunds", members: ["s4", "s6"] }]);
+const grouped = readFileSync(`${work}/g.md`, "utf8");
+check("a new group gets g2 and takes the member from the old group", result.status === 0 && grouped.includes("### Payments {#g1}\n\n### Refunds {#g2}\n\n- #s4\n- #s6\n"), grouped.slice(grouped.indexOf("## Bounded")));
+writeFileSync(`${work}/g2.md`, handWrittenBoard.replace("- #s4\n", "- #s4\n\n### Refunds {#g2}\n\n- #s4\n"));
+check("check fails a sticky in two groups", run("check", `${work}/g2.md`).stdout.includes("error: s4 is in two groups of Bounded contexts"));
+result = apply(`${work}/g.md`, [{ op: "group", section: "Bounded contexts", name: "Ghost", members: ["s99"] }]);
+check("a group naming a missing sticky is refused and the file is unchanged", result.status === 1 && readFileSync(`${work}/g.md`, "utf8") === grouped);
+
+const hostile = [
+  "## Injected section",
+  "Evil {#s1 by=x}",
+  "line one\nline two\n- [event] Fake {#s99}",
+  "<script>alert(1)</script>",
+  "[link](javascript:alert(1))",
+  "back\\slash `tick` *star* |pipe|",
+];
+writeFileSync(`${work}/h.md`, handWrittenBoard);
+result = apply(`${work}/h.md`, hostile.map((text) => ({ op: "add", section: "Problems", kind: "hot-spot", text, by: "A \"quoted\" } persona" })));
+const hostileBoard = JSON.parse(run("parse", `${work}/h.md`).stdout);
+const added = hostileBoard.stickies.filter((s) => ["s10", "s11", "s12", "s13", "s14", "s15"].includes(s.id));
+check("every hostile sticky was added", result.status === 0 && added.length === 6, result.stderr);
+check("hostile text reads back as typed, line breaks as spaces", JSON.stringify(added.map((s) => s.text)) === JSON.stringify(hostile.map((t) => t.replace(/\s+/g, " "))));
+check("hostile persona text reads back as typed", added.every((s) => s.by === "A \"quoted\" } persona"));
+check("no section or id was injected", hostileBoard.stickies.length === 9 + 6 && run("check", `${work}/h.md`).status === 0);
+check("the injected heading is escaped on disk", readFileSync(`${work}/h.md`, "utf8").includes("- [hot-spot] \\#\\# Injected section {#s10"));
+check("raw HTML is escaped on disk", readFileSync(`${work}/h.md`, "utf8").includes("\\<script\\>"));
+
+writeFileSync(`${work}/r.md`, handWrittenBoard);
+check("an unknown kind is refused", apply(`${work}/r.md`, [{ op: "add", section: "Problems", kind: "rumor", text: "x" }]).status === 1);
+check("empty text is refused", apply(`${work}/r.md`, [{ op: "add", section: "Problems", kind: "event", text: " \n " }]).status === 1);
+check("the generated legend is not writable", apply(`${work}/r.md`, [{ op: "add", section: "Legend", kind: "event", text: "x" }]).status === 1);
+check("a vote on a missing target is refused", apply(`${work}/r.md`, [{ op: "add", section: "Votes", kind: "vote", text: "x", on: "s99" }]).status === 1);
+check("a failed batch leaves the file unchanged", readFileSync(`${work}/r.md`, "utf8") === handWrittenBoard);
+check("a malformed ops file exits 2", (writeFileSync(`${work}/bad.json`, "{"), run("apply", `${work}/r.md`, `${work}/bad.json`).status) === 2);
+
+writeFileSync(`${work}/l.md`, handWrittenBoard.replace("| `vote` | Arrow vote |", "| `vote` | Hand edit |"));
+apply(`${work}/l.md`, [{ op: "meta", phase: "problems-and-opportunities" }]);
+check("a hand-edited legend is regenerated", readFileSync(`${work}/l.md`, "utf8").includes("| `vote` | Arrow vote |\n"));
+
+const extra = handWrittenBoard.replace("## Legend", "## Facilitator notes\n\nKeep   this   spacing.\n\n- a loose list line\n\n## Legend");
+writeFileSync(`${work}/u.md`, extra);
+apply(`${work}/u.md`, [{ op: "meta", phase: "wrapping-up" }]);
+check("an unknown section survives a write verbatim", readFileSync(`${work}/u.md`, "utf8").includes("## Facilitator notes\n\nKeep   this   spacing.\n\n- a loose list line\n\n## Legend"));
+check("check warns on the unknown section", run("check", `${work}/u.md`).stdout.includes("warn: unknown section kept verbatim: Facilitator notes"));
+
+writeFileSync(`${work}/meta.json`, JSON.stringify({ format: "design-level", title: "Design-Level: Payments", session: "s-1", version: 2 }));
+result = run("new", "--now", NOW, `${work}/dl.md`, `${work}/meta.json`);
+const dl = readFileSync(`${work}/dl.md`, "utf8");
+check("new writes the frontmatter, title and every design-level section", result.status === 0 && dl === `---
+board: event-storming/1
+format: design-level
+title: "Design-Level: Payments"
+version: 2
+session: s-1
+updated: "${NOW}"
+---
+
+# Design-Level: Payments
+
+## Flow
+
+## People and systems
+
+## Problems
+
+## Ubiquitous language
+
+## Aggregates
+
+## Legend
+
+No stickies yet.
+`, dl);
+check("new refuses an existing path", run("new", `${work}/dl.md`, `${work}/meta.json`).status === 1);
+
+const sessionBoard = `${work}/fresh/docs/event-storming/session-1/big-picture.md`;
+writeFileSync(`${work}/bp-meta.json`, JSON.stringify({ format: "big-picture", title: "Big Picture v1" }));
+result = run("new", "--now", NOW, sessionBoard, `${work}/bp-meta.json`);
+check("new creates a board whose board directory and session folder do not exist", result.status === 0 && existsSync(sessionBoard), result.stderr);
+const sessionCheck = run("check", sessionBoard);
+check("a board created in a new session folder passes check", sessionCheck.status === 0 && sessionCheck.stdout === "", sessionCheck.stdout + sessionCheck.stderr);
+apply(sessionBoard, [{ op: "add", section: "Problems", kind: "hot-spot", text: "Payouts late" }]);
+const sessionBefore = existsSync(sessionBoard) ? readFileSync(sessionBoard, "utf8") : null;
+result = run("new", sessionBoard, `${work}/bp-meta.json`);
+check("new still refuses a board that exists in a session folder and keeps its content", result.status === 1 && sessionBefore?.includes("Payouts late") && readFileSync(sessionBoard, "utf8") === sessionBefore, result.stderr);
+
+writeFileSync(`${work}/blocker`, "a file where a folder is needed\n");
+result = run("new", `${work}/blocker/session-1/big-picture.md`, `${work}/bp-meta.json`);
+check("new exits 2 and names the path when a parent folder cannot be created", result.status === 2 && result.stdout === "" && result.stderr.includes(`cannot write ${work}/blocker/session-1/big-picture.md`), result.stderr);
+writeFileSync(`${work}/no-format.json`, JSON.stringify({ title: "No format" }));
+result = run("new", `${work}/refused/session-1/big-picture.md`, `${work}/no-format.json`);
+check("new creates no folders for meta it refuses", result.status === 1 && !existsSync(`${work}/refused`), result.stderr);
+result = apply(`${work}/dl.md`, [
+  { op: "add", section: "Flow", kind: "command", text: "Capture Payment", row: "commands" },
+  { op: "add", section: "Flow", kind: "aggregate", text: "Payment", row: "aggregates" },
+  { op: "group", section: "Aggregates", name: "Payment", members: ["s1", "s2"] },
+]);
+check("a design-level flow takes rows and aggregates group", result.status === 0 && readFileSync(`${work}/dl.md`, "utf8").includes("## Flow\n\n- [command] Capture Payment {#s1 row=commands}\n- [aggregate] Payment {#s2 row=aggregates}\n"));
+check("a design-level board has no Timeline zones", apply(`${work}/dl.md`, [{ op: "zones", names: ["x"] }]).status === 1);
+
+writeFileSync(`${work}/blank.md`, dl);
+result = apply(`${work}/blank.md`, [{ op: "add", section: "Flow", kind: "aggregate", text: "", row: "aggregates" }]);
+const blankBoard = readFileSync(`${work}/blank.md`, "utf8");
+const blankLine = "## Flow\n\n- [aggregate]  {#s1 row=aggregates}\n";
+check("a blank business rule is placed with no text", result.status === 0 && blankBoard.includes(blankLine), result.stderr);
+const blankRead = JSON.parse(run("parse", `${work}/blank.md`).stdout).stickies[0];
+check("a blank business rule parses back blank", blankRead?.id === "s1" && blankRead?.kind === "aggregate" && blankRead?.text === "" && blankRead?.row === "aggregates");
+check("a blank business rule renders back byte for byte and passes check", blankBoard.includes(blankLine) && renderBoard(parseBoard(blankBoard)) === blankBoard && run("check", `${work}/blank.md`).status === 0);
+result = apply(`${work}/blank.md`, [{ op: "update", id: "s1", text: "Capture within limit" }]);
+check("a later update fills the blank business rule", result.status === 0 && readFileSync(`${work}/blank.md`, "utf8").includes("## Flow\n\n- [aggregate] Capture within limit {#s1 row=aggregates}\n"), result.stderr);
+
+const handBlank = dl.replace("## Flow\n\n", "## Flow\n\n- [aggregate]  {#s1 row=aggregates}\n\n");
+writeFileSync(`${work}/blank-kind.md`, handBlank);
+result = apply(`${work}/blank-kind.md`, [{ op: "update", id: "s1", kind: "event" }]);
+check("a blank business rule cannot become a blank event", result.status === 1 && readFileSync(`${work}/blank-kind.md`, "utf8") === handBlank, result.stderr);
+result = apply(`${work}/blank-kind.md`, [{ op: "update", id: "s1", kind: "event", text: "Payment Captured" }]);
+check("a blank business rule can change kind when it gets text", result.status === 0 && readFileSync(`${work}/blank-kind.md`, "utf8").includes("- [event] Payment Captured {#s1 row=aggregates}\n"), result.stderr);
+
+const otherKinds = Object.keys(KINDS).filter((kind) => kind !== "aggregate");
+writeFileSync(`${work}/blank-other.md`, dl);
+const acceptedBlank = otherKinds.filter((kind) => apply(`${work}/blank-other.md`, [{ op: "add", section: "Flow", kind, text: "" }]).status !== 1);
+check("every other kind still refuses empty text", otherKinds.length === 16 && acceptedBlank.length === 0 && readFileSync(`${work}/blank-other.md`, "utf8") === dl, acceptedBlank.join(", "));
+
+writeFileSync(`${work}/c.md`, handWrittenBoard.replace("- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}", "- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}\n- [event] A ticket was sold to the attendee {#s20}\n- [event] COMMAND: Place Order {#s21}\n- [event] \u{1F389} Party Started {#s22}"));
+const scan = run("check", `${work}/c.md`).stdout;
+check("the content scan flags long, prefixed and emoji text", scan.includes("warn: over 5 words: s20") && scan.includes("warn: type prefix: s21") && scan.includes("warn: emoji: s22"));
+check("a five-word sticky is not flagged", !scan.includes("over 5 words: s6"));
+check("a duplicate id fails check", run("check", (writeFileSync(`${work}/d.md`, handWrittenBoard.replace("{#s9}", "{#s1}")), `${work}/d.md`)).stdout.includes("error: duplicate id: s1"));
+check("check exits 2 on a missing file", run("check", `${work}/none.md`).status === 2 && !existsSync(`${work}/none.md`));
+
+const tree = () => JSON.stringify(readdirSync(base, { recursive: true }).filter((p) => !p.startsWith("repo/.git")).sort());
+const metaFile = `${work}/bp-meta.json`;
+const opsFile = `${work}/containment-ops.json`;
+writeFileSync(opsFile, JSON.stringify([{ op: "meta", phase: "wrapping-up" }]));
+writeFileSync(`${outside}/board.md`, handWrittenBoard);
+writeFileSync(`${outside}/notes.txt`, handWrittenBoard);
+writeFileSync(`${work}/notes.txt`, handWrittenBoard);
+symlinkSync(outside, `${work}/out-link`);
+symlinkSync(`${outside}/board.md`, `${work}/board-link.md`);
+symlinkSync(`${outside}/not-yet.md`, `${work}/dangling.md`);
+symlinkSync(`${outside}/not-yet`, `${work}/dangling-dir`);
+symlinkSync(`${work}/notes.txt`, `${work}/notes-link.md`);
+symlinkSync(`${work}/bp.md`, `${work}/board-alias.txt`);
+mkdirSync(`${work}/sub`);
+mkdirSync(`${base}/plain`);
+mkdirSync(`${work}/fake-home`);
+
+const refusals = [
+  ["an absolute path outside the root", work, {}, `${outside}/new/board.md`, "outside the project root"],
+  ["a .. escape", work, {}, "../outside/new/board.md", ".. segment"],
+  ["a .. segment that a symlink would redirect", work, {}, "out-link/../new/board.md", ".. segment"],
+  ["a symlinked folder that leaves the root", work, {}, "out-link/new/board.md", "outside the project root"],
+  ["a dangling symlinked folder", work, {}, "dangling-dir/board.md", "cannot be resolved"],
+  ["a dangling symlinked file", work, {}, "dangling.md", "cannot be resolved"],
+  ["a non-.md name", work, {}, "new/board.txt", "must end in .md"],
+  ["a bare .md name", work, {}, "new/.md", "must end in .md"],
+  ["a symlink to a non-.md file", work, {}, "notes-link.md", "must end in .md"],
+  ["a git root that is the home directory", work, { HOME: work }, "new/board.md", "home directory"],
+  ["a git root above the home directory", work, { HOME: `${work}/fake-home` }, "new/board.md", "home directory"],
+  ["a working directory with no git root", `${base}/plain`, {}, "new/board.md", "not inside a git repository"],
+];
+for (const [name, cwd, env, path, reason] of refusals) {
+  const before = tree();
+  result = runIn(cwd, env, "new", path, metaFile);
+  check(`new refuses ${name} and leaves nothing behind`, result.status === 1 && result.stdout === "" && result.stderr.includes(reason) && tree() === before, result.stderr);
+}
+
+const applyRefusals = [
+  ["a board outside the root", work, {}, `${outside}/board.md`, "outside the project root", `${outside}/board.md`],
+  ["a .. path to a board outside the root", work, {}, "../outside/board.md", ".. segment", `${outside}/board.md`],
+  ["a symlinked board that leaves the root", work, {}, "board-link.md", "outside the project root", `${outside}/board.md`],
+  ["a board that is not .md", work, {}, "notes.txt", "must end in .md", `${work}/notes.txt`],
+  ["a symlink to a non-.md board", work, {}, "notes-link.md", "must end in .md", `${work}/notes.txt`],
+  ["a non-.md name that links to a board", work, {}, "board-alias.txt", "must end in .md", `${work}/bp.md`],
+  ["a board under a home-directory root", work, { HOME: work }, "bp.md", "home directory", `${work}/bp.md`],
+  ["a board with no git root", outside, {}, "board.md", "not inside a git repository", `${outside}/board.md`],
+];
+for (const [name, cwd, env, path, reason, file] of applyRefusals) {
+  const before = tree();
+  const content = readFileSync(file, "utf8");
+  result = runIn(cwd, env, "apply", path, opsFile);
+  check(`apply refuses ${name} and changes nothing`, result.status === 1 && result.stdout === "" && result.stderr.includes(reason) && tree() === before && readFileSync(file, "utf8") === content, result.stderr);
+}
+
+result = runIn(`${work}/sub`, {}, "new", "--now", NOW, "boards/inside.md", metaFile);
+check("new writes a relative path inside the root from a subfolder", result.status === 0 && existsSync(`${work}/sub/boards/inside.md`), result.stderr);
+result = runIn(`${work}/sub`, {}, "apply", "--now", NOW, "boards/inside.md", opsFile);
+check("apply rewrites a board inside the root from a subfolder", result.status === 0 && readFileSync(`${work}/sub/boards/inside.md`, "utf8").includes("phase: wrapping-up"), result.stderr);
+symlinkSync(`${work}/sub/boards/inside.md`, `${work}/inside-link.md`);
+result = runIn(work, {}, "apply", "--now", NOW, "inside-link.md", opsFile);
+check("apply through a symlink that stays inside the root keeps the link", result.status === 0 && readdirSync(work, { withFileTypes: true }).find((e) => e.name === "inside-link.md")?.isSymbolicLink() === true, result.stderr);
+check("check still reads a board outside the root", runIn(outside, {}, "check", `${outside}/board.md`).status === 0);
+check("parse still reads a board outside the root", JSON.parse(runIn(outside, {}, "parse", `${outside}/board.md`).stdout).meta.format === "big-picture");
+
+if (failed > 0) process.exit(1);

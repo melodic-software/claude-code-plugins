@@ -3,6 +3,26 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-18
+
+### Changed
+
+- `/mcp-tools:audit`'s checklist rows C6, C16 and C20 and its annotations note accept the SDK's own form and no longer list Zod, Python or .NET examples.
+- The server-discovery page's "Server instructions" section tells the audit to find where the server is constructed; it no longer names each SDK's constructor or links SDK reference pages.
+
+### Removed
+
+- `/mcp-tools:audit-posture`'s P3 check drops the `postmark-mcp` worked case and its Postmark source record; the P3 rules are unchanged.
+
+## [0.9.1] - 2026-11-18
+
+### Changed
+
+- The source-conflict records in the `audit` and `audit-posture` checklists now only name the
+  pages that disagree and the topic. The `audit-posture` SDK-entries record, which stores no
+  value, drops its as-of date and recheck trigger; the `audit` C4 length record keeps its stamp
+  under a trigger that no longer describes what the mcp page says.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added

@@ -14,6 +14,7 @@ import { createProxy, loadConfig } from "./key-proxy.mjs";
 const SCRIPT = fileURLToPath(new URL("./key-proxy.mjs", import.meta.url));
 // Built at run time so no key-shaped literal sits in the file.
 const KEY = `${"sk-ant-"}api03-${"K".repeat(40)}`;
+const CLIENT_KEY = `ccd-outer-${"c".repeat(32)}`;
 const MODELS = ["model-main", "model-title"];
 // Measured from the driven session (Claude Code 2.1.318): its betas and
 // top-level body keys. Block types are the ones a restricted session sends.
@@ -276,6 +277,144 @@ test("upstream errors keep their status and body; only the allowlisted response 
   assert.equal(res.headers["retry-after"], "5");
   assert.equal(res.headers["anthropic-ratelimit-unified-status"], "allowed");
   for (const dropped of ["set-cookie", "x-envoy-upstream-service-time", "server"]) assert.equal(res.headers[dropped], undefined, dropped);
+});
+
+const upstreamErrors = (logs) => logs.filter((l) => l.upstreamStatus !== undefined);
+const errorBody = (type, message) => JSON.stringify({ type: "error", error: { type, message } });
+
+test("a refused upstream request logs one line with its error type, message, model, betas and max_tokens", async () => {
+  const credit = errorBody("invalid_request_error", "Your credit balance is too low to access the Anthropic API.");
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(400, { "content-type": "application/json" }).end(credit));
+  const { socket, logs } = await startProxy(up);
+  const res = await call(socket, { body: message({ max_tokens: 900 }), headers: { "anthropic-beta": MAIN_BETAS } });
+  assert.equal(res.status, 400);
+  assert.equal(res.body, credit);
+  assert.deepEqual(upstreamErrors(logs), [{
+    method: "POST", path: "/v1/messages", upstreamPath: "/v1/messages", upstreamStatus: 400,
+    errorType: "invalid_request_error", errorMessage: "Your credit balance is too low to access the Anthropic API.",
+    model: "model-main", betas: MAIN_BETAS.split(","), maxTokens: 900,
+  }]);
+  assert.equal(logs.filter((l) => l.status !== undefined).length, 1);
+});
+
+test("an upstream error line is single-line, bounded, masks keys and cannot act as a workflow command", async () => {
+  const hostile = `::error::${KEY} ${CLIENT_KEY} ${"sk-ant-"}admin01-xyz\n##[group]x\r\u0000\u001b[31m\u202e\u2028 ::: end ${"m".repeat(5000)}`;
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(401, { "content-type": "application/json" }).end(errorBody("authentication_error\n::error::x", hostile)));
+  const odd = "model\u0007::odd";
+  const { socket, logs } = await startProxy(up, { models: [...MODELS, odd], betas: [...BETAS, "x::y", "##[group]"] }, { clientKey: CLIENT_KEY });
+  const res = await call(socket, { body: message({ model: odd }), headers: { "x-api-key": CLIENT_KEY, "anthropic-beta": "effort-2025-11-24, x::y,##[group]" } });
+  assert.equal(res.status, 401);
+  const [entry] = upstreamErrors(logs);
+  assert.equal(entry.errorType, "unrecognized");
+  assert.equal(entry.model, "unrecognized");
+  assert.deepEqual(entry.betas, ["effort-2025-11-24"]);
+  const text = entry.errorMessage;
+  assert.ok(Array.from(text).length <= 120, `${Array.from(text).length} characters`);
+  assert.doesNotMatch(text, /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u);
+  assert.doesNotMatch(text, /::|##/);
+  assert.match(text, /^: :error: :\[key\] \[key\] \[key\] # #\[group\]x/);
+  const line = JSON.stringify(entry);
+  for (const k of [KEY, CLIENT_KEY, "sk-ant-"]) assert.ok(!line.includes(k), "a key logged");
+  assert.doesNotMatch(line, /\\[nru]/);
+});
+
+test("an upstream error message has every UUID masked, so an organization id is not logged", async () => {
+  const ids = ["3f2a9c4e-1b7d-4e8a-9c0f-2d6b8e1a7c55", "3F2A9C4E-1B7D-4E8A-9C0F-2D6B8E1A7C55"];
+  const limited = errorBody("rate_limit_error", `Number of request tokens has exceeded your rate limit for organization ${ids[0]} (${ids[1]})`);
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(429, { "content-type": "application/json" }).end(limited));
+  const { socket, logs } = await startProxy(up);
+  const res = await call(socket, { body: message() });
+  assert.equal(res.body, limited);
+  const [entry] = upstreamErrors(logs);
+  assert.equal(entry.errorType, "rate_limit_error");
+  assert.equal(entry.errorMessage, "Number of request tokens has exceeded your rate limit for organization [id] ([id])");
+});
+
+test("a key that straddles the 120-character cut is masked before the cut, so no prefix of it is logged", async () => {
+  const messages = [`${"x".repeat(115)}${KEY} tail`, `${"x".repeat(112)}${CLIENT_KEY} tail`];
+  let n = 0;
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(400, { "content-type": "application/json" }).end(errorBody("invalid_request_error", messages[n++])));
+  const { socket, logs } = await startProxy(up, {}, { clientKey: CLIENT_KEY });
+  for (let i = 0; i < messages.length; i++) await call(socket, { body: message(), headers: { "x-api-key": CLIENT_KEY } });
+  const texts = upstreamErrors(logs).map((e) => e.errorMessage);
+  assert.equal(texts.length, 2);
+  for (const text of texts) {
+    assert.equal(text.length, 120);
+    for (const k of [KEY, CLIENT_KEY]) {
+      for (let len = 4; len <= k.length; len++) assert.ok(!text.includes(k.slice(0, len)), `a ${len}-character key prefix logged`);
+    }
+  }
+});
+
+test("an upstream error body that is not the expected JSON, or is past the read bound, logs only that it was unreadable", async () => {
+  const bodies = ["<html>bad gateway</html>", JSON.stringify({ error: "plain" }), errorBody("api_error", "x".repeat(9000))];
+  let n = 0;
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(502, { "content-type": "text/html" }).end(bodies[n++]));
+  const { socket, logs } = await startProxy(up);
+  for (const body of bodies) assert.equal((await call(socket, { body: message() })).body, body);
+  const entries = upstreamErrors(logs);
+  assert.equal(entries.length, 3);
+  for (const e of entries) {
+    assert.equal(e.upstreamError, "error body unreadable");
+    assert.equal(e.errorType, undefined);
+    assert.equal(e.errorMessage, undefined);
+    assert.equal(e.upstreamStatus, 502);
+  }
+});
+
+test("a 2xx answer, streamed or not, logs no upstream error line", async () => {
+  let n = 0;
+  const up = await stubUpstream((req, body, res) => {
+    if (n++ === 0) return okJson()(req, body, res);
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.end(sse("message_start", { message: { usage: { input_tokens: 1 } } }) + sse("message_delta", { usage: { output_tokens: 1 } }));
+  });
+  const { socket, logs } = await startProxy(up);
+  assert.equal((await call(socket, { body: message() })).status, 200);
+  assert.equal((await call(socket, { body: message({ stream: true }) })).status, 200);
+  assert.equal((await call(socket, { url: "/v1/messages/count_tokens", body: countBody() })).status, 200);
+  assert.deepEqual(upstreamErrors(logs), []);
+});
+
+test("a refused upstream answer reaches the client byte for byte, streamed in chunks or whole", async () => {
+  const streamed = Buffer.concat([Buffer.from(`event: error\ndata: ${errorBody("overloaded_error", "Overloaded")}\n\n`), Buffer.from([0xe2, 0x82]), Buffer.from([0xac, 0x0a]), Buffer.alloc(10_000, 0x61)]);
+  const up = await stubUpstream(async (_req, _body, res) => {
+    res.writeHead(529, { "content-type": "text/event-stream" });
+    for (let i = 0; i < streamed.length; i += 3000) {
+      res.write(streamed.subarray(i, i + 3000));
+      await tick();
+    }
+    res.end();
+  });
+  const { socket, logs } = await startProxy(up);
+  const got = await new Promise((resolve, reject) => {
+    const req = http.request({ socketPath: socket, method: "POST", path: "/v1/messages", headers: { "content-type": "application/json" } }, (r) => {
+      const chunks = [];
+      r.on("data", (c) => chunks.push(c));
+      r.on("end", () => resolve({ status: r.statusCode, body: Buffer.concat(chunks) }));
+    });
+    req.on("error", reject);
+    req.end(JSON.stringify(message({ stream: true })));
+  });
+  assert.equal(got.status, 529);
+  assert.ok(got.body.equals(streamed));
+  assert.equal(upstreamErrors(logs)[0].upstreamError, "error body unreadable");
+});
+
+test("a refused count_tokens preflight logs its upstream error on both listeners", async () => {
+  const credit = errorBody("invalid_request_error", "Your credit balance is too low to access the Anthropic API.");
+  const up = await stubUpstream(okJson(), { countTokens: (res) => res.writeHead(400, { "content-type": "application/json" }).end(credit) });
+  for (const options of [{}, { clientKey: CLIENT_KEY, relayPreflightErrors: true }]) {
+    const { socket, logs } = await startProxy(up, {}, options);
+    const res = await call(socket, { body: message(), headers: { "x-api-key": CLIENT_KEY } });
+    assert.equal(res.status, options.relayPreflightErrors ? 400 : 403);
+    const [entry] = upstreamErrors(logs);
+    assert.equal(entry.upstreamPath, "/v1/messages/count_tokens");
+    assert.equal(entry.path, "/v1/messages");
+    assert.equal(entry.errorType, "invalid_request_error");
+    assert.equal(entry.maxTokens, 100);
+  }
+  assert.equal(up.seen.length, 0);
 });
 
 test("a model allowlist of several models and a max_tokens ceiling", async () => {
@@ -815,7 +954,6 @@ test("the script exits non-zero on a missing key or a bad config", async () => {
 
 // The loopback listener the capture's driver legs use: a client key in place
 // of the real one, required on every request.
-const CLIENT_KEY = `ccd-outer-${"c".repeat(32)}`;
 
 test("a client key admits only requests carrying it: a wrong, missing or real key is refused 401 before anything goes upstream", async () => {
   const up = await stubUpstream(okJson());

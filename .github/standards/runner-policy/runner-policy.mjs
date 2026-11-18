@@ -22,15 +22,16 @@ export class ConfigurationError extends Error {
   }
 }
 
+const YAML_PARSE_OPTIONS = {
+  maxAliasCount: 0,
+  merge: false,
+  prettyErrors: true,
+  strict: true,
+  uniqueKeys: true,
+};
+
 export function parseUniqueJson(source, location) {
-  const document = parseDocument(source, {
-    maxAliasCount: 0,
-    merge: false,
-    prettyErrors: true,
-    schema: "json",
-    strict: true,
-    uniqueKeys: true,
-  });
+  const document = parseDocument(source, { ...YAML_PARSE_OPTIONS, schema: "json" });
   if (document.errors.length > 0) {
     throw new ConfigurationError(
       `${location} has duplicate object members or ambiguous structure: ${document.errors[0].message}`,
@@ -212,12 +213,10 @@ export function validatePolicy(value) {
             `reusable workflow contract ${reference}.minimumCallerPermissions must require read access only (${writeScopes.join(", ")}); GitHub downgrades caller write grants on forked and Dependabot pull requests, so a write floor cannot be proven from the caller's declaration — use allowedCallerPermissions for a write obligation`,
           );
         }
-      }
-      // The two caller-permission terms are independent — a ceiling and a
-      // floor — but a contract naming both must be satisfiable: a caller may
-      // present only an exact waiver map, so every listed map must clear the
-      // floor or it admits nothing at all.
-      if (Object.hasOwn(contract, "minimumCallerPermissions")) {
+        // The two caller-permission terms are independent — a ceiling and a
+        // floor — but a contract naming both must be satisfiable: a caller may
+        // present only an exact waiver map, so every listed map must clear the
+        // floor or it admits nothing at all.
         for (const { map: permissions, location } of callerPermissionMaps) {
           const shortfall = minimumPermissionShortfall(
             permissions,
@@ -346,11 +345,12 @@ export function validatePolicy(value) {
       "policy.governedReusableRunnerInput.failureSentinelMarker must remain outside every hosted and managed runner label set",
     );
   }
-  const hostedMatrixAxes = new Map();
-  for (const expression of value.hostedMatrixExpressions) {
-    const match = MATRIX_OUTPUT.exec(expression);
-    hostedMatrixAxes.set(match[1], expression);
-  }
+  const hostedMatrixAxes = new Map(
+    value.hostedMatrixExpressions.map((expression) => [
+      MATRIX_OUTPUT.exec(expression)[1],
+      expression,
+    ]),
+  );
 
   return {
     ...value,
@@ -422,10 +422,9 @@ function validateRepositoryConfig(value, policy) {
     localRoutingGrants.set(key, grant);
   }
 
-  const requiredReusableCallInputs = new Map();
-  for (const [key, entry] of Object.entries(value.requiredReusableCallInputs ?? {})) {
-    requiredReusableCallInputs.set(key, entry);
-  }
+  const requiredReusableCallInputs = new Map(
+    Object.entries(value.requiredReusableCallInputs ?? {}),
+  );
 
   return { ...value, exceptions, localRoutingGrants, requiredReusableCallInputs };
 }
@@ -449,13 +448,7 @@ function parseWorkflow(source, file) {
 }
 
 function parseYamlMapping(source, file) {
-  const document = parseDocument(source, {
-    maxAliasCount: 0,
-    merge: false,
-    prettyErrors: true,
-    strict: true,
-    uniqueKeys: true,
-  });
+  const document = parseDocument(source, YAML_PARSE_OPTIONS);
   if (document.errors.length > 0) {
     throw new Error(document.errors.map((error) => error.message).join("; "));
   }
@@ -544,13 +537,7 @@ function workflowCallDeclaration(workflow) {
     return undefined;
   }
   const declaration = workflow.on.workflow_call;
-  if (declaration === null) {
-    return {};
-  }
-  if (!isMapping(declaration)) {
-    return {};
-  }
-  return declaration;
+  return isMapping(declaration) ? declaration : {};
 }
 
 function isWorkflowCallExclusive(workflow) {
@@ -666,9 +653,10 @@ function localWorkflowRoutingMode(record, policy, workflowIndex, visited = new S
     const local = parseLocalReusableWorkflowReference(job?.uses);
     if (local.file) {
       const nested = workflowIndex.get(local.file);
-      if (!nested?.workflow) {
-        internalRouting = true;
-      } else if (localWorkflowRoutingMode(nested, policy, workflowIndex, visited) !== "hosted") {
+      if (
+        !nested?.workflow ||
+        localWorkflowRoutingMode(nested, policy, workflowIndex, visited) !== "hosted"
+      ) {
         internalRouting = true;
       }
     }
@@ -814,12 +802,7 @@ function auditLocalPermissionFlow({
       continue;
     }
 
-    const hostedExecution =
-      target.kind === "hosted-literal" ||
-      target.kind === "hosted-matrix" ||
-      target.kind === "hosted-reusable" ||
-      target.kind === "hosted-local-reusable";
-    if (hostedExecution && capability !== "read-only") {
+    if (HOSTED_TARGET_KINDS.has(target.kind) && capability !== "read-only") {
       // The direct audit of this same job classifies a declared packages-only
       // write map (with no other privileged surface) as publication — with the
       // structural container categories taking precedence over that downgrade;
@@ -827,15 +810,7 @@ function auditLocalPermissionFlow({
       // contradict each other on one exception key. Anything else — a broader
       // declared map, an additional privileged surface, or an undeclared map
       // that merely inherits the caller's write capability — stays privileged.
-      const declaredRequirement = privilegedHostedRequirement(
-        record.workflow,
-        job,
-        target,
-        policy,
-        undefined,
-        undefined,
-        undefined,
-      );
+      const declaredRequirement = privilegedHostedRequirement(record.workflow, job, target, policy);
       let requiredReason = "privileged-control-plane";
       if (declaredRequirement?.reason === "publication") {
         const structuralRequirement = structuralHostedRequirement(job);
@@ -1292,6 +1267,13 @@ function locallyRoutedTarget(target) {
   return target?.kind === "managed-literal";
 }
 
+const HOSTED_TARGET_KINDS = new Set([
+  "hosted-literal",
+  "hosted-matrix",
+  "hosted-reusable",
+  "hosted-local-reusable",
+]);
+
 function rawRunnerStrings(job, includeReusableInputs) {
   return stringsIn({
     matrix: job?.strategy?.matrix,
@@ -1312,28 +1294,25 @@ function effectivePermissions(workflow, job) {
   return Object.hasOwn(job, "permissions") ? job.permissions : workflow.permissions;
 }
 
+function privilegedControlPlane(description) {
+  return { reason: "privileged-control-plane", description, rule: "privileged-hosted-only" };
+}
+
 function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = false } = {}) {
   const permissions = effectivePermissions(workflow, job);
   if (permissions === "write-all") {
-    return {
-      reason: "privileged-control-plane",
-      description: "write-all GITHUB_TOKEN permissions",
-      rule: "privileged-hosted-only",
-    };
+    return privilegedControlPlane("write-all GITHUB_TOKEN permissions");
   }
   if (permissions === "read-all") {
     return undefined;
   }
   if (!isMapping(permissions)) {
     if (requireExplicitReadOnly) {
-      return {
-        reason: "privileged-control-plane",
-        description:
-          permissions === undefined
-            ? "omitted GITHUB_TOKEN permissions with repository/organization-defined defaults"
-            : "GITHUB_TOKEN permissions that are not explicitly read-only",
-        rule: "privileged-hosted-only",
-      };
+      return privilegedControlPlane(
+        permissions === undefined
+          ? "omitted GITHUB_TOKEN permissions with repository/organization-defined defaults"
+          : "GITHUB_TOKEN permissions that are not explicitly read-only",
+      );
     }
     return undefined;
   }
@@ -1343,11 +1322,7 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
     .sort((left, right) => left.localeCompare(right));
   if (writable.length === 0) {
     if (requireExplicitReadOnly && !hasStaticallyReadOnlyPermissions(workflow, job)) {
-      return {
-        reason: "privileged-control-plane",
-        description: "GITHUB_TOKEN permissions that are not explicitly read-only",
-        rule: "privileged-hosted-only",
-      };
+      return privilegedControlPlane("GITHUB_TOKEN permissions that are not explicitly read-only");
     }
     return undefined;
   }
@@ -1363,11 +1338,7 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
       rule: "privileged-hosted-only",
     };
   }
-  return {
-    reason: "privileged-control-plane",
-    description: `write GITHUB_TOKEN permissions (${writable.join(", ")})`,
-    rule: "privileged-hosted-only",
-  };
+  return privilegedControlPlane(`write GITHUB_TOKEN permissions (${writable.join(", ")})`);
 }
 
 function isExpressionWordCharacter(codeUnit) {
@@ -1681,14 +1652,15 @@ function localCredentialRequirement(
 // or undefined otherwise. This is the one place that decides whether a step
 // mints credentials.
 function credentialActionUses(step, policy) {
-  if (!isMapping(step)) {
-    return undefined;
-  }
-  if (typeof step.uses !== "string") {
+  if (!isMapping(step) || typeof step.uses !== "string") {
     return undefined;
   }
   const action = step.uses.split("@", 1)[0].toLowerCase();
   return policy.localCredentialActions.has(action) ? step.uses : undefined;
+}
+
+function withoutSecrets(job) {
+  return Object.fromEntries(Object.entries(job).filter(([name]) => name !== "secrets"));
 }
 
 function privilegedHostedRequirement(workflow, job, target, policy, localCall, grant, grantUsage) {
@@ -1732,11 +1704,9 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
       "job permissions",
     );
     if (permissionError) {
-      return {
-        reason: "privileged-control-plane",
-        description: `GITHUB_TOKEN permissions outside the reviewed local-routing grant (${permissionError})`,
-        rule: "privileged-hosted-only",
-      };
+      return privilegedControlPlane(
+        `GITHUB_TOKEN permissions outside the reviewed local-routing grant (${permissionError})`,
+      );
     }
   } else {
     const permissionRequirement =
@@ -1762,23 +1732,14 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
     if (publicationRequirement === undefined) {
       return undefined;
     }
-    const boundaryJob = Object.fromEntries(
-      Object.entries(job).filter(([name]) => name !== "secrets"),
-    );
     const callerCredentialRequirement = localCredentialRequirement(
       workflow,
-      boundaryJob,
+      withoutSecrets(job),
       undefined,
-      {
-        admitGitHubToken: true,
-      },
+      { admitGitHubToken: true },
     );
     if (callerCredentialRequirement) {
-      return {
-        reason: "privileged-control-plane",
-        description: callerCredentialRequirement,
-        rule: "privileged-hosted-only",
-      };
+      return privilegedControlPlane(callerCredentialRequirement);
     }
     return publicationRequirement;
   }
@@ -1788,46 +1749,32 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
     Object.hasOwn(grant, "environment") &&
     job.environment !== grant.environment
   ) {
-    return {
-      reason: "privileged-control-plane",
-      description:
-        "a deployment environment declaration that does not match the reviewed local-routing grant",
-      rule: "privileged-hosted-only",
-    };
+    return privilegedControlPlane(
+      "a deployment environment declaration that does not match the reviewed local-routing grant",
+    );
   }
   if (
     Object.hasOwn(job, "environment") &&
     !(grantApplies && job.environment === grant.environment)
   ) {
-    return {
-      reason: "privileged-control-plane",
-      description: grantApplies
+    return privilegedControlPlane(
+      grantApplies
         ? "a deployment environment outside the reviewed local-routing grant"
         : "a deployment environment",
-      rule: "privileged-hosted-only",
-    };
+    );
   }
 
-  const credentialJob = reviewedSecretBoundary
-    ? Object.fromEntries(Object.entries(job).filter(([name]) => name !== "secrets"))
-    : job;
   const grantAllowance = grantApplies
     ? { secretNames: new Set(grant.secrets ?? []), usedSecretNames: new Set() }
     : undefined;
   const credentialRequirement = localCredentialRequirement(
     workflow,
-    credentialJob,
+    reviewedSecretBoundary ? withoutSecrets(job) : job,
     grantAllowance,
-    {
-      admitGitHubToken: publicationRequirement !== undefined,
-    },
+    { admitGitHubToken: publicationRequirement !== undefined },
   );
   if (credentialRequirement) {
-    return {
-      reason: "privileged-control-plane",
-      description: credentialRequirement,
-      rule: "privileged-hosted-only",
-    };
+    return privilegedControlPlane(credentialRequirement);
   }
 
   const usedCredentialActions = new Set();
@@ -1842,11 +1789,9 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
       // reach the fleet on a workflow-only change.
       const reference = uses.toLowerCase();
       if (!(grantApplies && (grant.credentialActions ?? []).includes(reference))) {
-        return {
-          reason: "privileged-control-plane",
-          description: `credential-minting action ${uses.split("@", 1)[0].toLowerCase()}`,
-          rule: "privileged-hosted-only",
-        };
+        return privilegedControlPlane(
+          `credential-minting action ${uses.split("@", 1)[0].toLowerCase()}`,
+        );
       }
       usedCredentialActions.add(reference);
     }
@@ -1963,13 +1908,7 @@ function isShaClaim(token) {
 // nodes, so YAML properties such as anchors remain supported while examples
 // inside run blocks or comments can never masquerade as executable references.
 function pinnedUsesEntries(source, workflow) {
-  const document = parseDocument(source, {
-    maxAliasCount: 0,
-    merge: false,
-    prettyErrors: true,
-    strict: true,
-    uniqueKeys: true,
-  });
+  const document = parseDocument(source, YAML_PARSE_OPTIONS);
   const lineStarts = [0];
   for (const match of source.matchAll(/\n/gu)) {
     lineStarts.push(match.index + 1);
@@ -2313,47 +2252,34 @@ export async function auditRepository({
         findings.push(finding("runner-target-contract", file, jobId, target.reason));
       }
 
-      if (requiredCallInputs) {
-        // Required inputs govern the cross-repository contract call only. A
-        // repository-local wrapper may accept the named input without
-        // forwarding it to the reviewed external workflow.
-        if (reusable.isReusable && !localCall.isLocal) {
-          consumedRequiredReusableCallInputs.add(key);
-          const { contract } = reusableWorkflowContract(job.uses, policy);
-          if (contract) {
-            for (const name of requiredCallInputs.requiredInputs) {
-              if (!contract.allowedInputs.has(name)) {
-                throw new ConfigurationError(
-                  `requiredReusableCallInputs ${key} names input ${name}, which is not in the reviewed contract for ${job.uses}`,
-                );
-              }
-            }
-          }
-          const inputs = job.with === undefined ? {} : job.with;
-          if (!isMapping(inputs)) {
-            findings.push(
-              finding(
-                "required-reusable-call-input",
-                file,
-                jobId,
-                `the reusable workflow call omits repository-required inputs: ${requiredCallInputs.requiredInputs.join(", ")} (configured at ${key})`,
-              ),
-            );
-          } else {
-            const missingInputs = requiredCallInputs.requiredInputs.filter(
-              (name) => !Object.hasOwn(inputs, name),
-            );
-            if (missingInputs.length > 0) {
-              findings.push(
-                finding(
-                  "required-reusable-call-input",
-                  file,
-                  jobId,
-                  `the reusable workflow call omits repository-required inputs: ${missingInputs.join(", ")} (configured at ${key})`,
-                ),
+      // Required inputs govern the cross-repository contract call only. A
+      // repository-local wrapper may accept the named input without
+      // forwarding it to the reviewed external workflow.
+      if (requiredCallInputs && reusable.isReusable && !localCall.isLocal) {
+        consumedRequiredReusableCallInputs.add(key);
+        const { contract } = reusableWorkflowContract(job.uses, policy);
+        if (contract) {
+          for (const name of requiredCallInputs.requiredInputs) {
+            if (!contract.allowedInputs.has(name)) {
+              throw new ConfigurationError(
+                `requiredReusableCallInputs ${key} names input ${name}, which is not in the reviewed contract for ${job.uses}`,
               );
             }
           }
+        }
+        const inputs = job.with === undefined ? {} : job.with;
+        const missingInputs = isMapping(inputs)
+          ? requiredCallInputs.requiredInputs.filter((name) => !Object.hasOwn(inputs, name))
+          : requiredCallInputs.requiredInputs;
+        if (missingInputs.length > 0) {
+          findings.push(
+            finding(
+              "required-reusable-call-input",
+              file,
+              jobId,
+              `the reusable workflow call omits repository-required inputs: ${missingInputs.join(", ")} (configured at ${key})`,
+            ),
+          );
         }
       }
 
@@ -2380,12 +2306,7 @@ export async function auditRepository({
             );
           }
         }
-        if (
-          target.kind !== "hosted-literal" &&
-          target.kind !== "hosted-matrix" &&
-          target.kind !== "hosted-reusable" &&
-          target.kind !== "hosted-local-reusable"
-        ) {
+        if (!HOSTED_TARGET_KINDS.has(target.kind)) {
           // The suffix is per rule, not shared. A grant never suppresses a
           // structural requirement (THREAT-MODEL.md), so a job container or
           // services on the fleet must not read as if writing one would satisfy
@@ -2470,28 +2391,16 @@ export async function auditRepository({
         }
         continue;
       }
-      if (target.kind === "reusable-input") {
+      if (
+        target.kind === "reusable-input" ||
+        target.kind === "hosted-local-reusable" ||
+        target.kind === "transparent-local-reusable"
+      ) {
         continue;
       }
-      if (target.kind === "hosted-local-reusable" || target.kind === "transparent-local-reusable") {
-        continue;
-      }
-      if (target.kind === "invalid") {
-        if (exception) {
-          consumedExceptions.add(key);
-        } else if (!hostedRequirement) {
-          findings.push(
-            finding(
-              "hosted-exception-required",
-              file,
-              jobId,
-              `eligible private job must name the governed fleet label or declare ${key} in .github/runner-policy.json`,
-            ),
-          );
-        }
-        continue;
-      }
-      if (!exception && !hostedRequirement) {
+      if (exception) {
+        consumedExceptions.add(key);
+      } else if (!hostedRequirement) {
         findings.push(
           finding(
             "hosted-exception-required",
@@ -2500,48 +2409,36 @@ export async function auditRepository({
             `eligible private job must name the governed fleet label or declare ${key} in .github/runner-policy.json`,
           ),
         );
-      } else if (exception) {
-        consumedExceptions.add(key);
       }
     }
   }
 
-  for (const key of config.exceptions.keys()) {
-    if (!consumedExceptions.has(key)) {
-      findings.push(
-        finding(
-          "exception-inventory-drift",
-          key.split("#", 1)[0],
-          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
-          `configured exception ${key} is unused; remove or correct it`,
-        ),
-      );
-    }
-  }
-
-  for (const key of config.localRoutingGrants.keys()) {
-    if (!consumedLocalRoutingGrants.has(key)) {
-      findings.push(
-        finding(
-          "local-routing-grant-drift",
-          key.split("#", 1)[0],
-          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
-          `configured local-routing grant ${key} is unused; remove or correct it`,
-        ),
-      );
-    }
-  }
-
-  for (const key of config.requiredReusableCallInputs.keys()) {
-    if (!consumedRequiredReusableCallInputs.has(key)) {
-      findings.push(
-        finding(
-          "required-reusable-call-input-drift",
-          key.split("#", 1)[0],
-          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
-          `configured requiredReusableCallInputs entry ${key} is unused; remove or correct it`,
-        ),
-      );
+  for (const [entries, consumed, rule, noun] of [
+    [config.exceptions, consumedExceptions, "exception-inventory-drift", "exception"],
+    [
+      config.localRoutingGrants,
+      consumedLocalRoutingGrants,
+      "local-routing-grant-drift",
+      "local-routing grant",
+    ],
+    [
+      config.requiredReusableCallInputs,
+      consumedRequiredReusableCallInputs,
+      "required-reusable-call-input-drift",
+      "requiredReusableCallInputs entry",
+    ],
+  ]) {
+    for (const key of entries.keys()) {
+      if (!consumed.has(key)) {
+        findings.push(
+          finding(
+            rule,
+            key.split("#", 1)[0],
+            key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
+            `configured ${noun} ${key} is unused; remove or correct it`,
+          ),
+        );
+      }
     }
   }
 

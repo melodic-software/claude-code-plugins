@@ -3,6 +3,38 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.0] - 2026-11-18
+
+### Added
+
+- `/planning:design system` suggests three more threads in `design-threads.md`: `Quality scenarios`
+  (each Brief quality requirement as a six-part scenario, never re-asked, deferred in one line on a
+  prototype Brief), `Capacity estimates` (inputs, arithmetic and a `Basis:` line, an unknown input
+  recorded as `target assumed ... revisit if ...`) and `Risks` (rows in the plan's
+  `Risk | Likelihood | Impact | Mitigation` columns). The steps live in the new
+  `skills/design/reference/system-scope.md`; the design gate is unchanged.
+- `/planning:design-handoff` lists the `Risks` rows in its handoff summary and resume prompt, and
+  `/planning:plan` starts its `### Risks and Mitigations` table from them.
+- Eval cases `design-system-quality-scenarios`, `design-system-prototype-defers-scenarios` and
+  `design-system-risk-list-plan-shape`.
+
+## [5.6.1] - 2026-11-18
+
+### Changed
+
+- `/planning:design` asks `/visualization:visualize` for the fenced diagram form, so a personal or team `diagram_target` that writes a diagram file does not replace the diagram the typed artifact holds.
+
+## [5.6.0] - 2026-11-18
+
+### Added
+
+- `question_pacing` takes a third value, `auto`: before the first round the interview asks one question at a time when the topic is broad and open-ended (many independent directions, little settled upstream), and rounds otherwise, stating its choice and how to switch in one line. The default stays `round`.
+- Once the user confirms the shared understanding, the interview offers the spec step for work that needs one: `/planning:prd` when product intent (users, success measures) is still unsettled, `/planning:design` for an engineering task (design hands on to planning).
+
+### Fixed
+
+- **Wayfind eval cases.** The harness note in the 44 `wayfind-*` eval prompts that carry one no longer tells the agent to Read a skill's or plugin's files at their exact path. Following that note, the without-plugin arm went to read the plugin copy's `SKILL.md`, the sandbox denied the read, and the case came back INVALID. The note now says not to search for a skill's or plugin's files, to open only the files a skill loaded in the session links to, and still never to run Bash, Glob or Grep on a skill or plugin directory ([#16579](https://github.com/melodic-software/claude-code-plugins/issues/16579)).
+
 ## [5.5.5] - 2026-11-17
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The Formly item's resolution feeds the PRD through the map's closing comment.",
+      "why": "says the resolution feeds the PRD"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create interview item 'Formly data sharing' covering fields, agreement and a BAA.",
+      "why": "never says the resolution feeds the PRD"
+    }
+  ]
+}

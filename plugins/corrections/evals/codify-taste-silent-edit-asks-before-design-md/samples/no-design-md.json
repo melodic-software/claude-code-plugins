@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        ".work/codify/feat-pricing/20261117T120000Z-proposal.md"
+      ],
+      "why": "a proposal, not the design-rules file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "DESIGN.md"
+      ],
+      "why": "written before the person approved a rule"
+    }
+  ]
+}

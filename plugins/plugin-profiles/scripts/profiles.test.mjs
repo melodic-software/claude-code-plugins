@@ -393,10 +393,9 @@ test("Q69: on VS Code a one-session apply is refused with the folder offer and w
 });
 
 const CLOUD = { CLAUDECODE: "1", CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" };
-const DESKTOP_WSL = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "claude-desktop", WSL_DISTRO_NAME: "Ubuntu" };
 
-test("Q69: cloud and Desktop WSL sessions: status says plugin profiles do not apply, and apply, clear and install write nothing", () => {
-  for (const [surface, env] of [["a cloud session", CLOUD], ["a Claude Desktop WSL session", DESKTOP_WSL]]) {
+test("Q69: cloud sessions: status says plugin profiles do not apply, and apply, clear and install write nothing", () => {
+  for (const [surface, env] of [["a cloud session", CLOUD]]) {
     const w = world();
     const before = snapshot(settingsFiles(w));
     assert.match(w.run(["status"], env).stdout, new RegExp(`Surface: ${surface}; plugin profiles do not apply here and nothing is written`));
@@ -414,7 +413,7 @@ test("Q69: cloud and Desktop WSL sessions: status says plugin profiles do not ap
 test("status names the session's surface", () => {
   const w = world();
   for (const [entry, line] of [["cli", "Surface: the Claude Code CLI (applies --for session, folder, initial)."], ["claude-vscode", "Surface: VS Code (applies --for folder, initial)."], ["claude-desktop", "Surface: Claude Desktop (applies --for folder, initial)."]]) {
-    const env = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry };
+    const env = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry, WSL_DISTRO_NAME: "Ubuntu" };
     assert.ok(w.run(["status"], env).stdout.split("\n").includes(line), entry);
     assert.equal(JSON.parse(w.run(["status", "--json"], env).stdout).surface.id, entry);
   }
@@ -470,14 +469,14 @@ test("the session-start notice prints nothing in a folder with no applied profil
   assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/);
 });
 
-test("Q69: in cloud and Desktop WSL sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
+test("Q69: in cloud sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/, "on the CLI the notice speaks");
   const before = snapshot(settingsFiles(w));
   const records = w.records();
-  for (const env of [CLOUD, DESKTOP_WSL]) assert.equal(sessionStart(w, env), "", env.CLAUDE_CODE_ENTRYPOINT);
+  assert.equal(sessionStart(w, CLOUD), "", "cloud");
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), records);
 });
@@ -661,6 +660,16 @@ test("AC5: check exits 1 when a shipped build.yaml names nope@melodic-software",
   assert.doesNotMatch(r.stdout, /nope@/, "a finding goes to stderr only");
 });
 
+test("#17038: check still fails a shipped profile that excludes an always-on member without always_on false", () => {
+  const w = world();
+  const shipped = join(w.root, "shipped");
+  cpSync(SHIPPED, shipped, { recursive: true });
+  writeFileSync(join(shipped, "build.yaml"), `${readFileSync(join(shipped, "build.yaml"), "utf8")}exclude: [guardrails@${M}]\n`);
+  const r = w.run(["check", "--shipped", shipped]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /profile build excludes always-on member guardrails@melodic-software/);
+});
+
 test("AC5: check reports an installed plugin no profile names and still exits 0", () => {
   const w = world();
   writeTree(w.home, { ".claude/plugins/installed_plugins.json": { version: 2, plugins: { [`songwriting@${M}`]: [{ scope: "user", installPath: w.root, version: "1.0.0" }] } } });
@@ -733,13 +742,14 @@ test("clear previews like apply: --dry-run and a run with nobody to confirm writ
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
-test("list --json names every shipped profile but always-on, which every profile includes, each with its description", () => {
+test("list --json names every shipped profile but always-on, each with its description", () => {
   const w = world();
   const r = w.run(["list", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const profiles = JSON.parse(r.stdout);
-  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "planning", "review"]);
+  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "native", "planning", "review"]);
   assert.equal(profiles.find((p) => p.name === "build").description, "Write the change, test, review, verify, open and merge the PR, and run lanes.");
+  assert.match(profiles.find((p) => p.name === "native").description, /guardrails included/);
 });
 
 test("list --json adds a repository profile to the shipped ones", () => {
@@ -1400,6 +1410,79 @@ test("#16893: a one-session file names every plugin and skill entry any folder p
   }
 });
 
+const ALWAYS_ON_OFF = /^Switches off guardrails and the other always-on plugins that other profiles keep on \(\d+\): .*guardrails@melodic-software/m;
+
+test("#17038: start native --dry-run plans every governed plugin off but the switcher, and its preview names guardrails as off", () => {
+  const w = world();
+  writeTree(w.project, { ".claude/settings.json": {} });
+  const r = w.run(["start", "native", "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, ALWAYS_ON_OFF);
+  const plugins = launchJson(w, ["native"]).enabledPlugins;
+  const governed = Object.keys(plugins).filter((id) => id.endsWith(`@${M}`));
+  assert.ok(governed.includes(`guardrails@${M}`), governed.join(", "));
+  assert.deepEqual(governed.filter((id) => plugins[id]), [`plugin-profiles@${M}`]);
+  assert.equal("widget@vendor" in plugins, false, "a plugin of another marketplace is left alone");
+});
+
+test("#17038: the folder preview of native says guardrails and the other always-on plugins are off", () => {
+  const w = world();
+  const preview = JSON.parse(w.run(["apply", "native", "--for", "folder", "--defer-off", "--dry-run", "--json"]).stdout);
+  assert.ok(preview.alwaysOnOff.includes(`guardrails@${M}`), preview.alwaysOnOff.join(", "));
+  assert.ok(preview.lines.some((line) => ALWAYS_ON_OFF.test(line)), preview.lines.join("\n"));
+  assert.deepEqual(JSON.parse(w.run(["apply", "build", "--for", "folder", "--dry-run", "--json"]).stdout).alwaysOnOff, []);
+});
+
+test("#17038: native in a repository whose settings enable guardrails says guardrails stays on and why, and never that it is off", () => {
+  const w = world();
+  writeTree(w.project, { ".claude/settings.json": { enabledPlugins: { [`guardrails@${M}`]: true } } });
+  const preview = JSON.parse(w.run(["apply", "native", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.ok(!preview.alwaysOnOff.includes(`guardrails@${M}`), preview.alwaysOnOff.join(", "));
+  assert.ok(preview.lines.includes(`Always-on plugin left on, because the repository's settings enable it: guardrails@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.some((line) => line.startsWith("Switches off always-on plugins that other profiles keep on")), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((line) => /guardrails and the other/.test(line)), preview.lines.join("\n"));
+});
+
+test("#17038: a user profile with always_on false that lists guardrails says it stays on because the profile switches it on", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/guarded.yaml": `always_on: false\nplugins: [plugin-profiles@${M}, guardrails@${M}]\n` });
+  const r = w.run(["start", "guarded", "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /^Always-on plugin left on, because this profile switches it on: guardrails@melodic-software$/m);
+  assert.match(r.stderr, /^Switches off always-on plugins that other profiles keep on/m);
+});
+
+test("#17038: a repository profile's always_on false is ignored: always-on stays on and the preview says the line was ignored", () => {
+  const w = world();
+  const file = join(w.project, "docs", "conventions", "plugin-profiles", "notes.yaml");
+  writeTree(w.project, { "docs/conventions/plugin-profiles/notes.yaml": `always_on: false\nplugins: [songwriting@${M}]\n` });
+  const r = w.run(["apply", "notes", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
+  assert.ok(r.stdout.split("\n").includes(`Ignored, from ${file}: always_on: false. A repository profile cannot switch off an always-on member; a user-level profile can.`), r.stdout);
+  assert.doesNotMatch(r.stdout, /always-on plugins that other profiles keep on/);
+});
+
+test("#17038: from a session in native, the switcher starts another profile, and clear returns the folder to its state before", () => {
+  const w = world();
+  const inNative = { PLUGIN_PROFILES_SESSION: "native" };
+  assert.equal(w.run(["apply", "native", "--for", "folder", "--yes"], inNative).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], false);
+  assert.equal(startJson(w, ["build"], inNative).profile, "build");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"], inNative).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
+  assert.equal(w.run(["clear", "--yes"], inNative).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17038: save keeps a user profile's always_on false and accepts its exclude of an always-on member", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/bare.yaml": `always_on: false\nplugins: [plugin-profiles@${M}]\n` });
+  const r = w.run(["save", "bare", "--level", "user", "--exclude", `guardrails@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(readFileSync(join(w.home, ".claude", "plugin-profiles", "bare.yaml"), "utf8"), /^always_on: false$/m);
+});
+
 const byIdDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions", "by-id");
 const runWith = (w, args, input, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd: w.project, env: { ...w.env, ...extra }, input, encoding: "utf8" });
 const startJson = (w, args, extra = {}) => {
@@ -1647,7 +1730,7 @@ test("#16914: an argument with a space and an ampersand reaches claude as one wo
 });
 
 test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and refuses a claude.cmd it would need a shell for", async () => {
-  const { claudeCommand } = await import("./profiles.mjs");
+  const { claudeCommand } = await import("../lib/claude-command.mjs");
   const files = new Set(["C:\\tools\\claude.exe", "D:\\npm\\claude.cmd"]);
   assert.deepEqual(claudeCommand({ Path: "C:\\none;C:\\tools" }, "win32", (p) => files.has(p)), { file: "C:\\tools\\claude.exe" });
   const cmdOnly = claudeCommand({ PATH: "D:\\npm" }, "win32", (p) => files.has(p));
@@ -1655,6 +1738,13 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.match(cmdOnly.refusal, /found D:\\npm\\claude\.cmd but no claude\.exe/);
   assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
+});
+
+test("#17063: no spawn in the plugin runs through a shell, which prints DEP0190 on Windows", () => {
+  const root = join(HERE, "..");
+  const sources = readdirSync(root, { recursive: true }).filter((f) => f.endsWith(".mjs"));
+  const shelled = sources.filter((f) => /\bshell\s*:/.test(readFileSync(join(root, f), "utf8")));
+  assert.deepEqual(shelled, []);
 });
 
 test("#16914: status says every worktree reads the folder file only once the repository has a linked worktree", () => {
