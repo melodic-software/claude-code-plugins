@@ -499,6 +499,8 @@ lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/session-telemetry/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/plugin-diagnostics/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/actionlint/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/powershell-format/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
 lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
 lib/view-runtime.js plugins/work-items/lib/view-runtime.js
