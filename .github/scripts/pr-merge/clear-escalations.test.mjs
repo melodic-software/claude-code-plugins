@@ -1927,26 +1927,48 @@ const settled = (reason = "feedback-disputed", options = {}) =>
     ...options,
   });
 
-test("a feedback stop pr-verify settled after a trusted body edit comes off at the same head", async () => {
+test("a feedback stop pr-verify settled gets its status cleared first, and its label comes off once that success lands", async () => {
   for (const reason of ["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]) {
     assert.equal(ROUTES[reason].label, "needs-session");
+    const failing = status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback");
     const w = settled(reason);
     const output = outputFile();
     const { code, logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
     assert.equal(code, 0);
     assert.equal(readFileSync(output, "utf8"), `${MENDED_OUTPUT}=${HEAD}\n`, "the head goes to report-escalation.sh clear");
-    const before = [status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback")];
-    const cleared = [status("success", ACTIONS_BOT, "2026-11-18T02:30:00Z", "pr-unblock/address-feedback"), ...before];
-    assert.match(unblockHold(unblockStops(before)), /pr-unblock\/address-feedback is failure/);
-    assert.equal(unblockHold(unblockStops(cleared)), null, "enable-auto-merge no longer holds the head");
-    assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], `${reason}\n${logs.join("\n")}`);
-    assert.ok(logs.some((line) => /#8 needs-session cleared: pr-verify passed .* after a trusted body edit superseded its FAIL/.test(line)), logs.join("\n"));
+    assert.deepEqual(w.writes(), [], `${reason}: the label waits for the status clear\n${logs.join("\n")}`);
+    assert.ok(logs.some((line) => /#8 needs-session kept until its status clears: pr-verify passed .* after a trusted body edit superseded its FAIL/.test(line)), logs.join("\n"));
     assert.deepEqual(
       w.reads.map(({ pull }) => [pull.number, pull.headRefOid]),
       [[8, HEAD]],
       "one reader run, at the stop's head",
     );
+    const success = status("success", ACTIONS_BOT, "2026-11-18T02:30:00Z", "pr-unblock/address-feedback");
+    assert.match(unblockHold(unblockStops([failing])), /pr-unblock\/address-feedback is failure/);
+    assert.equal(unblockHold(unblockStops([success, failing])), null, "enable-auto-merge no longer holds the head");
+    const next = settled(reason, { statuses: [success, failing] });
+    const nextOutput = outputFile();
+    await run(next, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: nextOutput });
+    assert.deepEqual(next.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], `${reason}: the next run lifts the label`);
+    assert.equal(existsSync(nextOutput), false, "a cleared status is not cleared again");
+    assert.equal(next.reads.length, 0, "the same-head lift spends no reader run");
   }
+});
+
+test("a status clear that failed is requested again on the next run, and never once a condition fails", async () => {
+  const failing = status("failure", ACTIONS_BOT, "2026-11-18T01:59:01Z", "pr-unblock/address-feedback");
+  for (let tick = 0; tick < 2; tick += 1) {
+    const w = settled("feedback-disputed", { statuses: [failing] });
+    const output = outputFile();
+    await run(w, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+    assert.equal(readFileSync(output, "utf8"), `${MENDED_OUTPUT}=${HEAD}\n`, `tick ${tick}: the head is handed to the clear again`);
+    assert.deepEqual(w.writes(), [], `tick ${tick}: the label stays`);
+  }
+  const lapsed = settled("feedback-disputed", { statuses: [failing], sessionThreads: [noteThread(), findingThread()] });
+  const output = outputFile();
+  await run(lapsed, { TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output });
+  assert.equal(existsSync(output), false, "a new open thread stops the retry");
+  assert.deepEqual(lapsed.writes(), []);
 });
 
 test("a settled-looking feedback stop keeps needs-session when any one condition fails", async () => {

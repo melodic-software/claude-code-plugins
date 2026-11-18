@@ -1660,7 +1660,14 @@ const SAME_HEAD_ONLY = Object.freeze(["dependency-workflow-unpinned"]);
 // (newest first), or undefined.
 const laneStatus = (statuses, context) => statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
 
-/** The step output naming, space-separated, each head whose stop verifierMend lifted; pr-merge.yml's report-unarmed-status job clears its pr-unblock/address-feedback failure with report-escalation.sh clear. */
+/**
+ * The step output naming, space-separated, each head whose stop verifierMend
+ * settled. pr-merge.yml's report-unarmed-status job clears its
+ * pr-unblock/address-feedback failure with report-escalation.sh clear. The
+ * label stays until a later run finds that success newer than the stop (the
+ * same-head lift), so a clear that failed is requested again on the next run
+ * while every mend condition still holds.
+ */
 export const MENDED_OUTPUT = "mended-heads";
 const VERIFIER_MENDS = Object.freeze(["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]);
 /** babysit_verify_evidence.py PASSES. */
@@ -1916,11 +1923,13 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber, truste
           console.log(`clear-escalations: #${number} ${label} kept: ${result.reason}`);
           continue;
         }
-        await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
-        console.log(`clear-escalations: #${number} ${label} cleared: ${result.why}`);
         if (result.mended !== undefined) {
           mended.push(result.mended);
+          console.log(`clear-escalations: #${number} ${label} kept until its status clears: ${result.why}`);
+          continue;
         }
+        await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
+        console.log(`clear-escalations: #${number} ${label} cleared: ${result.why}`);
       } catch (error) {
         failed += 1;
         reportError(number, error);
