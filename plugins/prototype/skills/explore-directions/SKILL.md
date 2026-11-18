@@ -265,14 +265,12 @@ hand over the local mockup.
 
 ### 1. Report the level, then write the plan
 
-1. Resolve the level by [reference/levels.md](reference/levels.md), whose `<plugin-root>` is
-   `${CLAUDE_PLUGIN_ROOT}` and `<option>` is `${user_config.level}`: it sets the variant count,
-   screens, states, screenshots, and review-mode and real-stack offers, whose `standard` values are
-   the ones this file states.
-2. Once the level is resolved, type its report line (`level: <name> (<layer>)`) and every
-   `notice:` line yourself, as your next message, before any other tool call. The person never
-   sees tool output, so the resolver printing the line does not count. This holds when the request
-   says to build without asking and when no plan is shown.
+1. Resolve the level by [reference/levels.md](reference/levels.md) (`<plugin-root>` is
+   `${CLAUDE_PLUGIN_ROOT}`, `<option>` is `${user_config.level}`). It sets the variant count, screens,
+   states, screenshots and offers; this file states the `standard` values.
+2. Then type its report line (`level: <name> (<layer>)`) and every `notice:` line yourself as your
+   next message, before any other tool call: the person never sees tool output. This holds when
+   the request says to build without asking and when no plan is shown.
 3. Write the plan, below.
 
 One thing per run. If the scope spans several components of one screen ("the dashboard"), narrow
