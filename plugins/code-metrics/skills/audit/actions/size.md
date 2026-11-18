@@ -4,7 +4,8 @@ Lines per file is the one measure on the operator's list with a crisp definition
 standard-backed file-level threshold. This action reports the number, per file in the scope,
 beside a reference whose provenance is printed with it, and stops there: no pass or fail, no
 severity, no finding. Deciding what to do with a long file is the reader's call; the report gives
-them the number and the citation.
+them the number and the citation. The one exception is the opt-in check mode below, off unless a
+repository's config turns it on.
 
 Two collectors, tried in order:
 
@@ -30,6 +31,7 @@ other does; `lanes.other.enabled: false` opts it out.
 "<skill-dir>/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
 "<skill-dir>/scripts/audit-size.sh" --file-lines 300     # count against the repository's own limit for this run
 "<skill-dir>/scripts/audit-size.sh" --all --commits-since "1 year ago"   # add commits per file at or above the reference
+"<skill-dir>/scripts/audit-size.sh" --check              # the opt-in check mode (below)
 ```
 
 ## Which reference
@@ -91,11 +93,45 @@ file nobody edits costs nobody anything.
   number of files at or above the reference (`summary.over_reference.file_lines` in the
   `--json --all` document).
 
+## Check mode
+
+`--check` applies the resolved `size.check` rule to the change and sets the exit code, for a
+pre-commit hook or CI step the repository wires itself. The rule counts the report's unit,
+non-blank lines against `size.file_lines`, with `scope.exclude` applied:
+
+| `size.check` | Fails |
+|---|---|
+| `report` (default) | nothing: exit 0 whatever the sizes |
+| `crossing` | a changed file below the reference at the base and at or above it now |
+| `crossing-or-growth` | a crossing, and a file already at or above the reference that grew |
+
+A file already over the reference and not grown never fails. Under `crossing`, one that grew is
+listed as reported and passes, as the review plugin's size-crossing note treats it;
+`crossing-or-growth` is for a repository that wants long files held where they are. Both counts
+use the bundled counter's non-blank rule, whichever collector filled the report, so an unchanged
+file never reads as grown; the base count follows a rename, a file new since the base counts 0
+there, and each copy a sanctioned-replication row stands for is checked on its own.
+
+The report gains a "Size check" section (the `size_check` block under `--json`): each listed file
+with its base and head counts, then a `PASS` or `FAIL` line. A `FAIL` line says what to do: split
+the file along a real responsibility boundary; never delete code or squash lines to get under the
+number; where no such boundary exists, raise `size.file_lines` or add the file to `scope.exclude`,
+with a comment giving the reason, in the team file.
+
+- CI: `audit-size.sh --check` measures the merge-base diff, like the default run.
+- Pre-commit: `audit-size.sh --check --base HEAD` measures the uncommitted change. Pass it no file
+  names (pre-commit's `pass_filenames: false`): explicit paths, like `--all`, have no base.
+
+Exit 0 when nothing fails, 1 when a file fails, 2 when the check cannot decide: no change scope,
+an invalid `size.check`, a null `size.file_lines`, an unreadable file, a lane whose `file_lines`
+was not measured, or a collector that failed (under `report`, a failed collector keeps exit 3). A crossing this change causes is this change's to fix, so splitting the file
+here is in scope, unlike the long file met in passing under "Acting on a long file".
+
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
 `docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `<plugin-root>/reference/config.md`): the reference
-(`size.file_lines`), the mode (`size.mode`: `file-lines`, or `iso-8.2.115`, which adds a
+(`size.file_lines`), the check rule (`size.check`, above), the mode (`size.mode`: `file-lines`, or `iso-8.2.115`, which adds a
 `function_lines` measure comparing each function's non-empty lines against
 `size.function_lines_pct` of the file's, from a collector that reports function ranges such as
 `lizard` or `radon`; Bash has none and its row says so), scope exclusions (`scope.exclude`), and
@@ -107,7 +143,7 @@ changed. `/code-metrics:setup` writes the team file and probes the collectors.
 
 - It does not run tests, edit files, or install `scc`; when `scc` is absent the run table says so
   and the bundled counter answers.
-- It does not judge: no threshold here is a bar, and no `check` gate exists in this version.
+- It does not judge: no threshold here is a bar, outside the opt-in check mode.
 - It does not measure complexity, duplication, coverage, or type debt; those are the sibling
   `audit` actions and `audit-*` skills in this plugin, and `/code-metrics:principles` explains
   what each number can and cannot tell you.
