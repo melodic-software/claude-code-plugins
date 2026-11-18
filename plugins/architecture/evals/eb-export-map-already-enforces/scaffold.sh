@@ -12,7 +12,7 @@ cat >>docs/conventions/architecture/README.md <<'MD'
 
 ## Boundary rules
 
-- Other packages import billing only by its root specifier `@shop/billing`, never a subpath such as `@shop/billing/src/ledger.js`; the ledger is billing's own, tests included. Evidence: packages/billing/package.json:4, packages/reporting/src/report.js:1. Accepted 2026-10-30.
+- Another package that imports billing by package name, tests included, uses only its root specifier `@shop/billing`, never a subpath such as `@shop/billing/src/ledger.js`. Imports by relative path are not covered by this rule. Evidence: packages/billing/package.json:4, packages/reporting/src/report.js:1. Accepted 2026-10-30.
 MD
 
 mkdir -p packages/billing/src packages/reporting/src packages/reporting/test scripts node_modules/@shop

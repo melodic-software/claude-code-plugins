@@ -1,5 +1,5 @@
 ---
-description: "A JavaScript workspace whose billing package.json exports only its root, with a recorded rule that other packages import billing by its root specifier only: the export map already enforces the rule, so the run adds no import scan, lint rule or other second check, proves the resolver refuses an injected subpath import and passes once it is removed, and records the enforcing command. Needs --scaffold and --allow-tools Bash Write Edit."
+description: "A JavaScript workspace whose billing package.json exports only its root, with a recorded rule that another package importing billing by package name uses its root specifier only: the export map already enforces the rule, so the run adds no import scan, lint rule or other second check, proves the resolver refuses an injected subpath import and passes once it is removed, and records the enforcing command. Needs --scaffold and --allow-tools Bash Write Edit."
 tags: [architecture, enforce-boundaries, outcome, scaffold, no-network]
 max_turns: 40
 timeout_seconds: 900
