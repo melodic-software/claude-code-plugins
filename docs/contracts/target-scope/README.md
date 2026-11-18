@@ -108,6 +108,8 @@ at it, in their own pull requests.
 |---|---|
 | `/architecture:improve` (deepening and conventions lenses) | Through `improvement-steps.md` "Scope and fan-out" and its plugin-shipped copy |
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
+| `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
+| `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
 
 ## Plugin-shipped copies
 

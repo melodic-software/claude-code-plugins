@@ -1,6 +1,6 @@
 ---
 description: "Improve one thing in any target, from a method or a doc to a whole feature, measured against the repo's written standards and, when a focus asks for it, current upstream guidance. Ships the smallest complete improvement as one small PR. With no arguments it reads the conversation for a target and focus and confirms both with the user before acting. Use when: 'improve this', 'improve X', 'make this faster', 'fix one thing', 'make this match our standards', 'bring this up to current .NET', 'find something small and fix it', or a scheduled improve-one-thing run. Skip: a ranked list of options ('what should we improve') is /improvement:find; a structure-only lane sweep is code-tidying:tidy; an observed failure is debugging:debug."
-argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended]"
+argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -41,6 +41,26 @@ piling up review debt.
 | `--focus <lens>` | What "better" means this run: `performance`, `naming`, `readability`, `standards`, `currency` (match current upstream guidance, such as a new framework release), or the user's own words. Optional; defaults to `standards`. |
 | `dry-run` | Find and present the improvement, with the proposed diff, and stop. No branch, commit, or PR. |
 | `--unattended` | The caller declares there is no user to answer. See Unattended mode. Never inferred. |
+| `--repo <repo>` (and the other target forms) | Run in several repositories. See Several repositories. Optional; default is the current repository. |
+
+## Several repositories
+
+With no target form, the run covers the current repository only. The target forms (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) select several,
+which resolve, count and fan out as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+"Resolving repositories" and "Fan-out" say.
+
+- **Step 1 runs once, before the fan-out.** An interactive run confirms one target and focus for
+  every repository, and a target form alone is not a target: with no other argument, Step 1's
+  no-arguments branch applies.
+- **Each repository then runs Steps 2 to 4** against its own standards, with that repository as
+  the working directory of every skill the steps invoke and of the throttle count. No step asks
+  inside a repository's run: each ask takes its recommended default.
+- **Writes stay per repository** (that section there): at most one improvement each, in a new
+  worktree on `<type>/improve-<slug>` from that repository's remote default branch, and one small
+  PR. The unattended throttle and the overflow work item apply per repository.
+- **The run report** lists each repository's PR, or why it opened none.
 
 ## Step 1. Resolve target and focus
 
