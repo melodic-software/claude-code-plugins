@@ -842,8 +842,15 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    conflict with no markers to resolve). Its `merge-state` output is `clean`, `conflicted` or
    `escalate`; for `clean` and `conflicted` it also prints `conflict-tree`, T0: the merge's stage-0
    entries plus each conflicted path's file as git left it, markers and all, hashed with
-   `--no-filters` under the head's mode, built in a scratch index. The job's outputs are
-   `proceed` (`true` only for `conflicted`), `merge-state`, `head-sha`, `base-sha`,
+   `--no-filters` under the head's mode, built in a scratch index. On `conflicted`,
+   `superseded-by-main.mjs` then checks with git alone whether the base already holds the head's
+   change: every non-merge commit the head adds since its merge base has a patch-id twin among the
+   base's commits since it (a rebase merge or cherry-picks), or the head's whole diff from that
+   merge base has one base commit's patch-id (a squash merge). Superseded escalates
+   `superseded-by-main`, a hold: the human-gated label and a comment saying main already contains
+   the change, with no model turn; the lane never closes the pull request. A head with any commit
+   the base lacks goes on to the model. The job's outputs are
+   `proceed` (`true` only for `conflicted` and not superseded), `merge-state`, `head-sha`, `base-sha`,
    `conflict-tree`, `escalation-reason` and `skip-reason`.
 2. `resolve-conflicts-not-run` posts the `resolve-conflicts` check neutral on that head when the
    select job does not proceed: the slot's skip reason, else `clean-merge`, else `awaiting-human`,
@@ -905,6 +912,7 @@ stops for a hold only at the push job's label and draft re-read. Every path and 
 |---|---|---|---|---|
 | Slot does not apply, or a hold label | select | the slot's | empty | neutral `resolve-conflicts` |
 | Pre-model escalation | select | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral `resolve-conflicts` |
+| Conflicted, and main already holds the change | select | `awaiting-human` | `superseded-by-main` (held for a person) | neutral `resolve-conflicts` |
 | Clean merge, committed and pushed | push | `clean-merge` on `resolve-conflicts` | empty | success `apply-conflict-patch` |
 | A later merge reaches another tree | model call or push | none | empty | failure |
 | Head moved since the select job | push | `superseded-sha` | empty | neutral `apply-conflict-patch` |

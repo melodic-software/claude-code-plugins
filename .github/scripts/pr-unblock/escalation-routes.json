@@ -4,6 +4,7 @@
   "unexpected-path-staged": { "activity": "resolve-conflicts", "route": "fail", "why": "the conflict resolution changes a path outside the conflicted ones, which the lane does not push" },
   "repeat-cap": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane has resolved conflicts on this branch as many times in a row as its cap allows" },
   "unresolved-conflict": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane could not resolve every conflict" },
+  "superseded-by-main": { "activity": "resolve-conflicts", "route": "hold", "owner-reason": "intent", "why": "main already contains this pull request's change (each of its commits, or its whole diff as one commit), so the lane did not resolve its conflicts; a person decides whether to close it, which the lane never does" },
   "conflict-patch-invalid": { "activity": "resolve-conflicts", "route": "fail", "why": "the conflict resolution the lane wrote did not pass validation, so the merge was not pushed" },
   "conflict-patch-not-applied": { "activity": "resolve-conflicts", "route": "fail", "why": "the conflict resolution did not apply to the merge it was written for, so the merge was not pushed" },
   "conflict-patch-protected-path": { "activity": "resolve-conflicts", "route": "fail", "label": "needs-session", "why": "the conflict resolution changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file" },
