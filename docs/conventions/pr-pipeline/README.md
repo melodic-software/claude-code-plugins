@@ -2870,10 +2870,11 @@ opened the pull request: a spec written by a trusted human counts, so an adopted
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
-never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
-never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
-filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
+parent's task-list lines or those of intake's refinement on it (below) and an own-agent filing
+intake admission admits (below), so a lane pull request never supplies its own spec. A listed
+human's comment on such an issue reaches the verifier, but it never makes the issue trusted, and
+neither does a listed human's edit of its body. To give any other work a Bot filed a spec, a listed
+human opens an issue that restates it, and the pull request links that one.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
@@ -2890,7 +2891,13 @@ An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-sma
 an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
 no `size-split child` marker) reaches the verifier with its body as spec while no other account
 edited it (`ownAgentText` in `admit.mjs`), so a lane pull request for it is judged against what the
-agent filed. The merge gate still reads such a spec `verify:untrusted-spec`, so a person merges it.
+agent filed. The merge gate trusts the filing admission admits, read live at each judgment: an
+identity on main's `own-agents` list wrote it, no other account edited its body, it carries exactly
+one well-formed `source: <producer>` label, its Size field holds small or medium, last set by a
+listed human or the lanes App, and no run's patch stopped over the scan job's size cap
+(`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
+failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
+the list names it, and comments still count only when a listed human wrote them.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
@@ -3027,7 +3034,8 @@ head:
   title, first body line, author and last editor read again, and the pull request's changed files
   from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
   upstream at the default branch's tip, read there, or is the main-red incident as above, its
-  title, first body line, author and last editor read again (otherwise `verify:untrusted-spec`; a
+  title, first body line, author and last editor read again, or is an own-agent filing as above, its
+  body, author, last editor, labels, Size field, comments and events read again (otherwise `verify:untrusted-spec`; a
   failed read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's

@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.0.4] - 2026-11-18
+
+### Changed
+
+- `/context-budget:audit` and the README no longer claim the built-in tool pools are typically the largest part of the startup payload, a size nobody measured. The plugin targets them because `/context` reports them only as totals. The stdin gotcha now states the rule for a hand capture and points at the engine's parse traps for the reason, without restating what the headless binary prints.
+
 ## [2.0.3] - 2026-11-18
 
 ### Changed

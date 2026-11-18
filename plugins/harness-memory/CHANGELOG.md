@@ -3,6 +3,15 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.4] - 2026-11-18
+
+### Changed
+
+- `audit`: the "No official scoring rubric" record no longer describes the `claude-md-improver`
+  skill's rubric. It keeps the decision and points at that plugin's README section.
+- `stateless`: the `/memory` record no longer restates the commands reference's `/memory` row. It
+  points at the anchored All commands section and keeps the binary-extraction record.
+
 ## [2.2.3] - 2026-11-18
 
 ### Changed

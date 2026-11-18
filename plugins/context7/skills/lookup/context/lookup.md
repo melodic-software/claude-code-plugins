@@ -97,7 +97,7 @@ Output contains two kinds of snippets:
 - **Code snippets**: titled, with language-tagged code blocks. Primary value
 - **Info snippets**: prose explanations with breadcrumb context. Secondary value
 
-MCP returns more content per call than CLI at default settings; the measured ratio is in [mcp.md](mcp.md). If a CLI response feels thin, re-run via MCP or re-issue with a more targeted query.
+If a CLI response feels thin, re-run via MCP or re-issue with a more targeted query.
 
 ## Quota / rate limit handling
 
