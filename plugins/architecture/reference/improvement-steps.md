@@ -22,7 +22,16 @@ on.
 
 ## Scope and fan-out
 
-Choose the area first, then scan it:
+Choose the repositories first, then the area in each, then scan it.
+
+One repository is the default: the session's own. When the arguments (`--repo`, `--repos-from`,
+`--owner`, `--fleet`) or the request name several, resolve, count, fan out and merge them as
+[target-scope.md](target-scope.md) says, and run every step below once per repository with its
+root anchored (`git -C <root>`). Candidates then carry their repository, and a candidate whose
+friction spans repositories (a copied module, one repository reaching into another's internals)
+is ranked with the rest and handed off in the repository that owns the source.
+
+Within one repository:
 
 - When the invocation arguments or the conversation already point somewhere (a pain point, a
   subsystem, a single module), that is the scope, and the history step below is skipped.
@@ -39,7 +48,8 @@ The scope chosen here sets each scan subagent's assigned area.
 
 **Size the fan-out from the scope, not from a constant.** Dispatch one scan subagent per area the
 scope decomposed into, since the right width depends on the repository being scanned, not on the
-method. Name the count and the areas to the user before dispatching: scan cost rises with the
+method; across several repositories, that is one subagent per repository holding its own areas.
+Name the count, the repositories and the areas to the user before dispatching: scan cost rises with the
 subagent count, and the scan fan-out is the largest cost of a run.
 
 ## Recorded decisions

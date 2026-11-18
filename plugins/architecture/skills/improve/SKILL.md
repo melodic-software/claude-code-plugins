@@ -1,6 +1,6 @@
 ---
 description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening|boundaries|conventions] [--medium <value>] [--unattended]"
+argument-hint: "[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan for shallow modules, boundary crossings or unwritten conventions, then hand on the fix
 ---
 
-**Arguments.** `[deepening|boundaries|conventions] [--medium <value>] [--unattended]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `--unattended` is the caller's declaration that no user is present; it is never inferred, and only the deepening lens has that mode (`actions/deepening.md`, "Unattended mode"). With another lens, say so and stop. `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
+**Arguments.** `[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]`. e.g., boundaries. `--repo` and the other target forms in [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md) run the deepening or conventions lens across several repositories ([../../reference/improvement-steps.md](../../reference/improvement-steps.md), "Scope and fan-out"); the default stays this repository. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `--unattended` is the caller's declaration that no user is present; it is never inferred, and only the deepening lens has that mode (`actions/deepening.md`, "Unattended mode"). With another lens, say so and stop. `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
 
 ## Repository context. Gather first
 
