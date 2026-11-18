@@ -155,4 +155,13 @@ git_test_config "$scratch/left" commit -qm notes
 run 1 'apply fails when the old SHA remains outside the set' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/left"
 contains 'the failure names the file' 'still appears after the rewrite in: tests/notes.md'
 
+mk_repo "$scratch/model"
+mkdir -p "$scratch/model/.claude/skills/formal-lanes/model"
+echo "\\* checked against ${OLD}" >"$scratch/model/.claude/skills/formal-lanes/model/Lanes.tla"
+git_test_config "$scratch/model" add .claude
+git_test_config "$scratch/model" commit -qm model
+run 0 'apply leaves a formal model citing the old SHA' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/model"
+LAST_OUTPUT="$(cat "$scratch/model/.claude/skills/formal-lanes/model/Lanes.tla")"
+contains 'the model keeps its checked commit' "$OLD"
+
 test_harness::report
