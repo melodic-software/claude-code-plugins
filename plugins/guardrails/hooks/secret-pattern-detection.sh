@@ -838,7 +838,7 @@ spd_gitignored() {
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_PREFIX GIT_CONFIG \
       GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
     cd "$spd_ancestor" 2>/dev/null || exit 1
-    "${HOOK_GIT[@]}" check-ignore -q -- "$rel" 2>/dev/null
+    hook::git_untrusted check-ignore -q -- "$rel" 2>/dev/null
   )
 }
 

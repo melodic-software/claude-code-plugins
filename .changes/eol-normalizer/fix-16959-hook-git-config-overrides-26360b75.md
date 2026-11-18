@@ -4,4 +4,4 @@ bump: patch
 
 ### Security
 
-- Git commands in the plugin's `hooks/` scripts pass `--no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null`, so a repository's own `core.fsmonitor` command and git hooks no longer run when a hook checks whether a file is git-ignored or reads the repository's root, branch or files. Other commands a repository's config can name, such as a `.gitattributes` content filter, are not covered.
+- The `git check-attr` call that reads a file's `eol` and `text` attributes passes `--no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null`, so it no longer starts the `core.fsmonitor` command a repository's own config names. `hook-utils.sh`'s repository-root lookups take the same overrides.

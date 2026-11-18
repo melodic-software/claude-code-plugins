@@ -993,16 +993,6 @@ hook::under_temp_root() {
   return 1
 }
 
-# The git command every hook runs in a repository it did not create:
-# "${HOOK_GIT[@]}" -C <dir> <subcommand>…. Configuration given with -c outranks
-# the repository's own and its includes, so a repository's core.fsmonitor
-# (started whenever the index is read) and its hooks never run, and no pager
-# starts. An array, not a function, so `exec "${HOOK_GIT[@]}"` and a command
-# substitution still exec git without an extra fork.
-# https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
-# https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor
-HOOK_GIT=(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null)
-
 # True when <dir> sits inside a git working tree. Unsets locating globals so an
 # inherited GIT_DIR cannot make an out-of-tree directory look in-tree — the same
 # discipline markdown-format adopted for #972.
@@ -1011,19 +1001,21 @@ hook::in_git_working_tree() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
-    "${HOOK_GIT[@]}" -C "$1" rev-parse --show-toplevel
+    git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$1" rev-parse --show-toplevel
   ) >/dev/null 2>&1
 }
 
-# git for a repository this hook did not create, with every command-running key an ignore check
+# git for a repository this hook did not create, with every command-running key a hook's git call
 # can reach turned off on the command line, which outranks the repository's config and its
 # includes: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
 # (core.fsmonitor runs when the index is read:
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor).
-# The function spelling of HOOK_GIT above, which holds the one set of overrides.
+# A function cannot be exec'd, and as the last command of a `( … )` subshell or a
+# pipeline element it costs bash a second process: such a caller, and one that hands
+# argv to another program, passes the same overrides itself.
 #   hook::git_untrusted check-ignore -q -- "$path"
 hook::git_untrusted() {
-  "${HOOK_GIT[@]}" "$@"
+  git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
 }
 
 # True when the repository enclosing <file> gitignores it (hook-precision rule
@@ -1056,7 +1048,7 @@ hook::file_is_gitignored() {
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
     cd "${dir:-/}" 2>/dev/null || exit 1
-    "${HOOK_GIT[@]}" check-ignore -q -- "./$base" 2>/dev/null
+    hook::git_untrusted check-ignore -q -- "./$base" 2>/dev/null
   )
 }
 
@@ -1877,7 +1869,7 @@ hook::repo_root_uncached_to() {
   # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
   # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
   # same substitution buffer_stdin already uses for the payload.
-  __hu_rr_val=$("${HOOK_GIT[@]}" -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
+  __hu_rr_val=$(hook::git_untrusted -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
   __hu_rr_val="${__hu_rr_val//$'\r'/}"
   if [[ -n "$__hu_rr_val" ]]; then
     printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"

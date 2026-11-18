@@ -313,7 +313,7 @@ ensure_tracked_files() {
         fi
       fi
     fi
-    if out=$("${HOOK_GIT[@]}" -C "$REPO_ROOT" ls-files 2>/dev/null); then
+    if out=$(hook::git_untrusted -C "$REPO_ROOT" ls-files 2>/dev/null); then
       TRACKED_FILES=${out//$'\r'/}
       TRACKED_BUILT=1
       if [[ -n "$cache" ]]; then
@@ -656,7 +656,7 @@ build_deleted_set() {
   # group: inside the substitution it would bill a second process for one git.
   local head_sha="" git_dir="" common="" cache="" p n torn
   local -a cached_lines=()
-  { head_sha=$("${HOOK_GIT[@]}" -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
+  { head_sha=$(hook::git_untrusted -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
   head_sha=${head_sha//$'\r'/}
   [[ -n "$head_sha" ]] || return 0
 
@@ -698,7 +698,7 @@ build_deleted_set() {
         DELETED=()
       fi
     fi
-  elif [[ "$("${HOOK_GIT[@]}" -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
+  elif [[ "$(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
     SHALLOW=1
     return 0
   fi
@@ -717,7 +717,7 @@ build_deleted_set() {
   # healthy while adjudicating against a fraction of history. Same failure mode
   # as a shallow clone, so it takes the same announced degradation.
   local walk walk_status=0
-  walk=$("${HOOK_GIT[@]}" -C "$REPO_ROOT" -c core.quotePath=false log HEAD -m --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
+  walk=$(hook::git_untrusted -C "$REPO_ROOT" -c core.quotePath=false log HEAD -m --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
     walk_status=$?
   if ((walk_status != 0)); then
     WALK_FAILED=1
@@ -816,7 +816,7 @@ for raw in "${RAW_TOKENS[@]}"; do
   # Exempting on presence alone therefore suppressed the finding for a real removal
   # a user had not committed yet. Only the skip-worktree letter, in either case,
   # earns the exemption.
-  ls_line=$("${HOOK_GIT[@]}" -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null) || ls_line=""
+  ls_line=$(hook::git_untrusted -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null) || ls_line=""
   ls_line=${ls_line//$'\r'/}
   ls_tag=${ls_line:0:1}
   [[ "$ls_tag" == [Ss] ]] && continue

@@ -153,7 +153,7 @@ harness_ops::resolve_skill_usage_dir() {
 harness_ops::ensure_git_exclude() {
   local project_dir="$1" rel_dir="$2" store_file="${3:-skill-usage.jsonl}" exclude_file dir line
   [[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE:-true}" == "true" ]] || return 0
-  exclude_file=$("${HOOK_GIT[@]}" -C "$project_dir" rev-parse --git-path info/exclude 2>/dev/null | tr -d '\r')
+  exclude_file=$(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$project_dir" rev-parse --git-path info/exclude 2>/dev/null | tr -d '\r')
   [[ -n "$exclude_file" ]] || return 0
   case "$exclude_file" in
   /* | [A-Za-z]:*) ;;
@@ -214,7 +214,7 @@ harness_ops::record_skill_use() {
     [[ "$scope" == "repo" ]] && harness_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
     # No work tree or an unborn HEAD fails the read and records "unknown".
-    branch=$("${HOOK_GIT[@]}" -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
+    branch=$(hook::git_untrusted -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
     branch="${branch//$'\r'/}"
     [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")
     slog_record_to line \

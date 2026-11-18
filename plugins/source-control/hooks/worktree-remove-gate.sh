@@ -126,7 +126,7 @@ esac
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-git_dirs="$("${HOOK_GIT[@]}" -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" ||
+git_dirs="$(hook::git_untrusted -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" ||
   gate::refuse 'if the main clone moved, run git worktree repair from it; otherwise check the directory by hand' \
     "git cannot resolve the worktree at $path"
 git_dir="${git_dirs%%$'\n'*}"
@@ -146,7 +146,7 @@ for marker in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG rebase-merge re
       "$marker exists in $git_dir: an operation is in progress in $path"
 done
 
-status="$("${HOOK_GIT[@]}" -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null)" ||
+status="$(hook::git_untrusted -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null)" ||
   gate::refuse 'run git status in the worktree, fix what it reports, then remove it again' \
     "git status failed in $path, so its changes could not be checked"
 if [[ -n "$status" ]]; then
@@ -161,8 +161,8 @@ fi
   gate::refuse 'remove it with /source-control:worktree cleanup, which confirms before forcing' \
     "$path has submodules, which plain git worktree remove refuses"
 
-if ! "${HOOK_GIT[@]}" -C "$path" symbolic-ref -q HEAD >/dev/null 2>&1; then
-  unheld="$("${HOOK_GIT[@]}" -C "$path" rev-list --max-count=1 HEAD --not --branches --tags --remotes 2>/dev/null)" ||
+if ! hook::git_untrusted -C "$path" symbolic-ref -q HEAD >/dev/null 2>&1; then
+  unheld="$(hook::git_untrusted -C "$path" rev-list --max-count=1 HEAD --not --branches --tags --remotes 2>/dev/null)" ||
     gate::refuse 'create a branch at HEAD (git switch -c <name>), then remove the worktree again' \
       "HEAD is detached in $path and its commits could not be checked"
   [[ -z "$unheld" ]] ||
@@ -201,16 +201,16 @@ fi
 cd -- "$common_dir" 2>/dev/null || cd / || true
 
 if ((locked)); then
-  unlock_err="$("${HOOK_GIT[@]}" -C "$common_dir" worktree unlock "$path" 2>&1)" ||
+  unlock_err="$(hook::git_untrusted -C "$common_dir" worktree unlock "$path" 2>&1)" ||
     gate::refuse 'run git worktree unlock on the path, then remove the worktree again' \
       "git worktree unlock failed for $path (its records are already reaped): ${unlock_err//$'\n'/ }"
 fi
 
-remove_err="$("${HOOK_GIT[@]}" -C "$common_dir" worktree remove "$path" 2>&1)"
+remove_err="$(hook::git_untrusted -C "$common_dir" worktree remove "$path" 2>&1)"
 remove_rc=$?
 if ((remove_rc != 0)); then
   if ((locked)) && [[ -e "$path" ]]; then
-    "${HOOK_GIT[@]}" -C "$common_dir" worktree lock --reason "$lock_reason" "$path" >/dev/null 2>&1
+    hook::git_untrusted -C "$common_dir" worktree lock --reason "$lock_reason" "$path" >/dev/null 2>&1
   fi
   gate::refuse 'fix what the git error below names, then remove the worktree again' \
     "git worktree remove exited $remove_rc for $path (its records are already reaped): ${remove_err//$'\n'/ }"

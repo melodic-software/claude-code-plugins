@@ -144,7 +144,7 @@ bom="$(printf '\357\273\277')"
 # never inside `$( )`, so the exit reaches the caller; the others hand results
 # back in named variables or through `$( )`.
 
-# HOOK_GIT in hook-utils.sh: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
+# hook::git_untrusted in hook-utils.sh, for POSIX sh: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
 rcp_git() {
   git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
 }
