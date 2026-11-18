@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.3.6] - 2026-11-18
+
+### Changed
+
+- **Bump playwright from 1.65.0 to 1.65.1 in /plugins/knowledge/skills/course-digest/extraction in the npm-minor-patch group** (#17115).
+  - `playwright` 1.65.0→1.65.1
+
 ## [3.3.5] - 2026-11-18
 
 ### Changed

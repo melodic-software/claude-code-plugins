@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.28] - 2026-11-18
+
+### Changed
+
+- `/pixel-art:animate` records the GIF first-frame behavior as a probe observation with a pointer to the tools reference's Read section, in place of an unscoped "no docs page covers this" note. `/pixel-art:scene` drops its restated Playwright `file:` detail and keeps the localhost-review reason.
+
 ## [0.7.27] - 2026-11-18
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-18
+
+### Changed
+
+- `setup` `check` gives the reason it opens plugin files by path and never runs Glob or Grep over the plugin directory: a search passed the installed plugin's deeply nested cache path can fail to start on some hosts because the path is too long ([#16871](https://github.com/melodic-software/claude-code-plugins/issues/16871)).
+
 ## [1.1.0] - 2026-11-18
 
 ### Added
