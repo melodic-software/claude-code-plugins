@@ -1,8 +1,0 @@
-{
-  "session_id": "__SESSION__",
-  "transcript_path": "__TRANSCRIPT__",
-  "cwd": "__CWD__",
-  "permission_mode": "auto",
-  "hook_event_name": "UserPromptSubmit",
-  "prompt": "<task-notification>\n<task-id>a5c1</task-id>\n<status>completed</status>\n<summary>Agent \"Run the test suite\" completed</summary>\n<result>All 42 tests passed.</result>\n</task-notification>"
-}

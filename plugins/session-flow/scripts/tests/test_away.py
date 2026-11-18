@@ -1,8 +1,10 @@
 """Contract tests for away.py: the step-away state, report, check and hook entry.
 
 The CLI and every hook run as a subprocess with a temp HOME, config dir and plugin data root, so
-the real ~/.claude is never read or written. Hook inputs are the documented shapes under
-fixtures/away/hooks; the transcript under fixtures/away/transcript is written by hand.
+the real ~/.claude is never read or written. Hook inputs follow the documented shapes
+(https://code.claude.com/docs/en/hooks), and the transcript records are written by hand in the
+shape session-flow's transcript_reader reads. Both live here rather than under fixtures/, whose
+manifest test_save_point.py pins.
 """
 
 from __future__ import annotations
@@ -25,7 +27,6 @@ del _leaked_var
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 SCRIPT = SCRIPTS / "away.py"
-FIXTURES = Path(__file__).resolve().parent / "fixtures" / "away"
 SESSION = "11111111-2222-3333-4444-555555555555"
 RULES_TAIL = "skills/step-away/reference/rules.md"
 HEADINGS = ("Needs you", "Decided while you were away", "Waiting on me", "Done", "Found", "Additional notes")
@@ -39,6 +40,120 @@ DEFAULTS = {
     "away_report_by_day_off": "10:00",
     "away_days_off": "Sat,Sun",
 }
+
+COMMON = {"session_id": "__SESSION__", "transcript_path": "__TRANSCRIPT__", "cwd": "__CWD__"}
+HOOK_INPUTS = {
+    "permission_request_bash": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "PermissionRequest",
+        "tool_name": "Bash",
+        "tool_input": {"command": "git -C repo branch askme-main", "description": "Create a branch"},
+        "permission_suggestions": [
+            {
+                "type": "addRules",
+                "rules": [{"toolName": "Bash", "ruleContent": "git -C repo branch askme-main"}],
+                "behavior": "allow",
+                "destination": "localSettings",
+            }
+        ],
+    },
+    "permission_request_subagent": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "PermissionRequest",
+        "agent_id": "a176806189f9a60c0",
+        "agent_type": "general-purpose",
+        "tool_name": "Bash",
+        "tool_input": {"command": "git -C repo branch askme-sub", "description": "Create a branch"},
+    },
+    "elicitation_form": {
+        **COMMON,
+        "hook_event_name": "Elicitation",
+        "mcp_server_name": "example-server",
+        "message": "Please provide your username",
+        "mode": "form",
+        "requested_schema": {"type": "object", "properties": {"username": {"type": "string", "title": "Username"}}},
+    },
+    "stop": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "Stop",
+        "stop_hook_active": False,
+        "last_assistant_message": "Finished the first task.",
+        "background_tasks": [],
+        "session_crons": [],
+    },
+    "user_prompt_typed": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "I'm back, what happened overnight?",
+    },
+    "user_prompt_subagent_report": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": (
+            "<task-notification>\n<task-id>a5c1</task-id>\n<status>completed</status>\n"
+            '<summary>Agent "Run the test suite" completed</summary>\n<result>All 42 tests passed.</result>\n'
+            "</task-notification>"
+        ),
+    },
+    "user_prompt_loop": {
+        **COMMON,
+        "permission_mode": "auto",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "check the build",
+    },
+}
+
+CLASSIFIER_TEXT = (
+    "Error: Permission for this action was denied by the Claude Code auto mode classifier. Reason: "
+    "[External System Write]. If you have other tasks that don't depend on this action, continue working on those."
+)
+HOOK_DENIAL_TEXT = "Error: PermissionRequest:Bash hook error: R1: refused because the person is away."
+
+
+def tool_use(uid: str, ts: str, tool_id: str, name: str, tool_input: dict, **extra) -> dict:
+    content = [{"type": "tool_use", "id": tool_id, "name": name, "input": tool_input}]
+    return {"type": "assistant", "uuid": uid, "timestamp": ts, "message": {"role": "assistant", "content": content}, **extra}
+
+
+def tool_result(uid: str, ts: str, tool_id: str, text: str, **extra) -> dict:
+    content = [{"type": "tool_result", "tool_use_id": tool_id, "content": text, "is_error": "Error" in text}]
+    return {"type": "user", "uuid": uid, "timestamp": ts, "toolUseResult": text, "message": {"role": "user", "content": content}, **extra}
+
+
+MAIN_TRANSCRIPT = [
+    tool_use("a0", "2000-01-01T00:00:00Z", "t0", "Bash", {"command": "git push origin before-the-absence"}),
+    tool_use("a1", "2099-01-01T00:00:01Z", "t1", "Bash", {"command": "gh pr create --title 'Add widget' --body 'Adds it.'"}),
+    tool_result("u1", "2099-01-01T00:00:02Z", "t1", "https://example.invalid/pull/1"),
+    tool_use("a2", "2099-01-01T00:00:03Z", "t2", "Bash", {"command": "ls -la src"}),
+    tool_use("a3", "2099-01-01T00:00:04Z", "t3", "mcp__tracker__create_issue", {"title": "Follow-up"}),
+    tool_use("a4", "2099-01-01T00:00:05Z", "t4", "Bash", {"command": "curl -X POST https://example.invalid/api/deploy"}),
+    tool_result(
+        "u4", "2099-01-01T00:00:06Z", "t4", CLASSIFIER_TEXT,
+        toolDenialKind="automode-blocked",
+        permissionDecision={"decision": "reject", "source": "config", "reasonType": "classifier"},
+    ),
+    tool_use("a5", "2099-01-01T00:00:07Z", "t5", "Bash", {"command": "git -C repo branch askme-main"}),
+    tool_result(
+        "u5", "2099-01-01T00:00:08Z", "t5", HOOK_DENIAL_TEXT,
+        toolDenialKind="permission-rule",
+        permissionDecision={"decision": "reject", "source": "hook", "reasonType": "hook"},
+    ),
+]
+SUBAGENT_TRANSCRIPT = [
+    tool_use("s1", "2099-01-01T00:01:00Z", "st1", "Bash", {"command": "git push origin feat-from-subagent"}, isSidechain=True),
+    tool_use("s2", "2099-01-01T00:01:01Z", "st2", "Read", {"file_path": "README.md"}, isSidechain=True),
+]
+SUBAGENT_META = {"agentType": "general-purpose", "description": "Push the follow-up branch"}
+
+
+def write_jsonl(path: Path, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
 
 
 class Away:
@@ -82,7 +197,7 @@ class Away:
         return result
 
     def hook(self, event: str, fixture: str, session: str = SESSION, **overrides):
-        payload = json.loads((FIXTURES / "hooks" / fixture).read_text(encoding="utf-8"))
+        payload = json.loads(json.dumps(HOOK_INPUTS[fixture]))
         payload.update(session_id=session, cwd=str(self.repo), transcript_path=str(self.root / "t.jsonl"))
         payload.update(overrides)
         result = self.run("hook", event, stdin=json.dumps(payload))
@@ -103,8 +218,9 @@ class Away:
 
     def install_transcript(self) -> Path:
         target = self.root / "t.jsonl"
-        shutil.copy(FIXTURES / "transcript" / "main.jsonl", target)
-        shutil.copytree(FIXTURES / "transcript" / "main", self.root / "t")
+        write_jsonl(target, MAIN_TRANSCRIPT)
+        write_jsonl(self.root / "t" / "subagents" / "agent-a1.jsonl", SUBAGENT_TRANSCRIPT)
+        (self.root / "t" / "subagents" / "agent-a1.meta.json").write_text(json.dumps(SUBAGENT_META), encoding="utf-8")
         return target
 
 
@@ -267,17 +383,17 @@ def test_warn_auto_continue_off(ctx):
 
 def test_hook_inactive_silent(ctx):
     events = {
-        "PermissionRequest": "permission_request_bash.json",
-        "Elicitation": "elicitation_form.json",
-        "Stop": "stop.json",
-        "UserPromptSubmit": "user_prompt_typed.json",
+        "PermissionRequest": "permission_request_bash",
+        "Elicitation": "elicitation_form",
+        "Stop": "stop",
+        "UserPromptSubmit": "user_prompt_typed",
     }
     for event, fixture in events.items():
         assert ctx.hook(event, fixture) == "", f"{event} with no state prints nothing"
     assert not ctx.data.exists(), "a lookup creates nothing"
 
     ctx.start()
-    assert ctx.hook("PermissionRequest", "permission_request_bash.json") != "", "active: the paired case prints"
+    assert ctx.hook("PermissionRequest", "permission_request_bash") != "", "active: the paired case prints"
     ctx.cli("end")
     for event in ("PermissionRequest", "Elicitation", "Stop"):
         assert ctx.hook(event, events[event]) == "", f"{event} after end prints nothing"
@@ -288,7 +404,7 @@ def test_hook_inactive_silent(ctx):
 
 def test_hook_rejects_unsafe_session_id(ctx):
     ctx.start()
-    assert ctx.hook("PermissionRequest", "permission_request_bash.json", session=f"../away/{SESSION}") == ""
+    assert ctx.hook("PermissionRequest", "permission_request_bash", session=f"../away/{SESSION}") == ""
     result = ctx.run("status", "--session", "../x")
     assert result.returncode == 2
 
@@ -303,8 +419,8 @@ def test_hook_bad_input_exits_zero(ctx):
 
 def test_permission_request_never_allows(ctx):
     ctx.start()
-    main = json.loads(ctx.hook("PermissionRequest", "permission_request_bash.json"))
-    sub = json.loads(ctx.hook("PermissionRequest", "permission_request_subagent.json"))
+    main = json.loads(ctx.hook("PermissionRequest", "permission_request_bash"))
+    sub = json.loads(ctx.hook("PermissionRequest", "permission_request_subagent"))
     for output, rid in ((main, "R1"), (sub, "R2")):
         specific = output["hookSpecificOutput"]
         assert specific["hookEventName"] == "PermissionRequest"
@@ -322,7 +438,7 @@ def test_permission_request_never_allows(ctx):
 
 def test_elicitation_declined(ctx):
     ctx.start()
-    output = json.loads(ctx.hook("Elicitation", "elicitation_form.json"))
+    output = json.loads(ctx.hook("Elicitation", "elicitation_form"))
     assert output == {"hookSpecificOutput": {"hookEventName": "Elicitation", "action": "decline"}}
     [entry] = ctx.refused()
     assert entry["id"] == "R1"
@@ -333,7 +449,7 @@ def test_elicitation_declined(ctx):
 def test_parallel_refusals(ctx):
     ctx.start()
     with ThreadPoolExecutor(max_workers=8) as pool:
-        outputs = list(pool.map(lambda _: ctx.hook("PermissionRequest", "permission_request_bash.json"), range(8)))
+        outputs = list(pool.map(lambda _: ctx.hook("PermissionRequest", "permission_request_bash"), range(8)))
     ids = sorted((r["id"] for r in ctx.refused()), key=lambda rid: int(rid[1:]))
     assert ids == [f"R{n}" for n in range(1, 9)], "eight parallel hooks get eight distinct ids, none lost"
     named = sorted(json.loads(o)["hookSpecificOutput"]["decision"]["message"].split(":", 1)[0] for o in outputs)
@@ -342,8 +458,7 @@ def test_parallel_refusals(ctx):
 
 def test_wrapper_relays_decision_and_fails_open(ctx):
     wrapper = SCRIPTS.parent / "hooks" / "run-away-hook.sh"
-    payload = json.loads((FIXTURES / "hooks" / "permission_request_bash.json").read_text(encoding="utf-8"))
-    payload["session_id"] = SESSION
+    payload = dict(HOOK_INPUTS["permission_request_bash"], session_id=SESSION)
     ctx.start()
 
     def run(env: dict[str, str]):
@@ -373,7 +488,7 @@ def started_with_tasks(ctx: Away, tasks: str) -> Path:
 
 def test_stop_open_items(ctx):
     started_with_tasks(ctx, "# Tasks\n\n- [x] shipped the widget\n- [ ] write the docs\n- [ ] fix the flaky test\n")
-    output = json.loads(ctx.hook("Stop", "stop.json"))
+    output = json.loads(ctx.hook("Stop", "stop"))
     assert output["decision"] == "block"
     assert "write the docs" in output["reason"]
     assert "fix the flaky test" in output["reason"]
@@ -385,7 +500,7 @@ def test_stop_open_items(ctx):
 
 def test_stop_parked_counts_done(ctx):
     started_with_tasks(ctx, "- [x] shipped the widget\n- [ ] pick the database (parked)\n")
-    assert ctx.hook("Stop", "stop.json") == ""
+    assert ctx.hook("Stop", "stop") == ""
     check = ctx.cli("check")
     assert check.returncode == 0, check.stdout
     assert check_lines(check)["open"] == "0"
@@ -393,11 +508,11 @@ def test_stop_parked_counts_done(ctx):
 
 def test_stop_hook_active_unchanged(ctx):
     started_with_tasks(ctx, "- [ ] write the docs\n")
-    assert json.loads(ctx.hook("Stop", "stop.json"))["decision"] == "block"
-    assert ctx.hook("Stop", "stop.json", stop_hook_active=True) == "", "no progress since the block: let it stop"
+    assert json.loads(ctx.hook("Stop", "stop"))["decision"] == "block"
+    assert ctx.hook("Stop", "stop", stop_hook_active=True) == "", "no progress since the block: let it stop"
     report = ctx.report()
     report.write_text(report.read_text(encoding="utf-8") + "\nprogress\n", encoding="utf-8")
-    assert json.loads(ctx.hook("Stop", "stop.json", stop_hook_active=True))["decision"] == "block", (
+    assert json.loads(ctx.hook("Stop", "stop", stop_hook_active=True))["decision"] == "block", (
         "the report changed, so the open item still holds the run"
     )
 
@@ -405,31 +520,31 @@ def test_stop_hook_active_unchanged(ctx):
 def test_stop_background_tasks(ctx):
     started_with_tasks(ctx, "- [ ] write the docs\n")
     running = [{"id": "task-001", "type": "shell", "status": "running", "description": "ci watch"}]
-    assert ctx.hook("Stop", "stop.json", background_tasks=running) == ""
+    assert ctx.hook("Stop", "stop", background_tasks=running) == ""
 
 
 def test_stop_warns_not_auto_once(ctx):
     started_with_tasks(ctx, "- [x] done\n")
-    first = json.loads(ctx.hook("Stop", "stop.json", permission_mode="default"))
+    first = json.loads(ctx.hook("Stop", "stop", permission_mode="default"))
     assert first["decision"] == "block"
     assert "auto" in first["reason"].lower()
-    assert ctx.hook("Stop", "stop.json", permission_mode="default") == "", "warned once only"
+    assert ctx.hook("Stop", "stop", permission_mode="default") == "", "warned once only"
     assert ctx.state()["mode_warned"] is True
 
 
 def test_stop_blocks_on_unlisted_refusal(ctx):
     started_with_tasks(ctx, "- [x] done\n")
-    ctx.hook("PermissionRequest", "permission_request_bash.json")
-    output = json.loads(ctx.hook("Stop", "stop.json"))
+    ctx.hook("PermissionRequest", "permission_request_bash")
+    output = json.loads(ctx.hook("Stop", "stop"))
     assert output["decision"] == "block"
     assert "refresh" in output["reason"]
     assert ctx.cli("refresh").returncode == 0
-    assert ctx.hook("Stop", "stop.json") == ""
+    assert ctx.hook("Stop", "stop") == ""
 
 
 def test_stop_records_transcript_path(ctx):
     started_with_tasks(ctx, "- [x] done\n")
-    ctx.hook("Stop", "stop.json")
+    ctx.hook("Stop", "stop")
     assert ctx.state()["transcript_path"] == str(ctx.root / "t.jsonl")
 
 
@@ -442,7 +557,7 @@ def context_of(output: str) -> str:
 
 def test_prompt_subagent_report_not_return(ctx):
     ctx.start("--kind", "until", "--until", "2099-01-02T07:30:00+00:00")
-    for fixture in ("user_prompt_subagent_report.json", "user_prompt_loop.json", "user_prompt_typed.json"):
+    for fixture in ("user_prompt_subagent_report", "user_prompt_loop", "user_prompt_typed"):
         text = context_of(ctx.hook("UserPromptSubmit", fixture))
         assert "2099-01-02T07:30:00+00:00" in text
         assert RULES_TAIL in text
@@ -455,12 +570,12 @@ def test_deliver_once(ctx):
     ctx.start()
     assert ctx.cli("deliver").returncode == 1, "an active absence cannot be delivered before it ends"
     assert ctx.cli("end").returncode == 0
-    text = context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed.json"))
+    text = context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
     assert str(ctx.report()) in text
     assert "deliver" in text
     assert ctx.cli("deliver").returncode == 0
     assert ctx.state()["status"] == "delivered"
-    assert ctx.hook("UserPromptSubmit", "user_prompt_typed.json") == ""
+    assert ctx.hook("UserPromptSubmit", "user_prompt_typed") == ""
     assert ctx.cli("deliver").returncode == 0, "a second deliver is a no-op"
     assert ctx.state()["status"] == "delivered"
 
@@ -518,7 +633,7 @@ def test_check_needs_you_items(ctx):
 def refreshed(ctx: Away) -> str:
     ctx.start()
     ctx.install_transcript()
-    ctx.hook("UserPromptSubmit", "user_prompt_loop.json")
+    ctx.hook("UserPromptSubmit", "user_prompt_loop")
     result = ctx.cli("refresh")
     assert result.returncode == 0, result.stderr
     return ctx.report().read_text(encoding="utf-8")
