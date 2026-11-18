@@ -52,7 +52,7 @@ pf__venv_here() {
   local cand
   for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
     if [[ -x "$cand" ]]; then
-      [[ -z "$(git -C "$1" ls-files -- ':(literal).venv' 2>/dev/null)" ]] || return 1
+      [[ -z "$(rt_git -C "$1" ls-files -- ':(literal).venv' 2>/dev/null)" ]] || return 1
       PF_BIN="$cand"
       return 0
     fi
@@ -118,7 +118,7 @@ rt_adapter_in_repo() { # <concern> <root>
       [[ "${f##*/}" != pyproject.toml ]] && break
       grep -qE "$PF_RUFF_SECTION" "$2/$f" 2>/dev/null && break
       f=""
-    done < <(git -C "$2" ls-files -- ':(glob)**/.ruff.toml' ':(glob)**/ruff.toml' ':(glob)**/pyproject.toml' 2>/dev/null)
+    done < <(rt_git -C "$2" ls-files -- ':(glob)**/.ruff.toml' ':(glob)**/ruff.toml' ':(glob)**/pyproject.toml' 2>/dev/null)
     if [[ -z "${f:-}" ]]; then
       RT_DETAIL="no Ruff config"
       [[ -f "$2/pyproject.toml" ]] && RT_DETAIL="no Ruff config: pyproject.toml has no [tool.ruff] section"
@@ -136,13 +136,13 @@ rt_adapter_in_repo() { # <concern> <root>
 rt_config_counts() {
   [[ "${1##*/}" == pyproject.toml ]] || return 0
   grep -qE "$PF_RUFF_SECTION" "$1" 2>/dev/null && return 0
-  grep -qE "$PF_RUFF_SECTION" < <(git show ":$1" 2>/dev/null)
+  grep -qE "$PF_RUFF_SECTION" < <(rt_git show ":$1" 2>/dev/null)
 }
 
 # rt_lint_index <path>: lint the staged copy of a file gone from the work
 # tree; --stdin-filename keeps the config and its excludes for that path.
 rt_lint_index() {
-  git show ":$1" 2>/dev/null |
+  rt_git show ":$1" 2>/dev/null |
     (cd "$RT_DIR" && "$RT_BIN" check --no-fix --output-format concise --force-exclude --no-cache --quiet --stdin-filename "$1" -)
   return "${PIPESTATUS[1]}"
 }
