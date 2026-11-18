@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.2] - 2026-11-18
+
+### Changed
+
+- The tracker's `wit_newer_live_lease` names its arguments like its sibling lease functions, with no behavior change.
+
 ## [15.6.1] - 2026-11-18
 
 ### Changed

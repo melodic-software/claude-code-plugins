@@ -20,6 +20,8 @@ duckdb -init <skill-dir>/otel/cc-otel.sql -c "SELECT count(*) FROM cc_spans;"
 | `cc_logs_cold()` | `cold/cc-logs-*.parquet` | Aged structure logs |
 | `cc_metrics_cold()` | `cold/cc-metrics-*.parquet` | Aged metrics |
 | `cc_spans_cold()` | `cold/cc-traces-*.parquet` | Aged spans |
+| `lane_runs` ([../otel/lane-runs.sql](../otel/lane-runs.sql)) | the lane transcript sink's `metrics.jsonl` | One row per CI lane leg: tokens, cache tokens, the CLI's cost estimate, failure class, `trace_id` |
+| `lane_outcomes` (same file) | the sink's `outcomes.jsonl` | One row per lane-outcome record; joins `lane_runs` on `trace_id` |
 
 Hot + cold union pattern:
 

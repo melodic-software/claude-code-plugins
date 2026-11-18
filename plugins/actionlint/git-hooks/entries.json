@@ -1,4 +1,10 @@
 {
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/actionlint/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
+  },
   "earlierEntries": [{ "from": "actionlint-check", "to": ["lint"] }],
   "ecosystems": ["github-actions"],
   "entries": [

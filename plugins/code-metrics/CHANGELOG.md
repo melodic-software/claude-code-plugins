@@ -3,6 +3,14 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.5] - 2026-11-18
+
+### Changed
+
+- `audit-duplication` and the `principles` references no longer restate upstream tool figures:
+  the jscpd exit and default-floor clauses, the SonarSource `S3776` default, and the vendor
+  cyclomatic defaults with their read date are gone. Every rule they backed still stands.
+
 ## [1.3.4] - 2026-11-17
 
 ### Changed

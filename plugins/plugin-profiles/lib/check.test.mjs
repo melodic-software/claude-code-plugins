@@ -48,6 +48,16 @@ test("AC24: a shipped profile that excludes an always-on member fails", () => {
   assert.match(failures[0], /build.*excludes always-on member guard@melodic-software/);
 });
 
+test("#17038: a shipped profile with always_on false may exclude an always-on member", () => {
+  assert.deepEqual(run({ "shipped/native.yaml": `description: Bare.\nalways_on: false\nplugins: [flow@${M}]\nexclude: [guard@${M}]\n` }), { failures: [], reports: [] });
+});
+
+test("#17038: a repository always_on false is reported as ignored, not failed", () => {
+  const { failures, reports } = run({ "repository/notes.yaml": "always_on: false\n" });
+  assert.deepEqual(failures, []);
+  assert.ok(reports.some((line) => line.includes("notes.yaml: always_on: false. A repository profile cannot")), reports.join("\n"));
+});
+
 test("a shipped profile with no description line fails", () => {
   const { failures } = run({ "shipped/build.yaml": `plugins: [impl@${M}]\n` });
   assert.equal(failures.length, 1);

@@ -1,0 +1,8 @@
+pre-commit:
+  jobs:
+    - name: markdown-format-remote-format
+      script: markdown-format-format.sh
+      runner: sh
+    - name: markdown-format-remote-lint
+      script: markdown-format-lint.sh
+      runner: sh

@@ -7,8 +7,8 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
-import { ENTRY, main, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
-import { CAP_BYTES, parseArtifactName, paths, prune, query, readRows, transcriptMetrics, writeRows } from "./store.mjs";
+import { ENTRY, LANE_WORKFLOWS, main, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
+import { CAP_BYTES, parseArtifactName, paths, prune, query, readOutcomes, readRows, traceIdOf, transcriptMetrics, writeRows } from "./store.mjs";
 
 const MARKER = "plaintext-marker-5d21";
 const NOW = Date.parse("2026-11-02T12:00:00Z");
@@ -214,6 +214,34 @@ test("the backlog alert turns on at 5 days, before the 7-day listing floor passe
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: { ...fakeDeps([]), ghCallBudget: 1 } });
   assert.equal(result.code, 1);
   assert.match(result.err, /^ALERT: /m);
+});
+
+test("status alerts when pull-outcomes has not succeeded in 5 days or its backlog has not drained, and stays quiet on a sink that never ran it", () => {
+  const fresh = iso(NOW - 86400_000);
+  const old = iso(NOW - 6 * 86400_000);
+  const statusOf = (state) => {
+    const sink = sinkDir();
+    seedState(sink, { last_success_at: fresh, ...state });
+    return run(["status", "--sink", sink], { deps: fakeDeps([]) });
+  };
+  const failing = statusOf({ outcomes: { last_success_at: old } });
+  assert.equal(failing.code, 1);
+  assert.match(failing.err, /^ALERT: no pull-outcomes pass has succeeded/m);
+  assert.doesNotMatch(failing.err, /lane transcript pull/);
+  const stalled = statusOf({ outcomes: { last_success_at: fresh, resume_cutoff_at: old } });
+  assert.equal(stalled.code, 1);
+  assert.match(stalled.err, /^ALERT: budget-stopped pull-outcomes passes/m);
+  assert.equal(statusOf({ outcomes: { last_success_at: fresh } }).code, 0);
+  assert.equal(statusOf({}).code, 0);
+});
+
+test("a fresh pull exits 0 while pull-outcomes is stale, so a timer that chains them still reaches pull-outcomes, and it prints the alert", () => {
+  const { privateText } = generate();
+  const sink = sinkDir();
+  seedState(sink, { last_success_at: iso(NOW - 86400_000), outcomes: { last_success_at: iso(NOW - 6 * 86400_000) } });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([]) });
+  assert.equal(result.code, 0, result.err);
+  assert.match(result.err, /^ALERT: no pull-outcomes pass has succeeded/m);
 });
 
 test("a budget-stopped pull's successor starts listing at the name it stopped on and wraps, so two pulls together list every name", () => {
@@ -684,4 +712,257 @@ test("the sink defaults under XDG_DATA_HOME, and LANE_TRANSCRIPT_SINK replaces i
   assert.equal(fromXdg.sink, path.join(base, "lane-transcripts"));
   const fromEnv = JSON.parse(run(["status"], { env: { XDG_DATA_HOME: base, LANE_TRANSCRIPT_SINK: path.join(base, "elsewhere") }, deps: fakeDeps([]) }).out);
   assert.equal(fromEnv.sink, path.join(base, "elsewhere"));
+});
+
+test("a result's cache tokens, cost estimate and per-model usage are stored; a run with no result stores null for each", () => {
+  const result = {
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    total_cost_usd: 0.25,
+    usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 40 },
+    modelUsage: {
+      "claude-sonnet-5-5": { inputTokens: 3, outputTokens: 4, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.05, webSearchRequests: 2 },
+      "claude-opus-5-5": { inputTokens: 10, outputTokens: 20, cacheReadInputTokens: 300, cacheCreationInputTokens: 40, costUSD: 0.2, contextWindow: 200000 },
+    },
+  };
+  const pick = ({ cache_read_input_tokens: read, cache_creation_input_tokens: created, total_cost_usd: cost, model_usage: perModel }) => ({ read, created, cost, perModel });
+  assert.deepEqual(pick(transcriptMetrics([MESSAGES[0], result])), {
+    read: 300,
+    created: 40,
+    cost: 0.25,
+    perModel: {
+      "claude-opus-5-5": { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 40, cost_usd: 0.2 },
+      "claude-sonnet-5-5": { input_tokens: 3, output_tokens: 4, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cost_usd: 0.05 },
+    },
+  });
+  assert.deepEqual(pick(transcriptMetrics([MESSAGES[0]])), { read: null, created: null, cost: null, perModel: null });
+  assert.deepEqual(pick(transcriptMetrics([{ type: "result", total_cost_usd: -1, usage: { cache_read_input_tokens: 1.5 }, modelUsage: { m: { costUSD: "0.1" } } }])), {
+    read: null,
+    created: null,
+    cost: null,
+    perModel: { m: { input_tokens: null, output_tokens: null, cache_read_input_tokens: null, cache_creation_input_tokens: null, cost_usd: null } },
+  });
+});
+
+test("the trace id is the first 32 hex of SHA-256 over lane-outcome:<run id>:<attempt>, as ci-workflows computes it", () => {
+  assert.equal(traceIdOf(42, 1), "33284f6935ab289df17507682acc6c66", "printf lane-outcome:42:1 | sha256sum");
+  assert.equal(traceIdOf(18234567890, 2), "6231b3dd4912b8d706768f07c9843b10", "printf lane-outcome:18234567890:2 | sha256sum");
+  for (const [run, attempt] of [[null, 1], [42, 0], ["42", 1], [42, 1.5]]) assert.equal(traceIdOf(run, attempt), null, `${run}:${attempt}`);
+});
+
+test("a zip holding a second sealed file beside the transcript is pulled; a third entry, or a second that is not sealed, is a bad zip", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const record = sealed(publicLine);
+  const page = [
+    artifact(91, { entries: { [ENTRY]: record, "otel.jsonl.gz.sealed": "z" } }),
+    artifact(92, { entries: { [ENTRY]: record, "otel.jsonl.gz.sealed": "z", "more.sealed": "z" } }),
+    artifact(93, { entries: { [ENTRY]: record, "otel.jsonl.gz": "z" } }),
+    artifact(94, { entries: { "a.sealed": "z", "b.sealed": "z" } }),
+  ];
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps(page) });
+  assert.equal(result.code, 0, result.err);
+  assert.match(result.out, /"pulled":1,.*"bad_zip":3/);
+  assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [91]);
+});
+
+test("a pulled row carries its run attempt's trace id, and no failure class while no lane-outcome record is held", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([artifact(7, { record: sealed(publicLine) })]) }).code, 0);
+  const [row] = readRows(sink);
+  assert.deepEqual({ trace: row.trace_id, cls: row.failure_class, source: row.failure_class_source }, { trace: "33284f6935ab289df17507682acc6c66", cls: null, source: "none" });
+});
+
+const annotation = (record) => ({ annotation_level: "notice", message: `Lane stopped. lane-outcome ${JSON.stringify(record)} Last SDK result: ${MARKER}` });
+const laneRecord = (fields) => ({ v: 1, lane: "pr-verify", outcome: "failure", class: "max-turns", credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" }, ...fields });
+const laneRun = (id, { attempt = 1, fork = false, path: workflowPath = ".github/workflows/pr-verify.yml" } = {}) => ({ id, run_attempt: attempt, name: "pr-verify", path: workflowPath, repository: { id: REPO_ID }, head_repository: { id: fork ? 1 : REPO_ID }, created_at: iso(NOW - 3600_000) });
+const laneJob = (id, { attempt = 1, conclusion = "failure", name = "check-intent" } = {}) => ({ id, run_attempt: attempt, name, conclusion, completed_at: iso(NOW - 3600_000) });
+
+/**
+ * `runs` maps a workflow file to its runs, `jobs` a run id to its jobs, and
+ * `annotations` a job id to its annotations.
+ */
+function outcomeDeps({ runs = {}, jobs = {}, annotations = {} } = {}) {
+  const calls = [];
+  return {
+    calls,
+    now: () => NOW,
+    sleep: () => {},
+    gh(args) {
+      calls.push(args[1]);
+      let m = /actions\/workflows\/([^/]+)\/runs\?created=[^&]+&status=completed&per_page=100&page=(\d+)$/.exec(args[1]);
+      if (m) return Buffer.from(JSON.stringify({ workflow_runs: m[2] === "1" ? (runs[m[1]] ?? []) : [] }));
+      m = /actions\/runs\/(\d+)\/jobs\?filter=all&per_page=100&page=(\d+)$/.exec(args[1]);
+      if (m) return Buffer.from(JSON.stringify({ jobs: m[2] === "1" ? (jobs[m[1]] ?? []) : [] }));
+      m = /check-runs\/(\d+)\/annotations\?per_page=100&page=(\d+)$/.exec(args[1]);
+      if (m) return Buffer.from(JSON.stringify(m[2] === "1" ? (annotations[m[1]] ?? []) : []));
+      throw Object.assign(new Error("unexpected gh call"), { status: 9 });
+    },
+    unzip() {
+      throw new Error("pull-outcomes opens no zip");
+    },
+  };
+}
+
+test("pull-outcomes copies each validated record from a lane run's job annotations, skipping forks, skipped jobs and records naming another run, and sets the row's failure class", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  writeRows(sink, [{ artifact_id: 1, run_id: 501, run_attempt: 1, job_id: "check-intent", created_at: iso(NOW - 3600_000), date: "2026-11-02", transcript: null }]);
+  const deps = outcomeDeps({
+    runs: { "pr-verify.yml": [laneRun(501), laneRun(502, { fork: true })] },
+    jobs: { 501: [laneJob(9001), laneJob(9002, { conclusion: "skipped" }), laneJob(9003, { conclusion: "success", name: "report" })] },
+    annotations: {
+      9001: [annotation(laneRecord({ runId: 501, runAttempt: 1 })), { message: "Node 20 is deprecated" }],
+      9003: [annotation(laneRecord({ runId: 777 })), annotation({ v: 2, lane: "x" })],
+    },
+  });
+  const result = run(["pull-outcomes", "--sink", sink], { deps });
+  assert.equal(result.code, 0, result.err);
+  assert.ok(!deps.calls.some((c) => c.includes("runs/502/")), "a fork run is not read");
+  assert.ok(!deps.calls.some((c) => c.includes("check-runs/9002/")), "a skipped job is not read");
+  const outcomes = readOutcomes(sink);
+  assert.equal(outcomes.length, 1);
+  assert.deepEqual(
+    { run: outcomes[0].run_id, attempt: outcomes[0].run_attempt, trace: outcomes[0].trace_id, check: outcomes[0].check_run_id, lane: outcomes[0].lane, cls: outcomes[0].record.class },
+    { run: 501, attempt: 1, trace: traceIdOf(501, 1), check: 9001, lane: "pr-verify", cls: "max-turns" },
+  );
+  assert.ok(!readFileSync(paths(sink).outcomes, "utf8").includes(MARKER), "no annotation free text is stored");
+  assert.match(result.out, /"mismatched":1/);
+  const [row] = readRows(sink);
+  assert.deepEqual({ cls: row.failure_class, source: row.failure_class_source, trace: row.trace_id }, { cls: "max-turns", source: "lane-outcome", trace: traceIdOf(501, 1) });
+  assert.deepEqual(query(readRows(sink), { class: "max-turns" }).map((r) => r.artifact_id), [1]);
+  assert.deepEqual(query(readRows(sink), { trace: traceIdOf(501, 1) }).map((r) => r.artifact_id), [1]);
+
+  const again = outcomeDeps({ runs: { "pr-verify.yml": [laneRun(501)] }, jobs: { 501: [laneJob(9001)] }, annotations: {} });
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: again }).code, 0);
+  assert.ok(!again.calls.some((c) => c.includes("check-runs/9001/")), "a job already held is not read again");
+  assert.equal(readOutcomes(sink).length, 1);
+});
+
+test("a job an interrupted pull left half written is read again whole, so its records can still disagree", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  writeRows(sink, [{ artifact_id: 1, run_id: 501, run_attempt: 1, job_id: "check-intent", created_at: iso(NOW - 3600_000), date: "2026-11-02", transcript: null }]);
+  const first = laneRecord({ class: "rate-limit" });
+  const half = { run_id: 501, run_attempt: 1, trace_id: traceIdOf(501, 1), check_run_id: 9001, job_name: "check-intent", lane: "pr-verify", workflow: "pr-verify", created_at: iso(NOW - 3600_000), date: "2026-11-02", record: first, job_records: 2 };
+  writeFileSync(paths(sink).outcomes, `${JSON.stringify(half)}\n`);
+  const deps = outcomeDeps({
+    runs: { "pr-verify.yml": [laneRun(501)] },
+    jobs: { 501: [laneJob(9001)] },
+    annotations: { 9001: [annotation(first), annotation(laneRecord({ class: "overloaded" }))] },
+  });
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps }).code, 0);
+  assert.deepEqual(readOutcomes(sink).map((o) => [o.record.class, o.job_records]), [["rate-limit", 2], ["overloaded", 2]]);
+  const [row] = readRows(sink);
+  assert.deepEqual([row.failure_class, row.failure_class_source], [null, "disagree"]);
+});
+
+test("a row's failure class stays null when its run attempt's records disagree, and differs per attempt", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  writeRows(sink, [1, 2].map((attempt) => ({ artifact_id: attempt, run_id: 601, run_attempt: attempt, job_id: "review", created_at: iso(NOW - 3600_000), date: "2026-11-02", transcript: null })));
+  const deps = outcomeDeps({
+    runs: { "pr-review-hosted.yml": [laneRun(601, { attempt: 2 })] },
+    jobs: { 601: [laneJob(1, { attempt: 1 }), laneJob(2, { attempt: 1, name: "review-2" }), laneJob(3, { attempt: 2 })] },
+    annotations: {
+      1: [annotation(laneRecord({ class: "rate-limit", handoff: true }))],
+      2: [annotation(laneRecord({ outcome: "success", class: undefined }))],
+      3: [annotation(laneRecord({ class: "overloaded" }))],
+    },
+  });
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps }).code, 0);
+  assert.deepEqual(readRows(sink).map((r) => [r.failure_class, r.failure_class_source]), [[null, "disagree"], ["overloaded", "lane-outcome"]]);
+});
+
+test("pull-outcomes lists each lane workflow once, stops at its own budget without touching the transcript pull's state, and resumes at the workflow it stopped on", () => {
+  const sink = sinkDir();
+  const transcriptState = { last_success_at: iso(NOW - 3600_000), resume_cutoff_at: null, gh_calls: 12 };
+  seedState(sink, transcriptState);
+  const full = outcomeDeps();
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: full }).code, 0);
+  assert.deepEqual(full.calls.map((c) => /workflows\/([^/]+)\/runs/.exec(c)?.[1]), LANE_WORKFLOWS);
+  const stopped = { ...outcomeDeps(), outcomeCallBudget: 3 };
+  const result = run(["pull-outcomes", "--sink", sink], { deps: stopped });
+  assert.equal(result.code, 0, result.err);
+  assert.match(result.out, /gh calls: 3 of 3/);
+  const state = stateOf(sink);
+  assert.deepEqual({ last_success_at: state.last_success_at, resume_cutoff_at: state.resume_cutoff_at, gh_calls: state.gh_calls }, transcriptState);
+  assert.deepEqual({ exhausted: state.outcomes.budget_exhausted, workflow: state.outcomes.resume_workflow }, { exhausted: true, workflow: LANE_WORKFLOWS[3] });
+  const resumed = outcomeDeps();
+  run(["pull-outcomes", "--sink", sink], { deps: resumed });
+  assert.equal(/workflows\/([^/]+)\/runs/.exec(resumed.calls[0])[1], LANE_WORKFLOWS[3]);
+  assert.equal(stateOf(sink).outcomes.budget_exhausted, false);
+});
+
+test("backfill fills trace_id, the cache, cost and per-model fields from a stored transcript, and a second run leaves the file byte for byte", () => {
+  const sink = sinkDir();
+  const transcript = path.join("transcripts", "2026-11-01", "pr-verify", "42-1-check-intent.json.gz");
+  mkdirSync(path.dirname(path.join(sink, transcript)), { recursive: true });
+  const messages = [MESSAGES[0], { ...MESSAGES[2], total_cost_usd: 1.5, usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 7 } }];
+  writeFileSync(path.join(sink, transcript), gzipSync(Buffer.from(JSON.stringify(messages))));
+  writeRows(sink, [
+    { artifact_id: 1, run_id: 42, run_attempt: 1, created_at: iso(NOW), date: "2026-11-02", transcript },
+    { artifact_id: 2, run_id: 18234567890, run_attempt: 2, created_at: iso(NOW), date: "2026-11-02", transcript: null, pruned: "age" },
+  ]);
+  const first = run(["backfill", "--sink", sink], { deps: fakeDeps([]) });
+  assert.equal(first.code, 0, first.err);
+  const [stored, pruned] = readRows(sink);
+  assert.deepEqual(
+    { trace: stored.trace_id, read: stored.cache_read_input_tokens, created: stored.cache_creation_input_tokens, cost: stored.total_cost_usd, models: Object.keys(stored.model_usage), source: stored.failure_class_source },
+    { trace: "33284f6935ab289df17507682acc6c66", read: 7, created: null, cost: 1.5, models: ["claude-opus-5-5", "claude-sonnet-5-5"], source: "none" },
+  );
+  assert.deepEqual({ trace: pruned.trace_id, cost: pruned.total_cost_usd }, { trace: "6231b3dd4912b8d706768f07c9843b10", cost: undefined });
+  const bytes = readFileSync(paths(sink).metrics);
+  const second = run(["backfill", "--sink", sink], { deps: fakeDeps([]) });
+  assert.equal(JSON.parse(second.out).changed, 0);
+  assert.ok(readFileSync(paths(sink).metrics).equals(bytes));
+});
+
+test("prune drops lane-outcome records over a year old with the metrics rows", () => {
+  const sink = sinkDir();
+  seedStore(sink, []);
+  writeFileSync(paths(sink).outcomes, [364, 366].map((days) => `${JSON.stringify({ check_run_id: days, created_at: iso(NOW - days * 86400_000) })}\n`).join(""));
+  assert.equal(prune(sink, NOW).outcomes, 1);
+  assert.deepEqual(readOutcomes(sink).map((o) => o.check_run_id), [364]);
+});
+
+/**
+ * The lane workflows read from the workflow text: a `uses:` line naming
+ * report-lane-outcome, run-claude-cli, a ci-workflows lane reusable, or a
+ * local reusable that is itself a lane workflow; a workflow_call-only file
+ * has no runs of its own.
+ */
+test("every workflow whose runs write lane-outcome records is in LANE_WORKFLOWS, and nothing else", () => {
+  const files = new Map(workflowLines());
+  const direct = /^\s+(- )?uses:\s*melodic-software\/ci-workflows\/\.github\/(actions\/(report-lane-outcome|run-claude-cli)|workflows\/(pr-review-cli|intake-triage)\.yml)@/;
+  const local = (lines) => lines.map((l) => /^\s+(- )?uses:\s*\.\/\.github\/workflows\/([^\s@]+\.yml)/.exec(l)?.[2]).filter(Boolean);
+  const lane = new Set([...files].filter(([, lines]) => lines.some((l) => direct.test(l))).map(([file]) => file));
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [file, lines] of files) if (!lane.has(file) && local(lines).some((called) => lane.has(called))) grew = lane.add(file);
+  }
+  const callOnly = (lines) => {
+    const at = lines.findIndex((l) => /^on:/.test(l));
+    const triggers = lines.slice(at + 1).filter((l, i, rest) => rest.slice(0, i).every((p) => !/^\S/.test(p)) && /^ {2}[a-z_]+:/.test(l));
+    return triggers.length === 1 && /workflow_call/.test(triggers[0]);
+  };
+  const expected = [...lane].filter((file) => !callOnly(files.get(file))).sort();
+  assert.ok(expected.includes("pr-verify.yml") && !expected.includes("pr-run-activity-read.yml"), "a lane caller is in, a reusable is out");
+  assert.deepEqual([...LANE_WORKFLOWS].sort(), expected);
+});
+
+test("a pull-outcomes pass after a budget stop skips each run attempt it already read, though its jobs held no record", () => {
+  const sink = sinkDir();
+  const backlog = { runs: { [LANE_WORKFLOWS[0]]: [laneRun(701), laneRun(702)] }, jobs: { 701: [laneJob(71, { conclusion: "success", name: "gate" })], 702: [laneJob(72)] }, annotations: { 72: [annotation(laneRecord({}))] } };
+  const first = { ...outcomeDeps(backlog), outcomeCallBudget: 3 };
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: first }).code, 0);
+  assert.deepEqual(first.calls.filter((c) => c.includes("/runs/7")).map((c) => /runs\/(\d+)/.exec(c)[1]), ["701"]);
+  const shown = JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out);
+  assert.deepEqual({ exhausted: shown.outcomes_budget_exhausted, resume: shown.outcomes_resume_cutoff_at }, { exhausted: true, resume: new Date(NOW - 30 * 86400_000).toISOString() });
+  const second = outcomeDeps(backlog);
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: second }).code, 0);
+  assert.ok(!second.calls.some((c) => c.includes("runs/701/") || c.includes("check-runs/71/")), "the run read before the stop costs no call");
+  assert.deepEqual(readOutcomes(sink).map((o) => o.check_run_id), [72]);
 });
