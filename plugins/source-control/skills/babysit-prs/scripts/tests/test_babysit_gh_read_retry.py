@@ -51,20 +51,22 @@ class RetryCase(unittest.TestCase):
         self.addCleanup(gh.reset_gh_call_counts)
         self.sent: list[list[str]] = []
         self.timeouts: list[float] = []
-        self.answers: list[tuple[int, str, str]] = []
+        self.answers: list[tuple[int, str, str, float]] = []
         self.waits: list[float] = []
+        self.oversleep = 0.0
         self.now = 1000.0
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
 
         def sleep(seconds: float) -> None:
             self.waits.append(seconds)
-            self.now += seconds
+            self.now += seconds + self.oversleep
 
         def fake(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             self.sent.append(argv)
             self.timeouts.append(kwargs["timeout_seconds"])
-            code, stdout, stderr = self.answers.pop(0)
+            code, stdout, stderr, seconds = self.answers.pop(0)
+            self.now += seconds
             return subprocess.CompletedProcess(argv, code, stdout, stderr)
 
         for patcher in (
@@ -83,12 +85,16 @@ class RetryCase(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def answer(self, code: int, stdout: str, stderr: str = "") -> None:
-        self.answers.append((code, stdout, stderr))
+    def answer(
+        self, code: int, stdout: str, stderr: str = "", seconds: float = 0.0
+    ) -> None:
+        self.answers.append((code, stdout, stderr, seconds))
 
-    def bad_gateway(self, times: int = 1) -> None:
+    def bad_gateway(self, times: int = 1, seconds: float = 0.0) -> None:
         for _ in range(times):
-            self.answer(1, head(502) + '{"message":"Server Error"}', BAD_GATEWAY)
+            self.answer(
+                1, head(502) + '{"message":"Server Error"}', BAD_GATEWAY, seconds
+            )
 
 
 class ATransientReadIsSentAgain(RetryCase):
@@ -101,8 +107,8 @@ class ATransientReadIsSentAgain(RetryCase):
         self.assertEqual(gh.gh_call_counts(), {READ_KIND: 2})
         self.assertEqual(len(self.waits), 1)
 
-    def test_503_and_504_are_sent_again_too(self) -> None:
-        for status in (503, 504):
+    def test_every_status_from_500_to_599_is_sent_again(self) -> None:
+        for status in (500, 501, 503, 504, 599):
             with self.subTest(status):
                 self.sent.clear()
                 self.answer(1, head(status) + "{}", f"gh: HTTP {status}\n")
@@ -118,13 +124,6 @@ class ATransientReadIsSentAgain(RetryCase):
                 self.answer(0, head(200) + "{}")
                 self.assertEqual(gh.gh_capture(READ).returncode, 0)
                 self.assertEqual(len(self.sent), 2)
-
-    def test_a_subcommand_read_is_sent_again(self) -> None:
-        self.answer(1, "", "HTTP 502: Bad Gateway (https://api.github.com/graphql)\n")
-        self.answer(0, "{}")
-        proc = gh.gh_capture(["pr", "view", "7", "--json", "number"])
-        self.assertEqual(proc.returncode, 0)
-        self.assertEqual(len(self.sent), 2)
 
     def test_a_graphql_query_is_sent_again(self) -> None:
         self.answer(1, head(502) + "{}", BAD_GATEWAY)
@@ -201,6 +200,45 @@ class TheAttemptsAreBounded(RetryCase):
             gh.gh_capture(READ, timeout_seconds=30.0)
         self.assertEqual(self.timeouts, [30.0, 26.0])
 
+    def test_a_retry_the_elapsed_attempt_leaves_no_room_for_is_not_sent(self) -> None:
+        self.bad_gateway(seconds=40.0)
+        self.answer(0, head(200) + "{}")
+        with mock.patch.object(gh.random, "uniform", lambda low, high: high):
+            proc = gh.gh_capture(READ, timeout_seconds=60.0)
+        self.assertEqual((proc.returncode, proc.stderr), (1, BAD_GATEWAY))
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
+    def test_a_retry_the_elapsed_attempt_leaves_room_for_is_sent(self) -> None:
+        self.bad_gateway(seconds=10.0)
+        self.answer(0, head(200) + "{}")
+        with mock.patch.object(gh.random, "uniform", lambda low, high: high):
+            proc = gh.gh_capture(READ, timeout_seconds=60.0)
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(self.timeouts, [60.0, 46.0])
+
+    def test_a_sleep_that_overruns_the_timeout_sends_nothing_more(self) -> None:
+        self.bad_gateway()
+        self.answer(0, head(200) + "{}")
+        self.oversleep = 30.0
+        with mock.patch.object(gh.random, "uniform", lambda low, high: 4.0):
+            proc = gh.gh_capture(READ, timeout_seconds=30.0)
+        self.assertEqual((proc.returncode, proc.stderr), (1, BAD_GATEWAY))
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [4.0])
+
+    def test_a_sleep_that_overruns_the_read_phase_sends_nothing_more(self) -> None:
+        self.bad_gateway()
+        self.answer(0, head(200) + "{}")
+        with (
+            mock.patch.object(gh.random, "uniform", lambda low, high: 4.0),
+            mock.patch.object(gh, "read_seconds_left", side_effect=[60.0, 0.0]),
+        ):
+            proc = gh.gh_capture(READ)
+        self.assertEqual((proc.returncode, proc.stderr), (1, BAD_GATEWAY))
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [4.0])
+
     def test_a_retry_past_the_read_phase_deadline_is_not_sent(self) -> None:
         self.bad_gateway()
         with (
@@ -224,7 +262,69 @@ class TheAttemptsAreBounded(RetryCase):
         self.assertEqual(len(self.sent), 2)
 
 
+class TheProcessHasTenRetriesToSpend(RetryCase):
+    """One process sends at most ten retries, across all of its reads."""
+
+    def spend(self, retries: int) -> None:
+        for _ in range(retries):
+            self.bad_gateway()
+            self.answer(0, head(200) + "{}")
+            self.assertEqual(gh.gh_capture(READ).returncode, 0)
+        self.sent.clear()
+        self.waits.clear()
+
+    def test_the_tenth_retry_is_sent(self) -> None:
+        self.spend(9)
+        self.bad_gateway()
+        self.answer(0, head(200) + "{}")
+        self.assertEqual(gh.gh_capture(READ).returncode, 0)
+        self.assertEqual(len(self.sent), 2)
+
+    def test_the_retry_after_the_allowance_is_not_sent(self) -> None:
+        self.spend(10)
+        self.bad_gateway()
+        self.answer(0, head(200) + "{}")
+        proc = gh.gh_capture(READ)
+        self.assertEqual((proc.returncode, proc.stderr), (1, BAD_GATEWAY))
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
+    def test_the_allowance_can_run_out_between_two_attempts_of_one_read(self) -> None:
+        self.spend(9)
+        self.bad_gateway(2)
+        self.answer(0, head(200) + "{}")
+        self.assertEqual(gh.gh_capture(READ).returncode, 1)
+        self.assertEqual(len(self.sent), 2)
+
+    def test_a_retry_that_did_not_fit_spends_none_of_it(self) -> None:
+        with mock.patch.object(gh.random, "uniform", lambda low, high: high):
+            for _ in range(11):
+                self.bad_gateway()
+                gh.gh_capture(READ, timeout_seconds=3.0)
+        self.sent.clear()
+        self.bad_gateway()
+        self.answer(0, head(200) + "{}")
+        self.assertEqual(gh.gh_capture(READ).returncode, 0)
+        self.assertEqual(len(self.sent), 2)
+
+
 class OnlyATransientReadIsSentAgain(RetryCase):
+    def test_a_subcommand_read_is_sent_once(self) -> None:
+        self.answer(1, "", "HTTP 502: Bad Gateway (https://api.github.com/graphql)\n")
+        self.answer(0, "{}")
+        proc = gh.gh_capture(["pr", "view", "7", "--json", "number"])
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
+    def test_a_binary_read_is_sent_once(self) -> None:
+        self.answer(1, "", BAD_GATEWAY)
+        self.answer(0, "{}")
+        proc = gh.gh_capture(READ, binary=True)
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
     def test_a_write_is_never_sent_again(self) -> None:
         writes = {
             "REST": [
@@ -245,6 +345,14 @@ class OnlyATransientReadIsSentAgain(RetryCase):
             ],
             "document from a file": ["api", "graphql", "-F", "query=@doc.graphql"],
             "document from stdin": ["api", "graphql", "--input", "body.json"],
+            "query beside a document from stdin": [
+                "api",
+                "graphql",
+                "-f",
+                "query=query { viewer { login } }",
+                "--input",
+                "body.json",
+            ],
         }
         for name, args in writes.items():
             with self.subTest(name):
@@ -277,7 +385,8 @@ class OnlyATransientReadIsSentAgain(RetryCase):
         for status, stderr in (
             (403, "gh: Resource not accessible by integration (HTTP 403)\n"),
             (404, "gh: Not Found (HTTP 404)\n"),
-            (500, "gh: Server Error (HTTP 500)\n"),
+            (499, "gh: Client Closed Request (HTTP 499)\n"),
+            (600, "gh: Unknown (HTTP 600)\n"),
         ):
             with self.subTest(status):
                 self.sent.clear()
@@ -375,6 +484,18 @@ class AnOuterRetryDoesNotMultiply(RetryCase):
         self.answer(0, head(200) + "{}")
         self.assertEqual(self.reader()._actions(READ, "a pull request"), {})
         self.assertEqual(len(self.sent), 2)
+
+
+class ThePacerCountsEverySend(RetryCase):
+    def test_a_502_through_the_pacer_is_one_counted_send(self) -> None:
+        self.bad_gateway(3)
+        pacer = verify_evidence._Pacer(
+            verify_evidence.postmerge.gh_capture, 0, 100, 0, None
+        )
+        self.assertEqual(pacer._raw(READ).returncode, 1)
+        self.assertEqual(pacer.calls, len(self.sent))
+        self.assertEqual(pacer.window_calls, 1)
+        self.assertEqual(self.waits, [])
 
 
 if __name__ == "__main__":

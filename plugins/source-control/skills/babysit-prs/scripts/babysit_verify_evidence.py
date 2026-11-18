@@ -5559,7 +5559,8 @@ class _Pacer:
         self._pace()
         self.calls += 1
         self.window_calls += 1
-        proc = self.real(args, **kwargs)
+        with single_attempt():
+            proc = self.real(args, **kwargs)
         detail = proc.stderr if isinstance(proc.stderr, str) else ""
         if proc.returncode != 0 and any(s in detail for s in RATE_LIMIT_SIGNS):
             self.limited = detail.strip()[:300] or "a rate-limit answer"
