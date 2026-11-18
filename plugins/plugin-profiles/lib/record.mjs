@@ -57,7 +57,13 @@ export function findRecord(homes, settingsFile) {
   return { path: recordPath(homes[0], settingsFile), found: null, record: null };
 }
 
-export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);
+/** True when doc holds every entry the record wrote, one entry at least, apart from the ones a switch still owes. */
+export const holdsEveryEntry = (record, doc) => {
+  const written = Object.entries(SECTIONS).flatMap(([key, section]) => Object.entries(record[section] ?? {}).map(([name, { after }]) => [key, name, after]));
+  return written.length > 0 && written.every(([key, name, after]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after);
+};
+
+export const saveRecord =(path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);
 export const deleteRecord = (path) => removeFile(path);
 
 export function baseline(doc, record) {

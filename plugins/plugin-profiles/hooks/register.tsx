@@ -106,7 +106,7 @@ async function confirm($: EngineInterface, name: string, preview: Preview): Prom
     ? `Other sessions in this folder (${list(sharing.map(named))}) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. `
     : ''
   const keeps = keeping.length
-    ? `Sessions here in a one-session profile keep theirs and do not change: ${list(keeping.map(s => `${named(s)}, ${s.oneSessionProfile}`))}. `
+    ? `Sessions here in a one-session profile keep theirs and do not change: ${keeping.map(s => `${named(s)} in ${s.oneSessionProfile}`).join('; ')}. `
     : ''
   return confirmed($, `${gets}${keeps}${reread}Apply profile ${name} to this folder?`)
 }

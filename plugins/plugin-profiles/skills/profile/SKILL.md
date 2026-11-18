@@ -57,7 +57,8 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   (a handoff, a background session, a lane) starts sessions through it; see its usage for
   `--with`, `--unattended` and `--json`. A person in a terminal starts one with
   `profiles.mjs start <name>`, or, where their dotfiles define the `claude` shell function, by
-  giving it `--profile <name>` (Claude Code itself has no such flag); with the function,
+  giving it `--profile <name>`, a flag the function adds (Claude Code's own flags:
+  [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags)); with the function,
   `claude --resume <id>` resumes in the profile, since it runs `start --claude-args` for that
   flag. `claude -c` continues the same conversation it would without the function, with the
   folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in

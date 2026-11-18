@@ -252,11 +252,12 @@ test('#16914: the confirm names sessions in a one-session profile apart, as keep
   const others = [
     { name: 'probe-repo-04', sessionId: '3fa9c1d2-0000-4000-8000-000000000001', oneSessionProfile: 'build' },
     { name: 'probe-repo-9b', sessionId: '7b2e95f0-0000-4000-8000-000000000002', oneSessionProfile: null },
+    { name: 'probe-repo-25', sessionId: 'e6efc735-0000-4000-8000-000000000003', oneSessionProfile: 'discovery' },
   ]
   const w = world(on, ['Apply'], { dry: preview({ othersInFolder: others }) })
   await run($, 'review')
   expect(w.asks[0].question).toBe(
-    'Other sessions in this folder (probe-repo-9b (session 7b2e95f0)) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. Sessions here in a one-session profile keep theirs and do not change: probe-repo-04 (session 3fa9c1d2), build. Apply profile review to this folder?',
+    'Other sessions in this folder (probe-repo-9b (session 7b2e95f0)) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. Sessions here in a one-session profile keep theirs and do not change: probe-repo-04 (session 3fa9c1d2) in build; probe-repo-25 (session e6efc735) in discovery. Apply profile review to this folder?',
   )
 })
 

@@ -1074,6 +1074,37 @@ function earlierApply(w, t, entries) {
 }
 const ABSENT_VALUE = "absent";
 
+test("#16914: a worktree file copied from the main checkout after an apply takes the root file's record, so status names it and clear --for worktree puts it back, leaving the root's record", () => {
+  const w = world();
+  gitInit(w);
+  const before = w.read();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w, JSON.parse(w.read()));
+  assert.match(t.run(["status"]).stdout, new RegExp(esc(`An earlier profile, build, sits in ${t.file};`)));
+  const r = t.run(["clear", "--for", "worktree", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(t.file, "utf8"), before, "the copy goes back to the root file's content before the apply");
+  assert.match(w.run(["status"]).stdout, /Profile build \(folder\) applied/, "the root file keeps its profile and record");
+  writeFileSync(t.file, `${JSON.stringify({ enabledPlugins: { "other@vendor": true } })}\n`);
+  assert.doesNotMatch(t.run(["status"]).stdout, /An earlier profile/, "a file that does not hold every entry the root's record wrote is not adopted");
+});
+
+test("#16914: a hand-written worktree file with no record is named by status and the start notice for the entries the root file leaves unset, and clear leaves it", () => {
+  const w = world();
+  gitInit(w);
+  const root = JSON.parse(w.read());
+  const t = linkedWorktree(w, { enabledPlugins: { [Object.keys(root.enabledPlugins)[0]]: true, "skill-creator@claude-plugins-official": false }, skillOverrides: { "tdd:write": "off" } });
+  const rootFile = join(realpathSync(w.project), ".claude", "settings.local.json");
+  const line = `${t.file} also applies here for entries ${rootFile} does not set: skill-creator@claude-plugins-official, skill tdd:write. No profile wrote it, so clear leaves it; edit or remove that file to drop them.`;
+  assert.ok(t.run(["status"]).stdout.split("\n").includes(line), t.run(["status"]).stdout);
+  assert.ok(JSON.parse(sessionStart({ ...w, run: t.run })).systemMessage.includes(line));
+  const before = readFileSync(t.file, "utf8");
+  assert.equal(t.run(["clear", "--for", "worktree", "--yes"]).status, 0);
+  assert.equal(readFileSync(t.file, "utf8"), before, "clear never deletes or edits an unrecorded file");
+  writeFileSync(t.file, `${JSON.stringify({ enabledPlugins: { [Object.keys(root.enabledPlugins)[0]]: false } })}\n`);
+  assert.doesNotMatch(t.run(["status"]).stdout, /also applies here/, "an entry the root file also sets is not in force from the worktree file");
+});
+
 test("#16893: an earlier worktree file with its own record is named as partly in force, the root's value wins in launch, and clear --for worktree puts it back", () => {
   const w = world();
   gitInit(w);
@@ -1696,8 +1727,9 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
   const old = new Date(Date.now() - 24 * 60 * 60 * 1000);
   utimesSync(pointer, old, old);
+  const set = statSync(pointer).mtimeMs;
   assert.equal(hook().status, 0);
-  assert.equal(statSync(pointer).mtimeMs, old.getTime(), "unchanged content is not rewritten");
+  assert.equal(statSync(pointer).mtimeMs, set, "unchanged content is not rewritten");
   writeFileSync(pointer, "/somewhere/else\n");
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);

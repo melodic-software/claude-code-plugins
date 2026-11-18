@@ -90,7 +90,7 @@ import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
-import { ABSENT, baseline, deleteRecord, findRecord, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
+import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
@@ -205,7 +205,23 @@ function primaryHome(where, file) {
 }
 
 /** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
-const recordOf = (where, file) => findRecord([primaryHome(where, file), where.dataDir, ...otherDataDirs(where)].filter(Boolean), file);
+const homesOf = (where, file) => [primaryHome(where, file), where.dataDir, ...otherDataDirs(where)].filter(Boolean);
+const recordOf = (where, file) => {
+  const own = findRecord(homesOf(where, file), file);
+  return own.record ? own : { ...own, record: adoptedRecord(where, file) };
+};
+
+/** A worktree's own file copied from the main checkout after an apply carries the root file's entries but no record: it takes the root file's. */
+function adoptedRecord(where, file) {
+  const { earlier, local } = where.paths;
+  if (!earlier || realPath(file) !== realPath(earlier)) return null;
+  const root = findRecord(homesOf(where, local), local).record;
+  try {
+    return root && holdsEveryEntry(root, readSettings(file).doc) ? { ...root, settingsFile: file } : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * start keeps its own flags and hands every other word to claude unchanged, except --profile, which names the profile
@@ -794,10 +810,19 @@ function statusOf(opts, where, env, records) {
 /** A profile an earlier version applied to the folder's own file, which Claude Code still reads below the folder file; else null. */
 function earlierProfile(where) {
   const file = where.paths.earlier;
-  const profile = file ? recordOf(where, file).record?.profile : null;
-  if (!profile) return null;
-  const line = `An earlier profile, ${profile}, sits in ${file}; Claude Code reads it only for plugins ${where.paths.local} does not set, so it is partly in force. Run clear --for worktree to put that file back.`;
-  return { profile, file, line };
+  if (!file) return null;
+  const profile = recordOf(where, file).record?.profile;
+  if (profile) {
+    const line = `An earlier profile, ${profile}, sits in ${file}; Claude Code reads it only for plugins ${where.paths.local} does not set, so it is partly in force. Run clear --for worktree to put that file back.`;
+    return { profile, file, line };
+  }
+  const own = readSettings(file).doc;
+  const root = readSettings(where.paths.local).doc;
+  const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(own[key] ?? {}).filter((name) => !(name in (root[key] ?? {}))));
+  if (!plugins.length && !skills.length) return null;
+  const entries = [...plugins, ...skills.map((name) => `skill ${name}`)];
+  const line = `${file} also applies here for entries ${where.paths.local} does not set: ${list(entries)}. No profile wrote it, so clear leaves it; edit or remove that file to drop them.`;
+  return { profile: null, file, line };
 }
 
 /** The command that starts another session here in a profile: launch writes its file and prints the claude line. */
@@ -984,7 +1009,7 @@ async function clear(opts, where, env, io) {
     if (error instanceof SettingsConflict) throw new NotApplied(`not cleared: ${file} changed while clearing; run clear again`);
     throw error;
   }
-  deleteRecord(recPath);
+  if (recPath) deleteRecord(recPath);
   io.out(`Cleared profile ${rec.profile} from ${file}.`);
   return 0;
 }
