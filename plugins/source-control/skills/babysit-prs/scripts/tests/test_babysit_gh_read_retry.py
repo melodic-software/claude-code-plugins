@@ -116,15 +116,6 @@ class ATransientReadIsSentAgain(RetryCase):
                 self.assertEqual(gh.gh_capture(READ).returncode, 0)
                 self.assertEqual(len(self.sent), 2)
 
-    def test_a_status_only_stderr_names_it_with_no_header_block(self) -> None:
-        for stderr in ("gh: HTTP 502\n", BAD_GATEWAY):
-            with self.subTest(stderr):
-                self.sent.clear()
-                self.answer(1, "", stderr)
-                self.answer(0, head(200) + "{}")
-                self.assertEqual(gh.gh_capture(READ).returncode, 0)
-                self.assertEqual(len(self.sent), 2)
-
     def test_a_graphql_query_is_sent_again(self) -> None:
         self.answer(1, head(502) + "{}", BAD_GATEWAY)
         self.answer(0, head(200) + '{"data":{}}')
@@ -309,6 +300,25 @@ class TheProcessHasTenRetriesToSpend(RetryCase):
 
 
 class OnlyATransientReadIsSentAgain(RetryCase):
+    def test_a_status_only_stderr_names_with_no_header_block_is_sent_once(self) -> None:
+        for stderr in ("gh: HTTP 502\n", BAD_GATEWAY):
+            with self.subTest(stderr):
+                self.sent.clear()
+                self.answers.clear()
+                self.answer(1, "", stderr)
+                self.answer(0, head(200) + "{}")
+                self.assertEqual(gh.gh_capture(READ).returncode, 1)
+                self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
+    def test_a_5xx_with_a_date_retry_after_is_sent_once(self) -> None:
+        date = "Wed, 18 Nov 2026 16:00:00 GMT"
+        self.answer(1, head(503, Retry_After=date) + "{}", "gh: HTTP 503\n")
+        self.answer(0, head(200) + "{}")
+        self.assertEqual(gh.gh_capture(READ).returncode, 1)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.waits, [])
+
     def test_a_subcommand_read_is_sent_once(self) -> None:
         self.answer(1, "", "HTTP 502: Bad Gateway (https://api.github.com/graphql)\n")
         self.answer(0, "{}")

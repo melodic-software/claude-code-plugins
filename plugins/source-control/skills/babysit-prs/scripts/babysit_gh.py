@@ -286,7 +286,6 @@ READ_ATTEMPTS = 3
 READ_RETRY_ALLOWANCE = 10
 RETRY_BASE_SECONDS = 4.0
 RETRY_CAP_SECONDS = 8.0
-_GH_FAILED_STATUS = re.compile(r"\bHTTP (\d{3})\b")
 _GRAPHQL_WRITE = re.compile(r"\b(?:mutation|subscription)\b")
 _single_attempt: ContextVar[bool] = ContextVar("single_attempt", default=False)
 _read_retries_sent = 0
@@ -331,25 +330,22 @@ def _transient_status(
     args: list[str],
     proc: subprocess.CompletedProcess[Any],
     status: int | None,
+    headers: Mapping[str, str],
     *,
     binary: bool,
 ) -> int | None:
-    """The 5xx that lets this failed read be sent again, or None. Only a call
-    run with -i qualifies, because only its answer shows `_guard_response` a
-    Retry-After, and only while the process has retries left of
-    `READ_RETRY_ALLOWANCE`. With no header block the status comes from stderr,
-    which `GH_HTTP_STATUS_RE` reads too narrowly: gh also prints `gh: HTTP 502`."""
+    """The 5xx that lets this failed read be sent again, or None. Only an answer
+    whose header block was read and holds no Retry-After qualifies, and only
+    while the process has retries left of `READ_RETRY_ALLOWANCE`."""
     if (
         proc.returncode == 0
         or _single_attempt.get()
         or _read_retries_sent >= READ_RETRY_ALLOWANCE
         or not (not binary and _includes_headers(args))
+        or "retry-after" in headers
         or not _retryable_read(args)
     ):
         return None
-    if status is None:
-        named = _GH_FAILED_STATUS.findall(proc.stderr or "")
-        status = int(named[-1]) if named else None
     return status if status is not None and 500 <= status <= 599 else None
 
 
@@ -365,10 +361,10 @@ def _send(
     `READ_ATTEMPTS`, each wait a full-jitter share of a capped doubling. The
     attempts share the one timeout a call gets, and a retry that would not fit
     in it or in the read phase (`read_deadline`) is not sent: the last answer
-    stands, as a single failed read does. A read sent without -i is never sent
-    again, since a Retry-After on its answer cannot be seen; one in the headers
-    of an -i read never reaches a wait, since `_guard_response` stops the
-    process on it first."""
+    stands, as a single failed read does. An answer with no header block is
+    never sent again, since a Retry-After on it cannot be seen, and neither is
+    one whose headers hold a Retry-After: `_guard_response` stops the process on
+    a value in seconds, and any other form returns as the failed read."""
     global _read_retries_sent
     left = _default_timeout_seconds if timeout_seconds is None else timeout_seconds
     deadline = _retry_clock() + left
@@ -377,7 +373,7 @@ def _send(
         proc, headers, status = _send_once(
             args, timeout_seconds=left, env_overrides=env_overrides, binary=binary
         )
-        status = _transient_status(args, proc, status, binary=binary)
+        status = _transient_status(args, proc, status, headers, binary=binary)
         if status is None:
             return proc, headers
         wait = random.uniform(
@@ -1468,10 +1464,9 @@ class GraphQLUnavailableError(RuntimeError):
 def gh_http_status(text: str) -> int | None:
     """The HTTP status `gh` reported in a failure message, or None if it named none.
 
-    The parse of gh's `(HTTP 403)` form: `babysit_resolve_thread.gh_http_status`
+    The single parse of that string: `babysit_resolve_thread.gh_http_status`
     reads it off a `CompletedProcess` through here, while the text arrives here
-    inside the `RuntimeError` `run_command` raises, which embeds stderr. The
-    read retry alone also reads the bare `HTTP 502` form (`_GH_FAILED_STATUS`). None
+    inside the `RuntimeError` `run_command` raises, which embeds stderr. None
     covers every failure that never reached an HTTP response -- a timeout, an
     unreachable API, a `gh` that failed before dispatching -- and means
     "unverifiable", never a negative answer. The LAST status in the stream wins:
