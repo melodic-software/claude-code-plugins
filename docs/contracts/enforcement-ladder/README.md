@@ -154,7 +154,8 @@ own:
 5. layer rules and module conventions in the project's docs
 6. unscoped `.claude/rules/*.md` files, meaning the ones with no `paths:` glob; how each kind of
    rule file loads is read live from <https://code.claude.com/docs/en/memory#path-specific-rules>
-7. the repository's existing architecture-test configuration
+7. the repository's existing architecture-test configuration: an import or dependency rule already
+   set in its manifest or a tool config file; read those files before naming a library
 
 ## Guardrail criterion
 
