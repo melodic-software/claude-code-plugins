@@ -882,6 +882,39 @@ test('notice: after a window change a terminal mount returns only what is drawn 
   expect(await drawn($, 'desktop')).toEqual(['drawn beneath'])
 })
 
+const percentColor = async ($: any) => {
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const texts = (await ui.findAll({ type: 'Text' })).map((t: any) => [t.text, t.props.color])
+  await ui.unmount()
+  return texts.find(([t]: [string]) => t === '96%')?.[1]
+}
+
+test('notice: on desktop the percentage takes the 50/75/90 tier colors when levels.json is absent', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(96)
+  await bash($)
+  expect(await percentColor($)).toBe('error')
+})
+
+test('notice: on desktop the percentage follows the tiers in levels.json', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  w.files['/srv/u/.claude/rate-limits/levels.json'] = { text: JSON.stringify({ tiers: [40, 60, 97] }), mtimeMs: 0 }
+  await bash($)
+  w.limits = limits(96)
+  await bash($)
+  expect(await percentColor($)).toBe('#ff8700')
+})
+
+test('notice: on desktop a levels.json with tiers out of order falls back to 50/75/90', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  w.files['/srv/u/.claude/rate-limits/levels.json'] = { text: JSON.stringify({ tiers: [90, 75, 50] }), mtimeMs: 0 }
+  await bash($)
+  w.limits = limits(96)
+  await bash($)
+  expect(await percentColor($)).toBe('error')
+})
+
 test('notice: on desktop Dismiss clears the row, which names no command and carries Details and Dismiss', NO_WRITES, async ($, on) => {
   const { w } = world(on)
   await bash($)

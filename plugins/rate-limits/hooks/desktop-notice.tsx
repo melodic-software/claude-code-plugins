@@ -1,5 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
+import { tierColor, type Tiers } from './levels.ts'
+
 type Elements = ReturnType<EngineInterface['ui']['resolve']>
 export type DesktopChange = {
   window: string
@@ -7,6 +9,7 @@ export type DesktopChange = {
   percent: number | undefined
   resetsAt: string | undefined
   threshold: number
+  tiers: Tiers
 }
 
 export const inWords = (ms: number) => {
@@ -34,7 +37,7 @@ function line(Text: Elements['Text'], c: DesktopChange, nowMs: number) {
   return (
     <Text key={c.window}>
       {c.window} limit {c.percent === undefined ? '' : 'at '}
-      <Text bold color={c.event === 'edge' ? 'error' : 'warning'}>
+      <Text bold color={c.percent === undefined ? (c.event === 'edge' ? 'error' : 'warning') : tierColor(c.percent, c.tiers)}>
         {c.percent === undefined ? (c.event === 'edge' ? `past ${c.threshold}%` : `nearing ${c.threshold}%`) : `${c.percent}%`}
       </Text>
       <Text dimColor>

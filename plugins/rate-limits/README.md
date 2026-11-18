@@ -91,6 +91,12 @@ every window that changed, until your next prompt. The Desktop app draws one lin
 the percentage in color and the time left until it resets, plus Details and Dismiss buttons; other
 surfaces draw a single text row. Desktop's own usage ring holds the figures between changes.
 
+The percentage's color comes from `~/.claude/rate-limits/levels.json`, a file any reader can share,
+such as a status line: `{ "tiers": [50, 75, 90] }` colors it yellow from 50, orange from 75 and
+red from 90, green below. The three tiers are whole numbers from 1 to 100 in ascending order. With
+no file, or one that breaks those rules, the defaults above apply. The tiers set colors only; when
+Claude is told stays with `rate_limit_line_threshold`.
+
 ### Operator mode
 
 With `rate_limit_report_mode` set to `operator`, a turn a person started by typing (or through the
