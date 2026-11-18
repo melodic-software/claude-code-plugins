@@ -349,14 +349,14 @@ commentary, and a leaf that contradicts one is non-conforming.
   browser the run starts itself executes inside the boundary; a driver the host brokers to the
   session stays on the host whatever the level, so an unattended run refuses it (see the
   host-brokered tool surface paragraph under [isolation-ladder levels](guardrails/isolation-ladder.md#levels)).
-  Repository settings load no plugins into a cloud session, so a cloud run's setup script installs
-  the app-control, playwright and source-control plugins plus a browser, and the network allowlist
-  admits the browser download. *Basis:* the harness documentation page for cloud environments,
-  section on what carries over from your setup, whose table states that a cloud session does not
-  install the plugins a repository enables in its settings. The consumer picks the cadence (daily
-  is a reasonable start); a pass with no change since the last clean one skips, by the skill's own
-  rule. No leaf under
-  `routines/` is written until a consumer records a manual run of the skill.
+  A cloud run's setup script installs the app-control, playwright and source-control plugins plus
+  a browser, and the network allowlist admits the browser download, so the run never depends on
+  the repository's settings to bring a plugin in. The consumer picks the cadence (daily is a
+  reasonable start); a pass with no change since the last clean one skips, by the skill's own
+  rule. No leaf under `routines/` is written until a consumer records a manual run of the skill.
+  - **Pointer**: when checking which repository settings a cloud session applies, fetch the
+    harness documentation page for cloud environments, section on what carries over from your
+    setup, live.
 - **`formal-verification-upkeep` and `formal-logic-modeling` are distinct classes.**
   `formal-logic-modeling` writes a new model against a stated invariant; `formal-verification-upkeep`
   keeps existing checks true to code that changed since their sync commit. The pass is
@@ -483,26 +483,13 @@ Hosting stance below. The following are illustrative bindings, not fixed require
 
 - A cloud scheduling surface whose runs clone selected repositories: the artifact is a
   skill committed to a selected repository's skills directory, and the stored prompt
-  points to it. The transfer path is the surface's documented clone-and-load: each run
-  loads the skills committed to the cloned repository's skills directory, and it does not
-  read the machine's user-scope skills directory or install the plugins the repository
-  enables in its settings. A skill living only on the operator's machine therefore does
-  not reach the run and must be committed to the repository to bind.
-
-  **Dated record for that transfer path.** *Basis:* the harness documentation page for skills,
-  section on skills in cloud sessions, which states that cloud sessions do not read the
-  machine's user-scope skills directory and that they additionally load project skills
-  committed to the cloned repository's skills directory; and the cloud environments page,
-  section on what carries over from your setup, whose table states that a cloud session does
-  not install the plugins a repository enables in its settings. The skills section states the
-  opposite on repository-declared plugins, so this contract binds committed skills only. The
-  skills section also states that these sessions load the skills enabled for the operator's
-  hosted account, so an account-enabled skill does reach the run even though a machine-local
-  one does not; the committed-artifact rule above is the binding path this contract requires,
-  not the only path that exists. *Verified:* skills page 2026-09-06, against harness version
-  2.1.263; cloud environments page 2026-10-04. *Recheck trigger:* either section changes what
-  it says about skills or plugins in cloud sessions, or a release note names skill or plugin
-  loading in cloud or scheduled sessions.
+  points to it. This contract binds that committed skill only: a skill kept on the
+  operator's machine, a plugin the repository enables in its settings, or a skill enabled
+  for the operator's hosted account is never the binding path, even where one reaches the
+  run, because a committed skill travels with the repository each run clones.
+  - **Pointer**: when checking which skills and plugins a cloud run loads, fetch the harness
+    documentation page for skills, section on skills in cloud sessions, and the page for cloud
+    environments, section on what carries over from your setup, live.
 - A desktop scheduling surface with per-task instruction files: the artifact is the
   task's instruction file tracked under the deployment's version-controlled dotfiles, and
   the task's prompt points to it.
