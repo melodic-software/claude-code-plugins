@@ -1442,7 +1442,7 @@ npm_seed_install() {
     for f in package.json package-lock.json .npmrc; do
       [[ -f "$wt/$f" ]] && cp -p -- "$wt/$f" "$seed.tmp/"
     done
-    printf '%s: installing dependencies with npm ci into the shared seed (capped at %ss)\n' "$PROG" "$left" >&2
+    printf '%s: installing dependencies with npm ci into the shared seed (capped at %ss)\n' "$PROG" "$deps_cap" >&2
     # SC2016: $1 expands in the inner bash, which receives the path as an argument.
     # shellcheck disable=SC2016
     run_capped "$left" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$seed.tmp" </dev/null >&2
@@ -1488,7 +1488,7 @@ if [[ -f "$worktree_path/package-lock.json" ]]; then
       deps_rc=124
       left=$(deps_left)
       if ((left > 0)); then
-        printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$left" >&2
+        printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
         # SC2016: $1 expands in the inner bash, which receives the path as an argument.
         # shellcheck disable=SC2016
         run_capped "$left" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
