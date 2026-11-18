@@ -313,7 +313,7 @@ guard::_abort_deny_resolve() {
   _GAB_DENY_RESOLVED=1
   guard::_abort_deny_add "${CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH-}" _GAB_DENY_OPT
   local text recs k v
-  if text=$(command git -C "${CLAUDE_PROJECT_DIR:-.}" show "refs/remotes/origin/HEAD:$_GAB_TEAM_REL" 2>/dev/null); then
+  if text=$(command "${HOOK_GIT[@]-git}" -C "${CLAUDE_PROJECT_DIR:-.}" show "refs/remotes/origin/HEAD:$_GAB_TEAM_REL" 2>/dev/null); then
     if recs=$(LC_ALL=C command awk -f "$_GAB_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null); then
       while IFS=$'\t' read -r k v; do
         [[ "$k" == deny_on_crash || "$k" =~ ^deny_on_crash\.[0-9]+$ ]] &&

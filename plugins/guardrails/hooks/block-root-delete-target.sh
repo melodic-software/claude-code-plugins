@@ -2555,7 +2555,7 @@ rdt_tree_to() {
     # harness timeout, which fails open. Running out of time refuses.
     local left RDT_BOUND_UNSET=(GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM)
     rdt_remaining_to left
-    rdt_bounded_to out "$left" git -C "$d" rev-parse --show-toplevel || rc=$?
+    rdt_bounded_to out "$left" "${HOOK_GIT[@]}" -C "$d" rev-parse --show-toplevel || rc=$?
     ((rc == 124)) && rdt_block "too-slow"
     ((rc == 0)) || out=""
   fi

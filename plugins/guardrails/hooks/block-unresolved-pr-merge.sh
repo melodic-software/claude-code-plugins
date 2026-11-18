@@ -901,7 +901,7 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
   elif [[ -n "$BUPM_SEL" ]]; then
     _bupm_branch="$BUPM_SEL"
   else
-    _bupm_branch=$(git -C "${BUPM_CWD:-.}" branch --show-current 2>/dev/null) || _bupm_branch=""
+    _bupm_branch=$("${HOOK_GIT[@]}" -C "${BUPM_CWD:-.}" branch --show-current 2>/dev/null) || _bupm_branch=""
     [[ -n "$_bupm_branch" ]] || _bupm_refuse_target "no PR was named and the current branch could not be read"
   fi
   if [[ -z "$BUPM_NUM" ]]; then

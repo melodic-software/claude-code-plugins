@@ -272,7 +272,7 @@ unpinned_lease_blocked() {
   fi
   local root text recs val key=$'\nunpinned_lease\t'
   hook::repo_root_to root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || return 1
-  text=$(git -C "$root" show "refs/remotes/origin/HEAD:$_BDG_TEAM_REL" 2>/dev/null) || return 1
+  text=$("${HOOK_GIT[@]}" -C "$root" show "refs/remotes/origin/HEAD:$_BDG_TEAM_REL" 2>/dev/null) || return 1
   if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
     printf 'guardrails: %s does not parse; unpinned_lease stays allow.\n' "$_BDG_TEAM_REL" >&2
     return 1
@@ -463,7 +463,7 @@ repo_oid_width() {
   # is absent, the failed exec ends the subshell with bash's own "not found"
   # diagnostic on the captured stream and a non-zero status, which is the same
   # `*` branch below that a missing git reached before.
-  out="$(exec git "$@" rev-parse --show-object-format 2>&1)" || true
+  out="$(exec "${HOOK_GIT[@]}" "$@" rev-parse --show-object-format 2>&1)" || true
   case "$out" in
   sha1) _repo_oid_width=40 ;;
   sha256) _repo_oid_width=64 ;;
@@ -531,7 +531,7 @@ repo_is_temp_scratch() {
   _temp_scratch_key="$key"
   _temp_scratch=1
   # `exec` for the same reason as the width probe: one process, not two.
-  out="$(exec git "${git_locating_opts[@]}" rev-parse --path-format=absolute \
+  out="$(exec "${HOOK_GIT[@]}" "${git_locating_opts[@]}" rev-parse --path-format=absolute \
     --show-toplevel --git-common-dir 2>/dev/null)" || return 1
   out="${out//$'\r'/}"
   top="${out%%$'\n'*}"

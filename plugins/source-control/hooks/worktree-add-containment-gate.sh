@@ -104,7 +104,7 @@ git_unlocated() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git "$@"
+    "${HOOK_GIT[@]}" "$@"
   ) 2>/dev/null
 }
 

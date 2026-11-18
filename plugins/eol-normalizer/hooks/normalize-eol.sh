@@ -34,6 +34,9 @@
 # pipeline as the fallback wherever a builtin needs a bash feature that may be
 # absent.
 
+# shellcheck source=hook-utils.sh
+source "${BASH_SOURCE[0]%/*}/hook-utils.sh"
+
 # True when this bash can read a fixed character count (`read -N`, bash 4.1+).
 # The builtin probes below need it; without it they defer to their subprocess
 # fallbacks rather than guessing.
@@ -126,7 +129,7 @@ normalize_eol_resolve_attrs() {
   NORMALIZE_EOL_ATTR_EOL=""
   NORMALIZE_EOL_ATTR_TEXT=""
   local raw line attr
-  raw=$(git -C "$1" check-attr eol text -- "$2" 2>/dev/null) || return 0
+  raw=$("${HOOK_GIT[@]}" -C "$1" check-attr eol text -- "$2" 2>/dev/null) || return 0
   while IFS= read -r line; do
     attr="${line% *}"
     case "${attr##* }" in

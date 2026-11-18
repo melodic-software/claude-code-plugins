@@ -991,6 +991,16 @@ hook::under_temp_root() {
   return 1
 }
 
+# The git command every hook runs in a repository it did not create:
+# "${HOOK_GIT[@]}" -C <dir> <subcommand>…. Configuration given with -c outranks
+# the repository's own and its includes, so a repository's core.fsmonitor
+# (started whenever the index is read) and its hooks never run, and no pager
+# starts. An array, not a function, so `exec "${HOOK_GIT[@]}"` and a command
+# substitution still exec git without an extra fork.
+# https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
+# https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor
+HOOK_GIT=(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null)
+
 # True when <dir> sits inside a git working tree. Unsets locating globals so an
 # inherited GIT_DIR cannot make an out-of-tree directory look in-tree — the same
 # discipline markdown-format adopted for #972.
@@ -999,7 +1009,7 @@ hook::in_git_working_tree() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$1" rev-parse --show-toplevel
+    "${HOOK_GIT[@]}" -C "$1" rev-parse --show-toplevel
   ) >/dev/null 2>&1
 }
 
@@ -1033,7 +1043,7 @@ hook::file_is_gitignored() {
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
     cd "${dir:-/}" 2>/dev/null || exit 1
-    git check-ignore -q -- "./$base" 2>/dev/null
+    "${HOOK_GIT[@]}" check-ignore -q -- "./$base" 2>/dev/null
   )
 }
 
@@ -1854,7 +1864,7 @@ hook::repo_root_uncached_to() {
   # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
   # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
   # same substitution buffer_stdin already uses for the payload.
-  __hu_rr_val=$(git -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
+  __hu_rr_val=$("${HOOK_GIT[@]}" -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
   __hu_rr_val="${__hu_rr_val//$'\r'/}"
   if [[ -n "$__hu_rr_val" ]]; then
     printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
