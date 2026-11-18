@@ -3,6 +3,12 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.8] - 2026-11-18
+
+### Changed
+
+- `reference/elevenlabs.md` no longer says what the models page lists `eleven_v4` for. It keeps the plugin's own reason for the default: a live with-timestamps call returned clean word timings, and the models pointer stays.
+
 ## [1.2.7] - 2026-11-18
 
 ### Changed
