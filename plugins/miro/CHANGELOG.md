@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.57] - 2026-11-18
+
+### Changed
+
+- The README no longer gives the `/mcp`, `--debug` and debug-log steps for reading the server's startup error. It links the two Claude Code pages that cover them.
+
 ## [0.6.56] - 2026-11-18
 
 ### Changed
