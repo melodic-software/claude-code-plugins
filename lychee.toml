@@ -1,133 +1,43 @@
-# lychee ruleset: repo-agnostic link-checking config.
-# The offline CI lane runs with --offline (external URLs skipped); a manual
-# online run (command in components/lychee/README.md) reuses this file with the
-# network enabled.
-# Ref: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
-
-# Verify #fragment/anchor targets resolve, not just the file path ("full"
-# checks both anchor and text fragments).
 include_fragments = "full"
 
-# Expand input globs into dot-directories too. Without it `**/*.md` skips every
-# tracked file under `.github/`, `.claude/` and similar, so their links were
-# never checked. A glob input does not honor `.gitignore`, so a local run also
-# reads ignored dot-directories. `.work/` and `.claude/worktrees/`, which hold
-# whole trees of markdown, are excluded by path below.
 hidden = true
 
-# Transient failures do not fail an online run: a throttled (429) or erroring
-# (5xx) host, or a timeout, says nothing about whether the link is dead. A dead
-# link (404, 410 and every other 4xx) still fails. Setting `accept` replaces
-# lychee's default set, so the default 100..=103 and 200..=299 are restated.
-# Cost: an accepted 429 or 5xx counts as OK on the first reply, so it is not
-# retried and its #fragment is not checked. The online run's job summary lists
-# accepted 429 and 5xx links and timeouts so a host that stays down is noticed.
-# lychee 0.24.2 never retries a rejected 5xx; revisit accepting 5xx when
-# https://github.com/lycheeverse/lychee/pull/2324 ships in a release.
-# The offline lane makes no HTTP requests, so neither key changes it.
 accept = ["100..=103", "200..=299", "429", "500..=599"]
 accept_timeouts = true
 
-# Rewrite JavaScript-rendered fragments to the same URL without the fragment.
-# These anchors exist only after the page's scripts run, so lychee, which reads
-# the served HTML, reports "Cannot find fragment" for a live target (lychee
-# issues #1729 and #2128). The page itself is still checked. Each value is
-# `<regex> <replacement>`; the first matching rule wins.
 remap = [
-  # GitHub issue, pull request and discussion comment and review anchors.
   '^(https://github\.com/[^/]+/[^/]+/(issues|pull|discussions)/[0-9]+[^#]*)#(issuecomment-|discussion_r|discussioncomment-|pullrequestreview-)[0-9]+$ ${1}',
-  # PyPI's "Download files" tab on a project page.
   '^(https://pypi\.org/project/[^#]+)#files$ ${1}',
-  # docs.github.com GraphQL reference entries, rendered client-side.
   '^(https://docs\.github\.com/([a-z]{2}/)?graphql/reference/[^#]+)#[^#]+$ ${1}',
 ]
 
-# Build/dependency trees: not authored content. Values are regex (single-quoted
-# TOML literals, so backslashes are not double-escaped).
 exclude_path = [
   'node_modules',
   '\.venv',
   '(^|/)bin/',
   '(^|/)obj/',
-  # The org's working-memory directory: local-only in most repos, tracked in
-  # medley, whose `.work/` links were never checked and fail offline today.
-  # Either separator, so a local Windows run matches too.
   '(^|[/\\])\.work[/\\]',
-  # Claude Code's in-repo worktrees: whole nested checkouts.
   '(^|[/\\])\.claude[/\\]worktrees[/\\]',
 ]
 
-# URL excludes for a manual online run (the offline lane skips URLs entirely):
-# exact bot-blocked URLs, auth-walled private repos, loopback, placeholders, and
-# hosts the checker cannot complete a TLS handshake against. Every entry is a
-# CHECKER-side limitation on a link verified to be alive: never a dead link
-# silenced. Each one below records the verification that earned it, so a future
-# reader can re-test rather than trust the list.
 exclude = [
-  # ACM blocks automated clients outright: both URLs answer 403 even with a full
-  # browser User-Agent (verified 2026-07-30), so no header tuning reaches them.
-  # A DOI link is also the most stable citation form there is: the failure is
-  # entirely the checker being refused at the door.
   '^https?://dl\.acm\.org/doi/10\.1145/3611643\.3613871/?([?#].*)?$',
   '^https?://queue\.acm\.org/detail\.cfm\?id=3454124$',
-  # ISO blocks automated clients outright: 403 to the checker (verified
-  # 2026-08-11), so the failure is entirely the checker being refused at the
-  # door: the cited standard page is the stable canonical link.
   '^https?://www\.iso\.org/standard/78907\.html/?([?#].*)?$',
-  # 403 to the checker, 200 with a browser User-Agent (verified 2026-07-30):
-  # the documented bot-block case this list already exists for.
   '^https?://docs\.genius\.com/?([?#].*)?$',
-  # 403 to the checker, 200 with a browser User-Agent (verified 2026-08-27,
-  # dotfiles#551): same bot-block shape as docs.genius.com, scoped to the two
-  # cited pages so the rest of cursor.com stays checked.
   '^https?://(www\.)?cursor\.com/(agents|dashboard/cloud-agents)/?([?#].*)?$',
-  # lib.rs rejects the checker's request with 403 while the same page answers
-  # 200 to a plain fetch elsewhere (verified 2026-08-27 for
-  # claude-code-plugins#3340): a per-client bot block on a live crate page,
-  # scoped to the one cited crate.
   '^https?://lib\.rs/crates/cargo-udeps/?([?#].*)?$',
-  # bsky.app serves its JavaScript app shell with 200 even for a post that does
-  # not exist (on a GitHub runner too, 2026-10-11), so a pass proves nothing.
   '^https?://bsky\.app/',
-  # x.com answers 403 to the runner for a profile page, while status posts pass
-  # and a made-up status answers 404 (GitHub-runner retest, 2026-10-11). Status
-  # posts stay checked; profiles, articles and the terms page stay excluded.
-  # twitter.com needs no entry: lychee excludes it by default.
   '^https?://(www\.)?x\.com/[^/?#]+(/(article|tos)(/[^?#]*)?)?/?([?#].*)?$',
   '^https?://(www\.)?x\.com/i/article/',
-  # Bot blocks on live pages, each scoped to the cited URL so the rest of the
-  # host stays checked: 403 to lychee on a GitHub runner (2026-10-11). Medium
-  # and npmjs also answer 403 to curl and a browser User-Agent; dev.mysql.com
-  # answers 200 to a plain curl.
   '^https?://(www\.)?medium\.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f/?([?#].*)?$',
   '^https?://(www\.)?medium\.com/fortmatic/postmortem-service-disruption-from-expired-ssl-certificate-a993a59272a0/?([?#].*)?$',
   '^https?://dev\.mysql\.com/doc/refman/8\.4/en/innodb-transaction-isolation-levels\.html/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
-  # help.miro.com passed one GitHub-runner retest, then answered 403 to lychee
-  # on a runner (claude-code-plugins online run 38171979835, 2026-10-11), so one
-  # pass was not enough evidence to drop it. A workstation gets 200 with
-  # lychee's User-Agent.
   '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
-  # GitHub REST API endpoints: docs cite them as how a fact was fetched. The
-  # runner gets 403 (unauthenticated API limits), so a failure says nothing
-  # about the endpoint.
   '^https://api\.github\.com/',
-  # Loopback hosts: never reachable from the checker. The example.com/.org/.net
-  # placeholder domains need no entry: lychee excludes them by default.
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
-  # PRIVATE GitHub repos: valid links for authenticated collaborators, but a
-  # manual online run checks them unauthenticated, carrying no credential that
-  # can read a private repo, so GitHub answers 404.
-  # Listed per repo, not per owner, so links to public siblings stay checked.
-  # GENERATED, not hand-edited: the two alternations below are derived from
-  # actual repository visibility by components/lychee/private-repo-inventory.sh
-  # (`generate --write` regenerates them; `check` fails CI when an excluded
-  # repository is public). A private repository missing from the list, the
-  # drift behind standards#212 and #483, shows up as a 404 in an online run;
-  # regenerate then. The optional \.git arm covers
-  # HTTPS clone URLs: the dot after the repo name would otherwise miss the
-  # [/#?] boundary.
   '^https?://github\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
   '^https?://raw\.githubusercontent\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
 ]

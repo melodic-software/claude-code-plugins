@@ -24,14 +24,12 @@ A skill listing is loaded into context so the model knows which
 **model-invocable** skills are available; what the listing carries for each
 skill, and when the full body loads:
 [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
-A **manual-only** skill never reaches the model's listing; which frontmatter
-makes a skill manual-only, and which only hides it from the `/` menu while
-leaving it model-visible:
-[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
-This corrector therefore audits only what the model
-could actually have reached: a **model-visible** skill that sat in the listing
+This corrector audits only a **model-visible** skill that sat in the listing
 and went unused, its procedure reinvented or skipped instead of invoked. It
-does not fault the model for not auto-firing a manual-only skill.
+does not fault the model for not auto-firing a **manual-only** skill, which is
+the user's to invoke; which frontmatter makes a skill manual-only, and which
+only hides it from the `/` menu while leaving it model-visible:
+[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
 
 The discipline, at each of the three surfaces where skills apply:
 
@@ -89,11 +87,11 @@ those:
   keywords, within the per-entry character cap) is skill-authoring QA. Route
   to `/skill-quality:check`, invoked via the Skill tool (degrade to prose
   guidance when the `skill-quality` plugin is not enabled).
-- **The listing budget across all installed skills.** On overflow,
-  descriptions are dropped, so a real skill can silently lose its triggering
-  keywords (how the budget is set and what gets dropped:
+- **The listing budget across all installed skills.** A real skill whose
+  trigger keywords are missing from the listing may be a budget problem, not a
+  description problem (how the budget is set and what it cuts:
   [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
-  That machine-level overflow is a configuration concern; route to
+  That machine-level budget problem is a configuration concern; route to
   `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
   `/doctor` estimates the listing's cost
   ([skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)).

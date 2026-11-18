@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/order-notifications/design/design-threads.md",
+            "old_string": "# Design threads\n",
+            "new_string": "# Design threads\n\n## Risks\n"
+          }
+        }
+      ],
+      "why": "editing a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/orders/place-order.js",
+            "old_string": "return order.id;",
+            "new_string": "await queue.publish(order);\n  return order.id;"
+          }
+        }
+      ],
+      "why": "edited existing source code"
+    }
+  ]
+}

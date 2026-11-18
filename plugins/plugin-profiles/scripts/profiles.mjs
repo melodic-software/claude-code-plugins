@@ -17,8 +17,10 @@
 //          --json it prints the preview lines and what a caller branches on as one object. A plugin
 //          it would switch on whose required prerequisites are missing stops the write unless a
 //          person types yes to the stated consequence; --yes alone never covers that. --for folder
-//          writes .claude/settings.local.json, initial writes user settings.json, session writes a
-//          file for `claude --settings` and changes no settings file. --defer-off writes the
+//          writes the .claude/settings.local.json Claude Code reads, at the repository root in git
+//          (lib/folder-file.mjs; https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository); initial writes user settings.json; session writes a file for
+//          `claude --settings` and changes no settings file. The record of a folder in git goes
+//          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
 //          pending, for an in-session switch; the next apply writes them. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
@@ -78,11 +80,12 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { createHash } from "node:crypto";
-import { basename, dirname, join, resolve, win32 as win32Path } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
+import { claudeCommand } from "../lib/claude-command.mjs";
 import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplaceLocation, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
@@ -557,7 +560,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 /** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
 function profileGate(name, opts, where, env, verb) {
   const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
@@ -573,6 +575,7 @@ function profileGate(name, opts, where, env, verb) {
   return { p, gate, lines };
 }
 
+/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
@@ -686,7 +689,7 @@ function runClaude(args, env, io) {
   for (const name of CLEARED) delete childEnv[name];
   const command = claudeCommand(env, process.platform);
   if (command.refusal) {
-    io.err(`${command.refusal}\nRun it yourself: claude ${args.map(quoted).join(" ")}`);
+    io.err(`start: ${command.refusal}\nRun it yourself: claude ${args.map(quoted).join(" ")}`);
     return Promise.resolve(127);
   }
   let child = null;
@@ -704,24 +707,6 @@ function runClaude(args, env, io) {
   }).finally(() => {
     for (const [signal, handler] of Object.entries(handlers)) process.off(signal, handler);
   });
-}
-
-/**
- * The claude executable to spawn without a shell: on Windows the claude.exe found on PATH, since a .cmd runs only
- * through a shell, which would split or interpret the person's arguments (https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows).
- */
-export function claudeCommand(env, platform, isFile = (path) => existsSync(path)) {
-  if (platform !== "win32") return { file: "claude" };
-  const pathVar = Object.keys(env).find((key) => key.toUpperCase() === "PATH");
-  const dirs = (pathVar ? env[pathVar] : "").split(";").filter(Boolean);
-  const exe = dirs.map((dir) => win32Path.join(dir, "claude.exe")).find(isFile);
-  if (exe) return { file: exe };
-  const script = dirs.flatMap((dir) => ["claude.cmd", "claude.bat"].map((name) => win32Path.join(dir, name))).find(isFile);
-  return {
-    refusal: script
-      ? `start: found ${script} but no claude.exe on PATH; a .cmd runs only through a shell, which would split or interpret your arguments, so start needs the native claude.exe.`
-      : "start: no claude.exe on PATH.",
-  };
 }
 
 /** What a start resumes and in which profile: the claude arguments to run, the profile, a session file to reuse, and the line to print. */

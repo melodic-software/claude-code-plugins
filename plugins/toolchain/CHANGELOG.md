@@ -3,6 +3,15 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-18
+
+### Changed
+
+- The Go and Python lint and check guidance no longer restates golangci-lint, ruff and pyright
+  behavior (#16868). It keeps each rule and its reason and links the upstream docs section for
+  the tool details. The golangci-lint home-config gotcha now says how to tell which config file a
+  run used when a local result differs from CI.
+
 ## [2.0.1] - 2026-11-17
 
 ### Changed

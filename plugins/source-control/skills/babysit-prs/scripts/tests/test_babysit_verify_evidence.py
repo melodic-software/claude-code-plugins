@@ -564,6 +564,8 @@ class FakeGitHub:
             if sha not in self.diffs:
                 return missing()
             return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
+        if path == f"repos/{REPO}":
+            return ok({"default_branch": "main"})
         if path == f"repos/{REPO}/git/ref/heads/main":
             return ok({"ref": "refs/heads/main", "object": {"sha": MAIN_SHA}})
         if path.startswith(f"repos/{REPO}/contents/"):

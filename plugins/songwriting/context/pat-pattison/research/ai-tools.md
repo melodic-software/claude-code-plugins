@@ -26,7 +26,6 @@ plug specific gaps.
 | Syllable count on rare polysyllabic words | UNRELIABLE | YES: Datamuse `syllables` |
 | Verifying word actually exists / current usage | UNRELIABLE | YES: Datamuse |
 | Statistical semantic field for metaphor | INTUITIVE only | YES: Datamuse `trg` |
-| Stress pattern detection on rare words | UNRELIABLE | YES: pronouncing library |
 
 **Rule:** use the internal discipline (per `rhyme-generation.md`) first.
 External tools come in to verify, expand, or fill specific gaps.
@@ -117,31 +116,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh" jjb heavy 
 
 Feed candidates into Pat's metaphor recipes (`metaphor.md`).
 
-## pronouncing: syllable + stress (Python, optional)
-
-For higher-fidelity stress / syllable work, the `pronouncing` Python library
-wraps CMUdict (127K words, ARPAbet phonetic transcription with stress
-digits 0/1/2):
-
-```bash
-pip install pronouncing
-```
-
-```python
-import pronouncing
-phones   = pronouncing.phones_for_word("disappointment")
-syl      = pronouncing.syllable_count(phones[0])      # 4
-stresses = pronouncing.stresses(phones[0])            # e.g., "20010"
-# Find iambic words: pronouncing.search_stresses("^01$")
-```
-
-CMUdict misses neologisms, proper nouns, and slang. For those, `pyphen`
-provides a typographic-hyphenation fallback (`pip install pyphen`).
-
-The skill does not require the user to install pronouncing. Datamuse's
-`numSyllables` covers routine needs. Pronouncing is the upgrade path for
-stress-pattern work.
-
 ## Genius API: exemplar analysis (optional)
 
 For lyric-exemplar study (not reproduction): <https://docs.genius.com>.
@@ -163,8 +137,8 @@ For rhyme requests, the model:
    - The writer asks for explicit external verification
 4. **Surface labeled lists** of 8-15 candidates per tier, not single answers
 
-For syllable / stress on rare words: verify via Datamuse `syllables` or
-pronouncing library. Do not guess.
+For syllable counts on rare words: verify via Datamuse `syllables`. Do not
+guess.
 
 ## What this file does not do
 
@@ -179,5 +153,3 @@ pronouncing library. Do not guess.
 
 - Datamuse API endpoint deprecated → update `scripts/datamuse.sh`
 - A purpose-built songwriting MCP appears in registries → re-evaluate
-- pronouncing replaced by a model-shipped phoneme tool → drop the Python path
-- Model gains reliable syllable / stress on rare polysyllabic words → drop pronouncing

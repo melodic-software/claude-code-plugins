@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Item 'Formly data sharing' asks: which fields cross (name, date of birth, symptoms); under what agreement; and whether a business associate agreement must be signed before build.",
+      "why": "covers fields, agreement and the BAA"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Item 'Formly data sharing' asks which fields cross (name, date of birth, symptoms).",
+      "why": "misses the agreement and the BAA"
+    }
+  ]
+}

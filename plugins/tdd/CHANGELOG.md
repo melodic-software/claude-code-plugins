@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-11-18
+
+### Changed
+
+- The snapshot-tool entry in the `characterization-testing.md` Sources list now links the Verify snapshot-management section and the Jest updating-snapshots and property-matchers sections, not just the pages.
+
 ## [0.6.0] - 2026-11-15
 
 ### Added

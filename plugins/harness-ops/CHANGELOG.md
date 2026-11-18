@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.2.2] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
+## [10.2.1] - 2026-11-18
+
+### Fixed
+
+- `control-claude-code`: the `## Mask` section gives the one command form that resolves its `values:` source, so a run whose shell runs only listed commands is not refused and left with nothing publishable.
+
+## [10.2.0] - 2026-11-18
+
+### Added
+
+- `observability`: `otel/lane-runs.sql` adds the DuckDB views `lane_runs` and `lane_outcomes` over the CI lane transcript sink, joined on `trace_id`, with the cache tokens, the CLI cost estimate and the failure class per lane leg; the read-routing, data-sources and query catalog rows point at them.
+
 ## [10.1.3] - 2026-11-17
 
 ### Changed

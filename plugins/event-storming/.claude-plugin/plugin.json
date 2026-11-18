@@ -1,22 +1,35 @@
 {
   "name": "event-storming",
-  "description": "EventStorming for domain discovery: a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops that produce a structured-markdown model by default; a live Miro-board rendering path is available when the first-party miro plugin is enabled).",
+  "description": "EventStorming for domain discovery: a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops on a markdown board file in the repository by default, or on a live Miro board when chosen and the first-party miro plugin is enabled).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.8.4",
+  "version": "0.9.0",
   "license": "MIT",
   "keywords": [
     "event-storming",
     "ddd",
     "domain-modeling",
     "bounded-contexts",
+    "markdown",
     "miro",
     "facilitation",
     "simulation",
     "skill"
   ],
+  "userConfig": {
+    "board_backend": {
+      "type": "string",
+      "title": "Board backend",
+      "description": "Where the simulation skill puts its boards when a run names none. markdown (default) writes one markdown file per board in the repository's board directory; miro uses a live Miro board and needs the miro plugin enabled with a token. A --backend argument or a board link wins for one run.",
+      "default": "markdown",
+      "options": [
+        "markdown",
+        "miro"
+      ]
+    }
+  },
   "metadata": {
     "category": "design"
   }

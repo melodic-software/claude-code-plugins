@@ -250,6 +250,7 @@ plugins/evals/skills/plugin-eval/scripts/test_noise_report.py 2
 plugins/evals/skills/plugin-eval/scripts/test_run_validity.py 3
 plugins/evals/skills/validate/scripts/test_validate_cases.py 8
 plugins/evals/skills/validate/scripts/validate-cases.test.sh 4
+plugins/event-storming/scripts/board-md.test.sh 1
 plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh 1
 plugins/explainer-video/hooks/install-python-deps.test.sh 3
 plugins/explainer-video/scripts/explainer-video.test.sh 86

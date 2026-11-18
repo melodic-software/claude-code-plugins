@@ -116,8 +116,9 @@ only shortens the wait. The job runs no model step.
 Token and secrets: the job token needs `contents: read` (to read the policy file) and the
 metadata permission the permission endpoint needs (see "Permission values" below); declare
 `permissions: contents: read` and nothing else. The routine token is exposed only to the step that
-fires, after step 2 passes. A triage user's label does not kick: step 2 admits only `admin` or
-`write`, and how roles map to those values is in "Permission values" below. The drain applies the same bar at admission: it reads who last applied the
+fires, after step 2 passes. Step 2 admits only a user whose `permission` value is `admin`
+or `write`, so any other user's label does not kick; how repository roles map to those values is
+in "Permission values" below. The drain applies the same bar at admission: it reads who last applied the
 autonomous-eligible role label, never a `work-class:` label, and refuses the item unless that
 labeler holds `write` or higher (the
 `work-items` plugin's `/work-items:work-loop`, "Admission gate").

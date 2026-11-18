@@ -114,8 +114,8 @@ managed settings, then the one-session file, then the folder, then the repositor
 
 Where you run it matters. The CLI and `claude -p` take all three targets. VS Code and Claude
 Desktop take `folder` and `initial`; a one-session apply there is refused with the folder level
-offered instead. A cloud session reads no local or user settings, and a Claude Desktop session in
-WSL loads no plugins, so there profiles do not apply and nothing is written. Inside Claude Code on a surface the tool does not recognize, status reads
+offered instead. A cloud session reads no local or user settings, so there profiles do not apply
+and nothing is written. Inside Claude Code on a surface the tool does not recognize, status reads
 "surface not detected" and only `folder` applies.
 
 To have every session start from the initial profile instead of the folder's, set the

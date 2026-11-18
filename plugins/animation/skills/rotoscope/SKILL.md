@@ -105,7 +105,7 @@ It measures this work directory's traces and drawings into a style pack.
 - `renderFrame(t)` and `renderDrawing(k)` return Promises; a capture that does not await them
   saves the canvas before the drawing lands.
 - Chromium's canvas `blur()` filter does nothing below a floor (`reference/method.md`, Rendering,
-  holds the dated record), so `roto.js` blurs in JS; `gauss()` must not add 0.5 before writing to a
+  holds the probe record), so `roto.js` blurs in JS; `gauss()` must not add 0.5 before writing to a
   `Uint8ClampedArray`, which already rounds.
 - A drawing JSON is one line of 1-4 MB. Change parameters through the override file and `--apply`,
   never by editing the JSON.

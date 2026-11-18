@@ -6353,6 +6353,29 @@ if command -v git >/dev/null 2>&1; then
     fail "gitignored: an inherited GIT_DIR/GIT_WORK_TREE decided the answer"
   fi
 
+  FSM="$GI_ROOT/fsm"
+  git -C "$GI_ROOT" clone -q "$GREPO" "$FSM" 2>/dev/null
+  printf '.work/\n' >"$FSM/.gitignore"
+  mkdir -p "$FSM/.work"
+  printf '#!/bin/sh\ntouch "%s"\n' "$GI_ROOT/fsm-ran" >"$GI_ROOT/fsm.sh"
+  chmod +x "$GI_ROOT/fsm.sh"
+  FSM_HOOK="$GI_ROOT/fsm.sh"
+  command -v cygpath >/dev/null 2>&1 && FSM_HOOK=$(cygpath -m "$FSM_HOOK")
+  printf '[core]\n\tfsmonitor = %s\n' "$FSM_HOOK" >"$GI_ROOT/fsm-include"
+  git -C "$FSM" config core.fsmonitor "$GI_ROOT/fsm.sh"
+  git -C "$FSM" config include.path "$GI_ROOT/fsm-include"
+  if hook::file_is_gitignored "$FSM/.work/x.sh" && [[ ! -e "$GI_ROOT/fsm-ran" ]]; then
+    ok "gitignored: a planted core.fsmonitor never runs, and the answer still comes back"
+  else
+    fail "gitignored: a planted core.fsmonitor ran, or the ignored file read as not ignored"
+  fi
+  git -C "$FSM" check-ignore -q -- .work/x.sh >/dev/null 2>&1
+  if [[ -e "$GI_ROOT/fsm-ran" ]]; then
+    ok "gitignored fixture: plain git check-ignore runs the planted fsmonitor"
+  else
+    fail "gitignored fixture: the planted fsmonitor never fires, so the check above proves nothing"
+  fi
+
   if hook::gitignored_out_of_scope "false" "$GREPO/.work/scratch.sh"; then
     ok "out_of_scope: ignored file with the opt-in off is out of scope"
   else

@@ -162,10 +162,14 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   human-owned; a trivial early-exit records "no deterministic sub-steps"
 - **Uncovered dimensions**. The dimensions the coverage table read as `none`, listed verbatim, so
   `/planning:plan` can raise them as Step 1 Open Decisions. Record "none" when all six are covered
+- **Risks**. When `design-threads.md` has a `Risks` thread (`/planning:design` "System-scope
+  steps"), its rows quoted in its `Risk | Likelihood | Impact | Mitigation` columns, which
+  `/planning:plan` seeds its `### Risks and Mitigations` from. Omit the item when there is no such
+  thread
 
 Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` reading only the
-persisted artifacts. The resume prompt carries the uncovered dimensions verbatim; the coverage
-table stays in the emitted output and is never written to disk.
+persisted artifacts. The resume prompt carries the uncovered dimensions and any Risks rows
+verbatim; the coverage table stays in the emitted output and is never written to disk.
 
 ## What this skill does not do
 

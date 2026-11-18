@@ -3,6 +3,24 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.9] - 2026-11-18
+
+### Changed
+
+- The `improve` deepening action now gives the reason it never chooses the HTML report's location from an injected scratchpad path or `CLAUDE_JOB_DIR`: those directories belong to the harness's run, and the report must outlive the invocation at the path the secure temp-file primitive created. The `map-context` "Actors are not derived" gotcha states its own reason, that tracked configuration does not say who uses a system, in place of a paraphrase of the C4 system-context page ([#16873](https://github.com/melodic-software/claude-code-plugins/issues/16873)).
+
+## [5.2.8] - 2026-11-18
+
+### Changed
+
+- `map-deployment`: the CloudFormation, Pulumi, `.tf.json` and Helm records no longer restate upstream behavior with dated claims. Each now states what the skill's file readers do and points to the upstream section to check ([#16836](https://github.com/melodic-software/claude-code-plugins/issues/16836)).
+
+## [5.2.7] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
 ## [5.2.6] - 2026-11-18
 
 ### Fixed

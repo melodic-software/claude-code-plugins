@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.0] - 2026-11-18
+
+### Changed
+
+- **The babysit merge gate trusts the own-agent filings intake admission admits.** A pr-verify pass whose linked issue an identity on admission's `own-agents` list wrote now counts as a trusted spec when no other account edited the issue's body, the issue carries exactly one well-formed `source: <producer>` label, a listed human or the lanes App sized it small or medium, and no run's patch stopped over the scan job's size cap since a listed human last added `agent-ready`. The gate reads the list from the default branch and each condition live. Any other filing still reads `verify:untrusted-spec`, a failed read reads `verify:unreadable`, and github-actions[bot] never counts as an own-agent identity, even when the list names it.
+
+## [11.20.3] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [11.20.2] - 2026-11-18
 
 ### Changed

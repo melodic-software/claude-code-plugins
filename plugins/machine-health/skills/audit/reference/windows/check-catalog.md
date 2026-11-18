@@ -608,12 +608,15 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ```
 
 - **Root resolution:** first existing candidate wins, and the winner is recorded in
-  `detail.root_source`. Every candidate ends in the literal `claude` segment. Claude Code appends
-  `claude` on Windows to whatever temp base it resolves, so a bare base is never a candidate: a base
-  with no `claude` child means Claude Code has not written there, and measuring the base itself would
-  report an unrelated temp directory's contents as this check's finding. Bases in order:
-  `CLAUDE_CODE_TMPDIR` when set, then `%TEMP%`, then `%LOCALAPPDATA%\Temp`. The resolved path is
-  normalized to its long form, because `%TEMP%` commonly carries an 8.3 short name.
+  `detail.root_source`. Bases in order: `CLAUDE_CODE_TMPDIR` when set, then `%TEMP%`, then
+  `%LOCALAPPDATA%\Temp`. Every candidate is a base plus the literal `claude` segment, and a bare base
+  is never a candidate: a base with no `claude` child means Claude Code has not written there, and
+  measuring the base itself would report an unrelated temp directory's contents as this check's
+  finding. The resolved path is normalized to its long form, because `%TEMP%` commonly carries an
+  8.3 short name.
+  - **Pointer**: when checking which segment Claude Code appends to its temp base on Windows, fetch
+    the `CLAUDE_CODE_TMPDIR` row of
+    [Environment variables](https://code.claude.com/docs/en/env-vars#variables) live.
 
 - **Background-task output listing:** before the walk, the check lists
   `<root>/<project-key>/<session-id>/tasks/*.output` (exactly those three directory levels, never
@@ -702,7 +705,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   hosts. A POSIX port resolves its own base and per-user segment rather than copying the Windows
   candidates, and lists the same `tasks/*.output` level beneath it.
   - **Pointer**: when porting the root resolution to macOS or Linux, fetch the `CLAUDE_CODE_TMPDIR`
-    row of [Environment variables](https://code.claude.com/docs/en/env-vars) live; it gives the
+    row of [Environment variables](https://code.claude.com/docs/en/env-vars#variables) live; it gives the
     per-OS default base and the segment appended on each OS.
 
 ---
@@ -729,7 +732,14 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ```
 
 - **Severity rubric:**
-  - `CRIT`: User Path length ≥ 2047 (further appends are silently discarded).
+  - `CRIT`: User Path length ≥ 2047. 2047 characters is the longest value Windows keeps when it
+    reads the `Environment` registry key into an environment block, so text appended past it is
+    silently cut off.
+    - **Pointer**: when deciding whether 2047 is still the User Path ceiling, fetch
+      [What is the maximum length of an environment variable?](https://devblogs.microsoft.com/oldnewthing/20100203-00/?p=15083)
+      live; no Microsoft Learn page covers the `Environment` registry key's limit. **As of**:
+      2026-11-18. **Recheck trigger**: a Microsoft Learn page documents that limit, or a probe on a
+      current Windows build reads a User Path longer than 2047 characters intact in an environment built from the key.
   - `WARN` when any of these hold: User Path length ≥ 1800; User Path value kind is
     `REG_SZ` (`String`) rather than `REG_EXPAND_SZ` (`ExpandString`);
     `DISABLE_AUTOUPDATER` set to a truthy

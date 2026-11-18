@@ -81,7 +81,7 @@ book, using the Bourgau and Vernon sources marked in Notes.
 
 Run these checks before starting any simulation:
 
-- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails or no Miro server is connected, route to structured-markdown mode (SKILL.md "Miro availability & graceful degradation"). Do not fall back to a raw Miro REST/token/curl call, which would reintroduce the very dependency the markdown path exists to avoid
+- [ ] **Backend preflight:** `check_available` on the chosen backend (SKILL.md "Board backend"). If it fails, stop and offer the routes there; never switch backends unasked, and never reach a board through a raw REST, token or curl call
 - [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, create the extract directory with the temp primitive and echo its path in the same call (`mktemp -d "${TMPDIR:-/tmp}/eventstorming-epub-XXXXXX"`), then extract into that literal path: `unzip -d "<echoed path>" /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
@@ -98,7 +98,7 @@ Run these checks before starting any simulation:
 |-----------|----------------|----------|--------------|--------|
 | Events-only notation | Ch. 4, Ch. 7 | Only orange stickies during this phase | Board color audit: `count(non-orange) == 0` | Critical |
 | Event brevity | Ch. 1 examples | 2-5 words per event, past tense | Word count analysis on all stickies | Critical |
-| Event count | Ch. 9 visual check | 100-200 after cool-down | `miro_list_board_items` count | High |
+| Event count | Ch. 9 visual check | 100-200 after cool-down | `event` stickies counted in `read_board` | High |
 | Persona differentiation | Ch. 2-3 (siloed knowledge) | Remove [PersonaName] prefix. Can you tell who wrote it? | Manual vocabulary analysis | High |
 | Natural duplicates | Ch. 6 (divergence = BC signal) | 3+ events where different personas name same moment differently | Scan for overlapping events across y-rows | High |
 | Phase names detected | Ch. 1, Ch. 7 | 0-3 stickies flagged as "not an event" | Scan for stickies without past-tense verbs | Medium |
@@ -137,7 +137,7 @@ trusting this line.
 | Narrator relay race | Ch. 4 | Different narrators for different segments | Check agent invocations per segment | High |
 | Natural language paragraphs | Ch. 4 (walking + speaking) | Connected narrative, not bullet lists | Read the narrative outputs | High |
 | [STUMBLE] markers | Ch. 4 (body feels weird) | 3+ gaps identified where story doesn't flow | Count [STUMBLE] markers | High |
-| New events from walk-through | Ch. 4 (bumpy storytelling adds events) | 15-25 new events | Count new events on the Walk-through row (see the Big Picture Y-Coordinate Table in `miro-integration.md`) | High |
+| New events from walk-through | Ch. 4 (bumpy storytelling adds events) | 15-25 new events | Count events with `phase=walk-through` | High |
 | Reverse narrative executed | Ch. 4 (30-40% additional) | 3+ terminal events traced backward; about 30-40% additional flow beyond what Walk-through found | Check reverse narrative outputs and count new events on the Reverse narrative row | High |
 
 ### Big Picture: Value Exploration
@@ -172,9 +172,9 @@ trusting this line.
 | Criterion | Source Reference | Expected | How to Check | Weight |
 |-----------|----------------|----------|--------------|--------|
 | Color grammar strict | Ch. 13-14 | Policy (violet) between every Event→Command | Visual audit of flow | Critical |
-| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies on the Pass 2 corrections row (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Critical |
+| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies on the Flow's `corrections` row | Critical |
 | "Always/Immediately" applied | Ch. 14 | Magic Words challenge breaks 50%+ of policies | Count corrected vs original policies | High |
-| Alternative paths modeled | Ch. 15 | Failure events on the Exception flows / Secondary alternatives rows for each command (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Count failure events | High |
+| Alternative paths modeled | Ch. 15 | Failure events on the Flow's `exceptions` / `alternatives` rows for each command | Count failure events | High |
 | Read models present | Ch. 14 | light_green stickies showing info needed for decisions | Board check | High |
 | Win conditions met (4/4) | Ch. 13 | All paths complete, grammar preserved, hot spots addressed, stakeholders happy | Explicit win condition assessment | Critical |
 | Legend complete | Ch. 14 | Full color grammar shown | Count legend entries | Medium |
@@ -246,7 +246,7 @@ Design-Level:
   BC contracts (outbound/inbound): [out]/[in]
 
 Process:
-  MCP used: [yes/no/fallback]
+  Backend: [markdown/miro]
   Source material consulted: [yes/no]
   Visual verification screenshots taken: [count]
   Legend complete at each phase: [yes/no]
@@ -322,21 +322,19 @@ After every simulation run, answer these questions:
 
 ## Visual Verification Checklist (live-board path)
 
-Screenshot verification applies **only on the live Miro-board path** and requires a browser MCP
-(e.g. chrome-devtools), an optional surface rather than a declared plugin dependency. When a browser MCP
-is connected, take a screenshot after every phase transition and check the items below; it is a
-strong quality gate for board runs. When no browser MCP is available, or the run is in
-structured-markdown mode, skip screenshot capture and verify against the markdown artifact instead.
+A `snapshot` after every phase transition is a strong quality gate where the backend offers one
+(on Miro, a screenshot through a browser MCP, an optional surface rather than a declared plugin
+dependency). Without one, check the items below against the board as `read_board` returns it.
 Do not block the run on an undeclared tool.
 
 | Check | What to Look For | Action if Failed |
 |-------|-----------------|------------------|
 | Legend completeness | All building block types currently on the board have a legend entry | Add missing legend entries |
-| Legend frame overflow | All legend stickies are fully visible within the frame bounds | Resize frame using the sizing formula in miro-integration.md |
-| Color correctness | Each building block uses its correct color (orange=events, blue=commands, etc.) | Update miscolored stickies via `miro_update_sticky_note` |
+| Legend fully visible | Every legend entry can be read (on Miro, inside the frame bounds) | Per the backend file (Miro: the legend frame sizing formula) |
+| Kind correctness | Each building block has its correct kind (events `event`, commands `command`, etc.) | `update_sticky` with the right kind |
 | Stickies outside expected zones | No stickies floating far from the main content area | Reposition outliers |
 | Density and readability | Stickies are not overlapping excessively; content is readable at normal zoom | Adjust spacing |
-| Milestone/pivotal positioning | Temporal milestones are above events (negative y), not below | Reposition milestones |
+| Milestone/pivotal positioning | Each zone is marked by its milestone or pivotal event | `move_sticky` the markers |
 | Emoji presence | No emoji characters visible on any sticky | Update sticky content to remove emojis |
 | Type prefix presence | No "COMMAND:", "EVENT:", "🔵" prefixes on stickies | Update sticky content to remove prefixes |
 
@@ -350,22 +348,22 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 ## How to Run an Evaluation
 
 1. **Complete the simulation**: all 3 formats (BP, PM, DL) or the subset being evaluated
-2. **Read all boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
+2. **Read all boards**: `read_board` on each, the whole board. Keep each sticky's kind, place and content as the board export
 3. **Score each rubric section in a fresh context**: the context that ran the simulation never
    scores it. Run the plugin's `lib/read-verification.sh --plugin event-storming --skill simulation`
    (the full command is in SKILL.md, "Scoring in a fresh context") and copy its line into the evaluation report
    ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
    - At standard or strict, dispatch a fresh-context subagent with the board export from
-     step 2 (in structured-markdown mode, the markdown artifact), the round transcripts a
+     step 2 (for a markdown board, the board file itself), the round transcripts a
      criterion reads, and this file's rubric, never your own notes or verdicts. It returns
      Pass/Partial/Fail for each criterion with the item it rests on.
    - Under `light`, and `off`, which acts as `light` here, dispatch no scorer and never score the
      board yourself in its place. The report writes `verification: skipped (<level>)` and every
      criterion reads `unscored`; the `history.jsonl` entry carries no scores, and step 5 reports
      that no comparison was made.
-4. **Take screenshots (live-board path with a browser MCP only)**: visual verification at every
-   phase transition per the checklist above. Without a browser MCP, or in structured-markdown mode,
-   skip this step and verify against the markdown artifact instead
+4. **Take snapshots where the backend offers them**: visual verification at every
+   phase transition per the checklist above. Without one, skip this step and verify against the
+   board as read
 5. **Compare against prior version** using the version comparison framework
 6. **Run the retrospective protocol** and answer all 26 questions
 7. **Update the run-state store**: record findings in `${CLAUDE_PLUGIN_DATA}/history.jsonl`
