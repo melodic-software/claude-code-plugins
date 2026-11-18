@@ -1602,6 +1602,34 @@ test("a commented group past the checked cap starts one position later each hour
   assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle + 10)), [...numbers(11, 25), ...numbers(1, 5)], "the start wraps to the front of the group");
 });
 
+test("a hand-off behind more never-commented issues than the pass checks still happens while every dispatch fails", async () => {
+  const fresh = Array.from({ length: 25 }, (_, i) => issue(i + 1, { comments: 0, created_at: "2026-10-01T00:00:00Z" }));
+  const gh = fakeGitHub({
+    issues: [...fresh, issue(26, { comments: 1, created_at: "2026-10-02T00:00:00Z" })],
+    comments: { 26: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const call = (method, path, body) => {
+    if (path.endsWith("/dispatches")) throw new Error(`POST ${path}: HTTP 502`);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.deepEqual(result.dispatched, []);
+  assert.equal(result.failed.length, MAX_DISPATCHES);
+  assert.deepEqual(result.handed, [26]);
+});
+
+test("commented issues rotate when a never-commented issue takes the checked slot the last of them needs", async () => {
+  const world = olderIssuesWaitingOnARun(20);
+  const withFresh = { ...world, issues: [...world.issues, issue(21, { comments: 0, created_at: "2026-10-02T00:00:00Z" })] };
+  const startOfCycle = Math.floor(NOW / 3_600_000 / 20) * 20;
+  const passes = await Promise.all(numbers(0, 19).map((offset) => readsAt(withFresh, hoursFromEpoch(startOfCycle + offset))));
+  assert.ok(!passes[0].includes(20), "position 0 starts the group, and #20 is past the slots left");
+  assert.ok(passes[1].includes(20), "an hour later #20 is read");
+  assert.deepEqual([...new Set(passes.flat())].sort((a, b) => a - b), numbers(1, 21), "one rotation reads every candidate");
+});
+
 test("a commented group within the checked cap keeps its oldest-first order at every hour", async () => {
   const world = olderIssuesWaitingOnARun(20);
   const hour = Math.floor(NOW / 3_600_000);
