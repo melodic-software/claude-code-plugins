@@ -79,14 +79,18 @@ misconfigured key is a refusal, not a licensed nesting.
 Enforcement hooks: `hooks/worktree-create-gate.sh` (harness-driven
 creations) and `hooks/worktree-add-containment-gate.sh` (a raw Bash
 `git worktree add` targeting a path inside a repository, #2611).
-`EnterWorktree(name:)` is not a Bash call and lands in the in-repo default;
-the skill is contractually forbidden from calling the name form, and the
-`WorktreeCreate` hook covers harness-driven creation. That pair
-is this plugin's handling of the `EnterWorktree(name:)` gap. Pointers:
-[worktrees: ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree)
-for where the name form lands, and
-[replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
-for the hook seam.
+`EnterWorktree(name:)` is not a Bash call, so no Bash-scoped hook checks
+where it creates a worktree, and this plugin treats its destination as
+in-repo, which the nesting invariant forbids. The skill is contractually
+forbidden from calling the name form, and the `WorktreeCreate` hook covers
+harness-driven creation. That pair
+is this plugin's handling of the `EnterWorktree(name:)` gap.
+
+- **Pointer**: when you need where the name form creates a worktree, fetch
+  [worktrees: ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree)
+  live; when you need the hook seam, fetch
+  [replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
+  live.
 
 ## Per-identity and per-repository roots (#2612)
 

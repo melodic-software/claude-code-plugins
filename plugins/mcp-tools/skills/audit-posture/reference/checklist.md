@@ -103,9 +103,6 @@ index was set but its URL could not be shown safely.
 - **info** when the publisher cannot be judged from the name alone.
 - **PASS** when the publisher is the vendor's own scope or namespace.
 
-Worked case: `postmark-mcp` on npm was an unscoped package named for Postmark that Postmark did not
-publish (see the Postmark record). An unscoped name that matches a vendor is what P3 catches.
-
 P3 takes namespace ownership as the only provenance signal the official MCP registry supplies, and
 treats a registry listing as no evidence that a package is safe (see the registry record).
 
@@ -166,13 +163,6 @@ MCP server.
 - **Pointer**: for how Docker's sandbox model places local MCP servers, see
   <https://docs.docker.com/ai/sandboxes/security>.
 
-### Postmark
-
-P3's worked case: the audit treats `postmark-mcp` on npm as a package under Postmark's name that
-Postmark did not publish.
-
-- **Pointer**: <https://postmarkapp.com/blog/information-regarding-malicious-postmark-mcp-package>.
-
 ### Configuration sources
 
 The inventory script reads every MCP configuration scope, managed configuration included, from the
@@ -214,7 +204,4 @@ the entry checks first.
   entries) and <https://code.claude.com/docs/en/changelog#2-1-274> live.
 - **Source conflict**: the mcp page
   (<https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server>) and changelog 2.1.274
-  (<https://code.claude.com/docs/en/changelog#2-1-274>) disagree on which config sources skip an sdk entry.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the mcp page's `sdk` note changes the sources it names, or a Claude Code
-  release note names `"type": "sdk"` entries.
+  (<https://code.claude.com/docs/en/changelog#2-1-274>) disagree on `"type": "sdk"` entries.

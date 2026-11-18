@@ -5,6 +5,7 @@ import { dirname, join, sep } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { claudeCommand } from "../lib/claude-command.mjs";
 import { tempDir } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -14,7 +15,8 @@ const ID = "draw@fixture-market";
 
 const baseEnv = (home) => ({ PATH: process.env.PATH ?? "", HOME: home, DISABLE_AUTOUPDATER: "1" });
 
-const hasClaude = spawnSync("claude", ["--version"], { env: baseEnv(homedir()), encoding: "utf8", shell: process.platform === "win32" }).status === 0;
+const claude = claudeCommand(baseEnv(homedir())).file;
+const hasClaude = Boolean(claude) && spawnSync(claude, ["--version"], { env: baseEnv(homedir()), encoding: "utf8" }).status === 0;
 
 test("AC4, AC20: with the real claude, install previews, installs only on --yes, and leaves the plugin off at user level", { skip: hasClaude ? false : "claude is not on PATH", timeout: 180_000 }, () => {
   const root = realpathSync(tempDir("claude-eval-plugin-profiles-"));

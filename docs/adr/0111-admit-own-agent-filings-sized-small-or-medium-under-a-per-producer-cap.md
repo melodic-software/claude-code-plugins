@@ -66,9 +66,9 @@ filing, and one that fails that rule still holds as before.
   check-blockers and write-issue (`authorTrust`, `authorAdmitted`) admit only listed humans, the
   lanes App and drift issues, so a new identity's filings stop there until those gates read the
   list too.
-- The merge gate (`babysit_verify_evidence.py`) still refuses a pull request whose linked issue is
-  an own-agent filing with `verify:untrusted-spec`, so a person merges those pull requests until the
-  gate reads the same rule.
+- The merge gate (`babysit_verify_evidence.py`) trusts an own-agent filing under the same rule, read
+  from the same `own-agents` list, so a pull request built from one merges with no person. A filing
+  that no longer meets the rule reads `verify:untrusted-spec`.
 
 ## Revisit triggers
 

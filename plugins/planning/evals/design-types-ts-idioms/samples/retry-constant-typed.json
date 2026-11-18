@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "## Constant\n\n```ts\nexport const RETRY_POLICY: RetryPolicy = {\n  maxAttempts: 3,\n  backoff: \"exponential\",\n} as const;\n```\n",
+      "why": "annotated with the named retry type, followed by as const"
+    },
+    {
+      "answer": "export const READ_RETRY_POLICY: RetryPolicy = {\n  maxAttempts: 3,\n  baseDelayMs: 250,\n  backoffFactor: 2,\n};\n",
+      "why": "annotated with the named retry type"
+    },
+    {
+      "answer": "const retry: Readonly<RetryConfig> = { attempts: 3, backoff: \"exponential\" };\n",
+      "why": "Readonly wrapper around a retry type with another name"
+    },
+    {
+      "answer": "const retry = { attempts: 3, backoff: \"exponential\" } satisfies RetryPolicy;\n",
+      "why": "checked with satisfies, accepted but not required"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "const RETRY_POLICY = { maxAttempts: 3, backoff: \"exponential\" };\n",
+      "why": "untyped literal: backoff widens to string and nothing checks the constant"
+    },
+    {
+      "answer": "const RETRY_POLICY = { maxAttempts: 3, backoff: \"exponential\" } as RetryPolicy;\n",
+      "why": "a cast asserts the type instead of proving it"
+    },
+    {
+      "answer": "export interface RetryPolicy {\n  readonly maxAttempts: number;\n  readonly backoff: \"exponential\";\n}\n\nexport function withRetry<T>(op: () => Promise<T>, policy: RetryPolicy): Promise<T>;\n",
+      "why": "the type is defined but no retry constant is written"
+    },
+    {
+      "answer": "const retryCount: number = 3;\nconst backoff: string = \"exponential\";\n",
+      "why": "typed constants, but not with a named retry type"
+    }
+  ]
+}

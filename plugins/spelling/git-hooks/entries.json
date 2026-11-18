@@ -1,4 +1,10 @@
 {
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/spelling/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
+  },
   "earlierNames": ["typos-format"],
   "earlierEntries": [{ "from": "typos-check", "to": ["lint"] }],
   "ecosystems": ["spelling"],

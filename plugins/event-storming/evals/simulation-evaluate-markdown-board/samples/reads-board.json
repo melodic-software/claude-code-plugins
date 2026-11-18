@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/ws/docs/event-storming/courses-20261118-a7f2/big-picture.md"}}], "why": "absolute path"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "docs/event-storming/courses-20261118-a7f2/big-picture.md"}}], "why": "relative path"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no read"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/plugin/skills/simulation/SKILL.md"}}], "why": "reads the skill, not the board"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/ws/big-picture.md"}}], "why": "a board of the same name outside the board directory"}
+  ]
+}

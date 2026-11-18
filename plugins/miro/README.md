@@ -13,8 +13,7 @@ spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-c
 
 If the first install cannot run (no `npm`, no network, a failed `npm ci`), the server exits
 instead of starting, and its stderr names the cause and the one shell line that repairs it.
-`/mcp` shows the server's status; to read that stderr, start a session with `claude --debug`
-(or `claude --debug=mcp`) and open the debug log at `~/.claude/debug/<session-id>.txt`. Basis:
+Where to see the server's status and how to read that stderr:
 [Troubleshoot plugins, Server is configured but never connects](https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects)
 and [Debug your configuration, Check MCP servers](https://code.claude.com/docs/en/debug-your-config#check-mcp-servers).
 
@@ -35,9 +34,7 @@ with `claude plugin enable miro` or the `/plugin` interface. Set a token before 
 |---|---|---|
 | `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. The server starts without it; until it is set, every Miro tool call returns an error that names the option and the configure command. |
 
-Get a token from <https://miro.com/app/settings/user-profile/apps>. The server is built so an unset
-token is never a startup failure: until the token is set, each tool call fails with the configure
-instruction. Enter it with `/plugin configure miro@melodic-software` (masked input). Setting
+Get a token from <https://miro.com/app/settings/user-profile/apps>. Enter it with `/plugin configure miro@melodic-software` (masked input). Setting
 `MIRO_API_TOKEN` in the server's environment also works, and an empty value or the unexpanded
 `${user_config.miro_api_token}` text counts as unset. The token is substituted into the server's
 `MIRO_API_TOKEN` environment variable at launch. When Claude Code prompts for options, and where it
@@ -124,9 +121,10 @@ old prefix.
   [MCP: Disable a server without removing it](https://code.claude.com/docs/en/mcp#disable-a-server-without-removing-it)
   (where `/mcp` records a disabled server, which is why the step repeats per project) live.
 
-`event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
-working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back
-to markdown while the override is active.
+`event-storming` detects Miro under either prefix, so its Miro board backend keeps working with
+this override. From 0.9.0 it uses Miro only when chosen: its `board_backend` option set to `miro`,
+a `--backend miro` argument, or a Miro board URL. Enabling this plugin alone leaves it on its
+markdown default.
 
 ## Tools
 

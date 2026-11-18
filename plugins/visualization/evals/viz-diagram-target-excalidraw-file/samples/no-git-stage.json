@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git -C /w rev-parse --show-toplevel" } },
+        { "tool": "Bash", "input": { "command": "node /plugins/visualization/lib/diagram-file-check.mjs /tmp/visualize-a1b2c3/reset.excalidraw" } }
+      ],
+      "why": "reads the root, runs the check, stages nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git add docs/diagrams/password-reset-flow.excalidraw" } }
+      ],
+      "why": "staged the file"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git -C /w commit -m \"Add reset diagram\"" } }
+      ],
+      "why": "committed"
+    }
+  ]
+}

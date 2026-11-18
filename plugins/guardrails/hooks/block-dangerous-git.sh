@@ -272,7 +272,7 @@ unpinned_lease_blocked() {
   fi
   local root text recs val key=$'\nunpinned_lease\t'
   hook::repo_root_to root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || return 1
-  text=$(git -C "$root" show "refs/remotes/origin/HEAD:$_BDG_TEAM_REL" 2>/dev/null) || return 1
+  text=$(hook::git_untrusted -C "$root" show "refs/remotes/origin/HEAD:$_BDG_TEAM_REL" 2>/dev/null) || return 1
   if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
     printf 'guardrails: %s does not parse; unpinned_lease stays allow.\n' "$_BDG_TEAM_REL" >&2
     return 1
@@ -452,18 +452,10 @@ repo_oid_width() {
   _repo_oid_width_key="$key"
   _repo_oid_width=""
   _repo_oid_width_err=""
-  # `exec` inside the substitution, because the `2>&1` has to stay inside it:
-  # git's stderr is the diagnostic the block message quotes, so it must land
-  # in `out`, and moving the redirect onto a group outside the substitution
-  # would send it to the hook's own stdout instead. Bash execs a substitution's
-  # body in the substitution's own subshell only when that body carries no
-  # redirection of its own, so `$(git … 2>&1)` cost two process creations for
-  # one exec; an explicit `exec` makes the subshell become git, which is one
-  # (measured with `strace -f -e trace=clone,clone3,fork,vfork,execve`). If git
-  # is absent, the failed exec ends the subshell with bash's own "not found"
-  # diagnostic on the captured stream and a non-zero status, which is the same
-  # `*` branch below that a missing git reached before.
-  out="$(exec git "$@" rev-parse --show-object-format 2>&1)" || true
+  out="$(
+    exec 2>&1
+    hook::git_untrusted "$@" rev-parse --show-object-format
+  )" || true
   case "$out" in
   sha1) _repo_oid_width=40 ;;
   sha256) _repo_oid_width=64 ;;
@@ -530,9 +522,8 @@ repo_is_temp_scratch() {
   [[ "$key" == "$_temp_scratch_key" ]] && return "$_temp_scratch"
   _temp_scratch_key="$key"
   _temp_scratch=1
-  # `exec` for the same reason as the width probe: one process, not two.
-  out="$(exec git "${git_locating_opts[@]}" rev-parse --path-format=absolute \
-    --show-toplevel --git-common-dir 2>/dev/null)" || return 1
+  { out="$(hook::git_untrusted "${git_locating_opts[@]}" rev-parse --path-format=absolute \
+    --show-toplevel --git-common-dir)"; } 2>/dev/null || return 1
   out="${out//$'\r'/}"
   top="${out%%$'\n'*}"
   common="${out#*$'\n'}"

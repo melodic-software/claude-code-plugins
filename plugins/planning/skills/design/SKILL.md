@@ -198,6 +198,15 @@ A variation-intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 
+### System-scope steps
+
+`system` scope only, and suggested, not required: three more threads in `design-threads.md`,
+named `Quality scenarios`, `Capacity estimates` and `Risks`. Scenarios come from the Brief's
+quality requirements, never re-asked, and a prototype Brief defers them in one line; an unknown
+capacity input becomes a `target assumed ... revisit if ...` line; risk rows take
+`/planning:plan`'s risk-table columns. How:
+[`reference/system-scope.md`](reference/system-scope.md).
+
 ### Phase 3: Type Modeling
 
 The phase ends with a `type-inventory.md` in which every type traces to a call site that needs it,
@@ -213,12 +222,6 @@ and each type's shape is set by the operations its busiest paths run on it. Two 
 
 Apply [`reference/type-discipline.md`](reference/type-discipline.md): Phase 3 meets each of its
 situations while it fills `type-inventory.md`, so find the row that matches and make its decision.
-Idioms for one language sit in that language's own file under `reference/type-discipline/`; open
-one only after detecting the language:
-
-| Language | File | Loaded when |
-|---|---|---|
-| TypeScript | [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md) | the repository has a `tsconfig.json`, or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files |
 
 The inventory covers:
 
@@ -345,10 +348,9 @@ value, and that layer is dropped, so a valid higher layer still wins and otherwi
 With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md`
 on an early exit) listing every new file the design introduces, each with the signatures it will
 declare (types, function and method signatures, exported constants), from the resolved type
-inventory and contracts. Each stub body is the language's ordinary not-implemented form (for
-example `raise NotImplementedError` in Python or `todo!()` in Rust), with no per-language reference
-file. After the gate passes, the handoff output names those files and signatures so
-`/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
+inventory and contracts. Each stub body is the language's ordinary not-implemented form, with no
+per-language reference file. After the gate passes, the handoff output names those files and
+signatures so `/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
 
 ## Scope-specific artifacts
 
@@ -400,7 +402,8 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
 **Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
-`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled). Without
+`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled), asking
+for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
 ## Key behaviors

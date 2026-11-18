@@ -13,11 +13,13 @@ A hand-built dialog, menu or select usually misses focus management, keyboard be
 rules and screen-reader semantics. Reach for a library first for any component with those
 behaviors; build it only when the project's own components already cover it or no library fits.
 
-Pick the component for what it must hold. Interactive content goes in a click-triggered popover,
-never a hover tooltip: a "Learn more" link inside a hover tooltip is unreachable.
+Pick the component for what it must hold. A tooltip holds a short text label and nothing a user
+acts on; anything with a link, a button or a field goes in a click-triggered popover, so a keyboard
+or touch user can reach it.
 
-- **Pointer**: WAI-ARIA Authoring Practices Guide, tooltip pattern,
-  <https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#aboutthispattern>
+- **Pointer**: when deciding whether content fits a tooltip, fetch the WAI-ARIA Authoring
+  Practices Guide tooltip pattern,
+  <https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#aboutthispattern>, live.
 
 ## Prefer what is already there
 

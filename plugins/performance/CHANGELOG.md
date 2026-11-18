@@ -3,6 +3,23 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6] - 2026-11-18
+
+### Removed
+
+- `/performance:target` no longer points at the Cachegrind manual or names one tool as the source of its counter rule; the rule keeps its reason, and spawns, syscalls and queries stay labeled as this plugin's own generalization.
+
+## [0.15.5] - 2026-11-18
+
+### Changed
+
+- The examples in `/performance:target`, `/performance:goal` and `/performance:snapshot` that named Python now describe a wrapper, a program or an interpreter path in stack-neutral terms.
+
+### Removed
+
+- The instruction-count recipe no longer picks a tool for you: it takes its simulator, and which event is the instruction count, from the repository's own conventions or `/discovery:research`, and reports the recipe unresolved and skips it when neither settles one. The two tool verification records behind it are gone, as is the Cachegrind manual pointer in the README.
+- The layout-shift and speculative-loading pointers in the techniques catalog now point at the source post's sections only, not at one platform's documentation.
+
 ## [0.15.4] - 2026-11-17
 
 ### Changed

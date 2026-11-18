@@ -1,0 +1,4 @@
+description: Claude Code as it ships, with every other plugin off, guardrails included; the profile switcher stays on as the way back.
+always_on: false
+plugins:
+  - plugin-profiles@melodic-software

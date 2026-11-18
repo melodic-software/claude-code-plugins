@@ -3,6 +3,17 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-11-18
+
+### Added
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`). Without the `mutation-testing` plugin, `/verification:measure metrics` finds the repository's own mutation tool by those steps, and reports the covered-code mutation score as unavailable when none resolves.
+
+### Changed
+
+- `/verification:confirm` no longer ships .NET globs as its runtime-affecting path defaults. With no globs documented by the project, it matches each category (`e2e-ui-frontend`, `e2e-runtime-config`, `arch-test-triggers`) against the project's own frontend, settings and build files. Its live-app delegation no longer names example orchestrators or a browser driver.
+- `/verification:measure` no longer names example benchmark harnesses, mutation tools or those tools' names for the covered-code score, and its metrics table no longer gives language keywords as examples for the coupling and API-surface counts.
+
 ## [0.27.0] - 2026-11-17
 
 ### Added

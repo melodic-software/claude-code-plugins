@@ -165,7 +165,7 @@
       }
     },
     "sections": {
-      "description": "Restatement sections, each markdown. `tldr` holds the scope bullets the Brief's TLDR opens with. `problem` holds the Brief's Problem fields and `workSize` its Work size fields. `intent` is the user's goal in one paragraph, in their own words. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "description": "Restatement sections, each markdown. `tldr` holds the scope bullets the Brief's TLDR opens with. `problem` holds the Brief's Problem fields and `workSize` its Work size fields. `intent` is the user's goal in one paragraph, in their own words. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make. `adrVerdicts` holds one line per decision with its architecture-decision-record verdict.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -179,7 +179,8 @@
         "acceptance": {"type": "string"},
         "deferred": {"type": "string"},
         "outOfScope": {"type": "string"},
-        "planningOwned": {"type": "string"}
+        "planningOwned": {"type": "string"},
+        "adrVerdicts": {"type": "string"}
       }
     },
     "meta": {

@@ -3,6 +3,44 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.4] - 2026-11-18
+
+### Changed
+
+- The synced standards contract copy (`reference/standards-contract.md`) moves to 1.1.6: its index
+  example drops the `csharp` row, the Surface column lists no example ecosystem ids, and the
+  pointer-pattern bullet drops its C# directive. The schema, index shape, resolution ladder and
+  migration rules are unchanged.
+
+## [10.3.3] - 2026-11-18
+
+### Changed
+
+- The README's basis for the two subagent-memory limits is now a pointer to the sub-agents page's memory and plugin-scope sections, instead of quotes of three of its statements ([#16834](https://github.com/melodic-software/claude-code-plugins/issues/16834)).
+
+## [10.3.2] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
+## [10.3.1] - 2026-11-18
+
+### Changed
+
+- The `fanout` skill's sentence on what `--yes` does for the `fix` action is reworded for clarity; the behavior is unchanged.
+
+## [10.3.0] - 2026-11-18
+
+### Changed
+
+- The `ecosystem-specialist` agent ships no build, test or lint commands of its own. A phase that neither the repository's `.claude/ecosystems/<ecosystem>.yaml` record nor its documented conventions resolve is reported `UNVERIFIED (unresolved)`, naming what the agent read. A changed file that no record's globs cover is placed by what the repository's own files imply for its path, or listed as unclassified. The plugin carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`), and the agent's report-format example uses placeholders. The agent no longer copies a command out of a CI workflow file, which those steps' unattended limits forbid; it reads such a file only to see which tool is in use.
+
+### Removed
+
+- The agent's file-extension-to-ecosystem table and its fallback commands for each ecosystem.
+- Tool- and language-specific examples in model-read review text: the cast and debug-output examples in the `code-reviewer` agent's checklist, the named scanner in `quality-gate` security mode's after-review advice, and the probe command example in `quality-gate` downstream mode. The rules around them are unchanged.
+
 ## [10.2.1] - 2026-11-17
 
 ### Changed

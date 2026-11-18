@@ -117,13 +117,10 @@ The [counter catalog](../../reference/techniques.md#c-lab-measurement-and-rigs) 
 deterministic counters to try before timing. If no counter exists for a candidate, say so
 explicitly: it changes what `/performance:goal` can promise.
 
-Counts over wall clock is sourced only for **instruction counts** (Valgrind's Cachegrind manual;
-Iai); extending it to spawns, syscalls and queries is this plugin's own generalization. Present a
-counter as *reproducible*, never as *more truthful*: the duration is what a user feels, and a
-counter stands in for it only where the two move together.
-
-- **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind
-  manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live.
+Counts over wall clock is established practice only for **instruction counts**; extending it to
+spawns, syscalls and queries is this plugin's own generalization. Present a counter as
+*reproducible*, never as *more truthful*: the duration is what a user feels, and a counter stands
+in for it only where the two move together.
 
 ## Output
 

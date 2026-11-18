@@ -614,7 +614,7 @@ REAL_GIT="$(command -v git)"
 {
   printf '#!/usr/bin/env bash\n'
   # shellcheck disable=SC2016  # the shim's own expansions are literal source text
-  printf 'if [[ "${1:-}" == "-C" ]]; then printf "%%s\\n" "${2:-}" >>"%s"; fi\n' "$GIT_C_LOG"
+  printf 'a=("$@"); for ((i = 0; i < $# - 1; i++)); do [[ "${a[i]}" == "-C" ]] && printf "%%s\\n" "${a[i + 1]}" >>"%s"; done\n' "$GIT_C_LOG"
   printf 'exec "%s" "$@"\n' "$REAL_GIT"
 } >"$GIT_SHIM_DIR/git"
 chmod +x "$GIT_SHIM_DIR/git"
@@ -1394,6 +1394,15 @@ assert_exit "skip gitignored, home-rooted: not ignored → exit 2" 2 \
   "$(spe_rc "$SPE_GB/src/x.md" HOME="$SPE_G" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
 nb_both "skip gitignored: NotebookEdit to an ignored notebook → exit 0" 0 "" \
   "$(nb_json "$SPE_GB/.work/x.ipynb" "token = '$GH_PAT'")" "$SPE_GI=true"
+printf '#!/bin/sh\ntouch "%s"\n' "$SPE/fsm-ran" >"$SPE/fsm.sh"
+chmod +x "$SPE/fsm.sh"
+git -C "$SPE_G" config core.fsmonitor "$SPE/fsm.sh"
+assert_exit "skip gitignored, planted core.fsmonitor: ignored file → exit 0" 0 \
+  "$(spe_rc "$SPE_GB/.work/x.md" "$SPE_GI=true")"
+assert_file_absent "skip gitignored: a planted core.fsmonitor never runs" "$SPE/fsm-ran"
+git -C "$SPE_G" check-ignore -q -- .work/x.md >/dev/null 2>&1
+if [[ -e "$SPE/fsm-ran" ]]; then ok "fixture: plain git check-ignore runs the planted fsmonitor"; else bad "fixture: the planted fsmonitor never fires, so the check above proves nothing"; fi
+git -C "$SPE_G" config --unset core.fsmonitor
 
 # --- the GitHub MCP lane is untouched by both options
 for SPE_P in "$SPE_D/x.md" ".work/x.md" "notes/x.md"; do

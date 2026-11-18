@@ -1,4 +1,10 @@
 {
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/go-format/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
+  },
   "earlierEntries": [{ "from": "goimports-format", "to": ["format"] }],
   "ecosystems": ["go"],
   "entries": [

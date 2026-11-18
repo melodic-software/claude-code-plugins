@@ -255,6 +255,7 @@ who() {
       "needs.resolve-issue.result": "success", "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
       "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue-stale.outputs.stale": "",
+      "needs.check-human-pull.result": "success", "needs.check-human-pull.outputs.pull": "",
     };
     // The skipped later calls output nothing.
     for (const call of ["resolve-issue-subscription", "resolve-issue-fallback"]) {

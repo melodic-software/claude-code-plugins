@@ -397,6 +397,11 @@ GOAL_COPY_LINE = (
     "lines. Confirm the `◎ /goal active` indicator appears after you send it; if it "
     "is missing, redo it:"
 )
+MD_COPY_LINE = "Run `/clear`, then paste this:"
+MD_GOAL_COPY_LINE = (
+    "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` "
+    "indicator appears after you send it; if it is missing, redo it:"
+)
 # The condition limit, stated once in reference/save-point.md (goal region).
 GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
@@ -2232,8 +2237,31 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 )
                 line = "Read @" + real + line[len("Read @") + len(stored) :]
         out.append(line)
+    if getattr(args, "format", "rails") == "markdown":
+        out = _markdown_prompt(out)
     sys.stdout.write("\n".join(out) + "\n")
     return 0
+
+
+def _markdown_prompt(lines: list[str]) -> list[str]:
+    """Each rail pair as a fenced text block, each copy line in its markdown wording."""
+    swap = {COPY_LINE: MD_COPY_LINE, GOAL_COPY_LINE: MD_GOAL_COPY_LINE}
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if RAIL_RE.match(line):
+            end = next((j for j in range(i + 1, len(lines)) if RAIL_RE.match(lines[j])), None)
+            if end is not None:
+                region = lines[i + 1 : end]
+                runs = [len(m) for text in region for m in re.findall(r"`+", text)]
+                fence = "`" * max(3, max(runs, default=0) + 1)
+                out += [fence + "text", *region, fence]
+                i = end + 1
+                continue
+        out.append(swap.get(line, line))
+        i += 1
+    return out
 
 
 # --- retire -----------------------------------------------------------------------
@@ -3021,7 +3049,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
     sys.stdout.flush()
-    return cmd_emit(argparse.Namespace(file=str(path)))
+    return cmd_emit(argparse.Namespace(file=str(path), format=getattr(args, "format", "rails")))
 
 
 def _unstage(staged: list[tuple[Path, str]]) -> None:
@@ -4064,6 +4092,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="path to a JSON file holding an object with any of: sections {title: body}, append {title: [lines]}, retire [{ref, reason}], next [lines], floors {key: n}",
     )
     p_amend.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
+    p_amend.add_argument(
+        "--format",
+        choices=("rails", "markdown"),
+        default="rails",
+        help="the format of the prompt printed after the verdict, as emit takes it",
+    )
     p_amend.set_defaults(func=cmd_amend)
 
     p_val = sub.add_parser(
@@ -4085,6 +4119,12 @@ def build_parser() -> argparse.ArgumentParser:
         "emit", help="print the '## Resume prompt' section body verbatim"
     )
     p_emit.add_argument("file")
+    p_emit.add_argument(
+        "--format",
+        choices=("rails", "markdown"),
+        default="rails",
+        help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); the file is untouched",
+    )
     p_emit.set_defaults(func=cmd_emit)
 
     p_root = sub.add_parser(

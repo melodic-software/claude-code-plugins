@@ -3,6 +3,37 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.3] - 2026-11-18
+
+### Changed
+
+- `audit`, `run-e2e` and `test-value` keep each rule and its reason but move the upstream specifics behind anchored pointers (#16867). The pytest-rerunfailures `--fail-on-flaky` floor now links the changelog entry instead of naming the version. The MCP handshake smoke test is scoped to servers that still support the `initialize` handshake and links the spec changelog's major changes. The canned-response rule's verification record becomes pointers to Pact's "not good for" section and vcrpy's `none` record mode, with Fowler's contract-test note as a correlate.
+
+## [5.7.2] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
+## [5.7.1] - 2026-11-18
+
+### Changed
+
+- `audit` no longer restates upstream behavior in its type-test exemption or in its `test.describe.configure`, `forbidOnly` and Vitest/Jest guard notes: each passage states the scan's own rule and its reason, with an anchored pointer to fetch live (#16833). `run-e2e`'s evidence pointers drop their summaries of each linked page and name the step each one backs.
+
+## [5.7.0] - 2026-11-18
+
+### Added
+
+- `/testing:write` points at `/mutation-testing:seed-faults`, when that plugin is enabled, for
+  checking whether new tests catch realistic hand-written bugs beyond the hollow-out run.
+
+## [5.6.1] - 2026-11-18
+
+### Fixed
+
+- `/testing:write` now prints its `Glossary: <path | none>` line in every measured run, where before it sometimes named the glossary only in prose.
+
 ## [5.6.0] - 2026-11-17
 
 ### Added

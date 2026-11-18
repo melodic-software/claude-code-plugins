@@ -220,7 +220,7 @@ Each open item is one of:
 - **Resolvable:** the user can answer it now. Ask with recommended answer
 - **Blocked:** depends on another unresolved decision. Name the blocker
 - **Needs-an-artifact:** asking cannot settle it. The answer only arrives once the user reacts to something concrete (a look, a feel, a behavior), and another round of framing will not produce it. Not a deferral: route it to a throwaway prototype now, then answer it in one line. The detour and the skills that own it: [`composition.md`](composition.md) "Mid-interview composition"
-- **Defer-with-assumption:** the user can pick a working assumption, with a known recheck trigger. Capture the assumption and the trigger ("assume Postgres for now; revisit if write throughput exceeds X")
+- **Defer-with-assumption:** the user can pick a working assumption, with a known recheck trigger. Capture the assumption and the trigger
 - **Defer-fully:** out of scope for this task; record in **Deferred questions** so it doesn't silently become a hidden assumption later
 
 **In `me` mode**, "Defer-with-assumption" is NOT available for a *consequential* branch. Drive it to a decision (which may be an explicit "defer to post-V1", recorded as a surfaced decision, not a silent assumption). Defer-with-assumption stays valid only for genuinely non-consequential items.
@@ -558,6 +558,9 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 ### Out-of-scope
 - <thing the user raised and explicitly excluded>
 
+### ADR verdicts
+- Q<N> <decision in a few words>: <verdict>; <the admission-test part it passes or fails, or why it was never handed over>
+
 ### Deferred questions
 - Q<N>: <question>, defer until <when>; **arbiter: /planning:plan** (the default, where /planning:plan resolves unilaterally during planning) or **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
@@ -567,11 +570,15 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 
 **The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
 
+**A hand-written Brief carries no stamp lines.** The TLDR's `- Restatement:` and `- Page title:` lines mark a page export, and the `--brief` gate grades them only when present, so a Brief written from this template leaves both out.
+
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
 
 **The Finish line says when the whole effort is done and who checks it.** Propose it with a `Basis:` in the restatement's goal section; the Confirm covers it, with no register row. An `in use` checker is a person or an existing scheduled check, never the session that did the work. A Goal with no settled Finish line reads `- Finish line: not settled yet`, which the `--procedure --brief` gate rejects.
 
 **The Intent section is the user's words, unedited.** Before the confirmation restate, ask the user for the goal in one paragraph in their own words and write their reply as the section's paragraph (`none stated` when they give none). Then list, in the order they were said, each question the user asked, each note (other than the reply that gave the paragraph), each own answer and each note typed on an accepted, alternative or hedged choice, verbatim, the question-tied ones under their `Q<N>`; leave out anything they withdrew. The Goal paragraph is Claude's outcome statement and its Intent line the user's reason; neither repeats this section. A page export writes this section itself.
+
+**The ADR verdicts section keeps the decisions no ADR records.** It holds one line per decision the Decision record step (item 8) saw, in any action, in the closing summary's shape (SKILL.md Step 3 "ADR verdicts"), with a user's overrule written as the final verdict; `lock` and an unattended run, which show no closing summary, write the same lines from that step's results. A page export takes them from the restatement's `adrVerdicts` section ([`surface.md`](surface.md)). A decision that fails the admission test has no other record past the branch, so `/planning:plan close-out` posts these lines with the Brief and checks they arrived. Leave the section out when the step saw no decision; the `--brief` gate does not require it.
 
 **The criteria bullet stays a plain bullet, never a checkbox,** in the shape [`ears.md`](ears.md) sets for each format. `AC<n>` is the criterion's id, numbered from `AC1` in order and never reused: `/planning:plan` maps each id to the phases that satisfy it and `/work-items:decompose` to the slices that carry it.
 

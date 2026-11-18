@@ -125,60 +125,34 @@ const skipFallback = (values) => {
 const stepSecrets = (node) => [...new Set([...JSON.stringify(node).matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]))].sort();
 
 const SUBAGENT = '{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"haiku"}}';
-const ARGS = "--model sonnet --max-turns 75 --effort high";
 
-for (const [file, job, route, laneSwitch] of [
-  ["pr-review-hosted.yml", "pr-review", "review-code", "CLAUDE_REVIEW_DISABLED"],
-  ["pr-review-security-hosted.yml", "pr-review-security", "review-security", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+for (const [file, job, lane, laneSwitch] of [
+  ["pr-review-hosted.yml", "pr-review", "code", "CLAUDE_REVIEW_DISABLED"],
+  ["pr-review-security-hosted.yml", "pr-review-security", "security", "CLAUDE_SECURITY_REVIEW_DISABLED"],
 ]) {
   const { jobs } = workflow(file);
-  const resolver = jobs["resolve-model"];
-  const steps = resolver?.steps ?? [];
-  const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  const resolve = steps.find((step) => step.uses?.startsWith(RESOLVE));
-  const refusal = steps.find((step) => step.env?.SETTINGS_JSON !== undefined);
 
-  test(`${file}: resolve-model reads the default branch with a read-only token`, () => {
-    assert.deepEqual(resolver.permissions, { contents: "read" });
-    assertMainTip(steps, checkout);
-    assert.equal(checkout.with.path, ".base");
-    assert.equal(checkout.with["persist-credentials"], false);
-    assert.equal(resolve.with["model-route"], route);
-    assert.equal(resolver.outputs["claude-args"], `\${{ steps.${resolve.id}.outputs.claude-args }}`);
-    assertSparseHoldsResolver(checkout);
-  });
-
-  test(`${file}: resolve-model fails on a subagent model and passes without one`, () => {
-    assert.equal(refusal.env.SETTINGS_JSON, `\${{ steps.${resolve.id}.outputs.settings-json }}`);
-    assert.notEqual(runRefusal(refusal, SUBAGENT), 0);
-    assert.equal(runRefusal(refusal, ""), 0);
-  });
-
-  test(`${file}: the review runs after a failed resolve-model, on the reusable's defaults`, () => {
+  test(`${file}: the review passes the reusable no model, effort, turns or level, so it runs the default level`, () => {
     const review = jobs[job];
-    assert.deepEqual(review.needs, ["resolve-model", "check-kill-switch", "wait-for-refine"]);
-    for (const result of ["success", "failure", "skipped"]) {
-      const context = {
-        "github.event.pull_request.draft": false,
-        "needs.check-kill-switch.outputs.proceed": "true",
-        "needs.wait-for-refine.outputs.proceed": "true",
-        "needs.resolve-model.result": result,
-        "needs.resolve-model.outputs.claude-args": result === "success" ? ARGS : "",
-      };
-      assert.equal(evaluate(review.if, context), true, `a ready PR is reviewed when resolve-model is ${result}`);
-      assert.equal(
-        evaluate(review.if, { ...context, "github.event.pull_request.draft": true }),
-        false,
-        `a draft is not reviewed when resolve-model is ${result}`,
-      );
-      assert.equal(evaluate(review.with["model-args"], context), result === "success" ? ARGS : "");
+    assert.equal(review.uses, "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main");
+    assert.equal(review.with.lane, lane);
+    assert.equal(jobs["resolve-model"], undefined, "no job resolves a model for the review");
+    for (const input of ["model-args", "model", "effort", "max-turns", "review-level", "kill-switch"]) {
+      assert.equal(Object.hasOwn(review.with, input), false, `the caller passes ${input}`);
     }
-    // A failed job's output, if GitHub kept it, never reaches the review.
-    const failed = {
-      "needs.resolve-model.result": "failure",
-      "needs.resolve-model.outputs.claude-args": ARGS,
+  });
+
+  test(`${file}: the review waits on the kill switch and Refine jobs and skips a draft`, () => {
+    const review = jobs[job];
+    assert.deepEqual(review.needs, ["check-kill-switch", "wait-for-refine"]);
+    for (const gate of review.needs) assert.equal(typeof jobs[gate]?.steps?.length, "number", `${gate} is a job with steps`);
+    const context = {
+      "github.event.pull_request.draft": false,
+      "needs.check-kill-switch.outputs.proceed": "true",
+      "needs.wait-for-refine.outputs.proceed": "true",
     };
-    assert.equal(evaluate(review.with["model-args"], failed), "");
+    assert.equal(evaluate(review.if, context), true, "a ready PR is reviewed");
+    assert.equal(evaluate(review.if, { ...context, "github.event.pull_request.draft": true }), false, "a draft is not reviewed");
   });
 
   test(`${file}: the review grants the reusable's status job its read scopes and one write`, () => {
@@ -1872,7 +1846,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   const { jobs } = workflow("work-resolve-issue.yml");
   const apply = jobs["apply-issue-patch"];
   assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
-  assert.deepEqual(apply.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
+  assert.deepEqual(apply.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback", "check-human-pull"]);
   assert.equal(apply.with.activity, "apply-issue-patch");
   assert.equal(apply.with["patch-activity"], "resolve-issue");
   assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
@@ -1901,7 +1875,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   }
   assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
   assert.equal(apply.concurrency.queue, "max");
-  const runs = (started, state) =>
+  const runs = (started, state, human = { result: "success", pull: "" }) =>
     evaluate(apply.if, {
       "needs.resolve-issue-fallback.result": "skipped",
       "needs.resolve-issue-fallback.outputs.scan-issue-run-started": "",
@@ -1911,11 +1885,40 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
       "needs.resolve-issue-subscription.outputs.scan-patch-state": "",
       "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-patch-state": state,
+      "needs.check-human-pull.result": human.result,
+      "needs.check-human-pull.outputs.pull": human.pull,
     });
   assert.equal(runs("true", "written"), true);
   assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
   assert.equal(runs("true", ""), false);
   assert.equal(runs("false", "written"), false);
+  assert.equal(runs("true", "written", { result: "success", pull: "31" }), false, "a listed human's open pull request stops the push");
+  assert.equal(runs("true", "written", { result: "failure", pull: "" }), false, "a failed pull request read stops the push");
+  const check = jobs["check-human-pull"];
+  assert.deepEqual(check.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
+  assert.deepEqual(check.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
+  const step = check.steps.find((s) => s.id === "check");
+  assert.equal(step.run, "node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs");
+  assert.equal(step.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(check.outputs.pull, "${{ steps.check.outputs.pull }}");
+  const checked = (started, state, reuse) =>
+    evaluate(check.if, {
+      "needs.resolve-issue-fallback.result": "skipped",
+      "needs.resolve-issue-fallback.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-fallback.outputs.scan-patch-state": "",
+      "needs.resolve-issue-fallback.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue-subscription.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-subscription.outputs.scan-patch-state": "",
+      "needs.resolve-issue-subscription.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue.outputs.scan-issue-run-started": started,
+      "needs.resolve-issue.outputs.scan-patch-state": state,
+      "needs.resolve-issue.outputs.scan-reuse-branch": reuse,
+    });
+  assert.equal(checked("true", "written", ""), true);
+  assert.equal(checked("", "", "work-resolve-issue/issue-7-1-1"), true, "a reuse run checks before report-outcome opens its PR");
+  assert.equal(checked("true", "empty", ""), false, "an empty patch opens no PR to check for");
+  assert.equal(checked("", "", ""), false);
   for (const job of ["run-checks", "report-outcome"]) {
     assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
   }
@@ -7192,7 +7195,11 @@ test("pr-run-activity-write.yml: the reply job reads run.json from the select jo
 test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
   const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
   assert.ok(job.needs.includes("apply-issue-patch"));
-  const context = (reason, result = "success") => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason, "needs.apply-issue-patch.result": result });
+  const context = (reason, result = "success", human = "success") => ({
+    "needs.apply-issue-patch.outputs.escalation-reason": reason,
+    "needs.apply-issue-patch.result": result,
+    "needs.check-human-pull.result": human,
+  });
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
   assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
   // Runs 40355135920 and 40354760854: apply-issue-patch crashed before giving
@@ -7200,6 +7207,9 @@ test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalati
   assert.equal(evaluate(job.with["escalation-reason"], context("", "failure")), "patch-apply-failed");
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-not-applied", "failure")), "patch-not-applied");
   assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped", "failure")), "patch-apply-failed", "a failed pull request read kept apply-issue-patch from running");
+  assert.ok(job.needs.includes("check-human-pull"));
+  assert.equal(job.with["human-pull"], "${{ needs.check-human-pull.outputs.pull }}");
 });
 
 // A kill switch that stopped apply-issue-patch green dropped this run's patch,
@@ -8768,7 +8778,7 @@ test("work-resolve-issue.yml: the key call reads only the API key and the subscr
 // the subscription call when it ran, else the first.
 test("work-resolve-issue.yml: every job after the calls takes each resolve-issue value from the call that ran", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
-  const after = ["apply-issue-patch", "run-checks", "report-outcome", "report-statuses"];
+  const after = ["check-human-pull", "apply-issue-patch", "run-checks", "report-outcome", "report-statuses"];
   for (const id of after) {
     const needs = [jobs[id].needs].flat();
     assert.ok(needs.includes("resolve-issue") && needs.includes("resolve-issue-subscription") && needs.includes("resolve-issue-fallback"), id);
@@ -8844,6 +8854,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
       "needs.apply-issue-patch.outputs.skip-reason": "",
       "needs.resolve-issue-stale.outputs.stale": "",
+      "needs.check-human-pull.result": "success",
+      "needs.check-human-pull.outputs.pull": "",
     }));
   const handedOff = { started: "true" };
   const ran = { started: "true", uploaded: "true", patch: "written" };

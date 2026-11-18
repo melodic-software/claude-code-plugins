@@ -222,7 +222,7 @@ hookspath_write_check() {
   # A global option before `config` (-C <dir>, --git-dir) may point at another repository.
   ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
   if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
-    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
+    top="$(hook::git_untrusted rev-parse --show-toplevel 2>/dev/null)" || top=""
     # A symlinked directory or hook file could carry a marker from outside the clone.
     if [[ -n "$top" && -d "$top/.githooks" && ! -L "$top/.githooks" ]]; then
       for f in "$top"/.githooks/{pre-commit,pre-push,commit-msg}; do

@@ -69,8 +69,10 @@ truth for what the plugin requires and how it resolves things; step 6 asks the r
 **Read them first.** Probe what they actually do, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
-Read each option value from this text; never put a `${user_config.*}` string in a shell command.
-Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command:
+bash reads an unsubstituted one as a bad substitution and the whole call fails.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin
+directory: the paths already name every file this skill opens.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js (item 1)
 downgrades from FAIL to INFO. The hook and the `SessionStart` probe both exit through the
@@ -196,15 +198,20 @@ that needs judgment comes back to you as a `decisions[]` item, which you reason 
 with your own edit tools.
 
 1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
-   (this clone only, nothing committed) or `shared` (committed under `.githooks/markdown-format/`,
+   (this clone only, nothing committed) or `shared` (committed for the team,
    so every teammate and agent gets it). When nobody can answer, use `local`.
-2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>`
-   and read the JSON: `manager`, `actions[]`, `decisions[]`.
+2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
+   --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook manager
+   yet, the committed `lefthook.yml` gets one `remotes:` entry naming the marketplace's root
+   `lefthook-remote.yml`, which fetches every plugin's hooks from its main branch, so nothing is
+   copied and no refresh is ever committed. When it returns `remote-needs-lefthook` (husky or plain
+   hooks) or `remote-source-dir`, run `plan --scope shared` instead, which commits copies under
+   `.githooks/markdown-format/`. Read the JSON: `manager`, `actions[]`, `decisions[]`.
 3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
    this installer does not drive, such as the pre-commit framework). Show it and ask which manager
    should carry the entry; rerun `plan` with `--manager lefthook|husky|plain`. Without an answer,
    stop here and report.
-4. **Actions.** When `actions[]` holds `copy` items, run
+4. **Actions.** A remote plan has none. When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
    `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
    `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
@@ -219,6 +226,12 @@ The `format` entry rewrites: at commit it formats the staged Markdown files and 
 so tell the user that a commit can change the files it contains, and that a partly staged Markdown
 file is refused untouched. The `lint` entry only reports findings on the lines the commit adds. A
 decline of the earlier single entry carries to both.
+
+A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
+`markdown-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
+that skip, and the [adoption
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+says when to use it and how to drop it.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format` (or `lint`); the
@@ -238,7 +251,8 @@ dev dependency in the consumer repository, by these principles, in order:
    declared manager, else the registry client the manifest implies. Look up that manager's
    dev-dependency add command in its own documentation at run time; don't assume from a list.
 2. **Record through the manager, never around it,** so the manifest and lockfile record the tool.
-   Never introduce a competing lockfile. State the change before running it.
+   Never introduce a competing lockfile: two lockfiles record two dependency trees that drift
+   apart. State the change before running it.
 3. **Only where the adapter resolves.** The adapter runs `markdownlint-cli2` from `PATH` or a
    `node_modules/.bin` shim walking up from the file (`${CLAUDE_PLUGIN_ROOT}/git-hooks/markdown-gates.sh`
    `md_local_bin`). When the manager's own config says it installs no such shim, ask the repo's own

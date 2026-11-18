@@ -119,7 +119,10 @@ jobs:
   # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
   # cygpath or MSYS run here too: block-windows-drive-tmp, hardcoded-path-check,
   # secret-pattern-detection, run-guards, block-root-delete-target-resolve (its
-  # differential cases need cygpath and NTFS) and coverage-manifest.
+  # differential cases need cygpath and NTFS), block-main-checkout-edit (its
+  # [[ -O ]] ownership check and drive-letter paths,
+  # https://github.com/melodic-software/claude-code-plugins/issues/17027) and
+  # coverage-manifest.
   # coverage-manifest has no OSTYPE branch, but the native `jq.exe` on a
   # Windows host writes CRLF after every line, so its family and README
   # lookups miss there and only a Windows run exercises that. The
@@ -146,7 +149,9 @@ jobs:
   #   secrets   secret-pattern-detection 176, GuardTests 18,
   #             skill-visibility 3, coverage-manifest 2                  = 199
   #   guards    hardcoded-path-check 63, shfmt install ~3 (est.),
-  #             block-root-delete-target-resolve ~30 (est.)              ~  96
+  #             block-root-delete-target-resolve ~30 (est.),
+  #             block-main-checkout-edit ~10 (8 and 12 in two runs,
+  #             https://github.com/melodic-software/claude-code-plugins/issues/17027) ~ 106
   #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
@@ -360,6 +365,9 @@ jobs:
       - name: Test block-root-delete-target-resolve on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
         run: bash plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh
+      - name: Test block-main-checkout-edit on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-main-checkout-edit.test.sh')
+        run: bash plugins/guardrails/hooks/block-main-checkout-edit.test.sh
 
       - name: Log the API budget at the end
         if: always()

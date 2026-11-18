@@ -16,26 +16,23 @@
 # Blank lines and `#` lines are ignored.
 
 plugins/ai-briefing/skills/generate/reference/build-pipeline.md 2
-plugins/architecture/skills/map-deployment/SKILL.md 8
+plugins/architecture/skills/map-deployment/SKILL.md 2
 plugins/autonomy/skills/setup/context/agent-session-telemetry.md 1
 plugins/autonomy/skills/setup/context/guardrail-slice.md 1
 plugins/autonomy/skills/setup/context/windows-surfaces.md 2
 plugins/autonomy/skills/setup/templates/trigger-adapters.md 2
-plugins/code-metrics/skills/audit-coverage/SKILL.md 2
 plugins/code-metrics/skills/audit-suppressions/SKILL.md 6
 plugins/code-tidying/skills/remove-comments/reference/tooling.md 1
 plugins/code-tidying/skills/tidy/reference/bundled-simplify.md 1
 plugins/context-budget/skills/audit/reference/native-explain-usage.md 1
 plugins/context7/skills/lookup/context/cli.md 1
 plugins/debugging/skills/analyze-profile/reference/formats/heapsnapshot.md 1
-plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md 1
-plugins/developer-experience/skills/build-cli/reference/cli-contract.md 6
+plugins/developer-experience/skills/build-cli/reference/cli-contract.md 2
 plugins/discipline/skills/sweep-all/reference/batched-pass.md 1
 plugins/discovery/skills/research/context/artifact-shape.md 1
 plugins/discovery/skills/setup/SKILL.md 2
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 5
 plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md 1
-plugins/event-storming/skills/simulation/reference/miro-integration.md 2
 plugins/evals/skills/design/SKILL.md 1
 plugins/evals/skills/methodology/SKILL.md 1
 plugins/evals/skills/methodology/reference/eval-design.md 1
@@ -61,7 +58,6 @@ plugins/harness-config/skills/audit/reference/audit-checklist.md 4
 plugins/harness-config/skills/audit/reference/required-permissions.md 8
 plugins/harness-config/skills/setup/reference/wsl-profile.md 2
 plugins/harness-memory/skills/audit/context/update.md 2
-plugins/harness-memory/skills/stateless/reference/native-memory.md 1
 plugins/harness-memory/skills/stateless/reference/official-guidance.md 4
 plugins/harness-ops/skills/audit-native-overlap/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/SKILL.md 1
@@ -83,7 +79,6 @@ plugins/instruction-placement/skills/migrate/reference/sources.md 3
 plugins/knowledge/skills/docpage-digest/SKILL.md 1
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
-plugins/machine-health/skills/audit/reference/windows/check-catalog.md 1
 plugins/mcp-tools/skills/audit-posture/reference/checklist.md 2
 plugins/mcp-tools/skills/audit/SKILL.md 1
 plugins/mcp-tools/skills/audit/reference/checklist.md 1
@@ -99,7 +94,6 @@ plugins/performance/skills/go-faster/reference/catalog/git.md 11
 plugins/performance/skills/go-faster/reference/catalog/harness.md 6
 plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
 plugins/planning/skills/design/reference/design-defaults.md 1
-plugins/planning/skills/design/reference/type-discipline/typescript.md 2
 plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2
 plugins/planning/skills/draft-goal-condition/reference/workflow-row.md 1
 plugins/planning/skills/interview/context/surface.md 1
@@ -115,7 +109,7 @@ plugins/plugin-quality/skills/audit/reference/component-types/command.md 1
 plugins/prototype/skills/explore-directions/reference/claude-design-tool.md 1
 plugins/repo-fleet-hygiene/skills/apply/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/SKILL.md 1
-plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 10
+plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 4
 plugins/review/skills/code-review/reference/bundled-code-review.md 2
 plugins/review/skills/quality-gate/context/pr.md 2
 plugins/session-flow/skills/orchestrate/context/sources.md 1
@@ -129,11 +123,10 @@ plugins/source-control/skills/pull-request/reference/create.md 1
 plugins/source-control/skills/pull-request/reference/monitor.md 1
 plugins/source-control/skills/pull-request/reference/native-surfaces.md 1
 plugins/source-control/skills/worktree/reference/native-worktree.md 3
-plugins/tdd/skills/principles/reference/characterization-testing.md 1
 plugins/tdd/skills/principles/reference/property-based-testing.md 4
-plugins/testing/skills/run-e2e/context/e2e.md 4
+plugins/testing/skills/run-e2e/context/e2e.md 2
 plugins/testing/skills/setup/SKILL.md 4
-plugins/testing/skills/test-value/SKILL.md 2
+plugins/testing/skills/test-value/SKILL.md 1
 plugins/testing/skills/write/context/characterization.md 1
 plugins/user-interface/skills/audit/reference/launch-scope.md 1
 plugins/user-interface/skills/glossary/reference/rendering-performance.md 1

@@ -4,6 +4,18 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.5] - 2026-11-18
+
+Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **Auto-mode section:** renamed "Write every rule for the auto-mode case", since the old heading
+  restated the permission-modes page; the moved-stub in `docs/conventions/` links the new anchor.
+  The pointer drops its as-of date and recheck trigger, and the source conflict names its topic
+  without restating either page's position.
+- **Known gap:** the bundled-path consequence states this convention's rule for a `bash <path>`
+  rule and points at the process-wrappers section, in place of restating which wrappers are
+  stripped.
+
 ## [1.6.4] - 2026-11-04
 
 Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.
