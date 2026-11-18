@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.8.0] - 2026-11-18
+
+### Added
+
+- print the handoff for markdown surfaces in Desktop and on the web
+
 ## [9.7.2] - 2026-11-18
 
 ### Changed
