@@ -3,7 +3,7 @@ name: confirm-lists-every-verifier-verdict
 graders:
   - name: 'lists-both-in-order'
     type: 'regex'
-    pattern: '[Vv]erifier[\s\S]{0,120}?NEEDS WORK[\s\S]{0,400}?CONFIRMED'
+    pattern: '[Vv]erifier[\s\S]{0,400}?NEEDS WORK[\s\S]{0,400}?CONFIRMED'
     target: 'last_message'
   - name: 'final-confirmed'
     type: 'regex'

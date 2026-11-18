@@ -1,19 +1,19 @@
 description: On in every profile, the profile switcher and the guards and session tools every session needs.
 plugins:
-  - plugin-profiles@melodic-software
-  - guardrails@melodic-software
-  - session-flow@melodic-software
-  - source-control@melodic-software
   - context-usage@melodic-software
-  - rate-limits@melodic-software
-  - session-telemetry@melodic-software
-  - plugin-diagnostics@melodic-software
   - eol-normalizer@melodic-software
+  - guardrails@melodic-software
+  - plugin-diagnostics@melodic-software
+  - plugin-profiles@melodic-software
+  - rate-limits@melodic-software
+  - session-flow@melodic-software
+  - session-telemetry@melodic-software
+  - source-control@melodic-software
 optional:
-  - markdown-format@melodic-software
+  - actionlint@melodic-software
   - bash-format@melodic-software
   - javascript-format@melodic-software
-  - python-format@melodic-software
+  - markdown-format@melodic-software
   - powershell-format@melodic-software
+  - python-format@melodic-software
   - spelling@melodic-software
-  - actionlint@melodic-software

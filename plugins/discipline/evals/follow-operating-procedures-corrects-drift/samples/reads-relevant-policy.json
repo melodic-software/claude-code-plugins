@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/docs/policies/textkit-style.md" } }],
+      "why": "the policy the work triggers was read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/AGENTS.md" } }],
+      "why": "only the project rules were read"
+    }
+  ]
+}
