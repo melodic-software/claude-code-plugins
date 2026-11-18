@@ -50,8 +50,8 @@ pyright is a **hard prerequisite** of the python default once ruff config opts t
 ## Gotchas
 
 - **Use `uv run` prefix in uv-managed projects** (a `uv.lock` is the signal): it ensures the managed virtualenv is used. In pip/poetry projects, use that project's documented invocation instead
-- **E501 (line-too-long) is not auto-fixable**: the formatter handles code wrapping, but docstrings/comments/string literals exceeding the configured `line-length` must be shortened manually
-- **pyright runs in its default standard mode absent a `pyrightconfig.json` or `pyproject.toml [tool.pyright]`**: on an untyped or partially-typed project this can surface genuine type errors; set `typeCheckingMode` (e.g. `basic` or `off`) or add project config to tune the strictness rather than suppressing findings ad hoc
+- **Shorten E501 (line-too-long) hits by hand**: `--code-fix` does not clear them, so run `/toolchain:lint --fix` first, then shorten by hand each docstring, comment or string literal still past the configured `line-length`. Whether the rule has an autofix: the fix marker on its row in the [ruff rules index](https://docs.astral.sh/ruff/rules/); the rule itself: [line-too-long (E501)](https://docs.astral.sh/ruff/rules/line-too-long/#what-it-does)
+- **Tune pyright's strictness through config, not ad hoc suppressions**: on an untyped or partially-typed project with no pyright config, pyright can surface genuine type errors; set `typeCheckingMode` or add project config. Modes and the default: [`typeCheckingMode`](https://github.com/microsoft/pyright/blob/main/docs/configuration.md#type-check-diagnostics-settings); config file locations: [Pyright Configuration](https://github.com/microsoft/pyright/blob/main/docs/configuration.md#pyright-configuration)
 - **Run from project directory**: each `pyproject.toml` defines an independent project root. Always `cd` to the directory containing `pyproject.toml` before running commands
 
 ## Project discovery
