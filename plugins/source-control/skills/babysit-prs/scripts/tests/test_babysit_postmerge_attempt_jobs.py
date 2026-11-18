@@ -93,6 +93,10 @@ def job_reads(fake: FakeGh) -> int:
     return sum(1 for call in fake.calls if any(JOBS_READ in a for a in call))
 
 
+def annotation_reads(fake: FakeGh) -> int:
+    return sum(1 for call in fake.calls if any("/annotations" in a for a in call))
+
+
 def next_run_report() -> dict[str, Any]:
     """The next run's check in this interpreter, every jobs read answering 502."""
     fake = FakeGh()
@@ -114,7 +118,7 @@ def next_run_report() -> dict[str, Any]:
 def entry(**overrides: Any) -> dict[str, Any]:
     return {
         "at": datetime.now(UTC).isoformat(),
-        "code": pm._attempt_jobs_code(),
+        "version": pm.ATTEMPT_JOBS_VERSION,
         **ANSWER,
         **overrides,
     }
@@ -164,9 +168,11 @@ class AttemptJobsCase(CheckCase):
 class ACarriedAttemptSendsNoRead(AttemptJobsCase):
     def test_a_carried_answer_restores_every_value_with_no_read(self) -> None:
         self.seed({KEY: entry()})
+        self.gh.annotations[312] = 403
         ctx = self.context()
         self.assertEqual(ctx.failing_checks(self.run_record, 2), {"Test Bash"})
         self.assertEqual(self.reads(), 0)
+        self.assertEqual(annotation_reads(self.gh), 0)
         self.assertEqual(ctx.unknown_checks[(31, 2)], frozenset())
         self.assertEqual(ctx.passed_jobs[(31, 2)], {"Lint"})
         self.assertEqual(ctx.check_jobs[(31, 2)], ANSWER["jobs"])
@@ -174,9 +180,19 @@ class ACarriedAttemptSendsNoRead(AttemptJobsCase):
     def test_a_live_read_keeps_the_answer_the_carry_restores(self) -> None:
         self.answer()
         self.assertEqual(self.reads(), 1)
+        self.assertEqual(annotation_reads(self.gh), 1)
         kept = self.written()["jobs"][KEY]
         self.assertEqual({k: kept[k] for k in ANSWER}, ANSWER)
-        self.assertEqual(kept["code"], pm._attempt_jobs_code())
+        self.assertEqual(kept["version"], pm.ATTEMPT_JOBS_VERSION)
+
+    def test_a_bumped_version_reads_again_and_keeps_the_new_version(self) -> None:
+        self.answer()
+        self.gh.calls.clear()
+        bumped = pm.ATTEMPT_JOBS_VERSION + 1
+        with mock.patch.object(pm, "ATTEMPT_JOBS_VERSION", bumped):
+            self.answer()
+        self.assertEqual(self.reads(), 1)
+        self.assertEqual(self.written()["jobs"][KEY]["version"], bumped)
 
     def test_with_no_file_named_nothing_is_kept_or_restored(self) -> None:
         self.seed({KEY: entry(checks=["Carried only"])})
@@ -331,7 +347,10 @@ class AnUnusableCarryFallsBackToTheLiveRead(AttemptJobsCase):
         },
         "another head SHA": {"head_sha": "f" * 40},
         "a head SHA of no shape": {"head_sha": "main"},
-        "other code": {"code": "0123456789abcdef"},
+        "another version": {"version": pm.ATTEMPT_JOBS_VERSION + 1},
+        "a version of no value": {"version": None},
+        "a version that is a boolean": {"version": True},
+        "a version that is a float": {"version": float(pm.ATTEMPT_JOBS_VERSION)},
         "no date": {"at": None},
         "a date with no zone": {"at": "2026-10-12T10:00:00"},
         "dated in the future": {
@@ -354,6 +373,12 @@ class AnUnusableCarryFallsBackToTheLiveRead(AttemptJobsCase):
                 value = entry(**change) if isinstance(change, dict) else change
                 self.seed({KEY: value})
                 self.assert_read_live()
+
+    def test_an_entry_with_no_version_reads_live(self) -> None:
+        unversioned = entry(checks=["Carried only"])
+        del unversioned["version"]
+        self.seed({KEY: unversioned})
+        self.assert_read_live()
 
     def test_a_corrupt_file_reads_live(self) -> None:
         self.path.write_text("{not json", encoding="utf-8")
@@ -401,7 +426,8 @@ class TheFileStaysBounded(AttemptJobsCase):
 
     def test_an_answer_past_a_bound_is_dropped_when_the_file_is_written(self) -> None:
         old = (datetime.now(UTC) - timedelta(days=31)).isoformat()
-        self.seed({"11:1": entry(at=old), "12:1": entry(code="0123456789abcdef")})
+        other = pm.ATTEMPT_JOBS_VERSION + 1
+        self.seed({"11:1": entry(at=old), "12:1": entry(version=other)})
         self.answer()
         self.assertEqual(set(self.written()["jobs"]), {KEY})
 

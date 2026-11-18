@@ -2439,7 +2439,7 @@ test("with either kill switch set, the scheduled job starts no full run and send
 // dispatch-post-merge-runs's check ran (`codeSha`, null for no file); otherwise
 // run the check. `yqFails` puts a yq that fails on the PATH.
 const KEPT_SHA = "b".repeat(40);
-const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
+const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, attempts, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
   const dir = tempDir("pr-merge-reuse-");
   try {
     const bin = join(dir, "bin");
@@ -2461,12 +2461,14 @@ const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle =
       writeFileSync(join(dir, "post-merge-kept/post-merge-code"), `${code}\n`);
       if (codeSha !== null) writeFileSync(join(dir, "post-merge-kept/post-merge-code-sha"), `${codeSha}\n`);
       if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
+      if (attempts !== undefined) writeFileSync(join(dir, "post-merge-kept/attempts.json"), attempts);
     }
     const output = join(dir, "output");
+    const handed = join(dir, "post-merge-attempts.json");
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", BABYSIT_POSTMERGE_ATTEMPTS: handed },
     });
     return {
       status: result.status,
@@ -2476,12 +2478,28 @@ const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle =
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
       report: existsSync(join(dir, "post-merge.json")) ? JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")) : null,
       records: readFileSync(join(dir, "lane-records.json"), "utf8"),
+      attempts: existsSync(handed) ? readFileSync(handed, "utf8") : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
 const keptReport = () => ({ readable: true, needsDispatch: true, shared: { mainSha: "a".repeat(40) } });
+
+test("the merge job hands the kept attempts to the gate whether it reuses the report or runs the check", () => {
+  for (const code of ["0", "1", "5"]) {
+    const reused = runMergeCheck({ kept: keptReport(), code, attempts: "carried" });
+    assert.equal(reused.status, 0, reused.stdout);
+    assert.equal(reused.ran, false, `exit ${code} is reused`);
+    assert.equal(reused.attempts, "carried", `exit ${code} reused`);
+  }
+  const fresh = runMergeCheck({ kept: keptReport(), settle: 1, attempts: "carried" });
+  assert.equal(fresh.ran, true, "settle refused, so the check runs");
+  assert.equal(fresh.attempts, "carried", "the check that runs");
+  const none = runMergeCheck({ kept: keptReport() });
+  assert.equal(none.status, 0, none.stdout);
+  assert.equal(none.attempts, null, "no attempts kept, none handed");
+});
 
 test("the merge job reuses this run's post-merge report that settle keeps, with its code and lane records", () => {
   for (const code of ["0", "1", "5"]) {

@@ -54,6 +54,29 @@ artifact, so a settled merge no longer depends on that artifact's retention.
 Only the lane's floor anchor reads a settled merge's runs again, and only to
 pass it (`advance_anchor`); that read never changes the verdict.
 
+A completed attempt never changes, so pr-merge.yml's dispatch-post-merge-runs
+names a file in `ATTEMPTS_ENV`, carried in its kept report, with two sections
+keyed `<run id>:<attempt>`. Any other file is no file, and every attempt is
+read as before.
+
+- `attempts` holds the earlier attempts of re-run full runs that the last check
+  read (`_Context._attempt`). An entry answers with no read only for the same
+  run, attempt and head SHA, completed; the check writes back the completed
+  attempts it used.
+- `jobs` holds what `failing_checks` concluded about a completed attempt
+  (`_Context._keep_attempt`). An entry answers with no jobs or annotation read
+  only for the same run, attempt and head SHA, kept under
+  `ATTEMPT_JOBS_VERSION` and inside the bounds below; the check writes back the
+  newest usable entries.
+
+Bump `ATTEMPT_JOBS_VERSION` when `failing_checks`, `_failed_gates`,
+`_failed_steps`, `_attempt_settled` or the constants they read change what an
+answer means: every `jobs` entry kept under another version is read again.
+
+The file travels in an artifact on every run, so `jobs` is bounded by
+`ATTEMPT_JOBS_MAX_AGE`, `ATTEMPT_JOBS_MAX` and `ATTEMPT_JOBS_BYTES`, about 13 MB
+at most. An answer a bound drops is read again. The three values are judgment.
+
 Exit codes: 0 no failure and every auto-merge verified, 1 a failure, 2 usage
 or a refused identity (not a dedicated App login, or `--remediate` under
 another acting login), 3 unreadable, 4 a write failed, 5 no failure but an
@@ -64,8 +87,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import functools
-import hashlib
 import io
 import json
 import os
@@ -138,14 +159,9 @@ LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
     r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
 )
-# A completed attempt never changes, so pr-merge.yml's dispatch-post-merge-runs
-# names a file here holding the earlier attempts of re-run full runs that the
-# last check read (`_Context._attempt`), carried in its kept report. An entry
-# answers with no read only for the same run, attempt and head SHA, completed;
-# the check writes back the completed attempts it used. Any other file is no
-# file, and every attempt is read as before.
 ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
 ATTEMPTS_VERSION = 1
+ATTEMPT_JOBS_VERSION = 1
 # The run cache section holding compare answers between two full SHAs
 # (`_Context._compare`). A branch tip is never kept there: it moves.
 COMPARE_SECTION = "postmerge-compare"
@@ -1086,19 +1102,6 @@ def load_attempts(path: str, repo: str) -> dict[str, dict[str, Any]]:
     return attempts
 
 
-@functools.cache
-def _attempt_jobs_code() -> str | None:
-    """A digest of the code that computes a carried attempt answer, or None
-    when that code cannot be read, so nothing is carried."""
-    digest = hashlib.sha256()
-    try:
-        for name in ("babysit_postmerge.py", "babysit_merge_policy.py"):
-            digest.update(Path(__file__).with_name(name).read_bytes())
-    except OSError:
-        return None
-    return digest.hexdigest()[:16]
-
-
 def _is_job_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
@@ -1156,15 +1159,15 @@ def _attempt_answer_valid(value: Any, head_sha: str) -> bool:
 
 def _attempt_jobs_entry_usable(key: str, entry: Any, now: datetime) -> bool:
     """Whether a carried attempt answer can be used at `now`: its key and shape
-    are the ones `_keep_attempt` writes, the current code computed it, and it
-    is inside the age and size bounds."""
+    are the ones `_keep_attempt` writes, it was kept under ATTEMPT_JOBS_VERSION,
+    and it is inside the age and size bounds."""
     if not _ATTEMPT_KEY.fullmatch(key) or not is_json_object(entry):
         return False
     head_sha = entry.get("head_sha")
     if not isinstance(head_sha, str) or not _FULL_SHA.fullmatch(head_sha):
         return False
-    code = _attempt_jobs_code()
-    if code is None or entry.get("code") != code:
+    version = entry.get("version")
+    if type(version) is not int or version != ATTEMPT_JOBS_VERSION:
         return False
     try:
         at = datetime.fromisoformat(entry["at"])
@@ -2134,13 +2137,12 @@ class _Context:
 
     def _keep_attempt(self, run: Run, attempt: int) -> None:
         carry_key = self._attempt_carry_key(run, attempt)
-        code = _attempt_jobs_code()
-        if carry_key is None or code is None:
+        if carry_key is None:
             return
         key = (run.id, attempt)
         entry = {
             "at": datetime.now(UTC).isoformat(),
-            "code": code,
+            "version": ATTEMPT_JOBS_VERSION,
             "head_sha": run.head_sha,
             "checks": sorted(self.checks_cache[key]),
             "passed": sorted(self.passed_jobs[key]),
