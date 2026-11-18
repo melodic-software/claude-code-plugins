@@ -17,7 +17,7 @@ records: [aihero-course.md](aihero-course.md) (crash-course and Steering lessons
   and
   [`grill-with-docs`](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/engineering/grill-with-docs).
   The workshop's skill text matched these files when it was absorbed.
-- **As of**: 2026-11-10
+- **As of**: 2026-11-17
 - **Recheck trigger**: a mattpocock/skills changeset naming `domain-modeling` or `grill-with-docs`,
   checked as [mattpocock-skills.md](mattpocock-skills.md) describes. Course page updates are not
   observable events; the skills-repo changeset stream is the proxy, as in
@@ -28,10 +28,7 @@ records: [aihero-course.md](aihero-course.md) (crash-course and Steering lessons
 the pull request that landed them. Q52 to Q59 were withdrawn when the owner moved to one lesson per
 round, and re-asked as the later ids.
 
-**Landed** means merged unless marked open. As of 2026-11-10,
-[#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240),
-[#15241](https://github.com/melodic-software/claude-code-plugins/pull/15241) and
-[#15242](https://github.com/melodic-software/claude-code-plugins/pull/15242) are open.
+**Landed** names the merged pull request that carries the row.
 
 ## Loop mapping
 
@@ -62,7 +59,7 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 | Ubiquitous language spans team talk, UI and code | One term everywhere | Translation between code, team and product is the friction | Canon scopes the language to one bounded context | **already have**, scope corrected: per-context glossaries plus an index | none |
 | Agents coin compact names | Explains why agent text gets hard to follow | Inference: the user loses track of invented labels | Our instructions already require defining a label where it first appears | **reject the cause, keep the effect:** no source measures the stated cause | none |
 | Glossary for a folder outside a repository | n/a (owner question) | n/a | User config is rendered from dotfiles; any folder can declare a path that `locate` honors | **already have** (Q228): no change | none |
-| His trigger phrasings | Descriptions name terminology and glossary edits | Inference: the skill fires on the words users say | Our descriptions might miss those phrasings | **adapt:** probe with `/skill-quality:check`, add a phrase only where a probe misses (Q227) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) (open) |
+| His trigger phrasings | Descriptions name terminology and glossary edits | Inference: the skill fires on the words users say | Our descriptions might miss those phrasings | **adapt:** probe with `/skill-quality:check`, add a phrase only where a probe misses (Q227) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) |
 
 ### Lesson 2: Using Grill with Docs
 
@@ -81,7 +78,7 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 | Idea | What it does | Upstream problem | Our problem | Disposition (decisions) | Landed |
 |---|---|---|---|---|---|
 | Glossary and ADRs in one skill | One skill writes both | Inference: one place for domain docs | Two concerns; ours were split but did not name each other | **reject the shape:** keep separate, each names the other; an explicit numbered step in the caller, measured by eval (Q81, Q88, Q89, Q92) | [#14969](https://github.com/melodic-software/claude-code-plugins/pull/14969), [#14970](https://github.com/melodic-software/claude-code-plugins/pull/14970) |
-| ADR admission test, all conditions required | Writes an ADR only when every condition holds | Inference: keep ADRs few | Our all-of test rejected decisions worth keeping, and had three copies | **adapt:** a real alternative AND at least one of hard to reverse, shapes structure or a key quality (Q82), later not discoverable from the code (Q215); one copy in [`record-decision`](../../plugins/architecture/skills/record-decision/SKILL.md) (Q83) | [#14966](https://github.com/melodic-software/claude-code-plugins/pull/14966), [#14969](https://github.com/melodic-software/claude-code-plugins/pull/14969), [#14972](https://github.com/melodic-software/claude-code-plugins/pull/14972), [#14984](https://github.com/melodic-software/claude-code-plugins/pull/14984) |
+| ADR admission test, all conditions required | Writes an ADR only when every condition holds | Inference: keep ADRs few | Our all-of test rejected decisions worth keeping, and had three copies | **adapt:** a real alternative AND at least one of hard to reverse, shapes structure or a key quality (Q82), later not discoverable from the code (Q215); one copy in [`record-decision`](../../plugins/architecture/skills/record-decision/SKILL.md) (Q83) | [#14966](https://github.com/melodic-software/claude-code-plugins/pull/14966), [#14969](https://github.com/melodic-software/claude-code-plugins/pull/14969), [#14972](https://github.com/melodic-software/claude-code-plugins/pull/14972), [#14984](https://github.com/melodic-software/claude-code-plugins/pull/14984), [#15192](https://github.com/melodic-software/claude-code-plugins/pull/15192) |
 | Very short ADR format file | A few sentences, sections optional | Inference: ADRs stay cheap to write and read | We had no template | **adapt:** default [`templates/adr.md`](../../plugins/architecture/skills/record-decision/templates/adr.md) with Considered options, overridable through the config layers (Q84), repository level only for now (Q90); team keys for extra triggers and template path (Q86) | [#14966](https://github.com/melodic-software/claude-code-plugins/pull/14966) |
 | Decision rationale kept in a code comment | Leaves the why beside the code | Inference: the reason survives with the code | Comment removal could lose a real decision | **adapt:** `remove-comments` hands deleted rationale that passes the test to `record-decision` (Q85) | [#14971](https://github.com/melodic-software/claude-code-plugins/pull/14971) |
 | Business rules inside glossary entries | Entries carry rules | Inference: one place to read the domain | Rules change faster than terms | **reject:** rules in code and tests, reasons in ADRs (Q87) | [#14970](https://github.com/melodic-software/claude-code-plugins/pull/14970) |
@@ -102,17 +99,17 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 
 | Idea | What it does | Upstream problem | Our problem | Disposition (decisions) | Landed |
 |---|---|---|---|---|---|
-| Prune the glossary in a session | Removes implementation detail, general words and unused terms | Inference: glossaries accumulate entries nobody needs | No prune path; our own glossary broke our contract | **adapt:** `audit` lists grouped candidates, `curate` removes or merges only accepted ones, no new action (Q204); on request plus a read-only audit in the repo-sweep catalog (Q206); removal reports surviving references and where each meaning went (Q230, Q231); a cut sentence's destination named (Q232) | [#15187](https://github.com/melodic-software/claude-code-plugins/pull/15187), [#15190](https://github.com/melodic-software/claude-code-plugins/pull/15190), [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) (open) |
+| Prune the glossary in a session | Removes implementation detail, general words and unused terms | Inference: glossaries accumulate entries nobody needs | No prune path; our own glossary broke our contract | **adapt:** `audit` lists grouped candidates, `curate` removes or merges only accepted ones, no new action (Q204); on request plus a read-only audit in the repo-sweep catalog (Q206); removal reports surviving references and where each meaning went (Q230, Q231); a cut sentence's destination named (Q232) | [#15187](https://github.com/melodic-software/claude-code-plugins/pull/15187), [#15190](https://github.com/melodic-software/claude-code-plugins/pull/15190), [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) |
 | A general content pruner | One pass over all markdown | Inference: every agent-touched file grows | Each content kind already has an owning skill | **reject** (Q205): no general skill | none |
 | Pick between two terms by usage counts | Counts each candidate in the code | Inference: follow what the code already says | Two counting methods gave two numbers in one session | **adapt:** one stated counting method in `curate` (Q207) | [#15187](https://github.com/melodic-software/claude-code-plugins/pull/15187) |
 | Rename terms inside accepted ADRs and their files | Reinforces current language everywhere | Inference: old words in ADRs mislead agents | File renames break links | **adapt:** update the text, keep file names and numbers (Q208); a rename reports hits by layer, stored values migrated in phases or mapped behind an ADR (Q209) | [#15189](https://github.com/melodic-software/claude-code-plugins/pull/15189) |
-| Prune this repository's glossary | n/a (applies the rules to our file) | n/a | [`docs/glossary.md`](../glossary.md) held history notes and routing sentences | **take** (Q229) | [#15242](https://github.com/melodic-software/claude-code-plugins/pull/15242) (open) |
+| Prune this repository's glossary | n/a (applies the rules to our file) | n/a | [`docs/glossary.md`](../glossary.md) held history notes and routing sentences | **take** (Q229) | [#15242](https://github.com/melodic-software/claude-code-plugins/pull/15242) |
 
 ### Lesson 6: Pruning ADRs
 
 | Idea | What it does | Upstream problem | Our problem | Disposition (decisions) | Landed |
 |---|---|---|---|---|---|
-| Delete a reversed ADR, record the reversal in the new one | Removes the stale file; git keeps it | Inference: a superseded ADR left in the folder reads as current | Ours stayed in place with a status line | **adapt:** `record-decision` retires by an `adr_retirement` setting, default `delete`, number never reused (Q211, Q212); a partial reversal keeps the old record marked superseded in part (Q233) | [#15192](https://github.com/melodic-software/claude-code-plugins/pull/15192), [#15241](https://github.com/melodic-software/claude-code-plugins/pull/15241) (open) |
+| Delete a reversed ADR, record the reversal in the new one | Removes the stale file; git keeps it | Inference: a superseded ADR left in the folder reads as current | Ours stayed in place with a status line | **adapt:** `record-decision` retires by an `adr_retirement` setting, default `delete`, number never reused (Q211, Q212); a partial reversal keeps the old record marked superseded in part (Q233) | [#15192](https://github.com/melodic-software/claude-code-plugins/pull/15192), [#15241](https://github.com/melodic-software/claude-code-plugins/pull/15241) |
 | Check each ADR against the code | Finds records the code no longer backs | Inference: stale records mislead | No ADR-versus-code check | **adapt:** read-only `record-decision audit` (Q213), in the repo-sweep catalog | [#15192](https://github.com/melodic-software/claude-code-plugins/pull/15192), [#15194](https://github.com/melodic-software/claude-code-plugins/pull/15194) |
 | ADR lands with its work | Commits the record in the PR that carries the change | Inference: history ties decision to code | Unstated | **take** (Q214) | [#15192](https://github.com/melodic-software/claude-code-plugins/pull/15192) |
 | Duplicate ADR numbers | n/a (found in our folder) | n/a | Four numbers used twice here | **no change** (Q234): titles tell twins apart | none |
@@ -132,10 +129,18 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 | Idea | Disposition (decisions) | Landed |
 |---|---|---|
 | Our own context-zone names, checked with `/naming:name-it-better` | **adapt:** renamed to light, moderate and heavy, bands unchanged (Q222, Q224) | [#15202](https://github.com/melodic-software/claude-code-plugins/pull/15202), [dotfiles#1541](https://github.com/melodic-software/dotfiles/pull/1541) |
-| Code names that look like a term's concept but are neither the term nor its `Avoid:` words | **adapt:** `audit` reports them, reusing `seed`'s grouping; duplicated logic stays with `/code-metrics:audit-duplication` (Q236) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) (open) |
-| A word on an `Avoid:` line that has its own real meaning | **adapt:** `Avoid:` holds only names for the same concept; a hit on such a word is a candidate entry (Q237) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) (open) |
+| Code names that look like a term's concept but are neither the term nor its `Avoid:` words | **adapt:** `audit` reports them, reusing `seed`'s grouping; duplicated logic stays with `/code-metrics:audit-duplication` (Q236) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) |
+| A word on an `Avoid:` line that has its own real meaning | **adapt:** `Avoid:` holds only names for the same concept; a hit on such a word is a candidate entry (Q237) | [#15240](https://github.com/melodic-software/claude-code-plugins/pull/15240) |
 | Chat-channel interview | **reject for now** (Q223): recorded as an idea | none |
-| Present-tense old skill names in other upstream records; shared-lane restriction line | Handed to the session that owns those files (Q238, Q239) | none here |
+| Present-tense old skill names in other upstream records; shared-lane restriction line | Handed to the session that owns those files (Q238, Q239) | [#15237](https://github.com/melodic-software/claude-code-plugins/pull/15237) (current skill names in two other upstream records), [#15289](https://github.com/melodic-software/claude-code-plugins/pull/15289) (the shared interview lane's restriction line) |
+
+### Later checkpoint
+
+| Idea | Disposition | Landed |
+|---|---|---|
+| A one-line comment pointing at an ADR | **adapt:** `remove-comments` keeps a pointer that names an existing record and restates none of its reason; `record-decision` offers one such pointer at the code a new record governs, written only on a yes | [#16553](https://github.com/melodic-software/claude-code-plugins/pull/16553), [#16552](https://github.com/melodic-software/claude-code-plugins/pull/16552) |
+| Retiring an ADR leaves lines citing a gone record | **adapt:** `record-decision` finds every citing line on retirement, whatever the `adr_retirement` value and for a partial reversal, and proposes repointing or dropping each in the same change; `audit` lists each candidate's citing lines | [#16552](https://github.com/melodic-software/claude-code-plugins/pull/16552) |
+| Two `record-decision` eval graders gave wrong verdicts | **take** (fix): `lists-citation` no longer passes a line range starting at the citing line; `asks-before-retiring` accepts every retirement verb form | [#16629](https://github.com/melodic-software/claude-code-plugins/pull/16629) |
 
 ## License notice
 

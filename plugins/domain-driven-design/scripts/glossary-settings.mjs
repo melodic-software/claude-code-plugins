@@ -1,19 +1,23 @@
 #!/usr/bin/env node
-// Prints the effective glossary file names as JSON, resolved through the config cascade
-// (lib/config-cascade.mjs, ADR 0075): the plugin default, userConfig, the team file
-// <home>/domain-driven-design.yaml and the personal override <home>/domain-driven-design.local.yaml.
-//   {"values": {"glossary_file", "glossary_map_file"},
-//    "provenance": {key: "default" | "userConfig" | "team" | "local"},
-//    "layers": [{name, path, state, errors}], "legacy": [...], "home": dir | null,
-//    "home_error"?: why the pointer line is unusable, "home_skipped"?: why no home applies}
-// A value must be a file name, never a path: the schema's pattern is checked here because the
-// cascade's schema subset has no pattern. A value that fails it is named with its layer, file, key
-// and value and dropped from that layer, as the cascade drops any invalid value: an invalid team or
-// userConfig value resolves to the default, and an invalid personal value leaves the team value.
-// Usage: glossary-settings.mjs [--project DIR] [--home DIR] [--user-config FILE]
-// --project defaults to the git root of the current directory; --home is the user home the cascade
-// searches for legacy files (a test seam); --user-config is a JSON file of the plugin's userConfig
-// values, read as data and never passed to a shell.
+/**
+ * Prints the effective glossary file names as JSON, resolved through the config cascade
+ * (lib/config-cascade.mjs, ADR 0075): the plugin default, userConfig, the team file
+ * <home>/domain-driven-design.yaml and the personal override <home>/domain-driven-design.local.yaml.
+ *   {"values": {"glossary_file", "glossary_map_file"},
+ *    "provenance": {key: "default" | "userConfig" | "team" | "local"},
+ *    "layers": [{name, path, state, errors}], "legacy": [...], "home": dir | null,
+ *    "home_error"?: why the pointer line is unusable, "home_skipped"?: why no home applies}
+ * A value must be a file name, never a path: the schema's pattern is checked here because the
+ * cascade's schema subset has no pattern. A value that fails it is named with its layer, file, key
+ * and value and dropped from that layer, as the cascade drops any invalid value: an invalid team or
+ * userConfig value resolves to the default, and an invalid personal value leaves the team value.
+ * Usage: glossary-settings.mjs [--project DIR] [--home DIR] [--user-config FILE|-]
+ * --project defaults to the git root of the current directory; --home is the user home the cascade
+ * searches for legacy files (a test seam). --user-config reads the plugin's userConfig values as data,
+ * never passed to a shell: FILE holds one JSON object; `-` reads stdin as one name=value line per
+ * setting, the value taken raw to the end of the line, so no value needs escaping. An empty value or
+ * a literal ${user_config. placeholder counts as unset.
+ */
 import { spawnSync } from "node:child_process";
 import { copyFileSync, lstatSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -34,7 +38,15 @@ const { values: opts } = parseArgs({
   },
 });
 
+const STDIN_FD = 0;
 const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
+const readNameValueLines = (fd) =>
+  Object.fromEntries(
+    readFileSync(fd, "utf8")
+      .split(/\r?\n/u)
+      .filter((line) => line.includes("="))
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
 const schema = readJson(join(ROOT, "schemas/domain-driven-design.schema.json"));
 const KEYS = ["glossary_file", "glossary_map_file"];
 const manifestConfig = readJson(join(ROOT, ".claude-plugin/plugin.json")).userConfig;
@@ -66,7 +78,7 @@ function userConfig(file) {
   if (!file) return { value: undefined, errors: [], keys: [] };
   let value;
   try {
-    value = readJson(file);
+    value = file === "-" ? readNameValueLines(STDIN_FD) : readJson(file);
   } catch (e) {
     return { value: undefined, errors: [`userConfig (${file}): unreadable or not JSON (${e.code ?? "parse error"})`], keys: [null] };
   }

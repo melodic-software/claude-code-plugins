@@ -152,11 +152,11 @@ A path-scoped rule is only as good as its `paths:` list. Derivation is a proposa
 
 Derive from what the content actually names, in this order:
 
-1. **An explicit path or extension in the text**: "files under `src/api/`", "`*.tsx` components".
+1. **An explicit path or extension in the text**: "files under `src/api/`", "every `*.<ext>` file".
    Use it directly; it is the author's own statement of scope.
-2. **A language or framework named in the text**: map to that ecosystem's source extensions, and
-   only those. "C# conventions" → `**/*.cs`, not `**/*.{cs,csproj,sln}` unless the content actually
-   discusses project files.
+2. **A language or framework named in the text**: map it to the source extensions that language
+   uses, and only those. Leave out its project and build files unless the content actually
+   discusses them.
 3. **A directory the content is about**: `src/billing/**`.
 4. **Nothing derivable** → do not invent one. The candidate drops to the subtree destination, or
    stays. A guessed glob is worse than no move.

@@ -397,6 +397,9 @@ lib/prerequisites.ps1 plugins/docs-naming/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/dometrain/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/dometrain/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/dometrain/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/domain-driven-design/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/domain-driven-design/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/domain-driven-design/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/evals/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/evals/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/evals/lib/prerequisites.ps1

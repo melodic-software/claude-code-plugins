@@ -3,6 +3,13 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-17
+
+### Changed
+
+- The turn-end result gate, its result store and `record-result.mjs` carry only the comments that
+  explain a git constraint; no behavior changed.
+
 ## [2.0.0] - 2026-11-17
 
 ### Added
