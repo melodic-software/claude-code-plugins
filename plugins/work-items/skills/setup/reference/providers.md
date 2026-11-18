@@ -54,9 +54,10 @@ Requires `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_
 The API token is referenced by env-var name only, never stored. Binding shape and the deferred
 live-instance facts are CONTRACT.md's "jira adapter".
 
-**Listing resolutions for the won't-do classification.** List the instance's resolutions with
-the "Search resolutions" operation, reading every page; its path, paging and response fields are
-the page's to state:
+**Listing resolutions for the won't-do classification.** Call
+`GET https://<site>/rest/api/3/resolution/search`, never the deprecated `GET /rest/api/3/resolution`,
+and read every page. The path stays here because no adapter script makes this call and setup cannot
+count on fetching Atlassian's page at run time; paging and response fields are that page's to state:
 [Search resolutions](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-resolutions/#api-rest-api-3-resolution-search-get).
 Call it with the same Basic auth the adapter uses (`auth_email` plus the token from `auth_env`), and
 write ids, never names, into `config.jira.resolutions`: admins can rename a resolution, and an id
