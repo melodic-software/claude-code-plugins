@@ -224,6 +224,17 @@ test('#16816: a pick in an open pane is refused while a switch from before waits
   expect(w.logs[w.logs.length - 1]).toMatch(/^A change to this folder's profile is still waiting for its reload/)
 })
 
+test('#16816: two row presses before the first settles run one switch', async ($, on) => {
+  const w = world(on, ['Apply', 'Apply'])
+  await run($)
+  const ui = await $.ui.mount({ ...PICKER, surface: 'terminal' })
+  await Promise.all([ui.press({ key: 'profile:review' }), ui.press({ key: 'profile:planning' })])
+  await settle()
+  await ui.unmount()
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
+})
+
 test('#16816: once the pane closes, /plugin-profile opens it again', async ($, on) => {
   const w = world(on, [])
   expect((await run($)).text).toBe(PICK_IN_PANE)

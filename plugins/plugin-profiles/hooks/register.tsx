@@ -75,9 +75,10 @@ const outcome = async (run: () => Promise<string>) => {
 }
 
 async function picked($: EngineInterface, name: string | undefined) {
-  if (settling || !(await pickerOpen($))) return
+  if (settling) return
   settling = true
   try {
+    if (!(await pickerOpen($))) return
     await $.ui.close({ id: PICKER }).catch(() => undefined)
     show($, [name ? await outcome(async () => (await waitingLine($)) ?? switchTo($, name)) : NOT_CHOSEN])
   } finally {
