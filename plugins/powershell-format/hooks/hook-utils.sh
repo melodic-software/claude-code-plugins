@@ -1029,10 +1029,13 @@ hook::git_untrusted_exec() {
 # The same overrides for every git a child process runs, appended after any GIT_CONFIG_COUNT pairs
 # the caller already set (git 2.31 or later; an older git ignores them):
 # https://git-scm.com/docs/git-config#ENVIRONMENT
-#   err="$(hook::git_untrusted_env && bash "$HOOK_DIR/../git-hooks/lint.sh" --worktree)"
+#   hook::git_untrusted_env || exit 0
 hook::git_untrusted_env() {
   local n="${GIT_CONFIG_COUNT:-0}" kv
-  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+    printf '%s: skipped the end-of-turn check: GIT_CONFIG_COUNT is not a number\n' "${0##*/}" >&2
+    return 1
+  fi
   n=$((10#$n))
   for kv in "${HOOK_GIT_UNTRUSTED_CONFIG[@]}"; do
     export "GIT_CONFIG_KEY_$n=${kv%%=*}" "GIT_CONFIG_VALUE_$n=${kv#*=}"
