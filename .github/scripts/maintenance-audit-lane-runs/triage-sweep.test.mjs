@@ -1521,3 +1521,51 @@ test("an issue at needs-triage with the lanes App's unpark marker is re-sent; th
   const quoted = { ...unparked(LANES, "2026-10-18T08:00:00Z"), body: "> <!-- work-unblock unparked triage -->" };
   assert.deepEqual(readState([stateAt([11, 22], null, "2026-10-17T06:00:00Z"), quoted], String(APP)).runs, [11, 22]);
 });
+
+const olderIssuesWaitingOnARun = (count) => ({
+  issues: Array.from({ length: count }, (_, i) => issue(i + 1, { comments: 1, created_at: "2026-10-01T00:00:00Z" })),
+  comments: Object.fromEntries(Array.from({ length: count }, (_, i) => [i + 1, onceDispatched(100 + i)])),
+  runs: Object.fromEntries(Array.from({ length: count }, (_, i) => [100 + i, { status: "in_progress" }])),
+});
+const commentReads = (gh) => {
+  const reads = new Set();
+  const call = (method, path, body) => {
+    const read = method === "GET" ? /\/issues\/(\d+)\/comments\?/.exec(path)?.[1] : undefined;
+    if (read) reads.add(Number(read));
+    return gh.call(method, path, body);
+  };
+  return { call, reads };
+};
+
+test("a never-commented issue behind more commented issues than the pass checks is still dispatched", async () => {
+  const world = olderIssuesWaitingOnARun(25);
+  const gh = fakeGitHub({ ...world, issues: [...world.issues, issue(26, { comments: 0 })] });
+  const result = await sweep(gh);
+  assert.equal(result.candidates, 26);
+  assert.deepEqual(result.dispatched, [26]);
+});
+
+test("never-commented issues go first, oldest first, then the rest, oldest first", async () => {
+  const issues = [
+    issue(1, { comments: 1, created_at: "2026-10-01T00:00:00Z" }),
+    issue(2, { comments: 0, created_at: "2026-10-03T00:00:00Z" }),
+    issue(3, { comments: 2, created_at: "2026-10-02T00:00:00Z" }),
+    issue(4, { comments: 0, created_at: "2026-10-02T00:00:00Z" }),
+  ];
+  const gh = fakeGitHub({ issues });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [4, 2, 1, 3]);
+});
+
+test("putting never-commented issues first keeps the caps on dispatches and on issues checked", async () => {
+  const world = olderIssuesWaitingOnARun(10);
+  const fresh = Array.from({ length: 30 }, (_, i) => issue(11 + i, { comments: 0, created_at: "2026-10-02T00:00:00Z" }));
+  const gh = fakeGitHub({ ...world, issues: [...world.issues, ...fresh] });
+  const { call, reads } = commentReads(gh);
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.equal(result.candidates, 40);
+  assert.deepEqual(result.dispatched, [11, 12, 13, 14, 15]);
+  assert.equal(result.dispatched.length, MAX_DISPATCHES);
+  assert.equal(reads.size, 20, "the pass reads the comments of the 20 issues it checks and no others");
+  assert.ok([...reads].every((n) => n > 10), "the never-commented issues fill the checked slots");
+});

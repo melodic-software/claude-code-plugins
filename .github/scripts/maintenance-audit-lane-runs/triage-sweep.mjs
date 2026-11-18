@@ -397,7 +397,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
-  const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
+  const neverCommentedFirst = (a, b) => (b.comments === 0) - (a.comments === 0);
+  const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i))).sort(neverCommentedFirst);
   result.candidates = candidates.length;
   // A hold a person set since the listing stands (write-status.mjs keepHold):
   // the issue is held, so it is neither handed off nor recorded. So does any
