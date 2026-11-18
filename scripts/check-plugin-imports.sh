@@ -92,10 +92,12 @@ re_pathlib='(Path\(__file__\)(\.resolve\(\))?|[A-Za-z_][A-Za-z0-9_]*)(\.parents\
 declare -a crossings=()
 declare -A crossing_keys=()
 
-declare -A assigned=() traced=()
+declare -A assigned=() traced=() deps=() verify_files=() verify_names=()
+declare -a pending=()
+verified=""
 re_assign='^[[:space:]]*(local[[:space:]]+|readonly[[:space:]]+|declare[[:space:]]+(-[A-Za-z]+[[:space:]]+)?)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
 re_cd='\$\(cd([[:space:]]+-[-A-Za-z]*)*[[:space:]]+"?'
-re_self='^"?('"$re_cd"')?\$\(dirname[^)]*\)"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
+re_self='^"?('"$re_cd"')?\$\(dirname([[:space:]]+--)?[[:space:]]+"?\$\{?(0|BASH_SOURCE(\[0\])?)\}?"?\)"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$|^"?\$\{BASH_SOURCE(\[0\])?%/\*\}"?$'
 re_rhs='^"?('"$re_cd"')?\$\{?([A-Za-z_][A-Za-z0-9_]*)(%/\*)?\}?(/'"$path_chars"')?"?([[:space:]]*&&[[:space:]]*pwd[^)]*\))?"?$'
 
 trace() {
@@ -106,7 +108,7 @@ trace() {
 
 value_of() {
   local file="$1" rhs="$2" up rel
-  REPLY="?"
+  REPLY="?" DEPS=""
   if [[ "$rhs" =~ $re_self ]]; then
     REPLY="${file%/*}"
   elif [[ "$rhs" =~ $re_rhs ]] && [[ -z "${BASH_REMATCH[1]}" || -n "${BASH_REMATCH[6]}" ]]; then
@@ -121,11 +123,12 @@ value_of() {
 }
 
 base_of() {
-  local key="$1 $2" t own rhs v=""
+  local key="$1 $2" t own rhs v="" d=""
   if [[ -z "${traced[$key]+x}" && -n "${assigned[$key]+x}" ]]; then
     traced[$key]="?"
     while IFS= read -r rhs; do
       value_of "$1" "$rhs"
+      d+="$DEPS"
       if [[ -n "$v" && "$v" != "$REPLY" ]]; then
         v="?"
         break
@@ -133,15 +136,33 @@ base_of() {
       v="$REPLY"
     done <<<"${assigned[$key]%$'\n'}"
     traced[$key]="$v"
+    deps[$key]="$2"$'\n'"$d"
   fi
   t="${traced[$key]:-?}"
+  DEPS=""
   if [[ "$t" != "?" ]]; then
     REPLY="$t"
+    DEPS="${deps[$key]}"
   elif [[ "$2" == *PLUGIN_ROOT || "$2" == *PLUGIN_DIR ]]; then
     own="${1#plugins/}"
     REPLY="plugins/${own%%/*}"
   else
     return 1
+  fi
+}
+
+anchor() {
+  local d
+  if ! base_of "$1" "$4"; then
+    consider "$1" "$2" "$3"
+  elif [[ -z "$DEPS" || -n "$verified" || "$REPLY" == "${1%/*}" ]]; then
+    consider "$1" "$2" "$3" "$REPLY"
+  else
+    pending+=("$1	$2	$3	$4")
+    verify_files["$1"]=1
+    while IFS= read -r d; do
+      [[ -n "$d" ]] && verify_names["$d"]=1
+    done <<<"$DEPS"
   fi
 }
 
@@ -190,11 +211,7 @@ scan_line() {
   while [[ "$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname* ]] && [[ "$rest" =~ $re_anchor ]]; do
     whole="${BASH_REMATCH[0]}" rel="${BASH_REMATCH[2]}" name="${BASH_REMATCH[1]#\$}"
     name="${name#\{}"
-    if base_of "$file" "${name%\}}"; then
-      consider "$file" "$n" "$rel" "$REPLY"
-    else
-      consider "$file" "$n" "$rel"
-    fi
+    anchor "$file" "$n" "$rel" "${name%\}}"
     rest="${rest#*"$whole"}"
   done
 
@@ -278,6 +295,27 @@ while IFS= read -r hit; do
   hit="${hit#*:}"
   scan_line "$file" "${hit%%:*}" "${hit#*:}"
 done <<<"$uses"
+
+if ((${#pending[@]})); then
+  shellspecs=()
+  for p in "${!verify_files[@]}"; do shellspecs+=(":(literal)$p"); done
+  alt="${!verify_names[*]}"
+  grep_hits -e "${re_assign%%'([A-Za-z_]'*}(${alt// /|})=" -- "${shellspecs[@]}"
+  for key in "${!assigned[@]}"; do
+    [[ -n "${verify_files[${key% *}]:-}" && -n "${verify_names[${key##* }]:-}" ]] && unset 'assigned[$key]'
+  done
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    file="${hit%%:*}"
+    hit="${hit#*:}"
+    trace "$file" "${hit#*:}"
+  done <<<"$hits"
+  traced=() deps=() verified=1
+  for p in "${pending[@]}"; do
+    IFS=$'\t' read -r file n rel name <<<"$p"
+    anchor "$file" "$n" "$rel" "$name"
+  done
+fi
 
 errors=0
 declare -A listed=()

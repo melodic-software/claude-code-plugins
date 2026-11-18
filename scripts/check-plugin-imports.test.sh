@@ -109,6 +109,12 @@ expect_pass "a fixture root from mktemp holding plugins/beta passes"
 tree "$A/a.sh" "$here"$'\nREPO="$TMP/repo"\nmkdir -p "$REPO/plugins/beta/lib"'
 expect_pass "a variable also assigned a path the check cannot resolve is not traced"
 
+tree "$A/a.sh" "$here"$'\nREPO="$(mktemp -d)"\nmkdir -p "$REPO/plugins/beta/lib"'
+expect_pass "a traced variable reassigned from mktemp is not traced"
+
+tree "$A/a.sh" $'R="$(mktemp -d)"\nHERE="$(dirname "$R/file")"\nREPO="$(cd "$HERE/../../.." && pwd)"\nmkdir -p "$REPO/plugins/beta/lib"'
+expect_pass "dirname of a path other than the file itself is not the file's directory"
+
 tree "$A/a.tsx" 'import { x } from "../../beta/lib/x.ts";'
 expect_crossing "a TSX from specifier fails" "$A/a.tsx:1" plugins/beta/lib/x.ts
 
