@@ -285,7 +285,9 @@ the target's tracked files.
 
 Every `context/` recipe this skill uses is named above by its full path,
 `${CLAUDE_PLUGIN_ROOT}/skills/find/context/<file>.md`: open it with one Read of that path, and
-never Glob or Grep the plugin directory to find it. The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+never Glob or Grep the plugin directory to find it. The path is already known, and in our eval
+runs a sandbox denied those searches and invalidated the runs
+([#13768](https://github.com/melodic-software/claude-code-plugins/issues/13768)). The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
