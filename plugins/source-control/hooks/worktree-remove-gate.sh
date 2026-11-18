@@ -56,8 +56,6 @@ case "$_WT_DIR" in
 /* | ?:[/\\]*) HOOK_DIR="$_WT_DIR" ;;
 *) HOOK_DIR="$(cd "$_WT_DIR" && pwd)" ;;
 esac
-# shellcheck source=hook-utils.sh
-source "$HOOK_DIR/hook-utils.sh"
 
 # Remedy first, diagnosis after: a reader acts on the first line.
 gate::refuse() {
@@ -124,6 +122,9 @@ esac
 [[ -f "$path/.git" ]] ||
   gate::refuse 'check the directory for work to keep, then remove it by hand' \
     "no .git file, so it is not a linked git worktree and its uncommitted work cannot be checked: $path"
+
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
 
 git_dirs="$("${HOOK_GIT[@]}" -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" ||
   gate::refuse 'if the main clone moved, run git worktree repair from it; otherwise check the directory by hand' \
