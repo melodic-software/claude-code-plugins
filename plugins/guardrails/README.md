@@ -545,7 +545,7 @@ out of scope until such a signal exists.
   content.** `.tool_input.content` / `.new_string` / `.new_source` are
   deliberately not requested. `HOOK_JQ_FIELDS_NUL` is computed across every
   requested field, so pulling written content in would make this guard fail
-  closed on a NUL anywhere in a file body, and that surface belongs to
+  closed on a NUL anywhere in a file body, and that check belongs to
   `hardcoded-path-check` and `secret-pattern-detection`. A prose mention of
   `/tmp` inside a written file is therefore never a block on this lane. The
   Bash lane is scoped differently but reaches the same place: it sees only the
@@ -1271,7 +1271,7 @@ suite rather than silently never firing.
 *Method.* Mean wall time of 15 dispatcher runs per row on an otherwise idle host,
 `HOOK_TELEMETRY_SINK` unset, `bash -c :` spawn floor S = 3.2 ms interleaved, real file
 text in every payload. The after figure for a non-matching write is not a
-measurement of a faster process: no process exists to measure, because the
+measurement of a faster process. No process exists to measure, because the
 predicate fails before the spawn. The matching row is unchanged by construction.
 
 | Per tool call | before | after |
