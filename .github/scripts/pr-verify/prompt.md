@@ -136,7 +136,12 @@ Judge in this order:
    the organization gain trust, push, merge or mint a token, or weakens one of those checks
    beyond what the spec asks for.
    The review plugin's criterion "Fail a change that loosens a check" names the kinds of weakened
-   check; it is not one of your files, so judge from this step.
+   check; it is not one of your files, so judge from this step. A spec asks for a weakened check
+   only when an entry whose `spec_kind` is `closes` or `refs` names it and also holds a line link
+   to the owner's decision in the owner-decisions record
+   (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`)
+   and the owner's words after `verbatim:` in double quotes. The record is private, so check only
+   that both are present.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a
 safety problem, a change of intent, a takeover risk, a loosened hold the owner keeps, or unasked-for

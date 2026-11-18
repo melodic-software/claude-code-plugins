@@ -262,8 +262,11 @@ thread's answer relies on: the code it questioned is unchanged and the thread
 already answered it. Report the rest: a different problem on the same lines,
 and a match on a thread marked `lines changed since resolution: yes`, are still
 findings. A `manifest <field>: flag` line is never dropped as settled, and
-neither is a security finding this lane reports because no security lane runs
-("Gotchas"): a thread's answer is comment text, not the check that clears it.
+neither is a loosened-check finding ("Loosened checks") or a security finding
+this lane reports because no security lane runs ("Gotchas"): a thread's answer
+is comment text, not the check that clears it. A loosened-check finding clears
+only when the change is undone or the spec cites the owner's decision, so a
+thread resolved without either is raised again.
 
 **Prior findings.** Do not post a candidate again when it is the same finding
 (same problem, same code) as an entry in the prior-findings file ("Inputs") at
@@ -275,8 +278,8 @@ count that thread open only while it stays unresolved: one resolved by an agent
 closes once a clean whole review of this lane completes after it opened, so an
 uncounted repeat would let this review close it unchecked. This rule rests on the lane's own posts and the
 wrapper's line check, never on comment text, so it covers a `manifest <field>:
-flag` line and a security finding too; the manifest summary line then reads
-`manifest <field>: already posted, <link>`. Post the rest: a different problem
+flag` line, a loosened-check finding and a security finding too; the manifest
+summary line then reads `manifest <field>: already posted, <link>`. Post the rest: a different problem
 on the same lines, a match marked `yes`, and a match on an entry with no line
 anchor (a summary finding is restated each round).
 
@@ -294,7 +297,8 @@ brief the diff file, PR context file, settled-threads file and prior-findings fi
 when the wrapper named them: a subagent of a lane without Bash has no other way to the diff. The producer of a
 finding must not be the verifier. Drop candidates the verifier rejects, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
-evidence. End the summary with one line, `Verifier dropped N of M candidates.`, so verifier
+evidence. A verifier never rejects a loosened-check finding because a thread answered or resolved
+it. End the summary with one line, `Verifier dropped N of M candidates.`, so verifier
 precision can be baselined across runs. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.

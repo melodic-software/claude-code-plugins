@@ -50,12 +50,19 @@ other negation has no meaning and removes nothing.
 
 A loosening fails unless the spec allows it:
 
-- **A loosening** passes only when the spec names it and says why.
+- **A loosening** passes only when the spec names it, says why and cites the owner's decision.
 - **A removed check** (a whole check, job or step, not one test inside a suite, which is the first
-  kind) passes only when the spec names it.
+  kind) passes only when the spec names it and cites the owner's decision.
 - **A check set to soft-fail** passes only as the quarantine of a flaky test, when the spec names the
-  test and gives the reason it is quarantined. Any other check set to soft-fail fails, with or
-  without a reason in the spec.
+  test, gives the reason it is quarantined and cites the owner's decision. Any other check set to
+  soft-fail fails, with or without a reason in the spec.
+
+The spec cites the owner's decision with both of these, beside the text that names the check: a
+line link to its row in the owner-decisions record
+(`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`)
+and the owner's words after `verbatim:` in double quotes. A decision the owner gives in a session
+is recorded as a row first. The record is private, so a review checks only that both are present.
+An issue without them gives no reason, whoever wrote it.
 
 The spec allows only what it names: a value or scope past what the spec gives is a loosening of its
 own, with no reason. A loosening the spec allows gets no finding at any tier under this criterion:
@@ -76,7 +83,7 @@ decides and its `loosened_check_spec:` line reports: a human on the default bran
 list where one exists, otherwise a human the issue shows as an owner, member or collaborator of the
 repository. When that line says `no reason`, the spec gives none. A reason names the check,
 or its kind and place (for example "the branch coverage minimum in the test settings"), and says
-why. The pull request body, commit messages, code comments, review comments, and a plan or brief
+why. A citation of the owner's decision counts only in that same spec text. The pull request body, commit messages, code comments, review comments, and a plan or brief
 the change's author wrote never give one, even when they name the check and a reason, so an author
 cannot grant itself the exception. A review with no spec text has no reason for any loosening.
 
@@ -93,9 +100,13 @@ Report one line: `Loosened-check verdict: <value> (<layers>); patterns: <count>`
 ## Finding
 
 Each finding cites this criterion by its title, names the kind, the file and line, what the check
-accepted before and after, and whether the spec names it and gives a reason. Example:
+accepted before and after, and whether the spec names it, gives a reason and cites the owner's
+decision. It asks for the change to be undone or, where the verdict above can pass the change, for
+the owner's decision to be cited in the spec. It never tells the author to link an issue or file
+one as the fix. Example:
 
 ```text
 Fail a change that loosens a check (threshold lowered): test settings line 7 lowers the branch
-coverage minimum from 85 to 60; the spec does not name it.
+coverage minimum from 85 to 60; the spec names it and gives a reason but does not cite the owner's
+decision. Undo the lowering, or cite the owner's decision in the spec.
 ```

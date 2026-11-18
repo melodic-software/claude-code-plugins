@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches 90 to 80, and the spec does not cite the owner's decision. Undo the lowering, or cite the owner's decision in the spec.",
+      "why": "cites the criterion by its title"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**IMPORTANT**\n- `jest.config.js:8`: the branch coverage minimum drops from 90 to 80; the spec does not cite the owner's decision.",
+      "why": "names the lowering without citing the criterion"
+    }
+  ]
+}

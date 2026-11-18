@@ -141,6 +141,7 @@ Lower the global branch coverage minimum in `jest.config.js` from 90 to 80. Why:
 request-body branch is exercised by the billing API team's contract tests in their repository, and
 our vendoring policy keeps generated files unedited, in the coverage report, and out of our own
 test suite. With the client counted, branch coverage is 5 of 6 branches (83%), below 90.
+Owner decision: https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10 verbatim: "Approved."
 
 ## Done when
 
