@@ -920,6 +920,30 @@ test("a budget spent mid-scan still records the marks of the re-dispatches read,
   );
 });
 
+test("a hand-off the budget cannot finish still leaves calls for an older held re-dispatch", async () => {
+  const handIds = [21, 22, 23, 24, 25, 26];
+  const done = { status: "completed", conclusion: "success" };
+  const gh = fakeGitHub({
+    issues: [issue(1, { created_at: "2026-10-18T08:00:00Z" }), issue(2)],
+    comments: {
+      1: onceDispatched(11),
+      2: [{ id: 7, user: BOT, body: renderState({ runs: handIds, filed: null, runUrl: "u", reached: new Map(handIds.map((id) => [id, "-"])) }) }],
+    },
+    runs: { 11: done, ...Object.fromEntries(handIds.map((id) => [id, done])) },
+  });
+  let left = 12;
+  const call = async (...args) => {
+    if (left === 0) throw new Error("call budget of 12 reached");
+    left -= 1;
+    return gh.call(...args);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.match(result.truncated ?? "", /^stopped at #2: too little call budget left$/, "7 calls (issues page, two hand-off searches, comments and latest run of #1 and #2) leave 5, under the 7 #2's hand-off needs");
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(result.dispatched, [1], "the 5 calls left cover #1's dispatch and state write");
+  assert.equal(left, 3);
+});
+
 test("with the hand slots used up, an issue at RUN_LIMIT is not read: it could only stop", async () => {
   const issues = Array.from({ length: 6 }, (_, i) => issue(i + 1));
   const ids = (n) => Array.from({ length: RUN_LIMIT }, (_, k) => n * 10 + k);

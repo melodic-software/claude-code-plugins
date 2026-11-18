@@ -418,6 +418,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
   const redispatches = [];
+  let outOfCalls = false;
   for (const issue of candidates) {
     const { number } = issue;
     if (checked >= MAX_CHECKED) break;
@@ -486,7 +487,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (endsPass(number, error)) break;
     }
   }
-  if (result.truncated) return result;
+  if (outOfCalls) return result;
   for (const entry of redispatches) {
     if ((await act(entry, "dispatch")) === STOP_PASS) break;
   }
@@ -498,6 +499,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       return false;
     }
     result.truncated = `stopped at #${number}: ${error.message}`;
+    outOfCalls = true;
     return true;
   }
 
