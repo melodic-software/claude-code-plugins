@@ -20,10 +20,6 @@
 // is (babysit_merge_skip.py reads its skip-unchanged section), with only the
 // carried-* sections of the pr-merge-verify-run-cache file added to its own.
 //
-// The carried reads stay untrusted all the same: each kept read lands in a
-// carried-* section that babysit_verify_evidence.py reads only on a FAIL's
-// path and only where the value counts the FAIL; any other answer is read
-// from GitHub. lane-run, last below, is the one exception.
 //   run-record        a pr-verify run's record of origin shape (a run of
 //                     pr-verify.yml on the branch of this repository), kept
 //                     as carried-run-record with each repository trimmed to
@@ -74,7 +70,7 @@ import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rota
 
 export const CARRY_ARTIFACT = "pr-merge-run-cache";
 export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
-const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run"];
+const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run", "carried-attempt-jobs"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
 // A FAIL verdict's artifact retention (write-verdict.mjs retentionDays; .github/artifact-retention.json `pr-verify-*`).
@@ -86,6 +82,9 @@ export const LANE_RUN_DAYS = 30;
 export const LANE_RUN_MAX = 400;
 const LANE_RUN_BYTES = 65_536;
 const LANE_RUN_FORMAT = "v2";
+const ATTEMPT_JOBS_DAYS = 30;
+const ATTEMPT_JOBS_MAX = 400;
+const ATTEMPT_JOBS_BYTES = 32_768;
 const WORKFLOW_PATH = ".github/workflows/pr-verify.yml";
 const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -163,6 +162,41 @@ function laneRun(key, value, repo) {
   );
 }
 
+const isStrings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+
+function failedJob(job) {
+  return (
+    isObject(job) &&
+    Number.isSafeInteger(job.id) &&
+    job.id > 0 &&
+    Array.isArray(job.steps) &&
+    job.steps.length > 0 &&
+    job.steps.every((step) => isObject(step) && typeof step.name === "string" && typeof step.conclusion === "string")
+  );
+}
+
+function attemptJobs(key, value, repo) {
+  return (
+    key.startsWith(`${repo}|`) &&
+    /^[1-9][0-9]{0,15}\|[1-9][0-9]{0,2}\|[0-9a-f]{16}$/.test(key.slice(repo.length + 1)) &&
+    isObject(value) &&
+    SHA.test(value.head_sha ?? "") &&
+    isStrings(value.checks) &&
+    value.checks.length > 0 &&
+    isStrings(value.passed) &&
+    isObject(value.jobs) &&
+    Object.values(value.jobs).every(failedJob) &&
+    JSON.stringify(value).length <= ATTEMPT_JOBS_BYTES
+  );
+}
+
+const newestEntries = (entries, max) =>
+  Object.fromEntries(
+    Object.entries(entries)
+      .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, max),
+  );
+
 // The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
@@ -182,10 +216,9 @@ export function carry(data, { repo, branch, now }) {
   take("fail-head-ref", (k, v) => headRef(k, v, repo));
   take("on-branch", (k, v) => onBranch(k, v, repo, branch));
   take("lane-run", (k, v) => laneRun(k, v, repo), { days: LANE_RUN_DAYS });
-  const newest = Object.entries(out["carried-lane-run"])
-    .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, LANE_RUN_MAX);
-  out["carried-lane-run"] = Object.fromEntries(newest);
+  take("attempt-jobs", (k, v) => attemptJobs(k, v, repo), { days: ATTEMPT_JOBS_DAYS });
+  out["carried-lane-run"] = newestEntries(out["carried-lane-run"], LANE_RUN_MAX);
+  out["carried-attempt-jobs"] = newestEntries(out["carried-attempt-jobs"], ATTEMPT_JOBS_MAX);
   return out;
 }
 

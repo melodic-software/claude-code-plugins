@@ -60,6 +60,7 @@ test("keeps origin run records, FAIL head refs and run heads on main, each under
       [`${REPO}|${MAIN_SHA}...main`]: entry(true),
     },
     "carried-lane-run": {},
+    "carried-attempt-jobs": {},
   });
 });
 
@@ -99,6 +100,7 @@ test("drops every section that can change between runs", () => {
   restored["fail-head-ref"][`${REPO}|70`] = entry({ head_ref: "feat/x" });
   const kept = carry(restored, opts);
   assert.deepEqual(Object.keys(kept).sort(), [
+    "carried-attempt-jobs",
     "carried-fail-head-ref",
     "carried-lane-run",
     "carried-on-branch",
@@ -214,6 +216,63 @@ test("keeps lane runs read in the last 30 days, the 400 newest", () => {
   assert.ok(kept.includes(laneKey(1)) && kept.includes(laneKey(400)) && !kept.includes(laneKey(401)));
 });
 
+const CODE = "0123456789abcdef";
+const attemptKey = (id, attempt = 2) => `${REPO}|${id}|${attempt}|${CODE}`;
+const attemptAnswer = (overrides = {}) => ({
+  head_sha: MAIN_SHA,
+  checks: ["Test Bash"],
+  passed: ["Lint"],
+  jobs: { "Test Bash": { id: 312, steps: [{ name: "Run the bash tests", conclusion: "failure" }] } },
+  ...overrides,
+});
+
+test("keeps completed attempts' answers from this run and the last, under carried-attempt-jobs", () => {
+  const kept = carry(
+    {
+      "attempt-jobs": { [attemptKey(7)]: entry(attemptAnswer()) },
+      "carried-attempt-jobs": { [attemptKey(6, 1)]: entry(attemptAnswer({ jobs: {} })) },
+    },
+    opts,
+  );
+  assert.deepEqual(kept["carried-attempt-jobs"], {
+    [attemptKey(7)]: entry(attemptAnswer()),
+    [attemptKey(6, 1)]: entry(attemptAnswer({ jobs: {} })),
+  });
+});
+
+test("drops an attempt answer of no known shape", () => {
+  const forgeries = {
+    "another repository of the same length": [`${REPO.replace("example-org", "example-orh")}|7|2|${CODE}`, attemptAnswer()],
+    "no code digest": [`${REPO}|7|2|v1`, attemptAnswer()],
+    "a run id of no shape": [`${REPO}|07|2|${CODE}`, attemptAnswer()],
+    "no head SHA": [attemptKey(7), attemptAnswer({ head_sha: "main" })],
+    "no failing check": [attemptKey(7), attemptAnswer({ checks: [] })],
+    "checks not strings": [attemptKey(7), attemptAnswer({ checks: [1] })],
+    "passed jobs not a list": [attemptKey(7), attemptAnswer({ passed: "Lint" })],
+    "jobs not an object": [attemptKey(7), attemptAnswer({ jobs: [] })],
+    "a job with no id": [attemptKey(7), attemptAnswer({ jobs: { a: { steps: [{ name: "s", conclusion: "failure" }] } } })],
+    "a job with no failed step": [attemptKey(7), attemptAnswer({ jobs: { a: { id: 1, steps: [] } } })],
+    oversized: [attemptKey(7), attemptAnswer({ passed: ["x".repeat(40_000)] })],
+  };
+  for (const [label, [key, value]] of Object.entries(forgeries)) {
+    assert.deepEqual(carry({ "attempt-jobs": { [key]: entry(value) } }, opts)["carried-attempt-jobs"], {}, label);
+  }
+});
+
+test("keeps attempt answers read in the last 30 days, the 400 newest", () => {
+  const day = 86_400_000;
+  const old = new Date(NOW - 31 * day).toISOString();
+  const recent = new Date(NOW - 29 * day).toISOString();
+  const aged = carry({ "attempt-jobs": { [attemptKey(7)]: entry(attemptAnswer(), old), [attemptKey(8)]: entry(attemptAnswer(), recent) } }, opts);
+  assert.deepEqual(Object.keys(aged["carried-attempt-jobs"]), [attemptKey(8)]);
+  const many = Object.fromEntries(
+    Array.from({ length: 450 }, (_, i) => [attemptKey(i + 1), entry(attemptAnswer(), new Date(NOW - (i + 1) * 60_000).toISOString())]),
+  );
+  const kept = Object.keys(carry({ "attempt-jobs": many }, opts)["carried-attempt-jobs"]);
+  assert.equal(kept.length, 400);
+  assert.ok(kept.includes(attemptKey(1)) && kept.includes(attemptKey(400)) && !kept.includes(attemptKey(401)));
+});
+
 test("carries file to file, and writes nothing when the file is missing or unreadable", (t) => {
   const dir = tempDir("carry-run-cache-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -239,8 +298,9 @@ test("carries file to file, and writes nothing when the file is missing or unrea
     "carried-fail-head-ref": {},
     "carried-on-branch": {},
     "carried-lane-run": {},
+    "carried-attempt-jobs": {},
   });
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0 carried-lane-run=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0 carried-lane-run=0 carried-attempt-jobs=0");
   assert.equal(readFileSync(output, "utf8"), "carried=true\nkept=true\n");
 });
 
@@ -486,6 +546,6 @@ test("a second tick starts its run cache from the first tick's verifier reads", 
   const runCache = join(dir, "next-run-cache.json");
   t.mock.method(console, "log", (line) => logs.push(String(line)));
   main({ CARRY_FROM: from, CARRY_TO: runCache, GITHUB_REPOSITORY: REPO }, NOW);
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1 carried-lane-run=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1 carried-lane-run=0 carried-attempt-jobs=0");
   assert.deepEqual(JSON.parse(next.written)["skip-unchanged"], skip);
 });
