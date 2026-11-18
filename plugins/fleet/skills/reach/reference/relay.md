@@ -85,13 +85,14 @@ A headless receiver is a `-p` turn with a name and inbound messages switched on:
 claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>" < /dev/null
 ```
 
-- Without `crossSessionInbound: accept`, a `-p` turn does not take messages unattended: it cannot
-  show the approval dialog, so a message the default holds expires undelivered. How long a held
-  message waits, and which interactive sessions deliver without the setting, are in the sections
-  below.
-  - **Pointer**: [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
+- We always start a `-p` receiver with `crossSessionInbound: accept`: nobody is present to approve
+  a message, and our R2 receiver started that way took messages across accounts
+  ([Verified behavior](#verified-behavior)).
+  - **Pointer**: when a message to a receiver is not delivered, or when weighing the setting's
+    default, fetch
+    [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
     and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
-    fetched live.
+    live.
 - Its standing instructions say what to do with each message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
   quote. Double-quote it with escaped inner quotes instead, and send the instructions on stdin:
@@ -145,10 +146,10 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 ```
 
 - The directory must be trusted: run `claude` there interactively once and accept the prompt.
-  Anywhere else the start fails with a workspace-not-trusted error and exit 1. For its wording,
-  fetch
-  [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live (as of 2026-10-11; recheck when that entry's message or fix changes).
+  Our R2 start failed in an untrusted directory ([Verified behavior](#verified-behavior)).
+  - **Pointer**: when a start fails for trust, fetch
+    [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
+    live for its message and fix.
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
 - We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`
@@ -162,9 +163,9 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
   hop. Untested.
-- Where agent view's background sessions run, and when they stop: its limits section.
-  - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
-    fetched live.
+- **Pointer**: when deciding whether a background session can outlast what the task needs, fetch
+  [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations) live for
+  where those sessions run and when they stop.
 
 ## Start in the target's plugin profile
 

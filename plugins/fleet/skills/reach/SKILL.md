@@ -81,10 +81,12 @@ on every lane; no `Bash(ssh …)` rule is added, and the posture below stands fo
 
 Run the row with `hostname &&` before the agent, `-p` as `<agent-args>` and `echo ok` as
 `<prompt>`, for example `printf '%s\n' 'echo ok' | <ssh> <wsl-alias> 'hostname && claude -p'`: the
-hostname proves which machine answered, `ok` that its Claude is signed in. A Windows lane answering with an
-expired-OAuth-session authentication error routed correctly and is signed out: someone runs
-`/login` at that machine's console (or over RDP). Nothing remote fixes it, and no credential
-travels in a prompt.
+hostname proves which machine answered, `ok` that its Claude is signed in. A Windows lane that
+answers with a sign-in error routed correctly and is signed out: in our R3 probe that error came
+from a lane whose `auth status` reported `loggedIn: false`
+([reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)). Someone signs it
+back in with `/login` at that machine's console (or over RDP). We fix nothing remotely, so no
+credential travels in a prompt.
 
 - **Pointer**: when matching a lane's answer to a signed-out state, fetch
   [Login expired](https://code.claude.com/docs/en/errors#login-expired) live.
@@ -133,13 +135,15 @@ our probe found and how to re-measure it). When a script can do the job, run the
   `--output-format json` and resume with the `session_id` it returns (see "Parse the JSON" in
   [Gotchas](#gotchas)). Say with the handed-over commands that the id exists only on that lane's
   machine and account, so every follow-up goes to the same row.
-- **Background sessions** need a trusted working directory; anywhere else the start fails with a
-  workspace-not-trusted error and exit 1 (for its wording and fix, fetch
-  [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live; as of 2026-10-11; recheck when that entry's message or fix changes). Address
-  `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare `--json`
-  lists only active sessions); pass a name only after checking the lane's version against the CLI
-  reference. `logs` prints raw TUI output, so read a reply from the transcript (`--resume <id>`).
+- **Background sessions** start in a trusted working directory: our R2 start failed in an
+  untrusted one ([reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)).
+  Address `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare
+  `--json` lists only active sessions); pass a name only after checking the lane's version against
+  the CLI reference. `logs` prints raw TUI output, so read a reply from the transcript
+  (`--resume <id>`).
+  - **Pointer**: when a start fails for trust, fetch
+    [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
+    live for its message and fix.
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
 - A `-p` receiver needs `crossSessionInbound: accept`. For a session that must stay up, use a
@@ -228,11 +232,13 @@ on-demand tasks FLEET.md lists.
   Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
   like a key problem and is not one.
 - **Give every `claude -p` turn a closed stdin.** Over SSH the piped prompt is stdin, and it ends
-  when `printf` does. On R1 and R4 redirect `< /dev/null`. A `-p` run reads stdin as its input, so
-  with no prompt argument the piped text is the prompt: see "Pipe data through Claude" and the
-  stdin-only example under "Customize the system prompt" in
-  [Run Claude Code programmatically](https://code.claude.com/docs/en/headless#pipe-data-through-claude),
-  and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
+  when `printf` does; our SSH rows send the prompt there, not as an argument, so no shell
+  on either host parses prompt text. On R1 and R4 redirect `< /dev/null`, so nothing but the
+  prompt argument reaches the turn.
+  - **Pointer**: for how a `-p` run treats piped stdin, fetch
+    [Run Claude Code programmatically: Pipe data through Claude](https://code.claude.com/docs/en/headless#pipe-data-through-claude)
+    and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands)
+    live.
 - **Escape apostrophes in `<prompt>`.** Every SSH row single-quotes the prompt in
   `printf '%s\n' '<prompt>'`, and R4 single-quotes the whole command, on the local shell, so a `'`
   in the prompt ("what's") closes that quote early. The rule follows the origin shell, not the
