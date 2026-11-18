@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Count: 1 occurrence (66d1282) against a threshold of 2; you invoked it, so the proposal is at .work/codify/main/20261117T181500Z-proposal.md. I could not read a team meeting's issue list, stand-up notes or ticket comments; paste or point me at any and I will recount with them.",
+      "why": "finished report with the offer"
+    },
+    {
+      "answer": "Proposal written. Not counted: ticket comments, standup notes, and the issue list from your team meetings. Send any of those and I'll recount.",
+      "why": "other order, standup as one word"
+    },
+    {
+      "answer": "Count: 1 occurrence. I couldn't read team issue lists, stand-up notes, ticket comments or past sessions. If you paste or point me at any of those, I'll recount.",
+      "why": "paraphrase seen in a run: team issue lists"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Count: 1 occurrence against a threshold of 2. Proposal written to .work/codify/main/20261117T181500Z-proposal.md.",
+      "why": "never makes the offer"
+    },
+    {
+      "answer": "Count: 1. If you have stand-up notes or ticket comments, I can recount.",
+      "why": "names two of the three"
+    },
+    {
+      "answer": "I can't read sources outside the repository, such as ticket comments, stand-up notes or incident write-ups. If you paste or point me at any, I'll recount with them.",
+      "why": "seen in a run: drops the meeting issue list"
+    }
+  ]
+}
