@@ -7,4 +7,4 @@ timeout_seconds: 600
 expected_outcome: 'The run reads the branch commits, proposes one class-level shadow rule with the value 0 1px 3px rgba(0, 0, 0, 0.12), marks its reason inferred and asks the person to confirm it and approve the rule, lists the heading rename as dropped, and writes no DESIGN.md and edits no file under src/.'
 ---
 
-/corrections:codify taste. I fixed up the pricing card you made on this branch in my last commit.
+/corrections:codify taste I fixed up the pricing card you made on this branch in my last commit.
