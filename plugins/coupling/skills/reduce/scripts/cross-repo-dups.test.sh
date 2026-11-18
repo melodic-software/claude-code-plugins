@@ -87,6 +87,21 @@ assert_contains "M3: managed copies counted" "$OUT" $'excluded\tmanaged\t3'
 OUT=$(printf '%s\n' "one=$(host_path "$A")" "two=$(host_path "$B")" | crd --repos-from -)
 assert_contains "L1: LABEL=PATH from --repos-from labels the rows" "$(row exact "$OUT")" "one:scripts/retry.sh | two:scripts/retry.sh"
 
+put "$TEST_TMPDIR" managed-slashless.txt 'one:scripts/retry.sh'
+OUT=$(printf '%s\n' "one=$(host_path "$A")" "two=$(host_path "$B")" "three=$(host_path "$C")" | crd --managed "$(host_path "$TEST_TMPDIR/managed-slashless.txt")" --repos-from -)
+assert_contains "L2: a per-repo managed entry with a slash-free label drops only that copy" "$(row exact "$OUT")" $'exact\t2\t2\tthree:scripts/retry.sh | two:scripts/retry.sh'
+
+V1=$(new_repo v1)
+V2=$(new_repo v2)
+for i in $(seq 1 12); do
+  put "$V1" "n$i/conf.ini" 'a=1' 'b=2' 'c=3' 'd=4' 'e=5' 'f=6' 'g=7' 'h=8' 'i=9' "z=$i"
+done
+put "$V2" n0/conf.ini 'totally' 'unrelated' 'content'
+commit "$V1"
+commit "$V2"
+OUT=$(crd "$(host_path "$V1")" "$(host_path "$V2")")
+assert_contains "V1: past the variant cap the similarity reads ? not a partial minimum" "$(row diverged "$OUT")" $'diverged\t2\t13\t?\tconf.ini'
+
 crd "$(host_path "$A")" >/dev/null 2>&1
 assert_exit "E1: one repository exits 2" 2 $?
 mkdir -p "$TEST_TMPDIR/plain"

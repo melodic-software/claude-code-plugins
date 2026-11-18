@@ -122,7 +122,7 @@ def read_blob(path, sha, limit=None):
     return out
 
 
-def load_managed(files):
+def load_managed(files, labels):
     any_repo, per_repo = set(), set()
     for f in files:
         with open(f, encoding="utf-8") as fh:
@@ -131,7 +131,7 @@ def load_managed(files):
                 if not line:
                     continue
                 label, sep, rest = line.partition(":")
-                if sep and "/" in label and rest:
+                if sep and rest and (label in labels or "/" in label):
                     per_repo.add((label, rest.lstrip("/")))
                 else:
                     any_repo.add(line.lstrip("/"))
@@ -152,12 +152,6 @@ def main():
         specs += [
             line.strip() for line in fh if line.strip() and not line.startswith("#")
         ]
-    try:
-        managed_any, managed_repo = load_managed(a.managed)
-    except OSError as e:
-        print(f"cross-repo-dups.py: {e}", file=sys.stderr)
-        return 2
-
     repos = {}
     for spec in specs:
         label, sep, path = spec.partition("=")
@@ -176,6 +170,11 @@ def main():
             continue
         repos[label] = (path, commit)
         print(f"ref\t{label}\t{used}")
+    try:
+        managed_any, managed_repo = load_managed(a.managed, set(repos))
+    except OSError as e:
+        print(f"cross-repo-dups.py: {e}", file=sys.stderr)
+        return 2
     if len(repos) < 2:
         print(
             "cross-repo-dups.py: need at least 2 readable repositories", file=sys.stderr
@@ -238,7 +237,7 @@ def main():
         owner = {s: lab for s, lab, _ in copies}
         mode = shas.most_common(1)[0][0]
         base_text = read_blob(repos[owner[mode]][0], mode, MAX_BYTES)
-        sims = []
+        sims: list[float | None] = [None] if len(shas) > MAX_VARIANTS else []
         for s, _ in shas.most_common(MAX_VARIANTS):
             if s == mode:
                 continue
@@ -251,7 +250,8 @@ def main():
             sims.append(
                 difflib.SequenceMatcher(None, a_lines, b_lines, autojunk=False).ratio()
             )
-        sim = "?" if None in sims or not sims else f"{min(sims):.2f}"
+        known = [s for s in sims if s is not None]
+        sim = "?" if not sims or len(known) < len(sims) else f"{min(known):.2f}"
         listing = " | ".join(
             f"{lab}:{p}" for _, lab, p in sorted(copies, key=lambda c: (c[1], c[2]))
         )
