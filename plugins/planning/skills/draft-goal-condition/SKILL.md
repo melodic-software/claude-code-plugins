@@ -211,11 +211,23 @@ doctrine and is out of scope.
 
 ## Step 4. Output
 
-Emit the final, counter-passed condition as a paste-ready invocation:
+Emit the final, counter-passed condition as a paste region the person copies after typing `/goal `
+themselves, since the copied text holds the condition only. One instruction line, then the
+condition alone; no line of the region starts with `/goal`:
 
 ```text
-/goal <condition>
+Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:
+
+──────────────────────────────────────────────────────────
+<condition>
+──────────────────────────────────────────────────────────
 ```
+
+In the terminal the rails are literal `─` lines, as shown. Where the reply renders as markdown (the
+Desktop app's `CLAUDE_CODE_ENTRYPOINT` of `claude-desktop`, or a `CLAUDE_CODE_REMOTE` of `true`), the
+instruction line ends ``then paste this.`` before its confirm sentence and the condition sits in a
+fenced `text` block, which the app draws with a copy button. Both shapes match the goal region
+`/session-flow:handoff` writes, so a goal drafted here pastes the same way after a handoff.
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it under
 the conditions the Boundary section lists (no subagent, interactive local session, not plan mode).
