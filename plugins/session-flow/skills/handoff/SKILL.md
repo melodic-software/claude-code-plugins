@@ -467,7 +467,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 | [reference/tracker-short-form.md](reference/tracker-short-form.md) | A tracker item may already hold the session's state: eligibility, the two lines, and which checks still apply. |
 | [reference/wip-commit.md](reference/wip-commit.md) | `wip_commit` resolved `true` for a qualifying pause: the refusal checks, staging, the hook-rejection path and what the save-point records. |
 | [reference/pending-ci-caveat.md](reference/pending-ci-caveat.md) | Applying claim provenance to a fix still in CI, merge or another unreturned check. |
-| [reference/export-verification.md](reference/export-verification.md) | Deciding whether to suggest `/export`, or rechecking the probes behind that gate. |
+| [reference/export-verification.md](reference/export-verification.md) | Deciding whether to suggest `/export`, or finding the probe record behind that gate. |
 | [reference/phase-boundary-owner.md](reference/phase-boundary-owner.md) | A resident `/implementation:implement-dispatch` boundary asks who writes the handoff. |
 
 ## Next
