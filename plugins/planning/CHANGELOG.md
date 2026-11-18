@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.1] - 2026-11-18
+
+### Removed
+
+- `design` no longer ships a TypeScript idioms page: `reference/type-discipline/typescript.md` and
+  the Phase 3 table that loaded it when a `tsconfig.json` or `.ts` files were present are gone.
+  Phase 3 applies the shared type rules in `reference/type-discipline.md` in the repository's own
+  language, as that file's last paragraph says (ADR 0101).
+- `design`'s stub-body rule no longer gives Python and Rust examples, `interview`'s assumption
+  sweep and checklist template no longer quote a `package.json` BullMQ line as an example fact, and
+  its Defer-with-assumption category no longer gives a Postgres example.
+- The synced standards contract copy (`reference/standards-contract.md`, 1.1.6) drops its `csharp`
+  example row, the example ecosystem surface ids and the C# pointer directive.
+
 ## [5.7.0] - 2026-11-18
 
 ### Added

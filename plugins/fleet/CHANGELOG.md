@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-11-18
+
+### Changed
+
+- The reach skill's relay reference states its verified behavior as our probe observations, with a pointer to the probe evidence in [#5337](https://github.com/melodic-software/claude-code-plugins/pull/5337), in place of a dated Claim/Basis block, and the hub no longer calls the Cost row a dated measurement. No behavior change.
+
 ## [0.4.1] - 2026-11-17
 
 ### Fixed
