@@ -77,9 +77,9 @@ has not stated one, the goal is not locked: stop and say what is blocked, and do
 **Code path under test, required.** Name the code path(s) the metric exercises and the **observable**
 that identifies each: a marker file, an exit code, the set of processes spawned. A goal that names no
 path is not locked. A harness can sit on a rare branch without erroring: a stale `bench.launched`
-marker once sent every Stop-hook sample down the rare Python path while the common skip path went
-unmeasured. `/performance:snapshot` step 2b resets or records the path-selecting state before each
-arm and reports which path ran.
+marker once sent every Stop-hook sample down the rare interpreter path while the common skip path
+went unmeasured. `/performance:snapshot` step 2b resets or records the path-selecting state before
+each arm and reports which path ran.
 
 ### 2. The floor, computed before any work
 

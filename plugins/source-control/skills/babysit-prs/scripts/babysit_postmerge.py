@@ -26,7 +26,8 @@ pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 if a newly failing check demotes (`_lane_reruns`). It counts only
 for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
-reported as unattributed and passes like a green run.
+reported as unattributed and passes like a green run, until a full run on a
+newer commit of the branch passes after it (`_recovered`).
 
 `remediate()` acts on failures in order: disarm the native auto-merge the
 identity armed on its own open pull requests, dequeue the identity's
@@ -2571,6 +2572,15 @@ def _settled_state(merge: AutoMerge) -> MergeState:
     return MergeState(merge, True, (), dispatch_covered=True, settled=True)
 
 
+def _recovered(ctx: _Context, run: Run) -> bool:
+    """Whether a red full run charged to no merge stopped counting: a full run
+    `_Context.superseded` accepts passed after it on a newer commit of the
+    branch. A pass on the same commit, or a spent compare budget, leaves it
+    counting."""
+    newer = ctx.superseded(run)
+    return newer is not None and newer.head_sha != run.head_sha
+
+
 def _judge(
     merge: AutoMerge,
     ctx: _Context,
@@ -2682,7 +2692,7 @@ def _judge(
                         tuple(sorted(new)),
                     )
                 )
-            else:
+            elif not _recovered(ctx, run):
                 tally.unattributed[ctx.sighting(run)] = None
         elif state == RERUN:
             tally.reruns[run.id] = Rerun(

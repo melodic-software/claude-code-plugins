@@ -20,6 +20,7 @@ inputs:
       pr-review-security-hosted.yml, triage-issue for intake-triage.yml,
       summarize-reuse for work-resolve-issue's summary pass,
       adjudicate-feedback for pr-unblock.yml's adjudicate-feedback job,
+      verify-map for maintenance-verify-whole-map.yml's driver leg,
       resolve-issue for the model jobs of maintenance-tidy-code-upkeep.yml and
       upstream-apply-changelog.yml):
       resolve only its model profile, for the profile, claude-args,
