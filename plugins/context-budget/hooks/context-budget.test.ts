@@ -296,17 +296,6 @@ test("band: a bordered band of header, bar and legend, five rows, above other pl
   expect(legend).toBe('System prompt 10k 1%  Messages 80k 8%  Autocompact buffer 45k 5%  Free space 865k 87%')
 })
 
-const NOW = 1_791_050_400_000
-const published = (on: any, zone?: string, sessionId = 'sid1') => {
-  on('clock.now', () => ({ value: NOW + 60_000 }))
-  on('env.get', () => ({ value: '/srv/u' }))
-  on('session.id', () => ({ value: 'sid1' }))
-  on('fs.read', ($: unknown, e: { path: string }) => {
-    if (zone === undefined || e.path !== '/srv/u/.claude/context-usage/context/sid1.json') throw new Error(`ENOENT: ${e.path}`)
-    return { value: JSON.stringify({ session_id: sessionId, zone, captured_at: new Date(NOW).toISOString() }) }
-  })
-}
-
 const desktopBand = async ($: any) => {
   await run($, 'live band')
   await measure($)
@@ -329,7 +318,6 @@ const figures = (found: Found[]) => found.filter(t => t.text === '90k' || t.text
 
 test("band (desktop): one line of figures, a proportional bar and hover labels, above other plugins' rows", async ($, on) => {
   world(on)
-  published(on)
   const { boxes, drawn, shown } = await desktopBand($)
   expect(boxes.filter(b => b.props.borderStyle !== undefined)).toHaveLength(0)
   expect(shown.join(' | ')).toContain('Context 90k / 1M · 9%')
@@ -355,27 +343,19 @@ test("band (desktop): one line of figures, a proportional bar and hover labels, 
   expect(boxes.find(b => b.props.position === 'relative')?.props.width).toBe(30)
 })
 
-test('band (desktop): the used figure takes the color of the zone context-usage publishes', async ($, on) => {
+test("band (desktop): the figures are uncolored and no other plugin's file is read", async ($, on) => {
   world(on)
-  published(on, 'moderate')
-  expect(figures((await desktopBand($)).found)).toEqual([['90k', 'warning'], ['9%', 'warning']])
-})
-
-for (const [label, zone, sessionId] of [
-  ['no published zone', undefined, 'sid1'],
-  ['a zone published for another session', 'heavy', 'sid0'],
-  ['an unknown zone name', 'tight', 'sid1'],
-] as const) {
-  test(`band (desktop): with ${label} the figure is uncolored`, async ($, on) => {
-    world(on)
-    published(on, zone, sessionId)
-    expect(figures((await desktopBand($)).found)).toEqual([['90k', undefined], ['9%', undefined]])
+  const reads: string[] = []
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    reads.push(e.path)
+    throw new Error(`ENOENT: ${e.path}`)
   })
-}
+  expect(figures((await desktopBand($)).found)).toEqual([['90k', undefined], ['9%', undefined]])
+  expect(reads).toEqual([])
+})
 
 test('band (desktop): a Skills row at 1% names itself in the warning color on hover', async ($, on) => {
   world(on, 'skills-over')
-  published(on)
   const { found } = await desktopBand($)
   expect(found.find(t => t.text === 'Skills')?.props.color).toBe('warning')
   expect(found.find(t => t.text === 'Messages')?.props.color).toBeUndefined()

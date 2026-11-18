@@ -2,7 +2,6 @@ import type { Elements, RenderSurface, ThemeKey } from 'claude-code'
 
 import type { LiveCategory, LiveView } from '../types'
 import { tokens, warns } from './parts'
-import { ZONE_COLOR } from './zone'
 
 type Draw = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
@@ -31,16 +30,13 @@ export const DesktopBar = ({ Box, Text }: Draw, categories: LiveCategory[], hove
 export const DesktopBand = (draw: Draw, v: LiveView) => {
   const { Box, Text } = draw
   const rows = v.categories.filter(c => !c.deferred && c.tokens > 0)
-  const zone = v.zone === undefined ? undefined : (ZONE_COLOR[v.zone] as ThemeKey)
   return (
     <Box key="context-budget-band" flexDirection="row" alignItems="center" gap={1}>
       <Text>
         <Text dimColor>Context </Text>
-        <Text bold {...(zone ? { color: zone } : {})}>
-          {tokens(v.used)}
-        </Text>
+        <Text bold>{tokens(v.used)}</Text>
         <Text dimColor> / {tokens(v.window)} · </Text>
-        <Text {...(zone ? { color: zone } : {})}>{Math.round(v.percent)}%</Text>
+        <Text>{Math.round(v.percent)}%</Text>
       </Text>
       {DesktopBar(draw, v.categories, true)}
       <Box position="relative" width={30} height={1}>
