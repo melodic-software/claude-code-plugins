@@ -1,15 +1,3 @@
-// usage: node capture.mjs [--playwright-core DIR] <url> <outdir> <k,k,...> <workers>   one PNG per drawing:
-//                                               window.renderDrawing(k) -> dNNN.png
-//        node capture.mjs [--playwright-core DIR] <url> <outdir> --fps <n> <workers>  every frame of the film:
-//                                               window.renderFrame(i / n) -> fNNNN.png
-//        node capture.mjs [--playwright-core DIR] --probe   launch Chromium, print {browser_build}, exit
-// Waits for render.html's window.sceneReady (the scene module and its top-level awaits), so a DURATION set after an
-// await is the one read. Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
-// {browser_build, size, frames, duration}. Exit 1 when the scene fails (a page error, DURATION missing or not a
-// positive finite number, renderDrawing missing), 2 when playwright-core or its Chromium is missing (remedy printed).
-// render.py serves the scene, calls this, and encodes.
-// playwright-core is resolved from --playwright-core DIR (the package directory or a folder holding
-// node_modules/playwright-core), then the working directory, then a playwright-cli install on PATH.
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, resolve } from 'node:path';

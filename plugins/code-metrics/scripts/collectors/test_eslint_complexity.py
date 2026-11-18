@@ -63,8 +63,6 @@ class EslintComplexityAdapterTests(unittest.TestCase):
         self.assertIn("eslint", result.stderr)
 
     def test_probe_prints_the_version_when_the_stub_resolves(self) -> None:
-        # The probe does not look for a configuration file: whether ESLint
-        # can run over the target files is ESLint's own call, made in collect.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             bare = Path(tmp) / "bare"

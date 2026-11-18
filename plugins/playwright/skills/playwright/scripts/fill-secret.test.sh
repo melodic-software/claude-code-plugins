@@ -53,7 +53,6 @@ run() {
   env -u SECRET_PW PATH="$STUB_BIN:$PATH" STUB_ARGS_FILE="$ARGS_FILE" "$@" 2>&1
 }
 
-# --- 1. Success: the stub gets the value, the output does not --------------------
 
 out=$(run SECRET_PW="$SENTINEL" bash "$SCRIPT" flow e2 SECRET_PW)
 assert_eq "success: exit 0" 0 "$?"
@@ -62,21 +61,18 @@ assert_contains "success: names the target and variable" "$out" "filled e2 from 
 assert_eq "success: stub received session, fill, target and value" \
   "$(printf '%s\n' -s=flow fill e2 "$SENTINEL")" "$(cat "$ARGS_FILE")"
 
-# --- 2. --submit is forwarded ---------------------------------------------------
 
 out=$(run SECRET_PW="$SENTINEL" bash "$SCRIPT" flow e2 SECRET_PW --submit)
 assert_eq "--submit: exit 0" 0 "$?"
 assert_not_contains "--submit: no secret in output" "$out" "$SENTINEL"
 assert_eq "--submit forwarded as the last argument" "--submit" "$(tail -n 1 "$ARGS_FILE")"
 
-# --- 3. Failure: exit status passes through, output stays secret-free -----------
 
 out=$(run SECRET_PW="$SENTINEL" STUB_EXIT=3 bash "$SCRIPT" flow e2 SECRET_PW)
 assert_eq "failure: playwright-cli exit status returned" 3 "$?"
 assert_not_contains "failure: no secret in output" "$out" "$SENTINEL"
 assert_contains "failure: reports the failure" "$out" "failed (exit 3)"
 
-# --- 4. Unset or empty variable: refused before playwright-cli runs --------------
 
 out=$(run SECRET_PW= bash "$SCRIPT" flow e2 SECRET_PW)
 assert_eq "empty variable: exit 2" 2 "$?"
@@ -104,7 +100,6 @@ else
   pass "script-internal name: playwright-cli not run"
 fi
 
-# --- 5. Usage errors ----------------------------------------------------------------
 
 run bash "$SCRIPT" flow e2 >/dev/null
 assert_eq "too few arguments: exit 2" 2 "$?"

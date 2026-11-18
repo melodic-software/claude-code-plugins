@@ -136,7 +136,6 @@ export async function runTranscriptCli(argv) {
           transcriptStrategy: primaryTranscript?.strategy ?? null,
           transcriptDegradation: written.transcriptDegradation,
           videoDownloaded: envelope.entries.some((entry) => Boolean(entry.mediaPath)),
-          // In-process callers read `cues`; the CLI's stdout leaves them out.
           transcripts: written.transcripts.map(({ cues, ...row }) => row),
         },
         null,

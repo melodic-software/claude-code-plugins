@@ -328,8 +328,6 @@ export function findNextPhase(phases) {
   return null;
 }
 
-// C0/C1 controls plus the Unicode line and paragraph separators: anything that could
-// start a new line in the rendered prompt.
 const LINE_BREAKING_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 
 /**
@@ -566,7 +564,6 @@ export async function runClose(
   }
 
   if (state.status === "complete") {
-    // Repairs the README of a slice closed before close wrote its status.
     await markReadmeComplete(sliceDir, readFile, writeFile);
     writeStdout("close: status already complete, no-op\n");
     return 0;

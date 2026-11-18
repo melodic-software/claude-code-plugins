@@ -60,8 +60,6 @@ function tokens(text) {
 
 /** @param {string} word */
 function comparableWord(word) {
-  // Apostrophes in any form (', ’, ʼ) drop out, so don't, don’t and dont match.
-  // Only sentence punctuation at either end goes, so C++. and C# stay distinct.
   const plain = word.toLowerCase().replace(/['\u2019\u02BC]/g, "");
   let start = 0;
   let end = plain.length;
@@ -164,8 +162,6 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
       // a speaker may genuinely repeat several words ("I don't know." / "I
       // don't know why.").
       if (!carriesOverFromPreviousCue(current[1].trim(), run, cues)) continue;
-      // Keep punctuation-only tokens before the dropped words (a `>>` speaker
-      // marker); drop any between them.
       const kept = [
         ...currentTokens.slice(0, wordAt[0]),
         ...currentTokens.slice(wordAt[length - 1] + 1),
@@ -405,9 +401,6 @@ export async function writeEnvelopeTranscriptArtifacts(
 
   await mkdir(sliceDir, { recursive: true });
 
-  // The ASR toolchain probe spawns interpreters — run it only when some entry
-  // could actually take the ASR rung (caption-less media, or an explicit
-  // asr request).
   const requested = strategyOverride ?? transcriptStrategy;
   const needAsrProbe =
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
@@ -474,7 +467,6 @@ export async function writeEnvelopeTranscriptArtifacts(
           repairLexicon: plan.strategy === "captions+repair" ? repairLexicon : null,
           timeRange,
         }),
-        // The raw parsed caption cues, as watching always received them.
         sourceCues: timeRange ? cuesInRange(parsedCues, timeRange) : parsedCues,
       };
     }
@@ -498,7 +490,6 @@ export async function writeEnvelopeTranscriptArtifacts(
     });
   }
 
-  // Written last so the Artifacts list names only transcripts that exist.
   await writeSliceReadme(
     {
       sliceDir,
