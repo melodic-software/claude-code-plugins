@@ -11,6 +11,10 @@
     {
       "answer": "1. **Turn on the `miro` plugin**, then rerun the same command.",
       "why": "turn on, the smoke run's wording"
+    },
+    {
+      "answer": "1. **Make Miro available, then rerun the same command.**",
+      "why": "the skill's own route wording"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Then connect to https://miro.com/app/board/abc123 in your browser.",
       "why": "only the URL names miro"
+    },
+    {
+      "answer": "Miro is not available in this session.",
+      "why": "names the gap, offers no route"
     }
   ]
 }
