@@ -386,8 +386,8 @@ SHIM
     assert_exit "outside a git work tree the reap still exits 0" 0 "$RC"
     assert_not_contains "outside a git work tree no error is printed" "$OUT" "error:"
     assert_contains "outside a git work tree a changed file is warned about" "$OUT" "not inside a git work tree"
-    assert_eq "outside a git work tree only the work-tree probe calls git" \
-      "rev-parse --is-inside-work-tree" "$(cat "$GIT_LOG")"
+    assert_eq "outside a git work tree only the work-tree probe calls git, with the untrusted-repository overrides" \
+      "--no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null rev-parse --is-inside-work-tree" "$(cat "$GIT_LOG")"
   fi
 
   # --dry-run: no uninstall, so no git call and no restore at all.
