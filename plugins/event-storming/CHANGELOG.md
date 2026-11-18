@@ -3,6 +3,13 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-18
+
+### Changed
+
+- The Miro backend reference drops the restated sticky height from its spacing and legend-frame rules and points at Miro's Create frame page for the frame position origin; the spacing values stay as they are.
+- The methodology skill drops the written-percentage figure for Design-Level, the simulation evaluation drops its "Book %" column and defines its coverage footnote once, and the simulation skill gives the reason it reads run state with the Read tool rather than a shell.
+
 ## [0.9.1] - 2026-11-18
 
 ### Fixed
