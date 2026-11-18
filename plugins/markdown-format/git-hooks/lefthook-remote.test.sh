@@ -32,4 +32,21 @@ git -C "$REPO" add d.md
 lr_commit clean
 lr_expect_pass "a clean file passes"
 
+printf 'pre-commit:\n  parallel: true\n' >>"$REPO/lefthook.yml"
+git -C "$REPO" add lefthook.yml
+lr_commit parallel
+lr_expect_pass "parallel: true: a commit of the consumer config passes"
+expect "parallel: true: the consumer's merged pre-commit sets it" yes "$(cd "$REPO" && lefthook dump 2>/dev/null | grep -q 'parallel: true' && echo yes)"
+
+printf '# P\n\nparallel   \n' >"$REPO/p.md"
+git -C "$REPO" add p.md
+lr_commit parallel-format
+lr_expect_pass "parallel: true: a finding format fixes does not block"
+expect "parallel: true: the committed file is the formatted one" $'# P\n\nparallel' "$(git -C "$REPO" show HEAD:p.md)"
+
+printf '# Q\n\n<b>x</b>\n' >"$REPO/q.md"
+git -C "$REPO" add q.md
+lr_commit parallel-lint
+lr_expect_block "parallel: true: a finding format cannot fix still blocks" markdown-format-remote-lint 'q\.md:3: MD033/no-inline-html'
+
 lr_done

@@ -34,6 +34,43 @@ LR_JOBS="$(awk '
   /^ *- name: / { name = $3 }
   /^ *script: / { print event, name, $2 }
 ' "$CONFIG")"
+LR_GROUPS="$(awk '
+  /^    - name: / { group = $3 }
+  /^          - name: / { print $3, group }
+' "$CONFIG")"
+
+lr_group() {
+  awk -v j="$1" '$1 == j { print $2 }' <<<"$LR_GROUPS"
+}
+
+lr_names_skip() {
+  local group
+  group="$(lr_group "$2")"
+  if [[ -n "$group" ]]; then
+    grep -qx "    - name: $group" <<<"$1" && grep -qx '      group:' <<<"$1" && grep -qx '        jobs:' <<<"$1" &&
+      grep -qx "          - name: $2" <<<"$1" && grep -qx '            skip: true' <<<"$1"
+  else
+    grep -qx "    - name: $2" <<<"$1" && grep -qx '      skip: true' <<<"$1"
+  fi
+}
+
+lr_skip_file() {
+  local event=$1 job group nested seen=" "
+  shift
+  printf '%s:\n  jobs:\n' "$event"
+  for job in "$@"; do
+    group="$(lr_group "$job")"
+    if [[ -z "$group" ]]; then
+      printf '    - name: %s\n      skip: true\n' "$job"
+    elif [[ "$seen" != *" $group "* ]]; then
+      seen+="$group "
+      printf '    - name: %s\n      group:\n        jobs:\n' "$group"
+      for nested in "$@"; do
+        [[ "$(lr_group "$nested")" == "$group" ]] && printf '          - name: %s\n            skip: true\n' "$nested"
+      done
+    fi
+  done
+}
 
 lr_static() {
   local event name script wrapper line target guard root out win entry rc
@@ -78,7 +115,7 @@ lr_static() {
       expect "$name: a failing entry fails the job with the entry's output alone, naming no skip" "1:ran bad" "$rc:$out"
     else
       expect "$name: a failing entry fails the job and names the per-clone skip" "1|ran bad|yes" \
-        "$rc|$(head -n 1 <<<"$out")|$(grep -q "^$name failed (exit 1)" <<<"$out" && grep -qx "$event:" <<<"$out" && grep -qx "    - name: $name" <<<"$out" && grep -qx '      skip: true' <<<"$out" && echo yes)"
+        "$rc|$(head -n 1 <<<"$out")|$(grep -q "^$name failed (exit 1)" <<<"$out" && grep -qx "$event:" <<<"$out" && lr_names_skip "$out" "$name" && echo yes)"
     fi
     win="$guard/git\\info\\lefthook-remotes\\r\\.lefthook\\$event\\$script"
     cp "$wrapper" "$win"
@@ -177,7 +214,7 @@ lr_push() {
 
 lr_expect_block() {
   local got
-  got="$((LR_RC != 0))|$(grep -qE -- "$3" <<<"$LR_ERR" && echo yes)|$(grep -q "^$2 failed" <<<"$LR_ERR" && grep -qx "    - name: $2" <<<"$LR_ERR" && echo yes)"
+  got="$((LR_RC != 0))|$(grep -qE -- "$3" <<<"$LR_ERR" && echo yes)|$(grep -q "^$2 failed" <<<"$LR_ERR" && lr_names_skip "$LR_ERR" "$2" && echo yes)"
   expect "$1" "1|yes|yes" "$got"
   [[ "$got" == "1|yes|yes" ]] || printf '%s\n' "$LR_ERR" >&2
 }
@@ -188,7 +225,7 @@ lr_expect_pass() {
 }
 
 lr_skip() {
-  printf '%s:\n  jobs:\n    - name: %s\n      skip: true\n' "$1" "$2" >"$REPO/lefthook-local.yml"
+  lr_skip_file "$1" "$2" >"$REPO/lefthook-local.yml"
   grep -qx lefthook-local.yml "$REPO/.git/info/exclude" 2>/dev/null || echo lefthook-local.yml >>"$REPO/.git/info/exclude"
   if [[ "$3" == push ]]; then lr_push; else lr_commit "${LR_SKIP_MSG:-skipped}"; fi
   expect "$2: a lefthook-local.yml skip of the job lets the same $3 through" 0 "$LR_RC"
@@ -197,13 +234,9 @@ lr_skip() {
 }
 
 lr_skip_keeps() {
-  local job
   printf '%s' "$3" >"$REPO/$2"
   git -C "$REPO" add -- "$2"
-  {
-    printf 'pre-commit:\n  jobs:\n'
-    for job in "$1" ${4:+"$4"}; do printf '    - name: %s\n      skip: true\n' "$job"; done
-  } >"$REPO/lefthook-local.yml"
+  lr_skip_file pre-commit "$1" ${4:+"$4"} >"$REPO/lefthook-local.yml"
   grep -qx lefthook-local.yml "$REPO/.git/info/exclude" 2>/dev/null || echo lefthook-local.yml >>"$REPO/.git/info/exclude"
   lr_commit "${LR_SKIP_MSG:-skipped}"
   expect "$1: with the job skipped in lefthook-local.yml, $2 commits as staged" "0|$3" "$LR_RC|$(git -C "$REPO" show "HEAD:$2")
