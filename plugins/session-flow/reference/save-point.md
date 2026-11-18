@@ -605,7 +605,7 @@ applies, and with no goal the output starts at the `/clear` line):
 Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:
 
 ──────────────────────────────────────────────────────────
-Every call site of OrderReader uses the retry policy and `dotnet test` exits 0 with the cancellation edge cases covered.
+Every call site of OrderReader uses the retry policy and the project's test command exits 0 with the cancellation edge cases covered.
 Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 ──────────────────────────────────────────────────────────
 
