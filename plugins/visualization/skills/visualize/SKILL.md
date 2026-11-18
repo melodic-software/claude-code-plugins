@@ -83,7 +83,9 @@ form lives in [`context/code-shapes.md`](context/code-shapes.md); its paths and
 identifiers are placeholders.
 
 A diagram that will be committed to the repository (a doc, ADR or README) is Mermaid source, over
-any canvas or page, so it diffs and reviews as text.
+any canvas or page, so it diffs and reviews as text. The one exception is the `excalidraw-file`
+diagram target (Step 3): the person chose a diagram file they edit by hand, and that file is the
+diagram.
 
 When the form is a chart and a chart-craft/dataviz capability is enabled, invoke
 it for the craft (form heuristic, palette, mark specs); when it is not enabled,
@@ -193,31 +195,63 @@ service), so count a server as local only when the person says in this session t
 otherwise treat it as hosted and render locally.
 
 **Diagram target.** When the form is a diagram, resolve `diagram_target` (`auto`, `terminal`,
-`local-page`, `excalidraw` or `tldraw`) from the option `${user_config.diagram_target}` (empty, or an
-unsubstituted placeholder, is unset), then the `diagram_target` key of
-`docs/conventions/visualization.yaml`, then the same key of `visualization.local.yaml`, each later
-layer winning, else `auto`. Read the two files from the working tree only, under the same root rule
-as `hosted_canvas`; a value outside the five is named with its option or file, key and value, and
-that layer is dropped. Print one line with the value and its layer, such as
-`diagram_target: excalidraw (docs/conventions/visualization.local.yaml)`. `auto` is the behavior
-above. Run layer 2 first: a medium it resolves (the person's own setting) wins over any other value,
-which then decides where the diagram goes only when layer 2 resolves none, in place of layer 3. A
-layer 2 that cannot run resolves none. When
-a resolved medium overrides it, say so in one line, such as
-`diagram_target: local-page overridden by medium terminal`. An explicit
-medium argument still wins, and the committed-diagram rule (Step 2), the pull-request diff exception below
-and the mermaid gate still apply. `terminal` draws an inline fence, `local-page` a local HTML file,
-and `excalidraw` or `tldraw` that canvas server, only where the canvas rule above would draw on it.
-When the chosen target is unavailable (no such server connected, a surface that does not render
-it, or `hosted_canvas` forbids it), use `auto` and print this exact one-line form, never only a
-prose explanation:
+`local-page`, `excalidraw`, `tldraw` or `excalidraw-file`) from the option
+`${user_config.diagram_target}` (empty, or an unsubstituted placeholder, is unset), then the
+`diagram_target` key of `docs/conventions/visualization.yaml`, then the same key of
+`visualization.local.yaml`, each later layer winning, else `auto`. Read the two files from the
+working tree only, under the same root rule as `hosted_canvas`; a value outside the six is named
+with its option or file, key and value, and that layer is dropped. Print one line with the value
+and its layer, such as `diagram_target: excalidraw (docs/conventions/visualization.local.yaml)`.
+`auto` is the behavior above. Run layer 2 first: a medium it resolves (the person's own setting)
+wins over every target but `excalidraw-file`; any other target decides where the diagram goes only
+when layer 2 resolves none, in place of layer 3. A layer 2 that cannot run resolves none. When a
+resolved medium overrides it, say so in one line, such as
+`diagram_target: local-page overridden by medium terminal`. An explicit medium argument still
+wins, and the committed-diagram rule (Step 2), the pull-request diff exception below and the
+mermaid gate still apply. `terminal` draws an inline fence, `local-page` a local HTML file, and
+`excalidraw` or `tldraw` that canvas server, only where the canvas rule above would draw on it;
+`excalidraw-file` writes a file, below. When the chosen target is unavailable (no such server
+connected, a surface that does not render it, `hosted_canvas` forbids it, or a file target's step
+below fails), use `auto` and print this exact one-line form, never only a prose explanation:
 `diagram_target: excalidraw unavailable (no excalidraw server connected); using auto`.
+
+**The `excalidraw-file` target** writes the diagram as an Excalidraw file the person opens and
+edits in an editor. It is a file, not a canvas: the canvas rule and `hosted_canvas` do not gate it,
+it works in the Claude Code terminal, and nothing leaves the machine. A resolved medium does not
+override it. Three things do, and then the layers above decide: a medium named as the argument; a
+form the person names (a Mermaid diagram, a table, ASCII); and a calling skill that asks for the
+fenced form because the diagram goes into its own document. It draws flows, flowcharts, state
+diagrams and swim lanes; any other diagram keeps the layers above. A swim lane is one `frame`
+element per lane, named with the lane's label, holding its steps by their `frameId`. Give every
+element an id, a position, and a size (two or more points for an arrow or line); bind each label to
+its shape and each arrow to the shapes it joins. The element fields come from the format pointer in
+[the catalog's file-backed targets section](context/decision-matrix.md#file-backed-targets). Write
+it in this order:
+
+1. Take the repository root from `git -C <dir> rev-parse --show-toplevel`, `<dir>` being
+   `CLAUDE_PROJECT_DIR`, else the working directory. When git answers nothing, or the root is
+   `$HOME` or an ancestor of it, the target is unavailable:
+   `diagram_target: excalidraw-file unavailable (no repository); using auto`.
+2. Make a private run directory as under local-file placement below, and write the draft there as
+   `<echoed dir>/<name>.excalidraw`, `<name>` a short kebab-case name for the diagram
+   (`password-reset-flow`).
+3. Run `node "${CLAUDE_PLUGIN_ROOT}/lib/diagram-file-check.mjs" "<echoed dir>/<name>.excalidraw"`.
+   It prints one JSON line; exit 1 lists the `problems`: fix the draft and run it again. When it
+   still fails, or `node` is missing, write nothing into the repository and use auto, naming the
+   reason in the one-line form.
+4. When `<root>/docs/diagrams/<name>.excalidraw` already exists, ask before replacing it, with a new
+   name as the alternative. Under `--unattended`, replace nothing: the target is unavailable
+   (`<path> exists`).
+5. Write the checked content, unchanged, to `<root>/docs/diagrams/<name>.excalidraw`. Never stage
+   or commit it; the person decides. Report its absolute path and that it opens in an Excalidraw
+   editor (the catalog names one).
 
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
 one exception: a pull-request diff, fetched content, or another repository's files
-are never rendered to HTML until this lane is wired through the rendered-views escape helper. That exception overrides layer 1 and the
-preference; when a page was asked for, say in one line why it was not produced.
+are never rendered to HTML until this lane is wired through the rendered-views escape helper, and
+never written to a diagram file. That exception overrides layer 1, the preference and
+`diagram_target`; when a page or file was asked for, say in one line why it was not produced.
 
 **Page chrome.** When authoring a rich page, take the palette, type stacks,
 radii, and accessibility floor (link/focus contrast tokens, color-scheme and
@@ -231,7 +265,8 @@ that list for the rest of the session and render again. A general "avoid a gener
 look" only swaps one default for another.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
-primitive, never into the consumer's repository tree. On Unix/Linux/Git Bash,
+primitive, never into the consumer's repository tree (only the `excalidraw-file` target writes
+there). On Unix/Linux/Git Bash,
 create a private run directory and echo it in the same call,
 `d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"`, then write the
 page to `<echoed dir>/visualize.html`. Echo it in that call: the directory name
@@ -328,7 +363,7 @@ interrogate form by form; one question, then render.
   live once in [`context/decision-matrix.md`](context/decision-matrix.md). When the subject is a
   product UI, match that product's own colors, type, spacing, and components rather than the
   plugin chrome; use real labels and data; support desktop and mobile.
-- Report what you produced and, for a page, its path or link.
+- Report what you produced and, for a page or diagram file, its path or link.
 
 ## Next
 
@@ -347,6 +382,10 @@ It turns the material into a slide deck when the request is for slides rather th
   surface become a silent failure. Degrade visibly down the fallback chain.
 - **Canvas tools in the tool list are not a reason to use them.** In the Claude Code terminal,
   render locally even when an Excalidraw or tldraw server is connected (Step 3).
+- **The `excalidraw-file` target is not a canvas.** It needs no server, so an absent Excalidraw
+  server is no reason to fall back; only a missing repository, a failed structural check, or an
+  existing file you may not replace is. The file it leaves is untracked work in the person's
+  repository: report the path and leave staging to them.
 - **Craft is not this skill's job.** If you find yourself writing palette or axis
   guidance, stop and route to the chart-craft capability instead.
 - **Prefer a mermaid family known to render** on an Artifact page, or verify a
@@ -436,3 +475,4 @@ cases are probed behavior recorded in
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or the resolved medium does not publish**. It steps down the fallback chain.
 - **Does not ship or install a canvas server**. It uses one the person connected, under Step 3's canvas rule.
+- **Does not stage or commit a diagram file**. The `excalidraw-file` target leaves the file untracked for the person to review.
