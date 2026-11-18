@@ -89,6 +89,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"{ wc -l /plugin/notes-bridge/controls.js; } > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
       "why": "a redirect to a shell variable in a command that names no page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c uiFeedbackControls /plugin/notes-bridge/controls.js /tmp/explore-directions-a1B2c3/explore-directions.html > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "a read-only grep naming both files, redirected to a variable the command never sets to the page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\nLOG=/tmp/explore-directions-a1B2c3/count.txt\\ngrep -c uiFeedbackControls /plugin/notes-bridge/controls.js \\\"$OUT\\\" > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page is assigned to one variable but the redirect writes to another"
     }
   ]
 }
