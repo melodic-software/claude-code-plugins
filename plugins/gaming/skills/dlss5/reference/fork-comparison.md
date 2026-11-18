@@ -16,7 +16,7 @@ them.
 | SHA-256 | `5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561` | `3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8` |
 | Hash attestation | **Local copy only.** The release publishes no checksum, so the pin is the hash of a copy downloaded and used on the proving-ground machine | **Upstream.** Matches the release's own `OptiScaler-NR-v0.8.3.zip.sha256` sidecar byte for byte |
 | Extracted into `builds\` | `OptiScaler.dll`, `OptiScaler.ini`, `OptiScaler\`, `Licenses\`, `nvngx.dll_dlssnr.dll` | `OptiScaler.dll`, `OptiScaler.ini`, `OptiScaler\`, `Licenses\` |
-| Runtime forwarder | Ships `nvngx.dll_dlssnr.dll`, because the runtime refuses callers whose path lacks `nvngx.dll` | None since v0.8.1; dispatches through the installed NGX driver |
+| Runtime forwarder | Ships `nvngx.dll_dlssnr.dll`, the forwarder the runtime's caller gate requires (`reference/reversal-matrix.md`) | None since v0.8.1; dispatches through the installed NGX driver |
 | `OptiScaler.dll` signed | No | No |
 
 `provision` downloads the asset by that URL, refuses it on a hash mismatch, and extracts only the
@@ -24,10 +24,12 @@ listed entries. It never extracts `setup_windows.bat`, `setup_linux.sh`, the REA
 `docs\`, `tests\`, `images\`, `LICENSE`, `SHA256SUMS.txt`, or the zero-byte
 `!! EXTRACT ALL FILES TO GAME FOLDER !!` marker, so `builds\` never holds the interactive installer.
 
-**The Dagherbou pin is a prerelease.** GitHub's "Latest release" and `releases/latest` skip it and
-resolve to `v0.2.0-dlssnr`, an older release carrying `OptiScaler-DLSSNR-v0.2.0.zip`. That asset
-lacks the Onimusha fix. Any tooling that resolves "latest" gets the wrong build; take the pinned
-asset by name.
+**The Dagherbou pin is a prerelease, so take the pinned asset by name, never by "latest".** On
+Dagherbou's repo `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases/latest` returns `v0.2.0-dlssnr`, an older
+release whose `OptiScaler-DLSSNR-v0.2.0.zip` lacks the Onimusha fix.
+
+- **Pointer**: when checking which release a "latest" lookup returns, fetch
+  <https://docs.github.com/en/rest/releases/releases#get-the-latest-release> live.
 
 ## Why wilsjo2 is the default
 
@@ -43,11 +45,13 @@ driver 616.92, 4K, DLSS Quality:
   the pre-SR modes, which `reference/presets.md` allow-lists for this build. `Passes=2` measured
   15.2 to 15.5 ms, about twice the cost of one pass.
 
-It is also the maintained line: rebased onto current OptiScaler, releasing near daily, and the
-author of the open upstream merge PR (#1158).
+It is also the maintained line: it tracks current OptiScaler and still releases
+([releases page](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases)), and
+its author opened the upstream merge PR
+([#1158](https://github.com/optiscaler/OptiScaler/pull/1158)).
 
-Against it: almost every tag is a prerelease with self-declared limits ("no new full game-session
-validation ... is claimed"; `v0.8.91`: live game preview not performed). Issue #56, DEVICE_HUNG on
+Against it: most tags are prereleases whose own notes limit what they claim was validated (same
+releases page). Issue #56, DEVICE_HUNG on
 `v0.8.3`, is open with no maintainer reply and has been reported only on Onimusha; no release
 through `v0.8.91` claims a fix. From `v0.8.5` releases ship one
 `OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Profiles (from v0.8.5) add
@@ -66,10 +70,11 @@ Dagherbou is known to work there.
 
 Against it:
 
-- The author announced a hiatus on 2026-09-05 (Discussion #28). No commit has landed since, and the
-  open issues get no answers.
-- Issue #43: a regression introduced by patch1 on the Vulkan interop path (0.1.1.5 works, patch1
-  crashes on save load). It does not bind DX12 titles, and it will not be fixed.
+- The author announced a hiatus on 2026-09-05
+  ([Discussion #28](https://github.com/Dagherbou/OptiScaler_DLSSNR/discussions/28)). No commit has
+  landed since, and the open issues get no answers.
+- Issue #43, a patch1 regression on the Vulkan interop path that crashes on save load, binds no
+  DX12 title, and it will not be fixed.
 - A preset that sets a wilsjo2-only key is refused on this build.
 
 To switch a game: `capture` its tuning if wanted, `remove`, then `/gaming:setup apply` (it
@@ -91,6 +96,7 @@ build: `reference/upstream-watch.md`, Updating a pin.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | `v0.2.0-patch1` is Dagherbou's newest release and is a prerelease | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases` | 2026-09-22 | A new Dagherbou tag |
+| Dagherbou `releases/latest` resolves to `v0.2.0-dlssnr`, asset `OptiScaler-DLSSNR-v0.2.0.zip` | `https://api.github.com/repos/Dagherbou/OptiScaler_DLSSNR/releases/latest` | 2026-11-17 | A new non-prerelease Dagherbou tag |
 | Dagherbou: no commit since the 2026-09-05 hiatus, no maintainer reply on any issue since | `gh api repos/Dagherbou/OptiScaler_DLSSNR/commits`, its open issues and `issues/comments?since=2026-09-05` | 2026-11-15 | A new Dagherbou commit or a maintainer comment |
 | `v0.8.3` is wilsjo2's newest non-prerelease; prereleases run to `v0.8.91`; `SHA256SUMS.txt` from `v0.8.5` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases` | 2026-09-23 | wilsjo2 marks a newer tag non-prerelease |
 | wilsjo2 #56 open, no maintainer reply, no release claims a fix | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/issues/56` and its comments; release notes `v0.8.4` to `v0.8.91` | 2026-09-23 | A maintainer reply, or a release that names #56 |
