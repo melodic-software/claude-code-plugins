@@ -146,7 +146,7 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
 - status line session id | [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 - status line cost | \$[ \t]*[0-9]
-- status line limit | \b(?:5h|7d|spend)\b[: \t]*[$0-9]
+- status line limit | (?<![a-z0-9])(?:5h|7d|spend)(?=[: \t]*[0-9$])
 
 The status line rows are the person's own status line command, shown under `--real-setup`; their
 shapes follow the session, cost and rate-limit fields of
