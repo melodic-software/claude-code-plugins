@@ -70,6 +70,13 @@ remote config later reaches the repository with no change there, and nothing is 
 refreshed in it. Each clone still runs `lefthook install` once. A repository whose entry lists
 per-plugin configs replaces them with the root file.
 
+Because the root file turns on every plugin's jobs, whichever plugin's setup runs the plan, the
+plan's `aggregate.plugins` lists the plugins it enables, and its `missing-tool`, `declined` and
+`migrate` decisions cover all of their entries, each naming its `plugin` when it is not the
+plugin running the plan. `verify` adds a `tool\t<tool>\tmissing\t<plugin>-<entry>` line for each
+of their entries whose tool is absent. Both read the plugins from the fetched copy of the remote,
+else from the repository the running plugin sits in.
+
 Pointer: lefthook's [`remotes`](https://lefthook.dev/configuration/remotes/) and
 [`extends`](https://lefthook.dev/configuration/extends/) pages; lefthook resolves a remote config's
 `extends` against that config's directory
