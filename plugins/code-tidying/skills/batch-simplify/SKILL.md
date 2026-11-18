@@ -2,7 +2,7 @@
 description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, a branch, or the whole repository, grouped by ecosystem in dependency order. Use when asked to 'batch simplify' or simplify recent changes, to catch up on simplify after a multi-session sprint, or to sweep a branch, directory or repo."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]"
+argument-hint: "[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place…] [--repo <repo> ...]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
@@ -48,7 +48,7 @@ Outside-scope changes: none | <paths>
 **`--unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
 block records `State: skipped (unattended)` without asking.
 
-**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
+**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place…] [--repo <repo> ...]`, in full `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]] [--repo <repo> ...]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
 
 ## Repository context. Gather first
 
@@ -101,6 +101,8 @@ Decide the scope **before** testing any token as a path, never after. Stripping 
 ### Mode 3: Whole repository
 
 Trigger: the remaining argument, lowercased and whitespace-normalized, **equals** `repo`. Sweeps every non-excluded file in the repository rather than a diff, including untracked files that are not ignored, so newly added work is swept too. Explicit entry only: it never auto-escalates from another mode, and it confirms the inventory with the user after Phase 4, once grouping and wave planning have produced the numbers that gate reports, and before any group is dispatched. A trailing path narrows the sweep (see **Narrowing to a path**) without changing any of the above, the confirmation gate still fires, on the narrowed inventory. Repo-scale machinery, grouping, waves, concurrency, resume, delivery, lives in [context/repo-mode.md](context/repo-mode.md), loaded only when this mode fires.
+
+**Several repositories.** Repo mode sweeps this repository unless `--repo` or another target form of [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) names others; those resolve, fan out and merge as that file says. Strip each target form and its value, token-wise like `docs`, before the detection heuristic reads the scope. Each repository runs this whole mode in its own worktree, inventory confirmation included, keeps its checklist and run state in its own working-notes location, and ships its own pull request. The time-window and branch modes describe one repository's history, and `in-place` works on one repository's current branch, so a target form with either stops and names `repo`.
 
 ### Narrowing to a path
 

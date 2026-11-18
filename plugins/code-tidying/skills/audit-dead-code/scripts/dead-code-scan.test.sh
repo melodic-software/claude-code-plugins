@@ -513,6 +513,13 @@ assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findin
 # The referenced control: main is called literally, so a literal search saves it.
 assert_not_contains "the literally called function is not a candidate" "$grep_out" "Finding excerpt: main() {"
 
+# --root scans the named repository from any working directory, with the same
+# report a run from inside it gives.
+root_exit=0
+root_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$SH_REPO" 2>/dev/null)" || root_exit=$?
+assert_exit "--root scan exits 0" 0 "$root_exit"
+assert_equal "--root gives the in-repository report" "$grep_out" "$root_out"
+
 # --- 6. Record protocol shape ------------------------------------------------------
 # The `Finding …:` prefixes are a contract with the SKILL.md body's grep. Exact
 # spelling is asserted here so a rename cannot pass silently.
@@ -580,6 +587,10 @@ assert_exit "non-numeric --max exits 2" 2 "$badmax_exit"
 missingval_exit=0
 timeout 30 bash "$SCAN" --lane >/dev/null 2>&1 || missingval_exit=$?
 assert_exit "--lane with no value exits 2" 2 "$missingval_exit"
+
+badroot_exit=0
+bash "$SCAN" --root "$TEST_TMPDIR/no-such-dir" >/dev/null 2>&1 || badroot_exit=$?
+assert_exit "--root that is not a directory exits 2" 2 "$badroot_exit"
 
 # --- 9. scanned-zero-files is distinguishable from clean ---------------------------
 # Both are what a detector otherwise reports as exit 0 with no output. One means

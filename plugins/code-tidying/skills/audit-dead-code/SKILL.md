@@ -1,6 +1,6 @@
 ---
 description: "Read-only hunt for dead and unused code across four labeled lanes (Knip for TS/JS, vulture for Python, gopls for Go, grep for shell, C# and files no lane owns), each candidate adjudicated dead, uncertain or alive. Use when asked to 'find dead code', 'find the dead code and delete it', 'remove unused code', to find what is unused in a repository (exports, functions, orphaned files), or whether anything still calls a symbol. A find-and-delete request starts here: this skill finds and reports, and deleting what it finds is /code-tidying:tidy."
-argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
+argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh:*)", "Bash(git grep:*)", "Bash(git log:*)", "Bash(grep:*)"]
@@ -72,6 +72,7 @@ A consumer's own `CLAUDE.md` or rules may refine these defaults.
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh                      # whole repo, every lane
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --max 20             # cap the adjudication set
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --lane grep src/     # one lane, scoped candidates
+${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --root ../api        # another clone, from its root
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --help               # usage and exit codes
 ```
 
@@ -79,6 +80,15 @@ Exit is 0 on every scan path and 2 only on a usage error; no detector's exit cod
 Present the `Lane:` lines with the findings: they make a clean report a claim rather than an
 absence. A `target` narrows which files *produce* candidates; the reference search stays
 repository-wide, because a reference from anywhere saves a symbol.
+
+**Several repositories.** The scan covers this repository unless `--repo` or another target form
+of [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) names
+others. Strip each target form and its value before reading `target`. Those repositories resolve, fan out and merge as that file says, and each runs
+`dead-code-scan.sh --root <clone>`: the script then scans that clone, and its reference search
+stays inside the clone. This read-only skill differs from the file's "Read state" rule in one way:
+it scans the clone's checked-out tree, since reading `origin/HEAD` would mean writing a worktree.
+Each repository's section names the branch and commit it scanned and whether the tree was dirty.
+The consent gate takes one go-ahead on every repository's candidate count, listed per repository.
 
 ## Run states. Five, not two
 

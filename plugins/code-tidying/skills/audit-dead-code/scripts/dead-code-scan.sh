@@ -11,7 +11,8 @@
 #      audit must never fail its caller, so -e is omitted and no detector's
 #      exit code is ever propagated.
 #   2  usage error: unknown argument, missing option value, non-numeric --max,
-#      unknown --lane, or an unusable temp directory.
+#      unknown --lane, a --root that is not a directory, or an unusable temp
+#      directory.
 #
 # Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
 # findings and hard errors; vulture exits 3 for findings and 1 for an input
@@ -43,6 +44,7 @@ dc_anchor_path() {
 
 MAX=0
 LANE_SEL='all'
+ROOT_DIR=''
 TARGETS=()
 
 usage() {
@@ -53,7 +55,11 @@ Usage:
   dead-code-scan.sh [target]...
   dead-code-scan.sh --max <n> [target]...
   dead-code-scan.sh --lane <knip|vulture|gopls|grep|all> [target]...
+  dead-code-scan.sh --root <dir> [target]...
   dead-code-scan.sh --help
+
+--root <dir> scans the repository that holds <dir> instead of the one that
+holds the working directory, and relative targets resolve against <dir>.
 
 Candidate scope is the given targets (default: the whole repository). The
 reference search is always repository-wide — a reference from anywhere still
@@ -87,6 +93,11 @@ while [[ $# -gt 0 ]]; do
   --lane)
     require_opt_value "$@"
     LANE_SEL="$2"
+    shift 2
+    ;;
+  --root)
+    require_opt_value "$@"
+    ROOT_DIR="$2"
     shift 2
     ;;
   -h | --help)
@@ -124,20 +135,26 @@ all | knip | vulture | gopls | grep) ;;
   ;;
 esac
 
+if [[ -n "$ROOT_DIR" ]]; then
+  if ! INVOCATION_CWD="$(CDPATH='' cd -- "$ROOT_DIR" 2>/dev/null && pwd)"; then
+    echo "dead-code-scan.sh: --root is not a directory: $ROOT_DIR" >&2
+    exit 2
+  fi
+fi
+
 # Anchor caller-supplied paths BEFORE the cd, or they resolve against the repo
 # root instead and silently miss.
 for target_idx in "${!TARGETS[@]}"; do
   TARGETS[target_idx]="$(dc_anchor_path "${TARGETS[target_idx]}")"
 done
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+REPO_ROOT="$(git -C "$INVOCATION_CWD" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 GIT_OK=1
-if [[ -n "$REPO_ROOT" ]]; then
-  cd "$REPO_ROOT" 2>/dev/null || true
-else
+if [[ -z "$REPO_ROOT" ]]; then
   GIT_OK=0
   REPO_ROOT="$INVOCATION_CWD"
 fi
+cd "$REPO_ROOT" 2>/dev/null || true
 
 WORK="$(mktemp -d)" || {
   echo "dead-code-scan.sh: could not create a temp directory" >&2
