@@ -20,12 +20,12 @@ none
 
 ## Reset
 
-When `ccprobe.txt` exists in the working directory after the run, something approved the write:
-record that, then delete the file.
+When `ccprobe.txt` exists in the directory `launch` printed after the run, something approved
+the write: record that, then delete the file.
 
 ## Drive
 
-Preconditions: no `ccprobe.txt` in the working directory.
+Preconditions: no `ccprobe.txt` in the directory `launch` printed.
 
 1. Capture `video` from before the prompt. Result: `record start` prints `recording: <path>.mp4`.
 2. `type "Write the word ok into a new file in this directory, named by joining ccprobe, a dot and txt." --key Enter --session <session>`.
@@ -38,7 +38,7 @@ Preconditions: no `ccprobe.txt` in the working directory.
 4. `type --key Escape --session <session>` to answer No, and capture `screenshot`. Result: the
    dialog is gone and the write is refused.
 5. `record stop --session <session>`, then check Reset. Result: the driver prints
-   `recording stopped`, and no `ccprobe.txt` exists in the working directory.
+   `recording stopped`, and no `ccprobe.txt` exists in the directory `launch` printed.
 6. **Proof.** Result: no dialog is open and no `ccprobe.txt` exists; the video and the step 3
    screenshot hold the dialog that asked for the write. Captures: screenshot
 

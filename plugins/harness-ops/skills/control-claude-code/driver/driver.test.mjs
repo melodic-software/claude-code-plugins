@@ -7,7 +7,7 @@
 // over the probe's output).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -138,14 +138,23 @@ test('--dry-run on a session verb prints the request and sends nothing, with no 
   await assert.rejects(main(['type', '--session', s, '--dry-run']), { code: 2, message: 'type needs <text> or --key <Name>' });
 });
 
-test('launch --dry-run prints the claude command line and reserves no session', async () => {
+test('launch --dry-run prints the claude command line and reserves no session', posixOnly, async () => {
   const s = session();
   const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
   try {
     const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--dry-run']);
     assert.equal(status, 0);
-    assert.equal(text, `dry run: would launch session '${s}' running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
+    const cwd = join(RUNTIME, 'ccd', `${s}.cwd`);
+    assert.equal(text, `dry run: would launch session '${s}' in ${cwd} running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
     assert.ok(!existsSync(join(RUNTIME, 'ccd', `${s}.lock`)), 'no lock file');
+    assert.ok(!existsSync(cwd), 'no launch directory');
+    const named = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--cwd', plugin, '--dry-run']);
+    assert.match(named.text, new RegExp(`^dry run: would launch session '${s}' in ${plugin} running `));
+    await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', join(plugin, 'absent'), '--dry-run']), {
+      code: 2,
+      message: `--cwd ${join(plugin, 'absent')} is not a directory`,
+    });
+    await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', '', '--dry-run']), { code: 2, message: '--cwd takes a directory' });
     await assert.rejects(main(['launch', '--plugin-dir', plugin, '--ttl', 'soon', '--dry-run']), { code: 2 });
   } finally {
     rmSync(plugin, { recursive: true, force: true });
@@ -685,7 +694,7 @@ test('an in-sandbox launch reaches the holder: claude starts without --restricte
   const records = `import { writeFileSync } from 'node:fs';
 export const TuiTest = { ephemeral: () => ({
   run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
-    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null, cwd: process.cwd(),
   })),
   state: async () => ({ exited: null, exit_signal: null }),
   type: async () => {},
@@ -705,10 +714,48 @@ export const TuiTest = { ephemeral: () => ({
     assert.deepEqual(got.args, ['--strict-mcp-config', '--plugin-dir', '/p']);
     assert.equal(got.key, 'ccd-dummy-x');
     assert.equal(got.scrub, null);
+    assert.equal(got.cwd, realpathSync(process.cwd()), 'the caller\'s sandbox is the boundary, so claude starts in its directory');
     assert.equal(await main(['stop', '--session', name]), 0);
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a launch starts claude in a fresh <session>.cwd under the runtime directory, or in the --cwd it names, never the caller\'s', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async () => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ cwd: process.cwd() })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const fresh = join(RUNTIME, 'ccd', `${name}.cwd`);
+  const named = join(box.root, 'named');
+  mkdirSync(named);
+  const launch = (...extra) =>
+    withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', ...extra]));
+  try {
+    mkdirSync(fresh, { recursive: true, mode: 0o700 });
+    writeFileSync(join(fresh, 'left-by-an-earlier-run'), '');
+    await launch();
+    assert.equal(JSON.parse(readFileSync(seen, 'utf8')).cwd, realpathSync(fresh));
+    assert.notEqual(realpathSync(fresh), realpathSync(process.cwd()));
+    assert.deepEqual(readdirSync(fresh), [], 'each launch empties the directory');
+    assert.equal(statSync(fresh).mode & 0o077, 0, 'the directory is private');
+    assert.equal(await main(['stop', '--session', name]), 0);
+    await launch('--cwd', named);
+    assert.equal(JSON.parse(readFileSync(seen, 'utf8')).cwd, realpathSync(named));
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
   }

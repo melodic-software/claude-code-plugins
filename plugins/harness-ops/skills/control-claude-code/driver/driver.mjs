@@ -54,6 +54,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -973,6 +974,24 @@ async function serve(opts) {
   server.listen(sock);
 }
 
+/**
+ * The directory claude starts in: the one --cwd names; under --in-sandbox the caller's own, since
+ * the caller's sandbox is the boundary; else `<session>.cwd` in the runtime directory, which
+ * `launch` empties and makes private each time (`fresh`), so a driven session never starts in the
+ * caller's checkout.
+ */
+export function launchCwd(opts) {
+  if (opts.cwd !== undefined) {
+    if (!opts.cwd) throw new UsageError('--cwd takes a directory');
+    const dir = resolve(opts.cwd);
+    if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new UsageError(`--cwd ${dir} is not a directory`);
+    return { dir, fresh: false };
+  }
+  if (opts['in-sandbox']) return { dir: process.cwd(), fresh: false };
+  checkSession(opts.session);
+  return { dir: join(runtimeDir(process.platform), `${opts.session}.cwd`), fresh: true };
+}
+
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   const config = launchConfig(opts, pluginDir);
@@ -980,10 +999,11 @@ async function launch(opts) {
   if (!WHOLE.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
+  const cwd = launchCwd(opts);
   if (opts['dry-run']) {
     checkSession(opts.session);
     depsBase(opts['deps-dir'], false);
-    return `dry run: would launch session '${opts.session}' running ${argv.join(' ')}; started nothing`;
+    return `dry run: would launch session '${opts.session}' in ${cwd.dir} running ${argv.join(' ')}; started nothing`;
   }
   // Everything from here on, the pipe name and the log included, happens under the reservation.
   const lock = reserve(opts.session);
@@ -999,6 +1019,10 @@ async function launch(opts) {
     }
     install = ensureInstalled(opts['deps-dir']);
     const { dir } = endpoint(opts.session, process.platform, { fresh: true });
+    if (cwd.fresh) {
+      rmSync(cwd.dir, { recursive: true, force: true });
+      privateDir(cwd.dir);
+    }
     log = join(dir, `${opts.session}.log`);
     const fd = openSync(log, 'w', 0o600);
     try {
@@ -1012,13 +1036,13 @@ async function launch(opts) {
           '--plugin-dir',
           pluginDir,
           '--install',
-          install,
+          resolve(install),
           '--ttl',
           opts.ttl,
           ...(config.unattended ? ['--unattended'] : []),
           ...(config.inSandbox ? ['--in-sandbox'] : []),
         ],
-        { detached: true, stdio: ['ignore', fd, fd], env },
+        { cwd: cwd.dir, detached: true, stdio: ['ignore', fd, fd], env },
       );
     } finally {
       closeSync(fd);
@@ -1037,7 +1061,7 @@ async function launch(opts) {
   for (const deadline = Date.now() + 30_000; Date.now() < deadline && !exited; ) {
     try {
       await request(opts.session, 'ping');
-      return `launched session '${opts.session}' (holder pid ${holder.pid}, log ${log})`;
+      return `launched session '${opts.session}' in ${cwd.dir} (holder pid ${holder.pid}, log ${log})`;
     } catch {
       await sleep(250);
     }
@@ -1385,6 +1409,7 @@ const OPTIONS = {
   session: { type: 'string', default: 'default' },
   'plugin-dir': { type: 'string' },
   'deps-dir': { type: 'string' },
+  cwd: { type: 'string' },
   install: { type: 'string' },
   ttl: { type: 'string', default: '3600' },
   timeout: { type: 'string' },
@@ -1405,9 +1430,9 @@ const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox]';
  */
 export const HELP = {
   launch: {
-    usage: `--plugin-dir <dir> ${SESSION_OPT} [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
+    usage: `--plugin-dir <dir> ${SESSION_OPT} [--cwd <dir>] [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
     brief: 'Starts Claude Code with the plugin loaded, held by a detached session holder.',
-    more: 'Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop.',
+    more: 'Claude Code starts in --cwd, under --in-sandbox in the caller\'s directory, else in <session>.cwd under the runtime directory, emptied on each launch. Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop.',
     writes: true,
   },
   'wait-for': { usage: `<text> [--timeout <ms>] ${SESSION_OPT}`, brief: 'Waits until the session screen shows <text>; reads only.' },
