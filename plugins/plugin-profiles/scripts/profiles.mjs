@@ -336,7 +336,23 @@ function prepare(opts, where, catalog, records) {
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
-const ALWAYS_ON_OFF = "Keeps no always-on plugin on, so guardrails and the other always-on plugins are off";
+const KEPT_BECAUSE = {
+  profile: "this profile switches it on",
+  repository: "the repository's settings enable it",
+  managed: "managed settings pin it",
+  folder: "folder settings pin it",
+};
+
+/** What a profile that leaves out always-on says about the always-on plugins: which go off, and which stay on and why. */
+function alwaysOnLines(r) {
+  const guardrailsOff = r.alwaysOnOff.some((id) => id.startsWith("guardrails@"));
+  return [
+    ...(r.alwaysOnOff.length
+      ? [`Switches off ${guardrailsOff ? "guardrails and the other always-on plugins" : "always-on plugins"} that other profiles keep on (${r.alwaysOnOff.length}): ${list(r.alwaysOnOff)}`]
+      : []),
+    ...r.alwaysOnKept.map((k) => `Always-on plugin left on, because ${KEPT_BECAUSE[k.by]}: ${k.id}`),
+  ];
+}
 
 /**
  * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
@@ -351,7 +367,7 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
     `Switches on (${r.enabled.length}): ${list(on)}`,
     `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
   ];
-  if (r.alwaysOnOff.length) lines.push(`${ALWAYS_ON_OFF} (${r.alwaysOnOff.length}): ${list(r.alwaysOnOff)}`);
+  lines.push(...alwaysOnLines(r));
   const left = Object.keys(p.pending);
   if (left.length) {
     const named = left.filter((id) => r.disabled.includes(id));
@@ -389,6 +405,7 @@ const previewJson = (p, gate, upToDate, others) => ({
   mcpOrLspOn: p.plan.mcpOrLspOn,
   hookPluginsOff: p.plan.hookPluginsOff,
   alwaysOnOff: p.plan.alwaysOnOff,
+  alwaysOnKept: p.plan.alwaysOnKept,
   prerequisitesMissing: gate.map((g) => g.plugin),
   ignored: p.plan.ignored,
   repositoryOn: p.plan.repositoryOn,
@@ -548,7 +565,10 @@ function profileGate(name, opts, where, env, verb) {
     p.plan.enabled.map((id) => p.inv.get(id)),
     { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
   );
-  const lines = previewLines(p, gate).filter((line) => ["Missing required prerequisite", "Not installed", ALWAYS_ON_OFF].some((start) => line.startsWith(start)));
+  const lines = [
+    ...alwaysOnLines(p.plan),
+    ...previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed")),
+  ];
   if (gate.length && opts.unattended) throw new NotApplied(`not ${verb}: profile ${name} switches on a plugin missing a required prerequisite, and nobody is there to decide.\n${lines.join("\n")}`);
   return { p, gate, lines };
 }

@@ -68,7 +68,7 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   one session started with the `claude --settings` command the tool prints. Run `list` first when
   the name is unknown. `native` is Claude Code as it ships: it switches guardrails and every other
   plugin of these marketplaces off and keeps only this plugin on; before that apply, point the user
-  to the preview line naming the always-on plugins it leaves off. To switch inside this session,
+  to the preview lines naming the always-on plugins it switches off and any it leaves on. To switch inside this session,
   tell the user to run `/plugin-profile`; when
   an apply takes effect is in
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).

@@ -1411,7 +1411,7 @@ test("#16893: a one-session file names every plugin and skill entry any folder p
   }
 });
 
-const ALWAYS_ON_OFF = /^Keeps no always-on plugin on, so guardrails and the other always-on plugins are off \(\d+\): .*guardrails@melodic-software/m;
+const ALWAYS_ON_OFF = /^Switches off guardrails and the other always-on plugins that other profiles keep on \(\d+\): .*guardrails@melodic-software/m;
 
 test("#17038: start native --dry-run plans every governed plugin off but the switcher, and its preview names guardrails as off", () => {
   const w = world();
@@ -1434,6 +1434,25 @@ test("#17038: the folder preview of native says guardrails and the other always-
   assert.deepEqual(JSON.parse(w.run(["apply", "build", "--for", "folder", "--dry-run", "--json"]).stdout).alwaysOnOff, []);
 });
 
+test("#17038: native in a repository whose settings enable guardrails says guardrails stays on and why, and never that it is off", () => {
+  const w = world();
+  writeTree(w.project, { ".claude/settings.json": { enabledPlugins: { [`guardrails@${M}`]: true } } });
+  const preview = JSON.parse(w.run(["apply", "native", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.ok(!preview.alwaysOnOff.includes(`guardrails@${M}`), preview.alwaysOnOff.join(", "));
+  assert.ok(preview.lines.includes(`Always-on plugin left on, because the repository's settings enable it: guardrails@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.some((line) => line.startsWith("Switches off always-on plugins that other profiles keep on")), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((line) => /guardrails and the other/.test(line)), preview.lines.join("\n"));
+});
+
+test("#17038: a user profile with always_on false that lists guardrails says it stays on because the profile switches it on", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/guarded.yaml": `always_on: false\nplugins: [plugin-profiles@${M}, guardrails@${M}]\n` });
+  const r = w.run(["start", "guarded", "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /^Always-on plugin left on, because this profile switches it on: guardrails@melodic-software$/m);
+  assert.match(r.stderr, /^Switches off always-on plugins that other profiles keep on/m);
+});
+
 test("#17038: a repository profile's always_on false is ignored: always-on stays on and the preview says the line was ignored", () => {
   const w = world();
   const file = join(w.project, "docs", "conventions", "plugin-profiles", "notes.yaml");
@@ -1442,7 +1461,7 @@ test("#17038: a repository profile's always_on false is ignored: always-on stays
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
   assert.ok(r.stdout.split("\n").includes(`Ignored, from ${file}: always_on: false. A repository profile cannot switch off an always-on member; a user-level profile can.`), r.stdout);
-  assert.doesNotMatch(r.stdout, /Keeps no always-on plugin on/);
+  assert.doesNotMatch(r.stdout, /always-on plugins that other profiles keep on/);
 });
 
 test("#17038: from a session in native, the switcher starts another profile, and clear returns the folder to its state before", () => {

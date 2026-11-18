@@ -144,6 +144,34 @@ test("#17038: a profile with always_on false may exclude an always-on member", (
   assert.deepEqual(result.writes, { "guard@m": false, "impl@m": true });
 });
 
+test("#17038: a profile with always_on false writes off an always-on member of a marketplace only always-on names", () => {
+  const result = run({
+    always: profile("always-on", { plugins: ["switch@m"], optional: ["fmt@other"] }),
+    build: profile("build", { plugins: ["switch@m"], keepsAlwaysOn: false }),
+    inventory: installed("switch@m", "fmt@other", "third@vendor"),
+  });
+  assert.deepEqual(result.writes, { "switch@m": true, "fmt@other": false });
+  assert.deepEqual(result.alwaysOnOff, ["fmt@other"]);
+  assert.deepEqual(result.untouched, ["third@vendor"]);
+});
+
+test("#17038: an always-on member that stays on under always_on false is named with why: the profile, a managed pin, or the repository", () => {
+  const always = profile("always-on", { plugins: ["guard@m", "listed@m", "pinned@m", "repo@m", "off@m"] });
+  const build = profile("build", { plugins: ["listed@m"], keepsAlwaysOn: false });
+  const result = run({
+    always,
+    build,
+    inventory: installed("guard@m", "listed@m", "pinned@m", "repo@m", "off@m"),
+    layers: { managed: { enabledPlugins: { "pinned@m": true } }, project: { enabledPlugins: { "repo@m": true } } },
+  });
+  assert.deepEqual(result.alwaysOnOff, ["guard@m", "off@m"]);
+  assert.deepEqual(result.alwaysOnKept, [
+    { id: "listed@m", by: "profile" },
+    { id: "pinned@m", by: "managed" },
+    { id: "repo@m", by: "repository" },
+  ]);
+});
+
 test("a profile that keeps always-on names no always-on member as written off", () => {
   const result = run({ always: profile("always-on", { plugins: ["guard@m"] }), inventory: installed("guard@m") });
   assert.deepEqual(result.alwaysOnOff, []);

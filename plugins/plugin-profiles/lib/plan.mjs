@@ -78,6 +78,7 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   if (blocked.length) throw new PlanError(`profile ${name} excludes always-on members: ${blocked.join(", ")}`);
 
   const sources = sourcesOf(catalog, chosen);
+  const leftOut = sources.includes(always) ? [] : [...always.plugins, ...always.optional];
   const all = (field) => sources.flatMap((p) => [...p[field]]);
   const members = new Set(all("plugins"));
   const optional = new Set(all("optional").filter((id) => !members.has(id)));
@@ -89,7 +90,7 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   const wanted = [...members, ...[...optional].filter((id) => inventory.has(id)), ...repoEnabled];
   const desired = withDependencies(wanted, inventory);
   for (const id of exclude) desired.delete(id);
-  const governed = new Set([...members, ...optional, ...exclude].map(marketplaceOf));
+  const governed = new Set([...members, ...optional, ...exclude, ...leftOut].map(marketplaceOf));
 
   const writes = {};
   const pinned = [];
@@ -133,6 +134,11 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
     untouched,
     mcpOrLspOn: enabled.filter((id) => ships(id).mcp || ships(id).lsp),
     hookPluginsOff: disabled.filter((id) => ships(id).hooks || ships(id).mod),
-    alwaysOnOff: sources.includes(always) ? [] : [...always.plugins, ...always.optional].filter((id) => writes[id] === false),
+    alwaysOnOff: leftOut.filter((id) => writes[id] === false),
+    alwaysOnKept: leftOut.filter((id) => inventory.has(id)).flatMap((id) => {
+      if (writes[id] === true) return [{ id, by: "profile" }];
+      if (pins.get(id)?.value === true) return [{ id, by: pins.get(id).by }];
+      return !(id in writes) && !pins.has(id) && repository[id] === true ? [{ id, by: "repository" }] : [];
+    }),
   };
 }
