@@ -37,7 +37,7 @@ process.env.XDG_RUNTIME_DIR = RUNTIME;
 delete process.env.CCD_RUNTIME_DIR;
 delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
-// The driver's runtime directory: win32 keeps it under LOCALAPPDATA, every other platform under RUNTIME.
+/** The driver's runtime directory: win32 keeps it under LOCALAPPDATA, every other platform under RUNTIME. */
 const CCD_DIR =
   process.platform === 'win32' ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ccd') : join(RUNTIME, 'ccd');
 let sessions = 0;
@@ -153,6 +153,7 @@ test('launch --dry-run prints the claude command line and reserves no session', 
     assert.ok(!existsSync(cwd), 'no launch directory');
     const named = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--cwd', plugin, '--dry-run']);
     // startsWith, not a RegExp: a win32 path's backslashes would read as escapes.
+    // Separators by platform: https://nodejs.org/api/path.html#windows-vs-posix
     assert.ok(named.text.startsWith(`dry run: would launch session '${s}' in ${plugin} running `), named.text);
     await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', join(plugin, 'absent'), '--dry-run']), {
       code: 2,
