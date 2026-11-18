@@ -477,7 +477,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (action === "wait") result.waiting.push(number);
       const entry = { issue, state, known, reached, last, latest };
       if (action === "dispatch" && state.runs.length > 0) {
-        redispatches.push(entry);
+        if ((await act(entry, "stop")) === STOP_PASS) break;
+        redispatches.push({ ...entry, state: { ...state, reached: known } });
         continue;
       }
       if ((await act(entry, action)) === STOP_PASS) break;

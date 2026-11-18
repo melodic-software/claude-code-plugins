@@ -81,7 +81,7 @@ test("a voided second dispatch is no attempt: the sweep dispatches again and rec
   const gh = fakeGitHub({ issues: [issue(1)], comments: { 1: [stateComment([11, 22])] }, runs: { 11: done, 22: done }, jobs: { 11: WROTE, 22: VOIDED } });
   const result = await sweep(gh);
   assert.deepEqual([result.dispatched, result.handed], [[1], []]);
-  assert.equal(stateLine(gh.writes[1]), "<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->");
+  assert.equal(stateLine(gh.writes.at(-1)), "<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->");
   assert.equal(gh.reads.filter((p) => p.includes("/check-runs/301/")).length, 0);
 
   const before = fakeGitHub({ issues: [issue(1)], comments: { 1: [stateComment([11, 22])] }, runs: { 11: done, 22: done }, jobs: { 11: WROTE, 22: UNMARKED } });

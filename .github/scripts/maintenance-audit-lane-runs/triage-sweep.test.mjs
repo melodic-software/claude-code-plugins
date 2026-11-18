@@ -817,12 +817,14 @@ test("a run the kill switch skipped leaves an attempt: the sweep dispatches agai
   assert.deepEqual(
     gh.writes.map((w) => [w.method, w.path]),
     [
+      ["PATCH", "/repos/o/r/issues/comments/5"],
       ["POST", "/repos/o/r/actions/workflows/intake-triage.yml/dispatches"],
       ["PATCH", "/repos/o/r/issues/comments/5"],
     ],
   );
-  assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]).runs, [11, 22, 901]);
-  assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
+  assert.ok(gh.writes[0].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22- filed= -->"), "the marks are recorded before the re-dispatch waits for a slot");
+  assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[2].body.body }]).runs, [11, 22, 901]);
+  assert.ok(gh.writes[2].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
 });
 
 // Reading every run's jobs on every pass, before the dispatch cap demotes an
@@ -877,6 +879,45 @@ test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-c
     appId: String(APP),
   });
   assert.equal(again.filter((p) => p.endsWith("/jobs?per_page=100")).length, 0);
+});
+
+test("a budget spent mid-scan still records the marks of the re-dispatches read, so the next pass does not read them again", async () => {
+  const issues = Array.from({ length: 20 }, (_, i) => issue(i + 1));
+  const ids = (n) => [1, 2, 3, 4, 5].map((k) => n * 10 + k);
+  const runs = Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, { status: "completed", conclusion: "success" }])));
+  const gh = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(issues.map(({ number: n }) => [n, [{ id: n, user: BOT, body: renderState({ runs: ids(n), filed: null, runUrl: "u" }) }]])),
+    runs,
+    jobs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, KILLED]))),
+  });
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.match(result.truncated, /^stopped at #15: call budget/, "3 preamble calls and 8 per issue (comments, run, 5 jobs, record) fit 14 issues in 120");
+  assert.deepEqual(result.dispatched, []);
+  const recorded = gh.writes.filter((w) => w.method === "PATCH");
+  assert.deepEqual(
+    recorded.map((w) => w.path),
+    issues.slice(0, 14).map(({ number: n }) => `/repos/o/r/issues/comments/${n}`),
+  );
+  for (const w of recorded) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], ["-", "-", "-", "-", "-"]);
+  const next = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(recorded.map((w) => [Number(w.path.split("/").at(-1)), [{ id: 1, user: BOT, body: w.body.body }]])),
+    runs,
+  });
+  const again = [];
+  await runSweep({ call: (method, path, body) => (again.push(path), next.call(method, path, body)), repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.deepEqual(
+    again.filter((p) => p.endsWith("/jobs?per_page=100")).filter((p) => Number(p.split("/")[6]) < 150),
+    [],
+    "no jobs of issues 1-14 are read again",
+  );
 });
 
 test("with the hand slots used up, an issue at RUN_LIMIT is not read: it could only stop", async () => {
@@ -965,7 +1006,7 @@ for (const [shape, jobs22, annotations] of [
     const gh = transientRuns(jobs22, annotations);
     const result = await sweep(gh);
     assert.deepEqual([result.dispatched, result.handed], [[1], []]);
-    assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->"));
+    assert.ok(gh.writes.at(-1).body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->"));
   });
 }
 
