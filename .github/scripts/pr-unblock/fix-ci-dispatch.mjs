@@ -580,6 +580,29 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
       continue;
     }
+    const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
+    let requiredRun;
+    try {
+      requiredRun = await api.readRequiredRun(node.headRefOid, path);
+    } catch (error) {
+      if (error.rateLimited) {
+        log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+        continue;
+      }
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
+      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
+    }
+    const early = skipReason(
+      { ...node, requiredRun, laneGate, fixCiRuns: [] },
+      { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, ownedBranches, now },
+    );
+    if (early !== "") {
+      log(`skip fix-ci #${node.number}: ${early}`);
+      continue;
+    }
     // The per-head cap is the loop's hard end, so a head whose runs cannot be
     // read is not dispatched.
     let fixCiRuns;
@@ -603,24 +626,6 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} ran ${capped} time(s), the most one head gets; no fix-ci until a new push`);
       markHandled(record, checkName, node.headRefOid);
       continue;
-    }
-    // A re-run going, or an infra-only first failure's re-run still due,
-    // decides before a model run; an unreadable run waits on nothing.
-    const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
-    let requiredRun;
-    try {
-      requiredRun = await api.readRequiredRun(node.headRefOid, path);
-    } catch (error) {
-      // A rate limit is no reason to spend a model run: a later run retries.
-      if (error.rateLimited) {
-        log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
-        continue;
-      }
-      if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
     // A cancelled tested run can hide a failed job behind a later skipped run
     // of it, which the rollup does not show: read what fix-ci-context reads.
