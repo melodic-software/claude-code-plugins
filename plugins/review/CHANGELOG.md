@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.1] - 2026-11-18
+
+### Changed
+
+- The `fanout` skill's sentence on what `--yes` does for the `fix` action is reworded for clarity; the behavior is unchanged.
+
 ## [10.3.0] - 2026-11-18
 
 ### Changed
