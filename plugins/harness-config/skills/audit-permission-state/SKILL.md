@@ -208,9 +208,9 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
   resolves the key only from the scopes it treats the classifier as reading, so a project- or
   local-scope copy is reported inert rather than obeyed. `reference/criteria.md` holds the pointers.
 - **`--oracle` is opt-in and priced.** It spawns a real `claude -p` session to corroborate the
-  prediction. Measured cost: your settings files are untouched, but `~/.claude.json` is rewritten and
-  project, session-env, security and subagent state appear under your config directory. A capture
-  that yields nothing is **unavailable**, never an empty drop set.
+  prediction, and prints what that session costs and leaves behind before it spawns anything; the
+  measured list is `reference/criteria.md` §"The auto-mode entry diff", "What the oracle costs,
+  measured". A capture that yields nothing is **unavailable**, never an empty drop set.
 
 ## Phase 4: Configuration that is written but never read
 
@@ -256,17 +256,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block
 - **`C3-shadowed`**: an entry an earlier `hard_deny` already forecloses, so it can never fire.
 - **`C5-provenance`**: a date or issue reference in an entry you wrote.
 - **`--critique` surfaces `claude auto-mode critique`, wrapped and never replaced.** It owns the
-  semantic judgment. What this adds is honesty about it: measured on Claude Code 2.1.225 across three
-  consecutive runs on one unchanged config, output was truncated mid-sentence twice and empty once,
-  **exiting 0 every time** (as of 2026-08-12; recheck when a release note changes the critique
-  command's output or exit status). A mid-sentence cut is reported as truncated; an empty result says
-  "critique returned nothing; run it yourself" rather than implying your rules are clean.
+  semantic judgment. What this adds is honesty about it: its exit status is not trusted, so a
+  mid-sentence cut is reported as truncated, and an empty result is reported as unavailable, telling
+  you to run the critique yourself, never as rules that are clean. The measured runs behind this are
+  `reference/criteria.md` §"The measured defensive contract".
 
-**This lane is optional.** It needs `python3` because
-`claude auto-mode config` emits raw control characters inside string values. `jq` rejects the output
-outright, and no line-oriented POSIX filter can repair it, since the offending byte is a raw line feed
-inside a string. Absent `python3` or `claude`, the lane prints a visible skip notice and exits 0; every
-other stage still runs.
+**This lane is optional.** It needs `python3`: the `claude auto-mode config` output needs a
+non-strict parser, which neither `jq` nor a line-oriented POSIX filter provides
+(`reference/criteria.md` §"The measured defensive contract" records why). Absent `python3` or
+`claude`, the lane prints a visible skip notice and exits 0; every other stage still runs.
 
 **Exit status is never trusted here.** A run that exits 0 having produced nothing is reported
 `status=unavailable` with an explicit "this is NOT a clean bill". The distinction between "your block
