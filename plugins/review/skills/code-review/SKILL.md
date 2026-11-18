@@ -25,7 +25,7 @@ open pull request:
   never invokes it or its mutating arguments. Pointer: when judging which arguments edit or post,
   or whether Claude may start it unasked, fetch [what the review reads and edits](https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits)
   and [let Claude start the review](https://code.claude.com/docs/en/code-review-local#let-claude-start-the-review)
-  live.
+  live. Recheck trigger: it starts posting through a path this lane's wrapper owns.
 - **Managed Code Review (GitHub App service).** An org-level service that reviews pull requests on
   its own triggers. Pointer: before telling anyone it is available or how it is enabled, fetch
   [availability](https://code.claude.com/docs/en/code-review#availability) and
