@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const BOARD_TAG = "event-storming/1";
@@ -727,7 +728,9 @@ function main(argv) {
   if (command === "new" && args.length === 3) {
     if (existsSync(path)) fail(`${path} already exists`, 1);
     try {
-      writeAtomic(path, renderBoard(newBoard(readJson(input), now)));
+      const text = renderBoard(newBoard(readJson(input), now));
+      mkdirSync(dirname(path), { recursive: true });
+      writeAtomic(path, text);
     } catch (error) {
       if (error instanceof BoardError) fail(error.message, 1);
       fail(`cannot write ${path}: ${error.code ?? error.message}`, 2);

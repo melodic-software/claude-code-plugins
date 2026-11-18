@@ -209,6 +209,24 @@ updated: "${NOW}"
 No stickies yet.
 `, dl);
 check("new refuses an existing path", run("new", `${work}/dl.md`, `${work}/meta.json`).status === 1);
+
+const sessionBoard = `${work}/fresh/docs/event-storming/session-1/big-picture.md`;
+writeFileSync(`${work}/bp-meta.json`, JSON.stringify({ format: "big-picture", title: "Big Picture v1" }));
+result = run("new", "--now", NOW, sessionBoard, `${work}/bp-meta.json`);
+check("new creates a board whose board directory and session folder do not exist", result.status === 0 && existsSync(sessionBoard), result.stderr);
+const sessionCheck = run("check", sessionBoard);
+check("a board created in a new session folder passes check", sessionCheck.status === 0 && sessionCheck.stdout === "", sessionCheck.stdout + sessionCheck.stderr);
+apply(sessionBoard, [{ op: "add", section: "Problems", kind: "hot-spot", text: "Payouts late" }]);
+const sessionBefore = existsSync(sessionBoard) ? readFileSync(sessionBoard, "utf8") : null;
+result = run("new", sessionBoard, `${work}/bp-meta.json`);
+check("new still refuses a board that exists in a session folder and keeps its content", result.status === 1 && sessionBefore?.includes("Payouts late") && readFileSync(sessionBoard, "utf8") === sessionBefore, result.stderr);
+
+writeFileSync(`${work}/blocker`, "a file where a folder is needed\n");
+result = run("new", `${work}/blocker/session-1/big-picture.md`, `${work}/bp-meta.json`);
+check("new exits 2 and names the path when a parent folder cannot be created", result.status === 2 && result.stdout === "" && result.stderr.includes(`cannot write ${work}/blocker/session-1/big-picture.md`), result.stderr);
+writeFileSync(`${work}/no-format.json`, JSON.stringify({ title: "No format" }));
+result = run("new", `${work}/refused/session-1/big-picture.md`, `${work}/no-format.json`);
+check("new creates no folders for meta it refuses", result.status === 1 && !existsSync(`${work}/refused`), result.stderr);
 result = apply(`${work}/dl.md`, [
   { op: "add", section: "Flow", kind: "command", text: "Capture Payment", row: "commands" },
   { op: "add", section: "Flow", kind: "aggregate", text: "Payment", row: "aggregates" },
