@@ -76,7 +76,9 @@ export function supersededBy(git, base, head) {
  * resolve-conflicts-select's check after prepare.sh found a conflicted merge
  * and before any model turn, run from the root of the head checkout with no
  * model and no network. Reads GITHUB_OUTPUT, BASE_SHA (the pinned base) and
- * HEAD_SHA (the gated head); writes superseded=true|false.
+ * HEAD_SHA (the gated head); writes superseded=true|false. A failed git read
+ * writes false with a warning, so the model resolves as before: the check is
+ * local, so a retry on the same head and base would fail the same way.
  */
 export function main(env, { cwd = process.cwd(), log = (line) => console.log(line) } = {}) {
   for (const key of ["GITHUB_OUTPUT", "BASE_SHA", "HEAD_SHA"]) {
@@ -85,17 +87,26 @@ export function main(env, { cwd = process.cwd(), log = (line) => console.log(lin
   for (const key of ["BASE_SHA", "HEAD_SHA"]) {
     if (!OID.test(env[key])) throw new Error(`${key} is not a full commit id`);
   }
-  const { superseded, why } = supersededBy(gitIn(cwd), env.BASE_SHA, env.HEAD_SHA);
-  appendFileSync(env.GITHUB_OUTPUT, `superseded=${superseded}\n`);
-  log(`::notice title=superseded-check::superseded=${superseded} head=${env.HEAD_SHA} base=${env.BASE_SHA}: ${why}`);
+  let verdict;
+  try {
+    verdict = supersededBy(gitIn(cwd), env.BASE_SHA, env.HEAD_SHA);
+  } catch (error) {
+    appendFileSync(env.GITHUB_OUTPUT, "superseded=false\n");
+    log(`::warning title=superseded-check::the check failed, so the model resolves as before: ${annotation(error.message)}`);
+    return 0;
+  }
+  appendFileSync(env.GITHUB_OUTPUT, `superseded=${verdict.superseded}\n`);
+  log(`::notice title=superseded-check::superseded=${verdict.superseded} head=${env.HEAD_SHA} base=${env.BASE_SHA}: ${verdict.why}`);
   return 0;
 }
+
+const annotation = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     process.exitCode = main(process.env);
   } catch (error) {
-    console.log(`::error::superseded check failed: ${error.message}`);
+    console.log(`::error::superseded check failed: ${annotation(error.message)}`);
     process.exitCode = 1;
   }
 }

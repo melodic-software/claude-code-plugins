@@ -118,3 +118,14 @@ test("main refuses a base or head that is not a full commit id", () => {
   assert.throws(() => main({ GITHUB_OUTPUT: output, BASE_SHA: "main", HEAD_SHA: r.git("rev-parse", "pr") }, { cwd: r.dir }), /BASE_SHA is not a full commit id/);
   assert.throws(() => main({ GITHUB_OUTPUT: output, BASE_SHA: r.git("rev-parse", "main") }, { cwd: r.dir }), /HEAD_SHA is not set/);
 });
+
+test("a git read that fails leaves the head to the model with a warning", () => {
+  const r = repoWithMainAndPrBranches();
+  const output = join(r.dir, ".git", "github-output");
+  writeFileSync(output, "");
+  const lines = [];
+  main({ GITHUB_OUTPUT: output, BASE_SHA: "a".repeat(40), HEAD_SHA: r.git("rev-parse", "pr") }, { cwd: r.dir, log: (line) => lines.push(line) });
+  assert.equal(readFileSync(output, "utf8"), "superseded=false\n", "a base the repository lacks");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::warning title=superseded-check::[^\n]*$/, "one annotation line, git's stderr escaped");
+});
