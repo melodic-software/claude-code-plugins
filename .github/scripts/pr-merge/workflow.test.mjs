@@ -676,6 +676,7 @@ const SETTLE = (sha, fresh = "") =>
   );
 // The fresh report's settle: the same call with --fresh, and only there.
 const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
+const SETTLE_LAST = SETTLE("c{40}", " --probe-unmoved");
 const FRESH_CHECK =
   /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only --stop-uncovered$/;
 
@@ -688,7 +689,7 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   // The same call dispatch-post-merge-runs makes for a reused report, and no
   // fresh check.
   assert.equal(kept.calls.length, 1);
-  assert.match(kept.calls[0], SETTLE("c{40}"));
+  assert.match(kept.calls[0], SETTLE_LAST);
   assert.equal(kept.json, "{}");
   assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/);
   assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
@@ -720,7 +721,7 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     assert.ok(check >= 0, `${why}: the fresh check ran`);
     assert.match(run.calls[check + 1] ?? "", SETTLE_FRESH(FRESH_SHA), `${why}: settle --idle-tick --fresh checked the fresh report`);
     // The last report's settle, when it ran, never skips the runs test.
-    if (check > 0) assert.match(run.calls[0], SETTLE("c{40}"), why);
+    if (check > 0) assert.match(run.calls[0], SETTLE_LAST, why);
     assert.equal(run.calls.length, check + 2, why);
   }
 });
@@ -731,8 +732,21 @@ test("a PR-scoped run whose last report is refused as code-changed runs no fresh
   assert.equal(run.kept, false);
   assert.equal(run.output, "stands=false\nfresh=\nfresh-reason=\n");
   assert.equal(run.calls.length, 1);
-  assert.match(run.calls[0], SETTLE("c{40}"));
+  assert.match(run.calls[0], SETTLE_LAST);
   assert.match(run.stdout, /::notice::the last sweep's post-merge report predates a code change/);
+});
+
+test("a PR-scoped run whose last report is refused as unattributed-unmoved runs no fresh check, and one refused as unattributed still does", () => {
+  const unmoved = keepReport({ settles: [1], refusal: "idle tick unattributed-unmoved" });
+  assert.equal(unmoved.status, 0);
+  assert.equal(unmoved.kept, false);
+  assert.equal(unmoved.output, "stands=false\nfresh=\nfresh-reason=\n");
+  assert.equal(unmoved.calls.length, 1);
+  assert.match(unmoved.calls[0], SETTLE_LAST);
+  assert.match(unmoved.stdout, /::notice::the last sweep's post-merge report lists a red full run charged to no merge/);
+  const moved = keepReport({ settles: [1, 1], refusal: "idle tick unattributed" });
+  assert.equal(moved.output, "fresh-started=true\nstands=false\nfresh=0\nfresh-reason=idle tick unattributed\n");
+  assert.ok(moved.calls.some((c) => FRESH_CHECK.test(c)), "the fresh check ran");
 });
 
 // The code-changed refusal decided before the run cache and lane records are

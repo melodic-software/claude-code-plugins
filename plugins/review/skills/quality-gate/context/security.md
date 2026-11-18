@@ -49,4 +49,4 @@ and its output at
 - **Input validation gaps**: add validation at the boundary (entry point), not deep in the call stack
 - **Secrets exposure**: rotate exposed secrets first, then fix the code
 - **Dependency CVEs**: name the ecosystem's audit command for the implementer to run in their own checkout, never in the reviewed tree; update or pin
-- **Static-analysis backstop**: when the project runs a security scanner (CodeQL or similar), consider triggering it for urgent checks
+- **Static-analysis backstop**: when the project runs a security scanner, consider triggering it for urgent checks

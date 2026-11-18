@@ -67,7 +67,7 @@ measure it is applied to, in any source this plugin cites.
 
 | Value | Applied to | Where it was looked for | What was found |
 |---|---|---|---|
-| 22 | Cyclomatic complexity | McCabe 1976 and NIST SP 500-235 (full text); the threshold pages of NASA SWEHB (15) and Aivosto; vendor rule defaults | No source attributes 22 to anyone |
+| 22 | Cyclomatic complexity | McCabe 1976 and NIST SP 500-235 (full text); the threshold pages of NASA SWEHB and Aivosto; vendor rule defaults | No source attributes 22 to anyone |
 | 22 | Cognitive complexity | Campbell's white paper; vendor rule defaults | No standard sets a cognitive threshold; a vendor's rule default is a product decision |
 | 80 | Halstead difficulty | Halstead 1977 as reproduced by NASA NTRS and IBM; vendor threshold pages | Halstead defines difficulty and sets no limit; nothing attributes 80 to anyone |
 | 500 | Lines per file | ISO/IEC 5055 clauses 6 and 8 | The nearest standards figure is the informative 1000, and the normative form is a percentage. Selectable through config |
@@ -77,8 +77,8 @@ measure it is applied to, in any source this plugin cites.
 
 Sources not checked for any of these rows: vendor products behind a login, and standards bodies
 other than ISO, OMG, NIST, and MITRE. A reader who finds an authoritative source for one of these
-values should send it; the row changes only on a citation. The NASA SWEHB value in the first row
-is as read on 2026-09-11; recheck its page before citing that number as current.
+values should send it; the row changes only on a citation. A vendor's default can change without
+notice, so read the vendor's page live before citing a vendor's default as current.
 
 Two of the shipped defaults, 20 for cyclomatic and 1000 for lines per file, exist because a citation
 exists for them, not because the empirical literature validates them. No study reviewed in

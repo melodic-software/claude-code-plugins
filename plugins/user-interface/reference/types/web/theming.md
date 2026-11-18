@@ -45,23 +45,23 @@ Does the app have a theme toggle, a `dark:` variant in use, or a
 
 ## 2. A single-theme app says so
 
-A dark-only app that never declares it gets white native scrollbars, light form controls, and a
-white flash before the CSS loads. A light-only app that declares `light dark` (usually pasted in
-with a boilerplate `<head>`) gets dark native controls and a dark canvas on any phone set to dark
-mode, under a UI that was only designed light. Declare exactly the schemes that were designed.
+Declare exactly the schemes that were designed, so the parts of the page the browser draws itself
+come out in a scheme the UI was built for. A dark-only app that declares none, and a light-only app
+that declares `light dark` (usually pasted in with a boilerplate `<head>`), both hand those parts a
+scheme nobody designed them against.
 
 ```css
 :root { color-scheme: light; }        /* light-only */
-:root { color-scheme: dark; }         /* dark-only: native controls and scrollbars go dark */
+:root { color-scheme: dark; }         /* dark-only */
 ```
 
 Pasting `color-scheme: light dark` into a light-only app creates this bug. The same holds for the
 `<meta name="color-scheme">` tag: a single-theme app sets it to that one scheme, and only a
 two-theme app declares `light dark`.
 
-- **Pointer**: MDN, `color-scheme`, what the used color scheme changes (canvas, scrollbars, form
-  controls) and the `<meta name="color-scheme">` tag,
-  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/color-scheme#syntax>
+- **Pointer**: when checking which browser-drawn parts follow the declared scheme, or the values the
+  `<meta name="color-scheme">` tag takes, fetch MDN, `color-scheme`, "Syntax",
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/color-scheme#syntax> live.
 
 Hunt for: `<meta name="color-scheme">` and the CSS `color-scheme` property; a dark-only app with
 neither; a light-only app declaring `light dark`.
@@ -237,9 +237,8 @@ class the app switches on.
 
 ## 9. Browser chrome follows the theme
 
-`theme-color` per scheme, `color-scheme` on the root so native scrollbars, form controls, and
-autofill match (section 2), a `::selection` color that's legible in both, and a favicon that survives
-a dark tab bar.
+`theme-color` per scheme, `color-scheme` on the root (section 2), a `::selection` color that's
+legible in both, and a favicon that survives a dark tab bar.
 
 The status bar and the browser chrome take their color from `theme-color`. One value means light
 mode gets a dark bar or dark mode gets a white one. Give each scheme its own:

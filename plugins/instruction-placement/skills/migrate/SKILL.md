@@ -203,12 +203,12 @@ between steps must leave content duplicated rather than deleted:
    `check` reports `NO-BLOCK` and the `index-check` pre-commit entry stays quiet, because a repository that never
    adopted an index is not drifting from one. With nothing to index at all, `write` says
    `NO-INDEX-NEEDED` and writes nothing; do not hand-write a block in either case.
-7. **Run the repository's own markdown lint**, if it has one: check for a `lint:md` script in
-   `package.json`, a `lefthook.yml` markdown hook, or a `.markdownlint*` config, and run what you
-   find. A regenerated block or a moved heading can trip MD022 (blanks around headings), MD024
-   (duplicate headings, likely when a section lands beside a similar one) or MD047 (single trailing
-   newline). **A fresh worktree may need the repository's own install step first** (`npm ci`,
-   `uv sync`, `dotnet restore`, whatever its README names). A wall of failures on a markdown-only
+7. **Run the repository's own markdown lint**, if it has one: look where the repository declares
+   its checks (its package scripts, hook config or lint config), and run what you find. A
+   regenerated block or a moved heading can trip a rule on blank lines around headings, on
+   duplicate headings (likely when a section lands beside a similar one) or on the trailing
+   newline. **A fresh worktree may need the repository's own install step first**, whatever its
+   README names. A wall of failures on a markdown-only
    diff is unprovisioned tooling until something shows otherwise: check that before reading it as
    the migration's doing, and never "fix" source you did not touch to make a linter start.
 8. **Re-run the plan** and confirm the states moved the way the operator accepted.
@@ -474,8 +474,11 @@ in sync after the move.
   `AGENTS.md` into the one-line `@AGENTS.md` import, or drops the file where the session reads
   `AGENTS.md` natively; it never keeps the sentence beside the import. Pointer:
   [Remove an earlier AGENTS.md workaround](https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround).
-- **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
-  file holding the link target, so the import is the form that works everywhere.
+- **A committed symlink is not portable.** Whether a checkout writes it as a link depends on that
+  checkout's git settings, so the import is the form that works everywhere.
+  Pointer: when deciding whether a checkout keeps a committed symlink, fetch
+  [git-config: core.symlinks](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks)
+  live.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for
   the same check as `CLAUDE.md`, and no gate in the repository can see it. Offer the replacement
   and its caveat in `reference/shim-droppable.md`, condition A.

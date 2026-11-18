@@ -195,15 +195,14 @@ with no `onError` rollback (React Query); `useOptimistic` with no error surface.
 
 Fix: on failure, restore the previous value and say so ("Couldn't update. Try again.").
 
-Roll back through the library's own mechanism, which the pointer names. Where the library restores
+Roll back through the library's own mechanism, which the page the pointer names describes. Where the library restores
 the previous value by itself, the fix still adds the message.
 
-- **Pointer**: TanStack Query, Optimistic Updates, "Via the cache" (what `onMutate` returns is
-  passed to `onError`, which rolls back with it),
-  <https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates#via-the-cache>;
-  React, `useOptimistic`, "How optimistic state works" (a failed Action leaves the real value
-  unchanged when it is set only on success, so the screen shows what it showed before),
-  <https://react.dev/reference/react/useOptimistic#how-optimistic-state-works>
+- **Pointer**: when the update goes through TanStack Query, fetch TanStack Query, Optimistic
+  Updates, "Via the cache",
+  <https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates#via-the-cache>
+  live; when it goes through `useOptimistic`, fetch React, `useOptimistic`, "How optimistic state
+  works", <https://react.dev/reference/react/useOptimistic#how-optimistic-state-works> live.
 
 **Audit: Important.** An optimistic update with no rollback on failure, or a failure that rolls back
 without telling the user.

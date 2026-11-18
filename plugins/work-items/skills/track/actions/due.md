@@ -63,8 +63,8 @@ fi
 
 | # | Item | Cadence | Last Checked | Days Overdue | Open Item |
 |---|------|---------|-------------|--------------|-----------|
-| 1 | Review Directory.Packages.props | quarterly | 2026-03-23 | 15 | #52 |
-| 2 | Review biome.json | quarterly | 2026-03-23 | 15 | -- |
+| 1 | Review dependency manifest | quarterly | 2026-03-23 | 15 | #52 |
+| 2 | Review linter config | quarterly | 2026-03-23 | 15 | -- |
 
 **Orphaned entries** (in schedule but no matching item):
 - {id}: {title} -- create item or remove entry
@@ -77,7 +77,7 @@ If nothing is due: "All recurring items are current. Next due: **{item}** on **{
 
 - Cadence is a minimum interval, not a lock. On-demand rechecks are always allowed via `/work-items:track recheck`.
 - The `triggers` field in each schedule item lists external events that warrant early recheck regardless of cadence.
-- When the user mentions a trigger event (e.g., ".NET 10.1 shipped"), proactively suggest relevant rechecks even if they aren't technically due yet.
+- When the user mentions a trigger event (e.g., "a new major framework release shipped"), proactively suggest relevant rechecks even if they aren't technically due yet.
 
 ## Documentation freshness (optional)
 

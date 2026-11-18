@@ -105,7 +105,7 @@ your notes and compare by hand.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
   as a named registry or scope path that does not exist; exit 3 when a detector resolved but
   produced nothing parseable, with its stderr in the run table. A detector's own non-zero exit is
-  not a failure when it produced a report, which is how `jscpd` and PMD CPD signal "clones found".
+  not a failure when it produced a report.
 
 ## Configuration
 
@@ -180,4 +180,4 @@ overrides are validated against the ladder file and an unknown name is dropped w
   class counts (the jscpd rows of `${CLAUDE_PLUGIN_ROOT}/reference/collectors.md` record the
   verified case); compare runs made with one detector version, never across a version boundary.
 - Lowering `duplication.min_tokens` finds more and smaller clones, most of them boilerplate the
-  language forces; the defaults are the detector's own conservative pair.
+  language forces.
