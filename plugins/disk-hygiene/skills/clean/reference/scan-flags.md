@@ -138,9 +138,9 @@ shown. `min_age_basis` picks the timestamp the window is measured from: `mtime` 
 new as its newest inventoried descendant; incomplete coverage (not-walked, depth-cut, scan error)
 counts as in-flight.
 
-`ctime` is the inode change time on POSIX. On Windows it is whatever Python's `st_ctime_ns` reports,
-so read a Windows `ctime` window as the running interpreter defines that field, and as a value that
-can change meaning when the interpreter does. What it holds on Windows, and any planned change: the
+`ctime` is whatever Python's `st_ctime_ns` reports, so read a `ctime` window, on Windows above all,
+as the running interpreter defines that field, and as a value that can change meaning when the
+interpreter does. What it holds on each platform, and any planned change: the
 [`os.stat_result` entry](https://docs.python.org/3/library/os.html#os.stat_result).
 
 ## Coverage and hint fields
