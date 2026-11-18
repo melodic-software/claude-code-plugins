@@ -147,7 +147,12 @@ gate --check >/dev/null
 assert_eq "an already-over file that grew fails under crossing-or-growth (exit 1)" 1 "$?"
 
 BROKEN="$(mktemp -d)"
-printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "--version" ]]; then printf "scc version 9.9.9\\n"; exit 0; fi\nprintf "not json\\n"\nexit 1\n' >"$BROKEN/scc"
+cat >"$BROKEN/scc" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'scc version 9.9.9\n'; exit 0; fi
+printf 'not json\n'
+exit 1
+EOF
 chmod +x "$BROKEN/scc"
 team $'  file_lines: 5\n  check: report\n'
 (cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" PATH="$BROKEN:$PATH" bash "$SCRIPT" --base HEAD --check >/dev/null 2>&1)
