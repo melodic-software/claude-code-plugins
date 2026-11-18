@@ -9,9 +9,8 @@ Marketing pages earn more animation budget than product UI (a visitor sees a lan
 a hundred times a day), but the budget is still small, and most sites overspend it. The pages that
 convert are fast, readable, and honest: content in the DOM, fonts that don't shift, motion that maps
 to what the user is doing. Restraint is the house style here: skip the scroll theatrics, ship the
-page pre-rendered, and spend your effort on the details visitors feel but never name. They get one
-visit to make their case, so the failures here are different from product UI: the link preview with
-no image, the page that performs at the visitor instead of answering them, the blog that's fetched
+page pre-rendered. A page gets one visit to make its case, so the failures here are different from
+product UI: the link preview with no image, the page that performs at the visitor instead of answering them, the blog that's fetched
 from the CMS on every request.
 
 When implementing anything below, match the project's existing styling system (Tailwind, plain CSS,
@@ -244,8 +243,10 @@ menu's links in the tab order, focusable but unseen.
 The CSS that shows and hides it is `/user-interface:write-css` recipe
 `enter-and-exit-transitions-from-display-none`.
 
-- **Pointer**: MDN, HTML `hidden` global attribute, "Description",
+- **Pointer**: when checking what `hidden` does to the closed submenu, or how CSS can override it,
+  fetch MDN, HTML `hidden` global attribute, "Description",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden#description>
+  live.
 
 Hunt for: `{isOpen && <Submenu />}` in the marketing header; submenus opened by `onMouseEnter` only,
 with no click or focus path.
@@ -373,14 +374,17 @@ and an accessible name:
 ```
 
 A decorative one, which adds nothing the surrounding text does not say, is hidden from assistive
-tech instead, and holds no focusable element (`aria-hidden` hides every descendant):
+tech instead, and holds no focusable element, so a keyboard user never lands on something a screen
+reader does not announce:
 
 ```jsx
 <div aria-hidden="true" className="illustration" />
 ```
 
-- **Pointer**: MDN, `aria-hidden`, "Description",
+- **Pointer**: when hiding an illustration that has children, fetch MDN, `aria-hidden`,
+  "Description",
   <https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden#description>
+  live.
 
 **Audit: Important.** A code-built illustration that carries information with no `role="img"` and
 accessible name, or a decorative one left exposed to assistive tech.

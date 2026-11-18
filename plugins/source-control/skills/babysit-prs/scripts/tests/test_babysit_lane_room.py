@@ -1936,6 +1936,86 @@ class SettleCommand(unittest.TestCase):
         self.assertEqual((code, reason), (1, "idle tick runs-changed"))
         settle.assert_not_called()
 
+    def unattributed_settle(
+        self, *flags: str, runs: str | None = None, marks: str | None = None
+    ) -> tuple[int, str | None, mock.Mock, mock.Mock]:
+        """`settle` with `flags` on a report, computed now, that would stand
+        but for one unattributed run; the verifying runs read `runs`, the
+        quarantine and pin reads `marks`, and the lane room's rule keeps it.
+        Returns the exit code, the reason, and the runs and `settle_shared`
+        mocks."""
+        report = replace(
+            shared(report={**SETTLED, "unattributed": ["https://run/31/attempts/2"]}),
+            computed_at=datetime.now(UTC),
+        )
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value=report),
+            mock.patch.object(policy, "check_code_unchanged", return_value=True),
+            mock.patch.object(policy, "_default_branch", return_value="main"),
+            mock.patch.object(policy, "_default_branch_config", return_value=config()),
+            mock.patch.object(ve.postmerge, "idle_runs_refusal", return_value=runs) as idle_runs,
+            mock.patch.object(ve.postmerge, "idle_marks_refusal", return_value=marks),
+            mock.patch.object(
+                policy, "settle_shared", return_value=("answer", None)
+            ) as settle,
+            mock.patch.object(policy, "_get", side_effect=AssertionError("read")),
+            mock.patch.object(pm, "_read", side_effect=AssertionError("read")),
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    *flags,
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--code-sha",
+                    MAIN,
+                ]
+            )
+        return code, json.loads(out.getvalue())["reason"], idle_runs, settle
+
+    def test_an_unattributed_report_nothing_else_refuses_is_refused_as_unmoved(
+        self,
+    ) -> None:
+        code, reason, idle_runs, settle = self.unattributed_settle(
+            "--idle-tick", "--probe-unmoved"
+        )
+        self.assertEqual((code, reason), (1, "idle tick unattributed-unmoved"))
+        idle_runs.assert_called_once()
+        settle.assert_called_once()
+
+    def test_an_unattributed_report_with_anything_moved_is_refused_plainly(
+        self,
+    ) -> None:
+        probe = ("--idle-tick", "--probe-unmoved")
+        for runs, marks in (("runs-changed", None), (None, "pins-changed")):
+            with self.subTest(runs=runs, marks=marks):
+                code, reason, _, _ = self.unattributed_settle(
+                    *probe, runs=runs, marks=marks
+                )
+                self.assertEqual((code, reason), (1, "idle tick unattributed"))
+
+    def test_an_unattributed_report_without_the_probe_reads_nothing(self) -> None:
+        for flags in (("--idle-tick",), ("--idle-tick", "--fresh")):
+            with self.subTest(flags=flags):
+                code, reason, idle_runs, settle = self.unattributed_settle(*flags)
+                self.assertEqual((code, reason), (1, "idle tick unattributed"))
+                idle_runs.assert_not_called()
+                settle.assert_not_called()
+
+    def test_the_probe_needs_an_idle_tick_without_fresh(self) -> None:
+        for flags in (("--probe-unmoved",), ("--idle-tick", "--fresh", "--probe-unmoved")):
+            with (
+                self.subTest(flags=flags),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as stop,
+            ):
+                self.unattributed_settle(*flags)
+            self.assertEqual(stop.exception.code, 2)
+
     def test_changed_verifying_runs_refuse_before_the_lane_rooms_reads(self) -> None:
         # 41345813084: `runs-changed` after settle_shared's 22 calls. The two
         # run listings now come first.
