@@ -20,7 +20,7 @@ import { admits } from "../lib/gate-expression.mjs";
 import { CREDENTIAL_NAMES, scanFiles } from "./capture-probe.mjs";
 import { WAIT_MS } from "./find-capture.mjs";
 import { loadConfig } from "./key-proxy.mjs";
-import { HELD_REASON, HELD_STEP } from "./resolve-pr.mjs";
+import { HELD_REASON, HELD_STEP, main, packReads } from "./resolve-pr.mjs";
 import { fromE2eSummary } from "./write-verdict.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -594,7 +594,7 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
 
 test("the fallback job runs only on the subscription job's clean handoff, or its empty token with the fallback token set, on a fixed runner", () => {
   const job = jobText(FB);
-  assert.match(job, /^ {4}needs: check-intent-subscription$/m);
+  assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription\]$/m, "check-intent is a direct need, so its reads output resolves");
   const gate = gateOf(FB);
   // An empty subscription token hands on as an empty key does, but only to a
   // fallback token that is set (#13586).
@@ -618,7 +618,7 @@ test("the fallback job runs only on the subscription job's clean handoff, or its
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    ["          reason: ${{ needs.check-intent-subscription.outputs.next-reason }}", foundLine(FB)],
+    [CARRIED, "          reason: ${{ needs.check-intent-subscription.outputs.next-reason }}", foundLine(FB)],
   );
 });
 
@@ -733,9 +733,6 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
-  // The fallback job reads everything again, as the key job does; its
-  // credential step reads the fallback token where the subscription job's
-  // reads the role's. The last leg hands nothing on, so it has no handoff input.
   const fallback = STEPS[FB].map((s) => ({
     ...s,
     block: s.block.replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
@@ -749,7 +746,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
 // check-intent hands its reads on only from steps that finish before the
 // model runs, and the subscription job takes them only through env, then
 // still runs the trigger gate, whose head the agree step compares.
-test("the subscription job takes check-intent's pre-judge reads and still runs the trigger gate", () => {
+test("the subscription and fallback jobs take check-intent's pre-judge reads and still run the trigger gate", () => {
   const carry = step("Hand the reads on");
   assert.ok(index("Hand the reads on") > index("Select the trusted PR text"), "after the trusted text");
   assert.ok(index("Hand the reads on") > index("Assert the gate and the resolver agree"));
@@ -764,18 +761,74 @@ test("the subscription job takes check-intent's pre-judge reads and still runs t
   // launcher's and the key-leg check's own outputs.
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(KEY))[1];
   assert.match(outputs, /^ {6}reads: \$\{\{ steps\.carry\.outputs\.reads \}\}$/m);
-  const resolve = step("Resolve the pull request", SUB);
-  for (const line of CARRY_ENV) assert.ok(resolve.split("\n").includes(line), line);
-  assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(resolve)[1], /\$\{\{/);
-  assert.equal(/^ {8}if: (.*)$/m.exec(step("Select the trusted PR text", SUB))[1], `steps.agree.outcome == 'success'${NOT_CARRIED}`);
-  for (const name of ["Check the trigger", "Assert the gate and the resolver agree", "Write the diff"]) {
-    assert.doesNotMatch(step(name, SUB), /carried/, name);
+  for (const job of [SUB, FB]) {
+    const resolve = step("Resolve the pull request", job);
+    for (const line of CARRY_ENV) assert.ok(resolve.split("\n").includes(line), `${job}: ${line}`);
+    assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(resolve)[1], /\$\{\{/, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(step("Select the trusted PR text", job))[1], `steps.agree.outcome == 'success'${NOT_CARRIED}`, job);
+    for (const name of ["Check the trigger", "Assert the gate and the resolver agree", "Write the diff"]) {
+      assert.doesNotMatch(step(name, job), /carried/, `${job}: ${name}`);
+    }
+    assert.equal(index("Hand the reads on", job), -1, job);
   }
-  for (const job of [KEY, FB]) {
-    assert.doesNotMatch(jobText(job), /CARRIED|outputs\.carried/, job);
+  assert.doesNotMatch(jobText(KEY), /CARRIED|outputs\.carried/);
+});
+
+test("the subscription and fallback resolvers take check-intent's bundle in its own attempt and refuse it in another", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const carry = {
+    attempt: "1",
+    prNumber: 41,
+    headSha: "a".repeat(40),
+    baseSha: "b".repeat(40),
+    headRef: "feat/41-carry",
+    relinkSinceHead: "false",
+    linkedIssues: [{ number: 7 }],
+    specText: [{ number: 7, body: "spec" }],
+    context: { pr: { number: 41 }, items: [], dropped: {} },
+  };
+  const bundle = packReads(carry);
+  assert.notEqual(bundle, "");
+  for (const job of [SUB, FB]) {
+    const dir = tempDir("pr-verify-carry-");
+    const values = {
+      "github.workspace": dir,
+      "github.token": "t",
+      "github.event.workflow_run.id": "123",
+      "needs.check-intent.outputs.reads": bundle,
+    };
+    const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out") };
+    const block = /^ {8}env:\n((?: {10}.*\n)+)/m.exec(step("Resolve the pull request", job))[1];
+    for (const line of block.split("\n").filter((l) => /^ {10}[A-Z_]+: /.test(l))) {
+      const [, key, raw] = /^ {10}([A-Z_]+): (.*)$/.exec(line);
+      const value = raw
+        .replace(/^"(.*)"$/, "$1")
+        .replace(/\$\{\{ ([a-z_.-]+) \}\}/g, (_, name) => {
+          assert.ok(name in values, `${job}: no stand-in for ${name}`);
+          return values[name];
+        })
+        .replace(/^\.base\//, root);
+      assert.doesNotMatch(value, /\$\{\{/, `${job}: ${key}`);
+      env[key] = value;
+    }
+    mkdirSync(path.dirname(env.SPEC_FILE), { recursive: true });
+    const noReads = async (method, apiPath) => assert.fail(`${job}: no read on the carried path: ${method} ${apiPath}`);
+    await main({ ...env, GITHUB_RUN_ATTEMPT: "1" }, { github: noReads });
+    const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
+    assert.match(out, /^carried=true$/m, job);
+    assert.match(out, new RegExp(`^head-sha=${carry.headSha}$`, "m"), job);
+    assert.deepEqual(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")), carry.context, job);
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    const calls = [];
+    const live = async (method, apiPath) => {
+      calls.push(`${method} ${apiPath}`);
+      throw new Error("stop after the first live read");
+    };
+    await main({ ...env, GITHUB_RUN_ATTEMPT: "2" }, { github: live }).catch(() => {});
+    assert.deepEqual(calls, [`GET /repos/${REPO}/actions/runs/123`], `${job}: another attempt's bundle reads the upstream run again`);
+    assert.doesNotMatch(readFileSync(env.GITHUB_OUTPUT, "utf8"), /carried=true/, job);
   }
-  assert.equal(index("Hand the reads on", SUB), -1);
-  assert.equal(index("Hand the reads on", FB), -1);
 });
 
 test("the model reads only the data directory, with Read alone, and is told never to quote a credential", () => {
