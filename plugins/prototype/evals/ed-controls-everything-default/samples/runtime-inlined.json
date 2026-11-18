@@ -43,6 +43,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\n{ cat /tmp/explore-directions-a1B2c3/head.html; cat /plugin/notes-bridge/controls.js; cat /tmp/explore-directions-a1B2c3/tail.html; } > \\\"$OUT\\\"\",\"description\":\"x\"}}]}}",
       "why": "the page written by a group redirected to a shell variable"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d)\\nOUT=$d/explore-directions.html\\n{ cat /tmp/explore-directions-a1B2c3/head.html; cat /plugin/notes-bridge/controls.js; cat /tmp/explore-directions-a1B2c3/tail.html; } > \\\"$OUT\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page variable assigned on a later line of the command, then written by a redirected group"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd /tmp/explore-directions-a1B2c3\\nsed -i '/<!-- runtime -->/r /plugin/notes-bridge/controls.js' explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "read into the page by sed -i r on a later line of the command"
     }
   ],
   "fail": [
