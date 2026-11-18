@@ -30,39 +30,41 @@ point the tooling at wherever your copy lives (any path you choose):
 
 **Important:** EPUB file names (`chap{N}.xhtml`) do not match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
 
-| EPUB File | Book Ch. | Content | Book % | Skill Coverage | Notes |
-|-----------|----------|---------|--------|---------------|-------|
-| chap00 | Preface | Scope, formats, audience | 100% | 95% | All formats listed; Blink Modeling in glossary |
-| chap01 | Ch. 1 | What does ES look like? (4 stories) | 98% | 90% | Core patterns from all stories captured |
-| chap03 | Ch. 2 | Problem space: silos, pretending to know | 95% | 85% | Captured in persona DEEP/GREY/PRETEND zones |
-| chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 90% | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
-| chap05 | **Ch. 4** | **Running Big Picture** (core chapter) | **98%** | **98%** | Fully captured: all phases, facilitator behavior, metrics |
-| chap06 | Ch. 5 | Playing with value: currencies, purpose | 95% | 95% | All 5 sub-rounds captured |
-| chap07 | Ch. 6 | Discovering Bounded Contexts: 6 heuristics | 90% | 95% | All heuristics + "merge people split software" |
-| chap08 | Ch. 7 | Making it happen: facilitator behavior | 80% | 85% | No arrows, legend, definitions, manage conflicts |
-| chap09 | Ch. 8 | Preparing the workshop: room, invitations | 30% | 90%* | *of what exists. Room setup, focus, invitations captured |
-| chap10 | Ch. 9 | Workshop Aftermath: visual checks | 20% | 95%* | *of what exists. All 4 visual checks + artifact management |
-| chap11 | Ch. 10 | BP Variations: discovery, induction | 50% | 80%* | Induction mode + project discovery captured |
-| chap12 | Ch. 11 | Big Picture Remote Mode | 80% | 90% | Anticipate structure, colors, iterate on copy, make interests explicit |
-| chap14 | Ch. 12 | What Software Dev Really Is | 40% | 30% | Philosophical. "Learning is bottleneck" captured implicitly |
-| chap16 | **Ch. 13** | **PM cooperative game: win conditions** | **100%** | **98%** | 4 win conditions, System/User Happy, color grammar |
-| chap17 | Ch. 14 | PM Building Blocks: Speak Out Loud | 90% | 95% | 3-pass technique, Magic Keywords, 4 event sources, policies |
-| chap18 | Ch. 15 | PM game strategies: Rush to Goal | 50% | 85%* | Opening strategies, rabbit hole, split & merge captured |
-| chap21 | Ch. 17 | Running Design-Level ES | 10% | beyond the book | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
-| chap22 | Ch. 18 | DL Modeling Tips | 20% | 90%* | Alternatives, rewrite, symmetry, hide complexity |
-| chap23 | Ch. 19 | Building Blocks: why events are special | 20% | 80%* | Events as state transitions, triggers for consequences |
-| chap24 | Ch. 20 | Modeling Aggregates | 30% | **95%+** | `[SUPPLEMENTED]` with Bourgau + Vernon invariant/sizing |
-| chap26 | Ch. 22 | Paper Roll to Code: CRC Cards | 15% | 90%* | CRC Cards + coding ASAP + --crc simulation mode |
-| chap27 | Ch. 23 | ES to User Stories | 5% | 80%* | Events→acceptance criteria, ES vs Story Mapping |
-| chap29 | Ch. 25 | Corporate Environment: fog model | 5% | 60%* | Fog-me-fog captured conceptually in persona zones |
-| chap32 | Ch. 28 | Remote ES: "no such thing" | 10% | 90%* | Full remote guidance in remote-eventstorming.md |
-| chap34 | Ch. 29 | Patterns catalog | 75% | 90% | 29 patterns enriched from eventstorming.com + practitioners |
-| chap35 | Ch. 30 | Rush to the Goal (dedicated) | 50% | 90%* | Detailed + Raise the Bar companion pattern added |
-| chap36 | Ch. 29b | Anti-Patterns catalog | 75% | 90% | 14 anti-patterns enriched with Brandolini blog sources |
-| chap38 | Recipe | BP recipe: ingredients, setup | 100% | 90% | Shopping list, refreshments in glossary-tools |
-| chap39 | Recipe | DL recipe: ingredients, differences | 100% | 90% | Captured in design-level.md prerequisites |
-| chap41 | Glossary | Terms: fuzzy by design | 80% | 85% | Theory of Constraints, Blink Modeling, Model Storming added |
-| chap42 | Tools | Paper rolls, markers, stickies | 90% | 90% | Physical + digital tools in glossary-and-tools.md |
+| EPUB File | Book Ch. | Content | Skill Coverage | Notes |
+|-----------|----------|---------|---------------|-------|
+| chap00 | Preface | Scope, formats, audience | 95% | All formats listed; Blink Modeling in glossary |
+| chap01 | Ch. 1 | What does ES look like? (4 stories) | 90% | Core patterns from all stories captured |
+| chap03 | Ch. 2 | Problem space: silos, pretending to know | 85% | Captured in persona DEEP/GREY/PRETEND zones |
+| chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
+| chap05 | **Ch. 4** | **Running Big Picture** (core chapter) | **98%** | Fully captured: all phases, facilitator behavior, metrics |
+| chap06 | Ch. 5 | Playing with value: currencies, purpose | 95% | All 5 sub-rounds captured |
+| chap07 | Ch. 6 | Discovering Bounded Contexts: 6 heuristics | 95% | All heuristics + "merge people split software" |
+| chap08 | Ch. 7 | Making it happen: facilitator behavior | 85% | No arrows, legend, definitions, manage conflicts |
+| chap09 | Ch. 8 | Preparing the workshop: room, invitations | 90%* | Room setup, focus, invitations captured |
+| chap10 | Ch. 9 | Workshop Aftermath: visual checks | 95%* | All 4 visual checks + artifact management |
+| chap11 | Ch. 10 | BP Variations: discovery, induction | 80%* | Induction mode + project discovery captured |
+| chap12 | Ch. 11 | Big Picture Remote Mode | 90% | Anticipate structure, colors, iterate on copy, make interests explicit |
+| chap14 | Ch. 12 | What Software Dev Really Is | 30% | Philosophical. "Learning is bottleneck" captured implicitly |
+| chap16 | **Ch. 13** | **PM cooperative game: win conditions** | **98%** | 4 win conditions, System/User Happy, color grammar |
+| chap17 | Ch. 14 | PM Building Blocks: Speak Out Loud | 95% | 3-pass technique, Magic Keywords, 4 event sources, policies |
+| chap18 | Ch. 15 | PM game strategies: Rush to Goal | 85%* | Opening strategies, rabbit hole, split & merge captured |
+| chap21 | Ch. 17 | Running Design-Level ES | beyond the book | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
+| chap22 | Ch. 18 | DL Modeling Tips | 90%* | Alternatives, rewrite, symmetry, hide complexity |
+| chap23 | Ch. 19 | Building Blocks: why events are special | 80%* | Events as state transitions, triggers for consequences |
+| chap24 | Ch. 20 | Modeling Aggregates | **95%+** | `[SUPPLEMENTED]` with Bourgau + Vernon invariant/sizing |
+| chap26 | Ch. 22 | Paper Roll to Code: CRC Cards | 90%* | CRC Cards + coding ASAP + --crc simulation mode |
+| chap27 | Ch. 23 | ES to User Stories | 80%* | Events→acceptance criteria, ES vs Story Mapping |
+| chap29 | Ch. 25 | Corporate Environment: fog model | 60%* | Fog-me-fog captured conceptually in persona zones |
+| chap32 | Ch. 28 | Remote ES: "no such thing" | 90%* | Full remote guidance in remote-eventstorming.md |
+| chap34 | Ch. 29 | Patterns catalog | 90% | 29 patterns enriched from eventstorming.com + practitioners |
+| chap35 | Ch. 30 | Rush to the Goal (dedicated) | 90%* | Detailed + Raise the Bar companion pattern added |
+| chap36 | Ch. 29b | Anti-Patterns catalog | 90% | 14 anti-patterns enriched with Brandolini blog sources |
+| chap38 | Recipe | BP recipe: ingredients, setup | 90% | Shopping list, refreshments in glossary-tools |
+| chap39 | Recipe | DL recipe: ingredients, differences | 90% | Captured in design-level.md prerequisites |
+| chap41 | Glossary | Terms: fuzzy by design | 85% | Theory of Constraints, Blink Modeling, Model Storming added |
+| chap42 | Tools | Paper rolls, markers, stickies | 90% | Physical + digital tools in glossary-and-tools.md |
+
+\* Coverage of the part of the chapter Brandolini has written so far.
 
 Coverage of any given chapter is judged per run against the copy you own, since the book is
 published on Leanpub and continues to change. The known gaps are philosophical or narrative (Ch. 2-3
