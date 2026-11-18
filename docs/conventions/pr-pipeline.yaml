@@ -1682,7 +1682,6 @@ merge:
   # capture's few hundred turns. upstream-timeout-ms matches the driver's log
   # timeout.
   verify-capture:
-    app: claude-code-plugins
     retention-days: 30
     proxy:
       driven-model: claude-opus-5-5
