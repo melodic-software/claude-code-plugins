@@ -1309,16 +1309,17 @@ if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >
   printf '%s: lock_failed=1\n' "$PROG" >&2
 fi
 
-# Reimplement Claude Code's .worktreeinclude copy: files that match a
-# .worktreeinclude pattern AND are also gitignored are copied one-way into the
-# new worktree. `ls-files -o -i --exclude-from` yields untracked files matching
-# the include patterns; `check-ignore -q` filters that down to the ones the
-# real .gitignore also ignores (the documented intersection). NUL-delimited
-# (`-z` / `read -d ''`) so paths with spaces, newlines, or quote-triggering
-# characters are not dropped or mangled. The native copy also has a rule for
-# `**/` patterns inside a wholly ignored directory that this reimplementation
-# does not mirror.
-#   Pointer: <https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees>
+# This helper copies the .worktreeinclude files itself, since nothing else
+# copies them into a worktree it makes, whether the WorktreeCreate hook or the
+# skill runs it. It copies one-way only a file that is untracked (`ls-files -o`),
+# so a tracked file is never duplicated, matches a .worktreeinclude pattern
+# (`-i --exclude-from`) and is gitignored (`check-ignore -q`). It has no special
+# case for a `**/` pattern inside a wholly ignored directory, so its result can
+# differ from the native copy there.
+# NUL-delimited (`-z` / `read -d ''`) so paths with spaces, newlines, or
+# quote-triggering characters are not dropped or mangled.
+#   Pointer: when the native copy's rules matter, fetch
+#   <https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees> live.
 include_file="$toplevel/.worktreeinclude"
 copied=0
 copy_failed=0

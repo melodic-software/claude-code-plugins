@@ -9,18 +9,22 @@
 # `/source-control:worktree cleanup` runs at its own teardown
 # (scripts/reap-project-plugin-records.sh) runs here too.
 #
-# Contract (hooks page, stamp below):
-#   * stdin is one JSON object: the common fields (session_id, cwd, ...) plus
-#     `worktree_path`, the path the WorktreeCreate hook returned.
-#   * exit 0 counts as removed whatever is left on disk, and no git fallback
-#     runs, so this hook deletes the directory itself.
-#   * a non-zero exit fails the removal while the directory exists: the worktree
-#     stays on disk, and stderr reaches the debug log (and, for a
-#     background-session delete, the start of it in agent view). Every refusal
-#     leads with the remedy.
-#   * it does not fire when a subagent or workflow agent finishes; those
-#     worktrees stay for `/source-control:worktree cleanup` and the audit's
-#     Step 2b remedy.
+# Rules this hook keeps:
+#   * It acts only on the payload's `worktree_path`, so it never removes a path
+#     the payload did not name, and it refuses a lock whose reason does not
+#     name the payload's `session_id`, so it never takes a worktree another
+#     session still claims.
+#   * It exits 0 only once the directory is gone, so a success never leaves the
+#     worktree on disk; it deletes the directory itself rather than relying on
+#     anything to run after it.
+#   * Every refusal exits 1 with the directory still on disk and leads stderr
+#     with the remedy, so the first line says what to do.
+#   * A worktree this hook is not run for is left to
+#     `/source-control:worktree cleanup` and the audit's Step 2b remedy.
+#   Pointer: when checking which removals run this hook, what its payload
+#   carries, or how its exit code is read, fetch
+#   <https://code.claude.com/docs/en/hooks#worktreeremove> and
+#   <https://code.claude.com/docs/en/hooks#worktreeremove-input> live.
 #
 # Refused before anything is reaped (exit 1, directory left in place):
 #   * a path that is relative, a symlink, not a directory, a main working tree,
@@ -41,12 +45,6 @@
 # here would destroy commits nothing else holds. Carried gitignored files are not
 # compared (`/source-control:pull-request create` owns that sync), and the
 # Workspace environment `down` never runs here.
-#
-# ── Verification stamp (docs/contracts/upstream-drift) ────────────────────────
-# Claim: the contract bullets above.
-# Basis: <https://code.claude.com/docs/en/hooks#worktreeremove> and
-#   <https://code.claude.com/docs/en/hooks#worktreeremove-input>.
-# ───────────────────────────────────────────────────────────────────────────────
 
 set -uo pipefail
 
