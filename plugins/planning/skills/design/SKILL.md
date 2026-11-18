@@ -400,7 +400,8 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
 **Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
-`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled). Without
+`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled), asking
+for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
 ## Key behaviors

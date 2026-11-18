@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: viz-diagram-target-excalidraw-file
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: file-written
+    type: file_exists
+    path: 'docs/diagrams/*.excalidraw'
+    exists: true
+  - name: check-ran
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'diagram-file-check\.mjs'
+    min: 1
+    arm: 'with-only'
+  - name: lane-frames
+    type: 'regex'
+    pattern: '\\"type\\"\s*:\s*\\"frame\\"'
+    target: 'trace'
+  - name: no-git-stage
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit\b[^;&|]*?\s(?:add|commit|stage)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: reports-path
+    type: 'regex'
+    pattern: '(?:^|[\s(`''"<*])/[^\s`''"<>)*]*/docs/diagrams/[a-z0-9-]+\.excalidraw\b'
+    flags: 'm'
+    target: 'last_message'
