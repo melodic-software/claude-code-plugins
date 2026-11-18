@@ -179,7 +179,7 @@ done
 # to be is the worse failure (see FAIL-OPEN above).
 # The redirect sits on the group, not inside the substitution: bash execs git in
 # the substitution's subshell only when git carries no redirection of its own.
-{ ORIGIN=$(git -C "$REPO_ROOT" remote get-url origin) || ORIGIN=""; } 2>/dev/null
+{ ORIGIN=$(hook::git_untrusted -C "$REPO_ROOT" remote get-url origin) || ORIGIN=""; } 2>/dev/null
 [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
 norm="${ORIGIN%/}"
 norm="${norm%.git}"

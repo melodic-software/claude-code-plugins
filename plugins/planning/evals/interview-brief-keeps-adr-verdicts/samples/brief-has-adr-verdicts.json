@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief\n\n### Out-of-scope\n- none\n\n### ADR verdicts\n- Q1 attempt count: no ADR; no real alternative weighed\n- Q2 backoff schedule: no ADR; no real alternative weighed\n- Q3 failed-delivery storage: ADR candidate, not checked; Postgres table weighed against a Redis stream\n- Q4 alert channel: no ADR; a process decision\n\n### Deferred questions\n- none\n\n## Plan\n",
+      "why": "the section lists every decision"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Brief\n\n### Constraints\n- Q3 failed deliveries go to a Postgres table\n- Q4 alerts go to the integrations channel\n\n### Deferred questions\n- none\n",
+      "why": "no ADR verdicts section"
+    },
+    {
+      "answer": "## Brief\n\n### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n\n### Deferred questions\n- Q3 and Q4 settled\n",
+      "why": "the section drops Q3 and Q4"
+    },
+    {
+      "answer": "## Brief\n\n### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: Postgres table\n- Q4 alert channel: integrations channel\n\n### Deferred questions\n- none\n",
+      "why": "Q3 and Q4 lines carry no verdict"
+    },
+    {
+      "answer": "## Brief\n\n### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: no ADR\n- Q4 alert channel: no ADR\n\n### Deferred questions\n- none\n",
+      "why": "Q3's confirmed verdict was changed to no ADR"
+    }
+  ]
+}
