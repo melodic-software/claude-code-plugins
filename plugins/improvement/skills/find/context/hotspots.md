@@ -86,8 +86,8 @@ Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
 All layers absent is a valid state. When item 2 resolves nothing while `churn_exclude_defaults` is
 on, record an evidence-gap line (format: unattended.md), e.g.
 `gap: churn exclusions — no mechanical files resolved from the repository — declare churn_exclude or run /improvement:setup apply`.
-With nothing declared either, set `excludes='^$'`, which matches no path, and count churn without
-exclusions.
+When the two sources yield no pattern at all, set `excludes='^$'`, which matches no path, and count
+churn without exclusions.
 
 ## Step 3: indentation count as the complexity proxy (record LOC alongside)
 
