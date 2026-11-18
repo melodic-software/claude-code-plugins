@@ -169,6 +169,7 @@ function world({
   parents = {},
   subIssues = {},
   done = {},
+  repoComments = [],
   failOn,
 } = {}) {
   const calls = [];
@@ -280,6 +281,10 @@ function world({
     }
     if (method === "POST" && route.match(/\/issues\/\d+\/comments$/) && String(body?.body).startsWith(ADMISSION_RECORD_MARKER)) {
       return {};
+    }
+    if (method === "GET" && route === `${base}/comments`) {
+      const since = Date.parse(new URL(path, "https://x").searchParams.get("since"));
+      return listed(repoComments.filter((comment) => Date.parse(comment.updated_at ?? comment.created_at) >= since));
     }
     if ((match = route.match(/\/issues\/(\d+)\/comments$/))) {
       return listed(comments[match[1]] ?? []);
@@ -3820,7 +3825,7 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
 // held. No handoff, no scan output: work-resolve-issue's later calls,
 // apply-issue-patch and report-outcome all skip, and the run ends green.
 const epoch = (at) => Date.parse(at) / 1000;
-const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T10:30:00Z")}`) => ({ name, conclusion: "success" });
+const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:50:00Z")}`) => ({ name, conclusion: "success" });
 const skippedJob = (name) => ({ name, conclusion: "skipped", steps: [] });
 const budgetStopped = (step = budgetStep()) => [
   ADMITTED,
@@ -3919,7 +3924,7 @@ test("budget stops never count toward limits.limit-stops-per-issue or wait the k
 test("a later budget stop edits the issue's one budget record in place, never posting a second", async () => {
   const once = await afterSweeps(1, BUDGET_STOPPED);
   const recordId = once.comments.at(-1).id;
-  const again = stalledRun({ jobs: budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:30:00Z")}`)), conclusion: "success", ...once });
+  const again = stalledRun({ jobs: budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:45:00Z")}`)), conclusion: "success", ...once });
   assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
   const done = writes(again.calls);
   assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/${recordId} `), done[0]);
@@ -4241,10 +4246,7 @@ test("a rate-limit stop before any model turn is on the failed-mint bound and ba
   assert.deepEqual(writes(recent.calls), []);
 });
 
-// Run 42976995398: the subscription leg ran the model, then
-// run-checks and apply-issue-patch's trigger check failed. The same stop line
-// in a pre-model job of a run where a model step ran is no rate-limit stop.
-test("a rate-limit stop line in a run where a model step ran is not did-no-work: no log is read and the failed-run re-fire is unchanged", async () => {
+test("a rate-limit stop line in a run where a model step ran is a floor stop, which waits for the reset it names", async () => {
   const modelRan = [
     ADMITTED,
     pickSlot,
@@ -4263,11 +4265,14 @@ test("a rate-limit stop line in a run where a model step ran is not did-no-work:
     ["the summary pass ran", summarized],
   ]) {
     const line = limitLog(STOP_LINES["hit the limit"]);
-    const { github, actions, calls } = stalledRun({ jobs, logs: { [LIMIT_ID]: line, [LIMIT_ID + 1]: line } });
-    assert.equal(await sweep({ github, actions }), 0, name);
-    assert.deepEqual(logReads(calls), [], name);
-    // The failed-run path re-fires it at once, inside the reset.
-    assert.deepEqual(writes(calls), refired(30), name);
+    const early = stalledRun({ jobs, logs: { [LIMIT_ID]: line, [LIMIT_ID + 1]: line } });
+    assert.equal(await sweep({ github: early.github, actions: early.actions }), 0, name);
+    assert.equal(logReads(early.calls).length, 1, name);
+    assert.deepEqual(writes(early.calls), [], `${name}: 12:00 is before the 12:30 reset`);
+    const due = stalledRun({ jobs, logs: { [LIMIT_ID]: line, [LIMIT_ID + 1]: line } });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0, name);
+    assert.ok(postedBody(due.calls).includes(`<!-- work-unblock cause=floor reset=${RESET} -->`), name);
+    assert.deepEqual(writes(due.calls).slice(1), restarted(30), name);
   }
 });
 
@@ -8106,4 +8111,268 @@ test("the labels come from the binding at BASE_PATH: a remapped container and pr
   assert.equal(await sweep({ github, admission: admissionFor() }, { ...PAUSING, BASE_PATH: base }), 0);
   assert.deepEqual(writes(calls), [labeled(28)]);
   assert.ok(logs.includes(mapNotice([[26, "epic"], [27, "chart: open"]])), logs.join("\n"));
+});
+
+const FLOOR_RESET = "2026-10-16T11:50:00Z";
+const floorStopLine = (reset) =>
+  `2026-10-16T10:04:58.4667979Z ##[error]GET https://api.github.com/repos/${REPO}/actions/runs/5030 left GitHub's core API 11 of 5000 requests, at or under its stop-floor share 0.02 (status 200): no call to it before ${reset} (x-ratelimit-reset); this step fails`;
+const floorLog = (reset = FLOOR_RESET) =>
+  [
+    "2026-10-16T10:04:58.0000000Z ##[group]Run node .base/.github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+    floorStopLine(reset),
+    "2026-10-16T10:04:58.4669217Z check-trusted-trigger: proceed=true reason=ok",
+    "2026-10-16T10:04:58.4674622Z ##[notice]script=check-trigger github-token=1 lanes-app=0 not-modified=0 graphql=0",
+    "2026-10-16T10:04:58.5016383Z ##[error]Process completed with exit code 1.",
+    "2026-10-16T10:04:58.5023427Z ##[end-action id=gate.check;outcome=failure;conclusion=failure;duration_ms=495]",
+    "",
+  ].join("\n");
+const runChecksLog = (reset = FLOOR_RESET) =>
+  [
+    "2026-10-16T10:04:58.0000000Z ##[group]Run node .base/.github/actions/resolve-config/resolve.mjs",
+    floorStopLine(reset),
+    `2026-10-16T10:04:58.4669217Z ##[error]GET /repos/${REPO}/issues/30 failed with status 403`,
+    "2026-10-16T10:04:58.5016383Z ##[error]Process completed with exit code 1.",
+    "",
+  ].join("\n");
+const FLOOR_JOB = 7030;
+const MODEL_RAN = { name: "Resolve Issue Subscription / Run", conclusion: "success", steps: [{ name: "Run the skill on the API key", conclusion: "skipped" }, { name: "Run the skill on the OAuth token", conclusion: "success" }] };
+const floorStopped = (id = FLOOR_JOB) => [
+  ADMITTED,
+  pickSlot,
+  MODEL_RAN,
+  { id, name: "Apply Issue Patch / Run", conclusion: "failure", steps: [{ name: "Check the kill switch", conclusion: "success" }, { name: "Check the trigger", conclusion: "failure" }, { name: "Request the lane token", conclusion: "skipped" }] },
+  { id: id + 1, name: "Run Checks", conclusion: "failure", steps: [{ name: "Resolve the config", conclusion: "failure" }] },
+];
+const floorRun = ({ logs = { [FLOOR_JOB]: floorLog() }, jobs = floorStopped(), ...rest } = {}) => stalledRun({ jobs, logs, ...rest });
+const floorRecord = (reset = FLOOR_RESET) => `<!-- work-unblock refired ${KEY} breaker -->\n<!-- work-unblock cause=floor reset=${reset} -->\n`;
+const floorNote = (reset = FLOOR_RESET, at = "2026-10-16T11:55:00Z", id = 80) => ({ id, body: `${floorRecord(reset)}Recorded.`, user: LANES_BOT, created_at: at, updated_at: at });
+const movedAt = (at, back) => [{ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at }, added(back)];
+const floorFired = (calls, reset = FLOOR_RESET) => {
+  const done = writes(calls);
+  assert.equal(done.length, 1 + restarted(30).length, done.join("\n"));
+  assert.ok(postedBody(calls).startsWith(floorRecord(reset)), postedBody(calls));
+  assert.ok(postedBody(calls).includes(REFUSED_LINK), postedBody(calls));
+  assert.deepEqual(done.slice(1), restarted(30));
+  assert.ok(!done.some((call) => call.includes("needs-human")), done.join("\n"));
+};
+
+test("a post-model floor stop, in the log shape of job 134571204039 of run 44234454272, re-fires once from the reset it names to 20 minutes after it, repeating hourly from that reset", async () => {
+  for (const at of ["2026-10-16T11:50:00Z", "2026-10-16T12:00:00Z", "2026-10-16T12:09:59Z", "2026-10-16T12:50:00Z", "2026-10-16T13:09:59Z"]) {
+    const { github, actions, calls } = floorRun();
+    assert.equal(await sweep({ github, actions, now: Date.parse(at) }), 0, at);
+    floorFired(calls);
+    assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${FLOOR_JOB}/logs`], at);
+  }
+  for (const at of ["2026-10-16T11:49:59Z", "2026-10-16T12:10:00Z", "2026-10-16T12:49:59Z", "2026-10-16T13:10:00Z"]) {
+    const { github, actions, calls } = floorRun();
+    assert.equal(await sweep({ github, actions, now: Date.parse(at) }), 0, at);
+    assert.deepEqual(writes(calls), [], `${at} is outside the span`);
+  }
+});
+
+test("a post-model floor stop whose stop line another error follows in the failed step is the same stop", async () => {
+  const { github, actions, calls } = floorRun({ logs: { [FLOOR_JOB]: runChecksLog() } });
+  assert.equal(await sweep({ github, actions }), 0);
+  floorFired(calls);
+});
+
+test("a run that minted a lane token before the floor stopped its report re-fires the same way", async () => {
+  const minted = { name: "Apply Issue Patch / Run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const report = { id: FLOOR_JOB, name: "Report Outcome / Run", conclusion: "failure", steps: [{ name: "Check the trigger", conclusion: "failure" }] };
+  const { github, actions, calls } = floorRun({ jobs: [ADMITTED, pickSlot, MODEL_RAN, minted, report] });
+  assert.equal(await sweep({ github, actions }), 0);
+  floorFired(calls);
+});
+
+test("a second pass over the same reset does not re-fire, and a later reset does", async () => {
+  const rerun = (reset) => {
+    const fake = world({
+      openReady: [ready(30)],
+      comments: { 30: [note(), floorNote()] },
+      events: { 30: [added(LABELED_AT, OWNER), ...movedAt("2026-10-16T11:55:01Z", "2026-10-16T11:55:02Z")] },
+      runs: [{ ...laneRun({ at: "2026-10-16T11:55:05Z" }), updated_at: "2026-10-16T11:58:00Z" }],
+      jobs: { 5030: floorStopped() },
+      logs: { [FLOOR_JOB]: floorLog(reset) },
+      openLanePrs: 10,
+      blobs: BLOBS,
+    });
+    return { ...fake, actions: fake.github };
+  };
+  const same = rerun(FLOOR_RESET);
+  assert.equal(await sweep({ github: same.github, actions: same.actions }), 0);
+  assert.deepEqual(writes(same.calls), [], "one re-fire per issue per reset");
+  const later = rerun("2026-10-16T12:50:00Z");
+  assert.equal(await sweep({ github: later.github, actions: later.actions, now: Date.parse("2026-10-16T12:55:00Z") }), 0);
+  floorFired(later.calls, "2026-10-16T12:50:00Z");
+});
+
+test("a floor record whose restart did not land is finished by the next pass, without a second record", async () => {
+  const { github, actions, calls } = floorRun({ comments: [note(), floorNote()] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+const floorIssues = (numbers) => ({
+  openReady: numbers.map((number) => ready(number)),
+  comments: Object.fromEntries(numbers.map((number) => [number, [note()]])),
+  events: Object.fromEntries(numbers.map((number) => [number, [added(LABELED_AT, OWNER)]])),
+  runs: numbers.map((number) => ({ ...laneRun({ number }), updated_at: "2026-10-16T10:05:00Z" })),
+  jobs: Object.fromEntries(numbers.map((number) => [5000 + number, floorStopped(7000 + number)])),
+  logs: Object.fromEntries(numbers.map((number) => [7000 + number, floorLog()])),
+  openLanePrs: 10,
+  blobs: BLOBS,
+});
+const FLOORS = [41, 42, 43, 44, 45];
+const ORDINARY = [31, 32, 33];
+const mixedWorld = (extra = {}) => {
+  const floors = floorIssues(FLOORS);
+  const fake = world({
+    ...floors,
+    openReady: [...ORDINARY.map((number) => ready(number)), ...floors.openReady],
+    comments: { ...floors.comments, ...Object.fromEntries(ORDINARY.map((number) => [number, [note()]])) },
+    events: { ...floors.events, ...Object.fromEntries(ORDINARY.map((number) => [number, [added(LABELED_AT, OWNER)]])) },
+    runs: [...ORDINARY.map((number) => laneRun({ number })), ...floors.runs],
+    ...extra,
+  });
+  return { ...fake, actions: fake.github };
+};
+
+test("at most SLOTS floor re-fires go per window, sorted ahead of restarts-per-run", async () => {
+  const capped = mixedWorld();
+  assert.equal(await sweep({ github: capped.github, actions: capped.actions }, withConfig({ limits: { "restarts-per-run": 3 } })), 0);
+  assert.deepEqual(restarts(capped.calls), ["RESTART 41", "RESTART 42", "RESTART 43"]);
+  const roomy = mixedWorld();
+  assert.equal(await sweep({ github: roomy.github, actions: roomy.actions }), 0);
+  assert.deepEqual(restarts(roomy.calls), ["RESTART 41", "RESTART 42", "RESTART 43", "RESTART 31", "RESTART 32"]);
+});
+
+test("floor re-fires an earlier pass made in the window count toward its batch", async () => {
+  const posted = (at, id, user = LANES_BOT) => ({ ...floorNote(FLOOR_RESET, at, id), user });
+  const twoEarlier = mixedWorld({ repoComments: [posted("2026-10-16T11:55:00Z", 91), posted("2026-10-16T11:58:00Z", 92)] });
+  assert.equal(await sweep({ github: twoEarlier.github, actions: twoEarlier.actions }, withConfig({ limits: { "restarts-per-run": 3 } })), 0);
+  assert.deepEqual(restarts(twoEarlier.calls), ["RESTART 41", "RESTART 31", "RESTART 32"]);
+  const full = mixedWorld({ repoComments: [91, 92, 93].map((id) => posted("2026-10-16T11:58:00Z", id)) });
+  assert.equal(await sweep({ github: full.github, actions: full.actions }, withConfig({ limits: { "restarts-per-run": 3 } })), 0);
+  assert.deepEqual(restarts(full.calls), ["RESTART 31", "RESTART 32", "RESTART 33"], "the window's batch is spent");
+  const neither = mixedWorld({ repoComments: [posted("2026-10-16T11:58:00Z", 91, OWNER), { ...posted("2026-10-16T11:05:00Z", 92), updated_at: "2026-10-16T11:59:00Z" }] });
+  assert.equal(await sweep({ github: neither.github, actions: neither.actions }, withConfig({ limits: { "restarts-per-run": 3 } })), 0);
+  assert.deepEqual(restarts(neither.calls), ["RESTART 41", "RESTART 42", "RESTART 43"]);
+});
+
+test("a failed read of the window's floor records re-fires no floor stop this pass and leaves other restarts alone", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const failing = mixedWorld({ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/${REPO}/issues/comments?`) });
+  assert.equal(await sweep({ github: failing.github, actions: failing.actions }, withConfig({ limits: { "restarts-per-run": 3 } })), 0);
+  assert.deepEqual(restarts(failing.calls), ["RESTART 31", "RESTART 32", "RESTART 33"]);
+});
+
+test("a finished record's restart spends none of the window's batch", async () => {
+  const floors = floorIssues([41]);
+  const fake = world({ ...floors, comments: { 41: [note(), floorNote()] }, repoComments: [91, 92, 93].map((id) => floorNote(FLOOR_RESET, "2026-10-16T11:58:00Z", id)) });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), restarted(41));
+});
+
+const THREE_FLOOR_RECORDS = {
+  comments: [note(), floorNote("2026-10-16T06:50:00Z", "2026-10-16T06:55:00Z", 81), floorNote("2026-10-16T07:50:00Z", "2026-10-16T07:55:00Z", 82), floorNote("2026-10-16T08:50:00Z", "2026-10-16T09:59:58Z", 83)],
+  events: [added("2026-10-16T05:00:00Z", OWNER), ...movedAt("2026-10-16T06:55:01Z", "2026-10-16T06:55:02Z"), ...movedAt("2026-10-16T07:55:01Z", "2026-10-16T07:55:02Z"), ...movedAt("2026-10-16T09:59:59Z", LABELED_AT)],
+};
+const FAILED_AGAIN_CAUSE = "The work-resolve-issue run that `agent-ready` started failed or was cancelled before it reported, over 3 hours ago.";
+
+test("past limits.limit-stops-per-issue floor re-fires the issue goes to the failed-again backoff", async () => {
+  const held = floorRun(THREE_FLOOR_RECORDS);
+  assert.equal(await sweep({ github: held.github, actions: held.actions }), 0);
+  assert.deepEqual(writes(held.calls), [], "a fourth floor re-fire does not go inside the span");
+  const early = floorRun(THREE_FLOOR_RECORDS);
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T13:04:59Z") }), 0);
+  assert.deepEqual(writes(early.calls), [], "the backoff runs 3 hours from the run's end");
+  const due = floorRun(THREE_FLOOR_RECORDS);
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T13:05:00Z") }), 0);
+  assert.deepEqual(writes(due.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refireComment(KEY, FAILED_AGAIN_CAUSE) })}`, ...restarted(30)]);
+});
+
+test("a person's agent-ready or a reported run starts the floor re-fire count again", async () => {
+  const person = floorRun({ comments: THREE_FLOOR_RECORDS.comments, events: [...THREE_FLOOR_RECORDS.events.slice(0, -1), added(LABELED_AT, OWNER)] });
+  assert.equal(await sweep({ github: person.github, actions: person.actions }), 0);
+  floorFired(person.calls);
+  const reported = { id: 84, body: "<!-- work-resolve-issue outcome=pushback run=8 -->\nUnclear.", user: LANES_BOT, created_at: "2026-10-16T09:59:59Z" };
+  const run = floorRun({ comments: [...THREE_FLOOR_RECORDS.comments, reported], events: THREE_FLOOR_RECORDS.events });
+  assert.equal(await sweep({ github: run.github, actions: run.actions }), 0);
+  floorFired(run.calls);
+});
+
+test("floor records spend neither the kill-switch trips nor the once-per-version re-fire", async () => {
+  const bodies = [`${floorRecord("2026-10-16T05:50:00Z")}One.`, `${floorRecord("2026-10-16T06:50:00Z")}Two.`, `${floorRecord("2026-10-16T07:50:00Z")}Three.`];
+  const trip = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ...history(bodies) });
+  assert.equal(await sweep({ github: trip.github, actions: trip.actions }), 0);
+  switched(trip.calls);
+  const failed = [ADMITTED, pickSlot, MODEL_RAN, { id: FLOOR_JOB, name: "Apply Issue Patch / Run", conclusion: "failure", steps: [{ name: "Apply the patch", conclusion: "failure" }] }];
+  const ordinary = stalledRun({ jobs: failed, logs: { [FLOOR_JOB]: limitLog("the patch did not apply") }, ...history(bodies.slice(0, 1)) });
+  assert.equal(await sweep({ github: ordinary.github, actions: ordinary.actions }), 0);
+  assert.deepEqual(writes(ordinary.calls), refired(30));
+});
+
+test("an ordinary failed run where a model ran is re-fired at once, as before", async () => {
+  const jobs = [ADMITTED, pickSlot, MODEL_RAN, { id: FLOOR_JOB, name: "Apply Issue Patch / Run", conclusion: "failure", steps: [{ name: "Apply the patch", conclusion: "failure" }] }];
+  for (const [name, logs] of [["another error", { [FLOOR_JOB]: limitLog("the patch did not apply") }], ["an unreadable log", {}]]) {
+    const { github, actions, calls } = stalledRun({ jobs, logs });
+    assert.equal(await sweep({ github, actions, now: Date.parse("2026-10-16T12:30:00Z") }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+test("a stop line in an earlier step, or printed by the failed model step, is no floor stop", async () => {
+  const earlierStep = [floorStopLine(FLOOR_RESET), "2026-10-16T10:04:59.0000000Z ##[end-action id=gate.check;outcome=success;conclusion=success;duration_ms=5]", "2026-10-16T10:05:00.0000000Z ##[group]Run node apply.mjs", "2026-10-16T10:05:01.0000000Z ##[error]the patch did not apply", "2026-10-16T10:05:01.1000000Z ##[error]Process completed with exit code 1.", ""].join("\n");
+  const before = floorRun({ logs: { [FLOOR_JOB]: earlierStep } });
+  assert.equal(await sweep({ github: before.github, actions: before.actions, now: Date.parse("2026-10-16T12:30:00Z") }), 0);
+  assert.deepEqual(writes(before.calls), refired(30));
+  const modelFailed = [ADMITTED, pickSlot, { id: FLOOR_JOB, name: "Resolve Issue Subscription / Run", conclusion: "failure", steps: [{ name: "Run the skill on the OAuth token", conclusion: "failure" }] }];
+  const printed = floorRun({ jobs: modelFailed });
+  assert.equal(await sweep({ github: printed.github, actions: printed.actions, now: Date.parse("2026-10-16T12:30:00Z") }), 0);
+  assert.deepEqual(writes(printed.calls), refired(30));
+});
+
+test("a floor stop waits while the issue lane is paused over its WIP cap", async () => {
+  const { github, actions, calls } = floorRun({ openLanePrs: 3 });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a rate-limit stop before any model turn keeps its own path, at any time after its reset", async () => {
+  for (const at of ["2026-10-16T12:31:00Z", "2026-10-16T13:15:00Z"]) {
+    const { github, actions, calls } = stalledRun({ jobs: PRE_MODEL_LIMITED.admit, logs: { [LIMIT_ID]: limitLog(STOP_LINES["stop floor"]) } });
+    assert.equal(await sweep({ github, actions, now: Date.parse(at) }), 0, at);
+    assert.deepEqual(writes(calls), limitRefired(RESET), at);
+  }
+  const trailing = stalledRun({ jobs: PRE_MODEL_LIMITED.admit, logs: { [LIMIT_ID]: floorLog(RESET) } });
+  assert.equal(await sweep({ github: trailing.github, actions: trailing.actions }), 0);
+  assert.deepEqual(writes(trailing.calls), refired(30));
+});
+
+test("a floor stop outside the span waits for the next span's opening", async (t) => {
+  const lines = [];
+  t.mock.method(console, "log", (line) => lines.push(String(line)));
+  const { github, actions } = floorRun();
+  assert.equal(await sweep({ github, actions, now: Date.parse("2026-10-16T12:10:00Z") }), 0);
+  assert.ok(lines.some((line) => line.includes("#30 not restarted") && line.endsWith("re-fired from 2026-10-16T12:50:00Z")), lines.join("\n"));
+});
+
+test("a start-gate re-fire goes only from the reset it names to 20 minutes after it, repeating hourly", async () => {
+  const jobs = budgetStopped(budgetStep(`Stop on a low GITHUB_TOKEN budget until ${epoch(FLOOR_RESET)}`));
+  for (const at of ["2026-10-16T11:50:00Z", "2026-10-16T12:09:59Z", "2026-10-16T12:50:00Z"]) {
+    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended: "2026-10-16T11:40:00Z" });
+    assert.equal(await sweep({ github, actions, now: Date.parse(at) }), 0, at);
+    budgeted(calls);
+  }
+  for (const at of ["2026-10-16T11:49:59Z", "2026-10-16T12:10:00Z", "2026-10-16T12:49:59Z"]) {
+    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", ended: "2026-10-16T11:40:00Z" });
+    assert.equal(await sweep({ github, actions, now: Date.parse(at) }), 0, at);
+    assert.deepEqual(writes(calls), [], `${at} is outside the span`);
+  }
+});
+
+test("a start-gate stop that names no reset has no span to wait for", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: budgetStopped(budgetStep("Stop on a low GITHUB_TOKEN budget")), conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github, actions, now: Date.parse("2026-10-16T13:30:00Z") }), 0);
+  budgeted(calls);
 });

@@ -205,8 +205,13 @@
 // stop-floor share, or got a server error with a Retry-After (a server error
 // hold, its record named so), naming the reset. It is re-fired as a failed mint, under
 // the same bound and backoff, once both that reset and limits.reset-clamp-min
-// hours after the run ended have passed. The same line where a model step ran,
-// or a log that cannot be read, leaves the run as before.
+// hours after the run ended have passed. A log that cannot be read leaves the
+// run as before. The same stop where a model step ran is a floor stop: a fresh
+// start only from the reset R it names to FLOOR_SPAN_MIN minutes after, and from
+// each hour after R, a primary rate limit's window being an hour:
+// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+// It re-fires once per R, at most the lane's SLOTS per window, and takes the
+// failed-again backoff after limits.limit-stops-per-issue of them.
 //
 // A run the token broker refused for the lanes kill switch, at check-broker's
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
@@ -231,7 +236,10 @@
 // on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's check-broker,
 // from the jobs listing) is a breaker trip at check-broker whose record
 // carries BUDGET_TAG: it never counts toward that bound or that wait, and
-// re-fires once the window reset its step names has passed. A sweep re-fires breaker trips,
+// re-fires only from the window reset its step names to FLOOR_SPAN_MIN minutes
+// after, and from each hour after that reset:
+// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+// A sweep re-fires breaker trips,
 // oldest run end first, only while the work-resolve-issue runs not yet
 // finished (five status listings, read once a sweep that has one) are under
 // limits.refire-queue-per-slot times the lane's SLOTS, within
@@ -431,6 +439,10 @@ const BUDGET_TAG = "<!-- work-unblock cause=budget -->";
 // every budget re-fire keeps its date once the record is edited again.
 const BUDGET_EARLIER = /^<!-- work-unblock earlier ([^>]*) -->$/m;
 const budgetEarlier = (body) => (BUDGET_EARLIER.exec(String(body ?? ""))?.[1] ?? "").split(" ").filter(Boolean);
+const floorTag = (reset) => `<!-- work-unblock cause=floor reset=${isoSecond(reset)} -->`;
+const FLOOR_TAG = /^<!-- work-unblock cause=floor reset=(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) -->$/;
+const FLOOR_SPAN_MIN = 20;
+const FLOOR_SPAN_MS = FLOOR_SPAN_MIN * 60_000;
 const INSTALL_STEP = "Install resolve-config's packages";
 const TRIGGER_STEP = "Check the trigger";
 const WIP_STEP = "Check the WIP cap";
@@ -454,6 +466,7 @@ const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit co
 const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
+const STEP_EDGE = stamped(String.raw`##\[(?:group\]Run |start-action |end-action )`);
 // The write runner's step after MINT_STEP that runs exactly when a token was
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
@@ -536,6 +549,14 @@ export const BACKOFF_CAP_HOURS = STRANDED_BACKOFF_MAX;
 // When the next re-fire is due: `hours`, the cause's
 // limits.stranded-backoff-hours, doubled per re-fire so far.
 const backoffDue = (since, refires, hours) => since + Math.min(hours * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
+const spanOpens = (reset, now) => {
+  if (now < reset) {
+    return reset;
+  }
+  const opened = reset + Math.floor((now - reset) / HOUR_MS) * HOUR_MS;
+  return now < opened + FLOOR_SPAN_MS ? opened : opened + HOUR_MS;
+};
+const isoSecond = (at) => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
 // Whether the account that closed the issue (ACTOR_ID) and the one that
@@ -621,8 +642,13 @@ const isLabel = (event, kind) => event.event === kind && String(event.label?.nam
 // a stop on the GITHUB_TOKEN budget.
 const parseMarker = (body) => {
   const refire = REFIRED.exec(String(body ?? "")) ?? INFRA.exec(String(body ?? ""));
-  const breaker = refire?.[2] !== undefined;
-  return refire ? { outcome: "refired", key: refire[1], breaker, budget: breaker && String(body).split("\n")[1] === BUDGET_TAG } : parseOutcomeMarker(body);
+  if (!refire) {
+    return parseOutcomeMarker(body);
+  }
+  const breaker = refire[2] !== undefined;
+  const tag = breaker ? String(body).split("\n")[1] : undefined;
+  const floor = FLOOR_TAG.exec(tag ?? "")?.[1];
+  return { outcome: "refired", key: refire[1], breaker, budget: tag === BUDGET_TAG, ...(floor && { floor: Date.parse(floor) }) };
 };
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
@@ -1740,6 +1766,9 @@ export const breakerComment = (key, { repo, run, ended, budget = false, earlier 
     ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share (limits.api github-token start-gate); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.${earlier.length > 0 ? `\n<!-- work-unblock earlier ${earlier.join(" ")} -->` : ""}`
     : `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the same limits.stranded-backoff-hours \`kill-switch\` hours after each refused run before re-firing it, never longer.`;
 
+const floorComment = (key, { repo, run, reset }) =>
+  `<!-- work-unblock refired ${key} breaker -->\n${floorTag(reset)}\nThis records a re-fire of an earlier stop, not a new one. A GitHub API pool's stop floor stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, after its model ran, until ${isoSecond(reset)}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run early in a window. A floor stop is the lanes' load, not a fault in this issue. After limits.limit-stops-per-issue of these since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the limits.stranded-backoff-hours \`failed-again\` backoff instead.`;
+
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
 export const infraComment = (key, cause, refires) =>
@@ -1948,9 +1977,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       calls.some(killedBefore(BROKER_STEP)) || ADMIT.flatMap(named).some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
     // A failed job before any model turn: check-admission, pick-slot, or a call's
     // check-broker or run job, in a run where no model step ran.
-    const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
     const preModel = [...ADMIT.flatMap(named), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|check-broker|Check Broker|run|Run)$/.test(String(job.name)))];
-    const limited = modelRan ? undefined : preModel.find((job) => job.conclusion === "failure");
+    const limited = modelRan(jobs) ? undefined : preModel.find((job) => job.conclusion === "failure");
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
@@ -2008,6 +2036,27 @@ async function didNoWork(jobsOf, refusalOf, runs) {
   return stalled && { stalled, run: tripped, stage, budget, resetAt: budget ? resetAt : null, reset: stalled === "mint-failed" ? reset : 0, server: limit && !limitSeen ? server : null };
 }
 
+const modelRan = (jobs) => jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
+
+async function floorStop(jobsOf, refusalOf, runs) {
+  const failed = runs.filter((run) => FAILED.has(run.conclusion));
+  let stop = null;
+  for (const run of failed) {
+    const jobs = await jobsOf(run);
+    const job = jobs.find((item) => item.conclusion === "failure");
+    const step = (job?.steps ?? []).find((item) => item?.conclusion === "failure");
+    if (!step || MODEL_STEP.test(String(step.name)) || !modelRan(jobs)) {
+      return null;
+    }
+    const reset = Date.parse(String((await refusalOf(job, "limit", "floor")) ?? "").split(" ")[0]);
+    if (!Number.isFinite(reset)) {
+      return null;
+    }
+    stop = reset > (stop?.reset ?? 0) ? { run, reset } : stop;
+  }
+  return stop;
+}
+
 // The reason the broker refused `job`, from its log: the failed step's last
 // line before the runner's first `Process completed`, in `mode` (check or
 // token; in `limit` mode the reset a RATE_LIMITED line names), or BREAKER
@@ -2019,7 +2068,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
 // so the answer from a log that was read is kept in `carry`
 // (verdict-carry.mjs) and the next sweep reads it from there.
 function refusalReader(jobLog, repo, carry) {
-  return async (job, mode) => {
+  return async (job, mode, scan = mode) => {
     if (!jobLog || !RUN_ID.test(String(job?.id))) {
       return null;
     }
@@ -2034,11 +2083,16 @@ function refusalReader(jobLog, repo, carry) {
       console.log(`::warning title=label-unblocked::job ${job.id}'s log was not read: ${escapeCommand(error?.message ?? error)}`);
       return null;
     }
-    const value = refusalIn(String(log ?? "").split("\n"), mode);
+    const value = refusalIn(String(log ?? "").split("\n"), scan);
     carry?.keepRefusal(job.id, mode, value);
     return value;
   };
 }
+
+const stopNamedIn = (line) => {
+  const { reset, status } = RATE_LIMITED.exec(line)?.groups ?? {};
+  return reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null;
+};
 
 // The refusal in a log's `lines`, in `mode`, as refusalReader describes.
 function refusalIn(lines, mode) {
@@ -2058,8 +2112,16 @@ function refusalIn(lines, mode) {
   if (mode === "limit") {
     // `<reset>` for a rate limit, `<reset> server-<5xx>` for a server error
     // hold; verdict-carry's REASON carries both.
-    const { reset, status } = RATE_LIMITED.exec(lines[end - 1])?.groups ?? {};
-    return reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null;
+    return stopNamedIn(lines[end - 1]);
+  }
+  if (mode === "floor") {
+    for (let at = end - 1; at >= 0 && !STEP_EDGE.test(lines[at]); at -= 1) {
+      const stop = stopNamedIn(lines[at]);
+      if (stop) {
+        return stop;
+      }
+    }
+    return null;
   }
   return DENIAL[mode].exec(lines[end - 1])?.[1] ?? null;
 }
@@ -2457,21 +2519,23 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   // A stale stop ran no model; a failed mint in its re-fire job is no failed
   // mint of the lane's, so it skips the did-no-work clock below.
   const stale = await stoppedStale(jobsOf, runs);
-  const { stalled, run: refused, stage, budget, resetAt, reset, server } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
+  const refusalOf = refusalReader(jobLog, repo, carry);
+  const { stalled, run: refused, stage, budget, resetAt, reset, server } = (!stale && (await didNoWork(jobsOf, refusalOf, runs))) || {};
+  const from = Math.max(
+    Number.NEGATIVE_INFINITY,
+    ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
+    ...markers.filter((marker) => marker.outcome !== "refired").map((marker) => marker.at),
+  );
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, a flat wait of the
     // kill-switch hours that never doubles: a trip is the lanes' load, not the
     // issue's fault (owner decision Q109). A stop on the GITHUB_TOKEN budget is
-    // no trip: it never counts, and re-fires once the window it read has
-    // reset (the reset its step names, else an hour after the run ended, a
-    // primary window's length), so it re-fires once per stop, never per sweep.
-    const from = Math.max(
-      Number.NEGATIVE_INFINITY,
-      ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
-      ...markers.filter((marker) => marker.outcome !== "refired").map((marker) => marker.at),
-    );
-    const trips = stalled === "breaker" && !budget ? markers.filter((marker) => marker.breaker && !marker.budget && marker.at > from).length : 0;
+    // no trip: it never counts, and re-fires only early in a window after the
+    // reset its step names (with none, from an hour after the run ended), a
+    // primary window's length:
+    // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+    const trips = stalled === "breaker" && !budget ? markers.filter((marker) => marker.breaker && !marker.budget && marker.floor === undefined && marker.at > from).length : 0;
     const over = budget ? -1 : trips - limits["limit-stops-per-issue"];
     // A check-broker trip ran no model, and this sweep runs only with the
     // kill switch off, so it re-fires now; a mint trip ran the model and
@@ -2482,9 +2546,10 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // next sweep, which reads the page again.
     const outage = stalled === "outage";
     const clamp = (stalled === "breaker" && stage === "check") || (outage && (await upstreamClear())) ? 0 : limits["reset-clamp-min"];
-    // A budget stop waits for the window reset it names; a rate-limit stop
-    // waits past the reset it names too.
-    const due = budget ? (resetAt ?? ended + HOUR_MS) : Math.max(ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS, reset);
+    // A budget stop waits for a span early in a window after the reset it names:
+    // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+    // A rate-limit stop waits past the reset it names.
+    const due = budget ? (resetAt === null ? ended + HOUR_MS : spanOpens(resetAt, now)) : Math.max(ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS, reset);
     if (now < due) {
       const why = budget
         ? "the start gate stopped its lane run on a low GITHUB_TOKEN budget"
@@ -2522,6 +2587,25 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // Trips sort by when their run ended, not when they fell due, so the sweeps
     // after the switch clears drain them oldest first whatever their waits.
     return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip, ...(reset && { cause: rateLimitCause(reset, server) }) };
+  }
+  const floored = stale ? null : await floorStop(jobsOf, refusalOf, runs);
+  if (floored) {
+    const named = markers.filter((marker) => marker.floor === floored.reset);
+    if (named.some(relabeled)) {
+      return stranded(ended, `already re-fired after its floor stop until ${isoSecond(floored.reset)}`, "failed-again");
+    }
+    const spent = markers.filter((marker) => marker.floor !== undefined && marker.at > from).length;
+    if (named.length === 0 && spent >= limits["limit-stops-per-issue"]) {
+      return stranded(ended, `${spent} floor re-fires since a person last added ${LABEL} or a run last reported`, "failed-again");
+    }
+    const opens = spanOpens(floored.reset, now);
+    if (now < opens) {
+      return { reason: `a floor stop ended its lane run after the model ran; it is re-fired from ${isoSecond(opens)}`, due: opens };
+    }
+    if (await wipCapped()) {
+      return { reason: "a floor stop ended its lane run, and the issue lane is paused over its WIP cap" };
+    }
+    return { reason: null, resets: ended, refire: await workflowKey(), recorded: named.length > 0, floor: { run: floored.run.id, reset: floored.reset } };
   }
   if (!stale && !runs.some((run) => FAILED.has(run.conclusion)) && !(await stoppedMint(jobsOf, runs)) && !(await cancelledBeforeWork(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
@@ -2801,8 +2885,21 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       failed += failedFor(github, issue.number, error);
     }
   }
-  ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
+  ready.sort((a, b) => Number(Boolean(b.floor)) - Number(Boolean(a.floor)) || a.resets - b.resets || a.number - b.number);
   console.log(`label-unblocked: ${ready.filter((item) => item.recurrence).length} reopened fix issue(s) to relabel`);
+  const newFloor = (item) => item.floor && !item.recorded;
+  let floorRoom = 0;
+  if (ready.some(newFloor)) {
+    try {
+      const since = now - FLOOR_SPAN_MS;
+      const recent = await paginate(github, `/repos/${repo}/issues/comments?since=${encodeURIComponent(new Date(since).toISOString())}`);
+      const spent = recent.filter((comment) => comment.user?.login === bot && parseMarker(comment.body)?.floor !== undefined && Date.parse(comment.created_at) >= since).length;
+      floorRoom = Math.max(0, slots() - spent);
+      console.log(`label-unblocked: ${spent} floor re-fire(s) in this span, room for ${floorRoom}`);
+    } catch (error) {
+      reportHold("floor re-fire record", error);
+    }
+  }
   // Kill-switch re-fires only top the lane's unfinished runs up to the queue
   // target, so a clear keeps the slots full instead of flooding their queue;
   // a listing that fails re-fires none of them this sweep. Upstream-status
@@ -2826,6 +2923,10 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
   }
   const go = ready.filter((item) => {
+    if (newFloor(item) && floorRoom-- <= 0) {
+      console.log(`label-unblocked: #${item.number} floor re-fire deferred: this span's batch is spent`);
+      return false;
+    }
     if (!paced(item) || room-- > 0) {
       return true;
     }
@@ -2835,7 +2936,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   for (const { number } of go.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra, had } of go.slice(0, cap)) {
+  for (const { number, refire, cause, stall, trip, floor, recurrence, recorded, handOff, pr, explained, release, infra, had } of go.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the Work status, set to needs-triage, which
@@ -2860,7 +2961,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        const body = stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause);
+        const body = floor ? floorComment(refire, { repo, ...floor }) : stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause);
         await (trip?.record === undefined
           ? github("POST", `${base}/comments`, { body })
           : github("PATCH", `/repos/${repo}/issues/comments/${trip.record}`, { body }));
@@ -2893,7 +2994,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         console.log(`label-unblocked: #${number} left as is: its Work status is now ${restarted.state ?? "unset"}`);
         continue;
       }
-      const why = infra ? "re-fired on a backoff" : stall === "breaker" ? (trip?.budget ? "re-fired after a start-gate budget stop" : "re-fired after a kill-switch refusal") : stall === "outage" ? "re-fired after its upstream-status skip" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      const why = infra ? "re-fired on a backoff" : floor ? "re-fired early in a window after its floor stop" : stall === "breaker" ? (trip?.budget ? "re-fired after a start-gate budget stop" : "re-fired after a kill-switch refusal") : stall === "outage" ? "re-fired after its upstream-status skip" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
