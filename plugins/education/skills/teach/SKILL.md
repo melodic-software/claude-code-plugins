@@ -74,10 +74,11 @@ Path resolution rules every action must follow:
   `"Domain-Driven Design"` → `domain-driven-design`. **Record the exact raw name** as the source of
   truth for collision checks: `MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept,
   the `**Concept:**` line in `lesson.md` or `<meta name="concept" content="…">` in `lesson.html`.
-  **Guard against slug collisions**: before creating a workspace whose slug directory exists,
-  read its recorded raw name; if it names a different subject, append `-` plus
-  `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new
-  slug.
+  **Guard against slug collisions**: slugifying strips symbols, so different raw names can share
+  one slug. Before giving or creating a workspace path, list the directory its slug would sit in;
+  if the slug directory exists, read its recorded raw name; if it names a different subject, append
+  `-` plus `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4`
+  to the new slug.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (an ADR-style append-only log).
   Scan for the highest existing `NNNN` and increment.
 - Plugin-data workspaces live under `${CLAUDE_PLUGIN_DATA}` so they outlive the session
