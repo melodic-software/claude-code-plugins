@@ -1,11 +1,11 @@
 ---
-description: "Outcome case: a TypeScript shipment poller needs a retry policy literal set once in code. Phase 3 reads the shared type rules and holds the literal to its type with satisfies. The before-and-after case for cutting the design skill's TypeScript idioms page"
+description: "Outcome case: a TypeScript shipment poller with a retry policy literal set once in code. With no TypeScript idioms page shipped, Phase 3 of a TypeScript repository reads the shared type rules"
 tags: [design, outcome, type-discipline, typescript, scaffold]
 runs: 3
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Skill, Write]
-expected_outcome: "The run reads the skill's shared type rules, and .work/shipment-poller/design/type-inventory.md holds the retry literal to its type with satisfies"
+expected_outcome: "The run reads the skill's shared type rules, reference/type-discipline.md, while it writes .work/shipment-poller/design/type-inventory.md"
 ---
 
 /planning:design library

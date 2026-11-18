@@ -83,8 +83,9 @@
       "files": [],
       "expectations": [
         "The run reads reference/type-discipline.md during Phase 3",
+        "The run reads no file under reference/type-discipline/",
         "Proposed TypeScript types model variant state as a union with a literal tag field rather than a record of optional fields",
-        "Outside input is parsed into a named domain type at the boundary, with no cast that no check has proven"
+        "Outside input is typed unknown (never any) and parsed into a named domain type at the boundary, with no `as` cast that no check has proven"
       ]
     },
     {
@@ -95,6 +96,7 @@
       "files": [],
       "expectations": [
         "The run reads reference/type-discipline.md during Phase 3",
+        "The run reads no file under reference/type-discipline/",
         "Proposed types use Python constructs, with no TypeScript syntax such as satisfies or never-typed defaults",
         "Outside input is parsed into a domain type where it enters the service rather than checked again in inner code"
       ]
