@@ -138,8 +138,8 @@ throughout: the lesson pages that state them are paid and not linked.
 | An input of unknown rate must not flood the factory | Avoids starting one run per alert | Inference: alert volume is outside the factory's control | No push-started agent run exists | **already have**: spending limits and lane kill switches | none |
 | Queue alerts and pull them on a schedule | Sets the pace from the consumer's side | Inference: a pull cannot be overrun | Same | **already have**: the monitor lane pulls on a schedule | none |
 | Group alerts and remove duplicates | Files one ticket per group, checked against existing tickets | Inference: repeated alerts become repeated tickets | Two places judged duplicates | **adapt**: intake triage alone decides a duplicate; a producer's search only skips an obvious repeat | [#16995](https://github.com/melodic-software/claude-code-plugins/pull/16995) |
-| A monitor's ticket starts a fix run | Opens a fix from an alert with no person involved before the pull request | Inference: small fixes should not wait | Alert text is outside text | **reject**: outside text keeps a person, and no production source feeds a lane; **awaiting the owner** | none |
-| Rate each group's severity | Sends only severe groups to a fix run | Inference: fix capacity should go to what matters | We have no alert intake | **adapt** if one is built: severity orders the queue and never drops an alert; **awaiting the owner** | none |
+| A monitor's ticket starts a fix run | Opens a fix from an alert with no person involved before the pull request | Inference: small fixes should not wait | Alert text is outside text | **deferred**: the design is recorded and nothing is built now; when built, an alert starts the agent alongside the page, never instead of it, and a person reviews an alert-started fix before it merges | none |
+| Rate each group's severity | Sends only severe groups to a fix run | Inference: fix capacity should go to what matters | We have no alert intake | **adapt**: adopt severity rating for monitor alerts only when an incident lane is built; severity then orders the queue and never drops an alert | none |
 | Pull from the vendor's API | Gives the orchestrator a production read credential and puts alert text in a run's context | Inference: a pull needs access to the source | Production query text could carry data into agent context | **reject**: no production data in a pipeline for our repositories | none |
 
 ### Lesson 8: Prototyping
@@ -198,8 +198,8 @@ throughout: the lesson pages that state them are paid and not linked.
 | System design support | n/a (raised while absorbing) | n/a | No file-backed diagram target, no system-design steps, and event storming depended on Miro | **adapt** inside existing plugins, with no new plugin: an Excalidraw file target, then quality-scenario, capacity and risk steps in `/planning:design`, then event storming backends with Miro as one of them | [#17052](https://github.com/melodic-software/claude-code-plugins/pull/17052), [#17062](https://github.com/melodic-software/claude-code-plugins/pull/17062), [#17087](https://github.com/melodic-software/claude-code-plugins/pull/17087) |
 | Improvement skills as factory tasks | n/a (raised while absorbing) | n/a | Simplify and similar passes run only by hand | **adapt**: a map of factory tasks from ideation to merge decides where each runs, including a simplify pass on every pull request that never slows it | pending |
 | A parent issue for agent-filed work | n/a (raised while absorbing) | n/a | Agent filings of one kind have no grouping | **no change**: the source label comes first, and a parent only if needed | none |
-| Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **no change**: nothing is built for it; the map of factory tasks takes it up; **awaiting the owner** | none |
-| Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **no change**: no new plugin; the map of factory tasks takes it up; **awaiting the owner** | none |
+| Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
+| Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
 | Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **deferred**: a direction for later private or own-product work, not this workshop's build; **awaiting the owner** | none |
 | Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **no change**: nothing is built for it; **awaiting the owner** | none |
 
@@ -208,8 +208,9 @@ throughout: the lesson pages that state them are paid and not linked.
 These were decided to wait, each for the condition named:
 
 - a daily design filer, until the source label gives counts of open filings;
-- a production-incident pipeline, until a production source exists; a person reviews any
-  alert-started fix before it merges;
+- a production-incident pipeline, until a production source exists; an alert starts the agent
+  alongside the page, never instead of it, and a person reviews any alert-started fix before it
+  merges;
 - a private-repository runner, until that work starts, because of its cost;
 - a different runner per task, held for a later pass over the automation's shape; no condition is
   recorded;
@@ -219,18 +220,13 @@ These were decided to wait, each for the condition named:
 
 Open owner decisions, each with its recommendation:
 
-1. **A monitor's ticket starts a fix run (lesson 7).** Recommendation: reject; outside text keeps a
-   person, and no production source feeds a lane.
-2. **A merge starts the next run (lesson 5).** Recommendation: reject; it was dropped with the
+1. **A merge starts the next run (lesson 5).** Recommendation: reject; it was dropped with the
    lint-fix pipeline, and merges here are already unattended, so the loop would close with no person.
-3. **Rate each group's severity (lesson 7).** Recommendation: adapt only if an alert intake is built;
-   severity orders the queue and never drops an alert.
-4. **Owner notes with no traceable outcome.** Recommendation: no change for a factory spec handed to
-   an agent (lesson 1) and for a factory plugin (lesson 2), both taken up by the map of factory
-   tasks; deferred for vendor-agnostic providers (lesson 2).
-5. **Agent-built templates and palette (lesson 3).** Recommendation: no change; nothing is built for
-   it.
-6. **The added `deferred` and `no change` dispositions.** Recommendation: keep both beside `take`,
+2. **Vendor-agnostic providers (lesson 2).** Recommendation: deferred until private or own-product
+   work starts.
+3. **Agent-built templates and palette (lesson 3).** The owner approved a recommendation, but its
+   text is not in the written record. The row's `no change` stands until that text is confirmed.
+4. **The added `deferred` and `no change` dispositions.** Recommendation: keep both beside `take`,
    `adapt`, `already have` and `reject`.
 
 ## License notice
