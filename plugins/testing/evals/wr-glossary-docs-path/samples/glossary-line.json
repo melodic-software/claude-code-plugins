@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: docs/glossary.md\\nThe request says check out; the glossary's term is Loan.\"}]}}\n",
+      "why": "the skill's line with a relative path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Prerequisites checked.\\n\\n**Glossary:** `/tmp/w/docs/glossary.md`\"}]}}\n",
+      "why": "bold label, backticked absolute path, after other text"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: ./docs/glossary.md\"}]}}\n",
+      "why": "dot-slash path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: none\\nNo glossary on the walk up from tool_library.py.\"}]}}\n",
+      "why": "the walk-up miss this case exists to catch"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: GLOSSARY.md\"}]}}\n",
+      "why": "names the root placement, which does not exist here"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Read the match that covers the code. Print one line, `Glossary: <path | none>`.\"}]}}\n",
+      "why": "the skill body's instruction arriving as a tool result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/docs/glossary.md\"}}]}}\n",
+      "why": "reads the glossary but prints no line"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Glossary: docs/glossary.md\"}]}}\n",
+      "why": "the line appears only in tool output, not printed by the run"
+    }
+  ]
+}
