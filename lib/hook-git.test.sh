@@ -22,6 +22,11 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n' "$1" >&2
 }
+expect() {
+  local label="$1"
+  shift
+  if "$@"; then pass "$label"; else fail "$label"; fi
+}
 
 command -v git >/dev/null 2>&1 || {
   echo "SKIP: git not on PATH"
@@ -63,8 +68,7 @@ rm -f "$MARK"
 bash -c 'source "$1/hook-utils.sh" && hook::file_is_gitignored "$2"' _ "$LIB" "$R/.work/x.md"
 rc=$?
 not_run "hook::file_is_gitignored"
-[[ "$rc" == 0 ]] && pass "hook::file_is_gitignored: still reads an ignored file as ignored" ||
-  fail "hook::file_is_gitignored: an ignored file read as not ignored (rc $rc)"
+expect "hook::file_is_gitignored: still reads an ignored file as ignored (rc $rc)" test "$rc" = 0
 
 bash -c 'source "$1/hook-utils.sh" && hook::gitignored_out_of_scope false "$2"' _ "$LIB" "$R/.work/x.md"
 not_run "hook::gitignored_out_of_scope"
@@ -76,16 +80,14 @@ out=$(env CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED=true \
   bash "$PLUGINS/guardrails/hooks/secret-pattern-detection.sh" <<<"$(write_json "$R/.work/x.md" "token = '$TOKEN'")" 2>&1)
 rc=$?
 not_run "secret-pattern-detection skip_gitignored (spd_gitignored)"
-[[ "$rc" == 0 && -z "$out" ]] && pass "secret-pattern-detection: an ignored file is still exempt" ||
-  fail "secret-pattern-detection: an ignored file was not exempt (rc $rc: $out)"
+expect "secret-pattern-detection: an ignored file is still exempt (rc $rc: $out)" test "$rc:$out" = "0:"
 
 SL=/
 out=$(env CLAUDE_PROJECT_DIR="$R" bash "$PLUGINS/guardrails/hooks/hardcoded-path-check.sh" \
   <<<"$(write_json "$R/ignored.txt" "cd ${SL}home${SL}alice${SL}dev${SL}repo && ls")" 2>&1)
 rc=$?
 not_run "hardcoded-path-check gitignore exemption"
-[[ "$rc" == 0 ]] && pass "hardcoded-path-check: an ignored file is still exempt" ||
-  fail "hardcoded-path-check: an ignored file was not exempt (rc $rc: $out)"
+expect "hardcoded-path-check: an ignored file is still exempt (rc $rc: $out)" test "$rc" = 0
 
 sh "$LIB/resolve-convention-pattern.sh" "$R" subject_pattern >/dev/null 2>&1
 not_run "resolve-convention-pattern tracked-file check"
@@ -98,9 +100,9 @@ out=$(jq -n --arg p "$T/wt" '{worktree_path:$p,session_id:"s"}' |
   bash "$PLUGINS/source-control/hooks/worktree-remove-gate.sh" 2>&1)
 rc=$?
 not_run "worktree-remove-gate status"
-[[ "$rc" == 1 && "$out" == *"uncommitted or untracked"* ]] &&
-  pass "worktree-remove-gate: still refuses a worktree with an untracked file" ||
-  fail "worktree-remove-gate: expected the untracked-file refusal (rc $rc: $out)"
+refused=no
+[[ "$out" == *"uncommitted or untracked"* ]] && refused=yes
+expect "worktree-remove-gate: still refuses a worktree with an untracked file (rc $rc: $out)" test "$rc:$refused" = "1:yes"
 
 printf '\n%d passed, %d failed\n' "$PASSED" "$FAILED"
 ((FAILED == 0))
