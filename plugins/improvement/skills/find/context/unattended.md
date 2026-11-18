@@ -178,14 +178,11 @@ Every item this skill files, in either mode, carries the label `source: improvem
 its filings can be counted (the open cap above) and told apart in triage. The skill never creates
 the label: `work-items:track` validates labels against the live set and never creates one, and a
 missing label goes to whoever the repository names as its label owner. Create it once, in the
-repository's label-as-code source when it has one, otherwise on GitHub:
+repository's label-as-code source when it has one, otherwise in the bound tracker by that
+tracker's own means.
 
-```bash
-gh label create "source: improvement-find" --repo <owner>/<repo> --description "Filed by /improvement:find"
-```
-
-Interactively, when the label is missing, say so and show that command before filing anything
-the user picked; file only once the label exists.
+Interactively, when the label is missing, say so and name the label and its owner before filing
+anything the user picked; file only once the label exists.
 
 ### Adaptive filing cap (soft default, prompt-overridable)
 
