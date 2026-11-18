@@ -15,6 +15,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { removeFile, replaceFile } from "./atomic-file.mjs";
+import { folderLevel } from "./folder-file.mjs";
+import { realPath } from "./record.mjs";
 
 export class SettingsError extends Error {}
 export class SettingsConflict extends Error {}
@@ -24,11 +26,15 @@ const KEYS = ["enabledPlugins", "skillOverrides", "env"];
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const hashOf = (text) => (text === null ? ABSENT : createHash("sha256").update(text).digest("hex"));
 
-export function settingsPaths({ configDir, projectDir }) {
+/** local is the folder file lib/folder-file.mjs resolves; earlier is the folder's own file when that differs, which Claude Code still reads below local. */
+export function settingsPaths({ configDir, projectDir, home }) {
+  const local = folderLevel(projectDir, home ? { home } : {}).file;
+  const own = join(projectDir, ".claude", "settings.local.json");
   return {
     user: join(configDir, "settings.json"),
     project: join(projectDir, ".claude", "settings.json"),
-    local: join(projectDir, ".claude", "settings.local.json"),
+    local,
+    earlier: realPath(own) === realPath(local) ? null : own,
   };
 }
 
@@ -60,6 +66,7 @@ export function readSettings(path) {
 
 const layerOf = (doc) => ({ enabledPlugins: { ...doc.enabledPlugins }, skillOverrides: { ...doc.skillOverrides } });
 
+/** The plugin and skill entries of each level; local holds earlier's entries with local's over them. */
 export function readLayers({ paths, managedFiles }) {
   const managed = { enabledPlugins: {}, skillOverrides: {} };
   for (const file of managedFiles) {
@@ -69,7 +76,12 @@ export function readLayers({ paths, managedFiles }) {
     Object.assign(managed.skillOverrides, layer.skillOverrides);
   }
   const level = (path) => layerOf(readSettings(path).doc);
-  return { managed, user: level(paths.user), project: level(paths.project), local: level(paths.local) };
+  const local = level(paths.local);
+  if (paths.earlier) {
+    const earlier = level(paths.earlier);
+    for (const key of Object.keys(local)) local[key] = { ...earlier[key], ...local[key] };
+  }
+  return { managed, user: level(paths.user), project: level(paths.project), local };
 }
 
 function formatOf(text) {

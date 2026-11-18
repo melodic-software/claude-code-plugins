@@ -37,9 +37,8 @@ Resolve the convention home as
 [`${CLAUDE_PLUGIN_ROOT}/reference/improvement-steps.md`](${CLAUDE_PLUGIN_ROOT}/reference/improvement-steps.md)
 ("Convention home") states, with `<plugin-root>` there being `${CLAUDE_PLUGIN_ROOT}`, and read the
 `## Boundary rules` section of `<home>/architecture/README.md`. No home, no topic doc, or no such
-section means no rule is recorded there. Record each rule with its `path:line` and
-its form from the one list of forms,
-[`${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md`](${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md)
+section means no rule is recorded there. Record each rule with its `path:line` and its form from
+the one list of forms, [`${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md`](${CLAUDE_PLUGIN_ROOT}/skills/improve/research/boundaries/README.md)
 ("What counts as a boundary rule"). An entry that already carries `Enforced by:` is reported as
 already enforced and is only re-proven when the user asks.
 
@@ -85,8 +84,9 @@ rule's candidates are, strongest first:
 4. **A check in the repository's own check convention**: a script and its test beside the others.
 
 A separately run check is chosen over a build-time boundary only when the build-time one cannot
-express the rule, and the plan says why. Adopting a build-time boundary can mean moving files or
-splitting a project; that is a code change, shown in the plan and asked like any other.
+express the rule, and the plan says why. A rule a build-time boundary already enforces in full gets
+no second check: Phase 5 proves that boundary, its error on the refused reference naming the rule.
+Adopting one can mean moving files or splitting a project: a code change the plan shows and asks.
 
 When a rule follows from a naming or path pattern (every feature folder, every `internal` folder),
 write one config rule over the pattern for the whole repository; a rule per file is the exception,

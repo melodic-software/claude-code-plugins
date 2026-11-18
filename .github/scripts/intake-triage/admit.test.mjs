@@ -32,6 +32,7 @@ const OUTSIDER = 4242;
 const APP = 337595936;
 const humans = new Set([HUMAN]);
 const READY = "status: ready";
+const NO_SOURCE = "an own-agent filing needs exactly one `source: <producer>` label to be admitted unattended, so a listed human decides it";
 const NEEDS_DECISION = "needs-owner-decision";
 const CONFIRMED = "status: confirmed";
 
@@ -96,25 +97,26 @@ describe("decide", () => {
       "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
     const goAhead = written(USER(HUMAN), { body: "Go ahead." });
     const APP_FILED = "the lanes App filed it and it is not a trusted size-split sub-issue (splitChildBody), so a listed human files it as their own";
+    const NOT_OWN = { ...RULES, "own-agents": { identities: [], "source-cap": 5 } };
 
-    test("an App-authored issue with criteria only in its body is refused for a person", () => {
+    test("off the own-agent list, an App-authored issue with criteria only in its body is refused for a person", () => {
       for (const spec of [{ ...written(APP_ACTOR), comments: [] }, { ...written(APP_ACTOR), comments: [written(APP_ACTOR), written(USER(OUTSIDER))] }]) {
-        assert.deepEqual(decide(facts({ issue: appIssue, spec })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
+        assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
       }
     });
 
-    test("an App-drafted task list with a listed human's comment that carries none is refused for a person", () => {
-      assert.deepEqual(decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead] } })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
+    test("off the own-agent list, an App-drafted task list with a listed human's comment that carries none is refused for a person", () => {
+      assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead] } })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
     });
 
     // Owner decision on #10735: the lanes App's issue is admitted only as a
     // trusted size-split sub-issue, whatever a listed human's comment carries.
-    test("the same issue with a listed human's comment carrying the task list is still refused for a person", () => {
+    test("off the own-agent list, the same issue with a listed human's comment carrying the task list is still refused for a person", () => {
       for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
-        assert.deepEqual(decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "refuse", reasons: [APP_FILED], hold: true, reason: "security" });
+        assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "refuse", reasons: [APP_FILED], hold: true, reason: "security" });
       }
       // A human's comment the App last edited is no longer theirs.
-      const edited = decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [written(USER(HUMAN), { editor: APP_ACTOR })] } }));
+      const edited = decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [written(USER(HUMAN), { editor: APP_ACTOR })] } }));
       assert.deepEqual(edited.reasons, [APP_FILED, NO_SPEC]);
     });
 
@@ -152,9 +154,9 @@ describe("decide", () => {
       }
     });
 
-    test("admit() reads the authors and parks an App-only spec at needs-owner-decision for a person", async () => {
+    test("off the own-agent list, admit() reads the authors and parks an App-only spec at needs-owner-decision for a person", async () => {
       const fake = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
-      const result = await admit({ ...goArgs(fake), status: async () => assert.fail("a refusal reads no status") });
+      const result = await admit({ ...goArgs(fake), rules: NOT_OWN, status: async () => assert.fail("a refusal reads no status") });
       assert.deepEqual(result, { outcome: "refused", reasons: [APP_FILED, NO_SPEC], status: "needs-owner-decision" });
       const writes = fake.calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}${call.method === "STATUS" ? ` ${call.body}` : ""}`);
       assert.deepEqual(writes, ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"]);
@@ -171,6 +173,120 @@ describe("decide", () => {
 
   test("admits a clear Task that meets every criterion", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
+  });
+
+  describe("own-agent filings", () => {
+    const SOURCE = "source: improvement-find";
+    const ACTIONS_BOT = 41898282;
+    const ownIssue = (labels = [{ name: READY }, { name: SOURCE }]) => issueOf({ user: { id: APP }, labels });
+    const ownSpec = (options) => ({ ...written(APP_ACTOR, options), comments: [] });
+    const sized = (size) => ({ ...VERDICT, dimensions: { ...VERDICT.dimensions, size } });
+    const own = (overrides = {}) => facts({ issue: ownIssue(), spec: ownSpec(), sourceOpen: [7], ...overrides });
+    const NO_SPEC =
+      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
+    const EDITED = "its body was last edited by an account other than the own-agent identity that filed it, so it is no own-agent text and a listed human decides it";
+    const NOT_ADMITTED_AUTHOR = "the author is neither a listed human nor the lanes App";
+
+    test("a lanes App filing sized small or medium is admitted on its own unedited body", () => {
+      for (const size of ["small", "medium"]) {
+        assert.deepEqual(decide(own({ verdict: sized(size) })), { verdict: "admit", reasons: [] }, size);
+      }
+      assert.deepEqual(decide(own({ spec: ownSpec({ editor: APP_ACTOR }) })), { verdict: "admit", reasons: [] }, "its own edit keeps it own-agent text");
+    });
+
+    test("a lanes App filing sized large holds for a listed human and is never split", () => {
+      assert.deepEqual(decide(own({ verdict: sized("large") })), {
+        verdict: "refuse",
+        reasons: ["an own-agent filing is admitted only at Size small or medium, and it is Size large, which is never split automatically, so a listed human decides it"],
+        hold: true,
+        reason: "intent",
+      });
+    });
+
+    test("a filing whose run's patch was over the scan cap holds for a listed human and is never split", () => {
+      const stop = {
+        user: { id: APP },
+        created_at: "2026-10-21T10:00:00Z",
+        body: "<!-- work-resolve-issue outcome=intake run=555 -->\nThe work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size.\nIt removed `agent-ready` and `status: ready`.",
+      };
+      const events = [{ event: "labeled", label: { name: READY }, actor: { id: APP }, created_at: "2026-10-21T11:00:00Z" }];
+      assert.deepEqual(decide(own({ verdict: sized("medium"), comments: [stop], events })), {
+        verdict: "refuse",
+        reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and an own-agent filing is never split automatically, so a listed human decides it"],
+        hold: true,
+        reason: "intent",
+      });
+    });
+
+    test("a filing waits while its producer has the cap of 5 older open issues, in any status", () => {
+      const issue = ownIssue();
+      assert.deepEqual(decide(own({ issue: { ...issue, number: 9 }, sourceOpen: [1, 2, 3, 4, 9, 12, 13] })), { verdict: "admit", reasons: [] }, "4 older, 2 newer");
+      assert.deepEqual(decide(own({ issue: { ...issue, number: 9 }, sourceOpen: [1, 2, 3, 4, 5, 9] })), {
+        verdict: "wait",
+        reasons: ["5 older open issue(s) carry `source: improvement-find`, at or over that producer's cap of 5 (own-agents.source-cap)"],
+        pulls: [],
+      });
+      assert.deepEqual(decide(own({ sourceOpen: undefined })), { verdict: "wait", reasons: ["the open issues of its `source:` label were not read, so its producer's cap is unknown"], pulls: [] });
+    });
+
+    test("admit() reads the producer's open issues and leaves an at-cap filing waiting at status: ready", async () => {
+      const racers = [1, 2, 3, 4, 5].map((number) => ({ number, labels: [SOURCE, "status: confirmed"], events: [] }));
+      const fake = fakeGitHub({ issue: ownIssue(), spec: ownSpec(), racers });
+      const result = await go(fake);
+      assert.deepEqual(result, { outcome: "waiting", reasons: ["5 older open issue(s) carry `source: improvement-find`, at or over that producer's cap of 5 (own-agents.source-cap)"] });
+      assert.ok(fake.calls.some((call) => call.path.startsWith("/repos/o/r/issues?state=open&labels=source%3A%20improvement-find")), "the cap read names the label");
+      assert.equal((await go(fakeGitHub({ issue: ownIssue(), spec: ownSpec(), racers: racers.slice(1) }))).outcome, "admitted");
+    });
+
+    test("a filing with no source label, or two, holds for a listed human", () => {
+      for (const labels of [[{ name: READY }], [{ name: READY }, { name: SOURCE }, { name: "source: tidy" }], [{ name: READY }, { name: "source:" }]]) {
+        assert.deepEqual(decide(own({ issue: ownIssue(labels) })), { verdict: "refuse", reasons: [NO_SOURCE], hold: true, reason: "security" }, JSON.stringify(labels));
+      }
+    });
+
+    test("a body another account edited is no spec and holds for a listed human", () => {
+      for (const editor of [USER(HUMAN), USER(OUTSIDER), { __typename: "Bot", databaseId: ACTIONS_BOT }]) {
+        assert.deepEqual(decide(own({ spec: ownSpec({ editor }) })), { verdict: "refuse", reasons: [EDITED, NO_SPEC], hold: true, reason: "security" }, JSON.stringify(editor));
+      }
+    });
+
+    test("only the filing's body and a listed human's comments become spec, never an outsider's comment", () => {
+      const bare = ownSpec({ body: "## Problem\n\nNo task list." });
+      const outsider = written(USER(OUTSIDER));
+      assert.deepEqual(decide(own({ issue: { ...ownIssue(), body: bare.body }, spec: { ...bare, comments: [outsider] } })).reasons, [NO_SPEC]);
+      assert.deepEqual(decide(own({ issue: { ...ownIssue(), body: bare.body }, spec: { ...bare, comments: [outsider, written(USER(HUMAN))] } })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a bot not on the own-agent list is refused, github-actions[bot] off the drift shape included", () => {
+      for (const id of [ACTIONS_BOT, 99]) {
+        const issue = issueOf({ user: { id }, labels: [{ name: READY }, { name: SOURCE }] });
+        const spec = { ...written({ __typename: "Bot", databaseId: id }), comments: [] };
+        const result = decide(facts({ issue, spec, sourceOpen: [7] }));
+        assert.equal(result.verdict, "refuse", String(id));
+        assert.equal(result.hold, true, String(id));
+        assert.equal(result.reason, "security", String(id));
+        assert.ok(result.reasons.includes(NOT_ADMITTED_AUTHOR), String(id));
+      }
+    });
+
+    test("a listed human's filing needs no source label and still splits at Size large", () => {
+      assert.deepEqual(decide(facts({ sourceOpen: undefined })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(decide(facts({ verdict: sized("large") })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
+    });
+
+    test("loadRules defaults own-agents to the lanes App and a cap of 5, and rejects a malformed list", () => {
+      const dir = tempDir("admit-own-");
+      const { "own-agents": _, ...bare } = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
+      const path = join(dir, "bare.json");
+      writeFileSync(path, JSON.stringify(bare));
+      assert.deepEqual(loadRules(path)["own-agents"], { identities: ["lanes-app"], "source-cap": 5 });
+      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["cap", { "source-cap": 0 }]]) {
+        const bad = join(dir, `${name}.json`);
+        writeFileSync(bad, JSON.stringify({ ...bare, "own-agents": value }));
+        assert.throws(() => loadRules(bad), /own-agents/, name);
+      }
+      rmSync(dir, { recursive: true, force: true });
+    });
   });
 
   // Work classes are retired: an old class label on the issue decides nothing.
@@ -3517,10 +3633,11 @@ describe("size split sub-issues", () => {
       if (vector.expect.trusted) {
         assert.deepEqual(at(vector.size), { verdict: "admit", reasons: [] }, vector.expect.reason);
       } else {
+        const missing = vector.child.author.id === APP && !vector.child.body.startsWith("<!-- intake-triage size-split child -->") ? NO_SOURCE : NO_SPEC;
         assert.equal(at("small").verdict, "refuse", vector.expect.reason);
-        assert.ok(at("small").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.ok(at("small").reasons.includes(missing), vector.expect.reason);
         assert.equal(at("large").verdict, "refuse", vector.expect.reason);
-        assert.ok(at("large").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.ok(at("large").reasons.includes(missing), vector.expect.reason);
         assert.ok(!at("large").reasons.includes(SIZE_SPLIT_PENDING), vector.expect.reason);
       }
     });

@@ -266,7 +266,7 @@ directory under that name.
 
 Observed failure modes. Recovery detail in `context/gotchas.md`: bot/sign-in cookie fallback,
 HTTP 429 backoff + concurrency cap, temp-session expiry (re-run `run-watch.js` before vision),
-cloud-agent media-toolchain fail-closed, video download blocked (HTTP 403 on the media stream),
+small temp filesystem (free-space check; `TMPDIR` set for the whole session), cloud-agent media-toolchain fail-closed, video download blocked (HTTP 403 on the media stream),
 phase state only in `watch.json`. Source-specific failure
 patterns live in the source spokes.
 

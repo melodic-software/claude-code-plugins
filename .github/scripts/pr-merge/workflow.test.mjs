@@ -560,6 +560,51 @@ test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   assert.match(job("report-unarmed-status"), /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && /);
 });
 
+function runEvalWake(released) {
+  const block = job("wake-eval-released").split("\n      - name: Wake pr-merge for each released pull request\n")[1].split("\n      - name: ")[0];
+  const dir = tempDir("pr-merge-eval-wake-");
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "bin", "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${dir}/log"\n`, { mode: 0o755 });
+  writeFileSync(join(dir, "body.sh"), runBody(block));
+  const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
+    env: {
+      ...process.env,
+      PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+      GH_TOKEN: "x",
+      GITHUB_REPOSITORY: "o/r",
+      RELEASED: released,
+      MAX_WAKES: /\n {10}MAX_WAKES: (\d+)\n/.exec(block)[1],
+    },
+    encoding: "utf8",
+  });
+  const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+  rmSync(dir, { recursive: true, force: true });
+  return { status: result.status, calls: log.split("\n").filter(Boolean) };
+}
+
+test("each pull request the eval-hold release freed gets one PR-scoped pr-merge dispatch, at most five", () => {
+  const dispatch = (pr) => `workflow run pr-merge.yml -R o/r --ref main -f pr=${pr}`;
+  assert.deepEqual(runEvalWake("7 9"), { status: 0, calls: [dispatch(7), dispatch(9)] });
+  assert.deepEqual(runEvalWake("11 12 13 14 15 16"), { status: 0, calls: ["11", "12", "13", "14", "15"].map(dispatch) });
+  assert.deepEqual(runEvalWake(""), { status: 0, calls: [] });
+  assert.deepEqual(runEvalWake("0 x7 8"), { status: 0, calls: [dispatch(8)] });
+});
+
+test("the eval-release wake runs on what the merge job released, whatever its result, with only actions: write", () => {
+  const schedule = { event_name: "schedule", event: {} };
+  const released = (value, result = "success") => ({ merge: { result, outputs: { "eval-released": value } } });
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("7")), true);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("7", "failure")), true);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("", "skipped")), false);
+  assert.equal(evalIf("wake-eval-released", schedule, {}, released("")), false);
+  const wake = job("wake-eval-released");
+  assert.match(wake, /^ {4}needs: \[merge\]\n/m);
+  assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);
+  assert.match(job("merge"), /\n {6}actions: read\n/);
+  assert.match(job("merge"), /\n {6}eval-released: \$\{\{ steps\.release-eval\.outputs\.released \}\}\n/);
+  assert.match(job("merge"), /- name: Release eval holds whose record matches the head\n {8}id: release-eval\n/);
+});
+
 // The dispatch's input, the cron backstop and the marker readers key on.
 test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run", () => {
   assert.match(merge, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}pr:\n(?: {8}.*\n)*? {8}type: string\n {8}required: false\n/);
@@ -676,6 +721,7 @@ const SETTLE = (sha, fresh = "") =>
   );
 // The fresh report's settle: the same call with --fresh, and only there.
 const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
+const SETTLE_LAST = SETTLE("c{40}", " --probe-unmoved");
 const FRESH_CHECK =
   /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only --stop-uncovered$/;
 
@@ -688,7 +734,7 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   // The same call dispatch-post-merge-runs makes for a reused report, and no
   // fresh check.
   assert.equal(kept.calls.length, 1);
-  assert.match(kept.calls[0], SETTLE("c{40}"));
+  assert.match(kept.calls[0], SETTLE_LAST);
   assert.equal(kept.json, "{}");
   assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/);
   assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
@@ -720,7 +766,7 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     assert.ok(check >= 0, `${why}: the fresh check ran`);
     assert.match(run.calls[check + 1] ?? "", SETTLE_FRESH(FRESH_SHA), `${why}: settle --idle-tick --fresh checked the fresh report`);
     // The last report's settle, when it ran, never skips the runs test.
-    if (check > 0) assert.match(run.calls[0], SETTLE("c{40}"), why);
+    if (check > 0) assert.match(run.calls[0], SETTLE_LAST, why);
     assert.equal(run.calls.length, check + 2, why);
   }
 });
@@ -731,8 +777,21 @@ test("a PR-scoped run whose last report is refused as code-changed runs no fresh
   assert.equal(run.kept, false);
   assert.equal(run.output, "stands=false\nfresh=\nfresh-reason=\n");
   assert.equal(run.calls.length, 1);
-  assert.match(run.calls[0], SETTLE("c{40}"));
+  assert.match(run.calls[0], SETTLE_LAST);
   assert.match(run.stdout, /::notice::the last sweep's post-merge report predates a code change/);
+});
+
+test("a PR-scoped run whose last report is refused as unattributed-unmoved runs no fresh check, and one refused as unattributed still does", () => {
+  const unmoved = keepReport({ settles: [1], refusal: "idle tick unattributed-unmoved" });
+  assert.equal(unmoved.status, 0);
+  assert.equal(unmoved.kept, false);
+  assert.equal(unmoved.output, "stands=false\nfresh=\nfresh-reason=\n");
+  assert.equal(unmoved.calls.length, 1);
+  assert.match(unmoved.calls[0], SETTLE_LAST);
+  assert.match(unmoved.stdout, /::notice::the last sweep's post-merge report lists a red full run charged to no merge/);
+  const moved = keepReport({ settles: [1, 1], refusal: "idle tick unattributed" });
+  assert.equal(moved.output, "fresh-started=true\nstands=false\nfresh=0\nfresh-reason=idle tick unattributed\n");
+  assert.ok(moved.calls.some((c) => FRESH_CHECK.test(c)), "the fresh check ran");
 });
 
 // The code-changed refusal decided before the run cache and lane records are
@@ -1416,10 +1475,10 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("report-unarmed-status");
-  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[enable-auto-merge\]\n/);
+  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
   // It runs whenever enable-auto-merge handed it statuses, after a failed
   // step too, and only then.
-  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && \(needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \|\| needs\.merge\.outputs\.mended-heads != ''\) \}\}\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
@@ -1429,6 +1488,11 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(post, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
   // The statuses reach the script through its environment, never the shell.
   assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
+  const gate = job("merge");
+  assert.match(gate, /\n {6}mended-heads: \$\{\{ steps\.clear\.outputs\.mended-heads \}\}\n/);
+  assert.match(gate, /- name: Clear escalations whose reason no longer holds\n {8}id: clear\n/);
+  assert.match(post, /\n {10}MENDED_HEADS: \$\{\{ needs\.merge\.outputs\.mended-heads \}\}\n {10}ACTIVITY: address-feedback\n/);
+  assert.match(post, /HEAD_SHA=\$head bash \.base\/\.github\/scripts\/pr-unblock\/report-escalation\.sh clear\n/);
 });
 
 // The merge job's sizing comment: about two minutes before the loop, then the

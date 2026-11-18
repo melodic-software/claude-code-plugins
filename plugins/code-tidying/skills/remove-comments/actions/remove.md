@@ -143,7 +143,10 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    RENAME-ONLY), the staged commit-message block, and the keeps and rewrites with one-line reasons,
    each `explanatory` keep naming its criterion-2 evidence and each `necessary` or `none` keep the
    rule that kept it. Name the block's landing place: the pending commit, the next commit touching
-   already-committed code, or the `--notes` path, with a refused tracked path said plainly. Then the
+   already-committed code, or the `--notes` path, with a refused tracked path said plainly. In a
+   repository that squash-merges with the pull request's body as the message (`SKILL.md` "Hard
+   rules"), the landing place is the shipping pull request's body, and the report says so; when the
+   setting could not be read, it names both. Then the
    census delta, `comment-census.sh --baseline` pointed at the exact `baseline.json` step 4 wrote, in
    lines, bytes and estimated tokens; when the census could not run, say so and name the missing
    layer, never `+0`. Then these lists, each "none" when empty:

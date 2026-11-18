@@ -470,6 +470,62 @@ test("a pass dispatches at most 5 issues, oldest first, and records each run on 
   assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
 });
 
+const onceDispatched = (run) => [{ id: 50 + run, user: BOT, body: renderState({ runs: [run], filed: null, runUrl: "u" }) }];
+
+test("a pass sends never-dispatched issues before older re-dispatches, oldest first within each, 5 in all", async () => {
+  const issues = Array.from({ length: 7 }, (_, i) => issue(i + 1, { created_at: `2026-10-1${i + 1}T00:00:00Z` }));
+  const gh = fakeGitHub({
+    issues,
+    comments: { 1: onceDispatched(11), 2: onceDispatched(12), 3: onceDispatched(13) },
+    runs: { 11: { status: "completed", conclusion: "success" }, 12: { status: "completed", conclusion: "success" }, 13: { status: "completed", conclusion: "success" } },
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [4, 5, 6, 7, 1], "the four never-dispatched issues go first, then the oldest re-dispatch fills the fifth slot");
+  assert.deepEqual(
+    gh.writes.filter((w) => w.path.endsWith("/dispatches")).map((w) => w.body.inputs["issue-number"]),
+    ["4", "5", "6", "7", "1"],
+  );
+  assert.deepEqual(
+    gh.writes.filter((w) => /\/issues\/comments\/\d+$/.test(w.path)).map((w) => w.path),
+    ["/repos/o/r/issues/comments/61"],
+    "only #1's state comment is edited; the re-dispatches of #2 and #3 past the cap are not touched",
+  );
+  assert.deepEqual(result.failed, []);
+});
+
+test("putting never-dispatched issues first keeps the cap of 5 and leaves out unlisted authors and github-actions[bot]", async () => {
+  const issues = [
+    issue(1, { user: { id: OUTSIDER }, created_at: "2026-10-10T00:00:00Z" }),
+    issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->", created_at: "2026-10-10T01:00:00Z" }),
+    issue(3, { created_at: "2026-10-10T02:00:00Z" }),
+    ...Array.from({ length: 6 }, (_, i) => issue(10 + i, { user: { id: i % 2 ? APP : HUMAN }, created_at: `2026-10-1${i + 1}T00:00:00Z` })),
+  ];
+  const gh = fakeGitHub({ issues, comments: { 3: onceDispatched(11) }, runs: { 11: { status: "completed", conclusion: "success" } } });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [10, 11, 12, 13, 14], "five never-dispatched issues fill the pass; #15 and the re-dispatch of #3 wait");
+  assert.equal(result.candidates, 7, "the outsider's issue and the bot's non-drift issue are no candidates");
+  const outsiders = ["/repos/o/r/issues/1/", "/repos/o/r/issues/2/"];
+  assert.ok(!gh.writes.some((w) => outsiders.some((p) => w.path.startsWith(p)) || ["1", "2"].includes(w.body?.inputs?.["issue-number"])), "nothing is written for #1 or #2");
+});
+
+test("a re-dispatch left for after the loop still stops when the budget cannot record it", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { created_at: "2026-10-18T08:00:00Z" }), issue(2)],
+    comments: { 1: onceDispatched(11) },
+    runs: { 11: { status: "completed", conclusion: "success" } },
+  });
+  let left = 9;
+  const call = async (...args) => {
+    if (left === 0) throw new Error("call budget of 9 reached");
+    left -= 1;
+    return gh.call(...args);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
+  assert.deepEqual(result.dispatched, [2], "8 calls (issues page, two hand-off searches, #1's comments and run, #2's comments, dispatch and state write) leave 1, too few for #1's re-dispatch");
+  assert.match(result.truncated, /^stopped at #1: too little call budget left$/);
+  assert.equal(left, 1, "the re-dispatch of #1 spends none of the call left");
+});
+
 // Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
 // filed reaches intake through this sweep, the only path for an issue a
 // GITHUB_TOKEN opens, when github-actions[bot] wrote it, nobody else last
@@ -761,12 +817,14 @@ test("a run the kill switch skipped leaves an attempt: the sweep dispatches agai
   assert.deepEqual(
     gh.writes.map((w) => [w.method, w.path]),
     [
+      ["PATCH", "/repos/o/r/issues/comments/5"],
       ["POST", "/repos/o/r/actions/workflows/intake-triage.yml/dispatches"],
       ["PATCH", "/repos/o/r/issues/comments/5"],
     ],
   );
-  assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]).runs, [11, 22, 901]);
-  assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
+  assert.ok(gh.writes[0].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22- filed= -->"), "the marks are recorded before the re-dispatch waits for a slot");
+  assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[2].body.body }]).runs, [11, 22, 901]);
+  assert.ok(gh.writes[2].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
 });
 
 // Reading every run's jobs on every pass, before the dispatch cap demotes an
@@ -821,6 +879,69 @@ test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-c
     appId: String(APP),
   });
   assert.equal(again.filter((p) => p.endsWith("/jobs?per_page=100")).length, 0);
+});
+
+test("a budget spent mid-scan still records the marks of the re-dispatches read, so the next pass does not read them again", async () => {
+  const issues = Array.from({ length: 20 }, (_, i) => issue(i + 1));
+  const ids = (n) => [1, 2, 3, 4, 5].map((k) => n * 10 + k);
+  const runs = Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, { status: "completed", conclusion: "success" }])));
+  const gh = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(issues.map(({ number: n }) => [n, [{ id: n, user: BOT, body: renderState({ runs: ids(n), filed: null, runUrl: "u" }) }]])),
+    runs,
+    jobs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, KILLED]))),
+  });
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.match(result.truncated, /^stopped at #15: call budget/, "3 preamble calls and 8 per issue (comments, run, 5 jobs, record) fit 14 issues in 120");
+  assert.deepEqual(result.dispatched, []);
+  const recorded = gh.writes.filter((w) => w.method === "PATCH");
+  assert.deepEqual(
+    recorded.map((w) => w.path),
+    issues.slice(0, 14).map(({ number: n }) => `/repos/o/r/issues/comments/${n}`),
+  );
+  for (const w of recorded) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], ["-", "-", "-", "-", "-"]);
+  const next = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(recorded.map((w) => [Number(w.path.split("/").at(-1)), [{ id: 1, user: BOT, body: w.body.body }]])),
+    runs,
+  });
+  const again = [];
+  await runSweep({ call: (method, path, body) => (again.push(path), next.call(method, path, body)), repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.deepEqual(
+    again.filter((p) => p.endsWith("/jobs?per_page=100")).filter((p) => Number(p.split("/")[6]) < 150),
+    [],
+    "no jobs of issues 1-14 are read again",
+  );
+});
+
+test("a hand-off the budget cannot finish still leaves calls for an older held re-dispatch", async () => {
+  const handIds = [21, 22, 23, 24, 25, 26];
+  const done = { status: "completed", conclusion: "success" };
+  const gh = fakeGitHub({
+    issues: [issue(1, { created_at: "2026-10-18T08:00:00Z" }), issue(2)],
+    comments: {
+      1: onceDispatched(11),
+      2: [{ id: 7, user: BOT, body: renderState({ runs: handIds, filed: null, runUrl: "u", reached: new Map(handIds.map((id) => [id, "-"])) }) }],
+    },
+    runs: { 11: done, ...Object.fromEntries(handIds.map((id) => [id, done])) },
+  });
+  let left = 12;
+  const call = async (...args) => {
+    if (left === 0) throw new Error("call budget of 12 reached");
+    left -= 1;
+    return gh.call(...args);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.match(result.truncated ?? "", /^stopped at #2: too little call budget left$/, "7 calls (issues page, two hand-off searches, comments and latest run of #1 and #2) leave 5, under the 7 #2's hand-off needs");
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(result.dispatched, [1], "the 5 calls left cover #1's dispatch and state write");
+  assert.equal(left, 3);
 });
 
 test("with the hand slots used up, an issue at RUN_LIMIT is not read: it could only stop", async () => {
@@ -909,7 +1030,7 @@ for (const [shape, jobs22, annotations] of [
     const gh = transientRuns(jobs22, annotations);
     const result = await sweep(gh);
     assert.deepEqual([result.dispatched, result.handed], [[1], []]);
-    assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->"));
+    assert.ok(gh.writes.at(-1).body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->"));
   });
 }
 
@@ -1399,4 +1520,120 @@ test("an issue at needs-triage with the lanes App's unpark marker is re-sent; th
   // The marker counts only as the comment's first line.
   const quoted = { ...unparked(LANES, "2026-10-18T08:00:00Z"), body: "> <!-- work-unblock unparked triage -->" };
   assert.deepEqual(readState([stateAt([11, 22], null, "2026-10-17T06:00:00Z"), quoted], String(APP)).runs, [11, 22]);
+});
+
+const olderIssuesWaitingOnARun = (count) => ({
+  issues: Array.from({ length: count }, (_, i) => issue(i + 1, { comments: 1, created_at: "2026-10-01T00:00:00Z" })),
+  comments: Object.fromEntries(Array.from({ length: count }, (_, i) => [i + 1, onceDispatched(100 + i)])),
+  runs: Object.fromEntries(Array.from({ length: count }, (_, i) => [100 + i, { status: "in_progress" }])),
+});
+const commentReads = (gh) => {
+  const reads = new Set();
+  const call = (method, path, body) => {
+    const read = method === "GET" ? /\/issues\/(\d+)\/comments\?/.exec(path)?.[1] : undefined;
+    if (read) reads.add(Number(read));
+    return gh.call(method, path, body);
+  };
+  return { call, reads };
+};
+
+test("a never-commented issue behind more commented issues than the pass checks is still dispatched", async () => {
+  const world = olderIssuesWaitingOnARun(25);
+  const gh = fakeGitHub({ ...world, issues: [...world.issues, issue(26, { comments: 0 })] });
+  const result = await sweep(gh);
+  assert.equal(result.candidates, 26);
+  assert.deepEqual(result.dispatched, [26]);
+});
+
+test("never-commented issues go first, oldest first, then the rest, oldest first", async () => {
+  const issues = [
+    issue(1, { comments: 2, created_at: "2026-10-01T00:00:00Z" }),
+    issue(2, { comments: 0, created_at: "2026-10-03T00:00:00Z" }),
+    issue(3, { comments: 1, created_at: "2026-10-02T00:00:00Z" }),
+    issue(4, { comments: 0, created_at: "2026-10-02T00:00:00Z" }),
+  ];
+  const gh = fakeGitHub({ issues });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [4, 2, 1, 3]);
+});
+
+test("putting never-commented issues first keeps the caps on dispatches and on issues checked", async () => {
+  const world = olderIssuesWaitingOnARun(25);
+  const fresh = Array.from({ length: 30 }, (_, i) => issue(26 + i, { comments: 0, created_at: "2026-10-02T00:00:00Z" }));
+  const gh = fakeGitHub({ ...world, issues: [...world.issues, ...fresh] });
+  const { call, reads } = commentReads(gh);
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.equal(result.candidates, 55);
+  assert.deepEqual(result.dispatched, [26, 27, 28, 29, 30]);
+  assert.equal(result.dispatched.length, MAX_DISPATCHES);
+  assert.equal(reads.size, 20, "the pass reads the comments of the 20 issues it checks and no others");
+  assert.deepEqual([...reads].filter((n) => n > 25), [26, 27, 28, 29, 30], "a never-commented issue past the dispatch cap costs no read");
+});
+
+test("a hand-off behind more never-commented issues than the pass checks still happens in that pass", async () => {
+  const fresh = Array.from({ length: 25 }, (_, i) => issue(i + 1, { comments: 0, created_at: "2026-10-01T00:00:00Z" }));
+  const gh = fakeGitHub({
+    issues: [...fresh, issue(26, { comments: 1, created_at: "2026-10-02T00:00:00Z" })],
+    comments: { 26: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
+  assert.deepEqual(result.handed, [26]);
+});
+
+const readsAt = async (world, now) => {
+  const gh = fakeGitHub(world);
+  const { call, reads } = commentReads(gh);
+  await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  return [...reads];
+};
+const hoursFromEpoch = (hours) => new Date(hours * 3_600_000);
+const numbers = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+test("a commented group past the checked cap starts one position later each hour, so its last issue is read on a later pass", async () => {
+  const world = olderIssuesWaitingOnARun(25);
+  const startOfCycle = Math.floor(NOW / 3_600_000 / 25) * 25;
+  const first = await readsAt(world, hoursFromEpoch(startOfCycle));
+  assert.deepEqual(first, numbers(1, 20), "position 0 starts the group, and #25 is past the cap");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle)), first, "the same hour reads the same issues");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle + 5)), numbers(6, 25), "five hours later #25 is read");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle + 10)), [...numbers(11, 25), ...numbers(1, 5)], "the start wraps to the front of the group");
+});
+
+test("a hand-off behind more never-commented issues than the pass checks still happens while every dispatch fails", async () => {
+  const fresh = Array.from({ length: 25 }, (_, i) => issue(i + 1, { comments: 0, created_at: "2026-10-01T00:00:00Z" }));
+  const gh = fakeGitHub({
+    issues: [...fresh, issue(26, { comments: 1, created_at: "2026-10-02T00:00:00Z" })],
+    comments: { 26: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const call = (method, path, body) => {
+    if (path.endsWith("/dispatches")) throw new Error(`POST ${path}: HTTP 502`);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.deepEqual(result.dispatched, []);
+  assert.equal(result.failed.length, MAX_DISPATCHES);
+  assert.deepEqual(result.handed, [26]);
+});
+
+test("commented issues rotate when a never-commented issue takes the checked slot the last of them needs", async () => {
+  const world = olderIssuesWaitingOnARun(20);
+  const withFresh = { ...world, issues: [...world.issues, issue(21, { comments: 0, created_at: "2026-10-02T00:00:00Z" })] };
+  const startOfCycle = Math.floor(NOW / 3_600_000 / 20) * 20;
+  const passes = await Promise.all(numbers(0, 19).map((offset) => readsAt(withFresh, hoursFromEpoch(startOfCycle + offset))));
+  assert.ok(!passes[0].includes(20), "position 0 starts the group, and #20 is past the slots left");
+  assert.ok(passes[1].includes(20), "an hour later #20 is read");
+  assert.deepEqual([...new Set(passes.flat())].sort((a, b) => a - b), numbers(1, 21), "one rotation reads every candidate");
+});
+
+test("a commented group within the checked cap keeps its oldest-first order at every hour", async () => {
+  const world = olderIssuesWaitingOnARun(20);
+  const hour = Math.floor(NOW / 3_600_000);
+  for (const offset of [0, 1, 7]) {
+    assert.deepEqual(await readsAt(world, hoursFromEpoch(hour + offset)), numbers(1, 20), `${offset} hours on`);
+  }
 });

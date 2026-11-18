@@ -202,16 +202,16 @@ engine plan:
    (whether anything unexpected still occupies the directory). An inventoried child that was
    replaced rather than removed fails its own path verdict and stays out of the settled set.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
-   policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
-   permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
+   which was used. That reversibility is conditional, not guaranteed: the target's volume, the
+   bin's settings or a policy can silently make the same operation permanent. Disclose when one
+   of them may turn a target's "reversible" removal permanent.
    After a recycle, do not empty the Recycle Bin or Trash: emptying it would make any recycled
    removal permanent and is the container-wide operation step 3 forbids.
 
-   **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
-   caveats all describe a reversible operation quietly turning permanent. Treat a path the recycle
-   step rejects for its length as one that cannot be recycled at all; deep tool residue, nested
-   dependency or build trees, is where such paths turn up. Removing it then takes a **permanent**
+   **Path length is a different failure, not a silent downgrade but a hard stop.** The conditional
+   reversibility above describes a reversible operation quietly turning permanent. Treat a path
+   the recycle step rejects for its length as one that cannot be recycled at all; deep tool
+   residue, nested dependency or build trees, is where such paths turn up. Removing it then takes a **permanent**
    delete through a `\\?\`-prefixed path, which no bin can undo.
    - **Pointer**: when checking the shell file-operation limits behind a recycle, fetch
      [SHFILEOPSTRUCTW: Remarks](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shfileopstructw#remarks)

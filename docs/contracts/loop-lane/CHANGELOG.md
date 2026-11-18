@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.10.0] - 2026-11-17
+
+Minor. Additive guidance; no topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **§9 Designing a new pipeline.** Seven questions a new lane, workflow or pipeline's design
+  answers before it is built: what starts it, what a run changes, what starts the next run, where
+  a person re-enters, what stops a duplicate run, how a person does what the agent does, and the
+  pipeline drawn in lanes.
+
 ## [19.9.1] - 2026-11-17
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

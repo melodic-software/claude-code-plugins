@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.1] - 2026-11-18
+
+### Fixed
+
+- `/testing:write` now prints its `Glossary: <path | none>` line in every measured run, where before it sometimes named the glossary only in prose.
+
 ## [5.6.0] - 2026-11-17
 
 ### Added

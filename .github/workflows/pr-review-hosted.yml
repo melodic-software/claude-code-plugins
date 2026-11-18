@@ -502,6 +502,7 @@ jobs:
         .github/workflows/maintenance-reconcile-lost-runs.yml
         .github/workflows/maintenance-repin-ci-workflows.yml
         .github/workflows/maintenance-tidy-code-upkeep.yml
+        .github/workflows/maintenance-verify-whole-map.yml
         .github/workflows/post-merge-file-demotion-issues.yml
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-dispatch-feedback.yml

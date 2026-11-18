@@ -16,8 +16,10 @@
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
 #                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
-#                             (the guardrails remote's end-to-end suite), demovideo (the
-#                             demo-video shell suite: its locked requirements and ffmpeg), mediarender
+#                             (every plugin's lefthook-remote suite: lefthook, typos, actionlint;
+#                             https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md),
+#                             demovideo (the demo-video shell suite: its locked requirements and
+#                             ffmpeg), mediarender
 #                             (the media-render and explainer-video suites: lib/media-render's locked
 #                             Playwright for Python and its Chromium)
 #   node_packages             the Node packages to install and test, space-separated
@@ -227,7 +229,7 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/actions/setup-runner-isolation]=".github/workflows/"
   [.github/scripts/lib]=".github/workflows/"
   [.github/scripts/pr-merge]=".github/workflows/"
-  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/scripts/lib/"
+  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/workflows/maintenance-verify-whole-map.yml .github/scripts/lib/"
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
   [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"
   [.github/scripts/upstream-apply-changelog]=".github/workflows/upstream-apply-changelog.yml .github/scripts/lib/"

@@ -66,7 +66,7 @@ The body holds these sections, in this order, each under its own `##` heading:
 | `## Not covered` | What the check leaves out, and the documented limits it reports as known limits rather than defects. |
 | `## Run` | The command for each check, the same one its `sync.yaml` entry records, with any per-model bound as an argument. |
 | `## Reading a result` | How to tell a real bug from a modeling error: replay each counterexample against the real code, one step per action. "If a bug does not occur, think that the model is wrong until you show that it is not." |
-| `## Updating` | How to change the model when the code changes on purpose, and when to move a sync commit: only after confirming the verification describes the code at the new commit, and only to a commit on the default branch. When a change edits the covered code itself, its stale-coverage warning is expected until the change lands; the sync commit moves in a follow-up change after it lands. |
+| `## Updating` | How to change the model when the code changes on purpose, the names in the code the model reads (for refresh's search of new code), and when to move a sync commit: only after confirming the verification describes the code at the new commit, and only to a commit on the default branch. When a change edits the covered code itself, its stale-coverage warning is expected until the change lands; the sync commit moves in a follow-up change after it lands. |
 
 Use this repository's real commands, paths and nouns, and leave no placeholders.
 
@@ -80,7 +80,7 @@ One entry per check, under a top-level `checks:` list. Every key is required.
 | `covers` | The repository paths whose change can make the check stale: files, or globs where `**` crosses `/`. |
 | `commit` | The sync commit: the last commit at which someone confirmed the verification describes the covered code. It is a commit already on the repository's default branch, resolved from the repository (the merge base of the working branch and the default branch, or a later default-branch commit) at which the covered files are identical to the ones confirmed, never a commit only a feature branch holds: a squash or rebase merge discards that commit. |
 | `command` | The command that runs the check, as `## Run` gives it. |
-| `seeded_break` | The break that showed the check can fail: `change` (what was broken in the covered code), `caught` (`true` once the check caught it) and `commit` (the default-branch commit the break was made against, chosen as for the sync commit). |
+| `seeded_break` | The break that showed the check can fail: `change` (what was broken in the covered code and, where the check reads a model, the model edit that carried it), `caught` (`true` once the check caught it) and `commit` (the default-branch commit the break was made against, chosen as for the sync commit). |
 
 Before the check has run against a seeded break, `seeded_break.caught` is `false`, and the skill
 says so under `## Bounds and assumptions`. An optional top-level `outside_model:` list names model

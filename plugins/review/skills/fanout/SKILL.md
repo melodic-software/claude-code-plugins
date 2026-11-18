@@ -58,7 +58,7 @@ unattended". Every other run is attended. The `fix` action keeps its own session
 ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate"); this
 flag does not change them.
 
-`--yes` applies only to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag, without it the fix action emits its classification plan and stops ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
+`--yes` applies only to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. For `fix` it is the explicit headless opt-in: in a non-interactive session `fix` applies only with this flag; without it, `fix` emits its classification plan and stops ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
 
 **`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
 spreads: `lens` runs one reviewer agent per concern, `model` sends one review prompt to each

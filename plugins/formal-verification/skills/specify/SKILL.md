@@ -23,7 +23,10 @@ finds the part of the repo where that matters most, verifies one property of it,
 follows [the formal-area contract](../../reference/formal-skill.md)
 (`${CLAUDE_PLUGIN_ROOT}/reference/formal-skill.md`); read it before any form below.
 
-The reference files write this plugin's folder as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`.
+The reference files write this plugin's folder as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`;
+when the plugin is not installed and runs from a checkout of its source, it is the folder that holds
+its `.claude-plugin/plugin.json`. `"$PWD"` in a command is the repository root: pass its absolute
+path where the shell's working directory does not carry between calls.
 
 This skill names no verification tool. The question and the repository choose it, by
 [`reference/choose-a-tool.md`](reference/choose-a-tool.md), and the choice is recorded only in the
@@ -77,8 +80,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/check.mjs" --project-dir "$PWD" [--default-r
 ```
 
 With no folder named it checks every `formal-*` folder under the `skills_dir` setting. Pass
-`--default-ref` with the ref of the repository's default branch, read from its remote, so a sync
-commit that only the working branch holds fails now rather than after the merge. It prints one
+`--default-ref` with the default branch's tip, read from its remote, as any ref or SHA git resolves
+to a commit (a remote-tracking branch or the fetched SHA), so a sync commit that only the working
+branch holds fails now rather than after the merge. It prints one
 `FAIL` or `WARN` line per finding and a summary, and exits 0 with no failure, 1 with one, 2 when it
 cannot run. The findings it reports are listed in the contract's "The contract check". Report the
 lines as printed. A stale-coverage warning means the check needs another look, not that it fails:

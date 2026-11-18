@@ -25,8 +25,11 @@ or nothing.
 | **Data directory** (`-DataDir`) | `${user_config.data_dir}` when set to a non-empty path. If it is empty or still shows an unexpanded `${user_config.data_dir}` token (option unset), omit `-DataDir`: the script defaults to `Gaming\dlss5` under the user's Documents folder and follows a OneDrive-redirected Documents, which a hand-built path does not |
 | **Runtime DLL** (`-RuntimeDll`) | `${user_config.runtime_dll}` when set to a non-empty path. If it is empty or still an unexpanded token, omit `-RuntimeDll`: the script defaults to `runtime\nvngx_dlssnr.dll` under the data directory |
 
-Never type an option token onto a command line. An unset option survives substitution as its own
-token, and Bash rejects it as a bad substitution before the script starts.
+Never type an option token onto a command line: the command carries the literal path the table
+resolved, or omits the option, so it never depends on how an unset option renders.
+
+- **Pointer**: when checking where a `${user_config.*}` token is substituted, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> live.
 
 When the ledger path is needed and the data directory option is unset, get the default from the
 native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming\dlss5"`.
@@ -442,17 +445,26 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 
 ## Volatile specifics
 
-These are true as of the date in each row. `refetch` exists to recheck them.
+Each row is a value copied or measured from upstream, true as of its date. `refetch` exists to
+recheck them.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script; NVIDIA-signed copy hashed locally | 2026-09-22 | A DLSS 5 title ships a newer runtime, or `apply` refuses a signed runtime as unknown |
 | Default build wilsjo2 `v0.8.3` (newest non-prerelease); fallback Dagherbou `v0.2.0-patch1` (prerelease). Default chosen from the owner's live A/B, issue #4429 | `gh api repos/<owner>/<repo>/releases`; `reference/fork-comparison.md` | 2026-09-24 | `refetch` shows a new tag, or a pinned asset stops resolving |
 | GeForce driver 616.92 WHQL, the driver the mod was verified live on | `nvidia-smi` on the proving-ground machine | 2026-09-22 | A new Game Ready driver |
-| Steam requires the store-page anti-cheat field only for client-side kernel-mode anti-cheat; for anything else it is optional | Steamworks announcement 4547038620960934857, read through the Steam event API | 2026-09-23 | Valve changes the anti-cheat disclosure rule |
-| AreWeAntiCheatYet `games.json` fields `name`, `anticheats`, `status` (Linux and Proton support), `storeIds` (`steam`, `epic`); 1167 entries at commit `e31a7e6` | `https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/<sha>/games.json`, parsed live; `components/Legend.tsx` for the status meaning | 2026-09-23 | `assess` reports an AreWeAntiCheatYet fetch failure that persists, or the file's fields change |
+| AreWeAntiCheatYet `games.json` fields `name`, `anticheats`, `status`, `storeIds` (`steam`, `epic`), at commit `e31a7e6` | `https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/<sha>/games.json`, parsed live; `components/Legend.tsx` for the status meaning | 2026-09-23 | `assess` reports an AreWeAntiCheatYet fetch failure that persists, or the file's fields change |
 | Steam's appmanifest records the installed build as `buildid` and the update time as `LastUpdated` (Unix seconds); `TargetBuildID` is a queued update. No other launcher's install record the script reads carries a build field | GameFinder `AppManifestParser.cs`; `reference/launchers.md`, Build record and Verification record | 2026-09-24 | A Steam update that `status` does not report as `game updated by Steam`, or a launcher record gains a build field |
 | Blizzard EULA revised March 21, 2024; section 1.C.i and 1.C.ii text as quoted in `reference/anticheat-posture.md` | The EULA page, fetched | 2026-09-23 | The page shows a newer revision date |
+
+A Steam store page with no anti-cheat section is one of the conditions for `none-disclosed`
+(`reference/anticheat-posture.md`, Status), and that status claims only that no kernel-mode
+anti-cheat was disclosed, never that the game has none. Which anti-cheat Steam requires a
+developer to disclose is Valve's rule, read at the pointer.
+
+- **Pointer**: when deciding what a missing store-page section means, fetch the Steamworks
+  announcement
+  <https://steamcommunity.com/groups/steamworks/announcements/detail/4547038620960934857> live.
 
 ## Next
 

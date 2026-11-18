@@ -572,7 +572,7 @@ puts `needs-human` on the drift issue, and the owner decides it there.
 
 `docs/upstream/claude-code.md` uses the `changelog through` marker, which
 `scripts/check-upstream-drift.sh` skips. Its trigger, a release newer than that marker, is detected
-by `.github/workflows/upstream-apply-changelog.yml`: every ten minutes it takes the newest unread
+by `.github/workflows/upstream-apply-changelog.yml`: every hour it takes the newest unread
 release not yet done, opens the pull requests that release calls for, and, when its plan has
 handoffs or a stop reason, files them as one issue from the lanes App. Intake triage reads that
 issue and does not admit it to the issue lane. A release with no handoffs and no stop reason files

@@ -1,168 +1,71 @@
 #!/usr/bin/env bash
-# Contract tests for the guardrails lefthook remote (git-hooks/lefthook-remote.yml): every job
-# names a script under the repository root's .lefthook/<event>/, where lefthook looks up a
-# remote's scripts, runs it with sh, and that script runs an entry script that exists; no job takes a shared-copy
-# job name (guardrails-<entry>), which lefthook would merge into one broken job; entries.json's
-# remote names this file. With lefthook on PATH, a consumer whose lefthook.yml carries the
-# snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
-# repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
-# a pushed unresolved skill reference, reading the consumer's own files, until the consumer
-# declines that entry, and blocks a pushed token from the second pre-push job, which reads the
-# refs on stdin too; a new commit on main
-# reaches the consumer on its next lefthook install.
-# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .lefthook/pre-push/guardrails-pre-push-content.sh .github/scripts/pr-require-checks/install-lefthook.sh
+# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/hooks/block-no-verify.sh .lefthook/*/guardrails-* .lefthook/remote-entry.sh lefthook-remote.yml plugins/*/git-hooks/lefthook-remote.yml lib/git-hooks/lefthook-remote-harness.sh .github/scripts/pr-require-checks/install-lefthook.sh
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA LEFTHOOK
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
-unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
-
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN="$(cd "$HERE/.." && pwd)"
-TOP="$(cd "$PLUGIN/../.." && pwd)"
-CONFIG="$HERE/lefthook-remote.yml"
-INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
-# dash where installed: it rejects the bashisms a bash-backed sh lets through.
-SH="$(command -v dash)" || SH="sh"
+# shellcheck source=../../../lib/git-hooks/lefthook-remote-harness.sh
+. "$HERE/../../../lib/git-hooks/lefthook-remote-harness.sh"
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
+LR_NO_SKIP_JOBS="guardrails-remote-pre-commit-content guardrails-remote-pre-push-content"
+lr_static
+lr_e2e_start || lr_done
+
+no_skip() {
+  grep -q -e 'skip: true' -e 'lefthook-local\.yml' -e "^$2 failed" -e "- name: $2\$" <<<"$1" || echo yes
 }
 
-# jobs: "<event> <name> <script>" per job in the remote config.
-jobs="$(awk '
-  /^[a-z-]+:$/ { event = substr($0, 1, length($0) - 1) }
-  /^ *- name: / { name = $3 }
-  /^ *script: / { print event, name, $2 }
-' "$CONFIG")"
-expect "the remote config has one job per entry" "commit-msg pre-commit pre-push pre-push" \
-  "$(cut -d' ' -f1 <<<"$jobs" | sort | xargs)"
-GUARD="$(mktemp -d)"
-trap 'rm -rf "$GUARD"' EXIT
-while read -r event name script; do
-  wrapper="$TOP/.lefthook/$event/$script"
-  expect "$name: its script is under .lefthook/$event/" yes "$([[ -f "$wrapper" ]] && echo yes)"
-  # shellcheck disable=SC2016 # matches the wrapper's literal text
-  target="$(sed -n 's#^exec sh "${src%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
-  expect "$name: its script runs an entry script that exists" yes \
-    "$([[ -n "$target" && -f "$TOP/.lefthook/$event/$target" ]] && echo yes)"
-  expect "$name: the job's runner is sh" yes \
-    "$(awk -v s="$script" '$1 == "script:" { hit = ($2 == s) } hit && $1 == "runner:" { print ($2 == "sh" ? "yes" : "no"); exit }' "$CONFIG")"
-  # The wrapper beside a stub entry script that reports a run: once in a work tree, once under a
-  # fetched remote, with a Windows-style backslash path. Run with sh (dash where installed), as
-  # the remote config's runner does.
-  for root in "$GUARD/wt" "$GUARD/git/info/lefthook-remotes/r"; do
-    mkdir -p "$root/.lefthook/$event" "$(dirname "$root/.lefthook/$event/$target")"
-    cp "$wrapper" "$root/.lefthook/$event/$script"
-    printf '#!/bin/sh\necho ran\n' >"$root/.lefthook/$event/$target"
-  done
-  out="$("$SH" "$GUARD/wt/.lefthook/$event/$script" </dev/null 2>&1)"
-  expect "$name: the work-tree copy exits 0 without running the entry script" "0:" "$?:$out"
-  out="$("$SH" "$GUARD/git/info/lefthook-remotes/r/.lefthook/$event/$script" </dev/null 2>&1)"
-  expect "$name: the fetched copy runs the entry script" "ran" "$out"
-  # A file whose name holds the backslashes stands in for the Windows path of the fetched copy.
-  win="$GUARD/git\\info\\lefthook-remotes\\r\\.lefthook\\$event\\$script"
-  cp "$wrapper" "$win"
-  out="$("$SH" "$win" </dev/null 2>&1)"
-  expect "$name: the fetched copy runs from a backslash path" "ran" "$out"
-  entry="${script#guardrails-}"
-  expect "$name: not a shared-copy job name" yes "$([[ "$name" != "guardrails-${entry%.sh}" ]] && echo yes)"
-done <<<"$jobs"
-rm -rf "$GUARD"
-expect "entries.json's remote names this config" "plugins/guardrails/git-hooks/lefthook-remote.yml" \
-  "$(jq -r '.remote.config' "$HERE/entries.json" 2>/dev/null || sed -n 's/.*"config": "\(.*\)".*/\1/p' "$HERE/entries.json")"
-
-if ! command -v lefthook >/dev/null 2>&1; then
-  # CI sets this, so the end-to-end cases fail there rather than skip green.
-  if [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
-    echo "FAIL: lefthook not on PATH, and GUARDRAILS_REQUIRE_LEFTHOOK=1 requires the end-to-end cases" >&2
-    exit 1
-  fi
-  echo "SKIP: lefthook not on PATH -- remote end-to-end cases skipped"
-  echo "lefthook-remote: $PASS passed, $FAIL failed"
-  ((FAIL == 0))
-  exit
-fi
-
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-export GIT_CONFIG_GLOBAL="$WORK/gitconfig" GIT_CONFIG_NOSYSTEM=1
-URL="https://github.com/melodic-software/claude-code-plugins"
-
-# The stand-in: this checkout's plugin and .lefthook/ in a repository git reaches for $URL.
-SRC="$WORK/src"
-mkdir -p "$SRC/plugins"
-cp -R "$PLUGIN" "$SRC/plugins/guardrails"
-cp -R "$TOP/.lefthook" "$SRC/.lefthook"
-git init -q -b main "$SRC"
-git -C "$SRC" add -A
-git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -m src --no-verify
-REF="$(jq -r '.remote.ref' "$HERE/entries.json" 2>/dev/null)"
-[[ -n "$REF" && "$REF" != null ]] || REF="$(sed -n 's/.*"ref": "\(.*\)".*/\1/p' "$HERE/entries.json")"
-expect "entries.json's remote tracks main" main "$REF"
-git config --global "url.file://$SRC.insteadOf" "$URL"
-
-REPO="$WORK/consumer"
-git init -q --bare -b main "$WORK/consumer.git"
-git init -q -b main "$REPO"
-git -C "$REPO" config user.name t
-git -C "$REPO" config user.email t@example.invalid
-git -C "$REPO" remote add origin "$WORK/consumer.git"
 mkdir -p "$REPO/docs/conventions"
 printf "subject_pattern: '^[A-Z]+-[0-9]+: .+'\n" >"$REPO/docs/conventions/source-control.yaml"
-node -e 'const p = JSON.parse(process.argv[1]); console.log(p.decisions.find((d) => d.kind === "lefthook-config").snippet)' \
-  "$(node "$INSTALL" plan --scope remote --repo "$REPO")" >"$REPO/lefthook.yml"
-(cd "$REPO" && lefthook install >/dev/null 2>&1)
-expect "lefthook install fetches the remote and verify reports every entry ok" "ok ok ok ok" \
-  "$(node "$INSTALL" verify --repo "$REPO" | cut -f1 | xargs)"
-
 git -C "$REPO" add -A
-git -C "$REPO" commit -q -m "feat: off convention" >/dev/null 2>&1
-expect "commit-msg: an off-convention subject blocks" 1 "$?"
-git -C "$REPO" commit -q -m "ABC-1: seed" >/dev/null 2>&1
-expect "commit-msg: a subject on the consumer's pattern passes" 0 "$?"
+lr_commit "feat: off convention"
+lr_expect_block "commit-msg: an off-convention subject blocks" guardrails-remote-commit-msg-convention .
+
+guard() {
+  jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' |
+    CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=true bash "$PLUGIN/hooks/block-no-verify.sh" >/dev/null 2>&1
+  echo "$?"
+}
+if command -v jq >/dev/null 2>&1; then
+  expect "block-no-verify: the commit retried after the skip is allowed" 0 "$(guard "git -C $REPO commit -m 'feat: off convention'")"
+  expect "block-no-verify: writing the skip through the shell is allowed" 0 \
+    "$(guard "printf 'commit-msg:\n  jobs:\n    - name: guardrails-remote-commit-msg-convention\n      skip: true\n' >$REPO/lefthook-local.yml")"
+  expect "block-no-verify: --no-verify is still blocked" 2 "$(guard "git -C $REPO commit --no-verify -m 'feat: off convention'")"
+  expect "block-no-verify: LEFTHOOK=0 is still blocked" 2 "$(guard "LEFTHOOK=0 git -C $REPO commit -m 'feat: off convention'")"
+fi
+LR_SKIP_MSG="feat: off convention" lr_skip commit-msg guardrails-remote-commit-msg-convention commit
+git -C "$REPO" reset -q --soft HEAD~1
+lr_commit "feat: off convention"
+lr_expect_block "commit-msg: with the skip removed, the job blocks again" guardrails-remote-commit-msg-convention .
+lr_commit "ABC-1: seed"
+lr_expect_pass "commit-msg: a subject on the consumer's pattern passes"
 git -C "$REPO" push -q origin main >/dev/null 2>&1
 git -C "$REPO" remote set-head origin main >/dev/null
 
 printf 'a\ntoken=ghp_%s\n' "$(printf 'A%.0s' {1..36})" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
-err="$(git -C "$REPO" commit -q -m "ABC-2: notes" 2>&1 >/dev/null)"
-expect "pre-commit: a staged token blocks, naming the consumer's line" yes \
-  "$(grep -q 'notes.md:2: secret or credential pattern' <<<"$err" && echo yes)"
+lr_commit "ABC-2: notes"
+expect "pre-commit: a staged token blocks, naming the consumer's line and no per-clone skip" "1|yes|yes" \
+  "$((LR_RC != 0))|$(grep -q 'notes\.md:2: secret or credential pattern' <<<"$LR_ERR" && echo yes)|$(no_skip "$LR_ERR" guardrails-remote-pre-commit-content)"
 git -C "$REPO" rm -q --cached notes.md
 rm "$REPO/notes.md"
 
 if command -v jq >/dev/null 2>&1; then
-  # A marketplace layout, so the skill-reference verifier judges the consumer's references.
   mkdir -p "$REPO/plugins/alpha/.claude-plugin" "$REPO/plugins/alpha/skills/setup"
   printf '{"name":"alpha","version":"0.1.0"}\n' >"$REPO/plugins/alpha/.claude-plugin/plugin.json"
   : >"$REPO/plugins/alpha/skills/setup/SKILL.md"
   git -C "$REPO" add plugins
-  git -C "$REPO" commit -q -m "ABC-3: plugin" >/dev/null 2>&1
+  lr_commit "ABC-3: plugin"
   git -C "$REPO" push -q origin main >/dev/null 2>&1
-  # Pushed from another branch, so only the refs lefthook passes on stdin name main's range.
   # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
   printf 'Run `/alpha:missing`.\n' >"$REPO/NOTES.md"
   git -C "$REPO" add NOTES.md
-  git -C "$REPO" commit -q -m "ABC-4: cite" >/dev/null 2>&1
-  git -C "$REPO" switch -q -c side
-  err="$(git -C "$REPO" push origin main 2>&1)"
-  expect "pre-push: a pushed unresolved skill reference blocks, from the refs on stdin" "1|yes" \
-    "$?|$(grep -q 'NOTES.md:1: skill-reference-verify' <<<"$err" && echo yes)"
+  lr_commit "ABC-4: cite"
+  lr_push
+  lr_expect_block "pre-push: a pushed unresolved skill reference blocks, from the refs on stdin" \
+    guardrails-remote-reference-verify 'NOTES\.md:1: skill-reference-verify'
   git -C "$REPO" config checks.guardrails.reference-verify.declined true
-  git -C "$REPO" push -q origin main >/dev/null 2>&1
-  expect "pre-push: with the entry declined, the same push passes" 0 "$?"
-  # Both pre-push jobs read the refs on stdin in one push: each must report its own finding, from
-  # a branch with no upstream, where a job without the refs finds no range and passes.
+  lr_push
+  lr_expect_pass "pre-push: with the entry declined, the same push passes"
   git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
-  git -C "$REPO" switch -q main
   # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
   printf 'Run `/alpha:gone`.\n' >"$REPO/LATER.md"
   printf 'b\ntoken=ghp_%s\n' "$(printf 'B%.0s' {1..36})" >"$REPO/later.md"
@@ -172,14 +75,16 @@ if command -v jq >/dev/null 2>&1; then
   err="$(git -C "$REPO" push origin main 2>&1)"
   expect "pre-push: both stdin jobs block in one push, each from the refs on stdin" "1|yes|yes" \
     "$?|$(grep -q 'LATER.md:1: skill-reference-verify' <<<"$err" && echo yes)|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
-elif [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
-  expect "jq is on PATH for the pre-push case" yes no
+  expect "pre-push: only reference-verify names a per-clone skip; the content scan names none" "1|" \
+    "$(grep -cx '      skip: true' <<<"$err")|$(grep -e '^guardrails-remote-pre-push-content failed' -e '- name: guardrails-remote-pre-push-content$' <<<"$err")"
+  git -C "$REPO" switch -q main
+elif [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 || "${LEFTHOOK_REMOTE_REQUIRE:-${GUARDRAILS_REQUIRE_LEFTHOOK:-}}" == 1 ]]; then
+  expect "jq is on PATH for the pre-push and guard cases" yes no
 else
-  echo "SKIP: jq not on PATH -- the pre-push case skipped"
+  echo "SKIP: jq not on PATH -- the pre-push and guard cases skipped"
 fi
 
-# The consumer tracks main: a new commit there reaches it on the next lefthook install.
-CACHED="$REPO/.git/info/lefthook-remotes/claude-code-plugins-main/plugins/guardrails/git-hooks/lefthook-remote.yml"
+CACHED="$FETCHED/plugins/guardrails/git-hooks/lefthook-remote.yml"
 expect "the remote is fetched into claude-code-plugins-main" yes "$([[ -f "$CACHED" ]] && echo yes)"
 echo "# newer" >>"$SRC/plugins/guardrails/git-hooks/lefthook-remote.yml"
 git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -am newer --no-verify
@@ -187,5 +92,22 @@ git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -am newer
 expect "a new commit on main reaches the consumer on lefthook install" yes \
   "$(grep -q '# newer' "$CACHED" && echo yes || echo no)"
 
-echo "lefthook-remote: $PASS passed, $FAIL failed"
-((FAIL == 0))
+for f in "$TOP"/plugins/*/git-hooks/lefthook-remote.yml; do
+  rel="${f#"$TOP"/}"
+  mkdir -p "$SRC/${rel%/*}"
+  cp "$f" "$SRC/$rel"
+done
+git -C "$SRC" add -A
+git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -m all --no-verify
+(cd "$REPO" && lefthook install >/dev/null 2>&1)
+dump="$(cd "$REPO" && lefthook dump 2>/dev/null)"
+want="" got=""
+for f in "$TOP"/plugins/*/git-hooks/lefthook-remote.yml; do
+  while read -r job; do
+    want+="$job "
+    grep -q "name: $job\$" <<<"$dump" && got+="$job "
+  done < <(sed -n 's/^ *- name: //p' "$f")
+done
+expect "the root aggregate merges every plugin's remote jobs into the consumer's config" "$want" "$got"
+
+lr_done

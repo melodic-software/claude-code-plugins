@@ -282,6 +282,93 @@ class LaneRunCarryTests(unittest.TestCase):
                     self.assertEqual(self.decide(runs, sha), self.decide(cold, sha))
 
 
+class HeldLegAnnotationTests(unittest.TestCase):
+    """`collect_lane_runs` reads a held leg's annotations, which
+    `babysit_review_evidence._rate_held` binds a re-run on."""
+
+    def setUp(self) -> None:
+        import test_babysit_review_evidence as suite
+
+        self.carry = LaneRunCarryTests("test_a_warm_carry_reads_only_the_listing")
+        self.carry.setUp()
+        self.addCleanup(self.carry.doCleanups)
+        run = self.carry.run
+        sha = run["head_sha"]
+        self.carry.annotations = [
+            {
+                "annotation_level": "notice",
+                "title": "",
+                "message": f"held: claude-review did not review {sha}: the compare"
+                " read of the merge base failed. A later run of this workflow reviews it.",
+            }
+        ]
+        self.leg_notes = [
+            {"annotation_level": "warning", "title": "", "message": m}
+            for m in (suite.LEG_HOLD, *suite.LEG_REFUSALS)
+        ]
+
+    def with_leg(self, review: str) -> str:
+        """Adds the Review Subscription leg, its `Claude review` step ended
+        `review`, and answers its annotations read; returns that read's path."""
+        run = self.carry.run
+        self.carry.jobs.append(
+            {
+                "id": 23,
+                "name": "pr-review / Review Subscription",
+                "conclusion": "success",
+                "head_sha": run["head_sha"],
+                "run_id": run["id"],
+                "run_attempt": 1,
+                "steps": [{"name": "Claude review", "conclusion": review}],
+            }
+        )
+        path = f"repos/{REPO}/check-runs/23/annotations?per_page=100"
+        answers = self.carry.answers
+        self.carry.answers = lambda r: {**answers(r), path: [self.leg_notes]}
+        return path
+
+    def first_attempt(self, runs: list[dict[str, Any]]) -> dict[str, Any]:
+        return next(a for a in runs[0]["attempts"] if a["run_attempt"] == 1)
+
+    def leg(self, runs: list[dict[str, Any]]) -> dict[str, Any]:
+        return next(j for j in self.first_attempt(runs)["jobs"] if j["id"] == 23)
+
+    def test_a_held_leg_s_annotations_are_read_and_bind_its_rerun(self) -> None:
+        path = self.with_leg("skipped")
+        runs, reads = self.carry.collect(None)
+        self.assertIn(path, reads, "the held leg's annotations are read")
+        self.assertEqual(
+            [a["message"] for a in self.leg(runs)["annotations"]],
+            [a["message"] for a in self.leg_notes],
+        )
+        self.assertTrue(
+            review_evidence._rate_held(
+                "claude-review", self.carry.run["id"], self.first_attempt(runs)
+            ),
+            "_rate_held reads the leg annotations collect_lane_runs attached",
+        )
+
+    def test_a_leg_whose_review_ran_is_not_read(self) -> None:
+        path = self.with_leg("success")
+        runs, reads = self.carry.collect(None)
+        self.assertNotIn(path, reads)
+        self.assertNotIn("annotations", self.leg(runs))
+
+    def test_a_warm_carry_keeps_the_held_leg_s_annotations(self) -> None:
+        self.with_leg("skipped")
+        runs, reads = self.carry.collect(self.carry.warm())
+        self.assertEqual(len(reads), 1, "the carried v2 record is served")
+        self.assertEqual(
+            [a["message"] for a in self.leg(runs)["annotations"]],
+            [a["message"] for a in self.leg_notes],
+        )
+        self.assertTrue(
+            review_evidence._rate_held(
+                "claude-review", self.carry.run["id"], self.first_attempt(runs)
+            )
+        )
+
+
 @functools.cache
 def bind_corpus() -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
     """Every `bind()` call the review-evidence suite makes, with its runs as

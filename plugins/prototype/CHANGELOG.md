@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.2] - 2026-11-18
+
+### Changed
+
+- `/prototype:explore-directions` handover: when every variant has the same states, the shared
+  line now has a fixed shape, `All variants have the same states: <names>.`, on a line of its own
+  between the path-and-keys line and the variant lines. It names the states itself instead of
+  pointing back at the `Plan:` line, and the states stay out of the path-and-keys line.
+
 ## [0.35.1] - 2026-11-18
 
 ### Fixed

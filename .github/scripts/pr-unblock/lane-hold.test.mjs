@@ -77,6 +77,7 @@ test("another lane's escalation leaves resolve-conflicts and fix-docs unheld and
 
 test("resolve-conflicts's own escalation or a person's label holds it", async () => {
   assert.equal(await outputs("resolve-conflicts", { reason: "unresolved-conflict" }), "held=true\nlane-escalated=false\n");
+  assert.equal(await outputs("resolve-conflicts", { reason: "superseded-by-main" }), "held=true\nlane-escalated=false\n", "a pull request main already contains");
   assert.equal(await outputs("resolve-conflicts", { actor: PERSON }), "held=true\nlane-escalated=false\n");
 });
 

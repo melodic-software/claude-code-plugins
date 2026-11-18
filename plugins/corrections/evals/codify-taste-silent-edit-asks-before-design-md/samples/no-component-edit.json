@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/.work/codify/feat-pricing/20261117T120000Z-proposal.md",
+            "old_string": "Status: draft",
+            "new_string": "Status: proposed"
+          }
+        }
+      ],
+      "why": "the proposal file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/PricingCard.tsx",
+            "old_string": "<h2>Professional</h2>",
+            "new_string": "<h2>Pro</h2>"
+          }
+        }
+      ],
+      "why": "edits component code"
+    }
+  ]
+}

@@ -98,7 +98,6 @@ rather than presenting it as consensus:
 - **Counting over wall-clock time is this plugin's rule for every counter.** It applies the rule to
   instruction counts, syscalls, queries and process spawns, and process-spawn count is its headline
   metric.
-  - **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live.
 - **Not claiming steady state after warmup is this plugin's rule.** Discarding warmup
   iterations is fine; reporting that a benchmark reached steady state is not, because discarding
   them does not show that it did.

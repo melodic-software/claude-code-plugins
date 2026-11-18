@@ -7,12 +7,12 @@ checks:
       - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
       - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
       - plugins/work-items/tools/work-item-tracker/lib/lease.sh
-    commit: 1af476261a205131d4a8fe63451433fbf6b968d2
+    commit: df32cb3d4f24531f204a4c725ebc29fcd225bc3c
     command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalLane.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
     seeded_break:
-      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,415 distinct states
+      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest, carried into the model as Min to Max in Judge and in ArbRunSup; OneHolder breaks after 1,415 distinct states
       caught: true
-      commit: 1af476261a205131d4a8fe63451433fbf6b968d2
+      commit: df32cb3d4f24531f204a4c725ebc29fcd225bc3c
   - id: claim-local-triage
     covers:
       - plugins/work-items/tools/work-item-tracker/CONTRACT.md
@@ -21,10 +21,10 @@ checks:
       - plugins/work-items/tools/work-item-tracker/adapters/github/renew-lease.sh
       - plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
       - plugins/work-items/tools/work-item-tracker/lib/lease.sh
-    commit: 1af476261a205131d4a8fe63451433fbf6b968d2
+    commit: df32cb3d4f24531f204a4c725ebc29fcd225bc3c
     command: /formal-verification:chart .claude/skills/formal-claim-protocol/model/ClaimProtocol.tla --config .claude/skills/formal-claim-protocol/model/LocalTriage.cfg --view .claude/skills/formal-claim-protocol/model/view.mjs --rerun-states 2000000
     seeded_break:
-      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest; OneHolder breaks after 1,888 distinct states
+      change: claim step 4 (lib/lease.sh wit_lease_winner) takes the latest live lease as the winner instead of the earliest, carried into the model as Min to Max in Judge and in ArbRunSup; OneHolder breaks after 1,888 distinct states
       caught: true
-      commit: 1af476261a205131d4a8fe63451433fbf6b968d2
+      commit: df32cb3d4f24531f204a4c725ebc29fcd225bc3c
 outside_model: []

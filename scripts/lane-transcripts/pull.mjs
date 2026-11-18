@@ -7,7 +7,7 @@
 // process starts. Transcript text reaches only the sink's files: nothing here
 // prints it, and an error names a kind, never a value.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -15,20 +15,28 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 import { OpenError, openRecord, parsePrivateKey } from "../../.github/actions/open-lane-output/open.mjs";
+import { readRecord } from "../../.github/scripts/lib/lane-outcome.mjs";
 import {
+  appendOutcome,
   appendRow,
   ensureDir,
+  failureClassOf,
   laneOf,
+  outcomesByTrace,
   parseArtifactName,
   paths,
   prune,
   query,
+  readOutcomes,
   readRows,
   readState,
   sinkBytes,
   staleness,
+  traceIdOf,
   transcriptMetrics,
   transcriptPath,
+  writeOutcomes,
+  writeRows,
   writeState,
 } from "./store.mjs";
 
@@ -81,6 +89,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
+  "maintenance-verify-whole-map.yml": legs("verify-map", ["-probe", ""]),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub"), ...legs("model"), ...legs("scrub-probe")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
@@ -95,8 +104,42 @@ export const TRANSCRIPT_JOB_IDS = {
 export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
 
-const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
-  query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
+/**
+ * The workflows whose runs write lane-outcome records: each runs
+ * report-lane-outcome or run-claude-cli, a ci-workflows lane reusable, or a
+ * local reusable that does. pull.test.mjs reads the workflows and fails when
+ * this list and theirs differ. A reusable has no runs of its own, so only its
+ * callers are here.
+ */
+export const LANE_WORKFLOWS = [
+  "intake-triage.yml",
+  "maintenance-audit-lane-runs.yml",
+  "maintenance-measure-skill-edit.yml",
+  "maintenance-tidy-code-upkeep.yml",
+  "maintenance-verify-whole-map.yml",
+  "post-merge-test-mutation.yml",
+  "pr-rate-merge-risk.yml",
+  "pr-refine.yml",
+  "pr-review-hosted.yml",
+  "pr-review-main.yml",
+  "pr-review-security-hosted.yml",
+  "pr-run-plugin-evals.yml",
+  "pr-unblock.yml",
+  "pr-verify-capture.yml",
+  "pr-verify.yml",
+  "upstream-apply-changelog.yml",
+  "work-resolve-issue.yml",
+];
+/**
+ * pull-outcomes' own gh call budget, apart from the transcript pull's, and how
+ * far back its first run lists.
+ */
+export const OUTCOME_CALL_BUDGET = 1000;
+const OUTCOME_FIRST_DAYS = 30;
+
+const COMMANDS = ["pull", "pull-outcomes", "backfill", "status", "query", "prune"];
+const USAGE = `usage: pull.mjs <${COMMANDS.join("|")}> [--sink DIR] [--repo OWNER/REPO]
+  query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--class FAILURE-CLASS] [--trace TRACE-ID] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
 
 export class UsageError extends Error {}
 // A failed pull whose message names a kind and a count, never a value.
@@ -109,9 +152,9 @@ class BudgetSpent extends Error {}
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
-  if (!["pull", "status", "query", "prune"].includes(command)) throw new UsageError(USAGE);
+  if (!COMMANDS.includes(command)) throw new UsageError(USAGE);
   const flags = {};
-  const names = new Set(["sink", "repo", "lane", "model", "outcome", "since", "until"]);
+  const names = new Set(["sink", "repo", "lane", "model", "outcome", "class", "trace", "since", "until"]);
   for (let i = 0; i < rest.length; i += 2) {
     const name = /^--([a-z]+)$/.exec(rest[i])?.[1];
     if (!names.has(name) || rest[i + 1] === undefined || name in flags) throw new UsageError(USAGE);
@@ -164,7 +207,16 @@ function fetched(kind, call) {
   }
 }
 
-// The sealed record inside one artifact zip: exactly one entry, the sealed file.
+/**
+ * A second sealed file the writer may add beside the transcript, such as the
+ * leg's telemetry; the pull does not open it.
+ */
+const EXTRA_SEALED = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.sealed$/;
+
+/**
+ * The sealed record inside one artifact zip: the sealed transcript, and at
+ * most one other sealed file.
+ */
 function sealedRecord(deps, sink, zip) {
   const dir = mkdtempSync(path.join(paths(sink).tmp, "zip-"));
   try {
@@ -172,7 +224,8 @@ function sealedRecord(deps, sink, zip) {
     writeFileSync(file, zip, { mode: 0o600 });
     const unzip = (args) => fetched("artifact-unzip", () => deps.unzip(args));
     const entries = unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
-    if (entries.length !== 1 || entries[0] !== ENTRY) return null;
+    const extra = entries.filter((entry) => entry !== ENTRY);
+    if (entries.length - extra.length !== 1 || extra.length > 1 || !extra.every((entry) => EXTRA_SEALED.test(entry))) return null;
     return unzip(["-p", file, ENTRY]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -218,6 +271,7 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   const since = Number.isNaN(resume) ? (Number.isNaN(last) ? 0 : last - OVERLAP) : resume;
   const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, since);
   const known = new Set(readRows(sink).map((row) => row.artifact_id));
+  const byTrace = outcomesByTrace(readOutcomes(sink));
   const runs = new Map();
   const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 };
   const failedKinds = new Set();
@@ -237,7 +291,7 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
       else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
       else {
         try {
-          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
+          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, now });
           tally[outcome]++;
           if (outcome === "pulled") known.add(artifact.id);
         } catch (error) {
@@ -267,7 +321,7 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   return tally;
 }
 
-function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
+function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, now }) {
   const runId = String(artifact.workflow_run.id);
   const record = sealedRecord(deps, sink, fetched("artifact-zip", () => ghRetried(deps, ["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`])));
   if (!record) return "bad_zip";
@@ -304,9 +358,11 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
     created_at: artifact.created_at,
     date: artifact.created_at.slice(0, 10),
     ...transcriptMetrics(messages),
+    trace_id: traceIdOf(Number(runId), named.attempt),
     transcript_bytes: gz.length,
     pulled_at: new Date(now).toISOString(),
   };
+  Object.assign(row, failureClassOf(row.trace_id, byTrace));
   row.transcript = transcriptPath(row);
   const file = path.join(sink, row.transcript);
   ensureDir(path.dirname(file));
@@ -315,16 +371,236 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
   return "pulled";
 }
 
+/**
+ * Each completed run of every lane workflow created since the cutoff, newest
+ * first per workflow, starting at `at.workflow` (where a budget-stopped pull
+ * stopped) and wrapping round.
+ */
+function* listedRuns(deps, repo, cutoff, at) {
+  const created = encodeURIComponent(`>=${new Date(cutoff).toISOString()}`);
+  const start = Math.max(0, LANE_WORKFLOWS.indexOf(at.workflow));
+  for (let i = 0; i < LANE_WORKFLOWS.length; i++) {
+    const workflow = LANE_WORKFLOWS[(start + i) % LANE_WORKFLOWS.length];
+    at.workflow = workflow;
+    for (let page = 1; ; page++) {
+      const { workflow_runs: runs = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/workflows/${workflow}/runs?created=${created}&status=completed&per_page=${PER_PAGE}&page=${page}`], true));
+      yield* runs;
+      if (runs.length < PER_PAGE) break;
+    }
+  }
+}
+
+function allPages(deps, kind, url, key) {
+  const items = [];
+  for (let page = 1; ; page++) {
+    const body = fetched(kind, () => json(ghRetried(deps, ["api", `${url}${url.includes("?") ? "&" : "?"}per_page=${PER_PAGE}&page=${page}`])));
+    const got = (key ? body?.[key] : body) ?? [];
+    items.push(...got);
+    if (got.length < PER_PAGE) return items;
+  }
+}
+
+/**
+ * One run's lane-outcome records, read from each job's check-run annotations
+ * (report-lane-outcome writes one per credential attempt), one job at a time.
+ * Each row names how many records its job holds, so heldOutcomes can drop a job
+ * an interrupted pull left half written. A record whose own run id, attempt or
+ * trace id names another run attempt is dropped.
+ */
+function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
+  const jobs = allPages(deps, "jobs-read", `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs");
+  for (const job of jobs) {
+    if (known.has(job.id)) {
+      tally.known_jobs++;
+      continue;
+    }
+    if (job.conclusion === "skipped" || !job.completed_at || !Number.isSafeInteger(job.run_attempt)) continue;
+    const traceId = traceIdOf(run.id, job.run_attempt);
+    const annotations = allPages(deps, "annotations-read", `repos/${repo}/check-runs/${job.id}/annotations`, null);
+    tally.jobs++;
+    const rows = [];
+    for (const annotation of annotations) {
+      const record = readRecord(annotation?.message);
+      if (!record) continue;
+      if ((record.runId ?? run.id) !== run.id || (record.runAttempt ?? job.run_attempt) !== job.run_attempt || (record.traceId ?? traceId) !== traceId) {
+        tally.mismatched++;
+        continue;
+      }
+      rows.push({
+        run_id: run.id,
+        run_attempt: job.run_attempt,
+        trace_id: traceId,
+        check_run_id: job.id,
+        job_name: typeof job.name === "string" ? job.name : null,
+        lane: laneOf(run.path),
+        workflow: typeof run.name === "string" ? run.name : null,
+        created_at: job.completed_at,
+        date: job.completed_at.slice(0, 10),
+        record,
+      });
+    }
+    for (const row of rows) {
+      appendOutcome(sink, { ...row, job_records: rows.length });
+      known.add(job.id);
+      tally.records++;
+    }
+  }
+}
+
+/** The outcome rows held, first removing any job that has fewer rows than its `job_records`. */
+function heldOutcomes(sink) {
+  const held = readOutcomes(sink);
+  const perJob = new Map();
+  for (const { check_run_id: id } of held) perJob.set(id, (perJob.get(id) ?? 0) + 1);
+  const whole = held.filter((o) => o.job_records === perJob.get(o.check_run_id));
+  if (whole.length < held.length) writeOutcomes(sink, whole);
+  return whole;
+}
+
+/**
+ * Rewrites the metrics rows through `fill`, which sets fields on one row, and
+ * each row's trace_id and failure class from the outcomes held. The file is
+ * written only when a row changed; returns how many did.
+ */
+function refreshRows(sink, fill = () => {}) {
+  const rows = readRows(sink);
+  const byTrace = outcomesByTrace(readOutcomes(sink));
+  let changed = 0;
+  for (const row of rows) {
+    const before = JSON.stringify(row);
+    fill(row);
+    row.trace_id = traceIdOf(row.run_id, row.run_attempt);
+    Object.assign(row, failureClassOf(row.trace_id, byTrace));
+    if (JSON.stringify(row) !== before) changed++;
+  }
+  if (changed > 0) writeRows(sink, rows);
+  return changed;
+}
+
+export function pullOutcomes({ sink, repo, deps, log }) {
+  const meter = { calls: 0, budget: deps.outcomeCallBudget ?? OUTCOME_CALL_BUDGET };
+  try {
+    return pullOutcomesWithin({ sink, repo, deps: { ...deps, meter }, log });
+  } finally {
+    log(`gh calls: ${meter.calls} of ${meter.budget}`);
+  }
+}
+
+/**
+ * The same cutoff, overlap, budget and resume rules as the transcript pull,
+ * kept under the state's `outcomes` key. A run's fork check matches the
+ * transcript pull's: a fork's run can write any annotation.
+ */
+function pullOutcomesWithin({ sink, repo, deps, log }) {
+  const now = deps.now();
+  ensureDir(sink);
+  const state = readState(sink);
+  const own = state.outcomes ?? {};
+  const last = Date.parse(own.last_success_at ?? "");
+  const resume = Date.parse(own.resume_cutoff_at ?? "");
+  const cutoff = Number.isNaN(resume) ? (Number.isNaN(last) ? now - OUTCOME_FIRST_DAYS * 24 * HOUR : last - OVERLAP) : resume;
+  const known = new Set(heldOutcomes(sink).map((o) => o.check_run_id));
+  const read = { ...own.read_runs };
+  const tally = { runs: 0, read_runs: 0, fork: 0, jobs: 0, known_jobs: 0, records: 0, mismatched: 0, fetch_failed: 0 };
+  const failedKinds = new Set();
+  const at = { workflow: own.resume_workflow ?? null };
+  let exhausted = false;
+  writeState(sink, { ...state, outcomes: { ...own, last_attempt_at: new Date(now).toISOString() } });
+  try {
+    for (const run of listedRuns(deps, repo, cutoff, at)) {
+      if (!run.id || run.head_repository?.id !== run.repository?.id) {
+        tally.fork++;
+        continue;
+      }
+      const key = `${run.id}:${run.run_attempt}`;
+      if (key in read) {
+        tally.read_runs++;
+        continue;
+      }
+      tally.runs++;
+      try {
+        copyRunOutcomes({ sink, repo, deps, run, known, tally });
+        read[key] = run.created_at;
+      } catch (error) {
+        if (!(error instanceof FetchFailed)) throw error;
+        tally.fetch_failed++;
+        failedKinds.add(error.message);
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof BudgetSpent)) throw error;
+    exhausted = true;
+  }
+  const joined = refreshRows(sink);
+  const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} run(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null, resume_cutoff_at: null };
+  if (exhausted) finished.resume_cutoff_at = new Date(cutoff).toISOString();
+  const nextCutoff = exhausted || tally.fetch_failed > 0 ? cutoff : now - OVERLAP;
+  const readRuns = Object.fromEntries(Object.entries(read).filter(([, created]) => Date.parse(created) >= nextCutoff));
+  const current = readState(sink);
+  writeState(sink, { ...current, outcomes: { ...current.outcomes, ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_workflow: exhausted ? at.workflow : null, read_runs: readRuns } });
+  log(`copied ${tally.records} lane-outcome record(s); ${JSON.stringify(tally)}; ${joined} row(s) joined${exhausted ? `; stopped at the gh call budget of ${deps.meter.budget}` : ""}`);
+  return tally;
+}
+
+/**
+ * Fills what an older row lacks: trace_id, the failure class from the outcomes
+ * held, and the cache, cost and model_usage fields read again from its stored
+ * transcript, when it still has one. Running it twice changes nothing.
+ */
+export function backfill(sink) {
+  const tally = { transcripts_read: 0, unreadable: 0 };
+  tally.changed = refreshRows(sink, (row) => {
+    const file = row.transcript && path.join(sink, row.transcript);
+    if (!file || !existsSync(file)) return;
+    let messages;
+    try {
+      messages = JSON.parse(gunzipSync(readFileSync(file), { maxOutputLength: MAX_PLAIN }).toString("utf8"));
+    } catch {
+      tally.unreadable++;
+      return;
+    }
+    const metrics = transcriptMetrics(messages);
+    for (const field of ["cache_read_input_tokens", "cache_creation_input_tokens", "total_cost_usd", "model_usage"]) row[field] = metrics[field];
+    tally.transcripts_read++;
+  });
+  return tally;
+}
+
 export function status(sink, now = Date.now()) {
   const rows = readRows(sink);
   const state = readState(sink);
-  return { sink, ...staleness(state, now), budget_exhausted: state.budget_exhausted ?? false, resume_cutoff_at: state.resume_cutoff_at ?? null, rows: rows.length, transcripts: rows.filter((r) => r.transcript).length, bytes: sinkBytes(sink) };
+  const pull = staleness(state, now);
+  const outcomes = state.outcomes ? staleness(state.outcomes, now) : { stale: false, backlog_stale: false };
+  return {
+    sink,
+    ...pull,
+    stale: pull.stale || outcomes.stale,
+    pull_stale: pull.stale,
+    outcomes_stale: outcomes.stale,
+    outcomes_backlog_stale: outcomes.backlog_stale,
+    budget_exhausted: state.budget_exhausted ?? false,
+    resume_cutoff_at: state.resume_cutoff_at ?? null,
+    rows: rows.length,
+    transcripts: rows.filter((r) => r.transcript).length,
+    outcome_records: readOutcomes(sink).length,
+    outcomes_last_success_at: state.outcomes?.last_success_at ?? null,
+    outcomes_budget_exhausted: state.outcomes?.budget_exhausted ?? false,
+    outcomes_resume_cutoff_at: state.outcomes?.resume_cutoff_at ?? null,
+    bytes: sinkBytes(sink),
+  };
 }
 
-const alert = (s) =>
+const pullAlert = (s) =>
   s.backlog_stale
     ? `ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
     : `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
+const outcomesAlert = (s) =>
+  s.outcomes_backlog_stale
+    ? `ALERT: budget-stopped pull-outcomes passes have not drained the lane-outcome backlog in 5 days (cutoff: ${s.outcomes_resume_cutoff_at})`
+    : `ALERT: no pull-outcomes pass has succeeded in the last 5 days (last: ${s.outcomes_last_success_at ?? "never"})`;
+
+/** A kind, never a value: a failed listing call names its exit status only. */
+const failureKind = (error, listing) => (error instanceof PullError ? error.message : error?.status !== undefined ? `${listing}: gh exited ${error.status}` : error?.name ?? "error");
 
 // Exit codes: 0 done, 1 failed or stale, 2 usage.
 export function main(argv = process.argv.slice(2), env = process.env, deps = undefined, io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) }) {
@@ -344,7 +620,8 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
   const d = deps ?? defaultDeps(env);
   // Alerts on a stale sink; the exit code is 1 when it is stale.
   const alertIfStale = (s) => {
-    if (s.stale) io.err(`${alert(s)}\n`);
+    if (s.pull_stale) io.err(`${pullAlert(s)}\n`);
+    if (s.outcomes_stale) io.err(`${outcomesAlert(s)}\n`);
     return s.stale ? 1 : 0;
   };
   if (command === "status") {
@@ -365,6 +642,24 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     io.out(`${JSON.stringify(prune(sink, d.now()))}\n`);
     return 0;
   }
+  if (command === "backfill") {
+    io.out(`${JSON.stringify(backfill(sink))}\n`);
+    return 0;
+  }
+  if (command === "pull-outcomes") {
+    try {
+      pullOutcomes({ sink, repo: flags.repo ?? REPO, deps: d, log: (s) => io.out(`${s}\n`) });
+      return 0;
+    } catch (error) {
+      const kind = failureKind(error, "run-list");
+      try {
+        const state = readState(sink);
+        writeState(sink, { ...state, outcomes: { ...state.outcomes, last_error: kind } });
+      } catch {}
+      io.err(`pull-outcomes failed: ${kind}\n`);
+      return 1;
+    }
+  }
   let recipient;
   try {
     recipient = parsePrivateKey(keyText);
@@ -376,10 +671,11 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     // A complete pull is fresh; one that missed an artifact or stopped at its
     // budget is stale once its kept window is.
     pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    return alertIfStale(status(sink, d.now()));
+    const after = status(sink, d.now());
+    alertIfStale(after);
+    return after.pull_stale ? 1 : 0;
   } catch (error) {
-    // A kind, never a value: a failed listing call names its exit status only.
-    const kind = error instanceof PullError ? error.message : error?.status !== undefined ? `artifact-list: gh exited ${error.status}` : error?.name ?? "error";
+    const kind = failureKind(error, "artifact-list");
     try {
       writeState(sink, { ...readState(sink), last_error: kind });
     } catch {

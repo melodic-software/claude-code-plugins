@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. Raised surfaces (cards, panels): use a light shadow, `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12)`. Why (inferred): heavy shadows read as dated and pull focus from the content. Rung: instruction, home DESIGN.md. Dropped: the heading rename from Pro to Professional, a copy change for this card only. Is the inferred reason right, and should I write rule 1? Nothing is written yet.",
+      "why": "class level, inferred reason, asks first, drops the rename"
+    },
+    {
+      "answer": "Proposal written to .work/codify/feat-pricing/20261117T120000Z-proposal.md. 1. Cards and other raised surfaces: `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12)`. Reason: you gave none; my guess is that heavy shadows compete with the content. Confirm or correct the reason, and say whether to add rule 1 to DESIGN.md. Dropped: Pro to Professional, a copy change.",
+      "why": "announces the proposal file, still asks before DESIGN.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote DESIGN.md: cards use `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12)`. Why (inferred): lighter shadows look cleaner.",
+      "why": "written before approval"
+    },
+    {
+      "answer": "1. The pricing card uses `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12)`. Why (inferred): it was too heavy. Write it?",
+      "why": "scoped to one component"
+    },
+    {
+      "answer": "1. Raised surfaces use `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12)`, because you said heavy shadows look dated. 2. Tier headings use the full word (Professional, not Pro). Write both?",
+      "why": "a reason the person never gave, and the copy change kept"
+    }
+  ]
+}

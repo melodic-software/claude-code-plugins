@@ -25,7 +25,7 @@ type Preview = {
   pending: string[]
   mcpOrLspOn: string[]
   prerequisitesMissing: string[]
-  othersInFolder?: { name: string }[]
+  othersInFolder?: { name: string; sessionId?: string; oneSessionProfile?: string | null }[]
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
@@ -97,11 +97,18 @@ async function confirm($: EngineInterface, name: string, preview: Preview): Prom
   const reread = preview.mcpOrLspOn.length
     ? `${list(preview.mcpOrLspOn)} ship an MCP or language server, so your next message after the switch re-reads the whole conversation. `
     : ''
-  const sharing = preview.othersInFolder ?? []
-  const others = sharing.length
-    ? `Other sessions in this folder (${list(sharing.map(s => s.name))}) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. `
+  const others = preview.othersInFolder ?? []
+  const named = (s: { name: string; sessionId?: string }) =>
+    s.sessionId && s.sessionId !== s.name ? `${s.name} (session ${s.sessionId.slice(0, 8)})` : s.name
+  const sharing = others.filter(s => !s.oneSessionProfile)
+  const keeping = others.filter(s => s.oneSessionProfile)
+  const gets = sharing.length
+    ? `Other sessions in this folder (${list(sharing.map(named))}) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. `
     : ''
-  return confirmed($, `${others}${reread}Apply profile ${name} to this folder?`)
+  const keeps = keeping.length
+    ? `Sessions here in a one-session profile keep theirs and do not change: ${keeping.map(s => `${named(s)} in ${s.oneSessionProfile}`).join('; ')}. `
+    : ''
+  return confirmed($, `${gets}${keeps}${reread}Apply profile ${name} to this folder?`)
 }
 
 async function clearProfile($: EngineInterface): Promise<string> {

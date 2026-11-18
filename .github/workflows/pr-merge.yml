@@ -1016,6 +1016,8 @@ jobs:
       # true; the summary says what would have been started. An earlier lane
       # merge that still needs a full run is the dispatch-post-merge-runs job's.
       dispatch: ${{ steps.mode.outputs.live == 'true' && steps.gate.outputs.dispatch == 'true' }}
+      mended-heads: ${{ steps.clear.outputs.mended-heads }}
+      eval-released: ${{ steps.release-eval.outputs.released }}
     steps:
       # A rate limit stopped dispatch-post-merge-runs's GITHUB_TOKEN calls, which
       # this job's reads share: it sends nothing and ends red. Every later step
@@ -2245,6 +2247,7 @@ jobs:
       # five pull requests a run.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
+        id: clear
         if: >-
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
@@ -2276,6 +2279,7 @@ jobs:
       # the record and the head. At most five a run, under the same gate as
       # the escalation clear. Rules: .github/scripts/pr-merge/release-eval-hold.mjs.
       - name: Release eval holds whose record matches the head
+        id: release-eval
         if: >-
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
@@ -2770,7 +2774,7 @@ jobs:
             last_code=$(cat "$last/post-merge-code")
             last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
             if [[ $last_code =~ ^[05]$ ]]; then
-              settled=$(settle "$last_sha") && kept=true
+              settled=$(settle "$last_sha" --probe-unmoved) && kept=true
               echo "$settled"
               last_reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || last_reason=''
             fi
@@ -2780,6 +2784,9 @@ jobs:
           elif [ "$last_reason" = "post-merge answer code-changed" ]; then
             rm -rf "${last:?}"
             echo "::notice::the last sweep's post-merge report predates a code change; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
+          elif [ "$last_reason" = "idle tick unattributed-unmoved" ]; then
+            rm -rf "${last:?}"
+            echo "::notice::the last sweep's post-merge report lists a red full run charged to no merge, and no full run finished since that could clear it; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
           else
             [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
@@ -3094,8 +3101,8 @@ jobs:
   # Not on a PR-scoped dispatch: the next sweep posts what that run would.
   report-unarmed-status:
     name: Report Unarmed Status
-    needs: [enable-auto-merge]
-    if: ${{ !cancelled() && !inputs.pr && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
+    needs: [merge, enable-auto-merge]
+    if: ${{ !cancelled() && !inputs.pr && (needs.enable-auto-merge.outputs.unarmed-statuses != '' || needs.merge.outputs.mended-heads != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -3129,11 +3136,26 @@ jobs:
           node-version-file: .base/.node-version
 
       - name: Post the pr-merge/unarmed statuses
+        if: needs.enable-auto-merge.outputs.unarmed-statuses != ''
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
           STATUSES: ${{ needs.enable-auto-merge.outputs.unarmed-statuses }}
         run: node .base/.github/scripts/pr-merge/post-unarmed-status.mjs
+
+      - name: Clear the address-feedback stops pr-verify settled
+        if: ${{ !cancelled() && needs.merge.outputs.mended-heads != '' }}
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MENDED_HEADS: ${{ needs.merge.outputs.mended-heads }}
+          ACTIVITY: address-feedback
+          CLEAR_DESCRIPTION: pr-verify passed this head after a trusted body edit; the stop is settled
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for head in $MENDED_HEADS; do
+            HEAD_SHA=$head bash .base/.github/scripts/pr-unblock/report-escalation.sh clear
+          done
 
       - name: Log the API budget at the end
         if: always()
@@ -3419,6 +3441,80 @@ jobs:
           path: ${{ runner.temp }}/dispatched.json
           retention-days: 30
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  wake-eval-released:
+    name: Wake Eval Released
+    needs: [merge]
+    if: >-
+      !cancelled() && needs.merge.outputs.eval-released != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the api-budget library
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+          sparse-checkout-cone-mode: false
+
+      - name: Wake pr-merge for each released pull request
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASED: ${{ needs.merge.outputs.eval-released }}
+          MAX_WAKES: 5
+        run: |
+          set -euo pipefail
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          woken=0
+          for pr in $RELEASED; do
+            if [[ ! $pr =~ ^[1-9][0-9]{0,15}$ ]]; then
+              echo "::warning::wake-eval-released: '$pr' is not a pull request number; not woken"
+              continue
+            fi
+            if ((woken >= MAX_WAKES)); then
+              echo "::notice title=eval-release wake::pr=$pr not woken: $MAX_WAKES woken this run; the next scheduled run arms it"
+              continue
+            fi
+            woken=$((woken + 1))
+            if gh workflow run pr-merge.yml -R "$GITHUB_REPOSITORY" --ref main -f pr="$pr"; then
+              echo "::notice title=eval-release wake::pr=$pr pr-merge dispatched"
+            else
+              echo "::warning::wake-eval-released: the pr-merge dispatch for #$pr failed; its next scheduled run arms it"
+            fi
+          done
 
       - name: Log the API budget at the end
         if: always()

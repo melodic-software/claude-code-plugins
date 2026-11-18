@@ -83,12 +83,12 @@ calls in Stage 2 step 1 pass `--unattended`.
 
 ## Runtime-affecting paths
 
-These categories decide when a change escalates beyond the per-ecosystem mechanical pass. When the consuming project documents its own runtime-affecting globs, those govern; otherwise use these portable defaults:
+These categories decide when a change escalates beyond the per-ecosystem mechanical pass. When the consuming project documents its own runtime-affecting globs, those govern; otherwise match each category against the project's own files:
 
 - **`e2e-app-runtime`**. API/app changes (endpoints, attributes, contracts, middleware): the project's app source directories
-- **`e2e-ui-frontend`**. Components and static assets shipped to the browser: `**/*.razor`, `**/*.razor.cs`, `**/*.cshtml`, `**/wwwroot/**`, and the project's SPA/frontend source
-- **`e2e-runtime-config`**. Runtime configuration (`**/appsettings*.json`, orchestrator config, env-shaping files)
-- **`arch-test-triggers`**. Project-structure / dependency changes (`**/*.csproj`, `**/*.props`, `**/*.targets`, `**/Directory.Build.*`). Re-run the project's architecture-test suite when it has one
+- **`e2e-ui-frontend`**. Components and static assets shipped to the browser: the project's frontend source and static-asset directories
+- **`e2e-runtime-config`**. Runtime configuration (the app's settings files, orchestrator config, env-shaping files)
+- **`arch-test-triggers`**. Project-structure / dependency changes (the project's build, project and dependency-manifest files). Re-run the project's architecture-test suite when it has one
 
 ## Proof level
 
@@ -145,7 +145,7 @@ Stage 1 delegates by invoking the `toolchain` plugin's `/toolchain:check` and `/
 - Name every skip with its reason. A missing tool (including an installed tool too old for the check, `skip (unsupported: ...)`), missing dependencies or a missing declared prerequisite is an environment skip; a consumer opt-out or a not-applicable command is not.
 
 1. **Build + test + lint per ecosystem**: invoke `/toolchain:check` via the Skill tool. Dispatch a subagent with the changed-file paths and `/toolchain:check`'s command tables instead only when the pass's output would crowd this context (many ecosystems or commands). A subagent adds its own session's cost, and its summary is not evidence: a command result counts only when this session ran it or the harness recorded it, never on an agent's say-so (the evidence ranking in `/implementation:implement-dispatch`'s command-evidence reference), so verify the summary against the actual command output. `/toolchain:check` remains SSOT for ecosystem detection, CLI commands, and gotchas. Pass through the ecosystem filter from `$ARGUMENTS` if given; else `/toolchain:check` auto-detects from changed files.
-2. **Architecture tests**, when changed files match the `arch-test-triggers` globs above and the project has an architecture-test suite, ensure it is included in the test step.
+2. **Architecture tests**, when changed files match the `arch-test-triggers` category above and the project has an architecture-test suite, ensure it is included in the test step.
 3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip (tool missing: <tool>)`, never `FAIL`; with nothing failed, its Overall line reads `INCOMPLETE`). Do not inline that bash here. `/toolchain:lint` is the SSOT.
 
 **Gate result**, decided in this order:
@@ -277,7 +277,7 @@ or issue that carries it.
 
 For "run the live app and watch it behave," beyond automated `/testing:run-e2e`, `/verification:confirm` delegates rather than reimplementing app-launch:
 
-- **Primary: invoke `/testing:run-e2e` via the Skill tool** (when the `testing` plugin is enabled), the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off. Screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
+- **Primary: invoke `/testing:run-e2e` via the Skill tool** (when the `testing` plugin is enabled), the reliable path for orchestrated apps via the project's own orchestrator and browser-driving tooling. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off. Screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
 - **Supplementary: Claude Code's bundled `/run`**, when a quick interactive run is enough and the orchestrated harness is overkill, and the client has it. For its sibling `/verify`, suggest that the person run it rather than delegating to it: the suggestion works whichever invocability state the client is in, and a delegated call can be refused at the tool layer. Our records for both live in [reference/native-verify.md](reference/native-verify.md).
   - **Pointer**: for the bundled `/run` and `/verify` skills, see <https://code.claude.com/docs/en/skills#run-and-verify-your-app>.
 - **Graceful fallback**, if `/run` cannot infer the project's launch (or the CC version lacks it), fall back to invoking `/testing:run-e2e` via the Skill tool when the `testing` plugin is enabled, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check. Surface the gap.

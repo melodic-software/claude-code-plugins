@@ -1383,10 +1383,16 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A Work status other than agent-ready starts neither job, so it holds no runner.
   for (const [name, option, runs] of [["agent-ready", AGENT_READY_OPTION, true], ["another option", 86380002, false]]) {
-    const context = {
+    const event = {
       ...AGENT_READY_FIELD,
       "github.event.issue_field_value.option.id": option,
-      "needs.check-admission.outputs.proceed": "true",
+      "github.event.sender.type": "User",
+      "github.event.sender.id": 1,
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
+    };
+    const context = {
+      ...event,
+      "needs.check-admission.outputs.proceed": evaluate(jobs["check-admission"].if, event) ? "true" : "",
       "needs.pick-slot.outputs.capped": "false",
       "needs.pick-slot.outputs.skip-key": "",
     };
@@ -2504,20 +2510,22 @@ test("a job reads a Claude API key only when its catalog lane runs on run-claude
   }
 });
 
-// The one step outside a launcher that may read a Claude credential:
-// pr-verify-capture.yml's key proxy start, which pipes pr-verify's key on
-// stdin to a proxy running as its own OS user before the runner is isolated,
-// so the driven Claude Code and the pull request code beside it reach the API
-// with a dummy key (owner decision Q6, option A). Only in this shape: that
-// job, that step name, the key as its one env value PROXY_KEY, and no other
-// secret reference anywhere in the step.
+// The one step outside a launcher that may read a Claude credential: the key
+// proxy start in pr-verify-capture.yml and in maintenance-verify-whole-map.yml,
+// which shares the capture's steps. It pipes pr-verify's key on stdin to a
+// proxy running as its own OS user before the runner is isolated, so the
+// driven Claude Code and the code beside it reach the API with a dummy key
+// (owner decision Q6, option A). Only in this shape: those jobs, that step
+// name, the key as its one env value PROXY_KEY, and no other secret reference
+// anywhere in the step
+// (https://github.com/melodic-software/claude-code-plugins/issues/16564).
 const KEY_PROXY_START = {
-  key: "pr-verify-capture.yml capture",
+  keys: ["pr-verify-capture.yml capture", "maintenance-verify-whole-map.yml verify-map"],
   name: "Start the key proxy",
   env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}" },
 };
 const isKeyProxyStart = (key, step) =>
-  key === KEY_PROXY_START.key &&
+  KEY_PROXY_START.keys.includes(key) &&
   step.name === KEY_PROXY_START.name &&
   step.uses === undefined &&
   step.with === undefined &&
@@ -2534,22 +2542,26 @@ test("a Claude credential reaches only the launcher step of its catalog lane", (
 });
 
 test("the key proxy's start is the one step outside a launcher that reads a key, and only in its exact shape", () => {
-  const steps = workflow("pr-verify-capture.yml").jobs.capture.steps;
-  const start = steps.find((step) => step.name === KEY_PROXY_START.name);
+  for (const key of KEY_PROXY_START.keys) {
+    const [file, job] = key.split(" ");
+    const steps = workflow(file).jobs[job].steps;
+    assert.equal(steps.filter((step) => isKeyProxyStart(key, step)).length, 1, key);
+  }
+  const KEY = KEY_PROXY_START.keys[0];
+  const start = workflow("pr-verify-capture.yml").jobs.capture.steps.find((step) => step.name === KEY_PROXY_START.name);
   assert.ok(start);
-  assert.equal(steps.filter((step) => isKeyProxyStart(KEY_PROXY_START.key, step)).length, 1);
   // Without the exception it is a stray reader, so the exception is what lets it pass.
   assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [start] } }, "run-claude-cli"), [`step ${KEY_PROXY_START.name}`]);
   const stillStray = {
-    "another job": [KEY_PROXY_START.key.replace(" capture", " capture-subscription"), start],
-    "another workflow": [KEY_PROXY_START.key.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
-    "another step name": [KEY_PROXY_START.key, { ...start, name: "Start the proxy" }],
-    "the key under another name": [KEY_PROXY_START.key, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
-    "another secret as PROXY_KEY": [KEY_PROXY_START.key, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
-    "a second env value": [KEY_PROXY_START.key, { ...start, env: { ...start.env, OTHER: "x" } }],
-    "a secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
-    "every secret in the script": [KEY_PROXY_START.key, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
-    "an action": [KEY_PROXY_START.key, { ...start, uses: "./x" }],
+    "another job": [KEY.replace(" capture", " capture-subscription"), start],
+    "another workflow": [KEY.replace("pr-verify-capture.yml", "pr-verify.yml"), start],
+    "another step name": [KEY, { ...start, name: "Start the proxy" }],
+    "the key under another name": [KEY, { ...start, env: { KEY: KEY_PROXY_START.env.PROXY_KEY } }],
+    "another secret as PROXY_KEY": [KEY, { ...start, env: { PROXY_KEY: "${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}" } }],
+    "a second env value": [KEY, { ...start, env: { ...start.env, OTHER: "x" } }],
+    "a secret in the script": [KEY, { ...start, run: `${start.run}\necho "\${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"` }],
+    "every secret in the script": [KEY, { ...start, run: `${start.run}\necho '\${{ toJSON(secrets) }}'` }],
+    "an action": [KEY, { ...start, uses: "./x" }],
   };
   for (const [why, [key, step]] of Object.entries(stillStray)) assert.equal(isKeyProxyStart(key, step), false, why);
 });
@@ -7415,6 +7427,7 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
     [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "repeat-cap" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "unresolved-conflict" }, "Skip reason: lane-stopped"],
+    [{ state: "conflicted", escalation: "superseded-by-main" }, "Skip reason: awaiting-human"],
   ]) {
     const calls = await postNotRunChecks(notRun, context("false", head, given));
     assert.deepEqual(
@@ -7445,14 +7458,25 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
   // proceed: true only for a conflicted merge, false for a skip, a clean merge
   // or an escalation, empty for a stop before the merge.
-  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "") =>
-    evaluate(select.outputs.proceed, { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state });
+  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "", superseded = state === "conflicted" ? "false" : "") =>
+    evaluate(select.outputs.proceed, { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state, "steps.superseded.outputs.superseded": superseded });
   assert.equal(proceed("true", "conflicted"), "true");
   assert.equal(proceed("true", "clean"), "false");
   assert.equal(proceed("true", "escalate"), "false");
   assert.equal(proceed("false", ""), "false");
   assert.equal(proceed("", ""), "");
   assert.equal(proceed("true", ""), "", "a merge step that failed");
+  assert.equal(proceed("true", "conflicted", "false", "true", "true"), "false", "a conflicted head main already holds goes to a person before any model turn");
+  assert.equal(proceed("true", "conflicted", "false", "true", ""), "", "a superseded check that failed");
+  const reason = (prepared, superseded) => evaluate(select.outputs["escalation-reason"], { "steps.prepare.outputs.escalation-reason": prepared, "steps.superseded.outputs.superseded": superseded }).trim();
+  assert.equal(reason("", "true"), "superseded-by-main");
+  assert.equal(reason("", "false"), "");
+  assert.equal(reason("repeat-cap", ""), "repeat-cap");
+  assert.equal(step("superseded").if, "steps.prepare.outputs.merge-state == 'conflicted'");
+  assert.equal(step("superseded")["working-directory"], "head");
+  assert.equal(step("superseded").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
+  assert.equal(step("superseded").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
+  assert.match(step("superseded").run, /\.base\/\.github\/scripts\/pr-unblock\/superseded-by-main\.mjs/);
   // The human-gated hold (lane-hold.mjs) runs after the slot and before any
   // merge: held skips awaiting-human; a read that failed, or one that held
   // on a GitHub fault (no held output), decides nothing, so no check posts
@@ -7478,7 +7502,7 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(ran("false"), false);
   assert.equal(ran(""), false, "a behind check that failed");
   const outputs = (behind) => {
-    const values = { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "" };
+    const values = { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "", "steps.superseded.outputs.superseded": "" };
     return [evaluate(select.outputs.proceed, values), evaluate(select.outputs["skip-reason"], values).trim()];
   };
   assert.deepEqual(outputs("false"), ["false", "up-to-date"]);
@@ -7487,7 +7511,7 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(step("behind").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
   assert.equal(step("behind").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
   const order = select.steps.map((s) => s.id ?? s.name);
-  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare"));
+  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare") && order.indexOf("prepare") < order.indexOf("superseded"));
   const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
   assert.equal(apply.with["patch-human-gate"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
 });
@@ -7520,7 +7544,7 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   assert.equal(head("feat/layer-1"), `sha=${"d".repeat(40)}\ndefault-base=false\n`);
   assert.equal(step("head").env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
   assert.equal(step("slot").if, "steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'");
-  const values = { "steps.head.outputs.default-base": "false", "steps.slot.outputs.applies": "", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "", "steps.prepare.outputs.merge-state": "" };
+  const values = { "steps.head.outputs.default-base": "false", "steps.slot.outputs.applies": "", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "", "steps.prepare.outputs.merge-state": "", "steps.superseded.outputs.superseded": "" };
   assert.equal(evaluate(select.outputs.proceed, values), "false");
   assert.equal(evaluate(select.outputs["skip-reason"], values).trim(), "not-applicable");
   // The default branch's PR goes on to the slot as before.
@@ -7640,6 +7664,7 @@ test("pr-run-activity-write.yml: the first step admits every resolve-conflicts e
     "repeat-cap",
     "protected-path-conflict",
     "unresolved-conflict",
+    "superseded-by-main",
     "workflow-staged",
     "unexpected-path-staged",
     "conflict-patch-invalid",
@@ -10606,6 +10631,11 @@ const LEG_EXEMPTIONS = {
     legs: ["subscription", "fallback"],
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
+  },
+  "maintenance-verify-whole-map.yml pr-verify verify-map": {
+    legs: ["subscription", "fallback"],
+    reason:
+      "the whole-map pass runs in the capture's sandbox behind the same key proxy, so it is key-only for the capture's reason and records blocked otherwise (#12232)",
   },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.

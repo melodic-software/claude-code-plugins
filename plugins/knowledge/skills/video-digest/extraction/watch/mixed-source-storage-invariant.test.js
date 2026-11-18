@@ -29,6 +29,10 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   return { ...actual, acquireMedia: vi.fn() };
 });
 
+vi.mock("./temp-space-check.js", () => ({
+  checkTempSpace: vi.fn(async () => ({ state: "enough", message: "" })),
+}));
+
 vi.mock("./post-bootstrap-slice.js", () => ({
   postBootstrapSlice: vi.fn(() => null),
 }));
