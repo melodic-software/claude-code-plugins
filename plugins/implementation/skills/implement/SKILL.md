@@ -250,7 +250,7 @@ Each call passes `--base <previous phase-boundary commit>` and `--report-only`, 
    ──────────────────────────────────────────────────────────
    ```
 
-   On a markdown surface (`CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, or `CLAUDE_CODE_REMOTE` is `true`: the Desktop app and the web), the rails draw as plain lines with no copy control and paths inside them turn into links. There the fallback prints the copy line as ``Run `/clear`, then paste this:`` and the lines between the rails inside a fenced `text` block in place of the rails, every line unchanged; the note file keeps the rails.
+   On a markdown surface (session-flow's [Markdown surfaces](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/session-flow/reference/save-point.md#markdown-surfaces) owns the detection), the fallback prints the copy line as ``Run `/clear`, then paste this:`` and the lines between the rails inside a fenced `text` block in place of the rails, every line unchanged; the note file keeps the rails.
 
    That copy region, whether the handoff skill prints it or the fallback note does, is the next-phase resume prompt: when the plan has a Phase N+1 still `[TODO]`, its `Next:` lines start that phase from cold (status summary + plan); when the final phase is done, they name the plausible next step (review pass, retro, or PR) instead of a prose summary. Leave the resume prompt out only when the sanity check failed or the user said "stop after this"
 
