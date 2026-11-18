@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "packages/reporting/src/probe.js"
+      ],
+      "why": "an injection file is not a check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "scripts/check-imports.sh"
+      ]
+    },
+    {
+      "answer": [
+        "scripts/lib/boundaries.mjs"
+      ]
+    }
+  ]
+}
