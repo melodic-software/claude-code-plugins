@@ -58,7 +58,6 @@ plugins/harness-config/skills/audit/reference/audit-checklist.md 4
 plugins/harness-config/skills/audit/reference/required-permissions.md 8
 plugins/harness-config/skills/setup/reference/wsl-profile.md 2
 plugins/harness-memory/skills/audit/context/update.md 2
-plugins/harness-memory/skills/stateless/reference/native-memory.md 1
 plugins/harness-memory/skills/stateless/reference/official-guidance.md 4
 plugins/harness-ops/skills/audit-native-overlap/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/SKILL.md 1

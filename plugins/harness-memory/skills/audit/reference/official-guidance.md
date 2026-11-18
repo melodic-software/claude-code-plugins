@@ -325,9 +325,13 @@ rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` ca
 
 ## No official scoring rubric
 
-We use no scoring rubric for CLAUDE.md quality, because no official one exists. The 6-category,
-100-point rubric shipped by the `claude-md-improver` skill of the `claude-md-management` plugin
-(Anthropic's `claude-plugins-official` marketplace, not this one) is invented by the plugin author,
-not derived from official documentation.
+We use no scoring rubric for CLAUDE.md quality, because no official one exists. The
+`claude-md-improver` skill of the `claude-md-management` plugin (Anthropic's
+`claude-plugins-official` marketplace, not this one) reports quality scores its author devised, not
+ones derived from official documentation.
+
+- **Pointer**: when someone asks about that skill's scores, fetch
+  [README: Skill: claude-md-improver](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-md-management#skill-claude-md-improver)
+  live.
 
 The quality measure the audit uses is the [deletion test](#the-deletion-test).
