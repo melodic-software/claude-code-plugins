@@ -66,7 +66,10 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when
-  the name is unknown. To switch inside this session, tell the user to run `/plugin-profile`; when
+  the name is unknown. `native` is Claude Code as it ships: it switches guardrails and every other
+  plugin of these marketplaces off and keeps only this plugin on; before that apply, point the user
+  to the preview line naming the always-on plugins it leaves off. To switch inside this session,
+  tell the user to run `/plugin-profile`; when
   an apply takes effect is in
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
 - **clear**: `clear [--for folder|initial]` restores what the tool wrote. Inside a session, tell

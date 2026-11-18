@@ -19,7 +19,7 @@
 //        install}], untouched, mcpOrLspOn, hookPluginsOff, ignored, repositoryOn, repositorySkills};
 //        the last three name what the profiles' repository files were refused and what only they add
 
-import { profileNamed } from "./profile-files.mjs";
+import { profileNamed, sourcesOf } from "./profile-files.mjs";
 
 /** @typedef {"session" | "folder" | "initial"} Target */
 
@@ -63,8 +63,9 @@ function pinsFor(target, layers) {
   return pins;
 }
 
-/** The always-on members a profile's exclude names; AC24 rejects any. */
-export const excludedAlwaysOn = (catalog, profile) => [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id));
+/** The always-on members a profile that keeps always-on excludes; AC24 rejects any. */
+export const excludedAlwaysOn = (catalog, profile) =>
+  profile.keepsAlwaysOn ? [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id)) : [];
 
 export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 
@@ -76,9 +77,11 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   const blocked = excludedAlwaysOn(catalog, chosen);
   if (blocked.length) throw new PlanError(`profile ${name} excludes always-on members: ${blocked.join(", ")}`);
 
-  const members = new Set([...always.plugins, ...chosen.plugins]);
-  const optional = new Set([...always.optional, ...chosen.optional].filter((id) => !members.has(id)));
-  const exclude = new Set([...always.exclude, ...chosen.exclude]);
+  const sources = sourcesOf(catalog, chosen);
+  const all = (field) => sources.flatMap((p) => [...p[field]]);
+  const members = new Set(all("plugins"));
+  const optional = new Set(all("optional").filter((id) => !members.has(id)));
+  const exclude = new Set(all("exclude"));
   const repository = entriesOf(layers, "project");
   const repoEnabled = Object.keys(repository).filter((id) => repository[id] === true);
   const pins = pinsFor(target, layers);
@@ -108,10 +111,9 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   const ships = (id) => inventory.get(id).ships;
   const managedSkills = layers.managed?.skillOverrides ?? {};
   const skillWrites = Object.fromEntries(
-    [...always.hideSkills, ...chosen.hideSkills].filter((skill) => !(skill in managedSkills)).map((skill) => [skill, "off"]),
+    all("hideSkills").filter((skill) => !(skill in managedSkills)).map((skill) => [skill, "off"]),
   );
 
-  const sources = [always, chosen];
   const onlyRepository = (field, id) =>
     sources.some((p) => p.fromRepository?.[field].has(id)) &&
     !sources.some((p) => !p.fromRepository?.[field].has(id) && (field === "plugins" ? p.plugins.has(id) || p.optional.has(id) : p.hideSkills.has(id)));
@@ -123,7 +125,7 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
     skillWrites,
     enabled,
     disabled,
-    ignored: [...new Set(sources)].flatMap((p) => p.ignored ?? []),
+    ignored: sources.flatMap((p) => p.ignored ?? []),
     repositoryOn: enabled.filter((id) => onlyRepository("plugins", id)),
     repositorySkills: Object.keys(skillWrites).filter((skill) => onlyRepository("hideSkills", skill)),
     pinned,
@@ -131,5 +133,6 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
     untouched,
     mcpOrLspOn: enabled.filter((id) => ships(id).mcp || ships(id).lsp),
     hookPluginsOff: disabled.filter((id) => ships(id).hooks || ships(id).mod),
+    alwaysOnOff: sources.includes(always) ? [] : [...always.plugins, ...always.optional].filter((id) => writes[id] === false),
   };
 }

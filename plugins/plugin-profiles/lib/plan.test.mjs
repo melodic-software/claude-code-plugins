@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PlanError, plan } from "./plan.mjs";
 
-const profile = (name, { plugins = [], optional = [], exclude = [], hideSkills = [] } = {}) => ({
+const profile = (name, { plugins = [], optional = [], exclude = [], hideSkills = [], keepsAlwaysOn = true } = {}) => ({
   name,
   description: `${name} profile`,
+  keepsAlwaysOn,
   plugins: new Set(plugins),
   optional: new Set(optional),
   exclude: new Set(exclude),
@@ -121,6 +122,31 @@ test("AC24: a profile that excludes an always-on member is rejected", () => {
       }),
     PlanError,
   );
+});
+
+test("#17038: a profile with always_on false plans its own plugins alone and names the always-on members it writes off", () => {
+  const result = run({
+    always: profile("always-on", { plugins: ["guard@m", "switch@m"], optional: ["fmt@m"], hideSkills: ["legacy"] }),
+    build: profile("build", { plugins: ["switch@m"], keepsAlwaysOn: false }),
+    inventory: installed("guard@m", "switch@m", "fmt@m", "extra@m"),
+  });
+  assert.deepEqual(result.writes, { "guard@m": false, "switch@m": true, "fmt@m": false, "extra@m": false });
+  assert.deepEqual(result.alwaysOnOff, ["guard@m", "fmt@m"]);
+  assert.deepEqual(result.skillWrites, {});
+});
+
+test("#17038: a profile with always_on false may exclude an always-on member", () => {
+  const result = run({
+    always: profile("always-on", { plugins: ["guard@m"] }),
+    build: profile("build", { plugins: ["impl@m"], exclude: ["guard@m"], keepsAlwaysOn: false }),
+    inventory: installed("guard@m", "impl@m"),
+  });
+  assert.deepEqual(result.writes, { "guard@m": false, "impl@m": true });
+});
+
+test("a profile that keeps always-on names no always-on member as written off", () => {
+  const result = run({ always: profile("always-on", { plugins: ["guard@m"] }), inventory: installed("guard@m") });
+  assert.deepEqual(result.alwaysOnOff, []);
 });
 
 test("an unknown profile name is rejected", () => {

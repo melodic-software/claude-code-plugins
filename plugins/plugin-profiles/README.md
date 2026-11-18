@@ -7,9 +7,11 @@ turns them on and off.
 ## Profiles
 
 Each profile is one YAML file. The shipped ones are in [`profiles/`](profiles/): `always-on`,
-which is on in every profile, and `discovery`, `planning`, `interface-design`, `build`, `review` and
-`harness-upkeep`. Each file holds the profile's members and a `description` line saying when to
-pick it.
+which is on in every other profile, and `discovery`, `planning`, `interface-design`, `build`,
+`review`, `harness-upkeep` and `native`. Each file holds the profile's members and a `description`
+line saying when to pick it. `native` is Claude Code as it ships: every other plugin of these
+marketplaces is off, guardrails included, and only this plugin stays on, as the way back to a
+profile.
 
 You can add or extend profiles at two more levels. A file with the same name at a higher level
 extends the one below it:
@@ -24,6 +26,7 @@ A profile file takes these keys. Every plugin is written `name@marketplace`.
 
 ```yaml
 description: One line saying what the profile is for.
+always_on: false                          # leave always-on out; default true
 plugins: [one-plugin@a-marketplace]       # members
 optional: [formatter@a-marketplace]       # on when installed
 remove: [inherited@a-marketplace]         # drop a member the level below added
@@ -32,9 +35,12 @@ hide_skills: [some-standalone-skill]      # skills outside plugins, hidden by sk
 ```
 
 `plugins` adds members and `remove` drops inherited ones; `optional`, `exclude` and `hide_skills`
-add up across levels. No profile may exclude an `always-on` member; drop one with a `remove` line in
-your own `always-on.yaml`. A repository file cannot switch one off: apply ignores such a `remove` or
-`exclude` line and its preview names it, along with what only a repository file switches on or hides.
+add up across levels; `description` and `always_on` are the highest one set. A profile with
+`always_on: false` is its own lists alone, and its preview says which always-on plugins, guardrails
+among them, it leaves off. No other profile may exclude an `always-on` member; drop one with a
+`remove` line in your own `always-on.yaml`. A repository file cannot switch one off: apply ignores
+such a `remove` or `exclude` line, or `always_on: false`, and its preview names it, along with what
+only a repository file switches on or hides.
 
 ## Set up with the skill
 
@@ -196,7 +202,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" install b@market --dry-run
 `--optional`, `--remove`, `--exclude`, `--hide-skills`, comma-separated) are added to the file's
 own, and `--description` replaces its description. It prints the whole file first, writes it in
 its own form (comments are not kept), and refuses a profile that would exclude an `always-on`
-member.
+member without `always_on: false`. It keeps the file's `always_on` line.
 
 `install <name@marketplace>` installs one missing plugin at user scope. It installs only from a
 marketplace this machine already knows, never for a plugin that only a repository profile names,
@@ -215,7 +221,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" check --catalog <marketplace.j
 
 `check` fails, exiting 1, when a shipped profile names a plugin the catalog lacks, writes an id
 under another marketplace than the catalog's own name (it names the fix), has no description line,
-excludes an `always-on` member, or when `interface-design` lacks a `planning` member. For your
+excludes an `always-on` member without `always_on: false`, or when `interface-design` lacks a `planning` member. For your
 user and repository profiles it reports, without failing, a plugin of the catalog's marketplace
 that the catalog lacks and a plugin of another marketplace that is not installed, and it reports installed plugins that no profile names, which an apply switches off.
 `--catalog` defaults to the `marketplace.json` of the repository the plugin sits in. In this
