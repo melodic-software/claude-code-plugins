@@ -16,7 +16,7 @@ repositories.
    - a `diverged` row per file name whose content differs between repositories, with the lowest
      line similarity between variants; a high one is a copy that drifted;
    - `excluded` counts for managed copies, files whose header says they are generated, and
-     fixture, vendor and snapshot paths.
+     fixture, vendor and snapshot paths, and empty files.
 
    The script's docstring has the full row format.
 3. **Verify in phase C.** Each row is a candidate. Identical bytes can still encode different
