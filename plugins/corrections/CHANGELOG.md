@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.1] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
 ## [1.8.0] - 2026-11-18
 
 ### Added

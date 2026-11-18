@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.5] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
 ## [5.2.4] - 2026-11-17
 
 ### Changed
