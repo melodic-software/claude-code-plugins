@@ -19,22 +19,22 @@ Read it; this file adds only what is specific to operating procedures.
 
 Invocation marker: !`date -u +%Y-%m-%dT%H:%M:%SZ`
 
-The marker makes each invocation render differently, so a repeat invocation in the same session
-loads this file again. It is not the time: never report or use it as one.
+The marker is there so each invocation renders differently: when a repeat invocation's content
+matches the copy in context, Claude Code adds only a note instead of the content
+([Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)). It is
+not the time: never report or use it as one.
 
 This skill holds no procedures of its own. The instruction files are the only source.
 
 ## The source set
 
 Every instruction file Claude Code loads for this session, and no other agent's instruction files.
-Which files those are is decided by Claude Code; read the list at
-[CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files)
-when unsure. Find them in this order:
-
-1. The user's instruction file and every file it imports.
-2. The project's instruction chain, from the working directory up to the repository root, and every
-   file each one imports.
-3. Rules files already loaded in this session.
+Claude Code decides which files those are and in what order; read
+[CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files) and
+[How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) when
+unsure, and include every file each one imports. That set covers the files above the working
+directory loaded at launch, wherever the walk ends, and every file loaded on demand since: nested
+instruction files in subdirectories and rules files already in this session's context.
 
 An import the instructions themselves call optional, or skip when absent, is not missing.
 
