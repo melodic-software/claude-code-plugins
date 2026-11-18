@@ -12,7 +12,7 @@ metadata:
 
 ## Context. Gather first
 
-Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `surface`. Probe commands, the
 one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
@@ -293,6 +293,13 @@ not the rails block (plus its below-rail notes) is a failed handoff even when ev
 ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
 to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet.
 
+**On a markdown surface** (the `surface` probe; engine doc, "Markdown surfaces"), the order holds
+and three things change shape. The panel is the numbered list that section describes. The
+checklist is one line, `Checklist: <ticked>/<total> pass`, followed by each box that is not ticked
+and each `validate` WARN or FAIL line, one bullet each, never a `- [x]` list, which the app draws
+struck through. The prompt is the `emit --format markdown` output (on the prompt-only path, each
+region as a fenced `text` block under the same copy lines), still the response's final text.
+
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
@@ -383,7 +390,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
 - [ ] Resume prompt emitted between dashed rails as the `save_point.py emit <file>` output pasted
-  verbatim (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
+  verbatim, `emit --format markdown <file>` on a markdown surface (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
   headlines, the below-rail `claude --resume` line), never retyped or regenerated, so the screen
   equals the file's `## Resume prompt` section byte for byte; `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value

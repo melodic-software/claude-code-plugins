@@ -45,18 +45,19 @@ value it uses. The differences below are deliberate, not drift to normalize.
 | `status` | `git status --porcelain` | Read **at most the first 20 entries**. Note this is *not* `-uall` |
 | `recent-commits` | `git log --oneline -<N>` | `N` is the consumer's choice; see the table below |
 | `changed-files` | `git diff --name-only HEAD` | Staged and unstaged together |
+| `surface` | `printenv CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_REMOTE` | `claude-desktop`, or a `true` remote line, means the reply renders as markdown (`save-point.md`, "Markdown surfaces"); anything else, the terminal |
 
 ### Who takes what
 
-| Consumer | session-id | branch | status | recent-commits | changed-files |
-|---|---|---|---|---|---|
-| `continue-in-background` | yes | yes | yes | `-5` | no |
-| `find-handoff` | yes | yes | no | no | no |
-| `handoff` | yes | yes | yes | `-5` | no |
-| `orient` | yes | yes | yes | **`-8`** | no |
-| `retro` | yes | yes | yes | `-5` | yes |
-| `running-retro` | yes | yes | yes | `-5` | no |
-| `workflow` | no | yes | yes | `-5` | no |
+| Consumer | session-id | branch | status | recent-commits | changed-files | surface |
+|---|---|---|---|---|---|---|
+| `continue-in-background` | yes | yes | yes | `-5` | no | no |
+| `find-handoff` | yes | yes | no | no | no | no |
+| `handoff` | yes | yes | yes | `-5` | no | yes |
+| `orient` | yes | yes | yes | **`-8`** | no | no |
+| `retro` | yes | yes | yes | `-5` | yes | no |
+| `running-retro` | yes | yes | yes | `-5` | no | no |
+| `workflow` | no | yes | yes | `-5` | no | no |
 
 `orient`'s deeper log is intentional: it synthesizes a situation report and reads further back than
 a skill that only stamps a save-point.
