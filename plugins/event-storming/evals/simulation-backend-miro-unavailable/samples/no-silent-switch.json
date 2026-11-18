@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "The Miro backend isn't available here, so I've stopped before any phase. Either enable the miro plugin with a token and rerun, or rerun with --backend markdown. Which do you want?", "why": "stops and leaves the choice"}
+  ],
+  "fail": [
+    {"answer": "Miro isn't available, so I'll run the workshop on a markdown board instead. Starting Chaotic Exploration now.", "why": "switches on its own and starts"},
+    {"answer": "Miro is missing; I created docs/event-storming/bakery-20261118-a7f2/big-picture.md for you.", "why": "presents a markdown board as created"}
+  ]
+}

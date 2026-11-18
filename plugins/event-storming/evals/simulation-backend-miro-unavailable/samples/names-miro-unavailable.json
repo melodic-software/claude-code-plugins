@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "The Miro backend isn't available: no tools ending in __miro_list_boards are callable.", "why": "not available"},
+    {"answer": "You chose --backend miro, but the miro plugin is not enabled in this session.", "why": "plugin not enabled"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Starting the Big Picture on your Miro board now.", "why": "assumes Miro works"}
+  ]
+}

@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: simulation-default-markdown
+description: "A simulation request that names no backend, in a session with no Miro tools. simulation SKILL.md 'Board backend': the backend is a --backend argument, then the board reference's shape, then the board_backend option, else markdown, and the first reply says which backend runs and why; 'Where markdown boards go': boards go under board_dir, default docs/event-storming, written by the skill and never committed. The prompt asks the model to say where the model will be rendered and wait, so the case reads the backend choice before any phase. Natural-language prompt so the Skill call is visible; it never names Miro. markdown-default needs markdown called the default or recommended; names-board-dir needs the docs/event-storming default; offers-miro needs Miro named as the other choice; no-placed-claim fails a reply claiming it placed stickies or created a board; no-write fails any Write before the go-ahead. Needs --allow-tools Write so no-write can fail."
+tags: [event-storming, simulation, outcome, backend, no-network]
+expected_outcome: "The model loads the event-storming simulation skill. Before running any workshop phase, the reply says the boards will be markdown files, the default backend, under docs/event-storming, names Miro as the other backend the user can choose, and claims no placed stickies. No file is written."
+execution:
+  prompt: "Use the event-storming plugin to run a simulated multi-persona EventStorming workshop for a neighborhood bakery's online ordering. Before running any phase, tell me where the model will be rendered and what my options are, then wait for my go-ahead."
+  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?simulation"'
+    arm: with-only
+  - name: markdown-default
+    type: regex
+    pattern: '\brecommend\w*\s+(?:the\s+|using\s+)?(?:structured[- ])?markdown\b|\bmarkdown\b(?:(?!\bmiro\b)[^\n.,;]){0,40}\b(?:default|recommended)\b|\b(?:default|recommended)\b[^\n.,;]{0,10}\b(?:structured[- ])?markdown\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-board-dir
+    type: regex
+    pattern: '\bdocs/event-storming\b'
+    target: 'last_message'
+  - name: offers-miro
+    type: regex
+    pattern: '--backend\s+miro\b|\bboard_backend\b|\bmiro\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-placed-claim
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:placed|added|put|posted)\b[^\n.]{0,60}\bstick(?:y|ies)\b|\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:created|set up|opened)\s+(?:a|the|your)\s+(?:new\s+)?(?:miro\s+)?board\b|\bstick(?:y|ies)\b[^\n.]{0,40}\b(?:have been|are now)\s+(?:placed|added|posted)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
