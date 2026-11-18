@@ -81,6 +81,7 @@ const ATTEMPTS = 2;
 export const TRANSIENT_LIMIT = 24;
 export const RUN_LIMIT = 6;
 const MIN_AGE_MS = 3_600_000;
+const HOUR_MS = 3_600_000;
 const BOT = "github-actions[bot]";
 // `filed` is HANDED once the comment hands the issue to a maintainer. An older
 // sweep's record holds the number of the issue it filed, or FILING while that
@@ -145,6 +146,13 @@ export function selectCandidates({ issues, now, authorIds, statusLabels = new Ma
     .filter((i) => !i.pull_request && (authorIds.has(String(i.user?.id)) || driftShaped(i)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
 }
+
+const neverCommented = (i) => i.comments === 0;
+const rotatedPastCheckedCap = (group, now) => {
+  if (group.length <= MAX_CHECKED) return group;
+  const start = Math.floor(now / HOUR_MS) % group.length;
+  return [...group.slice(start), ...group.slice(0, start)];
+};
 
 // `appId` is the lanes App's account id: only its hand-back starts a new
 // cycle, so no one else can reset the dispatch count.
@@ -397,8 +405,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
-  const neverCommentedFirst = (a, b) => (b.comments === 0) - (a.comments === 0);
-  const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i))).sort(neverCommentedFirst);
+  const eligible = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
+  const candidates = [...eligible.filter(neverCommented), ...rotatedPastCheckedCap(eligible.filter((i) => !neverCommented(i)), now)];
   result.candidates = candidates.length;
   // A hold a person set since the listing stands (write-status.mjs keepHold):
   // the issue is held, so it is neither handed off nor recorded. So does any
@@ -424,6 +432,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     const { number } = issue;
     if (checked >= MAX_CHECKED) break;
     if (result.dispatched.length >= MAX_DISPATCHES && result.handed.length >= MAX_HANDED) break;
+    if (neverCommented(issue) && result.dispatched.length >= MAX_DISPATCHES) continue;
     try {
       if (!authorIds.has(String(issue.user?.id)) && driftIssueId(await specOf(call, repo, number)) === null) {
         console.log(`triage-sweep: #${number} skipped: it has the drift-issue shape, but someone other than github-actions[bot] last edited it`);

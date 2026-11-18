@@ -1547,9 +1547,9 @@ test("a never-commented issue behind more commented issues than the pass checks 
 
 test("never-commented issues go first, oldest first, then the rest, oldest first", async () => {
   const issues = [
-    issue(1, { comments: 1, created_at: "2026-10-01T00:00:00Z" }),
+    issue(1, { comments: 2, created_at: "2026-10-01T00:00:00Z" }),
     issue(2, { comments: 0, created_at: "2026-10-03T00:00:00Z" }),
-    issue(3, { comments: 2, created_at: "2026-10-02T00:00:00Z" }),
+    issue(3, { comments: 1, created_at: "2026-10-02T00:00:00Z" }),
     issue(4, { comments: 0, created_at: "2026-10-02T00:00:00Z" }),
   ];
   const gh = fakeGitHub({ issues });
@@ -1558,14 +1558,54 @@ test("never-commented issues go first, oldest first, then the rest, oldest first
 });
 
 test("putting never-commented issues first keeps the caps on dispatches and on issues checked", async () => {
-  const world = olderIssuesWaitingOnARun(10);
-  const fresh = Array.from({ length: 30 }, (_, i) => issue(11 + i, { comments: 0, created_at: "2026-10-02T00:00:00Z" }));
+  const world = olderIssuesWaitingOnARun(25);
+  const fresh = Array.from({ length: 30 }, (_, i) => issue(26 + i, { comments: 0, created_at: "2026-10-02T00:00:00Z" }));
   const gh = fakeGitHub({ ...world, issues: [...world.issues, ...fresh] });
   const { call, reads } = commentReads(gh);
   const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
-  assert.equal(result.candidates, 40);
-  assert.deepEqual(result.dispatched, [11, 12, 13, 14, 15]);
+  assert.equal(result.candidates, 55);
+  assert.deepEqual(result.dispatched, [26, 27, 28, 29, 30]);
   assert.equal(result.dispatched.length, MAX_DISPATCHES);
   assert.equal(reads.size, 20, "the pass reads the comments of the 20 issues it checks and no others");
-  assert.ok([...reads].every((n) => n > 10), "the never-commented issues fill the checked slots");
+  assert.deepEqual([...reads].filter((n) => n > 25), [26, 27, 28, 29, 30], "a never-commented issue past the dispatch cap costs no read");
+});
+
+test("a hand-off behind more never-commented issues than the pass checks still happens in that pass", async () => {
+  const fresh = Array.from({ length: 25 }, (_, i) => issue(i + 1, { comments: 0, created_at: "2026-10-01T00:00:00Z" }));
+  const gh = fakeGitHub({
+    issues: [...fresh, issue(26, { comments: 1, created_at: "2026-10-02T00:00:00Z" })],
+    comments: { 26: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
+  assert.deepEqual(result.handed, [26]);
+});
+
+const readsAt = async (world, now) => {
+  const gh = fakeGitHub(world);
+  const { call, reads } = commentReads(gh);
+  await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  return [...reads];
+};
+const hoursFromEpoch = (hours) => new Date(hours * 3_600_000);
+const numbers = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+test("a commented group past the checked cap starts one position later each hour, so its last issue is read on a later pass", async () => {
+  const world = olderIssuesWaitingOnARun(25);
+  const startOfCycle = Math.floor(NOW / 3_600_000 / 25) * 25;
+  const first = await readsAt(world, hoursFromEpoch(startOfCycle));
+  assert.deepEqual(first, numbers(1, 20), "position 0 starts the group, and #25 is past the cap");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle)), first, "the same hour reads the same issues");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle + 5)), numbers(6, 25), "five hours later #25 is read");
+  assert.deepEqual(await readsAt(world, hoursFromEpoch(startOfCycle + 10)), [...numbers(11, 25), ...numbers(1, 5)], "the start wraps to the front of the group");
+});
+
+test("a commented group within the checked cap keeps its oldest-first order at every hour", async () => {
+  const world = olderIssuesWaitingOnARun(20);
+  const hour = Math.floor(NOW / 3_600_000);
+  for (const offset of [0, 1, 7]) {
+    assert.deepEqual(await readsAt(world, hoursFromEpoch(hour + offset)), numbers(1, 20), `${offset} hours on`);
+  }
 });
