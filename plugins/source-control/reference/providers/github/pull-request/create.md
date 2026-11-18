@@ -53,14 +53,17 @@ fi
 
 ## Issue state over REST
 
-`gh issue view --json` routes through GitHub's GraphQL API, and a cloud session behind the GitHub
-proxy is served no GraphQL operation at all, so the call fails with `HTTP 403` whatever token is
-set. Pointer:
-[Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
-which names the refusal and the REST fallback. As-of: 2026-10-11. Recheck trigger: that section
-changes its GraphQL entry, or a release note names the GitHub proxy. The `2>/dev/null || true` in
-the block above swallows that 403. Substitute the REST
-issues endpoint, which reports `state` in lower case and `body` as a string or null. Pointer:
+`gh issue view --json` routes through GitHub's GraphQL API, which this plugin treats as
+unavailable in a cloud session behind the GitHub proxy
+([Sandboxed sessions](../README.md#sandboxed-sessions-graphql-is-unavailable)). The
+`2>/dev/null || true` in the block above swallows that refusal.
+
+- **Pointer**: when you need what the proxy refuses and the REST fallback it names, fetch
+  [Configure cloud environments: GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
+  live.
+
+Substitute the REST issues endpoint, which reports `state` in lower case and `body` as a string or
+null. Pointer:
 [Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue), whose schema is
 [Create an issue](https://docs.github.com/en/rest/issues/issues#create-an-issue)'s. As-of:
 2026-10-26. Recheck trigger: either field's type changes there.
