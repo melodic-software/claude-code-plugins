@@ -85,7 +85,10 @@ whatever it cannot show clean is not publishable.
    both public reports unpublished.
 2. **Values.** Resolve each source on the `values:` line of the Mask in effect, against the
    control skill that holds it: a config field through the Config layers, a `cli/` command run
-   read-only, its stdout one value per line. A `cli/` source whose stdout is exactly one line
+   read-only, its stdout one value per line. Run a `cli/` command exactly as the `values:` line
+   writes it, adding no argument, and while the instance it reads from is still running: resolve
+   the values before the run stops that instance, cleanup included. A `cli/` source whose stdout
+   is exactly one line
    `none: <reason>`, with a reason, and that exits 0 resolves with no values; record it in
    `values_none`. Hold the values in memory and never write one to any file, the report included.
    Any other source that fails or yields no value, such as a non-zero exit, empty output, or a
@@ -93,7 +96,9 @@ whatever it cannot show clean is not publishable.
    reports unpublished.
 3. **Scan.** Scan each `screenshot` and `video` sidecar, `report.public.md` and
    `report.public.json`. First delete box-drawing characters (U+2500 to U+257F), then join line
-   wraps by deleting each line break with the whitespace around it. A hit is either:
+   wraps by deleting each line break with the whitespace around it. Where the run's shell runs
+   only listed commands, read and search each file with the file tools; a scanner script written
+   during the run cannot run there. A hit is either:
    - a value found in the text, ignoring case, whitespace and `|` in both, so a value wrapped
      across two rows or split by a table border still matches;
    - the generic credential pattern, ignoring case: an email address; `Bearer`, a space, then 8 or

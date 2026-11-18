@@ -23,10 +23,31 @@ The `## Reset` of the driving tool's `skills/invoke` feature.
 
 ## Drive
 
-Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` set to `corrections` and
-`<skill>` from Parts. The skill's own `plugins/corrections/skills/<skill>/SKILL.md` gives its arguments.
 The action to drive for `codify` is `count-checks`, so `<args>` is `count-checks`: it counts the
-checks the default branch's history records and changes nothing.
+checks the default branch's history records and changes nothing. Its result is text, and a
+capture's public report redacts every observed text, so the terminal-session screenshot is what
+shows it.
+
+1. In the terminal session, `type "/corrections:codify count-checks" --key Enter --session <session>`.
+   Result: the driver prints `typed`, and the slash command shows in the transcript.
+2. `wait-for "not counted:" --session <session>`, then capture `screenshot`. Result: below the
+   command the transcript shows the script's output: the headline `blocking checks: <n> new in the
+   window, <n> cumulative; advisory: <n> new, <n> cumulative`, the table, and each list's title
+   with its count and one line per record it names; the driver prints `seen: not counted:` and
+   `screenshot` prints the `.png` path; with no such text by `stepMs`, `wait-for` exits 1.
+3. For the plain-words and print-mode entry points, run steps 3 and 4 of the driving tool's
+   `skills/invoke` feature with the same command. Result: the steps there state theirs.
+4. **Proof.** Result: the screenshot shows, below `/corrections:codify count-checks`, the
+   headline's blocking and advisory counts and every record line the output lists.
+   Captures: screenshot
+
+The four counts are the numbers in the headline line of the print-mode `logs` capture, in the
+order it prints them; a count is `null` when the capture holds no headline.
+
+Budget: blocking_checks_new_count | logs
+Budget: blocking_checks_cumulative_count | logs
+Budget: advisory_checks_new_count | logs
+Budget: advisory_checks_cumulative_count | logs
 
 ## Gotchas
 

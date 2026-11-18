@@ -7,7 +7,7 @@ every rule here; suggest a change to them, never override them.
 
 Forms are where users do real work, and they notice every rough edge: the label that doesn't focus
 the input, the page that zooms on iOS, the button that fires twice, the Enter key that does nothing.
-None of these are hard to fix; they're just easy to forget. Wire up the semantics the platform gives
+Each is easy to fix and easy to forget. Wire up the semantics the platform gives
 you (`<form>`, `<label>`, `<button>`), then layer on the details below.
 
 The examples are HTML, CSS and React (JSX). In another framework, keep the behavior and write it in
@@ -185,11 +185,14 @@ useEffect(() => {
 The check runs in an effect, after mount, so server and client render the same markup and
 hydration has nothing to mismatch.
 
-`(pointer: coarse)` describes the primary pointing device only. A hybrid device (a touch laptop, a
-tablet with a mouse) can report a fine primary pointer; to ask about any pointer, use `any-pointer`
-and `any-hover`. The same media features gate hover styles in the
-`hover-styles-only-where-hover-exists` recipe. To ask in script whether the device has touch
-hardware at all, check `navigator.maxTouchPoints > 0`.
+Keep this gate on `pointer`, which reads only the device's primary pointer: autofocus is then
+skipped only when touch is the main input, and a touch laptop used with its trackpad still
+autofocuses. Gating on `any-pointer: coarse` would never autofocus on that laptop. To ask about
+every pointer a hybrid device has (a touch laptop, a tablet with a mouse), use `any-pointer` and
+`any-hover`; to ask in script whether the device has touch hardware at all, read
+`navigator.maxTouchPoints`. The pointers say what `pointer` and
+`maxTouchPoints` report. The `hover-styles-only-where-hover-exists` recipe gates hover styles on
+the `hover` and `pointer` media features.
 
 - **Pointer**: MDN, the `pointer` media feature,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/@media/pointer#syntax>, and
@@ -222,10 +225,11 @@ function handleSubmit(e) {
 
 `method="post"` matters on a login or signup form: a submit before the script loads goes out as a
 POST, not a GET that puts the email and password in the URL. A form that posts to your own server
-keeps the framework's CSRF protection on; don't hand-roll a token or switch it off for the form. A
-hand-written `fetch` to an API route has no CSRF protection unless the framework or the route adds
-it: use the framework's token or middleware on that route, and treat SameSite session cookies as a
-second layer, not the protection (the second pointer says why).
+keeps the framework's CSRF protection on; don't hand-roll a token or switch it off for the form,
+because the framework's implementation is the one its authors maintain. Check each API route a
+hand-written `fetch` calls for CSRF protection, the framework's token or middleware or one the
+route adds, and add the framework's where it has none. A SameSite session cookie is a second
+layer, never the CSRF protection itself; the second pointer gives the cases it misses.
 
 - **Pointer**: OWASP Cross-Site Request Forgery Prevention Cheat Sheet, "Built-In Or Existing CSRF
   Implementations",

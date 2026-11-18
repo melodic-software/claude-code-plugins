@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.3.5] - 2026-11-18
+
+### Changed
+
+- `course-digest` drops five ecosystem specifics from the pages a model reads. The ZIP-only code analysis step detects project and build files, frameworks and package dependencies without naming .NET files or NuGet. The freshness check drops the NuGet example and its NuGet MCP tool. The storage schema loses its C# and .NET slug examples, and its `course.json` and transcript examples use a course with no language in its title. Frame classification no longer lists C# for the `code` category. The multimodal evaluation no longer names Whisper for audio re-transcription.
+
+### Fixed
+
+- `/knowledge:video-digest` watch checks free space in the OS temp directory before it downloads media. It asks yt-dlp for the size of the formats it will select and exits 1 before any download when the temp directory has less than twice that free, naming the directory, the space needed and the space free. When no size is known, it warns and continues. The skill's gotchas describe setting `TMPDIR` for the whole session to stage on a larger disk.
+
 ## [3.3.4] - 2026-11-17
 
 ### Changed

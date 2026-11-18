@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git log --format='%h %s' -- src"}}],
+      "why": "searches commit history"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "stopped on a question with no tool call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git status"}}],
+      "why": "no history search"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: eb-export-map-already-enforces
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-second-check-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?!(?:[^"]*/)?(?:packages/[^"/]+/(?:src|test)/[^"]*\.js|docs/conventions/architecture/README\.md)")|"content":"(?:[^"\\]|\\.)*?(?:readdir|readFileSync|node:fs|child_process)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-second-check-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?!(?:[^"]*/)?(?:packages/[^"/]+/(?:src|test)/[^"]*\.js|docs/conventions/architecture/README\.md)")|"new_string":"(?:[^"\\]|\\.)*?(?:readdir|readFileSync|node:fs|child_process)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-new-check-file
+    type: file_exists
+    path: 'scripts/**'
+    exists: false
+  - name: resolver-refused-injection
+    type: regex
+    pattern: '^[^\n]*"type":"tool_result"[^\n]*ERR_PACKAGE_PATH_NOT_EXPORTED'
+    flags: 'm'
+    target: trace
+  - name: injected-import-removed
+    type: regex
+    pattern: '@shop/billing/'
+    match: not_contains
+    target: { source: file, path: packages/reporting/src/report.js }
+  - name: entry-records-enforcing-command
+    type: regex
+    pattern: 'root specifier[^\n]*Enforced by:?\s*`[^`\n]+`'
+    flags: 'i'
+    target: { source: file, path: docs/conventions/architecture/README.md }

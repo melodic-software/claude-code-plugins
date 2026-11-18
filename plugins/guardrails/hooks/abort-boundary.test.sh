@@ -12,6 +12,7 @@ set -uo pipefail
 # block-credential-read ships off (plugin.json default
 # false); these cases exercise it, so turn it on.
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
+export CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED=true
 # An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
 # guard's refusal into an ask (hooks/refuse.sh). Pin it to 0 so a run here
 # gets the result CI gets.

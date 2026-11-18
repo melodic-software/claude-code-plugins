@@ -28,9 +28,9 @@ The frontier floor reads labels only, never a `Work-class: C<n>` body trailer.
 
 Admission checks who applied the autonomous-eligible role label: the
 role label counts only when its latest application came from an actor with
-`write`, `maintain` or `admin` on the repository. GitHub's triage role can apply labels while
-holding only `read` (pointer:
-[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)), so before admitting an item the work-loop drain runs the adapter's
+`write`, `maintain` or `admin` on the repository. Label rights reach roles below `write` (pointer:
+[Permissions for each role](https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role),
+"Apply/dismiss labels" row), so before admitting an item the work-loop drain runs the adapter's
 `label-provenance` operation over the item's autonomous-eligible role
 label, and refuses the item for that cycle on a triage or read labeler, a missing `labeled` event,
 or a failed read ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate",

@@ -159,9 +159,9 @@ One sitting, under the discipline's "No polish" rule: it's scaffolding, not a pr
    teaches the user to distrust the tool. What goes on the panel and how controls are wired:
    [`${CLAUDE_PLUGIN_ROOT}/context/control-panel.md`](../../context/control-panel.md).
 5. **Instant feedback.** Everything re-renders as controls move. A tool with an "apply" step loses
-   the see-tweak-see loop that justifies its existence. On the panel control-panel.md names as the
-   default, or any other, keep every row unconditional: show all controls and let irrelevant ones
-   no-op per mode, or split folders per mode.
+   the see-tweak-see loop that justifies its existence. On whichever panel control-panel.md
+   resolves, keep every row unconditional: show all controls and let irrelevant ones no-op per
+   mode, or group controls per mode.
 6. **A new variation is one click.** For a generator, clicking the canvas draws a fresh seed and
    re-renders, and the seed is displayed somewhere visible (a seed you can read is a variation you
    can talk about). Discrete sub-directions are mode tabs, each allowed its own controls.

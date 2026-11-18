@@ -982,7 +982,7 @@ own push never lifts its own stop), the newest one landed the current head, and 
 read that fails keeps the label. Every other reason waits for a person: the security, intent and
 decision stops (`feedback-uncertain`, `feedback-disputed`, `feedback-unadjudicated`,
 `feedback-question-*`, `feedback-round-cap`, `feedback-not-converging`, `dependency-security-close`,
-`dependency-escalate` and `dependency-escalate-<owner reason>`), the protected-path and own-patch stops (`ci-fix-protected-path`,
+`dependency-escalate` and `dependency-escalate-<owner reason>`, `superseded-by-main`), the protected-path and own-patch stops (`ci-fix-protected-path`,
 `unexpected-path-staged`, `conflict-patch-*`), and those with no cause-gone evidence yet (`repeat-cap`,
 `feedback-invalid`, `feedback-partial`, `feedback-incomplete`, and the other
 `dependency-*` stops). Removing the label this way approves nothing: `ci-status` still fails a
@@ -2882,6 +2882,11 @@ still needs a listed human's issue. The same rule (`driftIssueId` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
 and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
 the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md):
+an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
+no `size-split child` marker) reaches the verifier with its body as spec while no other account
+edited it (`ownAgentText` in `admit.mjs`), so a lane pull request for it is judged against what the
+agent filed. The merge gate still reads such a spec `verify:untrusted-spec`, so a person merges it.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
@@ -3230,6 +3235,14 @@ no verdict. On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
+
+### The whole-map pass
+
+`.github/workflows/maintenance-verify-whole-map.yml` runs `/testing:run-e2e map` over
+`merge.verify-capture.app`'s control skill on the default branch, only on a listed human's
+dispatch, in the capture's sandbox, launch broker and key proxy on the pr-verify key, under the
+capture's token caps and driven model. Its driver leg takes the `verify-map` run route. Its header
+says what it runs and keeps.
 
 ## Review-lane holds
 
@@ -3665,11 +3678,13 @@ only when the selected activity sets `applied-by.patch`.
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `merge-risk` for
 the [Merge-Risk line](#the-merge-risk-line)'s rating, `review-code` and
-`review-security` for the code and security review lanes, `triage-issue` for intake triage, and
+`review-security` for `pr-review-main.yml`'s code and security reviews (the hosted review callers
+run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triage, and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
-([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
+[whole-map pass](#the-whole-map-pass)'s driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as

@@ -246,11 +246,11 @@ beyond the scratch copy, amends a commit, or edits a pull request.
   (headlines, labels, empty states, errors, toasts) from the named files. Write one string per
   paragraph, with blank lines between them, and strip the source's own quote marks, since the
   wording rules skip double-quoted spans and would decline every string. Put the source
-  `file:line` and any interpolation placeholder (`{count}`, `%s`) in a code span, which every
-  rule skips. Rendered copy takes typographic quotes, so the audit declines the detector's
-  `rule-curly-artifacts` findings here: it drops them from the reported findings and names their
-  count as declined by target kind, apart from the detector's `Summary` rows, which still count
-  them as findings because the detector does not know the target kind.
+  `file:line` and any interpolation placeholder in a code span, which every rule skips. Rendered
+  copy takes typographic quotes, so the audit declines the detector's `rule-curly-artifacts`
+  findings here: it drops them from the reported findings and names their count as declined by
+  target kind, apart from the detector's `Summary` rows, which still count them as findings
+  because the detector does not know the target kind.
 
 `fix` on these kinds rewrites the scratch copy only, under the usual guard, and returns the
 rewritten text beside the original. It never amends a commit, edits a pull request, or edits a

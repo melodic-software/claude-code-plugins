@@ -10,13 +10,14 @@
 - Body: direct, unquoted `${CLAUDE_SKILL_DIR}/scripts/<name>.sh`
 - Rule: `Bash(${CLAUDE_SKILL_DIR}/scripts/<name>.sh:*)`
 
-The pairing relies on Claude Code substituting `${CLAUDE_SKILL_DIR}` in both the body and the
-`allowed-tools` rules. The five grants for scripts that delete nothing (`resolve-clean-action.sh`,
+Keep the body command and its rule written with the same token and path, so each grant names the
+command the body runs. The five grants for scripts that delete nothing (`resolve-clean-action.sh`,
 `scan.sh`, `preflight.sh`, `git-branch-audit.sh`, `git-stash-audit.sh`) are fully paired through
 this surface.
 
-- **Pointer**: where the token is substituted is in
-  [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+- **Pointer**: when changing either side of the pair, fetch
+  [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live.
 
 ## Interpreter-led form: bundled `context/*.md`
 

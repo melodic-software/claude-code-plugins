@@ -11,6 +11,7 @@ import { join } from "node:path";
 const env = process.env;
 const calls = env.PP_STUB_CALLS ? (existsSync(env.PP_STUB_CALLS) ? readFileSync(env.PP_STUB_CALLS, "utf8").split("\n").filter(Boolean).length : 0) : 0;
 if (env.PP_STUB_CALLS) appendFileSync(env.PP_STUB_CALLS, `${process.argv.slice(2).join(" ")}\n`);
+if (env.PP_STUB_ENV) appendFileSync(env.PP_STUB_ENV, `${JSON.stringify({ argv: process.argv.slice(2), env })}\n`);
 if (env.PP_STUB_TOUCH && calls < Number(env.PP_STUB_TOUCH_TIMES ?? 0)) {
   const doc = existsSync(env.PP_STUB_TOUCH) ? JSON.parse(readFileSync(env.PP_STUB_TOUCH, "utf8")) : {};
   doc.permissions ??= {};
@@ -40,4 +41,11 @@ else if (args[0] === "plugin" && args[1] === "install" && args.length === 5 && a
     mkdirSync(join(env.HOME, ".claude"), { recursive: true });
     writeFileSync(settings, `${JSON.stringify(doc, null, 2)}\n`);
   }
-} else process.exitCode = 1;
+} else if (env.PP_STUB_HANG) {
+  process.on("SIGTERM", () => {
+    appendFileSync(env.PP_STUB_HANG, "SIGTERM\n");
+    process.exit(143);
+  });
+  writeFileSync(env.PP_STUB_HANG, `${process.pid}\n`);
+  setInterval(() => {}, 1000);
+} else process.exitCode = Number(env.PP_STUB_EXIT ?? 1);

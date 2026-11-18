@@ -251,9 +251,12 @@ above it, or inside the body, the same recorded-decision shape as the repo gate'
 `discriminating-skip-ok`. In a Playwright config it is file-scoped: one `cant-fail-ok:` anywhere in
 the file suppresses every config finding. Exemptions are counted in the coverage block, never silent.
 
-Type tests never reach the scan: no adapter claims `*.test-d.ts` or `*.test-d.tsx`, since the
-type checker evaluates those files and nothing runs them (basis: vitest.dev/guide/testing-types and
-the tsd README at github.com/tsdjs/tsd).
+Type tests never reach the scan: no adapter claims `*.test-d.ts` or `*.test-d.tsx`. The scan
+judges assertions a runtime runner executes. A type test is evaluated by the type checker and run
+by no runner, so no adapter's file globs match it, and a body with no runtime assertion there is
+not a finding. When deciding whether a file pattern is a type test, fetch
+<https://vitest.dev/guide/testing-types#testing-types> and
+<https://github.com/tsdjs/tsd#overview> live.
 
 Agreement between rows of a table the test declares itself is a valid exemption reason. Such a
 test, for example one asserting that each shipping band ends at the weight where the next band
@@ -315,17 +318,20 @@ above, with `cant-fail-ok: relation across rows`.
   overrides the project-level and top-level value, and `--fail-on-flaky-tests` and `--forbid-only`
   satisfy the intent from the command line (basis: Playwright's `program.ts` options and the
   test-retries page's `npx playwright test --retries=3` example; as-of v1.63.0, read 2026-09-11;
-  recheck on a release note naming a retries or forbid-only flag). A
-  `test.describe.configure` call sets `retries` "for a specific group of tests or a single file" from
-  inside a test file (basis: playwright.dev/docs/test-retries). An absent `retries` is a counted decline, never proof of none.
+  recheck on a release note naming a retries or forbid-only flag). Retries
+  set from inside a test file through `test.describe.configure` are not read either; when judging
+  where else retries can be set, fetch <https://playwright.dev/docs/test-retries#retries> live.
+  An absent `retries` is a counted decline, never proof of none.
 - **`retries` fires on an expression while the two boolean guards pass on one.** Only a provable
   zero puts the flaky shape out of reach, so `retries: process.env.CI ? 2 : 0` fires (pointer for
   the default: [TestConfig: retries](https://playwright.dev/docs/api/class-testconfig#test-config-retries),
   as of 2026-11-10; for where a value is read, `config.ts`'s `takeFirst` chain, as-of v1.63.0, read
   2026-09-11; recheck when a release note changes the default or `takeFirst` changes its skip
-  test). `forbidOnly: !!process.env.CI` is the documented scaffold
-  idiom, so any non-`false` expression passes (basis: playwright.dev/docs/test-configuration
-  and the `create-playwright` scaffold).
+  test). `forbidOnly: !!process.env.CI` and every other non-`false`
+  expression pass: the scan does not evaluate an expression, the usual one turns the guard on for
+  CI runs, which is what the rule asks for, and a local `.only` run is not a defect. When checking
+  the form Playwright's docs show, fetch
+  <https://playwright.dev/docs/api/class-testconfig#test-config-forbid-only> live.
 - **A mixed per-project `retries` is read imprecisely, the one place the rules over-fire.** `retries`
   is read at depth 1 and inside `projects[]` entries only, and a project's literal `0` turns retries
   off for that project, so a top-level `retries: 2` that every `projects[]` entry overrides with `0`
@@ -358,10 +364,11 @@ above, with `cant-fail-ok: relation across rows`.
   <https://vitest.dev/config/retry>).
   A `--lines` run, the edit hook's, reads none of them. An unflagged suite is not proof of no
   retries.
-- **Vitest and Jest findings have no guard to set.** Neither runner documents an option that fails
-  a run on a retry-earned pass, so any retry count above zero fires and the Action is the count
-  itself (basis: <https://vitest.dev/config/retry> and
-  <https://jestjs.io/docs/jest-object#jestretrytimesnumretries-options>). pytest's `--fail-on-flaky` needs pytest-rerunfailures
+- **The Vitest and Jest Action is the retry count itself.** The scan recognizes no option for
+  either runner that fails a run on a retry-earned pass, so a count above zero or an expression
+  fires and the Action is the count. When checking whether either runner now has one, fetch
+  <https://vitest.dev/config/retry#retry> and
+  <https://jestjs.io/docs/jest-object#jestretrytimesnumretries-options> live. pytest's `--fail-on-flaky` needs pytest-rerunfailures
   15.0 or later (basis: its CHANGES.rst; as-of 2026-10-06; recheck on a release renaming it or
   adding an ini form), and the detector does not read the installed version.
 - **A property marker exempts only its own test.** `rule-recomputed-derived` skips a test whose

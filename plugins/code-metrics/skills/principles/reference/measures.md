@@ -39,8 +39,8 @@ paper's words, "a switch and all its cases combined incurs a single structural i
 functions with equal cyclomatic complexity routinely carry different cognitive complexity, which is
 the point of the measure rather than a defect in either.
 
-The white paper prescribes no threshold. SonarSource's rule `S3776` ships a configurable default of
-15, and that is a product decision by the same vendor, not a claim the paper makes.
+The white paper prescribes no threshold. The configurable default in SonarSource's rule `S3776` is
+a product decision by the same vendor, not a claim the paper makes.
 
 ## Halstead difficulty
 
@@ -165,9 +165,10 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
 - **`gocyclo` output is a text scrape.** It has no JSON mode; its only format is
   `<complexity> <package> <function> <file:line:column>` plus a template flag. The adapter parses
   that text and the row is labeled with the tool's name.
-- **`shellmetrics` values depend on the parser shell.** Two machines can print different Bash
-  complexity for the same script. Pointer:
-  [shellmetrics README § Usage](https://github.com/shellspec/shellmetrics#usage).
+- **`shellmetrics` figures are compared on one machine only.** A Bash complexity figure is read
+  against another taken on the same machine, so a difference between the two comes from the
+  script, not the environment. Pointer: when a Bash figure moves with no change to the script,
+  fetch [shellmetrics README § Usage](https://github.com/shellspec/shellmetrics#usage) live.
 - **ESLint-based collectors report violations, not distributions.** The core `complexity` rule and
   `sonarjs/cognitive-complexity` fire above a threshold and stay silent below it, so they are run at
   a threshold of zero to make every function report. They resolve only when the repository already

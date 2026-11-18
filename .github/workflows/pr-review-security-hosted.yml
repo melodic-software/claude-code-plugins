@@ -2,9 +2,9 @@ name: PR Review Security Hosted
 
 # Locally owned: the `claude-security-review-hosted-caller` component of
 # melodic-software/standards
-# (components/claude-lanes-hosted/claude-security-review.yml) is
+# (https://github.com/melodic-software/standards/blob/main/components/claude-lanes-hosted/claude-security-review.yml) is
 # `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the resolve-model, check-kill-switch and wait-for-refine jobs
+# this copy can add the check-kill-switch and wait-for-refine jobs
 # below. It differs from the component in those jobs and these comments.
 #
 # Thin caller for the org's pr-review-cli reusable, lane `security` (advisory
@@ -64,86 +64,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The review's model, turns and effort: the review-security route of the
-  # models block in docs/conventions/pr-pipeline.yaml, read from the default
-  # branch, never the PR head, so a PR cannot choose the model through its
-  # own pr-pipeline.yaml (an edit to this file still shows in its diff). When
-  # this job fails, the review still runs on the reusable's own
-  # defaults, so the security-review check keeps reporting.
-  resolve-model:
-    name: Resolve Model
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read # check out the default branch for the models block
-    outputs:
-      claude-args: ${{ steps.models.outputs.claude-args }}
-    env:
-      API_BUDGET_TOKEN: github-token
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      - name: Check out the default branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
-          # resolve-config imports the two check-* action modules.
-          sparse-checkout: |
-            /.github/actions/check-kill-switch/
-            /.github/actions/check-trusted-trigger/
-            /.github/actions/log-api-budget/
-            /.github/actions/resolve-config/
-            /.github/actions/setup-pinned-node/
-            /.github/CODEOWNERS
-            /.github/standards/github-actions-conventions/vocabulary.json
-            /.node-version
-            /docs/conventions/pr-pipeline.yaml
-            /docs/conventions/pr-pipeline/
-          sparse-checkout-cone-mode: false
-
-      - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
-        with:
-          node-version-file: .base/.node-version
-
-      - name: Resolve the review model
-        id: models
-        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
-        with:
-          model-route: review-security
-          output-path: ${{ runner.temp }}/review-models.json
-
-      # The reusable takes Claude args only; a subagent model would be dropped.
-      - name: Refuse a subagent model
-        env:
-          SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
-        run: |
-          if [ -n "$SETTINGS_JSON" ]; then
-            echo "::error::the review-security profile sets subagent-model, which pr-review-cli.yml does not support"
-            exit 1
-          fi
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
   # The reusable reads no kill switch, so this caller does. The org
   # and repository switches fail closed (check-kill-switch); the lane's own
   # CLAUDE_SECURITY_REVIEW_DISABLED stops it only at `true`, as github-iac's
@@ -321,7 +241,7 @@ jobs:
 
   pr-review-security:
     name: PR Review Security
-    needs: [resolve-model, check-kill-switch, wait-for-refine]
+    needs: [check-kill-switch, wait-for-refine]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
     # Only wait-for-refine's proceed=false (the head moved while it waited) skips
@@ -349,9 +269,6 @@ jobs:
       # The time the key was last replaced: a credit stop before it no longer
       # holds the key off.
       key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-      # Empty unless resolve-model succeeded, so a failed job's partial output
-      # never reaches the review.
-      model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
       # Bot senders this lane reviews, by numeric user id: the
       # automation-lanes App, so a commit it pushes to a pull request is
       # reviewed. Where the repository does not set this variable the value is
@@ -501,6 +418,7 @@ jobs:
         .github/workflows/maintenance-reconcile-lost-runs.yml
         .github/workflows/maintenance-repin-ci-workflows.yml
         .github/workflows/maintenance-tidy-code-upkeep.yml
+        .github/workflows/maintenance-verify-whole-map.yml
         .github/workflows/post-merge-file-demotion-issues.yml
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-dispatch-feedback.yml

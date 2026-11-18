@@ -30,6 +30,9 @@ never a comparison between teams. It reads history and writes nothing.
 
 ## Metrics
 
+Each row names a DORA metric and this skill's own measure of it; the metric's definition stays at
+the pointer above.
+
 | Metric | Measured here as |
 |---|---|
 | Deployment frequency | Deployments per period, and per week over the window |

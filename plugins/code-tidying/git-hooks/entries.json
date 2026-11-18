@@ -2,7 +2,8 @@
   "remote": {
     "git_url": "https://github.com/melodic-software/claude-code-plugins",
     "ref": "main",
-    "config": "plugins/code-tidying/git-hooks/lefthook-remote.yml"
+    "config": "plugins/code-tidying/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
   },
   "entries": [
     {

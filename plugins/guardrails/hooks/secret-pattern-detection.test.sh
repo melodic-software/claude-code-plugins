@@ -381,7 +381,7 @@ RC=$?
 assert_exit "HOME unset, USERPROFILE elsewhere: real repo root keeps scope → exit 0" 0 "$RC"
 
 # With no home to compare against, a root cannot be shown not to contain it.
-OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(cd "$TEST_TMPDIR" && env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "empty HOME and USERPROFILE: outside write scanned → exit 2" 2 "$RC"
 
@@ -1201,7 +1201,7 @@ SPE_GI=CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED
 spe_rc() {
   local target="$1" rc=0 out
   shift
-  out=$(env HOME="$SPE/home" USERPROFILE= HOOK_TELEMETRY_SINK= "$@" bash "$HOOK" \
+  out=$(cd "$SPE" && env HOME="$SPE/home" USERPROFILE= HOOK_TELEMETRY_SINK= "$@" bash "$HOOK" \
     <<<"$(write_json "$target" "token = '$GH_PAT'")" 2>&1) || rc=$?
   [[ "$rc" == 0 && -n "$out" ]] && rc="0+output"
   printf '%s' "$rc"
@@ -1394,6 +1394,15 @@ assert_exit "skip gitignored, home-rooted: not ignored → exit 2" 2 \
   "$(spe_rc "$SPE_GB/src/x.md" HOME="$SPE_G" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
 nb_both "skip gitignored: NotebookEdit to an ignored notebook → exit 0" 0 "" \
   "$(nb_json "$SPE_GB/.work/x.ipynb" "token = '$GH_PAT'")" "$SPE_GI=true"
+printf '#!/bin/sh\ntouch "%s"\n' "$SPE/fsm-ran" >"$SPE/fsm.sh"
+chmod +x "$SPE/fsm.sh"
+git -C "$SPE_G" config core.fsmonitor "$SPE/fsm.sh"
+assert_exit "skip gitignored, planted core.fsmonitor: ignored file → exit 0" 0 \
+  "$(spe_rc "$SPE_GB/.work/x.md" "$SPE_GI=true")"
+assert_file_absent "skip gitignored: a planted core.fsmonitor never runs" "$SPE/fsm-ran"
+git -C "$SPE_G" check-ignore -q -- .work/x.md >/dev/null 2>&1
+if [[ -e "$SPE/fsm-ran" ]]; then ok "fixture: plain git check-ignore runs the planted fsmonitor"; else bad "fixture: the planted fsmonitor never fires, so the check above proves nothing"; fi
+git -C "$SPE_G" config --unset core.fsmonitor
 
 # --- the GitHub MCP lane is untouched by both options
 for SPE_P in "$SPE_D/x.md" ".work/x.md" "notes/x.md"; do

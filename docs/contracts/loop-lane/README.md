@@ -14,6 +14,7 @@
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
 - [Confirm-then-record](#confirm-then-record)
 - [8. Scheduled reader](#8-scheduled-reader)
+- [9. Designing a new pipeline](#9-designing-a-new-pipeline)
 - [Versioning](#versioning)
 
 Owner doc for the concerns shared by every **loop lane**: a session that wraps a single-pass
@@ -720,11 +721,12 @@ closed laptop or a dead process emits no hook event at all; the record write cov
 running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
 (§4).
 
-**A configured hook can also fail silently.** We treat a header variable missing from
-`allowedEnvVars` as interpolating to an empty string (for the rule, see
-[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields)), and a listed variable unset in the operator's environment as doing the same, an applied inference.
-Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
-every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
+**A configured hook can also fail silently.** A header credential that does not resolve, or a
+POST the endpoint rejects, can leave the hook failing on every escalation while the lane runs on
+and surfaces nothing. Pointer: for header interpolation, see
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields); for what a failed POST
+does, see [HTTP response handling](https://code.claude.com/docs/en/hooks#http-response-handling).
+Verify the leg
 when wiring it, by writing a throwaway record file with the Write tool and confirming the endpoint
 received the POST, and treat webhook silence across cycles that filed escalations as a
 check-the-hook signal, never as proof of health.
@@ -839,12 +841,10 @@ The reasons behind each binding:
 **Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
 here rather than left as an unstated assumption:
 
-- **Classifier fallback, on every tier.** The models the `best`, `opus` and `sonnet` aliases
-  resolve to run safety classifiers. A flagged request can re-run on a different model, after
-  which the session stays there, or end in a refusal for a category with nowhere to fall back
-  to. Security work trips them most often, and frontier is the tier all security-surface work
-  routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
-  mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
+- **Classifier fallback, on every tier.** A lane's tier can drop mid-run, or a cycle can stop on
+  a refusal, with nothing in the lane noticing. Security work trips the classifiers most often,
+  and frontier is the tier all security-surface work routes to, but the strong and fast tiers
+  carry the same gap.
 - **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
   and
@@ -1121,11 +1121,11 @@ interactive and headless sessions alike, so an unattended lane samples wherever 
 installed and mods are on, and an empty sample means unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
 concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
 that lane is the sole active session; and they are a **percentage of a subscription window, not a
-token count**, absent entirely for non-subscription auth. No lane claims a token count, because we
-found no session-total token field readable at a cycle boundary. The status line's cumulative
-*cost* field would attribute to a lane, but the guard's snapshot does not carry it; widening the
-snapshot is a guard-side change this invariant deliberately does not make. Pointer: for the fields a
-session exposes, see [Available data](https://code.claude.com/docs/en/statusline#available-data).
+token count**, absent entirely for non-subscription auth. No lane claims a token count,
+because we found no session-total token count readable at a cycle boundary. No lane claims a
+per-lane cost either: the guard's snapshot carries no cost, and widening the snapshot is a
+guard-side change this invariant deliberately does not make. Pointer: for the fields a session exposes, see
+[Available data](https://code.claude.com/docs/en/statusline#available-data).
 
 **Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
 config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
@@ -1202,10 +1202,9 @@ posture; and the `lane-stop-gate` hook mechanizes exactly one of them, so the cl
 redundant with a lane that has the gate armed.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble, because a dispatched non-fork subagent runs in a fresh, non-inherited context: it inherits no
-posture from the cycle root's own sweep and has to set its own. A fork inherits the root's
-context instead
-([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)).
+preamble, so that it sets its own posture rather than relying on the cycle root's sweep. Pointer:
+for what a subagent and a fork inherit, see
+[subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
 When the `discipline` plugin is enabled, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
 preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
 a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
@@ -1226,31 +1225,32 @@ presence-gated with this inline fallback per the
 | `attend-queue` | `work-items` | attended triage / escalation queue |
 | `babysit-loop` | `source-control` | merge lane over `/source-control:babysit-prs` |
 
-**Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
-skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)),
+**Launch surfaces.** A lane launches interactively via `/loop`, the primary surface because it
+ships with Claude Code and so is present wherever `lanes` is not (Pointer: for what ships bundled,
+see [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)),
 or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `harness-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
 
 **Two launch shapes, selected per invocation, and neither deprecates the other.** Supplying an interval
-(`/loop 15m …`) gives a fixed, jittered cron schedule; omitting it gives the self-paced shape, where
-Claude picks each delay within the §4 bounds. We treat `ScheduleWakeup` as the pacing mechanism of
+(`/loop 15m …`) gives the fixed-interval shape, a cron schedule; omitting it gives the self-paced shape, with
+each delay inside the §4 bounds. We treat `ScheduleWakeup` as the pacing mechanism of
 the self-paced shape only. The §4 seven-day expiry binds both shapes. Both are current; this note
 reconciles which applies where and changes neither. Pointer: for both shapes, see
 [Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)
 and
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval);
-for the size of the offset a cron task gets, see
+for when each fixed-interval run starts, see
 [Jitter](https://code.claude.com/docs/en/scheduled-tasks#jitter).
 
 - **A lane always omits the interval.** Two §4 invariants need the self-paced shape and neither
   survives a cron schedule. *Idle backoff*, the standing shape's "idle backs off toward longer
   wakeups", derives the next delay from what the cycle just observed, which a fixed cadence cannot
   consume. And a self-paced loop can **end itself** (Claude calls `ScheduleWakeup` with
-  `stop: true`), which is how the drain shape's terminal state stops a lane cleanly; we treat a
-  fixed-interval loop as running until stopped by hand or until the seven-day expiry, so a drain
-  lane launched that way cannot honor its own stop condition (Pointer:
+  `stop: true`), which is how the drain shape's terminal state stops a lane cleanly; a drain lane
+  launched with an interval lacks that stop, so its terminal state cannot end it
+  (Pointer: for how each shape stops, see
   [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop)).
   The lane shape
   is therefore self-paced because those two invariants require it. Two of the lane's other per-cycle signals,
@@ -1296,11 +1296,15 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
   review lanes pass `--permission-mode dontAsk` with a fixed tool allowlist. Read-runner
   activities (`fix-ci`, `fix-docs`) run `dontAsk` with explicit allow rules and no write token;
   `permission-mode: auto` there fails red, because under the launcher's subprocess env scrub the
-  CLI starts in the default mode. All run under the hardening in
+  CLI starts in the default mode and prints "Permission mode forced to default", naming
+  `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` and the `allowed_non_write_users` hardening (Claude Code
+  2.1.304 in [run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443/job/119640730523)
+  and a local probe at 2.1.326, 2026-11-17). The scrub stays on, so no CI lane runs in auto
+  mode. Recheck when a Claude Code release changes how the scrub sets the permission mode. All
+  run under the hardening in
   [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   which also covers the untrusted-text risk for them.
-- **`--permission-prompts none`** is documented for print-mode runs where nobody can answer a
-  prompt. A host run on 2026-10-28 (Claude Code 2.1.312,
+- **`--permission-prompts none`.** A host run on 2026-10-28 (Claude Code 2.1.312,
   [probe record](../../../plugins/session-flow/skills/continue-in-background/reference/denial-probe.md))
   launched `claude --bg --permission-mode auto` without that flag: one classifier denial came back
   to the session as a tool error and it went on to its next step. What a `--bg` lane does with the
@@ -1471,11 +1475,14 @@ not stale, takes the live-collision branch (§4, instance-collision detection), 
 
 **Skip an issue (worker lane).** Apply the human-gated role label, resolved from the binding rather
 than typed as a literal (§2), and say why in a plain comment. Run it from a checkout of `$R`: the
-binding resolves from the same root the tracker seam uses.
+binding resolves from the same root the tracker seam uses. Resolve that root in its own Bash calls
+first (`printenv CLAUDE_PROJECT_DIR`, and when that prints nothing, `git rev-parse --show-toplevel`)
+and write the printed path in place of `<project root>`, so a worktree-isolated session can run the
+snippet as written
+([Project root](../../../plugins/work-items/reference/tracker-seam.md#project-root)).
 
 ```bash
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-L=$(yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null |
+L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |
   jq -r '.config.role_labels["human-gated"] // empty' 2>/dev/null)
 L=${L:-needs-human}
 gh issue edit <n> -R "$R" --add-label "$L"
@@ -1581,6 +1588,23 @@ a checklist of its own:
 
 Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and
 the time zone a scheduled prompt names for dates (#7679).
+
+## 9. Designing a new pipeline
+
+Before a new lane, workflow or pipeline is built, its design answers seven questions, each in a line
+of its plan or PR body, naming the mechanism that answers it:
+
+| Question | What the answer names |
+|---|---|
+| What starts it? | The event that triggers a run; a schedule only where no event exists, with the reason (§4 "Self-pacing" for a session loop) |
+| What does a run change? | The forge state or files it leaves, written so a rerun converges (§4 "Forge writes converge on rerun") |
+| What starts the next run? | The event or wakeup that follows, and what stops the chain when there is nothing left (§4 "Stop shapes") |
+| Where does a person re-enter? | The hold, label or queue a stopped item lands in, and who reads it (§2 "When work stops for the owner", §7) |
+| What stops a duplicate run? | The `concurrency:` group or atomic claim, listed in [`posting-lanes.md`](posting-lanes.md) when the lane posts |
+| How does a person do what the agent does? | The manual way in beside each agent way in: a dispatch input, a label or a skill a person can run on the same item |
+| What does it look like drawn? | A diagram with one lane per place a step runs (person, tracker, runner, git host, orchestrator, token broker), each step in the lane where it happens, not where it was decided, and the person's way in drawn |
+
+A question the design cannot answer is a gap to close before the build, not after.
 
 ## Versioning
 

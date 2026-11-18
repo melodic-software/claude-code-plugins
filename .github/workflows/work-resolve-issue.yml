@@ -222,7 +222,7 @@ jobs:
   pick-slot:
     name: Pick Slot
     needs: check-admission
-    if: github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.check-admission.outputs.proceed == 'true'
+    if: needs.check-admission.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 7
     # No step here uses a cache; read keeps an issues run from saving one.
@@ -414,7 +414,7 @@ jobs:
     name: Resolve Issue
     needs: [check-admission, pick-slot]
     if: >-
-      github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.check-admission.outputs.proceed == 'true'
+      needs.check-admission.outputs.proceed == 'true'
       && needs.pick-slot.outputs.capped == 'false' && needs.pick-slot.outputs.skip-key != 'true'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
@@ -626,7 +626,7 @@ jobs:
     name: Resolve Issue Subscription
     needs: [check-admission, pick-slot, resolve-issue, resolve-issue-handoff]
     if: >-
-      ${{ !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.check-admission.outputs.proceed == 'true'
+      ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true'
       && needs.pick-slot.outputs.capped == 'false'
       && (needs.resolve-issue-handoff.outputs.handed-off == 'true' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true' && needs.resolve-issue.result == 'skipped') }}
     concurrency:
@@ -728,7 +728,7 @@ jobs:
     name: Resolve Issue Fallback
     needs: [check-admission, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
     if: >-
-      ${{ !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 && needs.check-admission.outputs.proceed == 'true'
+      ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true'
       && needs.pick-slot.outputs.capped == 'false' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true'
       && needs.resolve-issue-subscription-handoff.outputs.handed-off == 'true' }}
     concurrency:
@@ -837,7 +837,7 @@ jobs:
     name: Report Skip
     needs: [check-admission, pick-slot]
     if: >-
-      !cancelled() && github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220
+      !cancelled()
       && (needs.check-admission.outputs.outsider == 'true'
       || (needs.check-admission.outputs.proceed == 'true' && needs.pick-slot.result == 'success'
       && (needs.pick-slot.outputs.skip-reason == 'split-required'

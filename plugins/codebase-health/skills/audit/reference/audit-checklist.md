@@ -40,8 +40,7 @@ When reading a doc file, these are claim types that commonly drift:
 - **Undocumented settings**: settings in config files no doc mentions.
 - **Cross-file consistency**: does lint config match the convention narrative? Does build config
   match the build-config narrative?
-- **Section scoping**: config files with sectioned scope (e.g. `.editorconfig` `[*.cs]`) can break
-  scope unexpectedly.
+- **Section scoping**: config files with sectioned scope can break scope unexpectedly.
 - **Suppression rationale**: are suppressions documented and justified?
 
 ## Code Quality to Check

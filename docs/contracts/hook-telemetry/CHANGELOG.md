@@ -5,6 +5,14 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Sink wiring wording, envelope unchanged at 1.1 - 2026-11-18
+
+Wording only; no envelope field or resolution rule changes.
+
+- The sink wiring paragraph states the rule (name an installed sink with a reserved value, never a
+  variable in the settings `env` value) and points at the env-vars page for how settings `env`
+  values reach the environment, in place of restating that page.
+
 ## Sink path resolution, envelope unchanged at 1.1 - 2026-11-16
 
 Not an envelope field, so no `schema_version` change (README "Versioning").

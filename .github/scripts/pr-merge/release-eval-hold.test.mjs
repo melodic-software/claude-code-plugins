@@ -5,7 +5,7 @@
 // unlisted author, an App-posted comment, a quoted or fenced line, another
 // hold reason, or a pull request without the label.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -150,10 +150,20 @@ writeFileSync(
   }),
 );
 
-function fakeGitHub(pulls) {
+let outputs = 0;
+const outputFile = () => {
+  const path = join(TRUSTED_DIR, `output-${outputs++}`);
+  writeFileSync(path, "");
+  return path;
+};
+
+function fakeGitHub(pulls,{ failDelete = [] } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "DELETE" && failDelete.some((n) => path.includes(`/issues/${n}/labels/`))) {
+      throw new Error("HTTP 502");
+    }
     const page = /[?&]page=([0-9]+)/.exec(path);
     if (page && page[1] !== "1") {
       return [];
@@ -182,12 +192,18 @@ test("main comments with the record's URL and head, then removes the label, and 
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
+  const output = outputFile();
   try {
-    const code = await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github, now: () => Date.parse("2026-11-06T11:30:00Z") });
+    const code = await main({
+      env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output },
+      github,
+      now: () => Date.parse("2026-11-06T11:30:00Z"),
+    });
     assert.equal(code, 0);
   } finally {
     console.log = log;
   }
+  assert.equal(readFileSync(output, "utf8"), "released=7\n");
   const writes = calls.filter((call) => call.method !== "GET");
   assert.deepEqual(
     writes.map((call) => `${call.method} ${call.path}`),
@@ -205,10 +221,26 @@ test("main comments with the record's URL and head, then removes the label, and 
   assert.ok(lines.includes("release-eval-hold: held=2 released=1 kept=1 failed=0"));
 });
 
-test("main stops on the kill switch before any read", async () => {
-  const { github, calls } = fakeGitHub({});
-  assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "", TRUSTED_ACTORS_PATH: TRUSTED }, github }), 0);
+test("main stops on the kill switch before any read, and names nothing to wake", async () => {
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), recordComment()] } });
+  const output = outputFile();
+  assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "", TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output }, github }), 0);
   assert.equal(calls.length, 0);
+  assert.equal(readFileSync(output, "utf8"), "");
+});
+
+test("a pull request whose label removal failed is not named to wake", async () => {
+  const qualifies = () => ({ pull: pull(), comments: [holdComment(), recordComment()] });
+  const { github } = fakeGitHub({ 7: qualifies(), 8: qualifies() }, { failDelete: [8] });
+  const output = outputFile();
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: output }, github }), 1);
+  } finally {
+    console.log = log;
+  }
+  assert.equal(readFileSync(output, "utf8"), "released=7\n");
 });
 
 test("main releases at most RELEASES_PER_RUN a run", async () => {

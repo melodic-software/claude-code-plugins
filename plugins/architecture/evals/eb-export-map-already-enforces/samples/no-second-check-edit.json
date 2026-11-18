@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/work/ws/packages/reporting/src/report.js", "old_string": "import { outstanding } from '@shop/billing';\n", "new_string": "import { outstanding } from '@shop/billing';\nimport { balance } from '@shop/billing/src/ledger.js';\n"}},
+        {"tool": "Edit", "input": {"file_path": "/work/ws/packages/reporting/src/report.js", "old_string": "import { balance } from '@shop/billing/src/ledger.js';\n", "new_string": ""}},
+        {"tool": "Edit", "input": {"file_path": "/work/ws/docs/conventions/architecture/README.md", "old_string": "Accepted 2026-10-30.", "new_string": "Accepted 2026-10-30. Enforced by: `bash scripts/check.sh`."}}
+      ],
+      "why": "inject, remove and record only"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/work/ws/packages/reporting/test/report.test.js", "old_string": "import { summary } from '@shop/reporting';\n", "new_string": "import { summary } from '@shop/reporting';\nimport { balance } from '@shop/billing/src/ledger.js';\n"}}
+      ],
+      "why": "the rule covers tests, so a test-file injection is a valid proof"
+    },
+    {
+      "answer": [],
+      "why": "nothing edited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/work/ws/scripts/check.sh", "old_string": "node --test\n", "new_string": "node --test\nbash scripts/check-imports.sh\n"}}
+      ],
+      "why": "a scan wired into the check command"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/work/ws/package.json", "old_string": "\"check\": \"bash scripts/check.sh\"", "new_string": "\"check\": \"bash scripts/check.sh && eslint .\""}}
+      ],
+      "why": "a lint run added beside the export map"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/work/ws/packages/reporting/test/report.test.js", "old_string": "import { test } from 'node:test';\n", "new_string": "import { test } from 'node:test';\nimport { readdirSync, readFileSync } from 'node:fs';\n"}}
+      ],
+      "why": "a source scan added to an existing test"
+    }
+  ]
+}

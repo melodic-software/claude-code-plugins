@@ -144,7 +144,7 @@ Literal replacements, by rule:
 | | "garner" | "get", "earn" |
 | | "additionally" | "also", "and" |
 | `rule-copulative-avoidance` | "serves as", "stands as" | "is" |
-| | "boasts", "features", "offers" | "has", where the verb means only possession: "The library boasts full TypeScript support" becomes "The library has full TypeScript support". A literal use keeps its verb: "the store offers a refund" makes an offer, and "the episode features a guest" names a role |
+| | "boasts", "features", "offers" | "has", where the verb means only possession. A literal use keeps its verb: "the store offers a refund" makes an offer, and "the episode features a guest" names a role |
 | `rule-filler-phrases` | "due to the fact that" | "because" |
 | | "in order to" | "to" |
 | | "it should be noted that", "it is worth noting that", "it is important to note that" | nothing: delete the phrase and let the note stand alone |

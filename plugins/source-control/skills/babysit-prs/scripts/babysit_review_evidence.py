@@ -1317,10 +1317,13 @@ def rerun_binds(
     """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
     `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch or the
     upstream-status gate stopped it (`_kill_switch_stopped`,
-    `_upstream_stopped`), or an outage lost it, or its lane job ended with
-    `NO_OUTCOME`, before its lane posted (`_lost_unposted`, `_unposted`)."""
+    `_upstream_stopped`), a leg held on a GitHub API rate limit (`_rate_held`),
+    or an outage lost it, or its lane job ended with `NO_OUTCOME`, before its
+    lane posted (`_lost_unposted`, `_unposted`)."""
     if first.get("conclusion") == "success":
-        return _kill_switch_stopped(lane, run_id, first)
+        return _kill_switch_stopped(lane, run_id, first) or _rate_held(
+            lane, run_id, first
+        )
     if first.get("conclusion") in LOST_CONCLUSIONS:
         return _lost_unposted(lane, run_id, first, sha, second, posted)
     if first.get("conclusion") != "failure":
@@ -1535,6 +1538,44 @@ def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> 
     return _gate_stopped(
         lane, run_id, attempt, "success", "notice", KILL_SWITCH_NOTICE_RE
     )
+
+
+LEG_HOLD_NOTE = "this leg holds and runs no review"
+LEG_RATE_REFUSAL_RE = re.compile(
+    r"\b(?:403|429)\b.*x-ratelimit-remaining[:=] *0\b", re.IGNORECASE
+)
+
+
+def _rate_held(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
+    """Whether a leg's hold on a GitHub API rate limit kept this attempt from
+    reviewing: its lane job holds no completion record and its `held:` notice
+    for this head, and another job of the attempt (the leg, whose annotations
+    babysit_gh reads) shows the hold beside such a refusal."""
+    jobs = attempt.get("jobs")
+    if not isinstance(jobs, list | tuple) or not _has_lane_job(lane, jobs):
+        return False
+    job = _lane_job(lane, run_id, attempt)
+    held = f"held: {lane} did not review {attempt.get('head_sha')}: "
+    if recorded(job) or not any(
+        isinstance(a, Mapping)
+        and a.get("annotation_level") == "notice"
+        and str(a.get("message") or "").startswith(held)
+        for a in job["annotations"]
+    ):
+        return False
+    for leg in jobs:
+        if leg is job or not isinstance(leg, Mapping):
+            continue
+        messages = [
+            str(a.get("message") or "")
+            for a in leg.get("annotations") or ()
+            if isinstance(a, Mapping)
+        ]
+        if any(LEG_HOLD_NOTE in m for m in messages) and any(
+            LEG_RATE_REFUSAL_RE.search(m) for m in messages
+        ):
+            return True
+    return False
 
 
 def _upstream_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:

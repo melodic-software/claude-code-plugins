@@ -14,9 +14,9 @@
       "default": "allow"
     },
     "diagram_target": {
-      "description": "Where /visualization:visualize draws a diagram: auto picks by surface; terminal an inline Mermaid or ASCII fence; local-page a local HTML file; excalidraw or tldraw that connected canvas server. A later layer wins (the personal override over this file over userConfig); a target that is unavailable, or that hosted_canvas forbids, falls back to auto.",
+      "description": "Where /visualization:visualize draws a diagram: auto picks by surface; terminal an inline Mermaid or ASCII fence; local-page a local HTML file; excalidraw or tldraw that connected canvas server; excalidraw-file an Excalidraw file under docs/diagrams/ at the repository root, which the skill never stages or commits. A later layer wins (the personal override over this file over userConfig); a target that is unavailable, or that hosted_canvas forbids, falls back to auto.",
       "type": "string",
-      "enum": ["auto", "terminal", "local-page", "excalidraw", "tldraw"],
+      "enum": ["auto", "terminal", "local-page", "excalidraw", "tldraw", "excalidraw-file"],
       "default": "auto"
     }
   }

@@ -217,13 +217,15 @@ Stated deviations from the docs and precedent (Q38):
   `docs/upstream/claudedevs-cost-performance.md:19` has every plain ADOPT row point at a filed work
   item. Here the user chose to build the record, the small rows and the observability comparison
   on this branch; only Q35 gets a work item.
-- **Unrouted dispatch keeps `opus` (Q20).** [Manage costs: Choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model)
-  puts most coding on Sonnet. `implementation:implementer` stays on `opus` for any phase the plan
-  does not mark `sonnet`. Reasons: a lane with no plan has no scope check, so it fails safe on the
-  stronger model; and dispatch falls back to `implementer` when a third-party provider variable is
-  set and `ANTHROPIC_DEFAULT_SONNET_MODEL` is not, because this repository does not trust the
-  `sonnet` alias to name the current Sonnet there. When checking what the alias resolves to on a
-  provider, fetch [Model configuration: Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
+- **Unrouted dispatch keeps `opus` (Q20).** `implementation:implementer` stays on `opus` for any
+  phase the plan does not mark `sonnet`. Reasons: a lane with no plan has no scope check, so it
+  fails safe on the stronger model; and dispatch falls back to `implementer` when a third-party
+  provider variable is set and `ANTHROPIC_DEFAULT_SONNET_MODEL` is not, because this repository
+  does not trust the `sonnet` alias to name the current Sonnet there. When checking the docs' model
+  advice this deviates from, fetch
+  [Manage costs: Choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model)
+  live. When checking what the alias resolves to on a provider, fetch
+  [Model configuration: Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
   live.
 
 Q42 outcome, from the plan approval gate: **keep**. These 12 rows of

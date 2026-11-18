@@ -46,8 +46,8 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    use jq. Remediation: install jq (<https://jqlang.org/download/>).
 2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: the PostCompact marker
    row in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the module
-   writes each snapshot by running `node lib/write-snapshot.mjs`, and installing Claude Code does
-   not put `node` on `PATH` for them (pointer below). Without `node` on `PATH` the marker does not
+   writes each snapshot by running `node lib/write-snapshot.mjs`, and this check never counts a
+   Claude Code install as supplying `node` for them (pointer below). Without `node` on `PATH` the marker does not
    launch and no snapshot is written, so file readers read `unknown`; report that the marker cannot
    launch (how Claude Code treats a hook that cannot start:
    [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output)), since
@@ -148,8 +148,8 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    - Every option acts only where step 3 found the mod running, except
      that the kill switch also turns off the PostCompact marker hook, a settings hook that can run
      where mods are off.
-   - The module reads its options when it loads, and Claude Code reloads a module when its options
-     change, so a changed value acts from the next event. The marker hook reads its value at session
+   - The module reads its options when it loads, and only then; the README's Configuration
+     section points at when a changed option reloads it. The marker hook reads its value at session
      start.
 8. **Directory left by the earlier name** (migration). Read the pre-computed leftover value.
    `(absent)` → PASS. Otherwise FAIL "drift: `~/.claude/context-guard/` is left from the plugin's

@@ -117,7 +117,7 @@ After frame extraction, classify each frame using Claude vision:
 
 | Category | Keep? | Description |
 |---|---|---|
-| `code` | Yes | IDE showing source code (C#, tests, config) |
+| `code` | Yes | IDE showing source code, tests or config |
 | `terminal` | Yes | Terminal/console output (test results, build output) |
 | `slide` | Yes | Presentation slide with visual content |
 | `diagram` | Yes | Architecture diagram, flowchart, UML |

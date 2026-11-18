@@ -3,6 +3,36 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0] - 2026-11-18
+
+### Changed
+
+- The control panel no longer names a default panel library for React projects. It resolves the
+  panel library from the repository through the plugin's new copy of the ecosystem resolution
+  steps (`reference/ecosystem-resolution.md`, version 1.1.0), and uses plain range inputs when
+  none resolves.
+- The control panel's rule that controls write CSS variables on the prototype root no longer
+  carries framework-specific code examples.
+- `/prototype:pressure-test` no longer shows package-manager or SDK commands as examples of the
+  one start command; it asks for one short command through the project's task runner.
+
+## [0.35.2] - 2026-11-18
+
+### Changed
+
+- `/prototype:explore-directions` handover: when every variant has the same states, the shared
+  line now has a fixed shape, `All variants have the same states: <names>.`, on a line of its own
+  between the path-and-keys line and the variant lines. It names the states itself instead of
+  pointing back at the `Plan:` line, and the states stay out of the path-and-keys line.
+
+## [0.35.1] - 2026-11-18
+
+### Fixed
+
+- **The notes host is offered only on a single-user machine.** `/prototype:explore-directions` now says why: the host hands its per-run token to any local process that asks the loopback port.
+- **`playwright-cli` is declared as an optional prerequisite**, and the `node` row names note relocation, so `/harness-ops:prerequisites` reports what relocating a note needs and what happens without it.
+- **The `ed-notes-tracer` eval's serve grader now requires `--page explore-directions.html`.** An `ensure-running` on the default page, which the scaffold never writes, no longer passes.
+
 ## [0.35.0] - 2026-11-17
 
 ### Changed

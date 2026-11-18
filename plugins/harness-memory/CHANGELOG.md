@@ -3,6 +3,14 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.3] - 2026-11-18
+
+### Changed
+
+- `audit`: names no ecosystem's files or tools in its C7, C8 and C9 checks. It
+  checks version pins against the repository's own pin files and each stated command against the
+  repository's own manifest or task runner, and it names a compiler setting without examples.
+
 ## [2.2.2] - 2026-11-17
 
 ### Changed

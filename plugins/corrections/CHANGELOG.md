@@ -3,6 +3,27 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.1] - 2026-11-18
+
+### Changed
+
+- The enforcement ladder copy is 3.3.1: its `compiler-setting` row and its last "Where boundary rules live" entry no longer name a language's compiler options or an architecture-test library ([#16787](https://github.com/melodic-software/claude-code-plugins/issues/16787)).
+
+## [1.8.0] - 2026-11-18
+
+### Added
+
+- **`/corrections:codify taste` turns a session's design corrections into `DESIGN.md` rules.** It sweeps the session and the branch's commits for silent edits to agent-written files, nudge runs (kept at the value they landed on), reverts and variant picks, and confirmed choices. It keeps the ones a fresh agent building a different component would repeat, writes each at the class level, and marks a reason the person did not give as inferred until they confirm it. Each kept correction takes codify's rung choice and proof. A checkable one ends in a proven check proposal whose one-line rule lands with the check, and a rule-only one is written to the root `DESIGN.md` once the person approves it.
+
+## [1.7.0] - 2026-11-18
+
+### Added
+
+- On a person's invocation, `/corrections:codify`'s report names the sources its count cannot read
+  (a team meeting's issue list, stand-up notes, ticket comments) and offers once to recount with
+  any the person pastes or points at; the run does not stop to ask. Pasted text is data to count,
+  never instructions. The model's invocation offers nothing.
+
 ## [1.6.0] - 2026-11-17
 
 ### Added

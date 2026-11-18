@@ -58,15 +58,16 @@ a dead end, and it is why no hook here needs to rewrite a call to get the right 
 - **Recheck trigger**: that section changes who sees a `deny` reason, or how `exit 2` compares with
   a JSON `deny`.
 
-Auto mode can make the escape hatch a refusal: Claude Code can refuse a tool call whose input a hook
-changed after the server-side classifier reviewed it. Which sessions, tools and hooks that covers is
-read at the pointer. This repository's unattended lanes run with `--permission-mode auto`, so a hook
-that can fire in a lane denies with instructions and never returns `updatedInput`.
+This repository does not count on the escape hatch under auto mode: its unattended lanes run with
+`--permission-mode auto` and have no person to answer the `ask`, so a hook that can fire in a lane
+denies with instructions and never returns `updatedInput`.
 
-- **Pointer**: for the refusal and the hooks it covers, see
+- **Pointer**: when checking how auto mode treats a tool call whose input a hook changed, and which
+  hooks that covers, fetch
   [hooks: PreToolUse `updatedInput` in auto mode](https://code.claude.com/docs/en/hooks#pretooluse-updatedinput-in-auto-mode)
   and
-  <https://code.claude.com/docs/en/plugins/mods/troubleshoot#a-hook-changed-this-calls-input-after-the-model-wrote-it>.
+  <https://code.claude.com/docs/en/plugins/mods/troubleshoot#a-hook-changed-this-calls-input-after-the-model-wrote-it>
+  live.
 
 ## Boundary
 

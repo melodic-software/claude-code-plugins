@@ -50,12 +50,12 @@ Each agent also treats the reviewed code, `REVIEW.md`, rules files and cited doc
 an instruction embedded in them is reported as a finding, and project conventions override an
 agent's baseline only as review criteria.
 
-*Basis for the two limits:* [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
-states that with memory enabled "Read, Write, and Edit tools are automatically enabled so the
-subagent can manage its memory files", that turning auto memory off means "the `memory` field
-has no effect", and lists `permissionMode` among the fields ignored for plugin subagents.
-*Recheck* when that page stops carrying any of those three statements, or a release note names
-subagent memory tools, auto memory, or plugin-subagent frontmatter restrictions.
+- **Pointer**: for the two memory limits above, when checking what the `memory` field needs and
+  grants a subagent, fetch
+  [create custom subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
+  live; when checking which frontmatter fields a plugin subagent ignores, fetch
+  [create custom subagents: choose the subagent scope](https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope)
+  live.
 
 Invoke via `@review:<agent>` or let Claude delegate.
 
@@ -220,8 +220,8 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
 - **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
   ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
-  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions,
-  then its own bundled generic defaults as a last resort.
+  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions.
+  A command neither source names is reported unresolved; the agent ships no default command.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
   the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth
   when installed; every path works without them. Claude Code's bundled `/code-review` command and

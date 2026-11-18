@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { bodyView, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2776,6 +2776,50 @@ test("main select writes the offered sections to the thread file unless pr_body_
     assert.equal("body_sections" in offThreads, false, name);
     assert.equal("body_sections" in offRun, false, name);
   }
+});
+
+test("main select shows every ## section in body_view, a Summary over the refresh cap included, and offers only the rewritable ones", async (t) => {
+  const dir = tempDir("address-feedback-view-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
+  const summary = "s".repeat(4809);
+  const long = "x".repeat(9000);
+  const body = `No related issue: a test\n\n## Summary\n\n${summary}\n\n## Fix\n\nShort fix.\n\n## Verification\n\nRan the suite.\n\n## Notes\n\n${long}\n\n## Related\n\nNone.\n`;
+  const pull = join(dir, "pull.json");
+  writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body }));
+  const go = async (name, extra) => {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
+    await main(["select"], env, { api: fakeApi(), log: () => {} });
+    return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
+  };
+  const [threads, run] = await go("on", {});
+  assert.deepEqual(
+    threads.body_view.map(({ heading, truncated }) => [heading, truncated]),
+    [
+      ["Summary", false],
+      ["Fix", false],
+      ["Verification", false],
+      ["Notes", true],
+      ["Related", false],
+    ],
+  );
+  assert.equal(threads.body_view[0].text, `\n${summary}\n`, "the whole 4,809-character Summary of PR 16950, which the 4,000-character refresh cap keeps out of body_sections");
+  assert.equal(threads.body_view[3].text, "\n" + "x".repeat(7999), "cut to 8,000 characters");
+  assert.deepEqual(
+    threads.body_sections.map((section) => section.heading),
+    ["Fix", "Verification"],
+    "not the Summary or Notes over 4,000 characters, nor the last section",
+  );
+  assert.equal("body_view" in run, false, "run.json pins only the rewritable sections");
+  const [offThreads] = await go("off", { BODY_REFRESH: "false" });
+  assert.equal(offThreads.body_view.length, 5, "the read-only view stays with pr_body_refresh off");
+  assert.equal("body_sections" in offThreads, false);
+});
+
+test("bodyView shows control characters as ? and skips # headings", () => {
+  assert.deepEqual(bodyView("# Title\n\nintro\n\n## A\r\n\nline\u0007\ttab\r\n"), [{ heading: "A", text: "\nline?\ttab\n", truncated: false }]);
+  assert.deepEqual(bodyView(null), []);
 });
 
 const ASK = "PR-fix lane: why does the converge step skip the cache?";

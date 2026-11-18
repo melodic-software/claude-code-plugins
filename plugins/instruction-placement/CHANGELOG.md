@@ -3,6 +3,32 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.0] - 2026-11-18
+
+### Added
+
+- The git-hook entries ship as a lefthook remote (`git-hooks/lefthook-remote.yml`), and
+  `apply install-git-hooks scope=shared` prefers it: one `remotes:` entry naming the
+  marketplace's root `lefthook-remote.yml` runs them from main, with nothing copied.
+- The session-start drift check counts an entry installed through that remote as `ok`.
+- A failing remote job prints the per-clone `lefthook-local.yml` skip for that job.
+- A remote plan naming the root `lefthook-remote.yml` lists the plugins it turns on and reports
+  a missing tool, decline or migration for each of their entries, and `verify` prints a
+  `tool` line for each of their entries whose tool is missing.
+
+## [1.5.1] - 2026-11-18
+
+### Changed
+
+- Glob derivation, the expanded-tier sweep of other agents' instruction files, `migrate`'s markdown-lint step and the examples in the README, `audit`, `check`, `realign` and the audit gotchas no longer name a language, tool or command. Each says what to look for in the repository instead ([#16765](https://github.com/melodic-software/claude-code-plugins/issues/16765)).
+
+- `audit` gotchas: the unscoped-rule entry states our pricing rule in our own words and points at the surface table in `context/verified-mechanics.md`, instead of restating the docs sentence on when such a rule loads ([#16863](https://github.com/melodic-software/claude-code-plugins/issues/16863)).
+- `migrate` gotchas: the committed-symlink entry keeps the import as the portable form and points at git's `core.symlinks` setting, instead of restating how a checkout writes a symlink ([#16863](https://github.com/melodic-software/claude-code-plugins/issues/16863)).
+
+### Removed
+
+- `migrate`'s loader recipe for other tools and the Cursor, Grok Build and Muse Code loader records it backed. The records stay out unless a targeted eval case shows a loss without them ([#16765](https://github.com/melodic-software/claude-code-plugins/issues/16765)).
+
 ## [1.5.0] - 2026-11-17
 
 ### Added

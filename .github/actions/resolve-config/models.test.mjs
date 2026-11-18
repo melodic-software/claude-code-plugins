@@ -545,6 +545,7 @@ for (const [route, profile, args] of [
   // Owner decision 2026-10-24: the adjudicator of a disputed finding is at
   // least as strong as the review lanes: Opus.
   ["adjudicate-feedback", "review", "--model opus --max-turns 60 --effort high"],
+  ["verify-map", "verify-map", "--model opus --max-turns 300 --effort high"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
     const models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });

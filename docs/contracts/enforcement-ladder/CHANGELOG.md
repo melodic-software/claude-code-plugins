@@ -4,10 +4,12 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
-## [3.3.1] - 2026-11-17
+## [3.3.1] - 2026-11-18
 
-- Changed: the seventh boundary-rule location, an existing architecture-test configuration, no
-  longer names example tools. The location and its place in the order are unchanged.
+- Changed: the `compiler-setting` row and the last "Where boundary rules live" entry no longer
+  name a language's compiler options or an architecture-test library. The row keeps one
+  language-neutral example; the entry names the repository's own architecture-test configuration.
+  No rung, id or rule changes.
 
 ## [3.3.0] - 2026-11-17
 
