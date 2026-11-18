@@ -99,6 +99,29 @@ level; each repository's README says how and which variants run locally or remot
 - Excalidraw: <https://github.com/excalidraw/excalidraw-mcp>
 - tldraw: `apps/mcp-app` in <https://github.com/tldraw/tldraw>
 
+### File-backed targets
+
+A `diagram_target` of `excalidraw-file` writes the diagram as a plain JSON file the person opens in
+an editor, instead of drawing on a server. It needs no server and no network, so it works in the
+Claude Code terminal and `hosted_canvas` does not apply. The file lands at
+`docs/diagrams/<name>.excalidraw` under the repository root and stays untracked until the person
+commits it.
+
+- **Pointer**: for the file's top-level fields, fetch
+  [Excalidraw JSON schema: Excalidraw files](https://plus.excalidraw.com/docs/sdk/codebase/json-schema#excalidraw-files)
+  live. That page documents the top-level fields and not the full element field set; for what each
+  element type carries and what the loader fills in or drops, read `restoreElement` in
+  [`packages/excalidraw/data/restore.ts`](https://github.com/excalidraw/excalidraw/blob/v0.18.1/packages/excalidraw/data/restore.ts).
+- **Editor**: the person opens the file in an Excalidraw editor, such as the VS Code extension
+  [Excalidraw (`pomdtr.excalidraw-editor`)](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor)
+  or by importing it at excalidraw.com. Whether the extension runs the same restore step on open is
+  UNVERIFIED; one manual open per release that touches this target is the check.
+
+`lib/diagram-file-check.mjs` is the structural check the skill runs on the draft: the file marker,
+a numeric version, and elements of the types the skill draws (rectangle, ellipse, diamond, arrow,
+line, text, frame), each with an id, a position and a size or two points, every frame, container
+and arrow binding naming an element that exists, and no link, image or embed.
+
 ## Form catalog
 
 ### Mermaid diagram families

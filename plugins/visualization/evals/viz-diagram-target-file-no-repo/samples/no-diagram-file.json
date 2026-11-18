@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": ["notes/reset-flow.md"],
+      "why": "a file, but no Excalidraw file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["docs/diagrams/password-reset-flow.excalidraw"],
+      "why": "wrote the diagram file with no repository"
+    },
+    {
+      "answer": ["password-reset-flow.excalidraw"],
+      "why": "wrote it at the workspace root"
+    }
+  ]
+}
