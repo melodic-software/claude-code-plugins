@@ -140,8 +140,7 @@ for tool in actionlint shfmt shellcheck gofmt biome markdownlint-cli2 ruff pwsh 
   chmod +x "$T/bin/$tool"
 done
 mkdir -p "$T/gitbin"
-# shellcheck disable=SC2016 # expanded by the shim when git runs
-printf '#!/bin/sh\necho "$GIT_CONFIG_COUNT" >>"%s"\nexec "%s" "$@"\n' "$T/git-calls" "$(command -v git)" >"$T/gitbin/git"
+printf '#!/bin/sh\necho "\044GIT_CONFIG_COUNT" >>"%s"\nexec "%s" "\044@"\n' "$T/git-calls" "$(command -v git)" >"$T/gitbin/git"
 chmod +x "$T/gitbin/git"
 for hook in actionlint/hooks/actionlint-check.sh:lint bash-format/hooks/bash-format.sh:lint \
   go-format/hooks/go-format.sh:format javascript-format/hooks/javascript-format.sh:lint \
@@ -162,8 +161,7 @@ for hook in actionlint/hooks/actionlint-check.sh:lint bash-format/hooks/bash-for
 done
 
 mkdir -p "$T/argbin"
-# shellcheck disable=SC2016 # expanded by the shim when git runs
-printf '#!/bin/sh\necho "$*" >>"%s"\nexec "%s" "$@"\n' "$T/git-args" "$(command -v git)" >"$T/argbin/git"
+printf '#!/bin/sh\necho "\044*" >>"%s"\nexec "%s" "\044@"\n' "$T/git-args" "$(command -v git)" >"$T/argbin/git"
 chmod +x "$T/argbin/git"
 rm -f "$T/git-args"
 jq -n --arg cwd "$E" '{session_id:"s",cwd:$cwd,hook_event_name:"PreToolUse",tool_name:"Bash",

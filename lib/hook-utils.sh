@@ -1020,6 +1020,10 @@ hook::git_untrusted() {
   git "${_HOOK_GIT_UNTRUSTED_ARGS[@]}" "$@"
 }
 
+hook::git_untrusted_exec() {
+  exec git "${_HOOK_GIT_UNTRUSTED_ARGS[@]}" "$@"
+}
+
 # The same overrides for every git a child process runs, appended after any GIT_CONFIG_COUNT pairs
 # the caller already set (git 2.31 or later; an older git ignores them):
 # https://git-scm.com/docs/git-config#ENVIRONMENT
