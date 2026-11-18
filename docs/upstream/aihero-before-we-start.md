@@ -28,7 +28,7 @@ records: [aihero-domain-language.md](aihero-domain-language.md),
   [`grilling`](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/productivity/grilling)
   and
   [`handoff`](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/productivity/handoff).
-- **As of**: 2026-11-17
+- **As of**: 2026-11-18
 - **Recheck trigger**: a mattpocock/skills changeset naming one of those units, checked as
   [mattpocock-skills.md](mattpocock-skills.md) describes. Course page updates are not observable
   events; the skills-repo changeset stream is the proxy, as in
@@ -121,8 +121,8 @@ record decisions kept outside this repository.
 |---|---|---|---|---|---|
 | Keep your code at his checkpoint so your agent's results match his | Aligns starting states | Inference: different code gives different results | One run from the same commit does not show a difference is ours | **adapt** in the experiment: the same commit is necessary, not sufficient; compare several runs from one checkpoint | none |
 | A reset command replaces your work with a checkpoint | Jumps to a lesson's start | Inference: learners fall behind | Same | **already have**: commit first, as the crash course rows decided | none |
-| A cherry-pick command keeps your commits and adds the lesson's on top | Keeps local work, at the cost of conflicts | Inference: learners want to keep their changes | Our pull-request flow merges the base and never rebases | **already have** | none |
-| Cherry-picking keeps your own model choice while taking his changes | Protects local settings from checkpoint updates | Inference: learners customize the model | His runner hard-codes the model in a tracked file his checkpoints also edit, so a changed model conflicts | **hold**: recheck at workshop 07 or 08, when the runner code changes | none |
+| A cherry-pick command keeps your commits and adds the lesson's on top | Keeps local work, at the cost of conflicts | Inference: learners want to keep their changes | Our pull-request `ready` updates a branch by merging the base, or by a lease-pinned rebase only on an attended run that allows a rewrite; an unattended run never rewrites | **already have** | none |
+| Cherry-picking keeps your own model choice while taking his changes | Protects local settings from checkpoint updates | Inference: learners customize the model | His runner hard-codes the model in a tracked file his checkpoints also edit, so a changed model conflicts | **hold**: rechecked 2026-11-18 at two later course commits: the runner still hard-codes the model in a tracked file, so the conflict stands and there is nothing to take | none |
 | A pull command merges announced fixes and keeps your work | Delivers course fixes | Inference: course code has bugs | Not our case | **already have** | none |
 | Install, migrate and seed again after a reset | Brings dependencies and schema in line with the code | Inference: a reset changes source only | Nothing re-runs these after a checkout | **already have**: the open check, whether `/app-control:drive ready` spots pending migrations, stays with the crash-course absorption | none |
 
@@ -133,8 +133,13 @@ record decisions kept outside this repository.
   automation-shape pass after workshop 08.
 - Model choice, the long-task benchmark as one input, and top-class model advice: the model-choice
   decision.
-- How much of the host a Claude Code session in WSL can reach, and what isolates it: workshop 07.
-- Cherry-picking against a hard-coded runner model: workshop 07 or 08.
+- How much of the host a Claude Code session in WSL can reach, and what isolates it: decided in
+  workshop 07. The [isolation ladder](../../plugins/autonomy/reference/guardrails/isolation-ladder.md#wsl-on-a-windows-host)
+  counts default WSL as no isolation level and WSL2 with the per-command sandbox as `L1`
+  ([#16702](https://github.com/melodic-software/claude-code-plugins/pull/16702)); the stack for a
+  Windows-only machine is still to be decided.
+- Cherry-picking against a hard-coded runner model: rechecked 2026-11-18 at two later course
+  commits; the hold in the lesson table stands.
 - Per-repository skill pinning: the skills-install workshop.
 
 ## License notice

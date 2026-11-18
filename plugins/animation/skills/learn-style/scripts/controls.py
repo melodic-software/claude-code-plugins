@@ -40,8 +40,6 @@ import workdir  # noqa: E402
 
 FPS = inkstats.BASE_FPS   # the frame grid every control is built, encoded and measured on
 GAME = 'blur0.9+stripes12'
-# game plus: a sub-pixel contour warp (straight, rough), a few holds lengthened (offstep), and faint tonal rows at the
-# source's texture peak with fine noise (period, grain)
 ATTACK = 'warp0.5+blur0.9+rows0.15+noise0.4+retime72'
 NEAR = ['none', 'blur0.9', 'stripes12', GAME, 'blur0.6', 'blur1.3', 'blur0.9+noise4', 'blur0.9+noise8',
         'blur0.9+noise16', 'noise8+blur0.9', 'blur0.9+stripes6', 'blur0.9+stripes24', 'blur0.9+dry8', 'blur0.9+dry16',

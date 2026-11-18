@@ -3,6 +3,41 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.8] - 2026-11-18
+
+### Changed
+
+- **Skill docs point at the upstream page instead of restating it.** The Spoke paths block in the babysit-loop, babysit-prs, commit, pull-request and setup skills, the managed-sources note in the promotion-evidence bootstrap, the conflict worker's authority note, the Monitor watch notes, and the native-surface claim cells now state this plugin's rule and link the docs section, without paraphrasing what the page says.
+
+## [11.21.7] - 2026-11-18
+
+### Fixed
+
+- write a minor bump for a breaking change on a 0.x plugin
+
+  write-changelog-fragments.sh mapped a `!` subject or a BREAKING CHANGE
+  footer to `bump: major` whatever the plugin's version, so the release
+  script took a 0.x plugin straight to 1.0.0. A breaking change to a
+  plugin at 0.x now writes `bump: minor` with the entry led by
+  **Breaking:**; at 1.0 or above it stays major. `--level major` still
+  releases 1.0.0 deliberately.
+
+### Security
+
+- `reap-project-plugin-records.sh`, which the worktree-remove gate runs, sends its git calls through `hook::git_untrusted`, so reading and restoring the worktree's `.claude/settings.json` no longer starts a `core.fsmonitor` command or git hook named in that repository's config.
+
+## [11.21.6] - 2026-11-18
+
+### Fixed
+
+- **`babysit-prs` post-merge check, a completed attempt's jobs.** The check keeps its answer for a
+  completed full-run attempt in the attempts file pr-merge.yml already hands from run to run, so a
+  repeated HTTP 502 on that read no longer stops the merge lane once the answer is kept. The merge
+  gate gets the same file, including when the merge job reuses the dispatch job's report. An
+  in-progress attempt, an answer with unknown steps or unread annotations, and an answer kept under
+  another `ATTEMPT_JOBS_VERSION` are always read live, and a failed read with no usable answer still
+  refuses.
+
 ## [11.21.5] - 2026-11-18
 
 ### Fixed

@@ -531,7 +531,7 @@ const PATH_NOTE = [
 ].join("\n");
 const PATH_HELD = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: PATH_HOLD, reviewsPerson: false, wholeReviewWanted: true, queue: UNEJECTED };
 // babysit_whole_review.record_line's shape, checked against it below.
-const recordAt = (head, at) => `Whole review requested at head \`${head}\` at ${at}: an incremental review cannot clear the findings below.`;
+const recordAt = (head, at) => `Whole review requested at head \`${head}\` at ${at}: a whole review of this head can clear the reasons below.`;
 const RECORD = recordAt(HEAD, "2026-10-23T10:00:00Z");
 const withRecords = (body, records) => body.replace(/\n(<!-- pr-merge-unarmed-since [^\n]*)$/, `\n\n${records.join("\n")}\n$1`);
 

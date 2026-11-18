@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the python-format lint entry (git-hooks/lint.sh): the
-# resolved lint command reports, never rewrites; a finding blocks only on a
-# line the change adds; output becomes repo-relative "<path>:<line>:
-# <message>"; a linter that fails without a parseable finding fails closed;
-# --worktree checks uncommitted changes; a .claude/ecosystems/ record never runs.
 # Expected values are Ruff's documented output: F821 is "Undefined name".
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
@@ -54,7 +49,6 @@ record() { # <body>: commit .claude/ecosystems/python.yaml
 
 BIN="$WORK/bin"
 mkdir -p "$BIN"
-# A stand-in a record could name: one finding per file. No hook may call it.
 cat >"$BIN/stublint" <<'EOF'
 #!/bin/sh
 if [ "$1" = --crash ]; then
@@ -149,8 +143,6 @@ $HINT" "$(check "$REPO" --worktree)"
 
 fi
 
-# A record never runs from the entry, and the lint-output contract holds on
-# the adapter path: a linter that fails with no finding fails closed.
 new_repo
 record 'globs: ["*.py"]
 lint-cmd: "stublint <files>"'

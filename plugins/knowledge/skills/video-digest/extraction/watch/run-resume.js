@@ -93,7 +93,6 @@ export async function runResumeCli(argv) {
   }
   let state = await readWatchState(sliceDir);
 
-  // Not a slug: take it as a video id, or id plus range, when exactly one slice matches.
   if (!state) {
     const matches = await slicesForKey(workRoot, videoSlug);
     if (matches.length > 1) {
@@ -117,7 +116,6 @@ export async function runResumeCli(argv) {
   const nextPhase = findNextPhase(state.phases);
   const summary = { videoSlug, sliceDir, status: state.status, nextPhase };
 
-  // A closed slice has nothing to resume, and its prompt may be committed: leave it as is.
   if (state.status === "complete") {
     writeStdout(JSON.stringify({ ...summary, nothingToResume: true }, null, 2));
     return 0;

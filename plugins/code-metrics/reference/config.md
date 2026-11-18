@@ -103,6 +103,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `complexity.halstead.difficulty` | `null` | Halstead 1977; no standard sets a threshold |
 | `size.mode` | `file-lines` | `file-lines` compares each file's non-blank lines to `size.file_lines`; `iso-8.2.115` adds each function's non-empty lines as a percentage of the file's (the plugin's reading of the clause, which states 5% with no base), from a collector that reports function ranges |
 | `size.file_lines` | `1000` | The plugin's own number. It coincides with an informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500 is selectable |
+| `size.check` | `report` | What `audit-size.sh --check` fails, the size report's opt-in check mode. `report` fails nothing. `crossing` fails a changed file whose non-blank lines were below `size.file_lines` at the base and are at or above it now. `crossing-or-growth` also fails a file already at or above the reference at the base whose count grew; under `crossing` that file is listed and passes, as the review plugin's size-crossing note treats it. A file already over that did not grow never fails. The plugin's own design; any other value is a usage error |
 | `size.function_lines_pct` | `5` | ISO/IEC 5055:2021 §8.2.115 (normative) states the 5%; the percentage-of-file base is the plugin's reading; used in `iso-8.2.115` mode |
 | `duplication.min_tokens` | `50` | Passed to the clone collector |
 | `duplication.min_lines` | `5` | Passed to the clone collector |
@@ -122,7 +123,8 @@ The third column is written by hand and is not derived from anything. A row whos
 
 A `reference` of `null` means "report the value, count nothing"; a number counts values at or
 above it (below it for coverage and type coverage) as `over_reference`. No finding, severity, or
-exit code follows from either.
+exit code follows from either, except under `audit-size.sh --check` with `size.check` set to a
+rule other than `report`.
 
 A resolved `scope.default` of `all` and a resolved `scope.base` reach every audit entry point, so
 a repository can make the tree the default. A command-line `--all`, `--base`, or explicit path

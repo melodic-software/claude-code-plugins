@@ -948,6 +948,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/contracts/standards/`](contracts/standards/README.md) |
 | Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/contracts/enforcement-ladder/`](contracts/enforcement-ladder/README.md), with generated plugin copies |
 | PR scope budget for agent-authored improvement PRs | [`docs/contracts/pr-scope-budget/`](contracts/pr-scope-budget/README.md) |
+| Target scope: one target by default, several repositories on request, per-repository writes | [`docs/contracts/target-scope/`](contracts/target-scope/README.md), with generated plugin copies |
 | Type discipline: the type rules design, implementation and review apply | [`docs/contracts/type-discipline/`](contracts/type-discipline/README.md), with generated plugin copies |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |

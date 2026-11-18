@@ -286,8 +286,7 @@ the `$schema` guidance. Compare against both:
 For each issue in [known-issues.md](reference/known-issues.md), check live status by the first
 route that works, and never let a route that does not work block the run:
 
-1. The REST endpoint, `gh api repos/anthropics/claude-code/issues/<number>`, which some sessions
-   serve where GraphQL is refused.
+1. The REST endpoint, `gh api repos/anthropics/claude-code/issues/<number>`.
 2. The consuming environment's own issue-tracking skill when one is enabled
    (`/harness-ops:known-issues` in this marketplace).
 3. Neither reachable: report the issue as **unverified since its last-verified date**, taken from
@@ -386,15 +385,11 @@ After all fixes:
 
 ### Refusals in auto mode
 
-Two operations are refused in auto mode. Writing the team-layer suppression record is refused as
-`[Instruction Poisoning]`; re-running `scripts/audit-engine.sh` for the after-fix summary, as
-`[Self-Modification]`. Never retry around a refusal. Hand the operator the fallback: they apply the
-suppression edit themselves, or run the engine and paste its output back. Report the before/after comparison from what they return.
-
-Claim: auto mode refuses those two operations under those two category names. Basis: an empirical `harness-config:audit@0.48.2`
-`--fix` auto-mode run on Claude Code 2.1.283, recorded in [melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153)
-when the team record lived under `.claude/`. As of 2026-09-27. Recheck when a release changes auto-mode classifier
-categories, either refusal stops firing, or an auto-mode run first writes `harness-config.yaml`.
+Two operations can be refused in auto mode: writing the team-layer suppression record, and
+re-running `scripts/audit-engine.sh` for the after-fix summary. Never retry around a refusal. Hand
+the operator the fallback: they apply the suppression edit themselves, or run the engine and paste
+its output back. Report the before/after comparison from what they return. The probe record of both
+refusals is in [context/procedures.md](context/procedures.md) "Phase 5: fixes the skill can apply".
 
 ### Fixes the skill can apply
 

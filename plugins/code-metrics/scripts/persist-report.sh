@@ -1,14 +1,4 @@
 # shellcheck shell=bash
-# Sourced by every audit entry point: keep the `code-metrics/v2` document the
-# markdown was rendered from, so the table's cap line and its summary can
-# name a file that exists instead of a document a temporary directory
-# deleted on exit.
-#
-#   cm_report_dir                       print the directory documents are kept in
-#   cm_persist_report <skill> <json>    copy <json> there as <skill>-<UTC stamp>.json,
-#                                       print the path, keep the newest
-#                                       CM_REPORTS_KEPT per skill
-#
 # The directory is CODE_METRICS_REPORT_DIR when set (the suites point it at a
 # scratch directory), else <root>/<state-key>, where <root> is
 # <CLAUDE_PLUGIN_DATA>/reports when that value's last path segment names
@@ -79,8 +69,6 @@ cm_persist_report() {
     target="$dir/$skill-$stamp-$suffix.json"
   done
   cp "$source" "$target" || return 1
-  # The stamp sorts the same way it was written, so the glob's order is the
-  # documents' age and everything but the newest CM_REPORTS_KEPT can go.
   local kept=("$dir/$skill"-*.json)
   local excess=$((${#kept[@]} - CM_REPORTS_KEPT))
   local i

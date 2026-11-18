@@ -73,15 +73,10 @@ exit 1
 STUB
 chmod +x "$STUBS/jscpd"
 export CM_TEST_CAPTURE="$CAPTURE"
-# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names (and
-# the binaries those adapters look up), so the coreutils, git, and the
-# interpreter stay reachable while the collectors do not.
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
 cm_assert_tool_free_path "$EMPTY_PATH"
 
-# 1. The declared cluster is excluded, not counted as debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
 assert_eq "the registry run exits 0" 0 "$?"
 assert_doc "a registry-sanctioned cluster reports zero duplicated lines" "$out" \
@@ -93,7 +88,6 @@ assert_contains "the excluded entry names the registry file" "$excluded_registry
 assert_doc "a total exclusion counts no file with clones while the scope counts the scanned files" "$out" \
   'd["summary"]["files"] == 0 and d["scope"]["files"] >= 2'
 
-# 2. Without the registry the same clones are duplication debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
 assert_eq "the run without a registry exits 0" 0 "$?"
 assert_doc "without a registry the same cluster reports duplicated lines" "$out" \
@@ -101,9 +95,6 @@ assert_doc "without a registry the same cluster reports duplicated lines" "$out"
 assert_doc "a clone group replaces file and function with instances" "$out" \
   'any(r["file"] is None and r["function"] is None and len(r["instances"]) == 2 and r["values"]["tokens"] == 110 for r in d["measures"][:1])'
 
-# 2b. From a subdirectory the report names the same files, records the same
-# root, and only its scan root differs; the sanctioned exclusion still applies,
-# and its zero floor and the excluded instances are root-relative too.
 SUBDIR="$FIXTURES/sources"
 from_sub="$(cd "$REPO_ROOT/$SUBDIR" && CM_TEST_SUBDIR="$SUBDIR/" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all cluster)"
 assert_eq "the run from a subdirectory exits 0" 0 "$?"
@@ -124,7 +115,6 @@ assert_eq "the registry run from a subdirectory exits 0" 0 "$?"
 assert_doc "a sanctioned cluster from a subdirectory is excluded with root-relative instances and a zero floor" "$from_sub_excl" \
   'd["summary"]["duplicated_lines"] == 0 and d["summary"]["clone_groups"] == 0 and len(d["excluded"]) >= 1 and all(i["file"].startswith("plugins/") for g in d["excluded"] for i in g["instances"]) and d["scan_root"] == "'"$SUBDIR"'"'
 
-# 3. The markdown rendering states both the debt and the exclusion.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
 assert_eq "the markdown run exits 0" 0 "$?"
 assert_contains "markdown carries the run table" "$out" "## Coverage of this run"
@@ -134,18 +124,15 @@ assert_contains "markdown counts no file with clones after a total exclusion" "$
 assert_contains "markdown says which files the summary leaves out, and why" "$out" \
   "so the 2 file(s) holding nothing but excluded groups are left out of it (summary.files_excluded_only)"
 
-# 4. Every collector absent: a report is still produced and says so.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
 assert_eq "an all-collectors-absent run exits 0" 0 "$?"
 assert_doc "an all-collectors-absent run is status empty with the lane unavailable" "$out" \
   'd["status"] == "empty" and d["unavailable"] == ["bash/duplication"]'
 assert_contains "the unavailable row carries the install hint" "$out" "npm install -g jscpd"
 
-# 5. An explicitly named registry that does not exist is a usage error.
 PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry /nonexistent-registry.txt >/dev/null 2>&1
 assert_eq "a missing --registry exits 2" 2 "$?"
 
-# 5b. A non-integer rollup_depth is a usage error, not a silent default.
 printf '%s\n' '{"duplication":{"rollup_depth":"two"}}' >"$WORK/bad-depth.json"
 err="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --config "$WORK/bad-depth.json" --json --all "$CLUSTER" 2>&1 >/dev/null)"
 assert_eq "a non-integer rollup_depth exits 2" 2 "$?"
@@ -160,7 +147,6 @@ err="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --config "$WORK/quoted-depth.jso
 assert_eq "a quoted rollup_depth exits 2" 2 "$?"
 assert_contains "a quoted integer is named in the refusal" "$err" "'2'"
 
-# 6. The configured tunables reach the collector's command line.
 "$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" --home "$WORK" >"$WORK/base.json" 2>/dev/null
 "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; d["duplication"]["max_size"] = "8kb"; d["duplication"]["max_lines"] = 0; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
 CM_TEST_ARGV_LOG="$WORK/argv.log" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --config "$WORK/tuned.json" >/dev/null 2>&1
@@ -181,23 +167,15 @@ assert_eq "the aligned three-copy run exits 0" 0 "$?"
 assert_doc "three aligned copies are one clone class with the lines counted once" "$out" \
   'd["summary"]["clone_groups"] == 1 and d["summary"]["duplicated_lines"] == 41 and len(d["measures"][0]["instances"]) == 3 and "clustered" in d["measures"][0]["labels"]'
 
-# 8. A third copy that shares only part of the fragment stays its own group:
-# the two pairs name copy `c1` with different ranges, and overlap is not
-# identity.
 OFFSET="$FIXTURES/clone-classes/offset"
 out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-offset3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$OFFSET")"
 assert_eq "the offset three-copy run exits 0" 0 "$?"
 assert_doc "a partial third copy stays a second clone group" "$out" \
   'd["summary"]["clone_groups"] == 2 and d["summary"]["duplicated_lines"] == 58 and all(len(r["instances"]) == 2 and "clustered" not in r["labels"] for r in d["measures"])'
 
-# 9. --help prints the usage without running anything.
 grep -q 'audit-duplication.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 
-# 10. The Brief's case: this repository's own vendored hook-utils cluster.
-# The jscpd on PATH has to be a working detector, not another suite's stub or
-# a replaying fake: the probe copies one fixture into two directories under a
-# name nothing else uses and requires the report to name it back.
 detects_clones() {
   local probe="$WORK/probe"
   mkdir -p "$probe/one" "$probe/two" "$probe/out" || return 1
@@ -215,8 +193,6 @@ if [[ $JSCPD_ON_PATH -eq 1 ]]; then
   mapfile -t hook_copies < <(printf '%s\n' plugins/*/hooks/hook-utils.sh)
   out="$(bash "$SCRIPT" --json --registry "$REAL_REGISTRY" "${hook_copies[@]}")"
   assert_eq "the real hook-utils cluster run exits 0" 0 "$?"
-  # Clones inside one copy are the library's own duplication, not replication
-  # across copies, so only a group spanning two files counts as debt here.
   assert_doc "the real hook-utils cluster reports zero cross-copy debt through the registry" "$out" \
     'all(len({i["file"] for i in m["instances"]}) == 1 for m in d["measures"]) and any(e["path"] == "hooks/hook-utils.sh" for e in d["excluded"])'
 else
@@ -238,8 +214,6 @@ json="$(CODE_METRICS_REPORT_DIR="$TREND_DIR" PATH="$STUBS:$EMPTY_PATH" bash "$SC
 assert_eq "the JSON run after one persisted document exits 0" 0 "$?"
 assert_doc "the JSON document carries the trend against the earlier document" "$json" \
   'd["trend"]["clone_groups"] == 1 and d["trend"]["previous_clone_groups"] == 0 and d["trend"]["delta"] == 1 and d["trend"]["previous_document"].endswith(".json")'
-# A newer document from another scope mode, and a newer one that measured
-# nothing, are both passed over.
 printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2999-01-01T00:00:00Z","scope":{"mode":"change"},"summary":{"duplicated_lines":90,"clone_groups":7}}' \
   >"$TREND_DIR/audit-duplication-29990101T000000Z.json"
 printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"empty","generated_at":"2999-01-01T00:00:01Z","scope":{"mode":"all"},"summary":{"files":0}}' \
@@ -352,9 +326,6 @@ json="$(trend_run "$dir" --json)"
 assert_doc "a class with no earlier counterpart is listed as new" "$json" \
   'd["trend"]["grown_classes"] == [] and d["trend"]["new_classes"] == [{"file": "'"$ALPHA"'", "start_line": 1, "copies": 2, "lines": 41}]'
 
-# 14. `--json --keep` prints only the document and keeps it, so the next run
-# compares against it: the same class with the same 2 copies is neither new
-# nor grown.
 dir="$(trend_dir keep)"
 json="$(trend_run "$dir" --json --keep)"
 assert_doc "--json --keep prints the document alone" "$json" 'd["summary"]["clone_groups"] == 1'

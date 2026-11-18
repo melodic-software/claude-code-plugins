@@ -86,8 +86,6 @@ function fixtureSpec() {
   };
 }
 
-// The capability-omitting fixture adapter passes the ENTIRE shared suite —
-// optional-capability absence is a declaration, never a failure.
 describeSourceAdapterContract(createSourceAdapter(fixtureSpec()), {
   claimedUrls: [
     { url: `https://${FIXTURE_HOST}/clip/abc_123`, sliceKey: "abc_123" },

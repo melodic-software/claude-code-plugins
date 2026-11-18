@@ -1526,6 +1526,9 @@ jobs:
           kept=$RUNNER_TEMP/post-merge-kept
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code=
+          # Copied whether or not the report is reused: the merge gate reads
+          # this file too.
+          [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
           if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
             kept_code=$(cat "$kept/post-merge-code")
             kept_sha=$(cat "$kept/post-merge-code-sha" 2>/dev/null || true)
@@ -1542,7 +1545,6 @@ jobs:
             fi
           fi
           if [ -z "$code" ]; then
-            [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             code=0
             python3 "$scripts/babysit_postmerge.py" \
@@ -1753,6 +1755,7 @@ jobs:
           # The lane records read and added to above, for a gate that checks
           # earlier lane merges again.
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries

@@ -8,9 +8,9 @@ import { readProfileFiles } from "./profile-files.mjs";
 const M = "melodic-software";
 const CATALOG = { name: M, plugins: new Set(["guard", "flow", "plan", "design", "ui", "impl", "toy"]) };
 const PASSING = {
-  "shipped/always-on.yaml": `description: Every session.\nplugins: [guard@${M}, flow@${M}]\n`,
-  "shipped/planning.yaml": `description: Plan.\nplugins: [plan@${M}, design@${M}]\n`,
-  "shipped/interface-design.yaml": `description: Plan with screens.\nplugins: [plan@${M}, design@${M}, ui@${M}]\n`,
+  "shipped/always-on.yaml": `description: Every session.\nplugins: [flow@${M}, guard@${M}]\n`,
+  "shipped/planning.yaml": `description: Plan.\nplugins: [design@${M}, plan@${M}]\n`,
+  "shipped/interface-design.yaml": `description: Plan with screens.\nplugins: [design@${M}, plan@${M}, ui@${M}]\n`,
   "shipped/build.yaml": `description: Build.\nplugins: [impl@${M}]\nexclude: [toy@${M}]\n`,
 };
 
@@ -56,6 +56,11 @@ test("#17038: a repository always_on false is reported as ignored, not failed", 
   const { failures, reports } = run({ "repository/notes.yaml": "always_on: false\n" });
   assert.deepEqual(failures, []);
   assert.ok(reports.some((line) => line.includes("notes.yaml: always_on: false. A repository profile cannot")), reports.join("\n"));
+});
+
+test("a shipped list out of alphabetical order fails, naming the first name out of place; a user one passes", () => {
+  const { failures } = run({ "shipped/build.yaml": `description: Build.\nplugins: [impl@${M}]\nhide_skills: [zeta, alpha]\n`, "user/build.yaml": `plugins: [toy@${M}, impl@${M}]\n` });
+  assert.deepEqual(failures.map((line) => line.replace(/^.*\/shipped\//, "")), ["build.yaml: hide_skills is not in alphabetical order: alpha goes before zeta"]);
 });
 
 test("a shipped profile with no description line fails", () => {

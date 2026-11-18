@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.1] - 2026-11-18
+
+### Changed
+
+- The conventions lens shows the boundary-rule line it appends as a placeholder template
+  (`<rule>. Evidence: <path:line>[, <path:line>...]. Accepted <YYYY-MM-DD>.`) instead of a .NET
+  project example.
+
+## [5.5.0] - 2026-11-18
+
+### Added
+
+- The deepening and conventions lenses of `/architecture:improve` run across several repositories when `--repo` or another target form of the shared target-scope contract (`reference/target-scope.md`) names them: `reference/improvement-steps.md` "Scope and fan-out" resolves the repositories, scans each with its root anchored, and ranks candidates together. The default stays this repository.
+
 ## [5.4.0] - 2026-11-18
 
 ### Added

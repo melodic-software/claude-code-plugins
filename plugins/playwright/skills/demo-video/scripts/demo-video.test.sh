@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Smoke test for the demo-video pipeline (test_demo_video.py): a synthetic capture goes through
-# build_edl.py, produce.py and quality_control.py and must pass quality control, and planted defects must each fail quality control.
-# Network-free. Needs numpy and Pillow (../requirements.in pins them, ../requirements.txt hash-locks
-# them) plus ffmpeg; skips without them, so DEMO_VIDEO_REQUIRE_DEPS=1 fails the run instead: a lane
-# that provisions the pinned requirements sets it, and missing dependencies then read as a broken
-# environment, not as passing coverage.
 # test-scope: plugins/playwright/skills/demo-video/scripts/* plugins/playwright/skills/demo-video/requirements.txt
 set -uo pipefail
 
