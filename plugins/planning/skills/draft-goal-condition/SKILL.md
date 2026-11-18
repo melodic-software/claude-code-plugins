@@ -211,7 +211,7 @@ doctrine and is out of scope.
 
 ## Step 4. Output
 
-Emit the final, counter-passed condition as a paste region the person copies after typing `/goal `
+Emit the final, counter-passed condition as a paste region the person copies after typing `/goal` and a space
 themselves, since the copied text holds the condition only. One instruction line, then the
 condition alone; no line of the region starts with `/goal`:
 
