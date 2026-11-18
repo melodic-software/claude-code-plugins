@@ -438,7 +438,8 @@ need. The directory channel stays pinned to harness-written `known_marketplaces.
 `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this guard, at any
 settings scope. **Pointer:** when checking the key's purpose and which settings files can set it,
 fetch [`extraKnownMarketplaces`](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
-live.
+live. **Recheck trigger:** that key's scope stops including project files,
+or a release note says only the user can write it.
 
 **A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** We assume a
 trusted repository's `.claude/settings.json` can put an entry in the file the directory channel
