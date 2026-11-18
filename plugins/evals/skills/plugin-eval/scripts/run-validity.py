@@ -149,8 +149,15 @@ one line per check, detail lines indented under it:
                       its quoting. A command holding an unquoted &, ( or ),
                       or a $( or backtick outside single quotes anywhere,
                       never qualifies, nor does a part left holding an
-                      unquoted glob, brace or tilde or an unresolved $. The
-                      run's score was
+                      unquoted glob, brace or tilde or an unresolved $. A
+                      denied named call other than Skill that a tool_used
+                      grader of its case forbids with max 0 and no
+                      input_match is set aside the same way when that grader
+                      failed in the run, unless it is a with-arm call naming
+                      no absolute path or one at, under or above the
+                      plugin's directory: the grader already scored the call
+                      as the run's failure, such as a Write to a protected
+                      .claude/ path. The run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -2315,6 +2322,32 @@ def own_copy_denial(run, denial, roots):
     )
 
 
+def forbidden_denial(run, denial, roots, root):
+    """True when the denial is a named call other than Skill that a tool_used
+    grader of its case forbids outright (max 0, no input_match) and that grader
+    failed in this run. The grader already scored the call as the run's failure,
+    so the denial only kept the forbidden call from landing. A with-arm call
+    naming no absolute path, or one at, under or above the plugin's directory
+    (inside), never qualifies."""
+    _, paths, name, _, _, _ = denial
+    if name in (None, SKILL_TOOL):
+        return False
+    if run.arm == "with" and any(inside(p, roots) for p in paths):
+        return False
+    results = {g.get(GRADER_NAME): g for g in as_list(run.row.get(RUN_GRADERS))}
+    for grader in as_list(run.case.get(CASE_GRADER_DEFS)):
+        config = as_dict(grader.get(GRADER_CONFIG))
+        if (
+            grader.get(GRADER_TYPE) == FIRE_GRADER_TYPE
+            and config.get(CONFIG_TOOL) == name
+            and config.get(CONFIG_MAX) == 0
+            and grader_input_match(run.case, grader, root) is None
+            and as_dict(results.get(grader.get(GRADER_NAME))).get(GRADER_PASSED) is False
+        ):
+            return True
+    return False
+
+
 def names_absent(term, absent):
     """True when a search term, its wildcard and anchor ends stripped, is one of
     the absent plugins' names, case ignored (*markdown-format*, .*x.*, ^x$)."""
@@ -2714,6 +2747,21 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
+    # A denied call a failed max-0 tool_used grader of its case forbids: the
+    # grader already scored it as the run's failure.
+    forbidden = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and d not in lacked[r]
+            and d not in recovered[r]
+            and forbidden_denial(r, d, roots, root)
+        ]
+        for r in traced
+    }
     # With-arm sandbox network denials: set aside in an invocation-probe, control
     # or no-network case, else a FAIL whatever the rules below say.
     network = {r: network_denials(r, {d[3] for d in every[r]}) for r in traced}
@@ -2732,6 +2780,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in searched[r]
             and d not in lacked[r]
             and d not in recovered[r]
+            and d not in forbidden[r]
         ]
         + [d for d in network[r] if d not in offline[r]]
         for r in traced
@@ -2798,6 +2847,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             "; %s whose plugin part a later call ran alone and was allowed, not counted"
             % plural(rerun, "denied compound Bash call")
         )
+    graded_fail = sum(len(forbidden[r]) for r in denied)
+    if graded_fail:
+        summary += (
+            "; %s a failed max-0 tool_used grader of its case forbids, scored as that"
+            " grader's failure, not counted" % plural(graded_fail, "denied call")
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -2815,7 +2870,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory%s,%s%s%s%s which never"
+            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -2828,6 +2883,9 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 " lacks," if missing_search else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
+                " or a denied call a failed max-0 tool_used grader of its case forbids,"
+                if graded_fail
+                else "",
                 " or a with-arm sandbox network denial in an invocation-probe, control"
                 " or no-network case,"
                 if unplugged

@@ -1310,6 +1310,61 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
 
+    FORBIDDEN = "1 denied call a failed max-0 tool_used grader of its case forbids"
+    TEAM_FILE = "/tmp/claude-eval-x/workspace/.claude/improvement.md"
+
+    def forbidden_write(
+        self, arm="with", passed=False, config=None, path=TEAM_FILE, input_match=None
+    ):
+        """The clean result at one run per arm with the plugin as a suite.plugins
+        path, measurable-criterion's `arm` run denied a Write to `path` and
+        scoring 0, its case holding a tool_used grader `no-write` with `config`
+        (default: forbids Write, max 0) and, with input_match, that pattern; the
+        denied run records the grader as `passed`."""
+        trace = self.dir / "denied-write.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            '{"type":"result","is_error":false,"permission_denials":['
+            '{"tool_name":"Write","tool_use_id":"w1","tool_input":%s}]}\n'
+            % json.dumps({"file_path": path, "content": "x"}),
+            encoding="utf-8",
+        )
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        case = data["cases"][1]
+        grader_config = dict(config or {"tool": "Write", "max": 0})
+        if input_match is not None:
+            grader_config["input_match"] = input_match
+        case["graders"].append(
+            {"name": "no-write", "type": "tool_used", "config": grader_config}
+        )
+        for rows in case["arms"].values():
+            rows[0]["graders"].append({"name": "no-write", "passed": True})
+        row = case["arms"][arm][0]
+        row["tracePath"], row["score"] = str(trace), 0
+        row["graders"][-1]["passed"] = passed
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1")
+
+    def test_a_denied_call_its_failed_max_0_grader_forbids_is_a_warning(self):
+        for arm in ("with", "without"):
+            proc = self.forbidden_write(arm)
+            self.assertDenials(proc, "WARN")
+            self.assertIn(self.FORBIDDEN + ", scored as that grader's failure", proc.stdout)
+
+    def test_a_denied_call_no_failed_max_0_grader_forbids_is_a_fail(self):
+        for kwargs in (
+            {"passed": True},
+            {"config": {"tool": "Write", "min": 1}},
+            {"config": {"tool": "Edit", "max": 0}},
+            {"input_match": "improvement"},
+            {"path": self.PLUGIN + "/skills/setup/notes.md"},
+        ):
+            proc = self.forbidden_write(**kwargs)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.FORBIDDEN, proc.stdout)
+
     def test_a_with_arm_bash_denial_outside_the_plugin_scoring_the_same_is_a_warning(
         self,
     ):

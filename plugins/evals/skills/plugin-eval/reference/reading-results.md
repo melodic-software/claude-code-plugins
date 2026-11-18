@@ -60,7 +60,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   with `-n`, with no opening assignment, names only its absolute file operands, so a
   quoted grep pattern or `-e` value is no path (`grep -E "a|b" /x | head`); a `-f` pattern file
   is a path.
-- Up to five kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to six kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
   aimed only there while every other absolute path it names was named by an allowed Bash call of
@@ -114,6 +114,12 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   and `**` names the plugin. A term matches once its `*`, `.`, `^`, `$` and `/` ends are stripped,
   case ignored. Any other command, flag, redirect into a file, unquoted glob or `$`, term, tool,
   a with-arm run, or a run that did not finish keeps the rules below.
+- The sixth is a denied named call other than Skill that a `tool_used` grader of its case forbids
+  with `max: 0` and no `input_match`, when that grader failed in the run: the grader already
+  scored the call as the run's failure, and the denial only kept it from landing, as with a
+  `Write` to a protected `.claude/` path in a case asserting the skill writes nothing yet. A
+  with-arm call naming no absolute path, or one at, under or above the plugin's directory, keeps
+  the rules below.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
