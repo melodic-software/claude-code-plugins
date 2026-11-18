@@ -4,9 +4,8 @@ Measure a Claude Code session's fixed startup context payload **per item**, on y
 pinned binary, and record what every trim actually saved.
 
 This plugin attributes the built-in tool pools, `System tools` and `System tools (deferred)`, per
-tool. Together they are typically the largest single contributor to the fixed payload, which is
-why the plugin targets them. The rest of the breakdown stays with the built-in `/context` command;
-what it itemizes is read at its row in
+tool, because `/context` reports them only as totals. The rest of the breakdown stays with the
+built-in `/context` command; what it itemizes is read at its row in
 [commands § All commands](https://code.claude.com/docs/en/commands#all-commands). The plugin
 attributes the pools by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
