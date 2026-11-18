@@ -182,15 +182,11 @@ never/core/unknown promote warning in that report, never silently drop them.
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
     live.
 
-  Keeping the `never` tier and every member's
-  fan-out tier out, and relevance-gating the situational tier, are what hold
-  the fan-out small. Order of magnitude from
-  a real full-batch run on a mid-length session: each fork consumed
-  ~170K tokens (inherited transcript), so an 8-in-scope pass ran ~1.4M tokens
-  for the audit phase alone, plus one more fork for the proof-only canary.
-  Budget the sweep as a
-  deliberate spend, not a reflex. On a long transcript the per-fork cost only
-  grows.
+  Keeping the `never` tier and every member's fan-out tier out, and
+  relevance-gating the situational tier, are what hold the fan-out small.
+  Each fork's cost scales with the transcript it starts from, so the audit
+  phase grows with every in-scope corrector, plus one more fork for the
+  proof-only canary. Budget the sweep as a deliberate spend, not a reflex.
 - **`tighten-your-output` stays last**. Tightening before the other
   corrections would tighten text they then rewrite.
 - **A situational skip is reported, not silent**, the user sees what was
