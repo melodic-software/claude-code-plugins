@@ -120,9 +120,10 @@ if [[ "$CHECK" -eq 1 ]]; then
   check_rc=$?
   if [[ $rc -eq 3 && "$RULE" != "report" ]]; then
     echo "audit-size.sh: --check cannot decide: a collector produced nothing parseable (see the run table)" >&2
-    check_rc=2
+    rc=2
+  elif [[ $rc -ne 3 || $check_rc -ne 0 ]]; then
+    rc=$check_rc
   fi
-  rc=$check_rc
 fi
 cm_emit_document audit-size "$JSON" "$WORK/report.json" || exit 2
 if [[ -n "$COMMITS_SINCE" && "$JSON" -ne 1 ]]; then

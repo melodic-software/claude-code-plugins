@@ -152,6 +152,17 @@ team $'  file_lines: 5\n  check: crossing-or-growth\n'
 gate --check >/dev/null
 assert_eq "an already-over file that grew fails under crossing-or-growth (exit 1)" 1 "$?"
 
+BROKEN="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "--version" ]]; then printf "scc version 9.9.9\\n"; exit 0; fi\nprintf "not json\\n"\nexit 1\n' >"$BROKEN/scc"
+chmod +x "$BROKEN/scc"
+team $'  file_lines: 5\n  check: report\n'
+(cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" PATH="$BROKEN:$PATH" bash "$SCRIPT" --base HEAD --check >/dev/null 2>&1)
+assert_eq "--check under report keeps a failed collector's exit 3" 3 "$?"
+team $'  file_lines: 5\n  check: crossing\n'
+(cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" PATH="$BROKEN:$PATH" bash "$SCRIPT" --base HEAD --check >/dev/null 2>&1)
+assert_eq "--check under a rule cannot decide past a failed collector (exit 2)" 2 "$?"
+rm -rf "${BROKEN:?}"
+
 team $'  file_lines: 5\n  check: true\n'
 out="$(gate --check)"
 assert_eq "an invalid size.check exits 2" 2 "$?"

@@ -107,8 +107,10 @@ non-blank lines against `size.file_lines`, with `scope.exclude` applied:
 
 A file already over the reference and not grown never fails. Under `crossing`, one that grew is
 listed as reported and passes, as the review plugin's size-crossing note treats it;
-`crossing-or-growth` is for a repository that wants long files held where they are. The base
-count follows a rename, and a file new since the base counts 0 there.
+`crossing-or-growth` is for a repository that wants long files held where they are. Both counts
+use the bundled counter's non-blank rule, whichever collector filled the report, so an unchanged
+file never reads as grown; the base count follows a rename, a file new since the base counts 0
+there, and each copy a sanctioned-replication row stands for is checked on its own.
 
 The report gains a "Size check" section (the `size_check` block under `--json`): each listed file
 with its base and head counts, then a `PASS` or `FAIL` line. A `FAIL` line says what to do: split
@@ -121,8 +123,8 @@ with a comment giving the reason, in the team file.
   names (pre-commit's `pass_filenames: false`): explicit paths, like `--all`, have no base.
 
 Exit 0 when nothing fails, 1 when a file fails, 2 when the check cannot decide: no change scope,
-an invalid `size.check`, a null `size.file_lines`, a file with no count, or a collector that failed
-(exit 3 otherwise). A crossing this change causes is this change's to fix, so splitting the file
+an invalid `size.check`, a null `size.file_lines`, an unreadable file, a lane whose `file_lines`
+was not measured, or a collector that failed (under `report`, a failed collector keeps exit 3). A crossing this change causes is this change's to fix, so splitting the file
 here is in scope, unlike the long file met in passing under "Acting on a long file".
 
 ## Configuration

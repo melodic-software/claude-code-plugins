@@ -13,14 +13,18 @@ The rule is the resolved `size.check`:
                        the reference at the base whose count grew
 
 Under `crossing`, a file already over the reference that grew is listed and
-does not fail. The base count uses the bundled counter's rule (a line holding
-a non-whitespace byte) on the file as the base commit holds it, under its
-earlier name when git sees a rename, and 0 when the base has no such file.
+does not fail. Both counts use the bundled counter's rule (a line holding a
+non-whitespace byte), whichever collector filled the report: the head count on
+the working-tree file, the base count on the file as the base commit holds it,
+under its earlier name when git sees a rename, and 0 when the base has no such
+file. Every copy a replica row stands for is checked on its own. A `file_lines`
+run row that did not measure its lane leaves the check undecided.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
@@ -78,6 +82,28 @@ def base_count(root: str, base: str, path: str) -> int:
     return non_blank(blob.stdout)
 
 
+def head_count(root: str, path: str) -> int:
+    try:
+        with open(os.path.join(root, path), "rb") as handle:
+            return non_blank(handle.read())
+    except OSError as exc:
+        raise CannotDecide(f"cannot read {path}: {exc}") from exc
+
+
+def _unmeasured(document: dict) -> list[str]:
+    return [
+        f"{row.get('lane')} ({row.get('status')}: {row.get('reason')})"
+        for row in document.get("run") or []
+        if row.get("measure") == "file_lines"
+        and row.get("status") not in ("ok", "not-applicable")
+    ]
+
+
+def _files(row: dict) -> list[str]:
+    copies = (row.get("replicas") or {}).get("files") or []
+    return list(dict.fromkeys([row["file"], *copies]))
+
+
 def _reference(document: dict) -> tuple[float | None, str]:
     for entry in document.get("thresholds") or []:
         if entry.get("measure") == "file_lines":
@@ -114,16 +140,24 @@ def add(document: dict, config: dict) -> int:
         )
     if reference is None:
         raise CannotDecide("size.file_lines is null, so there is no reference to cross")
+    unmeasured = _unmeasured(document)
+    if unmeasured:
+        raise CannotDecide(
+            "file_lines was not measured for every file in scope: "
+            + "; ".join(unmeasured)
+        )
     moved = renames(root, scope["base"])
-    for row in document.get("measures") or []:
-        if row.get("function") is not None or not row.get("file"):
-            continue
-        head = (row.get("values") or {}).get("lines_non_blank")
-        if head is None:
-            raise CannotDecide(f"{row['file']} has no lines_non_blank value to compare")
+    files = [
+        path
+        for row in document.get("measures") or []
+        if row.get("function") is None and row.get("file")
+        for path in _files(row)
+    ]
+    for path in dict.fromkeys(files):
+        head = head_count(root, path)
         if head < reference:
             continue
-        old = moved.get(row["file"], row["file"])
+        old = moved.get(path, path)
         base = base_count(root, scope["base"], old)
         if base < reference:
             kind, fails = "crossed", True
@@ -133,7 +167,7 @@ def add(document: dict, config: dict) -> int:
             continue
         block["rows"].append(
             {
-                "file": row["file"],
+                "file": path,
                 "base_file": old,
                 "base_lines": base,
                 "head_lines": head,

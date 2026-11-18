@@ -54,15 +54,26 @@ class SizeCheckTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def run_check(self, rows, rule="crossing", mode="change", reference=5):
+    def run_check(
+        self, rows, rule="crossing", mode="change", reference=5, run=(), replicas=None
+    ):
+        for f, n, fn in rows:
+            if n is not None and fn is None:
+                (self.root / f).write_text(lines(n), encoding="utf-8")
         document = {
             "root": {"kind": "repository", "path": str(self.root)},
             "scope": {"mode": mode, "base": self.base if mode == "change" else None},
             "thresholds": [
                 {"measure": "file_lines", "reference": reference, "layer": "team"}
             ],
+            "run": list(run),
             "measures": [
-                {"file": f, "function": fn, "values": {"lines_non_blank": n}}
+                {
+                    "file": f,
+                    "function": fn,
+                    "values": {"lines_non_blank": 1000},
+                    "replicas": replicas,
+                }
                 for f, n, fn in rows
             ],
         }
@@ -171,8 +182,48 @@ class SizeCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("needs the change scope", result.stderr)
 
-    def test_a_missing_count_cannot_decide(self) -> None:
-        result, _, _ = self.run_check([("grows.txt", None, None)])
+    def test_an_unmeasured_lane_cannot_decide(self) -> None:
+        run = [
+            {
+                "lane": "other",
+                "measure": "file_lines",
+                "status": "unavailable",
+                "reason": "no collector",
+            }
+        ]
+        result, _, _ = self.run_check([("grows.txt", 5, None)], run=run)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("not measured", result.stderr)
+
+    def test_an_empty_change_passes(self) -> None:
+        run = [
+            {
+                "lane": "*",
+                "measure": "*",
+                "status": "not-applicable",
+                "reason": "no measurable files in scope",
+            }
+        ]
+        result, _, _ = self.run_check([], run=run)
+        self.assertEqual(result.returncode, 0)
+
+    def test_the_collector_figure_is_not_the_head_count(self) -> None:
+        result, block, _ = self.run_check([("grows.txt", 3, None)])
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(block["rows"], [])
+
+    def test_each_replica_is_checked_against_its_own_base(self) -> None:
+        (self.root / "copy.txt").write_text(lines(7), encoding="utf-8")
+        replicas = {"count": 2, "files": ["over.txt", "copy.txt"]}
+        result, block, _ = self.run_check([("over.txt", 7, None)], replicas=replicas)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(
+            [(r["file"], r["kind"], r["fails"]) for r in block["rows"]],
+            [("copy.txt", "crossed", True), ("over.txt", "grew", False)],
+        )
+
+    def test_an_unreadable_file_cannot_decide(self) -> None:
+        result, _, _ = self.run_check([("gone.txt", None, None)])
         self.assertEqual(result.returncode, 2)
 
 
