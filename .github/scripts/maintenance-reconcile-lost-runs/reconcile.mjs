@@ -637,7 +637,7 @@ export const pendingReviewNoted = (annotations) => {
 // reconcile.test.mjs pins each writer). A server error's Retry-After hold is
 // not one.
 export const FLOOR_NOTE =
-  /(?:was not sent: GitHub's .+? rate limit holds until |hit GitHub's .+? rate limit(?: \(status [0-9]+\))?: no call to it before |at or under its stop-floor share [0-9.]+ \(status [0-9]+\): no call to it before )/;
+  /(?:was not sent: GitHub's .+? rate limit holds until |hit GitHub's .+? rate limit(?: \(status [0-9]+\))?: no call to it before |at or under its stop-floor share [0-9.]+ \(status [0-9]+\): no call to it before |GitHub's .+? rate limit blocks '.+?' until )/;
 // The line a failing step writes beside such a refusal, naming what it could
 // not do ("could not read the files of #N; re-run this run.").
 const FLOOR_COMPANION = /^could not /;
