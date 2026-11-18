@@ -749,8 +749,9 @@ async function start(opts, where, env, io) {
   }
   let file = plan.reuse;
   let settingsArgs = plan.reuse && !opts.with ? ["--settings", plan.reuse] : null;
-  if (settingsArgs) for (const gateLine of profileGate(plan.name, opts, where, env, "resumed").lines) io.err(gateLine);
-  else {
+  if (settingsArgs) {
+    if (opts.unattended) profileGate(plan.name, opts, where, env, "resumed");
+  } else {
     const at = plan.folder && !opts.with ? locate(env, where.projectDir, plan.folder) : where;
     ({ file, settingsArgs } = launchSettings(plan.name, opts, at, env, io));
   }

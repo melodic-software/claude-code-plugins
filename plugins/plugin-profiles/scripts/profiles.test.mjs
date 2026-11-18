@@ -1481,16 +1481,20 @@ test("#16914: start --resume takes the newest record of a session across every c
   assert.deepEqual(older.argv, ["claude", "--settings", build, "--resume", "abc-1"]);
 });
 
-test("#16914: an unattended resume reusing its session file refuses on a missing required prerequisite, as an unattended start does; an attended one warns and resumes", () => {
+test("#16914: an unattended resume reusing its session file refuses on a missing required prerequisite, as an unattended start does; an attended one reuses the file without listing plugins", () => {
   const w = world({ prerequisiteMissing: true });
   const file = sessionInBuild(w, "abc-1");
   const refused = w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /not resumed: profile build switches on a plugin missing a required prerequisite/);
   assert.equal(w.run(["start", "build", "--unattended", "--dry-run"]).status, 1, "the start it mirrors refuses too");
+  const listed = () => w.calls().split("\n").filter((line) => line.startsWith("plugin list")).length;
+  const before = listed();
+  assert.ok(before > 0, "the stub logs each plugin list call, as the unattended checks just made");
   const attended = startJson(w, ["--resume", "abc-1"]);
   assert.deepEqual(attended.argv, ["claude", "--settings", file, "--resume", "abc-1"]);
-  assert.match(attended.stderr, /Missing required prerequisite of implementation@melodic-software/);
+  assert.doesNotMatch(attended.stderr, /Missing required prerequisite/);
+  assert.equal(listed(), before, "an attended resume never runs claude plugin list");
 });
 
 test("#16893 the start picker numbers the profiles, marks the folder's, asks again on a bad answer, and gives up on an empty one", async () => {
