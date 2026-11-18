@@ -824,6 +824,9 @@ describe("split", () => {
     assert.equal(splitOf({ body: BODY, laneBody: laneComment("security").body, labels: [PARKED_AT], admission: refusal(), rules, webHosts }), null, "a flagged verdict is not split");
     assert.equal(splitOf({ body: BODY, laneBody, verdict: JSON.stringify({ flags: ["security"] }), labels: [PARKED_AT], admission: refusal(), rules, webHosts }), null, "a flag in the typed verdict is not split");
     assert.equal(splitOf({ body: BODY, laneBody: "", verdict: JSON.stringify({ flags: [] }), labels: [PARKED_AT], admission: refusal(), rules, webHosts })?.items.length, split.items.length, "typed fields with no flag split");
+    for (const unreadable of [`${laneBody}Flags: none\n`, `${laneBody}Flags: security\n`, laneComment("none, none").body, laneComment("security, urgent").body]) {
+      assert.equal(splitOf({ body: BODY, laneBody: unreadable, verdict: JSON.stringify({ flags: [] }), labels: [PARKED_AT], admission: refusal(), rules, webHosts }), null, "a repeated or unreadable Flags line is not split");
+    }
     const reason = unrunnableReason(unrunnableCriteria(BODY, "- [ ] ", webHosts));
     assert.equal(
       splitOf({ body: BODY, laneBody, labels: [PARKED_AT], admission: `${ADMIT_MARKER}\n${refusalText(`Size Large is not one of Small, Medium; ${reason}`)}`, rules, webHosts }),

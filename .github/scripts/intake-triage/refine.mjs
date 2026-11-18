@@ -96,7 +96,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
+import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
@@ -149,6 +149,9 @@ const flagsOf = (laneBody, verdict) => {
   const typed = typedFlags(verdict);
   if (typed === null) {
     return lines;
+  }
+  if (found.length > 1 || (lines !== null && lines.join() !== "none" && !knownFlags(lines))) {
+    return null;
   }
   const flags = [...new Set([...typed, ...(lines ?? []).filter((flag) => flag !== "none")])];
   return flags.length > 0 ? flags : ["none"];

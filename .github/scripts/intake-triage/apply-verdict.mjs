@@ -218,6 +218,8 @@ export async function checkRun({ env, humans, logins, github, log = console.log 
   return true;
 }
 
+export const knownFlags = (flags) => flags.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(flags).size === flags.length;
+
 export function typedFlags(text) {
   let flags;
   try {
@@ -225,8 +227,7 @@ export function typedFlags(text) {
   } catch {
     return null;
   }
-  const known = (flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG;
-  return Array.isArray(flags) && flags.every(known) && new Set(flags).size === flags.length ? flags : null;
+  return Array.isArray(flags) && knownFlags(flags) ? flags : null;
 }
 
 function typedVerdict(text, dimensionsConfig) {
@@ -292,17 +293,20 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
   const untrusted = lines.some(
     (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
   );
+  const beforeFlags = problems.length;
   const flagText = lineValue("Flags");
   if (flagText === "none") {
     flags = [];
   } else if (flagText !== null) {
     const list = flagText.split(",").map((flag) => flag.trim());
-    if (list.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(list).size === list.length) {
+    if (knownFlags(list)) {
       flags = list.filter((flag) => flag !== UNTRUSTED_FLAG);
     } else {
       problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS, UNTRUSTED_FLAG].join(", ")}`);
     }
   }
+  const flagsUnreadable = flags === null && lines.some((line) => line.startsWith("Flags: "));
+  const flagProblems = flagsUnreadable ? problems.slice(beforeFlags) : [];
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
@@ -344,11 +348,11 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
     escalated,
     untrusted: anyUntrusted,
     cost,
-    dimensions: typed.dimensions,
-    flags: [...new Set([...typed.flags.filter((flag) => flag !== UNTRUSTED_FLAG), ...(flags ?? [])])],
+    dimensions: escalated ? dimensions : typed.dimensions,
+    flags: flagsUnreadable ? null : [...new Set([...typed.flags.filter((flag) => flag !== UNTRUSTED_FLAG), ...(flags ?? [])])],
     blockedBy: escalated || anyUntrusted ? [] : typed.blockedBy,
     blockedByProblem: null,
-    problems: costProblem ? [COST_PROBLEM] : [],
+    problems: [...flagProblems, ...(costProblem ? [COST_PROBLEM] : [])],
   };
 }
 

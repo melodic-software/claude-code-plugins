@@ -101,6 +101,24 @@ describe("parseVerdict with a typed verdict", () => {
     assert.equal(parseVerdict(laneBody({ lines: [...lines, "Flags: untrusted"] }), DIMS, typed()).untrusted, true);
   });
 
+  test("a repeated or unreadable Flags line holds beside usable typed fields", () => {
+    const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known"];
+    const plan = (verdict) => planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans: new Set() });
+    for (const flagLines of [["Flags: none", "Flags: security"], ["Flags: security", "Flags: security"], ["Flags: security, urgent"], ["Flags: none, none"]]) {
+      const body = laneBody({ lines: [...lines, ...flagLines] });
+      const verdict = parseVerdict(body, DIMS, typed({ size: "Small", complexity: "Low", uncertainty: "Known", blocked_by: [] }));
+      assert.equal(verdict.flags, null, flagLines.join());
+      assert.deepEqual(verdict.problems, parseVerdict(body, DIMS).problems, flagLines.join());
+      assert.equal(plan(verdict).ready, false, flagLines.join());
+    }
+  });
+
+  test("an escalated comment writes no field from typed fields", () => {
+    const verdict = parseVerdict(ESCALATED_BODY, DIMS, typed());
+    assert.equal(verdict.dimensions, null);
+    assert.deepEqual(planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans: new Set() }).fieldWrites, []);
+  });
+
   test("a Cost line in the comment still holds beside typed fields", () => {
     const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none"];
     assert.equal(parseVerdict(laneBody({ lines: [...lines, "Cost: a paid plan; no owner decision"] }), DIMS, typed()).cost, true);
