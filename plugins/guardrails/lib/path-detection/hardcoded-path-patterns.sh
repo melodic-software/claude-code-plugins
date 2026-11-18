@@ -343,7 +343,8 @@ hpp::resolve_scan_root() {
   if (($# > 1)); then
     toplevel=$2
   else
-    toplevel="$(exec git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+    # shellcheck disable=SC2154 # hook-utils.sh, which hook::normalize_path_to below needs too
+    toplevel="$(exec git "${_HOOK_GIT_UNTRUSTED_ARGS[@]}" -C "$root" rev-parse --show-toplevel 2>/dev/null)"
   fi
   [[ -n "$toplevel" ]] || return 0
   hook::normalize_path_to tl_norm "$toplevel"

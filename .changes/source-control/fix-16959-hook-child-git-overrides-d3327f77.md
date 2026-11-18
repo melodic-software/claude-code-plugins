@@ -2,6 +2,6 @@
 bump: patch
 ---
 
-### Changed
+### Security
 
-- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+- The worktree-add containment gate's worktree-root lookups (`config --get-all`, `rev-parse --git-dir` in `worktree-root-resolve.sh`) run through `hook::git_untrusted`, with the repository's `core.fsmonitor`, git hooks and pager turned off, as the gate's other git calls already do.

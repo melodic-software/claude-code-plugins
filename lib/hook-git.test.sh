@@ -9,6 +9,7 @@
 # test-scope: plugins/go-format/hooks/go-format.sh plugins/javascript-format/hooks/javascript-format.sh
 # test-scope: plugins/markdown-format/hooks/markdown-format.sh plugins/powershell-format/hooks/powershell-format.sh
 # test-scope: plugins/python-format/hooks/python-format.sh plugins/spelling/hooks/spelling.sh
+# test-scope: lib/worktree-root-resolve.sh plugins/source-control/hooks/worktree-add-containment-gate.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_CONFIG CLAUDE_PROJECT_DIR
 
@@ -159,6 +160,19 @@ for hook in actionlint/hooks/actionlint-check.sh:lint bash-format/hooks/bash-for
   not_run "$script --end-of-turn"
   expect "$script --end-of-turn: its entry ran git with GIT_CONFIG_COUNT=2" grep -qx 2 "$T/git-calls"
 done
+
+mkdir -p "$T/argbin"
+# shellcheck disable=SC2016 # expanded by the shim when git runs
+printf '#!/bin/sh\necho "$*" >>"%s"\nexec "%s" "$@"\n' "$T/git-args" "$(command -v git)" >"$T/argbin/git"
+chmod +x "$T/argbin/git"
+rm -f "$T/git-args"
+jq -n --arg cwd "$E" '{session_id:"s",cwd:$cwd,hook_event_name:"PreToolUse",tool_name:"Bash",
+  tool_input:{command:("git -C " + $cwd + " worktree add " + $cwd + "/nested-wt")}}' |
+  PATH="$T/argbin:$PATH" bash "$PLUGINS/source-control/hooks/worktree-add-containment-gate.sh" >/dev/null 2>&1
+lookup=$(grep -c -- 'config --get-all' "$T/git-args" 2>/dev/null)
+bare=$(grep -- 'config --get-all' "$T/git-args" 2>/dev/null | grep -vc -- '-c core.fsmonitor=false -c core.hooksPath=/dev/null')
+expect "worktree-add-containment-gate: its worktree-root lookups ($lookup) all pass the overrides ($bare without)" \
+  test "${lookup:-0}" -gt 0 -a "${bare:-0}" -eq 0
 
 rm -f "$T/git-calls"
 (
