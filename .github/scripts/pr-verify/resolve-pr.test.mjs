@@ -2307,9 +2307,29 @@ for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
     const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
-    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
+    const { child } = vector;
+    const ownAgent =
+      appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
+    assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
   });
 }
+
+test("an own-agent filing's body is spec only while no other account edited it, and only the lanes App's", async () => {
+  const BODY = "## Done when\n\n- [ ] Line 3 says nineteen.";
+  const bot = (id) => ({ type: "Bot", id });
+  const node = (author, editor = null) => childNode({ child: { body: BODY, last_edited_at: editor ? "2026-11-17T00:00:00Z" : null, author, editor } });
+  const app = bot(VECTORS.app_id);
+  for (const [name, issue, expected] of [
+    ["unedited", node(app), BODY],
+    ["edited by itself", node(app, app), BODY],
+    ["edited by a listed human", node(app, { type: "User", id: VECTORS.humans[0] }), null],
+    ["edited by another bot", node(app, bot(41898282)), null],
+    ["github-actions[bot] off the drift shape", node(bot(41898282)), null],
+    ["a bot not on the list", node(bot(99)), null],
+  ]) {
+    assert.deepEqual(await specBody(issue, null), [[8, expected]], name);
+  }
+});
 
 // A trusted target-subset part carries its Scope line's targets as `scope`,
 // which narrows its criteria; any other entry carries none.
