@@ -112,6 +112,7 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/powershell-for
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/actionlint/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/review/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/verification/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
