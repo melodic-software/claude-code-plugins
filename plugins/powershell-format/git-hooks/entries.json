@@ -1,4 +1,10 @@
 {
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/powershell-format/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
+  },
   "earlierEntries": [{ "from": "powershell-check", "to": ["format", "lint"] }],
   "ecosystems": ["powershell"],
   "entries": [

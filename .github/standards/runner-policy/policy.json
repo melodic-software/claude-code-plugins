@@ -37,7 +37,8 @@
         "role",
         "lane-transcript-public-key",
         "key-credit-window-hours",
-        "key-credit-reset-at"
+        "key-credit-reset-at",
+        "verdict-schema"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
@@ -173,7 +174,9 @@
         "event-action",
         "dispatcher-actor-ids",
         "key-credit-window-hours",
-        "key-credit-reset-at"
+        "key-credit-reset-at",
+        "kill-switch",
+        "review-level"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",

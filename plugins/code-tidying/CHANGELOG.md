@@ -3,6 +3,27 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.0] - 2026-11-18
+
+### Added
+
+- `apply install-git-hooks scope=shared` now commits a lefthook `remotes:` entry naming the
+  marketplace's root `lefthook-remote.yml`, which carries every plugin's git hooks; a consumer
+  whose entry names this plugin's own config still verifies `ok`.
+- A failing remote job now prints the per-clone `lefthook-local.yml` skip for that job.
+- A remote plan naming the root `lefthook-remote.yml` lists the plugins it turns on and reports
+  a missing tool, decline or migration for each of their entries, and `verify` prints a
+  `tool` line for each of their entries whose tool is missing.
+
+## [0.51.5] - 2026-11-18
+
+### Fixed
+
+- `/code-tidying:remove-comments` names the shipping pull request's body as the landing place for
+  the staged narrative block, trailer included, in a repository that squash-merges with the pull
+  request body as the commit message, where the branch commit's message never reaches the default
+  branch.
+
 ## [0.51.4] - 2026-11-17
 
 ### Changed

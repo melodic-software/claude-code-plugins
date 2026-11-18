@@ -198,6 +198,15 @@ A variation-intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 
+### System-scope steps
+
+`system` scope only, and suggested, not required: three more threads in `design-threads.md`,
+named `Quality scenarios`, `Capacity estimates` and `Risks`. Scenarios come from the Brief's
+quality requirements, never re-asked, and a prototype Brief defers them in one line; an unknown
+capacity input becomes a `target assumed ... revisit if ...` line; risk rows take
+`/planning:plan`'s risk-table columns. How:
+[`reference/system-scope.md`](reference/system-scope.md).
+
 ### Phase 3: Type Modeling
 
 The phase ends with a `type-inventory.md` in which every type traces to a call site that needs it,
@@ -400,7 +409,8 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
 **Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
-`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled). Without
+`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled), asking
+for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
 ## Key behaviors

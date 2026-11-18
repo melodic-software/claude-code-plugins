@@ -661,6 +661,16 @@ test("AC5: check exits 1 when a shipped build.yaml names nope@melodic-software",
   assert.doesNotMatch(r.stdout, /nope@/, "a finding goes to stderr only");
 });
 
+test("#17038: check still fails a shipped profile that excludes an always-on member without always_on false", () => {
+  const w = world();
+  const shipped = join(w.root, "shipped");
+  cpSync(SHIPPED, shipped, { recursive: true });
+  writeFileSync(join(shipped, "build.yaml"), `${readFileSync(join(shipped, "build.yaml"), "utf8")}exclude: [guardrails@${M}]\n`);
+  const r = w.run(["check", "--shipped", shipped]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /profile build excludes always-on member guardrails@melodic-software/);
+});
+
 test("AC5: check reports an installed plugin no profile names and still exits 0", () => {
   const w = world();
   writeTree(w.home, { ".claude/plugins/installed_plugins.json": { version: 2, plugins: { [`songwriting@${M}`]: [{ scope: "user", installPath: w.root, version: "1.0.0" }] } } });
@@ -733,13 +743,14 @@ test("clear previews like apply: --dry-run and a run with nobody to confirm writ
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
-test("list --json names every shipped profile but always-on, which every profile includes, each with its description", () => {
+test("list --json names every shipped profile but always-on, each with its description", () => {
   const w = world();
   const r = w.run(["list", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const profiles = JSON.parse(r.stdout);
-  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "planning", "review"]);
+  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "native", "planning", "review"]);
   assert.equal(profiles.find((p) => p.name === "build").description, "Write the change, test, review, verify, open and merge the PR, and run lanes.");
+  assert.match(profiles.find((p) => p.name === "native").description, /guardrails included/);
 });
 
 test("list --json adds a repository profile to the shipped ones", () => {
@@ -1398,6 +1409,79 @@ test("#16893: a one-session file names every plugin and skill entry any folder p
       assert.deepEqual(missing, [], `${name} session file leaves ${key} to the folder file`);
     }
   }
+});
+
+const ALWAYS_ON_OFF = /^Switches off guardrails and the other always-on plugins that other profiles keep on \(\d+\): .*guardrails@melodic-software/m;
+
+test("#17038: start native --dry-run plans every governed plugin off but the switcher, and its preview names guardrails as off", () => {
+  const w = world();
+  writeTree(w.project, { ".claude/settings.json": {} });
+  const r = w.run(["start", "native", "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, ALWAYS_ON_OFF);
+  const plugins = launchJson(w, ["native"]).enabledPlugins;
+  const governed = Object.keys(plugins).filter((id) => id.endsWith(`@${M}`));
+  assert.ok(governed.includes(`guardrails@${M}`), governed.join(", "));
+  assert.deepEqual(governed.filter((id) => plugins[id]), [`plugin-profiles@${M}`]);
+  assert.equal("widget@vendor" in plugins, false, "a plugin of another marketplace is left alone");
+});
+
+test("#17038: the folder preview of native says guardrails and the other always-on plugins are off", () => {
+  const w = world();
+  const preview = JSON.parse(w.run(["apply", "native", "--for", "folder", "--defer-off", "--dry-run", "--json"]).stdout);
+  assert.ok(preview.alwaysOnOff.includes(`guardrails@${M}`), preview.alwaysOnOff.join(", "));
+  assert.ok(preview.lines.some((line) => ALWAYS_ON_OFF.test(line)), preview.lines.join("\n"));
+  assert.deepEqual(JSON.parse(w.run(["apply", "build", "--for", "folder", "--dry-run", "--json"]).stdout).alwaysOnOff, []);
+});
+
+test("#17038: native in a repository whose settings enable guardrails says guardrails stays on and why, and never that it is off", () => {
+  const w = world();
+  writeTree(w.project, { ".claude/settings.json": { enabledPlugins: { [`guardrails@${M}`]: true } } });
+  const preview = JSON.parse(w.run(["apply", "native", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.ok(!preview.alwaysOnOff.includes(`guardrails@${M}`), preview.alwaysOnOff.join(", "));
+  assert.ok(preview.lines.includes(`Always-on plugin left on, because the repository's settings enable it: guardrails@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.some((line) => line.startsWith("Switches off always-on plugins that other profiles keep on")), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((line) => /guardrails and the other/.test(line)), preview.lines.join("\n"));
+});
+
+test("#17038: a user profile with always_on false that lists guardrails says it stays on because the profile switches it on", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/guarded.yaml": `always_on: false\nplugins: [plugin-profiles@${M}, guardrails@${M}]\n` });
+  const r = w.run(["start", "guarded", "--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /^Always-on plugin left on, because this profile switches it on: guardrails@melodic-software$/m);
+  assert.match(r.stderr, /^Switches off always-on plugins that other profiles keep on/m);
+});
+
+test("#17038: a repository profile's always_on false is ignored: always-on stays on and the preview says the line was ignored", () => {
+  const w = world();
+  const file = join(w.project, "docs", "conventions", "plugin-profiles", "notes.yaml");
+  writeTree(w.project, { "docs/conventions/plugin-profiles/notes.yaml": `always_on: false\nplugins: [songwriting@${M}]\n` });
+  const r = w.run(["apply", "notes", "--for", "folder", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
+  assert.ok(r.stdout.split("\n").includes(`Ignored, from ${file}: always_on: false. A repository profile cannot switch off an always-on member; a user-level profile can.`), r.stdout);
+  assert.doesNotMatch(r.stdout, /always-on plugins that other profiles keep on/);
+});
+
+test("#17038: from a session in native, the switcher starts another profile, and clear returns the folder to its state before", () => {
+  const w = world();
+  const inNative = { PLUGIN_PROFILES_SESSION: "native" };
+  assert.equal(w.run(["apply", "native", "--for", "folder", "--yes"], inNative).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], false);
+  assert.equal(startJson(w, ["build"], inNative).profile, "build");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"], inNative).status, 0);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`guardrails@${M}`], true);
+  assert.equal(w.run(["clear", "--yes"], inNative).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17038: save keeps a user profile's always_on false and accepts its exclude of an always-on member", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/bare.yaml": `always_on: false\nplugins: [plugin-profiles@${M}]\n` });
+  const r = w.run(["save", "bare", "--level", "user", "--exclude", `guardrails@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(readFileSync(join(w.home, ".claude", "plugin-profiles", "bare.yaml"), "utf8"), /^always_on: false$/m);
 });
 
 const byIdDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions", "by-id");

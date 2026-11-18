@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "diagram_target: excalidraw-file (option)\ndiagram_target: excalidraw-file unavailable (no repository); using auto\n\n```mermaid\nflowchart TD\n  A[Request reset] --> B[Email token] --> C[Set password] --> D[Revoke sessions]\n```"
+    },
+    {
+      "answer": "- `diagram_target: excalidraw-file unavailable (no repository root: the only working tree is $HOME); using auto`",
+      "why": "exact line inside a list item, with a longer reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "diagram_target: excalidraw unavailable (no excalidraw server connected); using auto",
+      "why": "names the canvas target, not the file target"
+    },
+    {
+      "answer": "diagram_target: excalidraw-file unavailable (structural check failed); using auto",
+      "why": "a reason other than the missing repository"
+    },
+    {
+      "answer": "This folder is not a repository, so I could not write the Excalidraw file and fell back to auto.",
+      "why": "prose instead of the one-line form"
+    }
+  ]
+}
