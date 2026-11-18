@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "Bash", "input": { "command": "node \"/plugins/visualization/lib/diagram-file-check.mjs\" \"/tmp/visualize-a1b2c3/password-reset-flow.excalidraw\"" } }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
+        { "tool": "Bash", "input": { "command": "node \"/plugins/visualization/lib/mermaid-gate.mjs\" /tmp/flow.mmd" } }
+      ],
+      "why": "only the mermaid gate ran"
+    },
+    {
+      "answer": [],
+      "why": "no tool calls"
+    }
+  ]
+}

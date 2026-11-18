@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| performance | customer | places an order | notification worker | normal operation | sends the confirmation | sent within 60 s of the order, p95 |",
+      "why": "the Brief's target in the measure cell"
+    },
+    {
+      "answer": "| P1 | order service | order placed | worker | normal | email sent | p95 <= 60 seconds |",
+      "why": "60 seconds spelled out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "| performance | customer | places an order | worker | normal | sends the confirmation | within 30 s at p95 |",
+      "why": "an invented target"
+    },
+    {
+      "answer": "The Brief asks for 60 s at p95.",
+      "why": "mentioned in prose, never in a scenario row"
+    }
+  ]
+}
