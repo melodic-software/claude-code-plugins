@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A branch where an agent commit adds a pricing card and the person's next commit tones down its
-# shadow and renames its heading, with no reason given.
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 bash "$here/../fixtures/repo.sh"
