@@ -147,19 +147,11 @@ lr_e2e_start() {
   done <<<"$LR_JOBS"
 }
 
-lr_allowed_missing() {
-  case "$1" in
-    goimports) echo "the repository pins no goimports for CI" ;;
-    *) return 1 ;;
-  esac
-}
-
 lr_missing() {
-  local why
-  if [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 ]] && ! why="$(lr_allowed_missing "$1")"; then
+  if [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 ]]; then
     expect "$1 is on PATH for the seeded $NAME cases (LEFTHOOK_REMOTE_REQUIRE_TOOLS=1)" yes no
   else
-    echo "SKIP: ${2:-$1 not on PATH} -- the seeded $NAME cases skipped${why:+ ($why)}"
+    echo "SKIP: ${2:-$1 not on PATH} -- the seeded $NAME cases skipped"
   fi
   lr_done
 }

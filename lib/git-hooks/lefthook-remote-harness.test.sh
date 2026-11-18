@@ -49,10 +49,5 @@ expect "LEFTHOOK_REMOTE_REQUIRE_TOOLS=0 skips like the default" "0|yes" "$?|$(gr
 out="$(run 1 awk)"
 expect "LEFTHOOK_REMOTE_REQUIRE_TOOLS=1: a tool on PATH runs the seeded cases" "0|seeded cases ran" "$?|$(grep 'seeded cases ran' <<<"$out")"
 
-out="$(run 1 goimports)"
-expect "LEFTHOOK_REMOTE_REQUIRE_TOOLS=1: an allowed-missing tool still skips, giving its reason" \
-  "0|SKIP: goimports not on PATH -- the seeded fake cases skipped (the repository pins no goimports for CI)" \
-  "$?|$(grep '^SKIP' <<<"$out")"
-
 echo "lefthook-remote-harness: $PASS passed, $FAIL failed"
 ((FAIL == 0))
