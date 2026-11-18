@@ -1787,7 +1787,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   // Places deferred that hold more than flake re-runs: recovery work the
   // next scheduled tick must not skip (main's `clean`, which the pacer reads).
   let deferred = 0;
-  const place = (what, taken) => {
+  const place = (what, set) => {
+    const fits = (items) => room > 0 && items.filter(recorded).length <= uploads;
+    const core = set.filter((item) => item.kind !== "review");
+    const split = !fits(set) && core.length > 0 && core.length < set.length && fits(core);
+    if (split) {
+      deferred += 1;
+      say(`${what}: its stopped reviews deferred, no record upload left this pass`);
+    }
+    const taken = split ? core : set;
     const records = taken.filter(recorded).length;
     if (room > 0 && records <= uploads) {
       items.push(...taken);

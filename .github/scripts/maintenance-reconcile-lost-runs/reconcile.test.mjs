@@ -3609,6 +3609,26 @@ test("a floor-failed checks run and both reviews a kill switch stopped on its he
   ]);
 });
 
+test("at the 21:50 pass, a set whose reviews do not fit the record uploads left re-runs its floor alone, and the merge-risk run still gets a place", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const otherFloor = failed(44403126378, sha(17280), { jobs: floorStatus(), created: "2026-11-18T21:36:00Z", updated: "2026-11-18T21:40:00Z" });
+  const { code, reruns, failedJobReruns, outputs } = await reconcile({
+    pulls: [pr(17280), ratedPull, switchedPull],
+    runs: [otherFloor, floorChecks, ...switchedReviews(), ratedChecks, raterRun()],
+    now: PASS_2150,
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [44403126378, 44403903762]);
+  assert.deepEqual(reruns, [44402781806]);
+  assert.deepEqual(records(outputs), [
+    `reconcile-rerun-44403126378-2-${sha(17280)}`,
+    `reconcile-rerun-44403903762-2-${SWITCHED_HEAD}`,
+    `reconcile-rerun-44402781806-2-${RATER_TIP}`,
+  ]);
+  assert.equal(outputs.clean, "", "the deferred reviews keep the next tick");
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]) === "reconcile: #17282: its stopped reviews deferred, no record upload left this pass"));
+});
+
 test("that head waits inside the floor, and its reviews at attempt 2 are not re-run again", async (t) => {
   t.mock.method(console, "log", () => {});
   const inside = await reconcile({ pulls: [switchedPull], runs: [floorChecks, ...switchedReviews()], now: INSIDE_FLOOR });
