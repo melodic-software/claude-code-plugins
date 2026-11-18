@@ -185,12 +185,17 @@ const READY_TIMEOUT_MS = 120_000;
 const LOG_TIMEOUT_MS = 600_000;
 const STOP_GRACE_MS = 5000;
 
+// A --real-setup print-mode turn keeps --strict-mcp-config. Why:
+// https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder
+const REAL_SETUP_PRINT_FLAGS = ['--strict-mcp-config'];
+
 /** The print-mode command line: the launch's, then the stream-json flags and the prompt. */
 export function buildPrint(config, env, prompt) {
   if (!prompt) throw new UsageError('print mode needs a prompt');
   if (prompt.startsWith('-')) throw new UsageError('a prompt may not start with -');
   const launch = buildLaunch(config, env);
-  return { ...launch, argv: [...launch.argv, ...PRINT_FLAGS, prompt] };
+  const strict = config.realSetup ? REAL_SETUP_PRINT_FLAGS : [];
+  return { ...launch, argv: [...launch.argv, ...strict, ...PRINT_FLAGS, prompt] };
 }
 
 /** The launch config a verb's options select: `--unattended` reads `credentials.ci` from committed config. */
