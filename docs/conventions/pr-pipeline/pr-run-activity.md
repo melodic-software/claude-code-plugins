@@ -801,6 +801,8 @@ the first. `resolve-issue-handoff` needs `check-admission`, since it reads that 
    15 minutes under it (50 and 45 for the PR callers' 60), so the job is never killed before the
    leg ends; a job timeout of 15 minutes or less fails red first. setup-python's
    `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable. Each leg runs
+   Bash in Claude Code's sandbox (run-claude-cli's `sandbox` input) except under
+   `prepare: ci-context`, whose bare Bash may reach hosts beyond GitHub. Each leg runs
    in `resolve-config`'s `permission-mode` output, `dontAsk` unless the activity sets `auto`, and
    a step after it fails the job, so no patch is collected, unless the CLI's init message in the
    leg's execution file reports that mode; a handoff goes unchecked.
