@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.9.0] - 2026-11-18
+
+### Added
+
+- fence the implement and orchestrate paste regions in the Desktop app
+
 ## [9.8.0] - 2026-11-18
 
 ### Added
