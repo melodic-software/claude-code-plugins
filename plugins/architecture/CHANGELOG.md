@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.8] - 2026-11-18
+
+### Changed
+
+- `map-deployment`: the CloudFormation, Pulumi, `.tf.json` and Helm records no longer restate upstream behavior with dated claims. Each now states what the skill's file readers do and points to the upstream section to check ([#16836](https://github.com/melodic-software/claude-code-plugins/issues/16836)).
+
 ## [5.2.7] - 2026-11-18
 
 ### Changed
