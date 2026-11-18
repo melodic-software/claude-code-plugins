@@ -3,6 +3,16 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.3] - 2026-11-18
+
+### Fixed
+
+- The lefthook remote runs the `format` and `lint` jobs in one piped group, `python-format-remote`, format first, so a consumer whose `lefthook.yml` sets `parallel: true` no longer has a commit blocked by a finding format fixes. A failing job's skip hint names the group and the job inside it. A clone whose `lefthook-local.yml` skips `python-format-remote-format` or `python-format-remote-lint` at the top level must move that skip under the group, or every commit fails.
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
 ## [3.1.2] - 2026-11-18
 
 ### Changed

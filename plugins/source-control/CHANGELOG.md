@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.2] - 2026-11-18
+
+### Changed
+
+- **Restated upstream behavior cut to pointers in the README and the GitHub provider, stacked-PR and worktree-root references.** Passages that repeated Claude Code or GitHub docs now state this plugin's own rule with an anchored pointer, and drop their stamps except the async merge API's status list, which stays a stamped stored value. The rules cover which worktrees `worktree-remove-gate` leaves to `/source-control:worktree cleanup`, why you install Node.js yourself, treating GraphQL as unavailable behind the cloud GitHub proxy, marking a draft ready before a merge, the queue fields read back after `gh pr merge`, polling the `uuid` a 409 response returns, and how a stack layer merges. The `EnterWorktree(name:)` note now points to where the name form creates a worktree.
+
+### Security
+
+- `worktree-remove-gate.sh`'s `git status` no longer starts the `core.fsmonitor` command a repository's own config names: it and the gate's other git calls, `worktree-add-containment-gate.sh`, `pr-linkage-mcp-gate.sh` and `hook-utils.sh`'s repository-root lookups pass the overrides `hook::git_untrusted` uses. Not yet covered: the git calls in `scripts/worktree-create.sh` and the helpers it uses, which `worktree-create-gate.sh` runs (issue #16959 tracks them), and other commands a repository's config can name, such as a `.gitattributes` content filter, which `git status` in `worktree-remove-gate.sh` can still start.
+
 ## [11.21.1] - 2026-11-18
 
 ### Changed
