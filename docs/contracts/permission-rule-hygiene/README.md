@@ -225,8 +225,9 @@ repeated: re-survey with fresh sessions instead. The guidance below stands. No p
 repository ships a `bin/` today, and the bundled-path form works whether or not the gap recurs.
 **Recheck:** a plugin here adds a `bin/`, or a report of a bare plugin command missing from `PATH`.
 
-**Per-session absence is what makes the bare name unusable, not permanent non-delivery**: an
-intermittent capability cannot carry a permission story. A degraded session
+**Per-session absence is what makes the bare name unusable, not permanent non-delivery.** A
+permission rule cannot depend on a `bin/` command that is on `PATH` in some sessions and missing
+in others. A degraded session
 measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
 scope and reported `enabled` by `claude plugin list`, looks like this:
 
