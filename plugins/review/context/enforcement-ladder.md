@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.3.0
+enforcement-ladder: 3.3.1
 ---
 
 <!-- GENERATED from docs/contracts/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -57,7 +57,7 @@ a row says otherwise, the same command runs at edit time and in CI, which is the
 
 | Rung | What it is | Runs at |
 |---|---|---|
-| `compiler-setting` | a stricter compiler or type-checker option (nullable reference types, `strict` mode, warnings as errors) that rejects the mistake at build time | edit time and CI |
+| `compiler-setting` | a stricter compiler or type-checker option, such as treating warnings as errors, that rejects the mistake at build time | edit time and CI |
 | `formatter` | have the repository's format command, or the format setting it reads, rewrite the code into the rule's shape; the check runs the command and fails when the tree changed | edit time and CI |
 | `editorconfig-severity` | raise the severity of a setting `.editorconfig` already supports | edit time and CI |
 | `analyzer-pack-rule` | turn on, or raise the severity of, a diagnostic an installed analyzer pack or linter already defines | edit time and CI |
@@ -157,8 +157,7 @@ own:
 5. layer rules and module conventions in the project's docs
 6. unscoped `.claude/rules/*.md` files, meaning the ones with no `paths:` glob; how each kind of
    rule file loads is read live from <https://code.claude.com/docs/en/memory#path-specific-rules>
-7. an existing architecture-test configuration (an ArchUnitNET test project, a
-   `.dependency-cruiser.js` file, or the equivalent for the repository's language)
+7. the repository's existing architecture-test configuration
 
 ## Guardrail criterion
 
