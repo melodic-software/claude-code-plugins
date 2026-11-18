@@ -527,11 +527,9 @@ push. The two contracts below are halves of one operation; neither is complete a
 
 ### Why The Push Stays With The Orchestrator
 
-A dispatched non-fork subagent starts without the dispatching conversation and works from the
-delegation message Claude composes. Pointer:
+We treat everything a conflict worker knows about its own authority as reaching it inside a
+delegation prompt written by the agent that dispatched it. What a dispatched subagent starts with:
 [sub-agents: What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
-Everything a conflict worker knows about its own authority therefore reaches it inside a
-delegation prompt written by the agent that dispatched it.
 
 That is harmless for reading, merging, and testing, none of which leave the worktree. It is not
 harmless for the push. A host runtime whose autonomy gate grants mutation authority only from the
