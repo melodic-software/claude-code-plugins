@@ -19,6 +19,8 @@
 //        install}], untouched, mcpOrLspOn, hookPluginsOff, ignored, repositoryOn, repositorySkills};
 //        the last three name what the profiles' repository files were refused and what only they add
 
+import { profileNamed } from "./profile-files.mjs";
+
 /** @typedef {"session" | "folder" | "initial"} Target */
 
 export class PlanError extends Error {}
@@ -68,7 +70,7 @@ export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(lay
 
 export function plan({ catalog, profile: name, inventory, layers, current = layers, target }) {
   if (!(target in TARGET_LEVEL)) throw new PlanError(`unknown target ${JSON.stringify(target)}: use session, folder or initial`);
-  const chosen = name === catalog.alwaysOn.name ? catalog.alwaysOn : catalog.profiles.get(name);
+  const chosen = profileNamed(catalog, name);
   if (!chosen) throw new PlanError(`no profile named ${JSON.stringify(name)}`);
   const always = catalog.alwaysOn;
   const blocked = excludedAlwaysOn(catalog, chosen);

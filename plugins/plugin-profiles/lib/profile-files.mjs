@@ -158,5 +158,11 @@ export function resolveCatalog(files) {
   return { alwaysOn, profiles: resolved };
 }
 
+/** Every profile of a catalog, always-on first. */
+export const everyProfile = (catalog) => [catalog.alwaysOn, ...catalog.profiles.values()];
+
+/** The catalog's profile of that name, always-on included, or undefined. */
+export const profileNamed = (catalog, name) => (name === catalog.alwaysOn.name ? catalog.alwaysOn : catalog.profiles.get(name));
+
 export const readCatalog = (levels) => resolveCatalog(readProfileFiles(levels));
 
