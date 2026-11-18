@@ -3230,6 +3230,8 @@ const markLanes = (notes = FLOOR["mark-lanes-133589388248"]) => [
 // ci-status's human-gated error (pr-require-checks.yml), a failure no re-run clears.
 const GATED_LINE = "#1 carries 'human-gated'. Removing the label approves this pull request; ci-status re-runs on the unlabel.";
 const failure = (message) => ({ annotation_level: "failure", message });
+const SERVER_HOLD_LINE =
+  "GitHub answered HTTP 502 with a Retry-After, which holds 'gh api x' until 2026-11-17T17:41:50Z, and this read has made its 3 sends; a re-run after 2026-11-17T17:41:50Z is needed.";
 
 test("a CI Status that failed alone at the rate-limit floor has its failed jobs re-run once, recorded", async () => {
   const { code, failedJobReruns, reruns, outputs } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: floorStatus() })] });
@@ -3256,6 +3258,7 @@ test("a CI Status failure that is not only the floor's is not re-run", async (t)
     ["a real error beside a refusal", floorStatus([...FLOOR["ci-status-133584509558"], failure(GATED_LINE)])],
     ["a real error alone", floorStatus([failure("Process completed with exit code 1."), failure(GATED_LINE)])],
     ["a server error's Retry-After hold", floorStatus([failure("'gh api x' was not sent: GitHub answered HTTP 502 with a Retry-After; no call to it before 2026-11-16T21:19:18Z")])],
+    ["a server error's Retry-After past ci-status's read wait", floorStatus([failure(SERVER_HOLD_LINE), failure("could not read #1; re-run this run.")])],
   ];
   for (const [what, jobs] of cases) {
     const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })] });
@@ -3319,6 +3322,57 @@ test("each rate guard still words its floor refusal as the reconciler matches it
   const checks = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   assert.ok(checks.includes(`'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")`));
   assert.ok(checks.includes(`'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3)`));
+});
+
+const BLOCKS =FLOOR["ci-status-134228143898"];
+const BLOCKS_LINE = BLOCKS.find((a) => a.message.startsWith("GitHub's core API rate limit blocks 'gh api repos/melodic-software/claude-code-plugins/pulls/16886'")).message;
+
+test("ci-status's read wait still words its floor refusal as the recorded run wrote it, and the reconciler matches it", () => {
+  const checks = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const echoed = (tail) => {
+    const line = checks.split("\n").find((l) => l.includes(`echo "::error::GitHub's $pool API rate limit blocks 'gh api $*' until $at, ${tail}`));
+    assert.ok(line, `the ${tail} refusal is in the workflow`);
+    return /echo "::error::(.*)" >&9$/.exec(line.trim())?.[1] ?? "";
+  };
+  const written = echoed("past the")
+    .replace("$pool", "core")
+    .replace("$*", "repos/melodic-software/claude-code-plugins/pulls/16886")
+    .replaceAll("$at", "2026-11-17T17:41:50Z")
+    .replace(`$(jq -rn --argjson t "$deadline" '$t | todate')`, "2026-11-17T17:38:49Z");
+  assert.equal(written, BLOCKS_LINE);
+  assert.match(written, FLOOR_NOTE);
+  const sends = echoed("and this read").replace("$pool", "core").replace("$*", "repos/o/r/pulls/1").replaceAll("$at", "2026-11-17T17:41:50Z");
+  assert.equal(sends, "GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until 2026-11-17T17:41:50Z, and this read has made its 3 sends; a re-run after 2026-11-17T17:41:50Z is needed.");
+  assert.match(sends, FLOOR_NOTE);
+  for (const tail of ["past the", "and this read"]) {
+    assert.ok(checks.includes(`GitHub answered HTTP $held with a Retry-After, which holds 'gh api $*' until $at, ${tail}`), `the ${tail} server-error hold is in the workflow`);
+  }
+  assert.doesNotMatch(SERVER_HOLD_LINE, FLOOR_NOTE, "a server error's Retry-After hold is not the floor");
+});
+
+test("a CI Status whose read wait could not outlast the floor has its failed jobs re-run once, recorded", async () => {
+  assert.ok(floorNoted(BLOCKS));
+  const { code, failedJobReruns, reruns, outputs } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: floorStatus(BLOCKS) })] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
+});
+
+test("Mark Lanes at the floor beside a CI Status at the floor is a floor re-run; Mark Lanes failing otherwise is not", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const lanes = [201, 202, 203].map((id, i) => verifyRun(id, { created: `2026-10-19T19:3${i}:00Z` }));
+  const withStatus = (notes) => markLanes(notes).map((job) => (job.name === "CI Status" ? { ...job, notes: BLOCKS } : job));
+  const floor = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: withStatus() }), ...lanes] });
+  assert.deepEqual(floor.failedJobReruns, [101], "the floor re-run goes before the lane runs");
+  assert.deepEqual(floor.reruns, [201, 202]);
+  const said = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.ok(said.some((l) => l.includes("run 101") && l.includes("failed only where the GITHUB_TOKEN hit its rate-limit floor")));
+  log.mock.resetCalls();
+  const real = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: withStatus([failure("Process completed with exit code 1."), failure("ci-lanes is not a status this run may write.")]) }), ...lanes] });
+  assert.deepEqual(real.failedJobReruns, [], "a Mark Lanes failure that is not the floor's waits behind the lane runs as a flake");
+  assert.deepEqual(real.reruns, [201, 202, 203]);
+  assert.ok(!log.mock.calls.some((c) => String(c.arguments[0]).includes("rate-limit floor")));
 });
 
 const POST_STEP = "Post a fail's notes, or find a pass's stale ones";
