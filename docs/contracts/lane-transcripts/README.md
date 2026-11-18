@@ -14,6 +14,7 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 
 ```text
 <sink>/metrics.jsonl                                  one JSON row per leg, no transcript text
+<sink>/outcomes.jsonl                                 one JSON row per lane-outcome record
 <sink>/transcripts/<YYYY-MM-DD>/<lane>/<file>.json.gz  one leg's transcript
 <sink>/state.json                                     the writer's own state; readers ignore it
 ```
@@ -57,6 +58,12 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 | `outcome` | `error` when `is_error` is true, else the result `subtype`, `no-result` with no result, `unreadable` when the transcript did not parse, `omitted` when the writer kept a marker in its place | yes |
 | `omitted_reason`, `omitted_bytes` | Set only on an `omitted` row: why (`too-large`, `credential`, else `unknown`) and the gzipped size the marker names | yes |
 | `subtype`, `is_error`, `api_error_status`, `num_turns`, `duration_ms`, `input_tokens`, `output_tokens` | From the last `result` message; null when absent | yes |
+| `cache_read_input_tokens`, `cache_creation_input_tokens` | The top-level loop's cache tokens from the last `result` message's `usage`; null when absent | yes |
+| `total_cost_usd` | The CLI's own cost estimate from the last `result` message, subagents included; not a bill; null when absent | yes |
+| `model_usage` | Per model the `result` message's `modelUsage` names: `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens` and `cost_usd`, subagents included; null with no result | yes |
+| `trace_id` | The id that joins the row to its run attempt's lane-outcome records and spans; null when the run id or attempt is not a positive integer | yes |
+| `failure_class` | The class every lane-outcome record of the run attempt names; null when they all succeeded, disagree, or none is held | yes |
+| `failure_class_source` | Which case set `failure_class`: `lane-outcome` (the records agree), `disagree` (they differ) or `none` (no record held) | yes |
 | `transcript` | The transcript's path relative to the sink, or null once retention removed it | yes |
 | `pruned` | Why `transcript` is null (`age`, `cap`, `missing`), absent while it is set | yes |
 
