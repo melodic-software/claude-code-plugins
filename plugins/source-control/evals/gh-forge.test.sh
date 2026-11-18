@@ -130,6 +130,11 @@ assert_eq "api graphql: --outdated-bot-thread is outdated and bot-authored, --th
 out=$(run_gh "$THREADED" api user --jq .login 2>&1)
 assert_eq "api user: serves the fixture login" "eval-fixture" "$out"
 
+out=$(run_gh "$THREADED" repo set-default --view 2>&1)
+assert_eq "repo set-default --view: the fixture repository is the default" "eval-fixture/app" "$out"
+run_gh "$THREADED" repo set-default other/repo >/dev/null 2>&1
+assert_exit "repo set-default: setting a default is refused" 1 "$?"
+
 out=$(run_gh "$THREADED" search prs --author eval-fixture --json number,title --jq '.[] | "\(.number) \(.title)"' 2>&1)
 assert_eq "search prs: serves the fixture pull request" "7 feat: x" "$out"
 assert_eq "search prs: the served call is recorded as a read" "read search prs" \
