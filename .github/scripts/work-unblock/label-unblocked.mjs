@@ -2495,8 +2495,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
-  // A record counts once the App added the label back at or after it; one
-  // whose label write failed is finished by the next sweep, not posted again.
   // The re-fire records on workflow files `key` other than a breaker trip's.
   const firedOn = (key) => markers.filter((marker) => marker.outcome === "refired" && !marker.breaker && marker.key === key);
   const relabeled = (marker) =>
@@ -2658,7 +2656,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
       reason: null,
       resets: ended,
       refire: await workflowKey(),
-      recorded: named.some((marker) => marker.at >= now - HOUR_MS),
+      recorded: false,
       floor: { run: floored.run.id, reset, named: floored.reset !== null, server: floored.server },
       ...(floored.reset !== null && { closes: opens + FLOOR_SPAN_MS }),
     };

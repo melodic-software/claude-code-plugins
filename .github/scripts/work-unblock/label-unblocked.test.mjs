@@ -8254,6 +8254,17 @@ test("a server error hold beside a rate limit at the same reset is recorded as t
   }
 });
 
+test("one job's log holding a server error hold and a rate limit at the same reset is recorded as the rate limit", async () => {
+  const held = HOLD_503.split("\n").slice(0, 2);
+  const exit = "2026-11-18T04:18:13.6204727Z ##[error]Process completed with exit code 1.";
+  for (const lines of [[...held, floorStopLine(FLOOR_RESET), exit, ""], [floorStopLine(FLOOR_RESET), ...held, exit, ""]]) {
+    const { github, actions, calls } = floorRun({ jobs: [ADMITTED, pickSlot, MODEL_RAN, scanStopped[3]], logs: { [SCAN_JOB]: lines.join("\n") } });
+    assert.equal(await sweep({ github, actions }), 0);
+    floorFired(calls);
+    assert.ok(postedBody(calls).includes("A GitHub API pool's stop floor stopped"), postedBody(calls));
+  }
+});
+
 test("a job that ended cancelled beside a floor-stopped job keeps the run an ordinary failure, with no log read", async () => {
   for (const conclusion of ["cancelled", "timed_out"]) {
     const jobs = [...floorStopped(), { id: 7050, name: "Run Tests", conclusion, steps: [] }];
@@ -8379,10 +8390,10 @@ test("a second pass over the same reset does not re-fire, and a later reset does
   floorFired(later.calls, "2026-10-16T12:50:00Z");
 });
 
-test("a floor record whose restart did not land is finished by the next pass, without a second record", async () => {
+test("a floor record whose restart did not land is recorded again by the next pass with room", async () => {
   const { github, actions, calls } = floorRun({ comments: [note(), floorNote()] });
   assert.equal(await sweep({ github, actions }), 0);
-  assert.deepEqual(writes(calls), restarted(30));
+  floorFired(calls);
 });
 
 const floorIssues = (numbers, reset = FLOOR_RESET) => ({
@@ -8447,7 +8458,7 @@ test("two resets 30 minutes apart share one batch of SLOTS per rolling hour", as
   assert.deepEqual(restarts(pastHour.calls), ["RESTART 41", "RESTART 42", "RESTART 43"], "a batch over an hour old does not");
 });
 
-test("a retried record over an hour old takes the batch's room and is recorded again, so the cap of SLOTS holds", async () => {
+test("a retried floor record takes the batch's room and is recorded again, so the cap of SLOTS holds", async () => {
   const at = Date.parse("2026-10-16T12:55:00Z");
   const retried = [41, 42, 43];
   const withRecords = (posted, repoComments) => {
@@ -8463,8 +8474,45 @@ test("a retried record over an hour old takes the batch's room and is recorded a
   assert.equal(posts(old.calls).length, 3, "each retry is counted by a new record");
   const fresh = withRecords("2026-10-16T11:55:00Z", retried.map((number) => floorNote(FLOOR_RESET, "2026-10-16T11:55:00Z", 800 + number)));
   assert.equal(await sweep({ github: fresh.github, actions: fresh.actions, now: at }), 0);
-  assert.deepEqual(restarts(fresh.calls), ["RESTART 41", "RESTART 42", "RESTART 43"], "60 minutes old: the records already fill the batch");
-  assert.deepEqual(posts(fresh.calls), [], "a record inside the hour is not posted again");
+  assert.deepEqual(restarts(fresh.calls), [], "60 minutes old: the records fill the batch, so the retries wait too");
+  assert.deepEqual(posts(fresh.calls), [], "nothing is recorded while the batch is spent");
+});
+
+test("six floor stops swept at 12:14 with failed restarts, then at 13:00 and 13:16, re-fire at most SLOTS in any rolling hour", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const reset = "2026-10-16T12:00:00Z";
+  const numbers = [41, 42, 43, 44, 45, 46];
+  const records = [];
+  const fired = [];
+  const pass = async (at, restartFails = false) => {
+    const floors = floorIssues(numbers, reset);
+    const fake = world({
+      ...floors,
+      runs: floors.runs.map((run) => ({ ...run, updated_at: "2026-10-16T11:50:00Z" })),
+      comments: Object.fromEntries(numbers.map((number) => [number, [note(), ...records.filter((record) => record.number === number).map((record) => record.comment)]])),
+      events: Object.fromEntries(numbers.map((number) => [number, [added(LABELED_AT, OWNER), ...fired.filter((item) => item.number === number).flatMap((item) => movedAt(item.at, item.at))]])),
+      repoComments: records.map((record) => record.comment),
+    });
+    const writer = { ...fake.writer, restart: async (number, options) => { if (restartFails) throw new Error("the restart failed"); return fake.writer.restart(number, options); } };
+    await sweep({ github: fake.github, actions: fake.github, writer, now: Date.parse(at) });
+    for (const call of writes(fake.calls)) {
+      const number = /^POST \/repos\/[^ ]+\/issues\/(\d+)\/comments /.exec(call)?.[1];
+      if (number) records.push({ number: Number(number), comment: floorNote(reset, at, 900 + records.length) });
+    }
+    const landed = restarts(fake.calls);
+    fired.push(...landed.map((call) => ({ number: Number(call.split(" ")[1]), at })));
+    return landed;
+  };
+  assert.deepEqual(await pass("2026-10-16T12:14:00Z", true), [], "both tries of each restart fail");
+  assert.equal(records.length, 3, "the failed attempts are on record");
+  assert.deepEqual(await pass("2026-10-16T13:00:00Z"), [], "the 12:14 records still fill the hour");
+  assert.deepEqual(await pass("2026-10-16T13:16:00Z"), ["RESTART 41", "RESTART 42", "RESTART 43"], "the retries take the room that opened");
+  assert.equal(records.length, 6, "each attempt has its own record");
+  assert.deepEqual(await pass("2026-10-16T13:19:00Z"), [], "the three other issues wait for the next hour's room");
+  for (const { at } of fired) {
+    const inHour = fired.filter((item) => Date.parse(item.at) >= Date.parse(at) && Date.parse(item.at) < Date.parse(at) + 3_600_000);
+    assert.ok(inHour.length <= 3, `${inHour.length} re-fires in the hour from ${at}`);
+  }
 });
 
 test("two records of one reset count as one floor re-fire toward limits.limit-stops-per-issue", async () => {
@@ -8509,11 +8557,11 @@ test("a failed read of the window's floor records re-fires no floor stop this pa
   assert.deepEqual(restarts(failing.calls), ["RESTART 31", "RESTART 32", "RESTART 33"]);
 });
 
-test("a finished record's restart spends none of the window's batch", async () => {
+test("a retry waits while the window's batch is spent", async () => {
   const floors = floorIssues([41]);
   const fake = world({ ...floors, comments: { 41: [note(), floorNote()] }, repoComments: [91, 92, 93].map((id) => floorNote(FLOOR_RESET, "2026-10-16T11:58:00Z", id)) });
   assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
-  assert.deepEqual(writes(fake.calls), restarted(41));
+  assert.deepEqual(writes(fake.calls), []);
 });
 
 const THREE_FLOOR_RECORDS = {
