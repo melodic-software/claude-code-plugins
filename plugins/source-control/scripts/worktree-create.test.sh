@@ -1246,7 +1246,7 @@ assert_file_absent "no lockfile: npm is not run" "$npm_log"
 npm_log="$TEST_TMPDIR/npm-fail.log"
 errfile="$TEST_TMPDIR/err-deps-fail.txt"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_EXIT=7 bash "$HELPER" --name feat/deps-fail \
-  --base-ref head --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+  --base-ref head --root "$TEST_TMPDIR/wtroot-deps-fail" --repo-dir "$deps_repo" 2>"$errfile")
 assert_exit "failed install: creation still exits 0" 0 "$?"
 assert_file_exists "failed install: worktree exists" "$out/README.md"
 assert_contains "failed install: warning names npm's exit code" "$(cat "$errfile")" "npm ci failed (exit 7)"
@@ -1260,7 +1260,7 @@ child_pid_file="$TEST_TMPDIR/npm-slow-child.pid"
 start=$SECONDS
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=30 FAKE_NPM_CHILD_PID="$child_pid_file" \
   WORKTREE_CREATE_DEPS_CAP_SECONDS=1 bash "$HELPER" --name feat/deps-slow --base-ref head \
-  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+  --root "$TEST_TMPDIR/wtroot-deps-slow" --repo-dir "$deps_repo" 2>"$errfile")
 rc=$?
 elapsed=$((SECONDS - start))
 assert_exit "capped install: creation still exits 0" 0 "$rc"
@@ -1289,12 +1289,65 @@ npm_log="$TEST_TMPDIR/npm-octal.log"
 errfile="$TEST_TMPDIR/err-deps-octal.txt"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=0.5 \
   WORKTREE_CREATE_DEPS_CAP_SECONDS=08 bash "$HELPER" --name feat/deps-octal --base-ref head \
-  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+  --root "$TEST_TMPDIR/wtroot-deps-octal" --repo-dir "$deps_repo" 2>"$errfile")
 assert_exit "cap 08: creation succeeds" 0 "$?"
 assert_contains "cap 08: the cap is read as 8 seconds" "$(cat "$errfile")" "capped at 8s"
 assert_not_contains "cap 08: no octal arithmetic error" "$(cat "$errfile")" "value too great for base"
 assert_not_contains "cap 08: the install is not stopped" "$(cat "$errfile")" "warning"
 assert_file_exists "cap 08: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
+
+if compgen -G "$TEST_TMPDIR/wtroot-deps-fail/.npm-seed/*/.complete" >/dev/null; then
+  fail "failed install: no finished seed is kept" "no .complete" "a .complete exists"
+else
+  pass "failed install: no finished seed is kept"
+fi
+
+probe="$TEST_TMPDIR/cp-al-probe"
+mkdir -p "$probe/a" && : >"$probe/a/f"
+if command -v flock >/dev/null 2>&1 && cp -al "$probe/a" "$probe/b" 2>/dev/null && [[ "$probe/a/f" -ef "$probe/b/f" ]]; then
+  seed_root="$TEST_TMPDIR/wtroot-seed"
+  npm_log="$TEST_TMPDIR/npm-seed.log"
+  first=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-one --base-ref head \
+    --root "$seed_root" --repo-dir "$deps_repo" 2>/dev/null)
+  errfile="$TEST_TMPDIR/err-seed-two.txt"
+  second=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-two --base-ref head \
+    --root "$seed_root" --repo-dir "$deps_repo" 2>"$errfile")
+  assert_exit "seed: second worktree on the same lockfile succeeds" 0 "$?"
+  assert_eq "seed: npm ci ran once for two worktrees" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  if [[ "$first/node_modules/.bin/markdownlint-cli2" -ef "$second/node_modules/.bin/markdownlint-cli2" ]]; then
+    pass "seed: both worktrees hard-link the same file"
+  else
+    fail "seed: both worktrees hard-link the same file" "same inode" "different files"
+  fi
+  assert_contains "seed: stderr names the shared seed" "$(cat "$errfile")" "linked node_modules from the shared seed"
+
+  npm_log="$TEST_TMPDIR/npm-seed-off.log"
+  off=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" WORKTREE_CREATE_NPM_SEED=0 bash "$HELPER" --name feat/seed-off \
+    --base-ref head --root "$seed_root" --repo-dir "$deps_repo" 2>/dev/null)
+  assert_eq "seed off: npm ci runs in the worktree" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  if [[ "$off/node_modules/.bin/markdownlint-cli2" -ef "$first/node_modules/.bin/markdownlint-cli2" ]]; then
+    fail "seed off: node_modules is the worktree's own" "own file" "linked to the seed"
+  else
+    pass "seed off: node_modules is the worktree's own"
+  fi
+
+  stale="$seed_root/.npm-seed/stale0000"
+  mkdir -p "$stale/node_modules" && : >"$stale/.complete" && touch -d '30 days ago' "$stale/.complete"
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$TEST_TMPDIR/npm-seed-prune.log" bash "$HELPER" --name feat/seed-prune \
+    --base-ref head --root "$seed_root" --repo-dir "$deps_repo" >/dev/null 2>&1
+  if [[ -e "$stale" ]]; then
+    fail "seed: a seed unused for 30 days is pruned" "removed" "still present"
+  else
+    pass "seed: a seed unused for 30 days is pruned"
+  fi
+  if compgen -G "$seed_root/.npm-seed/*/node_modules/.bin/markdownlint-cli2" >/dev/null; then
+    pass "seed: the seed in use is kept"
+  else
+    fail "seed: the seed in use is kept" "seed present" "no seed"
+  fi
+else
+  skip_case "flock or a hard-linking cp -al is unavailable; the shared seed is not used here"
+fi
 
 # npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
 # an npm; skipped when that would also drop git or bash.

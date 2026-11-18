@@ -279,9 +279,13 @@ Options:
   -h, --help          Show this help.
 
 Dependencies: when the new worktree has a package-lock.json, the helper runs
-npm ci in it (output on stderr), capped at WORKTREE_CREATE_DEPS_CAP_SECONDS
-(default 45). A missing npm, a failed install or the cap only warns on stderr;
-the exit code is unchanged.
+npm ci once per distinct lockfile into <root>/.npm-seed/<sha256> and hard-links
+that node_modules into the worktree (cp -al), so worktrees on one lockfile share
+one copy on disk. Without flock, a SHA-256 tool or a working cp -al, or with
+WORKTREE_CREATE_NPM_SEED=0, it runs npm ci in the worktree instead. Seeds unused
+for WORKTREE_CREATE_NPM_SEED_DAYS (default 14) are removed. npm output goes to
+stderr, capped at WORKTREE_CREATE_DEPS_CAP_SECONDS (default 45). A missing npm,
+a failed install or the cap only warns on stderr; the exit code is unchanged.
 
 Reuse: a worktree already at the target path, on the branch this run would use,
 is printed as it is (no copy, no npm ci) when its lock names --session-id, when
@@ -1379,16 +1383,81 @@ if [[ "$deps_cap" =~ ^[0-9]+$ ]]; then
 else
   deps_cap=45
 fi
+# Hard links, not a symlink: npm ci empties a symlinked node_modules' target
+# (https://github.com/npm/cli/blob/v12.2.3/lib/commands/ci.js#L122-L129).
+SEED_UNAVAILABLE=200
+npm_seed_install() {
+  local wt="$1" seeds hash seed f rc
+  [[ "${WORKTREE_CREATE_NPM_SEED:-1}" != 0 ]] || return "$SEED_UNAVAILABLE"
+  command -v flock >/dev/null 2>&1 || return "$SEED_UNAVAILABLE"
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash=$(sha256sum "$wt/package-lock.json") || return "$SEED_UNAVAILABLE"
+  elif command -v shasum >/dev/null 2>&1; then
+    hash=$(shasum -a 256 "$wt/package-lock.json") || return "$SEED_UNAVAILABLE"
+  else
+    return "$SEED_UNAVAILABLE"
+  fi
+  hash=${hash%% *}
+  seeds="$(dirname "$wt")/.npm-seed"
+  seed="$seeds/$hash"
+  mkdir -p "$seeds" && exec 9>"$seed.lock" || return "$SEED_UNAVAILABLE"
+  if ! flock -w "$deps_cap" 9; then
+    exec 9>&-
+    return "$SEED_UNAVAILABLE"
+  fi
+  if [[ ! -f "$seed/.complete" ]]; then
+    rm -rf -- "${seed:?}" "${seed:?}.tmp"
+    mkdir -p "$seed.tmp"
+    for f in package.json package-lock.json .npmrc; do
+      [[ -f "$wt/$f" ]] && cp -p -- "$wt/$f" "$seed.tmp/"
+    done
+    printf '%s: installing dependencies with npm ci into the shared seed (capped at %ss)\n' "$PROG" "$deps_cap" >&2
+    # SC2016: $1 expands in the inner bash, which receives the path as an argument.
+    # shellcheck disable=SC2016
+    run_capped "$deps_cap" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$seed.tmp" </dev/null >&2
+    rc=$?
+    if ((rc != 0)); then
+      rm -rf -- "${seed:?}.tmp"
+      exec 9>&-
+      return "$rc"
+    fi
+    : >"$seed.tmp/.complete" && mv -- "$seed.tmp" "$seed"
+  fi
+  rc=0
+  if [[ -d "$seed/node_modules" ]]; then
+    rm -rf -- "${wt:?}/node_modules"
+    cp -al -- "$seed/node_modules" "$wt/node_modules" 2>/dev/null || rc=$SEED_UNAVAILABLE
+  fi
+  touch -- "$seed/.complete"
+  exec 9>&-
+  ((rc == 0)) && printf '%s: linked node_modules from the shared seed %s\n' "$PROG" "$seed" >&2
+  prune_npm_seeds "$seeds"
+  return "$rc"
+}
+
+prune_npm_seeds() {
+  local seeds="$1" days="${WORKTREE_CREATE_NPM_SEED_DAYS:-14}" marker old
+  [[ "$days" =~ ^[0-9]+$ ]] || days=14
+  while IFS= read -r marker; do
+    old=$(dirname "$marker")
+    (exec 8>"$old.lock" && flock -n 8 && rm -rf -- "${old:?}" "${old:?}.lock") 2>/dev/null
+  done < <(find "$seeds" -mindepth 2 -maxdepth 2 -name .complete -mtime +"$((10#$days))" 2>/dev/null)
+}
+
 if [[ -f "$worktree_path/package-lock.json" ]]; then
   if ! command -v npm >/dev/null 2>&1; then
     printf '%s: warning: package-lock.json found but npm is not on PATH; dependencies not installed. Run npm ci in %s\n' \
       "$PROG" "$worktree_path" >&2
   else
-    printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
-    # SC2016: $1 expands in the inner bash, which receives the path as an argument.
-    # shellcheck disable=SC2016
-    run_capped "$deps_cap" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
+    npm_seed_install "$worktree_path"
     deps_rc=$?
+    if ((deps_rc == SEED_UNAVAILABLE)); then
+      printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
+      # SC2016: $1 expands in the inner bash, which receives the path as an argument.
+      # shellcheck disable=SC2016
+      run_capped "$deps_cap" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
+      deps_rc=$?
+    fi
     if ((deps_rc == 124)); then
       printf '%s: warning: npm ci did not finish within %ss and was stopped; node_modules may be partial. Run npm ci in %s\n' \
         "$PROG" "$deps_cap" "$worktree_path" >&2
