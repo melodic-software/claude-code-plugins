@@ -339,8 +339,8 @@ then-current 1,361-file tracked-markdown corpus:
 - **Demoted from script to rubric (2026-08-25), per this entry's own calibration clause.** The
   dogfood fix pass ended with 18 of 18 residual findings on load-bearing enumerations; the
   shipped ERE matched only single-word triads, selecting for exactly the terse operative lists
-  the boundary protects; and a survey of comparable prose linters found no tricolon
-  implementation anywhere to learn from.
+  the boundary protects; and a survey of comparable prose linters (Vale, textlint, proselint,
+  write-good, alex, markdownlint) found no tricolon implementation anywhere to learn from.
   The boundary the rubric applies: enumerating three actual things the reader needs is not a
   tell; three parallel items used for rhythm, where the survivors would entail the deleted
   ones, is. A reader can make that call; a density regex demonstrably cannot.
