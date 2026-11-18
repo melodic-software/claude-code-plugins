@@ -862,6 +862,65 @@ jobs:
       app-field-option: "84879220"
       dimension-skip: ${{ needs.check-admission.outputs.outsider == 'true' && 'outside-author' || needs.pick-slot.outputs.skip-reason }}
 
+  check-human-pull:
+    name: Check Human Pull
+    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
+    if: >-
+      ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written'
+      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      pull: ${{ steps.check.outputs.pull }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check for a listed human's open pull request
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The commit job: a script with no model that runs nothing from the patch.
   # It checks the patch against the model job's SHA-256, applies it to the
   # commit the model worked on (checked out fresh, never the model job's
@@ -871,10 +930,11 @@ jobs:
   # time, the rest queued.
   apply-issue-patch:
     name: Apply Issue Patch
-    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
+    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, check-human-pull]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
-      && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written' }}
+      && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written'
+      && needs.check-human-pull.result == 'success' && needs.check-human-pull.outputs.pull == '' }}
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
@@ -1279,7 +1339,7 @@ jobs:
 
   report-outcome:
     name: Report Outcome
-    needs: [check-admission, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, apply-issue-patch, run-checks]
+    needs: [check-admission, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, check-human-pull, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this
     # file through the read runner's check-issue-fields job, which checks it and
@@ -1331,7 +1391,8 @@ jobs:
       # a failed job that gave no reason crashed before committing or refusing.
       escalation-reason: >-
         ${{ needs.apply-issue-patch.outputs.escalation-reason
-        || needs.apply-issue-patch.result == 'failure' && 'patch-apply-failed' || '' }}
+        || (needs.apply-issue-patch.result == 'failure' || needs.check-human-pull.result == 'failure') && 'patch-apply-failed' || '' }}
+      human-pull: ${{ needs.check-human-pull.outputs.pull }}
       # The selected read call's lane lease, ended once the PR is open; every
       # other call's lease, a stale stop's included, its own read runner ended.
       lease-comment-id: ${{ needs.resolve-issue-stale.outputs.stale != 'true' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id) || '' }}

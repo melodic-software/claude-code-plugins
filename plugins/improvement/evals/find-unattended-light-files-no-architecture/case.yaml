@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: find-unattended-light-files-no-architecture
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: reads-candidate-file
+    type: tool_used
+    tool: 'Read'
+    input_match: 'deepening-candidates-20261118T060000Z\.md'
+    min: 1
+  - name: names-verification-level
+    type: regex
+    pattern: '\blight\b'
+    target: last_message
+    arm: both
+  - name: files-no-architecture-candidate
+    type: llm
+    criteria: 'PASS only if the reply would file none of the three architecture candidates and gives as the reason that the verification level is light, so no candidate was verified. FAIL if it would file any of them under any label, or gives only another reason such as the open cap or a missing label.'

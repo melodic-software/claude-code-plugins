@@ -17,7 +17,7 @@ behavior, when a new mutation tool appears for a listed ecosystem, or at the nex
 
 | Ecosystem | Tool | Diff-scoping flag | Write-regime setting | Covered-code metric name |
 |---|---|---|---|---|
-| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace`: `false` → out-of-tree; `true` → in-tree whole-file (schemata rewrite once) | Mutation score based on covered code |
+| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace`: `false` → out-of-tree; `true` → in-tree whole-file | Mutation score based on covered code |
 | C# / .NET | Stryker.NET | `--since[:<target>]` | none, fixed out-of-tree | Mutation score based on covered code |
 | Scala | Stryker4s | none | none, fixed out-of-tree | Mutation score based on covered code |
 | Java / JVM | PIT (pitest) | incremental analysis | none, mutants held in memory, never written to disk (out-of-tree) | **Test strength** |
@@ -43,10 +43,9 @@ read, because the regime is a constant for that tool. Evidence classes differ pe
 collapsed across tools:
 
 - **StrykerJS `inPlace`** is a documented option
-  ([configuration § inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean)).
-  `false` is out-of-tree; `true`
-  rewrites the working file once under mutant schemata (in-tree whole-file), not per-mutant
-  apply/revert cycles.
+  ([configuration § inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean),
+  which says what each value writes). Classify `false` as out-of-tree and `true` as in-tree
+  whole-file, never per-mutant, so Phase 0 picks the whole-file restoration gate for `true`.
 - **Stryker.NET / Stryker4s / Infection `none`** are negatives by enumerating the published options
   list; an added in-place option would announce itself nowhere, so re-enumerate rather than
   spot-check. Constant **out-of-tree**.

@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.16] - 2026-11-18
+
+### Changed
+
+- `/context7:lookup`'s MCP reference no longer says what an unset `${CONTEXT7_API_KEY}` header variable does. It now says to use the header form only once the variable is set or a fallback is added, and leaves the unset-variable behavior to its pointer to the MCP page.
+
 ## [1.0.15] - 2026-11-18
 
 ### Changed

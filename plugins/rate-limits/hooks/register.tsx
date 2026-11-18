@@ -1,5 +1,8 @@
 import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer } from 'claude-code'
 
+import { desktopNotice, type DesktopChange } from './desktop-notice.tsx'
+import { readTiers } from './levels.ts'
+
 // The contract directory under the home directory. make-probe-copy.sh rewrites this one line.
 const CONTRACT_DIR = 'rate-limits'
 const SNAPSHOT_FILE = 'rate-limits.json'
@@ -46,7 +49,7 @@ type Config = {
 }
 // An operator notice offers held lines and shows on every surface; a crossing notice stands in for
 // the toast where toasts may not draw, so it shows only off the terminal.
-type Notice = { text: string; kind: 'crossing' | 'operator' }
+type Notice = { text: string; kind: 'crossing' | 'operator'; changes?: DesktopChange[] }
 type Body = {
   captured_at: string
   session_id: string
@@ -427,15 +430,19 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
     if (st.toastQueue.length === 0) return
     if (held ?? (cfg.lines && (await operatorHolds($, st, cfg)))) return
     const changes = st.toastQueue.splice(0).sort(([a], [b]) => order(a) - order(b))
+    const tiers = await readTiers($, await homeDir($))
     const bodies: string[] = []
+    const desktop: DesktopChange[] = []
     for (const [kind, event] of changes) {
-      const body = toastBody(kind, event, st.reading?.get(kind), cfg)
+      const limit = st.reading?.get(kind)
+      const body = toastBody(kind, event, limit, cfg)
       bodies.push(body)
+      desktop.push({ window: windowOf(kind)?.name ?? kind, event, percent: limit?.percentUsed, resetsAt: limit?.resetsAt, threshold: cfg.threshold, tiers })
       $.ui.log(`rate-limits: ${body} · more: /${COMMAND}`, { to: 'transcript' })
       if (cfg.toast) $.ui.toast(body)
     }
     if (st.notice?.kind !== 'operator') {
-      st.notice = { text: `rate-limits: ${bodies.join('; ')} · more: /${COMMAND}`, kind: 'crossing' }
+      st.notice = { text: `rate-limits: ${bodies.join('; ')} · more: /${COMMAND}`, kind: 'crossing', changes: desktop }
       $.ui.invalidate('ui.render')
     }
   } catch (error) {
@@ -845,7 +852,10 @@ export const register: Register = (on, options) => {
     const notice = noticeShows(st, e.surface) ? st.notice : undefined
     if (e.props.hasSurvey || (!st.bandShown && notice === undefined)) return theirs
     if (notice?.kind === 'operator') st.rowSeen = true
-    const { Box, Text } = $.ui.resolve(e)
+    const ui = $.ui.resolve(e)
+    const { Box, Text } = ui
+    const changes = e.surface === 'desktop' ? notice?.changes : undefined
+    const nowMs = changes === undefined ? 0 : await $.clock.now()
     return (
       <Box flexDirection="column">
         {st.bandShown ? (
@@ -853,7 +863,11 @@ export const register: Register = (on, options) => {
             {bandText(st.reading)}
           </Text>
         ) : null}
-        {notice !== undefined ? <Text wrap="wrap">{notice.text}</Text> : null}
+        {changes !== undefined ? (
+          desktopNotice($, ui, changes, nowMs, () => clearNotice($, st, 'crossing'))
+        ) : notice !== undefined ? (
+          <Text wrap="wrap">{notice.text}</Text>
+        ) : null}
         {theirs}
       </Box>
     )

@@ -361,9 +361,8 @@ case "$cmd $sub" in
     emit '{"name":"app","nameWithOwner":"eval-fixture/app","owner":{"login":"eval-fixture"},"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE","url":"https://github.com/eval-fixture/app","squashMergeAllowed":true,"mergeCommitAllowed":false,"rebaseMergeAllowed":false}'
     ;;
   "repo set-default")
-    # The default target-repo.sh reads; any other form would change it, so it is refused.
-    [[ "$*" == "repo set-default --view" ]] || refuse "$@"
-    echo "eval-fixture/app"
+    [[ "${3:-}" == --view ]] || refuse "$@"
+    echo "No default remote repository has been set for this directory." >&2
     ;;
   "auth status")
     echo "github.com"

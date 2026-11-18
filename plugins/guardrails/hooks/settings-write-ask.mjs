@@ -48,7 +48,8 @@ const MANAGED_DIRS = [
 // which is the cwd's toplevel except in a linked worktree.
 function localSettingsRoot(cwd) {
   try {
-    const [top, common] = execFileSync('git', ['-C', cwd, 'rev-parse', '--path-format=absolute',
+    const [top, common] = execFileSync('git', ['--no-pager', '-c', 'core.fsmonitor=false',
+      '-c', 'core.hooksPath=/dev/null', '-C', cwd, 'rev-parse', '--path-format=absolute',
       '--show-toplevel', '--git-common-dir'], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000,
     }).split('\n').map(slash);

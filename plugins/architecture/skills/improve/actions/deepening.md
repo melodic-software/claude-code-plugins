@@ -131,3 +131,28 @@ Branch here when the user wants alternative interfaces for the selected candidat
 When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what the seam hides, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to `/planning:design` (if enabled), which takes the `agreed-shape` entry as the module design and whose handoff carries it into the plan. If no design or planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
 
 Before handing off, re-run the base-freshness check, and carry the implementer instructions and, for several candidates, their landing order ("Hand-off").
+
+## Unattended mode
+
+Entered only when the invocation carries `--unattended`. Phases 1, 1.5 and 2 run with the changes below, each of which wins over the phase text it changes. Phase 3 does not run.
+
+- **Ask nothing.** Base freshness reports the behind count and carries on, and the run never merges or rebases. Scope comes from the invocation or the history step. Read the glossary, and write no glossary entry.
+- **No page.** Skip the HTML report, the medium resolver and the opener. The candidate file is the deliverable.
+- **The verification level applies as resolved.** Unattended mode neither raises nor lowers it, so under `light` and `off` no candidate has `signal-verified: true`.
+- **Threshold.** After re-badging, keep only candidates at or above the `unattended_min_badge` setting, on the order `Speculative`, `Worth exploring`, `Strong`.
+- **Candidate file.** Write `<memory_dir>/architecture/improve/<branch-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md` ("Memory-tier writes"), in the durable artifact's format with `status: proposed` on every entry, opening with this header:
+
+  ```markdown
+  # Deepening candidates
+
+  - mode: unattended
+  - verification: <the resolved level line, without its leading "verification: ">
+  - threshold: <the badge in effect>
+  - producer: architecture:improve
+  - source-sha: <full SHA of HEAD>
+  ```
+
+  The header holds these five fields and nothing else. `recommendation` holds the badge alone: `signal-verified` is what says a claim is unverified. With no candidate left, the file holds the header and its closing lines, and `top-recommendation: none`.
+- **A security defect is one placeholder line.** For each security defect the scan raised, reproduced or not, write the line `security-defect: withheld` just before the file's closing lines. Nothing about it goes in the file or the final output: no title, path, symbol, defect class or reproduction. The file, route and symbols that hold the defect are named nowhere in either, even for an unrelated reason, because naming them beside the placeholder points at the defect. A candidate that rests on the defect, or cannot be stated without those names, is left out whole and is never the top recommendation; any other candidate keeps its entry with those names and that evidence removed.
+- **Another reproduced live defect stays on its candidate** as evidence, and the final output names it. Invoke no bug-report skill.
+- **Final output.** The candidate file's path, the count of candidates per badge, the verification level, and the number of `security-defect: withheld` lines with one instruction: run `/architecture:improve` with a person present to review them privately. End there, with no question.

@@ -173,13 +173,19 @@ gh api -X PUT "repos/<owner>/<repo>/pulls/<pr_number>/merge-async" \
   -f sha="$HEAD_SHA" -f merge_action=direct_merge -f merge_method=squash -F bypass_rules=false
 ```
 
-For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. The response carries a
-request `uuid` (a 409 means one is already pending and returns its `uuid`); poll
-`gh api "repos/<owner>/<repo>/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until it reads
-`merged`, `enqueued`, or `failed`. Request fields and statuses:
-[merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously),
-as of 2026-10-02; recheck when a `gh` release adds a command for it or that page changes a field or
-status.
+For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. Take the request
+`uuid` from the response. A 409 response carries the `uuid` of a request already pending for the
+PR, perhaps from an earlier run: poll that one and send no other request while it is pending, so
+there is one result to poll. Poll
+`gh api "repos/<owner>/<repo>/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until
+it reads one of the end statuses this procedure stops on: `merged`, `enqueued` or `failed`.
+
+- **Pointer**: when you need a request field, a response code or a status, fetch
+  [merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously)
+  live.
+- **As of**: 2026-10-02
+- **Recheck trigger**: a `gh` release adds a command for the async merge API, or that section
+  changes a field or status.
 
 ## Merge after AI review
 
@@ -328,10 +334,10 @@ gh api graphql --silent -F id='<pr_node_id>' -F head='<head_sha>' -f query='
 A non-zero exit is the refusal; its error text is the blocker. Then re-run the read: `queued` is
 the result, and `enqueue` again means the mutation returned but the PR is not in the queue, a hold.
 
-- **Pointer**: a PR joins a queue through the merge button or auto-merge:
-  [managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue);
-  the mutation and its `expectedHeadOid` input:
-  [enqueuePullRequest](https://docs.github.com/graphql/reference/mutations#enqueuepullrequest).
+- **Pointer**: when you need how a PR is added to a queue, fetch
+  [Adding a pull request to a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue#adding-a-pull-request-to-a-merge-queue)
+  live; when you need the mutation and its `expectedHeadOid` input, fetch
+  [enqueuePullRequest](https://docs.github.com/graphql/reference/mutations#enqueuepullrequest) live.
 
 ## Latest run on the default branch
 
