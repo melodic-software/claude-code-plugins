@@ -1697,6 +1697,16 @@ test("#16893 start --claude-args resumes --resume in the profile the session ran
   assert.equal(argsJson(w, ["--resume", "abc-1", "--profile", "review"]).profile, "review", "a given profile wins");
 });
 
+test("#16914: words after a bare -- stay claude's: neither --resume, -c nor --profile there picks a profile or a session file", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  for (const words of [["--", "--resume", "abc-1"], ["--", "--profile", "build"], ["--", "-c"], ["-p", "--", "--resume=abc-1"]]) {
+    const r = argsJson(w, words);
+    assert.deepEqual(r.argv, ["claude", ...words], words.join(" "));
+    assert.equal(r.profile, null, words.join(" "));
+  }
+});
+
 test("#16893 start --profile works without --claude-args; an unknown or missing name, or a profile given twice, is refused before claude starts", () => {
   const w = world();
   const s = startJson(w, ["--model", "opus", "--profile", "build"]);

@@ -608,6 +608,7 @@ function oneSessionProfileOf(where, id) {
 function resumeOf(args) {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    if (arg === "--") return null;
     if (arg.startsWith("--resume=")) return { kind: "resume", id: arg.slice("--resume=".length) };
     if (arg === "--resume" || arg === "-r") {
       const next = args[i + 1];
