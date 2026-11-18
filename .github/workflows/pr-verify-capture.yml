@@ -633,11 +633,13 @@ jobs:
       # up to twice the cap in all, and any runner-user process, a leg's Bash
       # child included, can reach the 0660 socket (our decision; the usage
       # step reports each listener's spend for sizing it). The proxy's log, in its
-      # own 0750 directory, holds request paths and token counts, never a
-      # key. A watcher beside it, with no access to the key, ends it once
+      # own 0750 directory, holds request paths, token counts and refused
+      # requests' error fields, never a key. A watcher beside it, with no
+      # access to the key, ends it once
       # /run/ccd-stop/stop exists ("Stop the key proxy"). The readiness
       # checks ask a path the proxy refuses, spending nothing: the socket
       # answers 404, and the port 401 without the client key and 404 with it.
+      # Pointer: https://platform.claude.com/docs/en/api/errors (Error shapes)
       - name: Start the key proxy
         id: proxy
         if: steps.credential.outputs.present == 'true'
@@ -1541,8 +1543,8 @@ jobs:
       # What each listener spent through the key proxy, the driven session's
       # socket and the driver legs' loopback port, for setting
       # pr-pipeline.yaml's token-cap and driver-token-cap from measured
-      # runs, then the fields of up to 20 refused upstream requests, so a
-      # refusal says why. The log is the proxy's own, which the runner's user
+      # runs, then the fields of up to 10 refused upstream requests per
+      # listener, and how many more, so a refusal says why. The log is the proxy's own, which the runner's user
       # cannot write; only what jq computes from it is printed, printable
       # ASCII with no "::" or "##", never a line of it.
       # Pointer: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
@@ -1564,8 +1566,9 @@ jobs:
             | ([$r | group_by(.status)[] | "\(.[0].status):\(length)"] | join(" ")) as $statuses
             | "::notice::key proxy \($r[0].listener | tostring | gsub("[^a-z]"; "")): \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
           jq -R -s -r '
-            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | .[:20][]
-            | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas // [] | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"
+            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | group_by(.listener | tostring)[]
+            | ((.[:10][] | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas | if type == "array" then . else [] end | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"),
+              (select(length > 10) | "key proxy \(.[0].listener | tostring | gsub("[^a-z]"; "")): \(length - 10) more refused upstream requests not shown"))
             | gsub("[^ -~]"; " ") | gsub(":(?=:)"; ": ") | gsub("#(?=#)"; "# ")' "$log"
 
       # The upload: run-e2e's e2e-summary.json from the run directory the

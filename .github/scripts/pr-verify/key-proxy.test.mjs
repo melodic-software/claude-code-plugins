@@ -318,6 +318,34 @@ test("an upstream error line is single-line, bounded, masks keys and cannot act 
   assert.doesNotMatch(line, /\\[nru]/);
 });
 
+test("an upstream error message has every UUID masked, so an organization id is not logged", async () => {
+  const ids = ["3f2a9c4e-1b7d-4e8a-9c0f-2d6b8e1a7c55", "3F2A9C4E-1B7D-4E8A-9C0F-2D6B8E1A7C55"];
+  const limited = errorBody("rate_limit_error", `Number of request tokens has exceeded your rate limit for organization ${ids[0]} (${ids[1]})`);
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(429, { "content-type": "application/json" }).end(limited));
+  const { socket, logs } = await startProxy(up);
+  const res = await call(socket, { body: message() });
+  assert.equal(res.body, limited);
+  const [entry] = upstreamErrors(logs);
+  assert.equal(entry.errorType, "rate_limit_error");
+  assert.equal(entry.errorMessage, "Number of request tokens has exceeded your rate limit for organization [id] ([id])");
+});
+
+test("a key that straddles the 120-character cut is masked before the cut, so no prefix of it is logged", async () => {
+  const messages = [`${"x".repeat(115)}${KEY} tail`, `${"x".repeat(112)}${CLIENT_KEY} tail`];
+  let n = 0;
+  const up = await stubUpstream((_req, _body, res) => res.writeHead(400, { "content-type": "application/json" }).end(errorBody("invalid_request_error", messages[n++])));
+  const { socket, logs } = await startProxy(up, {}, { clientKey: CLIENT_KEY });
+  for (let i = 0; i < messages.length; i++) await call(socket, { body: message(), headers: { "x-api-key": CLIENT_KEY } });
+  const texts = upstreamErrors(logs).map((e) => e.errorMessage);
+  assert.equal(texts.length, 2);
+  for (const text of texts) {
+    assert.equal(text.length, 120);
+    for (const k of [KEY, CLIENT_KEY]) {
+      for (let len = 4; len <= k.length; len++) assert.ok(!text.includes(k.slice(0, len)), `a ${len}-character key prefix logged`);
+    }
+  }
+});
+
 test("an upstream error body that is not the expected JSON, or is past the read bound, logs only that it was unreadable", async () => {
   const bodies = ["<html>bad gateway</html>", JSON.stringify({ error: "plain" }), errorBody("api_error", "x".repeat(9000))];
   let n = 0;

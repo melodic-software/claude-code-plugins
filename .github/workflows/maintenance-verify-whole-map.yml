@@ -1214,8 +1214,9 @@ jobs:
             | ([$r | group_by(.status)[] | "\(.[0].status):\(length)"] | join(" ")) as $statuses
             | "::notice::key proxy \($r[0].listener | tostring | gsub("[^a-z]"; "")): \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
           jq -R -s -r '
-            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | .[:20][]
-            | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas // [] | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"
+            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | group_by(.listener | tostring)[]
+            | ((.[:10][] | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas | if type == "array" then . else [] end | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"),
+              (select(length > 10) | "key proxy \(.[0].listener | tostring | gsub("[^a-z]"; "")): \(length - 10) more refused upstream requests not shown"))
             | gsub("[^ -~]"; " ") | gsub(":(?=:)"; ": ") | gsub("#(?=#)"; "# ")' "$log"
 
       - name: Collect the pass

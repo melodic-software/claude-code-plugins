@@ -48,9 +48,9 @@
 // loopback), method, path without query, status and token counts, and for a beta refusal the refused beta names, so a
 // failed capture says what to add to `betas`. A non-2xx upstream answer adds
 // one line: its error type and the first 120 characters of its message, keys
-// masked and made single-line and inert, and the request's model,
-// anthropic-beta names and max_tokens. Never the key, any other header value,
-// or any other part of a body.
+// and UUIDs masked and made single-line and inert, which may quote request
+// content, and the request's model, anthropic-beta names and max_tokens.
+// Never the key, any other header value, or any other part of a body.
 // Pointer: https://platform.claude.com/docs/en/api/errors (Error shapes)
 // As of: 2026-11-17. Recheck trigger: that section changes the error object's fields.
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -125,6 +125,7 @@ const ERROR_TYPE = /^[a-z_]{1,64}$/;
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,79}$/;
 const BETA_NAME = /^[a-z0-9][a-z0-9._-]{0,79}$/;
 const KEY_SHAPED = /sk-ant-[A-Za-z0-9_-]*/g;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const UNPRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 const stringList = (c, name) => {
@@ -418,7 +419,7 @@ const relayHeaders = (incoming) => Object.fromEntries(Object.entries(incoming).f
 const digest = (s) => createHash("sha256").update(s, "utf8").digest();
 
 const inert = (text, secrets) => {
-  const masked = secrets.reduce((t, s) => t.split(s).join("[key]"), text).replace(KEY_SHAPED, "[key]");
+  const masked = secrets.reduce((t, s) => t.split(s).join("[key]"), text).replace(KEY_SHAPED, "[key]").replace(UUID, "[id]");
   return Array.from(masked.replace(UNPRINTABLE, " ").replace(/:(?=:)/g, ": ").replace(/#(?=#)/g, "# ")).slice(0, ERROR_MESSAGE_CHARS).join("");
 };
 
