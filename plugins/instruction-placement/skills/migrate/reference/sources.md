@@ -22,7 +22,6 @@ Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) �
 [`claude-code-action` releases](#claude-code-action-release-to-installed-cli-version) ·
 [CI canary](#the-ci-canary) · [Canary host](#canary-host-4282) ·
 [Fleet grade](#current-fleet-grade) ·
-[Other loaders](#loader-behavior-of-cursor-grok-build-and-muse-code) ·
 [Canary recipe](#the-canary-recipe) · [Shim removal cost](#what-shim-removal-costs) ·
 [Measuring the cutover](#what-the-loss-means-for-measuring-the-cutover) ·
 [Built-in agents-md plugin](#the-built-in-agents-md-plugin) ·
@@ -194,64 +193,6 @@ path-detection rows, every one acknowledged with a reviewed reason.
   changelog touches `AGENTS.md` or instruction-file loading, the monthly due date of
   `agents-md-cutover-check` in `.github/recurring-schedule.json`, or an in-scope repository
   becoming unreadable or readable.
-
-## Loader behavior of Cursor, Grok Build, and Muse Code
-
-The migration plans for other tools on these observations of ours, not on docs or source. Each
-tool was run headless against one recipe tree. Cursor CLI loads `AGENTS.md`, `CLAUDE.md` and
-`CLAUDE.local.md` together at session start, follows symlinks, applies no size cap through 262,156
-bytes, and does not expand `@path` imports. It reads no other name (`Agents.md`, `AGENT.md`,
-`.claude/CLAUDE.md` are absent). `.cursor/rules/*.md` never loads; `.mdc` loads only with
-frontmatter. Started at the git root, nested files attach when a file under them is read; started
-in the nested directory, the ancestor chain loads (12 levels seen). In the non-git copy the attach
-on read did not occur. Grok Build loads eight file names per directory, and the two `.claude/`
-names are gated by `GROK_CLAUDE_AGENTS_ENABLED` (set to `false`, they vanish). No switch stops it
-reading a plain `CLAUDE.md`. It does not expand `@path` imports, follows symlinks, and shows no size
-cap through 262,156 bytes. In a trusted folder outside a git repository it loads the working
-directory only, so the expectation that nothing loads outside a git repository does not hold; with
-folder trust off nothing project-level loads. Muse Code loads one file per directory with
-`AGENTS.md` first, and `CLAUDE.md` alone loads when no `AGENTS.md` exists. It does not expand
-`@path` imports and follows symlinks. It skips an `AGENTS.md` over 256,000 bytes and says so on
-stderr, loads one of 244,676 bytes with only the head reaching the model (65,536-byte delegation
-startup limit), and skips project files unless the workspace is trusted (`--trust-workspace`). In
-a git repository it loads the chain from root to working directory (12 levels seen); from the
-root, a read under a nested directory attaches nothing; outside git it loads the working directory
-only.
-
-Still open, each with its reason:
-
-- Cursor Team, Project, User precedence: needs a Team plan and the editor rules UI, not observable
-  headless.
-- Cursor editor against CLI, and how the editor applies an always-on rule: the editor was not run.
-- Cursor `~/.cursor/rules` as a synced file: the path does not exist on the host, and sync cannot
-  be observed headless.
-- Grok path-only reminder text for out-of-chain files: contents stay unloaded and the model later
-  read the nested files itself, but the streamed transcript carries no reminder text.
-- Grok `MAX_WALK_DEPTH` of 10: a working directory at depth 12 loaded all 12 levels, so the recipe
-  does not show what the constant bounds.
-- Whether Muse ever opens a shadowed sibling `CLAUDE.md`: Muse names the shadowed file on stderr as
-  ignored in favor of `AGENTS.md`, but whether the file is opened needs `strace`, which is not
-  installed on the host.
-- Muse user-rules path and its Windows resolution: no Muse-native user-rules file exists on the
-  host, and the Windows path needs a Windows host.
-
-- **Pointer**: headless runs on one Linux host with cursor-agent `2026.09.28-64d2043`
-  (`cursor-agent -p --mode ask --trust`), grok `1.0.41 (4220f3b224a6)` (`grok -p --tools ""`
-  with `GROK_FOLDER_TRUST=0`, and `grok inspect --json`), and Muse Code `1.4.1 (1.4.1-R4503.1)`
-  (`muse exec --trust-workspace --disable-shell --disable-write`). The tree, prompt,
-  invocations and expected results are in
-  [`reference/verification.md`](verification.md#the-loader-recipe-for-other-tools); the raw
-  transcripts are not committed. Each result is one model sample except where repeats agreed. For
-  each tool's own documentation, see Cursor rules, <https://cursor.com/docs/rules>, and Grok
-  Build, <https://docs.x.ai/build/overview> (both fetched 2026-09-30, HTTP 200, both naming
-  `AGENTS.md`); neither states the loader semantics above, which is why they are recorded as
-  observed. Muse Code: no public documentation or issue tracker was found, so its results rest on
-  the recipe alone.
-- **As of**: 2026-09-30
-- **Recheck trigger**: a new release of any of the three tools, a host that can run the
-  editor, a Team plan, a Windows host, or `strace`, which would settle the open bullets, either
-  upstream page coming to state loader behavior, or any change to the recipe in
-  [`reference/verification.md`](verification.md#the-loader-recipe-for-other-tools).
 
 ## The canary recipe
 

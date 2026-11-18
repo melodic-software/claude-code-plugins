@@ -21,10 +21,10 @@ Each pair below comes from one of two changes, a retry backoff cap and a CSV exp
 
 | Field | Usable | Not usable |
 |---|---|---|
-| Acceptance criteria | "`npm test -- retry` passes, including a new case where the backoff hits `maxDelay`." | "Retries behave better." |
+| Acceptance criteria | "The retry tests pass, including a new case where the backoff hits `maxDelay`." | "Retries behave better." |
 | Acceptance criteria | "Exporting a report with zero rows produces a file that holds only the header line." | "Empty exports work." |
-| Desired behavior | "`ReportExporter.toCsv()` writes the header row even when the result set is empty." | "Move the header write above the `for` loop in `export.ts`." |
-| Desired behavior | "`RetryPolicy` gains a `maxDelay` setting; once the computed backoff exceeds it, the delay is clamped to `maxDelay`." | "In `retry.go`, add an `if` after the multiply on line 88." |
+| Desired behavior | "`ReportExporter.toCsv()` writes the header row even when the result set is empty." | "Move the header write above the row loop in the export file." |
+| Desired behavior | "`RetryPolicy` gains a `maxDelay` setting; once the computed backoff exceeds it, the delay is clamped to `maxDelay`." | "In the retry module, add a check after the multiply on line 88." |
 
 ## Template
 
