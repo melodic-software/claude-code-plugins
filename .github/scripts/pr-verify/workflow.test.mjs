@@ -2787,7 +2787,34 @@ test("the outer claude reaches the broker and the holders through CCD_* only", (
   assert.doesNotMatch(capStep(PROBE), /CCD_/);
 });
 
-test("the sandbox is stopped before collect, and collect copies no link", { skip: process.platform === "win32" && "bash step" }, async () => {
+test("the usage report prints each listener's first 10 refused upstream requests, one inert line each, and how many more", () => {
+  const programs = [...capStep("Report the key proxy's usage").matchAll(/jq -R -s -r '\n([\s\S]*?)' "\$log"/g)].map((m) => m[1]);
+  assert.equal(programs.length, 2);
+  const hostile = `${String.fromCharCode(7, 0x202e)}::error::x\n##[group]y\r::warning::z`;
+  const refused = (listener, i, extra) => JSON.stringify({ listener, upstreamStatus: 400, upstreamPath: "/v1/messages", errorType: "invalid_request_error", errorMessage: `m${i} ${hostile}`, model: "m::x", betas: ["a"], maxTokens: 5, ...extra });
+  const log = [
+    ...Array.from({ length: 12 }, (_, i) => refused("socket", i, i === 0 ? { betas: "not-a-list" } : {})),
+    refused("loopback", 0, { errorType: undefined, errorMessage: undefined, upstreamError: "error body unreadable", betas: { a: 1 } }),
+    JSON.stringify({ listener: "socket", method: "POST", path: "/v1/messages", status: 400 }),
+    "not json",
+  ].join("\n");
+  const file = path.join(tempDir("kp-report-"), "proxy.log");
+  writeFileSync(file, `${log}\n`);
+  const r = spawnSync("jq", ["-R", "-s", "-r", programs[1], file], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.split("\n").filter(Boolean);
+  for (const line of lines) {
+    assert.match(line, /^key proxy (socket|loopback): /);
+    assert.doesNotMatch(line, /::|##|[^ -~]/);
+  }
+  assert.equal(lines.filter((l) => l.startsWith("key proxy socket: upstream 400")).length, 10);
+  assert.equal(lines.at(-1), "key proxy socket: 2 more refused upstream requests not shown");
+  assert.deepEqual(lines.filter((l) => l.startsWith("key proxy loopback")), ['key proxy loopback: upstream 400 on /v1/messages, error body unreadable "", model m: :x, betas , max_tokens 5']);
+  assert.match(lines.find((l) => l.includes('"m0 ')), /, betas , /);
+  assert.equal(lines.length, 12);
+});
+
+test("the sandbox is stopped before collect, and collect copies no link",{ skip: process.platform === "win32" && "bash step" }, async () => {
   const stop = capStep(SIBLING_STOP);
   assert.ok(capIndex(DRIVER) < capIndex(SIBLING_STOP) && capIndex(SIBLING_STOP) < capIndex("Collect the capture"));
   assert.equal(stepIf(stop), "always() && steps.sibling.outputs.child-pid != ''");
