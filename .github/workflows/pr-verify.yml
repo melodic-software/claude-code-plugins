@@ -4041,7 +4041,7 @@ jobs:
   # `run:` script.
   check-intent-fallback:
     name: Check Intent Fallback
-    needs: check-intent-subscription
+    needs: [check-intent, check-intent-subscription]
     if: >-
       !cancelled()
       && needs.check-intent-subscription.result == 'success'
@@ -4114,6 +4114,8 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+          CARRIED: ${{ needs.check-intent.outputs.reads }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
@@ -4165,7 +4167,7 @@ jobs:
         run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
-        if: steps.agree.outcome == 'success'
+        if: steps.agree.outcome == 'success' && steps.pr.outputs.carried != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
