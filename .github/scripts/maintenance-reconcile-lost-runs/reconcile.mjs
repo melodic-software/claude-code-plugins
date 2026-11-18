@@ -50,8 +50,9 @@
 //   lane run does. Their succeeded runs are listed
 //   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
 //   earlier: the last pass that read, or the oldest first attempt that pass
-//   saw still going, inside the lookback. At most FAULT_HELD_READS of them
-//   have their jobs read a pass. A run held again at attempt 2 waits for the
+//   saw still going, inside the lookback. Only those an open head may own
+//   (followsNoOpenHead) have their jobs read, at most FAULT_HELD_READS a
+//   pass. A run held again at attempt 2 waits for the
 //   head's next checks run.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
 //   pr-verify pass that the spec has since changed under (an issue edit or a
@@ -93,9 +94,11 @@
 //   PR's while the kill switch is on. Re-run as a Stop is, with no lookback.
 // - Verdict: a pr-dispatch-feedback.yml run, at attempt 1, whose only failed
 //   job is post-verify-notes and whose only failed step there is its
-//   kill-switch stop (VERDICT_STOP_STEP): a pr-verify verdict finished while
-//   the switch was on, so its notes, or its pr-verify-failed label added or
-//   removed, never reached the PR. Its failed jobs are re-run once, over the
+//   kill-switch stop (VERDICT_STOP_STEP), or any one step that failed only
+//   where the GITHUB_TOKEN hit its rate-limit floor (floorNoted): a pr-verify
+//   verdict finished while the switch was on or the token was at its floor,
+//   so its notes, or its pr-verify-failed label added or removed, never
+//   reached the PR. Its failed jobs are re-run once, over the
 //   whole lookback, taking no place under MAX_IN_FLIGHT. The re-run's
 //   dispatch job sends no address-feedback round, which the lanes trust only
 //   from an attempt-1 dispatcher; it records the head instead, and the next
@@ -312,8 +315,6 @@ const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.n
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
 // failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
-// A job that failed at any other step (a refused dequeue, a verdict name no
-// reader takes) is a red for a person, never re-run here.
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
 // post-verify-notes names it on a run from before the rename.
 export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
@@ -403,7 +404,7 @@ export const SETTLED_FILE = "settled.json";
 const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
 // Bump whenever the rules that settle a run change, so no pass skips a run
 // settled under the old rules.
-export const SETTLED_VERSION = 3;
+export const SETTLED_VERSION = 4;
 
 class RateLimited extends Error {}
 // Rethrows a rate limit, which stops the run; the caller handles any other error.
@@ -755,6 +756,12 @@ const laneStarts = (own) => {
   return starts;
 };
 
+const followsNoOpenHead = (run, openChecks) => {
+  const starts = openChecks.map((c) => c.starts.get(run.path)).filter((t) => t !== undefined);
+  const created = Date.parse(run.created_at);
+  return starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
+};
+
 // The lane items in place order: those matched to an open head, oldest first,
 // then the rest, oldest first. A lane run's listing names main's tip, not its
 // PR, so a run is matched by time: each open head's checks completion takes the
@@ -790,13 +797,7 @@ function laneOrder(lanes, openChecks, drop) {
       taken.add(key);
     }
   }
-  const superseded = drop
-    ? lanes.filter((l) => {
-        const starts = openChecks.map((c) => c.starts.get(l.path)).filter((t) => t !== undefined);
-        const created = Date.parse(l.created_at);
-        return l.kind === "lane" && starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
-      })
-    : [];
+  const superseded = drop ? lanes.filter((l) => l.kind === "lane" && followsNoOpenHead(l, openChecks)) : [];
   const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
   return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
 }
@@ -1531,12 +1532,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   try {
     const unread = [];
+    let unowned = 0;
     for (const r of listed.filter((run) => isFaultHeld(run, heldStart)).sort(byAge)) {
       if (settled.has(r.id)) {
         settle.push({ id: r.id, reason: settled.get(r.id) });
+      } else if (everyHeadRead && followsNoOpenHead(r, openChecks)) {
+        unowned += 1;
       } else {
         unread.push(r);
       }
+    }
+    if (unowned > 0) {
+      say(`${unowned} succeeded runs follow no open pull request's newest checks run, so they are not read for a hold`);
     }
     for (const [i, r] of unread.entries()) {
       if (i === FAULT_HELD_READS) {
@@ -1636,8 +1643,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const listing = await firstAttemptJobs(call, repo, r.id);
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
-      if (rerun.length === 1 && VERDICT_JOBS.has(rerun[0].name) && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
+      const oneStep = rerun.length === 1 && VERDICT_JOBS.has(rerun[0].name) && failedSteps.length === 1;
+      if (oneStep && failedSteps[0] === VERDICT_STOP_STEP) {
         verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      } else if (oneStep && wholeListing(listing) && stepsKnown(rerun[0]) && (await floorFailed(call, repo, rerun))) {
+        verdicts.push({ kind: "verdict", floor: true, id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
       } else if (wholeListing(listing) && (rerun.length > 1 || (rerun.length === 1 && (!VERDICT_JOBS.has(rerun[0].name) || stepsKnown(rerun[0]))))) {
         // A listing with no failed job, a job without its conclusion, or a
         // step list read before it was whole, is read again next pass.
@@ -1734,7 +1744,7 @@ async function act({ repo, call, say, since, sleep, items }) {
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
             : item.kind === "verdict"
-              ? `${where}: re-ran run ${item.id} (${item.path}), whose pr-verify verdict the lanes kill switch kept from its PR`
+              ? `${where}: re-ran run ${item.id} (${item.path}), whose pr-verify verdict ${item.floor ? "the GITHUB_TOKEN's rate-limit floor" : "the lanes kill switch"} kept from its PR`
               : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${FAILED_JOBS_WHY.get(item.kind)}`,
         );
         continue;

@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: sp-refresh-unattended-property-change-blocked
+graders:
+  - name: blocked-outcome-line
+    type: regex
+    pattern: 'Check one-holder \(formal-lock\): blocked'
+    target: last_message
+    arm: with-only
+  - name: proposes-and-leaves-sync
+    type: llm
+    criteria: "Judge what the reply says the unattended refresh pass does. PASS only if the reply (1) treats commit 9f8e7d6 as an intended promise change, citing the commit or the CHANGELOG line as evidence; (2) proposes a property change with the old wording ('a lock has at most one holder') and a new wording that lets readers share the lock; (3) leaves the check blocked, waiting for a person, with its sync commit still a1b2c3d; and (4) makes no edit to the model, property or sync.yaml, commits nothing, opens no pull request and files no bug. Naming a branch or pull request only to say none is made is not a failure. FAIL if the reply changes the property or model, moves the sync commit, calls the failure a bug and files it, commits, or opens a pull request."
+    arm: with-only

@@ -1,5 +1,18 @@
 # Changelog: docs-hygiene plugin
 
+## [4.0.12] - 2026-11-17
+
+### Changed
+
+- `write-for-agents`: the other-ecosystem table lists names and paths only, with a pointer to each vendor's docs for how it loads them. Paths that had moved upstream are current again: Windsurf reads `.devin/`, Junie prefers `.junie/AGENTS.md`, and Cline also reads `.cline/rules/` ([#16860](https://github.com/melodic-software/claude-code-plugins/issues/16860)).
+- `extract-ssot` orchestrated mode keeps its worker cap of 2 and the reason for it, without restating the upstream window lengths or which auth types expose window data ([#16860](https://github.com/melodic-software/claude-code-plugins/issues/16860)).
+
+## [4.0.11] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [4.0.10] - 2026-11-17
 
 ### Changed

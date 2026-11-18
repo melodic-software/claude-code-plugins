@@ -98,16 +98,6 @@
 #   # lane-coverage-ok: <reason>
 #   some-job:
 #
-# or as a trailing comment on the job key itself. Same annotated-exemption shape
-# `# silent-skip-ok:` uses for scripts/check-silent-skips.sh: the reason lives
-# next to the thing it excuses, in the file a reviewer is already reading, and
-# there is no separate list to drift. The annotation must sit in the contiguous
-# 2-space comment block immediately above the job key (a blank line or any other
-# line breaks contiguity), so it can never be mistaken for an annotation
-# belonging to some earlier job. As of #2856 the repo carries ZERO opt-outs; the
-# path exists so that a future advisory lane is a decision on the record instead
-# of an omission nobody notices.
-#
 # THE STEP OPT-OUT. A step that carries `continue-on-error: true` for a reason
 # other than aggregation (the docs-only resolver's own steps, whose failure must
 # fall through to a fail-open default instead of failing their job) is listed in

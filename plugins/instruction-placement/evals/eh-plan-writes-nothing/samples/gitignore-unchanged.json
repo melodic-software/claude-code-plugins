@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": ".work/\n", "why": "the seeded file"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": ".work/\n.scratch/\n", "why": "the drift fixed by appending the missing line"},
+    {"answer": ".scratch/\n", "why": "the line replaced"}
+  ]
+}

@@ -79,7 +79,7 @@ plugins/harness-ops/skills/plugins/context/scope-semantics.md 5
 plugins/implementation/skills/implement-dispatch/SKILL.md 1
 plugins/implementation/skills/implement-dispatch/reference/holdout-tests.md 1
 plugins/implementation/skills/implement/context/replace.md 1
-plugins/instruction-placement/skills/migrate/reference/sources.md 5
+plugins/instruction-placement/skills/migrate/reference/sources.md 3
 plugins/knowledge/skills/docpage-digest/SKILL.md 1
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
@@ -98,7 +98,6 @@ plugins/performance/skills/go-faster/reference/catalog/ci-cd.md 13
 plugins/performance/skills/go-faster/reference/catalog/git.md 11
 plugins/performance/skills/go-faster/reference/catalog/harness.md 6
 plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
-plugins/performance/skills/verify/SKILL.md 1
 plugins/planning/skills/design/reference/design-defaults.md 1
 plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2
 plugins/planning/skills/draft-goal-condition/reference/workflow-row.md 1

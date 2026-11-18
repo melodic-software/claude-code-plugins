@@ -168,7 +168,7 @@ user-controlled removal. Nothing expires, sweeps, or ages these files out silent
 what the next session acts on: rules rewritten in place under their ids, preferences until their
 instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
-history. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
+history. `new` copies questions and decisions off disk like rules: one changes only through `retire` or a rewrite in place ending `Rewritten h<N>: <why>` for this hop `N`, and `validate` fails any other change; `new` also folds trail lines 3 or more hops old behind one `- Folded:` line. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
 state the rules still in force under Current rules from there, never from memory.
 
 A rule or preference leaves the hot file only when retired or promoted, listed with its reason
@@ -315,7 +315,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   `save_point.py fill "$FILE" --slots "$SLOTS"` call, its slot names read off the skeleton `new`
   just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
   is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
-  as `new` wrote it (frontmatter, the carried goal, rules, preferences and trail, the
+  as `new` wrote it (frontmatter, the carried goal, rules, preferences, questions, decisions and trail, the
   `## Prior sessions` table, the rails block minus `Next:`, the hop file). An optional slot
   (`goal-first`, `goal-after`, `below-rail`, `goal-new`, `<section>-new`) that does not apply is left out of the object, which is how `fill`
   deletes its line; a goal region goes in `goal-first` or `goal-after` as one multi-line value,

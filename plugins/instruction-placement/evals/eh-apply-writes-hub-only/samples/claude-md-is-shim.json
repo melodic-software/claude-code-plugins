@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "@AGENTS.md\n", "why": "the shim with its newline"},
+    {"answer": "@AGENTS.md", "why": "the shim without a trailing newline"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "@./AGENTS.md\n", "why": "near miss: a lone import in a non-canonical form"},
+    {"answer": "# Harborline hub\n\n@AGENTS.md\n", "why": "the import with content around it"}
+  ]
+}

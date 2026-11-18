@@ -3,6 +3,30 @@
 All notable changes to the `formal-verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-11-17
+
+### Added
+
+- `/formal-verification:specify refresh` brings each `formal-<area>` check back in line with code changed since its sync commit and ends it `in sync`, `updated`, `bug` or `blocked`. It runs each check unchanged, reads and classifies every covered change, updates the verification from the code in a throwaway worktree, and reruns it with a seeded break. A property changes only on a person's yes; a replayed bug goes to `/bugs:write` and `/work-items:track add`. It commits the verification alone, on a ticket branch or through one upkeep pull request, and an unattended run writes only for a check that ends `in sync` or `updated` with its seeded break caught. `--convert <skill-dir>` turns a verification skill outside the contract into a `formal-<area>` skill, attended only.
+
+### Changed
+
+- The contract check's stale-coverage line now ends `run /formal-verification:specify refresh`, so a pull request that touches a covered path is told which check is stale and what refreshes it.
+
+## [0.2.2] - 2026-11-17
+
+### Changed
+
+- The bundled enforcement ladder is 3.3.0: it adds the `formatter` rung, first after
+  `compiler-setting` on the static-analysis tier, for a style rule the repository's recorded
+  format command can enforce. No rung moves or is renamed.
+
+## [0.2.1] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.2.0] - 2026-11-17
 
 ### Added

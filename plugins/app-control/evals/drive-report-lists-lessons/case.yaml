@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: drive-report-lists-lessons
+description: A drive that learned something about driving the app lists it in its report as a `/app-control:map refresh "<lesson>"` line and writes nothing into the control skill, since map is the only writer of its Gotchas. Source invented
+tags: [drive, lessons, report, unattended, invented, no-network]
+expected_outcome: "The reply puts one lesson in report.json's `lessons` field, as a `/app-control:map refresh \"...\"` line saying the export step has to wait for the Export button to enable, records step 2 as failed without rating the change, and writes nothing into the control skill's Gotchas. Its last two lines read `Lessons: /app-control:map refresh \"...\"` and `Gotchas written by drive: no`."
+execution:
+  prompt: "/app-control:drive clockwork weekly-timesheet-export --unattended --out out/run. Do not read the repository, run anything or write any file. Treat the drive as already run: step 2, `click [data-test=export]`, ran as soon as the week loaded and did nothing, so step 2 failed; the step's screenshot shows the Export button disabled, and the proof step's screenshot two seconds later shows it enabled. Say what the run's report.json holds under `lessons` and what drive does with the control skill's `## Gotchas`. End your reply with two lines: `Lessons: <each lesson line, or none>` and `Gotchas written by drive: <yes or no>`, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: lesson-as-refresh-line
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Lessons:[^\n]*/app-control:map refresh[ \t]+"[^"\n]*(?:enabl|wait)'
+    arm: both
+  - name: drive-writes-no-gotchas
+    type: regex
+    flags: i
+    pattern: '(?:^|\n)[ \t*_>`-]*Gotchas written by drive:[ \t*_`]*no\b'
+    arm: both

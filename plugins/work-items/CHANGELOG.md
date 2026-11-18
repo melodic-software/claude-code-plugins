@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.1] - 2026-11-18
+
+### Changed
+
+- `/work-items:setup` infers recurring candidates from the dependency manifests and lint or formatter configs a repository holds, with no list of per-ecosystem file names.
+- `/work-items:scan-todos` no longer excludes `*.min.*` and `node_modules` paths from its marker scan; it excludes the paths the repository documents instead.
+- The label taxonomy's `ecosystem:` axis, the agent-brief examples and the `track` sample outputs name no language or tool.
+
+## [15.6.0] - 2026-11-17
+
+### Added
+
+- The container close ritual now deletes the container's dossier branch, and the dossier branch its source wayfind map names, once the close-out review passes. It reads the branch prefix from the repository's `docs/conventions/source-control.yaml` and validates a branch name read from a comment. More than one matching branch, or a branch that heads an open pull request, is only reported: never deleted, asked about or offered for deletion in that run. `/work-items:ship` now routes the close to the ritual's file directly and names the dossier-branch step as part of that close. When attended, it shows each branch's commits and files not on the default branch before asking once. An unattended run never deletes: it lists each branch due for deletion in the closing comment and its report. A container that stays open deletes nothing, and the closing comment reports each branch.
+
+## [15.5.5] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [15.5.4] - 2026-11-17
 
 ### Changed

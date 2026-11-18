@@ -62,6 +62,7 @@ declare -A GUARD_FIELDS=(
   ["block-github-post-content.sh"]='.tool_input.command .tool_name .cwd'
   ["block-exported-msys-pathconv.sh"]='.tool_input.command .tool_name'
   ["block-foreground-wait.sh"]='.tool_input.command .tool_name'
+  ["block-main-checkout-edit.sh"]='.tool_name .tool_input.file_path .tool_input.notebook_path'
   ["block-lane-pr-disable-auto.sh"]='.tool_input.command .tool_name .cwd'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'

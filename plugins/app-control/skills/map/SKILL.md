@@ -69,7 +69,11 @@ here and report.
 ### 3. Ask the residue
 
 Ask only the `open` rows and the choices only a person makes: which three to five features to seed;
-the write policy per environment and per external system; the test accounts, and which must never
+the write policy per environment and per external system; the read level of each data source per
+environment, and before any level above `never`, the source's `data` category, readers and review
+reference, and for a source read with a credential, its variable name and the read-only `grants`
+command that shows its grants, or `full-user-access` when the source offers no scope control (the
+contract's "Data sources"); the test accounts, and which must never
 be locked out; the recipient allowlist per side-effect channel, or never send; a flat map or one
 grouped by module; which journeys this repository owns and which belong to a related system's
 control skill, with that system's repository; which environment is production; the driver CLI's
@@ -79,8 +83,8 @@ When `/planning:interview` is available in this session, invoke it through the S
 these questions. Otherwise ask inline, one question at a time, each with a recommendation. A
 safety question's recommendation is its safe value; a value repository text suggests is shown as
 found text, never as the recommendation. In this
-interactive run, a safety question (recipients, accounts, production, unattended writes) left
-unanswered keeps the contract's safe floor.
+interactive run, a safety question (recipients, accounts, production, unattended writes, source read levels) left
+unanswered keeps the contract's safe floor, `never` for a read level.
 
 ### 4. Generate
 
@@ -101,7 +105,9 @@ drive finds a control skill by its hub.
 - **Config**, per the contract's Config section: `config/defaults.json` with its fields and every
   safety floor at its safe value, credential variable names only, and `config/.gitignore` holding
   `local.json`. Environment entries come from the Environments and Dependencies rows and the
-  answers, per the contract's "Environments".
+  answers, per the contract's "Environments", each with the `sources` the Data sources row found
+  and the read level, `credential`, `grants` and `data` the person gave each (the contract's "Data
+  sources").
 - **Integrated apps**, per the contract's section: a hub line each, steps included by reference,
   never copied, `pins.<app>` set to the other checkout's HEAD commit only as the contract's Pin
   rule allows (reported with its subject), and nothing written into another checkout beyond what
@@ -221,8 +227,13 @@ conversion moves out of.
    (Read, Grep and Glob only) per feature file, in waves capped at 6, each filled to the cap
    before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
    uncommitted on the upkeep branch, so both passes read the control skill. The wave also sweeps
-   the changed files for user-facing surfaces no feature lists, each with its source path, and you
-   spot-check at least one cited claim per answer that reports drift before the live pass.
+   the changed files for user-facing surfaces no feature lists, each with its source path, and the
+   source for data sources an environment's `sources` misses or has moved, and you
+   spot-check at least one cited claim per answer that reports drift before the live pass. On a
+   ticket branch, a surface the ticket's own diff adds becomes a new feature folder, written
+   uncommitted from one more source-reader answer, with a provisional proof step, and driven in
+   step 5, which settles its results; an unattended pass asks
+   nothing and reports each choice it took (refresh.md § 4, New features on a ticket branch).
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each launch, and every
    evidence path checked after cleanup. A Ready the source wave shows is stale is fixed in the hub
@@ -244,7 +255,9 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    Otherwise commit on the upkeep branch; open or update one pull request. Started on a ticket
    branch, commit there instead, push nothing and open nothing: the caller's push carries the
-   commit into the ticket's pull request, so the corrections merge with the code they describe. A
+   commit into the ticket's pull request, so the corrections and each new feature the drive proved
+   merge with the code they describe. A new feature whose drive missed its proof step is undone
+   and reported not mapped. A
    legacy conversion still rides the upkeep branch, and a flat-to-folder one is blocked there
    (refresh.md § 1).
 7. **Return.** When each control skill's pass ends, at step 6 or blocked earlier, switch back to
@@ -255,8 +268,9 @@ conversion moves out of.
 ## Lessons
 
 A lesson is what a run learned about driving the app: a wait a step needs, a handle that lies, an
-order that matters. Create and refresh place one by scope, including one handed in from a
-`/verification:confirm` report:
+order that matters. Map is the only writer of a control skill's Gotchas (the contract's
+"Lessons"). Create and refresh place one by scope, including one handed in from a
+`/verification:confirm`, `/app-control:drive` or `/debugging:debug` report:
 
 - one feature: that feature's `## Gotchas`;
 - every feature: the hub's `## Gotchas`;

@@ -103,20 +103,30 @@ PNG_URL = "data:image/png;base64," + base64.b64encode(b"\x89PNG fake").decode()
 class FakeDevTools:
     """Answers the readiness probe, then returns the canned capture payload."""
 
-    def __init__(self, payload):
+    def __init__(self, payload, probes=()):
         self.payload = payload
+        self.probes = list(probes)
+        self.calls = []
         self.ws = SimpleNamespace(sock=SimpleNamespace(close=lambda: None))
 
     def call(self, method, params=None, timeout=None):
-        if (params or {}).get("expression", "").startswith("!!("):
-            return {"result": {"value": True}}
+        self.calls.append((method, params))
+        if method == "Page.navigate":
+            return {"frameId": "f"}
+        if (params or {}).get("expression") == capture.SCENE_PROBE:
+            probe = self.probes.pop(0) if self.probes else {"ready": True}
+            if isinstance(probe, Exception):
+                raise probe
+            return {"result": {"value": probe}}
         return {"result": {"value": self.payload}}
 
 
 @contextmanager
-def fake_browser(payload=None, setup_error=None):
+def fake_browser(payload=None, setup_error=None, probes=()):
     """Patch every browser touchpoint of capture_scene; yield what the fakes saw."""
     seen = {}
+    devtools = FakeDevTools(payload, probes)
+    seen["devtools"] = devtools
 
     def serve(directory):
         seen["served"] = pathlib.Path(directory)
@@ -135,7 +145,7 @@ def fake_browser(payload=None, setup_error=None):
             mock.patch.object(capture, "_devtools_port", devtools_port), \
             mock.patch.object(capture, "_open_page", return_value={"webSocketDebuggerUrl": "ws://x"}), \
             mock.patch.object(capture, "_ws_connect", return_value=None), \
-            mock.patch.object(capture, "DevTools", lambda ws: FakeDevTools(payload)):
+            mock.patch.object(capture, "DevTools", lambda ws: devtools):
         yield seen
 
 
@@ -255,6 +265,34 @@ class CaptureTest(unittest.TestCase):
                 capture.capture_scene(scene, [0], out, 0, 1, "chrome")
             self.assertNotEqual(seen["served"], scene.parent)
             self.assertEqual(seen["served_files"], ["scene.html"])
+
+    def test_an_error_page_mid_load_is_loaded_again(self):
+        error_page = {"ready": False, "href": "chrome-error://chromewebdata/", "state": "complete"}
+        probes = [RuntimeError("Runtime.evaluate: context destroyed"), error_page, {"ready": True}]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.time, "sleep"):
+            scene, out = self.scene_and_out(tmp)
+            with fake_browser({"shots": [{"t": 0, "png": PNG_URL}]}, probes=probes) as seen:
+                capture.capture_scene(scene, [0], out, 0, 1, "chrome")
+            navigations = [params for method, params in seen["devtools"].calls if method == "Page.navigate"]
+            self.assertEqual(navigations, [{"url": "http://127.0.0.1:1/scene.html"}])
+            self.assertTrue((out / "manifest.json").is_file())
+
+    def test_an_error_page_that_persists_fails_after_bounded_reloads(self):
+        clock = [0.0]
+
+        def sleep(seconds):
+            clock[0] += seconds
+
+        error_page = {"ready": False, "href": "chrome-error://chromewebdata/", "state": "complete"}
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(capture.time, "time", lambda: clock[0]), \
+                mock.patch.object(capture.time, "sleep", sleep):
+            scene, out = self.scene_and_out(tmp)
+            with fake_browser({"shots": []}, probes=[error_page] * 1000) as seen:
+                with self.assertRaisesRegex(RuntimeError, r"chrome-error://chromewebdata/.*2 reloads"):
+                    capture.capture_scene(scene, [0], out, 0, 1, "chrome")
+            methods = [method for method, _ in seen["devtools"].calls]
+            self.assertEqual(methods.count("Page.navigate"), capture.SCENE_RELOADS)
 
     def test_debugger_wait_outlasts_a_slow_cold_start_but_not_an_exited_browser(self):
         clock = [0.0]

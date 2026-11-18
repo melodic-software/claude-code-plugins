@@ -20,7 +20,6 @@
 plugins/harness-config/skills/audit-permission-grants/reference/criteria.md
 plugins/harness-ops/skills/observability/context/data-sources.md
 plugins/harness-ops/skills/plugins/context/scope-semantics.md
-plugins/discovery/skills/explore/reference/ecosystem-discovery.md
 plugins/disk-hygiene/skills/clean/reference/safety-model.md
 plugins/docs-hygiene/skills/rename-references/context/apply.md
 plugins/docs-hygiene/skills/rename-references/context/audit.md

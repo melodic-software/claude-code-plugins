@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Read", "input": {"file_path": "AGENTS.md"}}, {"tool": "Bash", "input": {"command": "git status --short"}}], "why": "reads only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "AGENTS.md", "content": "# Hub\n"}}], "why": "rewrites the instruction file"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "AGENTS.md"}}, {"tool": "Write", "input": {"file_path": ".work/plan.md", "content": "plan\n"}}], "why": "a new file, even a scratch one"}
+  ]
+}

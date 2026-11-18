@@ -229,13 +229,23 @@ test("covered code changed since the sync commit warns by default and still pass
   const r = check(staleRepo().root);
   assert.equal(r.code, 0, r.out);
   assert.equal(r.warns.length, 1, r.out);
-  assert.match(r.warns[0], /^WARN "formal-lock": check "one-holder": covered code changed since sync commit [0-9a-f]{12}: "src\/lock\.js"$/);
+  assert.match(r.warns[0], /^WARN "formal-lock": check "one-holder": covered code changed since sync commit [0-9a-f]{12}: "src\/lock\.js"; run \/formal-verification:specify refresh$/);
 });
 
-test("on_stale: fail on the entry makes stale coverage fail", () => {
+test("a change outside every covered path draws no refresh line", () => {
+  const made = repo();
+  write(made.root, "src/other.js", "1\n");
+  git(made.root, "add", "-A");
+  git(made.root, "commit", "-q", "-m", "uncovered change");
+  const r = check(made.root);
+  assert.equal(r.code, 0, r.out);
+  assert.ok(!/refresh/.test(r.out), r.out);
+});
+
+test("on_stale: fail on the entry makes stale coverage fail and still names refresh", () => {
   const r = check(staleRepo({ sync: { extra: "    on_stale: fail\n" } }).root);
   assert.equal(r.code, 1, r.out);
-  assert.match(r.fails.join("\n"), /covered code changed since sync commit/);
+  assert.match(r.fails.join("\n"), /^FAIL "formal-lock": check "one-holder": covered code changed since sync commit [0-9a-f]{12}: "src\/lock\.js"; run \/formal-verification:specify refresh$/m);
 });
 
 test("check.on_stale: fail in the convention file makes stale coverage fail", () => {

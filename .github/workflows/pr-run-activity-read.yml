@@ -831,6 +831,11 @@ jobs:
       carry-sealed-3: ${{ steps.seal.outputs.sealed-3 }}
       carry-sealed-4: ${{ steps.seal.outputs.sealed-4 }}
       carry-sealed-5: ${{ steps.seal.outputs.sealed-5 }}
+      transcript-sealed-length: ${{ steps.transcript-seal.outputs.sealed-length }}
+      transcript-sealed-1: ${{ steps.transcript-seal.outputs.sealed-1 }}
+      transcript-sealed-2: ${{ steps.transcript-seal.outputs.sealed-2 }}
+      transcript-sealed-3: ${{ steps.transcript-seal.outputs.sealed-3 }}
+      transcript-sealed-4: ${{ steps.transcript-seal.outputs.sealed-4 }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -1505,6 +1510,8 @@ jobs:
             sum=$(sha256sum <"$SEAL_DIR/${pair#*:}")
             echo "${pair%%:*}-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           done
+          sum=$(sha256sum <"$DEST/publish-gate.mjs")
+          echo "gate-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
 
       # The act-turns step's script, copied before the head checkout replaces
       # .base, with its SHA-256, which that step checks its copy against
@@ -2326,13 +2333,20 @@ jobs:
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
           PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
+          GATE_SHA256: ${{ steps.seal-copy.outputs.gate-sha256 }}
         run: |
           rm -rf "$CARRY_DIR"
           mkdir -p "$CARRY_DIR"
           patch_is_clean() {
+            local sum
+            [ -n "$GATE_SHA256" ] && [ ! -L "$PATCH_GATE" ] && [ -f "$PATCH_GATE" ] || return 1
+            sum=$(sha256sum <"$PATCH_GATE")
+            [ "${sum%% *}" = "$GATE_SHA256" ] || return 1
             timeout 120 node --input-type=module -e '
+              import { createHash } from "node:crypto";
               import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
+              if (createHash("sha256").update(readFileSync(process.env.PATCH_GATE)).digest("hex") !== process.env.GATE_SHA256) process.exit(1);
               const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
               const bytes = readFileSync(process.argv[1]);
               const held = scanLeak(bytes, { diff: true }).block || /^GIT binary patch$/m.test(bytes.toString("latin1"));
@@ -2414,6 +2428,93 @@ jobs:
             lane.json=${{ runner.temp }}/carry/lane.json
           job-id: run
           max-chunks: 5
+
+      - name: Stage the leg's transcript for the transcript job
+        id: transcript-carry
+        if: always() && steps.seal-check.outcome == 'success'
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
+          PUBLIC_KEY: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          CARRY_DIR: ${{ runner.temp }}/carry-transcript
+          PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
+          CARRY_SEALED_LENGTH: ${{ steps.seal.outputs.sealed-length }}
+          GATE_SHA256: ${{ steps.seal-copy.outputs.gate-sha256 }}
+          ACTION_SHA256: ${{ steps.seal-copy.outputs.action-sha256 }}
+          SEAL_SHA256: ${{ steps.seal-copy.outputs.seal-sha256 }}
+        run: |
+          rm -rf "$CARRY_DIR"
+          mkdir -p "$CARRY_DIR"
+          if [ -z "$PUBLIC_KEY" ]; then
+            echo "::notice::the LANE_TRANSCRIPT_PUBLIC_KEY variable is not set, so this leg's transcript is not carried"
+            exit 0
+          fi
+          if [ -z "$EXECUTION_FILE" ] || [ -L "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ]; then exit 0; fi
+          [[ $CARRY_SEALED_LENGTH =~ ^[0-9]{1,7}$ ]] || CARRY_SEALED_LENGTH=0
+          output_chars=500000
+          api_failures_chars=65600
+          other_output_chars=8192
+          room=$((output_chars - api_failures_chars - other_output_chars - 10#$CARRY_SEALED_LENGTH))
+          base64_quads=$((room / 4))
+          cap=$((base64_quads * 3 - 92))
+          [ "$cap" -gt 286720 ] && cap=286720
+          if [ "$cap" -lt 1024 ]; then
+            echo "::notice::the carry leaves this job's outputs no room for the leg's transcript, so none is carried"
+            exit 0
+          fi
+          base_copy_matches() {
+            local file=$1 want=$2 sum
+            [ -n "$want" ] && [ ! -L "$file" ] && [ -f "$file" ] || return 1
+            sum=$(sha256sum <"$file")
+            [ "${sum%% *}" = "$want" ]
+          }
+          if ! base_copy_matches "$PATCH_GATE" "$GATE_SHA256"; then
+            echo "::error::the credential scan's copy does not match the SHA-256 recorded from the base, so no transcript is carried"
+            exit 1
+          fi
+          gz=$CARRY_DIR/transcript.json.gz
+          marker() {
+            jq -cn --arg reason "$1" --argjson bytes "$2" --argjson cap "$cap" \
+              '[{type: "system", subtype: "transcript_omitted", reason: $reason, bytes: $bytes, cap: $cap}]' | gzip -9n >"$gz"
+          }
+          gzip -9n -c -- "$EXECUTION_FILE" >"$gz"
+          bytes=$(stat -c %s "$gz")
+          if ! timeout 120 node --input-type=module -e '
+            import { createHash } from "node:crypto";
+            import { readFileSync } from "node:fs";
+            import { pathToFileURL } from "node:url";
+            if (createHash("sha256").update(readFileSync(process.env.PATCH_GATE)).digest("hex") !== process.env.GATE_SHA256) process.exit(1);
+            const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
+            process.exit(scanLeak(readFileSync(process.argv[1])).block ? 1 : 0);
+          ' "$EXECUTION_FILE"; then
+            echo "::warning::the leg's transcript holds a credential shape, or its scan failed, so a marker is carried in its place"
+            marker credential "$bytes"
+          elif [ "$bytes" -gt "$cap" ]; then
+            echo "::warning::too-large: the leg's transcript is $bytes gzipped bytes, over its $cap-byte cap, so a marker is carried in its place"
+            marker too-large "$bytes"
+          fi
+          printf '%s\n' "$PUBLIC_KEY" >"$CARRY_DIR/lane-transcript.pub"
+          if ! base_copy_matches "$GITHUB_WORKSPACE/.lane-seal/action.yml" "$ACTION_SHA256" || ! base_copy_matches "$GITHUB_WORKSPACE/.lane-seal/seal.mjs" "$SEAL_SHA256"; then
+            echo "::error::the sealer copy does not match the SHA-256 recorded from the base, so no transcript is carried"
+            exit 1
+          fi
+          if [ "$(cat "$CARRY_DIR/lane-transcript.pub")" != "$(printf '%s\n' "$PUBLIC_KEY")" ]; then
+            echo "::error::the transcript key file does not hold the LANE_TRANSCRIPT_PUBLIC_KEY variable, so no transcript is carried"
+            exit 1
+          fi
+          echo "staged=true" >>"$GITHUB_OUTPUT"
+
+      - name: Seal the leg's transcript for the transcript job
+        id: transcript-seal
+        if: always() && steps.seal-check.outcome == 'success' && steps.transcript-carry.outputs.staged == 'true'
+        continue-on-error: true
+        uses: ./.lane-seal # zizmor: ignore[self-repository]
+        with:
+          public-key-file: ${{ runner.temp }}/carry-transcript/lane-transcript.pub
+          payloads: |
+            transcript.json.gz=${{ runner.temp }}/carry-transcript/transcript.json.gz
+          job-id: ${{ inputs.activity }}${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
+          max-chunks: 4
 
       # The failed GitHub API calls this job's scripts recorded (recordFailure
       # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
@@ -3503,6 +3604,59 @@ jobs:
           name: scan-refused-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/scan-refused/
           retention-days: 1
+          if-no-files-found: error
+          overwrite: false
+
+  transcript:
+    name: Transcript
+    needs: run
+    if: >-
+      !cancelled() && needs.run.outputs.transcript-sealed-length != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Write the sealed transcript from the run job's outputs
+        id: record
+        continue-on-error: true
+        env:
+          SEALED_LENGTH: ${{ needs.run.outputs.transcript-sealed-length }}
+          SEALED_1: ${{ needs.run.outputs.transcript-sealed-1 }}
+          SEALED_2: ${{ needs.run.outputs.transcript-sealed-2 }}
+          SEALED_3: ${{ needs.run.outputs.transcript-sealed-3 }}
+          SEALED_4: ${{ needs.run.outputs.transcript-sealed-4 }}
+          OUT_DIR: ${{ runner.temp }}/lane-transcript
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+            const { SEALED_LENGTH, SEALED_1 = "", SEALED_2 = "", SEALED_3 = "", SEALED_4 = "", OUT_DIR, GITHUB_OUTPUT } = process.env;
+            const NAME = "transcript.json.gz";
+            const text = SEALED_1 + SEALED_2 + SEALED_3 + SEALED_4;
+            const fail = (why) => {
+              process.stdout.write("::error::the run job carried no sealed transcript record: " + why + "\n");
+              process.exit(1);
+            };
+            if (!/^[1-9][0-9]{0,6}$/.test(SEALED_LENGTH) || text.length !== Number(SEALED_LENGTH)) fail("its length does not match");
+            if (text.length > 4 * 98304 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) fail("it is not base64 within four chunks");
+            const bundle = Buffer.from(text, "base64");
+            const named = bundle[0] === NAME.length && bundle.subarray(1, 1 + NAME.length).toString("latin1") === NAME;
+            const at = 1 + NAME.length;
+            if (!named || bundle.length < at + 4 + 69 || bundle.readUInt32BE(at) !== bundle.length - at - 4) fail("it is not one " + NAME + " record");
+            mkdirSync(OUT_DIR, { recursive: true, mode: 0o700 });
+            const file = OUT_DIR + "/" + NAME + ".sealed";
+            writeFileSync(file, bundle.subarray(at + 4), { flag: "wx" });
+            appendFileSync(GITHUB_OUTPUT, "file=" + file + "\n");
+          '
+
+      - name: Upload the sealed transcript
+        if: steps.record.outputs.file != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-transcript-${{ inputs.activity }}${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lane-transcript/transcript.json.gz.sealed
+          retention-days: 7
+          compression-level: 0
           if-no-files-found: error
           overwrite: false
 

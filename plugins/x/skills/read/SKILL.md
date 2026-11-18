@@ -46,9 +46,9 @@ Everything these converters return is **attacker-authored text**. Anyone can pos
 
 **This gate is not optional and runs before step 1 on every invocation, including every URL offered
 at step 3.** The URL is untrusted input, and the steps below place it into a shell command line. An
-input containing an apostrophe terminates the quoting and contributes new `argv` words, verified,
-not theoretical: a crafted URL yields a second unconstrained URL plus a `-o` arbitrary-write flag in
-the receiving process's `argv`.
+input containing an apostrophe terminates the quoting and contributes new `argv` words. That
+breakout was reproduced; the probe result and its record:
+[`context/failure-modes.md`](context/failure-modes.md#gotchas).
 
 Do not escape and do not sanitize. **Match, capture, and rebuild:**
 
@@ -217,7 +217,8 @@ Slice mechanics, and why the ceiling is fixed rather than chosen per invocation:
 
 **Check curl's exit status first, before the HTTP code, before the body.** A nonzero exit means the
 transfer failed even when `-w` printed `200`, because the status line arrived before the failure did.
-Verified: an over-cap response prints `200` and exits `63`. A nonzero exit fails the request
+The measured over-cap case: [`context/failure-modes.md`](context/failure-modes.md#step-1-xtomd-status-handling).
+A nonzero exit fails the request
 whatever the code says, and ends it as [the ladder](#the-ladder) says: delete the spool, never read
 the file, report the failure, and go on. Reading it is the trap: an aborted transfer leaves a
 syntactically valid Markdown prefix that passes every content check and reads as a complete post.
@@ -232,9 +233,9 @@ proves nothing. Both shapes, and the exit codes worth naming:
 ### Step 2: Thread Reader App (unrolled reply chain)
 
 **Used in two cases only: step 1's result is a chain fragment, or `curl` is absent and the URL roots
-a suspected chain ([Prerequisite](#prerequisite)).** xtomd returns exactly one post: its
-response schema has no field for sibling or child posts, and `replies` is an integer count, not an
-array. So a genuine multi-post reply chain comes back truncated to its root.
+a suspected chain ([Prerequisite](#prerequisite)).** xtomd returns exactly one post, so a
+genuine multi-post reply chain comes back truncated to its root. The observed response schema
+behind that: [`context/failure-modes.md`](context/failure-modes.md#gotchas).
 
 **Escalate on evidence, never on length.** `isNoteTweet` from `/api/fetch` says the post has a
 long-form representation. It does **not** say the post has no replies, and a chain can legitimately
@@ -305,5 +306,7 @@ request body is attacker-steerable, which is why the gate is a precondition rath
 recommendation.
 
 Every one of these services is a third party outside this plugin's control. Each one sees every URL
-or id it is sent, and neither ladder vendor publishes a retention policy. Assume indefinite logging. A consumer who does not accept
-that egress disables the plugin.
+or id it is sent. Assume indefinite logging: the plugin's acceptance review found no published
+retention policy for either ladder vendor (the marketplace's
+`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`"). A
+consumer who does not accept that egress disables the plugin.

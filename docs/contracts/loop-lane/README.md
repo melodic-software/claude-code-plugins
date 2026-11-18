@@ -1296,7 +1296,12 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
   review lanes pass `--permission-mode dontAsk` with a fixed tool allowlist. Read-runner
   activities (`fix-ci`, `fix-docs`) run `dontAsk` with explicit allow rules and no write token;
   `permission-mode: auto` there fails red, because under the launcher's subprocess env scrub the
-  CLI starts in the default mode. All run under the hardening in
+  CLI starts in the default mode and prints "Permission mode forced to default", naming
+  `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` and the `allowed_non_write_users` hardening (Claude Code
+  2.1.304 in [run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443/job/119640730523)
+  and a local probe at 2.1.326, 2026-11-17). The scrub stays on, so no CI lane runs in auto
+  mode. Recheck when a Claude Code release changes how the scrub sets the permission mode. All
+  run under the hardening in
   [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   which also covers the untrusted-text risk for them.
 - **`--permission-prompts none`** is documented for print-mode runs where nobody can answer a
@@ -1390,9 +1395,10 @@ list. It is deliberately not phrased as an equality: an exception list exists, a
 "provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
 
 **A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
-An annotation on the shape `# lane-coverage-ok:` and `# silent-skip-ok:` use anchors to a syntactic
-site, a job key or a guard line, which bounds what it can excuse; a file has no such site, so any
-file mentioning the token anywhere, in prose or in a fixture string, would exempt its own floor
+An annotation on the shape `# lane-coverage-ok:` uses anchors to a syntactic site, a job key,
+which bounds what it can excuse: `scripts/check-lane-coverage.sh` reads it only as a trailing
+comment on the key line or inside the contiguous 2-space comment block directly above the key, where
+a blank or any other line ends the block. A file has no such site, so any file mentioning the token anywhere, in prose or in a fixture string, would exempt its own floor
 copy and drift unwatched. With the exception list in the check, a new data carrier costs an edit to
 the gate, which is the review the exception needs.
 
@@ -1470,11 +1476,14 @@ not stale, takes the live-collision branch (§4, instance-collision detection), 
 
 **Skip an issue (worker lane).** Apply the human-gated role label, resolved from the binding rather
 than typed as a literal (§2), and say why in a plain comment. Run it from a checkout of `$R`: the
-binding resolves from the same root the tracker seam uses.
+binding resolves from the same root the tracker seam uses. Resolve that root in its own Bash calls
+first (`printenv CLAUDE_PROJECT_DIR`, and when that prints nothing, `git rev-parse --show-toplevel`)
+and write the printed path in place of `<project root>`, so a worktree-isolated session can run the
+snippet as written
+([Project root](../../../plugins/work-items/reference/tracker-seam.md#project-root)).
 
 ```bash
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-L=$(yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null |
+L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |
   jq -r '.config.role_labels["human-gated"] // empty' 2>/dev/null)
 L=${L:-needs-human}
 gh issue edit <n> -R "$R" --add-label "$L"

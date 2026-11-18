@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing was read, driven, switched or written; this is the walk-through.\n\n1. **Files written:** `.claude/skills/control-shop/features/returns/README.md`, the new feature for the `/returns` page, with its entry point `Account menu > Returns: driven`, its Drive steps and `**Proof.**` step written from what the live pass showed, and its index line in the hub's `SKILL.md` with `sources: src/routes/returns.ts` and `entry points: 1`. The ticket's diff adds src/routes/returns.ts, so this surface is new to the ticket.\n2. **Commit:** on `feat/returns`, staging only those two control skill paths.\n3. **Push or pull request:** neither; the ticket's own pull request carries the commit when the caller pushes.\n4. **Report:** `/returns` mapped as a new feature. `/wishlist` not mapped, source path src/routes/wishlist.ts, since the ticket's diff does not touch it. No questions were asked.",
+      "why": "correct"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both pages are reported as not mapped, /returns at src/routes/returns.ts and /wishlist at src/routes/wishlist.ts. Nothing to ship, so the outcome is clean and nothing is committed.",
+      "why": "the ticket's new feature is only reported"
+    },
+    {
+      "answer": "Writes features/returns/README.md and features/wishlist/README.md, commits both on feat/returns, pushes nothing.",
+      "why": "maps the surface the ticket did not add"
+    },
+    {
+      "answer": "Writes features/returns/README.md and commits it on control-skill-upkeep/control-shop, then opens the upkeep pull request. /wishlist is reported not mapped at src/routes/wishlist.ts.",
+      "why": "upkeep branch and pull request"
+    },
+    {
+      "answer": "Before writing features/returns/README.md: which account should the returns feature use? Recommendation: the default test account.",
+      "why": "asks a question in an unattended pass"
+    }
+  ]
+}

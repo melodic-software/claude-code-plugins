@@ -3,6 +3,19 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.8] - 2026-11-17
+
+### Changed
+
+- `illustrate`'s ELI5 gotcha keeps its rule (do not promise that every ELI5 request reaches this skill) and points at the skills docs' name-resolution section instead of saying which other plugin a typed `/eli5` reaches.
+- `teach`'s workspace-root ladder gives the reason for reading the pointer file in its own Read call: the eval sandbox denied the chained call in the `te-root-declared-substitution` eval.
+
+## [2.1.7] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [2.1.6] - 2026-11-17
 
 ### Changed

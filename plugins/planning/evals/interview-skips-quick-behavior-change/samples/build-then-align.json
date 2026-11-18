@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "It changes behavior, but the diff is one constant and cheap to flip back, so it doesn't need an interview. I've set DEFAULT_PAGE_SIZE to 50 in src/users.ts; review the diff and align there.", "why": "makes the change and aligns on the diff"},
+    {"answer": "Just build it: change the constant, then we look at the diff together and flip it back if it's wrong.", "why": "recommends building then aligning on the diff"}
+  ],
+  "fail": [
+    {"answer": "Since this changes behavior for every caller, let's interview it first. Q1: Which clients depend on 20 rows?", "why": "treats the behavior change as a reason to interview"},
+    {"answer": "I'll write a Brief: goal, raise the default page size to 50; acceptance criteria, listUsers returns 50 rows by default.", "why": "proposes a Brief before building"}
+  ]
+}

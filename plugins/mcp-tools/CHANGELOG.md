@@ -3,6 +3,18 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-17
+
+### Added
+
+- audit: info-level criterion C21. A tool whose `destructiveHint` is true has a preview or dry-run counterpart, a separate tool or a mode, that runs the same checks and changes nothing. It points at the `--dry-run` trait in the app-control control-skill contract.
+
+## [0.8.23] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.8.22] - 2026-11-17
 
 ### Changed

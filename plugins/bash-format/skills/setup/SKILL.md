@@ -148,7 +148,7 @@ Code and read no toggle.
    (`hook::gitignored_out_of_scope` in `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`). Report the item 6
    value beside this.
 10. **Git pre-commit entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-    from the repository. It lists `format` and `lint`. Each line is `<state>\t<entry>[\t<detail>]`:
+    from the repository. It lists `format`, `lint` and `lint-full`. Each line is `<state>\t<entry>[\t<detail>]`:
     `ok` is PASS, `declined` is INFO (this clone said no; silent at session start), and `missing`,
     `stale`, `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`; a
     `superseded` detail lists what an install under an earlier plugin or entry name left (the single
@@ -210,7 +210,8 @@ with your own edit tools.
 The `format` entry rewrites: at commit it formats the staged shell scripts the shfmt adapter
 governs and stages the result, so tell the user that a commit can change the files it contains,
 and that a partly staged governed script is refused untouched. The `lint` entry only reports
-findings on the lines the commit adds. A decline of the earlier single entry carries to both.
+findings on the lines the commit adds, and `lint-full` only on the lines a push adds to a script over
+2,000 lines. A decline of the earlier single entry carries to both.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry format` (or `lint`); the

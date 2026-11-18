@@ -3,6 +3,34 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-11-17
+
+### Fixed
+
+- `/plugin-profile` answers as soon as the picker pane opens and runs the pick from the pane, so it no longer overruns its hook's 10-second budget and every outcome line prints ([#16818](https://github.com/melodic-software/claude-code-plugins/issues/16818)).
+- The picker pane draws every profile and **No profile** as a row at once instead of a closed drop-down; a row's whole description shows under the pointer, and the focused row's under the list ([#16818](https://github.com/melodic-software/claude-code-plugins/issues/16818)).
+- The preview names the plugins a switch turns off once: "Left on until the next apply" counts them, and so do the closing and in-force lines ([#16818](https://github.com/melodic-software/claude-code-plugins/issues/16818)).
+- `status` and `clear` find a profile another copy of the plugin applied, such as a `--plugin-dir` copy whose record sits in `plugin-profiles-inline`, instead of saying nothing is recorded ([#16818](https://github.com/melodic-software/claude-code-plugins/issues/16818)).
+
+## [0.4.0] - 2026-11-17
+
+### Added
+
+- `/plugin-profile` picks from one pane listing every profile and **No profile**, with a Cancel button: a Select, or a button per entry on mobile, which may not draw a Select; where no pane can be placed it falls back to the paged question dialog ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
+- `/plugin-profile` offers **No profile**, which clears this folder's profile behind the same preview and confirm as a switch, then reloads at the next turn's end; a folder with no profile says so and how to drop an earlier profile's plugins still loaded ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
+
+- `clear --dry-run --json` prints whether a profile is recorded, the one-session profile the running session keeps, and the preview lines; in a session started in a one-session profile, `clear` says that session keeps it ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
+
+### Fixed
+
+- `/plugin-profile` shows the profile list and the preview one line each, and counts the plugins left alone instead of naming them, so nothing renders as one cut-off paragraph; the confirm no longer names the running session among the other sessions in the folder; its closing line carries no doubled `plugin-profiles:` prefix and names the plugins left loaded only when the switch turned some off; and after Apply it says to send any message or run `/reload-plugins` to load the change ([#16747](https://github.com/melodic-software/claude-code-plugins/issues/16747)).
+
+## [0.3.3] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [0.3.2] - 2026-11-17
 
 ### Changed

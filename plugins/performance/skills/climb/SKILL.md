@@ -176,7 +176,6 @@ Changes, oldest first, one line each:
 
 - **Pointer**: for which worktrees `remove` accepts, see
   [git-worktree `remove`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-remove).
-  Ignored-only output was also checked by hand: removal succeeds.
 
 ## Boundary
 

@@ -3,6 +3,18 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-18
+
+### Changed
+
+- `setup` `check` gives the reason it opens plugin files by path and never runs Glob or Grep over the plugin directory: a search passed the installed plugin's deeply nested cache path can fail to start on some hosts because the path is too long ([#16863](https://github.com/melodic-software/claude-code-plugins/issues/16863)).
+
+## [2.0.1] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [2.0.0] - 2026-11-17
 
 ### Added

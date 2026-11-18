@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-17
+
+### Added
+
+- The routines catalog has a `formal-verification-upkeep` row: a report, a work item and one pull request confined to the formal-area folder and the paths its sync file lists, deferred until a consumer records repeated manual runs of `/formal-verification:specify refresh`. A class parameter states how it differs from `formal-logic-modeling`.
+
+## [5.2.1] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [5.2.0] - 2026-11-17
 
 ### Added

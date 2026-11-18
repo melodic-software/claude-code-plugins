@@ -24,7 +24,9 @@ export const LIMITS = {
   laneVariableRuns: 10,
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
+  mergeGroupList: 100,
   mergeGroupRuns: 10,
+  mergeQueuePulls: 50,
   // pr-merge-summary artifacts read newest first: room for a held streak past
   // LISTING_HELD_SWEEPS and the sweep that listed before it.
   sweepArtifacts: 8,
@@ -167,6 +169,30 @@ const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
 // name tests, some of them for rate limits; signal 1 reads main's suite.
 const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-platforms.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
+export const QUEUE_HOLD_STEPS = new Set(["Fail a queued pull request a hold stops, before the lanes", "Fail a lanes App pull request on kill switch, hold path, verifier or veto"]);
+export const KILL_SWITCH = /^#\d+: the lanes kill switch is on \(/;
+const QUEUE_ITEMS = 100;
+const QUEUE_FIELDS =
+  "pageInfo { hasPreviousPage } nodes { __typename ... on AddedToMergeQueueEvent { createdAt } ... on RemovedFromMergeQueueEvent { createdAt reason } ... on LabeledEvent { createdAt label { name } } }";
+
+export function queueRemovals(pr, nodes, since) {
+  const out = [];
+  let enqueuedAt = null;
+  let labels = [];
+  for (const node of nodes) {
+    if (node?.__typename === "AddedToMergeQueueEvent") {
+      enqueuedAt = node.createdAt;
+      labels = [];
+    } else if (node?.__typename === "LabeledEvent") {
+      if (enqueuedAt !== null && typeof node.label?.name === "string") labels.push(node.label.name);
+    } else if (node?.__typename === "RemovedFromMergeQueueEvent") {
+      if (node.reason === "failed_checks" && Date.parse(node.createdAt) >= since.getTime()) out.push({ pr, at: node.createdAt, enqueuedAt, labels });
+      enqueuedAt = null;
+      labels = [];
+    }
+  }
+  return out;
+}
 // Signal 14's job and the two steps of its repository variable check, as
 // work-unblock.yml names them.
 const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
@@ -541,20 +567,26 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
 
   await source("merge-queue ejections", async () => {
     const since = new Date(now.getTime() - 24 * 3600_000);
-    const runs = (
-      await get(`/repos/${repo}/actions/runs?event=merge_group&status=failure&created=${iso(since)}..${iso(now)}&per_page=50`)
-    ).workflow_runs;
-    // One merge group can fail in more than one workflow; it is one ejection.
+    const listing = await get(`/repos/${repo}/actions/runs?event=merge_group&status=failure&created=${iso(since)}..${iso(now)}&per_page=${LIMITS.mergeGroupList}`);
+    const runs = listing.workflow_runs;
+    if (listing.total_count > runs.length) {
+      gaps.push(`merge-queue ejections: ${listing.total_count} failed merge-group runs in 24 hours, only the newest ${LIMITS.mergeGroupList} listed`);
+    }
     const groups = new Map();
     for (const run of runs) if (!groups.has(run.head_branch)) groups.set(run.head_branch, run);
+    const detailed = [...groups.values()].slice(0, LIMITS.mergeGroupRuns);
+    const jobs = await prefetch(detailed, jobsOf, (js) => failedJobs(js).filter((j) => (j.steps ?? []).some((s) => s.conclusion === "failure" && QUEUE_HOLD_STEPS.has(s.name))));
     data.mergeGroupFailures = [];
     for (const [branch, run] of groups) {
-      const detailed = data.mergeGroupFailures.length < LIMITS.mergeGroupRuns;
       const steps = [];
-      if (detailed) {
-        for (const job of failedJobs(await jobsOf(run))) {
-          const failed = (job.steps ?? []).filter((s) => s.conclusion === "failure").map((s) => `${job.name} / ${s.name}`);
-          steps.push(...(failed.length > 0 ? failed : [job.name]));
+      let killSwitch = false;
+      if (detailed.includes(run)) {
+        for (const job of failedJobs(await jobs(run))) {
+          const failed = (job.steps ?? []).filter((s) => s.conclusion === "failure");
+          steps.push(...(failed.length > 0 ? failed.map((s) => `${job.name} / ${s.name}`) : [job.name]));
+          if (failed.some((s) => QUEUE_HOLD_STEPS.has(s.name))) {
+            killSwitch ||= (await annotationsOf(job.id)).some((a) => a.annotation_level === "failure" && KILL_SWITCH.test(String(a.message)));
+          }
         }
       }
       data.mergeGroupFailures.push({
@@ -564,6 +596,25 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         workflow: run.name,
         createdAt: run.created_at,
         failedSteps: steps,
+        killSwitch,
+      });
+    }
+    const pulls = [...new Set(data.mergeGroupFailures.map((f) => f.pr).filter(Boolean))];
+    if (pulls.length > LIMITS.mergeQueuePulls) {
+      throw new Error(`${pulls.length} pull requests with a failed merge group, over the ${LIMITS.mergeQueuePulls} read`);
+    }
+    const from = iso(new Date(since.getTime() - RUN_LOOKBACK_HOURS * 3600_000));
+    data.mergeQueueRemovals = [];
+    for (let i = 0; i < pulls.length; i += NODES_BATCH) {
+      const batch = pulls.slice(i, i + NODES_BATCH);
+      const answer = await queryRepo(graphql, repo, batchQuery(batch.map((n) => `pullRequest(number: ${n}) { timelineItems(since: "${from}", last: ${QUEUE_ITEMS}, itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT, LABELED_EVENT]) { ${QUEUE_FIELDS} } }`)));
+      batch.forEach((pr, j) => {
+        const items = answer[`a${j}`]?.timelineItems;
+        const nodes = items?.nodes;
+        const cut = items?.pageInfo?.hasPreviousPage;
+        if (!Array.isArray(nodes) || typeof cut !== "boolean") throw new Error(`#${pr}'s merge-queue timeline did not read`);
+        if (cut) gaps.push(`merge-queue ejections: #${pr}'s merge-queue timeline holds more than ${QUEUE_ITEMS} items in the window; the older ones were not read`);
+        data.mergeQueueRemovals.push(...queueRemovals(pr, nodes, since));
       });
     }
   });

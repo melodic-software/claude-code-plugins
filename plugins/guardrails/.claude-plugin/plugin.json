@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "20 toggleable guards. Blocks: secret writes, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe recursive deletes, expanding commit -m, off-convention commit/PR titles, local-only Artifacts; opt-in, credential reads. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
+  "description": "25 toggleable guards. Blocks: secret writes, machine paths, main-checkout edits, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -142,6 +142,12 @@
       "description": "Denies a Bash command that opens with cd <path> followed by &&, ; or a newline and then runs git or writes to a relative path, with the reason to use git -C <abs path>. cd . and a cd to the current directory pass. On by default.",
       "default": true
     },
+    "block_main_checkout_edit_enabled": {
+      "type": "boolean",
+      "title": "Block-main-checkout-edit guard",
+      "description": "Denies a Write, Edit or NotebookEdit to a file that is not git-ignored in a repository's main checkout while it is on the remote default branch (origin/HEAD), with the steps to make the edit in a worktree. Linked worktrees, other branches and a detached HEAD pass. On by default.",
+      "default": true
+    },
     "block_foreground_wait_enabled": {
       "type": "boolean",
       "title": "Block-foreground-wait guard",
@@ -234,5 +240,5 @@
       "default": ""
     }
   },
-  "version": "3.8.0"
+  "version": "3.8.1"
 }

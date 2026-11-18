@@ -2,7 +2,7 @@
 
 Routes agent-instruction content to the surface that loads it at the right moment.
 
-A convention that only matters when someone edits a `.cs` file should not be paid for in every
+A convention that only matters when someone edits one kind of file should not be paid for in every
 session. Claude Code already provides the machinery to fix that: path-scoped rules and nested
 instruction files. Using it goes wrong easily, because no mistake
 raises an error. This plugin finds the content worth moving, validates the move mechanically
@@ -25,8 +25,10 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 | `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |
+| `/instruction-placement:establish-hub` | Per-change human-gated apply | Discovers the estate and writes the hub repository's own instruction files, asking only what discovery left open; `plan` reports each section and changes nothing |
 
-`realign` and `migrate` are the two mutating skills; both gate every change on the operator.
+`realign`, `migrate` and `establish-hub` are the mutating skills; each gates every change on the
+operator.
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
@@ -100,7 +102,7 @@ Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAU
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
 read that finds no file fires it. Delegation therefore resets the trigger instead of removing it. Nothing tells an agent a rule exists until its trigger happens to
-match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
+match: an agent that edits a file and was never told to read the rule for that kind of file first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
 rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets

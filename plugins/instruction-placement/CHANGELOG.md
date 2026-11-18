@@ -3,6 +3,31 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.1] - 2026-11-18
+
+### Changed
+
+- Glob derivation, the expanded-tier sweep of other agents' instruction files, `migrate`'s markdown-lint step and the examples in the README, `audit`, `check`, `realign` and the audit gotchas no longer name a language, tool or command. Each says what to look for in the repository instead ([#16765](https://github.com/melodic-software/claude-code-plugins/issues/16765)).
+
+- `audit` gotchas: the unscoped-rule entry states our pricing rule in our own words and points at the surface table in `context/verified-mechanics.md`, instead of restating the docs sentence on when such a rule loads ([#16863](https://github.com/melodic-software/claude-code-plugins/issues/16863)).
+- `migrate` gotchas: the committed-symlink entry keeps the import as the portable form and points at git's `core.symlinks` setting, instead of restating how a checkout writes a symlink ([#16863](https://github.com/melodic-software/claude-code-plugins/issues/16863)).
+
+### Removed
+
+- `migrate`'s loader recipe for other tools and the Cursor, Grok Build and Muse Code loader records it backed. The records stay out unless a targeted eval case shows a loss without them ([#16765](https://github.com/melodic-software/claude-code-plugins/issues/16765)).
+
+## [1.5.0] - 2026-11-17
+
+### Added
+
+- `/instruction-placement:establish-hub` discovers an estate and writes the hub repository's own instruction files, each write behind a yes; `plan` reports each section and changes nothing.
+
+## [1.4.1] - 2026-11-17
+
+### Changed
+
+- The bundled prerequisites checker's `when` also counts a config git tracks anywhere in the project directory's repository, from one `git ls-files` per run, so a repository whose only config sits in a subdirectory gets its probe line. A `config_any` item may now be a path from the repository root with `*`, `?` and `**` wildcards; `..`, `.` and absolute paths are rejected. When git is missing, fails or runs past two seconds, the entry counts as needed.
+
 ## [1.4.0] - 2026-11-17
 
 ### Added

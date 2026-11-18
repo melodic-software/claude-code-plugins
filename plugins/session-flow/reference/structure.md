@@ -68,16 +68,16 @@ Sections, in the one order `validate` checks:
 |---|---|---|
 | 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below; an amendment leaves only as a retire listing |
 | 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; one retire pointer per hop file and retire heading, carried forward |
-| 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
+| 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT`; copied off disk each hop, except lines 3 or more hops old, which `new` folds out behind one `- Folded:` pointer line |
 | 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
 | 5 | Completion criteria | observable goal-states with met/unmet marks |
 | 6 | Remaining actions, in order | every action still to take |
-| 7 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks |
+| 7 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks; copied off disk each hop |
 | 8 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
 | 9 | Observations | session-wide observations, summarized; detail stays in the archive or the transcript |
 | 10 | Pending commands | every command waiting on the user, verbatim |
 | 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
-| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on |
+| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop |
 | 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
 | 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
 | 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
@@ -106,7 +106,7 @@ What the writer owns, since no script can judge it:
   state claim it recognizes.
 - **Over the size cap, move written content out.** `validate` names the cap and three sizes: the
   core (Original goal, Direction changes, Resumption brief, Current rules, Standing preferences),
-  which never moves to meet the cap; the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
+  which never moves to meet the cap (only `new` folds old trail lines out of it); the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
   prompt); and everything else, the written part. Shorten written sections, appending what they
   drop to this hop's file. When the core plus the carried part alone is over the cap, the file
   emits marked UNVALIDATED instead: never shorten the core or cut written sections for it. Past
@@ -140,6 +140,21 @@ What the writer owns, since no script can judge it:
   `next_decision_id` floor the skeleton's slot names, and ids are never reused. The first hop that
   adopts them seeds each floor above the highest `Q<n>` / `D<n>` in the predecessor's text. Once
   the predecessor carries a floor, an entry without an id fails `validate`.
+- **Questions and decisions are carried, not retyped.** When the predecessor carries a floor and
+  holds entries in the section, `new` copies Open questions and Decisions in force off disk, as
+  it does rules, and offers an `open-questions-new` / `decisions-new` slot for new entries. A
+  carried entry keeps its text, or is rewritten in place under its id with
+  `Rewritten h<N>: <why>` at its end, `N` being this hop, while its prior text stays in this
+  hop's file; otherwise it leaves through `retire`. `validate` fails a carried entry whose text
+  changed any other way, so a decision shortened to meet the size cap fails instead of passing on
+  its id alone. A mark naming an earlier hop does not count for this hop's change.
+- **Old trail lines fold out.** At `new`, a carried Direction changes line whose newest tagged hop
+  is 3 or more hops back (`DIRECTION_HOPS_KEPT` in `save_point.py`) leaves the hot file, so the
+  hot file keeps the lines of the last 3 hops, this one included. One `- Folded:` line at the top
+  of the section points at the newest hop file holding folded lines; each folded line is already
+  verbatim under `## Direction changes` in the hop file of the hop that folded it. An untagged
+  line never folds. `validate` accepts a folded line only while that pointer line is present,
+  and fails a hop that drops the predecessor's pointer line.
 
 **From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

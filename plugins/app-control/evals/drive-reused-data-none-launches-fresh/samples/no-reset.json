@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The hub's Data line is `none:`, so the reused instance's data is not this run's own and drive performs no Reset on it. It stops pid 7311 as cleanup does, launches fresh with `npm start` and runs Ready.\nReset performed: no\nStops: 7311",
+      "why": "skips the Reset on data not the run's own"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drive reuses pid 7311, deletes ./data/reviews and reloads the page, then runs Ready.\nReset performed: yes\nStops: none",
+      "why": "runs the Reset on a Data: none instance"
+    }
+  ]
+}
