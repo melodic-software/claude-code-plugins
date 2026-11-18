@@ -76,7 +76,13 @@ if [[ -O "$T/main" && -O "$T/main/.git" && -O "$T/main/.git/config" ]]; then
 else
   bad "host: [[ -O ]] reports the fixture checkout not owned, so the guard allows every edit on this host"
 fi
-mkdir -p "$T/forced-unowned"
+mkdir -p "$T/control-owned" "$T/forced-unowned"
+cp "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$GUARD_UNDER_TEST" "$T/control-owned/"
+for via in direct dispatched; do
+  guard_invoke --via "$via" --hook "$T/control-owned/block-main-checkout-edit.sh" \
+    --payload "$(edit_json "$T/main/a.txt" b)"
+  assert_exit "control: an unmodified copy beside the same sourced files denies the tracked-file edit ($via)" 2 "$GUARD_RC"
+done
 cp "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$T/forced-unowned/"
 # shellcheck disable=SC2016  # the sed pattern matches the guard's literal source text
 sed 's/\[\[ -O "\$1" \]\]/false/' "$GUARD_UNDER_TEST" >"$T/forced-unowned/block-main-checkout-edit.sh"
