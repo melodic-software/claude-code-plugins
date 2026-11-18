@@ -6,9 +6,9 @@
 
 ## Context
 
-The owner pasted a standing operating-procedures prompt of about 6,000 characters into sessions 229
-times from 2026-10-27 to 2026-11-18, most often late in long or resumed sessions, because agents
-drift from the procedures as context builds up. The same procedures already live in the owner's
+The owner pasted a standing operating-procedures prompt of about 6,000 characters 232 times
+across 135 sessions from 2026-10-27 to 2026-11-18, never as a session's first message, because
+agents drift from the procedures as context builds up. The same procedures already live in the owner's
 user instructions, rendered from a private dotfiles template that also renders the Codex
 instructions. A reminder skill in this public marketplace needs those procedures, and the owner
 asked for one source of truth: two copies drift apart, and a conflict between them has no rule to
