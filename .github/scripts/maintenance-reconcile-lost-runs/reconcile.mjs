@@ -50,8 +50,9 @@
 //   lane run does. Their succeeded runs are listed
 //   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
 //   earlier: the last pass that read, or the oldest first attempt that pass
-//   saw still going, inside the lookback. At most FAULT_HELD_READS of them
-//   have their jobs read a pass. A run held again at attempt 2 waits for the
+//   saw still going, inside the lookback. Only those an open head may own
+//   (followsNoOpenHead) have their jobs read, at most FAULT_HELD_READS a
+//   pass. A run held again at attempt 2 waits for the
 //   head's next checks run.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
 //   pr-verify pass that the spec has since changed under (an issue edit or a
@@ -755,6 +756,12 @@ const laneStarts = (own) => {
   return starts;
 };
 
+const followsNoOpenHead = (run, openChecks) => {
+  const starts = openChecks.map((c) => c.starts.get(run.path)).filter((t) => t !== undefined);
+  const created = Date.parse(run.created_at);
+  return starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
+};
+
 // The lane items in place order: those matched to an open head, oldest first,
 // then the rest, oldest first. A lane run's listing names main's tip, not its
 // PR, so a run is matched by time: each open head's checks completion takes the
@@ -790,13 +797,7 @@ function laneOrder(lanes, openChecks, drop) {
       taken.add(key);
     }
   }
-  const superseded = drop
-    ? lanes.filter((l) => {
-        const starts = openChecks.map((c) => c.starts.get(l.path)).filter((t) => t !== undefined);
-        const created = Date.parse(l.created_at);
-        return l.kind === "lane" && starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
-      })
-    : [];
+  const superseded = drop ? lanes.filter((l) => l.kind === "lane" && followsNoOpenHead(l, openChecks)) : [];
   const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
   return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
 }
@@ -1531,12 +1532,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   try {
     const unread = [];
+    let unowned = 0;
     for (const r of listed.filter((run) => isFaultHeld(run, heldStart)).sort(byAge)) {
       if (settled.has(r.id)) {
         settle.push({ id: r.id, reason: settled.get(r.id) });
+      } else if (everyHeadRead && followsNoOpenHead(r, openChecks)) {
+        unowned += 1;
       } else {
         unread.push(r);
       }
+    }
+    if (unowned > 0) {
+      say(`${unowned} succeeded runs follow no open pull request's newest checks run, so they are not read for a hold`);
     }
     for (const [i, r] of unread.entries()) {
       if (i === FAULT_HELD_READS) {

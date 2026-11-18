@@ -354,6 +354,7 @@ rmdir "$S/.prune-in-progress"
 # win, which only a tight loop like this reproduces.
 race_log="$TMP/sentinel-race.log"
 : >"$race_log"
+race_pids=()
 for _ in $(seq 16); do
   # shellcheck disable=SC2016  # the inner script expands its own variables
   bash -c 'err() { :; }; source "$1"; SENTINEL="$2"
@@ -362,8 +363,11 @@ for _ in $(seq 16); do
       printf "in %s\n" "$$" >>"$3"; sleep 0.01; printf "out %s\n" "$$" >>"$3"
       release_sentinel
     done' _ "$LIFECYCLE" "$TMP/race-sentinel" "$race_log" &
+  race_pids+=($!)
 done
-wait
+race_failed=0
+for p in "${race_pids[@]}"; do wait "$p" || race_failed=$((race_failed + 1)); done
+assert_eq "every racing prune exits 0" "0" "$race_failed"
 assert_eq "racing prunes hold the sentinel one at a time" "ok" \
   "$(awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{print (bad||!n||h!="")?"overlap":"ok"}' "$race_log")"
 

@@ -1157,8 +1157,11 @@ IDX_BAD=0
 for _ in 1 2 3 4 5; do
   rm -f "$IDX_CACHE"
   (CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" >"$TEST_TMPDIR/idx-a" 2>&1) &
+  idx_pid_a=$!
   (CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" >"$TEST_TMPDIR/idx-b" 2>&1) &
-  wait
+  idx_pid_b=$!
+  wait "$idx_pid_a" || IDX_BAD=1
+  wait "$idx_pid_b" || IDX_BAD=1
   for idx_out in "$TEST_TMPDIR/idx-a" "$TEST_TMPDIR/idx-b"; do
     [[ "$(cat "$idx_out")" == *"  /alpha:gone"* &&
       "$(cat "$idx_out")" == *"  /beta:gone"* ]] || IDX_BAD=1

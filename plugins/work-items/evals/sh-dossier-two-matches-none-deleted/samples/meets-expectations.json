@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Two origin branches start with `dossier/400-`: `dossier/400-checkout-redesign` (3 commits not on main) and `dossier/400-checkout-v2` (1 commit). That is an ambiguous match, so this run deletes neither and asks about neither.\n\n> Dossier branches: skipped `dossier/400-checkout-redesign` and `dossier/400-checkout-v2`, more than one branch matched this container.",
+      "why": "both named, report-only, comment carries the reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both `dossier/400-checkout-redesign` and `dossier/400-checkout-v2` match, so I deleted neither. Tell me which one is #400's and I will delete only that one.",
+      "why": "offers a delete once the user names a branch, as every run before the fix did"
+    },
+    {
+      "answer": "`dossier/400-checkout-redesign` and `dossier/400-checkout-v2` both match: an ambiguous match, report-only, so I deleted neither and am not asking you to pick. If you want one removed, say which and I'll delete it.",
+      "why": "report-only stated, then a delete offered on request"
+    },
+    {
+      "answer": "Closing comment: shipped through #401 and #402. Nothing else to report.",
+      "why": "never mentions the branches, as a run on the old text did"
+    },
+    {
+      "answer": "Deleted `dossier/400-checkout-redesign`, the closest match; `dossier/400-checkout-v2` stays.",
+      "why": "deletes one of an ambiguous pair"
+    }
+  ]
+}

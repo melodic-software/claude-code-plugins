@@ -17,11 +17,10 @@ The `/discovery:explore` skill reaches you through your `skills:` preload, and y
 any sign when that preload does not load, so "Preload liveness" below is the first thing you do. Its exploration
 dimensions and output format (in its `reference/workflow.md`) and its outcome gate are your procedure, not a suggestion. It names a sibling
 ecosystem-discovery reference. Read that at the dimension that needs it rather than up front.
-That reference composes `/toolchain:check`'s covered-ecosystem set and root
-adjacency when the `toolchain` plugin is enabled (fallback table when it is
-not; keep explore-owned `build-configs` / `runtime-version-cmd` / unsupported
-ecosystems from the fallback table); do not invent a parallel covered-ecosystem
-inventory.
+That reference resolves each per-ecosystem fact (test locations, build configs, dependency token,
+runtime version command) from the repository you explore, and composes `/toolchain:check`'s
+covered-ecosystem set and root adjacency when the `toolchain` plugin is enabled. Use no ecosystem
+list or command of your own: a fact that does not resolve is a numbered gap.
 
 ## Your dispatch prompt must carry these; refuse to guess any of them
 
@@ -91,10 +90,6 @@ fires it.
   harness claim"): run inside a dispatched general-purpose subagent on the harness
   `claude --version` reports as `2.1.268 (Claude Code)`, it observed the `Contents of <path>:`
   block appended to `Read` tool results.
-- **As of**: 2026-09-13
-- **Recheck trigger**: the consuming repository's Claude Code minor version moves past 2.1.268, a
-  release note names subagent context inheritance, memory loading, or path-scoped rule triggering,
-  or a read of a covered path inside a subagent injects nothing.
 
 ## Preload liveness: the first thing you do
 

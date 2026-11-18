@@ -734,7 +734,8 @@ test("AC6, AC10: apply --dry-run --json previews an in-session switch as data, n
   assert.equal(preview.upToDate, false);
   assert.deepEqual(preview.mcpOrLspOn, [`implementation@${M}`]);
   assert.deepEqual(preview.pending, [`songwriting@${M}`]);
-  assert.ok(preview.lines.includes(`Left on until the next apply (1): songwriting@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes(`Switches off (1): songwriting@${M}`), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes("Left on until the next apply (1): every plugin it switches off"), preview.lines.join("\n"));
   assert.ok(preview.lines.includes(`Switches on plugins with an MCP or language server: implementation@${M}`), preview.lines.join("\n"));
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
@@ -1076,4 +1077,19 @@ test("launch --dry-run checks and prints the command but writes no session file"
   const refused = w.run(["launch", "build", "--dry-run", "--unattended"]);
   assert.equal(refused.status, 1, "the unattended stop still applies");
   assert.equal(existsSync(sessions), false);
+});
+
+test("#16818: an installed copy clears a profile a --plugin-dir copy applied, whose record sits in plugin-profiles-inline", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.records().length, 1);
+  const installed = installedCopy(w, {});
+  assert.match(w.run(["status"], {}, installed).stdout, /Profile build \(folder\) applied /);
+  const dry = JSON.parse(w.run(["clear", "--for", "folder", "--dry-run", "--json"], {}, installed).stdout);
+  assert.equal(dry.recorded, true);
+  assert.ok(!dry.lines.some((line) => line.includes("nothing to clear")), dry.lines.join("\n"));
+  const r = w.run(["clear", "--for", "folder", "--yes"], {}, installed);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
 });

@@ -6,7 +6,7 @@
       "need": "optional",
       "for": ["skill:explore-directions", "skill:pressure-test"],
       "detect": { "any": ["node"] },
-      "degrade": "Without node, /prototype:explore-directions and /prototype:pressure-test cannot run the medium resolver: each says so in one line and keeps its shipped default, and pressure-test's audience routing still picks the shell.",
+      "degrade": "Without node, /prototype:explore-directions and /prototype:pressure-test cannot run the medium resolver: each says so in one line and keeps its shipped default, and pressure-test's audience routing still picks the shell. Without node, explore-directions also cannot write a note's relocation script, so it reads the mockup file to say whether a note's element is still there.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
@@ -42,6 +42,18 @@
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "playwright-cli",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:explore-directions"],
+      "detect": { "any": ["playwright-cli"] },
+      "degrade": "Without playwright-cli, /prototype:explore-directions cannot run a note's relocation script, so it takes no screenshot of the noted element and reads the mockup file to say whether the element is still there.",
+      "install": {
+        "npm": "npm install -g @playwright/cli"
       },
       "check": "/harness-ops:prerequisites"
     }

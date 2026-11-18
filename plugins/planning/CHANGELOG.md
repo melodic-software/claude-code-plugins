@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.5] - 2026-11-17
+
+### Changed
+
+- The interview reads a fact a connected system holds now (a database, a tracker, a service) directly through its CLI or MCP tool, and records it as a captured assumption.
+
 ## [5.5.4] - 2026-11-17
 
 ### Changed

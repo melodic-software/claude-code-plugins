@@ -249,7 +249,7 @@ const checkSkill = (projectDir, dir, ctx, report) => {
     const stale = changed.filter((f) => tests.some((t) => t(f))).sort();
     if (stale.length === 0) continue;
     const mode = entry.on_stale ?? ctx.onStale;
-    const msg = `${at}: covered code changed since sync commit ${entry.commit.slice(0, 12)}: ${stale.map(q).join(", ")}`;
+    const msg = `${at}: covered code changed since sync commit ${entry.commit.slice(0, 12)}: ${stale.map(q).join(", ")}; run /formal-verification:specify refresh`;
     (mode === "fail" ? fail : warn)(msg);
   }
 };

@@ -3221,6 +3221,7 @@ const HANDOFF = {
 const PATCH_OUTPUTS_OF = (firstId) =>
   SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
+const RUN_JOB_MINUTES = { "fix-docs": 30 };
 
 for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LANES) {
   test(`${file}: ${subId} runs only after ${firstId} handed off, read ${HANDOFF[firstId] ? `by ${HANDOFF[firstId]}` : "from its credit stop or empty key alone"}`, () => {
@@ -3301,7 +3302,9 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     for (const id of [firstId, subId, applyId]) {
       assert.deepEqual(jobs[id].concurrency, { group: first.concurrency.group, queue: "max" }, id);
     }
-    assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+    for (const id of [firstId, subId, `${firstId}-fallback`]) {
+      assert.equal(jobs[id].with["timeout-minutes"], RUN_JOB_MINUTES[firstId] ?? 60, `${id}: the run job holds its launcher step and leg`);
+    }
   });
 
   test(`${file}: ${applyId} takes the patch from whichever ${firstId} call ran the activity, under ${firstId}'s prepare-mode row`, () => {
@@ -4688,7 +4691,7 @@ function withInputs(step, values) {
 
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
-function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate = read("../../../lib/publish-gate.mjs") } = {}) {
+function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate = read("../../../lib/publish-gate.mjs"), plant } = {}) {
   const root = tempDir("carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
@@ -4701,6 +4704,8 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate 
   // The copy step's gate, from the base.
   mkdirSync(join(temp, "read-patch"));
   if (gate) writeFileSync(join(temp, "read-patch", "publish-gate.mjs"), gate);
+  const gateSha256 = gate ? createHash("sha256").update(gate).digest("hex") : "";
+  plant?.(join(temp, "read-patch", "publish-gate.mjs"));
   for (const [name, bytes] of Object.entries(files)) {
     const file = join(temp, name);
     if (bytes === "symlink") symlinkSync("/etc/hostname", file);
@@ -4716,6 +4721,7 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate 
     CARRY_DIR: join(temp, "carry"),
     SEAL_DIR: join(temp, "seal-lane-output"),
     PATCH_GATE: join(temp, "read-patch", "publish-gate.mjs"),
+    GATE_SHA256: gateSha256,
     // The step's issue-mode expression, as the runner would expand it.
     OUTCOME_DIR: issue ? join(temp, "work-outcome") : "",
     GITHUB_WORKSPACE: workspace,
@@ -4785,6 +4791,24 @@ test("scan job: an oversize patch is refused `patch` only after a clean carry sc
   assert.equal(missing.outputs.refused, "output", "an oversize patch with no scan answer holds");
   const copy = runSteps().find((s) => s.name === "Copy the patch collector and the output sealer from the base");
   assert.match(copy.run, /\.base\/lib\/publish-gate\.mjs/);
+});
+
+test("pr-run-activity-read.yml: the carry's patch scan imports the gate only when it matches the SHA-256 recorded from the base, so a planted, linked or missing gate holds the oversize patch", (t) => {
+  const steps = runSteps();
+  const step = steps.find((s) => s.id === "carry");
+  assert.equal(step.env.GATE_SHA256, "${{ steps.seal-copy.outputs.gate-sha256 }}");
+  assert.ok(steps.findIndex((s) => s.id === "seal-copy") < steps.findIndex((s) => s.name === "Check out the PR head"), "recorded before head code");
+  const oversize = { "patch/patch.diff": Buffer.concat([Buffer.alloc(262145, 0x0a), Buffer.from(`+${KEY}\n`)]) };
+  const neverBlocks = "export const scanLeak = () => ({ block: null });\n";
+  for (const [what, plant] of [
+    ["a planted gate", (file) => writeFileSync(file, neverBlocks)],
+    ["a gate replaced by a link", (file) => { const real = `${file}.real`; writeFileSync(real, readFileSync(file)); rmSync(file); symlinkSync(real, file); }],
+    ["a missing gate", (file) => rmSync(file)],
+  ]) {
+    assert.equal(carry(t, oversize, { plant }).outputs["patch-scan"], "hit", what);
+    assert.equal(carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { plant }).outputs["patch-scan"], "hit", `${what}: even a clean patch holds`);
+  }
+  assert.equal(carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }).outputs["patch-scan"], "clean", "the base gate still scans");
 });
 
 test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, an absent one nothing, and the placeholder key seals nothing", (t) => {

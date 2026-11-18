@@ -1027,8 +1027,13 @@ CONC_BAD=0
 for _ in 1 2 3 4 5; do
   rm -f "$CACHE_DEL" "$CACHE_LS"
   (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-a" 2>&1) &
+  # shellcheck disable=SC2031
+  conc_pid_a=$!
   (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-b" 2>&1) &
-  wait
+  # shellcheck disable=SC2031
+  conc_pid_b=$!
+  wait "$conc_pid_a" || CONC_BAD=1
+  wait "$conc_pid_b" || CONC_BAD=1
   [[ "$(cat "$TEST_TMPDIR/conc-a")" == *"  docs/old-spec.md"* ]] || CONC_BAD=1
   [[ "$(cat "$TEST_TMPDIR/conc-b")" == *"  docs/old-spec.md"* ]] || CONC_BAD=1
   cache_is_whole "$CACHE_DEL" 2 || CONC_BAD=1

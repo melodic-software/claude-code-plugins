@@ -43,7 +43,7 @@ not linked.
 |---|---|---|---|---|---|
 | Quality controls before speed | Sets up the checks before raising how much agents produce | Inference: more agent output with no checks ships more defects and wears the reviewer out | Same | **already have**: new automation here gets its checks first, decided before this workshop | none |
 | Three layers in order: deterministic checks, agent review, human review | Each change passes the cheap, certain checks first and a person last | Inference: a person should spend time only on what machines cannot settle | Same | **already have**: `ci-status` and hooks, the two CI review lanes ([`/review:code-review`](../../plugins/review/skills/code-review/SKILL.md), [`/review:security-review`](../../plugins/review/skills/security-review/SKILL.md)), and the owner stops in [When work stops for the owner](../contracts/loop-lane/README.md#when-work-stops-for-the-owner) | none |
-| Add deterministic checks freely | Treats checks as nearly free because they spend compute, not model tokens | Inference: every check that catches a mistake saves review time | Checks still cost runner time, host load and flaky-test upkeep | **no change**: a check is added for an observed failure, not in bulk; `/corrections:codify` proposes one only with proof it fails on the old code and passes on the new | none |
+| Add deterministic checks freely | Treats checks as nearly free because they spend compute, not model tokens | Inference: every check that catches a mistake saves review time | Checks still cost runner time, host load and flaky-test upkeep | **no change**: a check is added for an observed failure, not in bulk; `/corrections:codify` proposes one only with proof it fails on the old code and passes on the new. A batch from one rules file is allowed through codify's `rules` action, each rule with its own proof ([aihero-feedback-loops.md](aihero-feedback-loops.md), "Pruning a coding-standards file") | none |
 | Agent review named as model-graded judging | Labels review by an agent with the evaluation term | n/a | Here that term names eval graders in the `evals` plugin | **no change**: review keeps its own name | none |
 
 ### The pull request body
@@ -122,7 +122,13 @@ not linked.
   corrections: the lanes workshops.
 - A scan of the source authors' skills for names and paths a consumer cannot configure, and one map
   of which skill and action to use when: a cross-repository task.
-- Agents logging their own friction during a session: under research.
+- Agents logging their own friction during a session: **already have** in part, and no always-on
+  rule is shipped. The [`/session-flow:orchestrate`](../../plugins/session-flow/skills/orchestrate/SKILL.md)
+  coordinator records one environment-improvement note per friction it sees (a missing tool, a
+  recurring mistake, a step that costs more than it should) through `/corrections:codify note`, or
+  in its next report with a change when that plugin is not enabled. An outside reader stays the
+  check: [`/session-flow:audit-sessions`](../../plugins/session-flow/skills/audit-sessions/SKILL.md),
+  then [`/corrections:codify`](../../plugins/corrections/skills/codify/SKILL.md).
 
 ## License notice
 

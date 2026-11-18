@@ -140,7 +140,7 @@ is a short scoped pointer rather than a copy:
 ---
 description: "Where the API conventions live"
 paths:
-  - "src/api/**/*.ts"
+  - "src/api/**"
 ---
 
 # API conventions

@@ -5,6 +5,13 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.25] - 2026-11-17
+
+### Changed
+
+- The read skill points at its failure-modes reference for the observed argv breakout, the over-cap curl exit and the xtomd response schema instead of restating them, and states its indefinite-logging assumption as a decision citing the plugin's acceptance review.
+- The failure-modes reference names the probe and the record behind each observation, and the 3xx observation gives its as-of date and recheck trigger. The exit-63 eval case cites the failure-modes reference for the over-cap case.
+
 ## [0.4.24] - 2026-11-17
 
 ### Changed

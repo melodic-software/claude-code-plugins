@@ -2,9 +2,10 @@
 // (docs/conventions/pr-pipeline/README.md): review waits for this head's Refine; a head that moved is
 // skipped (its push starts its own review); every other outcome, a failed
 // read included, reviews. Run and artifact shapes follow the REST docs for
-// workflow runs and artifacts; the record name is the one
+// workflow runs (https://docs.github.com/en/rest/actions/workflow-runs) and
+// artifacts; the record name is the one
 // pr-unblock-dispatch.yml's refine job uploads. Times use the 300 s window,
-// 2400 s cap and a 30 s poll (INPUT; the default poll is 60 s), computed by
+// 1800 s cap and a 30 s poll (INPUT; the default poll is 60 s), computed by
 // hand. Between polls the head is read from refs/pull/7/head, the ref GitHub
 // keeps for every pull request (git fetch origin pull/ID/head in the docs on
 // checking out pull requests locally).
@@ -25,7 +26,7 @@ const COMMIT = "c".repeat(40);
 const DISPATCHER_ID = 500;
 const REFINE_ID = 900;
 const LIST = `actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${HEAD}&per_page=100`;
-const INPUT = { number: 7, head: HEAD, repository: REPO, appearMs: 300_000, capMs: 2_400_000, pollMs: 30_000 };
+const INPUT = { number: 7, head: HEAD, repository: REPO, appearMs: 300_000, capMs: 1_800_000, pollMs: 30_000 };
 const PROBE = "git/ref/pull/7/head";
 // The Get a reference response shape (REST docs, git refs).
 const ref = (sha = HEAD) => ({ ref: "refs/pull/7/head", object: { type: "commit", sha } });
@@ -108,7 +109,7 @@ test("a dispatcher run that appears after a poll is waited for", async () => {
   assert.equal(w.elapsed(), 30_000);
 });
 
-test("a push while Refine runs ends the wait at the next poll, not at the 2400 s cap", async () => {
+test("a push while Refine runs ends the wait at the next poll, not at the 1800 s cap", async () => {
   const w = world(refined(refineRun({ status: "in_progress", conclusion: null }), steps(pull(), pull(MOVED))));
   assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
   assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
@@ -212,10 +213,10 @@ test("Refine failed, was cancelled or timed out: the review runs", async () => {
   }
 });
 
-test("Refine still running at the 2400 s cap: the review runs", async () => {
+test("Refine still running at the 1800 s cap: the review runs", async () => {
   const w = world(refined(refineRun({ status: "in_progress", conclusion: null })));
   assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-timeout" });
-  assert.equal(w.elapsed(), 2_400_000, "it stops at the cap, never past it");
+  assert.equal(w.elapsed(), 1_800_000, "it stops at the cap, never past it");
 });
 
 test("a dispatcher still running at the cap: the review runs", async () => {

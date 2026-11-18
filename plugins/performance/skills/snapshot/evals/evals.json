@@ -48,7 +48,7 @@
         "Rejects the two-pass comparison and names host drift as the reason",
         "Requires interleaving within one run, or simultaneous duet execution",
         "Re-measures BOTH arms rather than comparing new measurements against stale ones",
-        "Does not claim benchstat uses paired statistics; it recommends interleaved collection but analyzes with an independent two-sample test"
+        "Does not claim benchstat uses paired statistics; names the per-pair ratio as this plugin's own analysis, not benchstat's"
       ]
     },
     {

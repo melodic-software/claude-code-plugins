@@ -36,8 +36,8 @@
 #   15 several open sweep PRs: listed, pick one
 set -euo pipefail
 
-# A native jq.exe under Git Bash or Cygwin writes text-mode stdout, so every "key value" line
-# would end in a CR that a caller then pastes into a branch name or command; -b keeps the bytes.
+# Under Git Bash or Cygwin, run jq with -b: every "key value" line must reach the caller with no
+# CR, since a caller pastes it into a branch name or command.
 # Pointer: https://jqlang.org/manual/#invoking-jq (--binary). REPO_SWEEP_OSTYPE is the test seam for the platform.
 case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
 msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;

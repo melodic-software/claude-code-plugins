@@ -147,7 +147,7 @@ Zero applicable improvements: clean exit with a one-line note and no PR. Do not 
 
 ### Phase E. Implement
 
-1. Use the Edit tool, never `sed -i`.
+1. Use the Edit tool, never `sed -i`: a tidying must be structure-only, and an Edit replaces one exact string in a file you have read, where a `sed` pattern can rewrite a match you never looked at.
 2. **One commit per logical tidying.** Atomic, structure-only. Beck: *"Each commit should fit comfortably in your head, on your screen, and in the team's review pipeline."*
 3. `git add <path>` only, never `-A` or `.`: WIP from a parallel session can sneak in, even on a tidy branch.
 4. Pre-flight every file with `git diff <path>` *before* staging. After staging, use `git diff --cached <path>` to confirm only the tidying went in.

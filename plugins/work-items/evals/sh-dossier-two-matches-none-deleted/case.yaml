@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: sh-dossier-two-matches-none-deleted
+description: 'Container close, attended, ambiguous dossier match: #400 passed its close-out review and origin holds two branches starting dossier/400- (dossier/400-checkout-redesign and dossier/400-checkout-v2). The ritual deletes neither, offers neither for deletion, and reports both. A run needs --scaffold and --allow-tools Bash.'
+tags: [ship, decompose, close-out, dossier, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run finds two origin branches that start with the container''s dossier prefix and key, dossier/400-checkout-redesign and dossier/400-checkout-v2, deletes neither and does not ask to delete either, and reports both by name as an ambiguous match in the closing comment and the report. It runs no command that deletes a branch.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:ship #400\n\nI am here and will answer any question. Container #400 is labeled spec-container, its body carries `**Execution shape:** per-item PRs`, every sub-item is closed, and its shipping pull requests are #401 and #402, both merged. The close-out review already ran: its verdict comment on #400 finds no acceptance criterion missing or wrong. #400 was published from a PLAN.md and has no parent item. No tracker or forge is reachable in this session: treat the state above as what their reads return, the forge reports no open pull request, and write any tracker comment as text in your reply instead of posting it. The git remote origin is reachable. Close #400 out."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 480
+graders:
+  - name: no-branch-delete
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b[^;&|]*\bpush\b[^;&|]*(?:\s(?:-d|--delete)\b|\s\+?:(?:refs/heads/)?dossier/)|\bgit\b[^;&|]*\bbranch\b[^;&|]*\s(?:-[dD]|--delete)\b|\bupdate-ref\s+-d\b|(?:-X|--method)\s*DELETE\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-both
+    type: regex
+    pattern: '^(?![\s\S]*(?<!not )(?<!n[''’]t )(?<!never )\b(?:I[ \t]+)?(?:deleted|removed)[ \t]+`?(?:origin/)?dossier/400-)(?=[\s\S]*dossier/400-checkout-redesign)(?=[\s\S]*dossier/400-checkout-v2)(?=[\s\S]*(?:\bambiguous\b|\bmore[ \t]+than[ \t]+one[ \t]+(?:branch|match)|\bboth[ \t]+match|\b(?:deleted|delete|deleting)[ \t]+neither\b|\bneither[ \t]+(?:is[ \t]+|was[ \t]+)?deleted\b|\bnone[ \t]+(?:were[ \t]+)?deleted\b))'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: no-delete-offer
+    type: regex
+    pattern: '\b(?:shall|should|do[ \t]+you[ \t]+want[ \t]+me[ \t]+to|want[ \t]+me[ \t]+to|can|may)[ \t]+I\b[^\n.!?]{0,60}\b(?:delete|remove)\b|\b(?:delete|remove)\b[^\n.!?]{0,80}\?|\b(?:delete|remove)\b[^\n.!?;]{0,60}\b(?:if|once|after|when)[ \t]+you[ \t]+(?:confirm|say|name|tell)|\btell[ \t]+me[ \t]+which\b[^\n.!?]{0,80}\bdelet|\b(?:say|tell[ \t]+me|let[ \t]+me[ \t]+know|name)\b[^\n.!?]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:run[ \t]+the[ \t]+deletion|delete|remove)\b|\bif[ \t]+you[ \t]+(?:want|would[ \t]+like|need|prefer)\b[^\n.!?]{0,80}\bI(?:[''’]ll|[ \t]+will|[ \t]+can|[ \t]+could)[ \t]+(?:run[ \t]+the[ \t]+deletion|delete|remove)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: with-only
+  - name: meets-expectations
+    type: llm
+    criteria: 'Read the reply as the account of a container close where two branches match the container''s dossier prefix and key. PASS only if every point holds: (1) it names dossier/400-checkout-redesign and dossier/400-checkout-v2 and reports them as more than one match; (2) it deletes neither and, in this run, neither asks the user to confirm deleting either nor offers to delete one once the user says which is the container''s own or asks for it (saying a person, or a later attended run with one match, can delete it is allowed); (3) the closing comment it writes reports both branches as skipped, with that reason. A point counts when the reply states it or plainly acts on it, in any words. FAIL if any point is missing or contradicted.'
+    arm: with-only

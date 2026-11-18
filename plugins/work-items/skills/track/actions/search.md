@@ -43,13 +43,13 @@ SCHEDULE="<project root>/.github/recurring-schedule.json"
 
 | # | Item | Closed |
 |---|------|--------|
-| 1 | #15 Review .editorconfig | 2026-03-23 |
+| 1 | #15 Review linter config | 2026-03-23 |
 
 ### Recurring Schedule (X matches)
 
 | # | Item | Cadence | Next Due |
 |---|------|---------|----------|
-| 1 | Review biome.json | quarterly | 2026-06-21 |
+| 1 | Review linter config | quarterly | 2026-06-21 |
 ```
 
 If no matches anywhere: "No items matching '{query}' in open, closed, or recurring."

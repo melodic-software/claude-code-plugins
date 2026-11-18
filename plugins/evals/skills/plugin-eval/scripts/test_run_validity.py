@@ -582,11 +582,13 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check session started: PASS", proc.stdout)
 
     def bash_trace(self, name, results):
-        """A trace with one Bash call per (is_error, text) pair in results."""
-        uses = [{"type": "tool_use", "id": "b%d" % i, "name": "Bash", "input": {"command": "ls"}}
-                for i in range(len(results))]
-        outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": err, "content": text}
-                for i, (err, text) in enumerate(results)]
+        """A trace with one Bash call per (is_error, text) or (is_error, text,
+        command) in results; the command defaults to ls."""
+        uses = [{"type": "tool_use", "id": "b%d" % i, "name": "Bash",
+                 "input": {"command": r[2] if len(r) > 2 else "ls"}}
+                for i, r in enumerate(results)]
+        outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": r[0], "content": r[1]}
+                for i, r in enumerate(results)]
         trace = self.dir / name
         trace.parent.mkdir(parents=True, exist_ok=True)
         trace.write_text(
@@ -667,6 +669,61 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout.splitlines()[-1],
         )
         self.assertIn("check permission denials: PASS", proc.stdout)
+
+    def test_a_shim_error_in_a_run_is_invalid(self):
+        proc, trace = self.bash_trace(
+            "shim.jsonl",
+            [(False, "README.md"),
+             (True, "Exit code 1\nmise ERROR node is not a valid shim. This likely means"
+              " you uninstalled a tool", "node scripts/resolve.mjs medium")],
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: node is not a valid shim,"
+            " first in `node scripts/resolve.mjs medium` (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn("a program the skill runs failed to start in 1 run",
+                      proc.stdout.splitlines()[-1])
+
+    def test_an_interpreters_command_not_found_is_invalid(self):
+        for name, text in (
+            ("bash-node.jsonl", "Exit code 127\n/bin/bash: line 1: node: command not found"),
+            ("zsh-node.jsonl", [{"type": "text", "text": "zsh: command not found: node"}]),
+        ):
+            proc, _ = self.bash_trace(name, [(True, text, "node x.mjs")])
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: node command not found,"
+                " first in `node x.mjs`", proc.stdout, name)
+
+    def test_another_commands_command_not_found_warns_and_stays_valid(self):
+        proc, _ = self.bash_trace(
+            "jq.jsonl", [(False, "bash: jq: command not found\nfallback ran", "jq . f || true")]
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check programs started: WARN (a command was not found in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: jq command not found,"
+            " first in `jq . f || true`", proc.stdout)
+        self.assertIn("command not found in 1 run", proc.stdout.splitlines()[-1])
+
+    def test_a_grep_quoting_the_failure_texts_passes_the_programs_check(self):
+        quoted = ("157:  a mise shim error (`<name> is not a valid shim`), or\n"
+                  '326:# shim with no tool behind it ("mise ERROR node is not a valid shim")')
+        proc, _ = self.bash_trace("quoted.jsonl", [(False, quoted, "grep -n 'valid shim' x.md")])
+        self.assertIn("check programs started: PASS", proc.stdout)
+
+    def test_a_clean_file_passes_the_programs_check(self):
+        proc = self.run_script(self.write(self.clean()), "--runs", "1")
+        self.assertIn(
+            "check programs started: PASS (no trace shows a shim error or command not found)",
+            proc.stdout,
+        )
+        self.assertIn("verdict: VALID (warnings: models, judge votes, ceiling)", proc.stdout)
 
     def tools_trace(self, name, tools, results=()):
         """A trace whose init line lists tools, with one Bash call per (is_error, text)."""

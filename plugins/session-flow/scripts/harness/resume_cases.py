@@ -505,8 +505,8 @@ def _ordinal(lines: list[str], body, text: str, what: str) -> int:
 
 def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
     """Fill a shape-3 skeleton through `save_point.py fill`. `live` carries, hop to hop,
-    the id-carrying lines Open questions and Decisions in force rewrite each hop and the
-    ref each injection was given."""
+    the id-carrying lines of Open questions and Decisions in force and the ref each
+    injection was given."""
     from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
 
     final = _final(pred, hop)
@@ -597,11 +597,19 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         if hop == 1
         else []
     )
-    live["open-questions"] += id_lines("open-questions", questions)
-    live["open-questions"] += [
-        f"- {new_id('Q')} {text}" for text in final.get("open-questions", [])
-    ]
-    values["open-questions"] = "\n".join(live["open-questions"])
+    def put(section: str, added: list[str]) -> None:
+        """A section `new` carried off disk takes only this hop's new lines."""
+        live[section] += added
+        if f"{section}-new" not in slots:
+            values[section] = "\n".join(live[section])
+        elif added:
+            values[f"{section}-new"] = "\n".join(added)
+
+    put(
+        "open-questions",
+        id_lines("open-questions", questions)
+        + [f"- {new_id('Q')} {text}" for text in final.get("open-questions", [])],
+    )
 
     # Each hop settles a new batch cap and retires the last one, so every hop file
     # carries a retire listing and Review before you continue a pointer to it.
@@ -626,11 +634,10 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
             }
         )
     live["rolling"] = rolling_line
-    live["decisions"] += added
-    live["decisions"] += [
-        f"- {new_id('D')} {text}" for text in final.get("decisions", [])
-    ]
-    values["decisions"] = "\n".join(live["decisions"])
+    put(
+        "decisions",
+        added + [f"- {new_id('D')} {text}" for text in final.get("decisions", [])],
+    )
     if old:
         live["decisions"].remove(old)
 
