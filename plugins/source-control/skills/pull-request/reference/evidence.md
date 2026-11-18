@@ -88,6 +88,7 @@ scans it with the rest of the rendered body.
    `Video not attached: frame masking not shown` to the summary.
 4. **Render the body** from [`../templates/evidence-comment.md`](../templates/evidence-comment.md),
    the layout this step reads instead of inline text, so the format changes by editing that file.
+   Read it with the Read tool by its absolute path under the skill directory.
    Write the body to a file in the scratchpad (else the system temp directory) with the Write tool.
    Keep the marker line first and the blank lines inside each `<details>` block, which let the
    markdown inside it render
@@ -160,16 +161,26 @@ scans it with the rest of the rendered body.
      (`expires after <n> days`, else `expires with the repository's artifact retention setting`).
      With no artifact URL and no capture attached, the line reads `Media not uploaded: <reason>`,
      such as no capture was publishable; with captures attached and no artifact URL, it is empty.
-5. **Leak scan.** Scan the rendered body, the text the comment would hold, with the sources and
-   the normalization of `/app-control:drive`'s Mask post-check: the literal values the control
-   skill hub's `## Mask` `values:` line resolves to (the hub `report.json`'s `control_skill` names,
-   or `affected.json`'s for `e2e-summary.json`; when that file's `trusted_root` is set, the hub
-   under that root, never the checkout's), held in memory and never written to any file, and
-   the generic credential pattern. With no hub, or a hub with no `values:` line, the pattern alone
-   scans it. A hit posts nothing and the report names its kind (a mask value or the credential
-   pattern), never the matched text. A `values:` source that fails or yields no value, or a scan
-   that cannot run, posts nothing either. With `--before`, its file names a hub the same way, and
-   the scan uses the values of both hubs when they differ.
+5. **Leak scan.** Scan the rendered body, the text the comment would hold, as
+   `/app-control:drive`'s Mask post-check scans a capture; everything the scan needs is below, so
+   read no other plugin's files for it. First delete box-drawing characters (U+2500 to U+257F),
+   then join line wraps by deleting each line break with the whitespace around it. A hit is either:
+   - a mask value found in the text, ignoring case, whitespace and `|` in both: the literal values
+     the control skill hub's `## Mask` `values:` line resolves to (the hub `report.json`'s
+     `control_skill` names, or `affected.json`'s for `e2e-summary.json`; when that file's
+     `trusted_root` is set, the hub under that root, never the checkout's), held in memory and
+     never written to any file;
+   - the credential pattern, ignoring case: an email address; `Bearer`, a space, then 8 or more
+     characters with no whitespace; a key whose name holds `token`, `secret`, `password`,
+     `apikey` or `api_key`, then an optional quote, `=` or `:` and an optional quote, then a value
+     of 8 or more characters, none of them whitespace, `*` or `•`; or a PEM private key header
+     (`-----BEGIN`, then `PRIVATE KEY-----`).
+
+   With no hub (a null `control_skill`, or no `affected.json`), or a hub with no `values:` line,
+   the pattern alone scans it. A hit posts nothing and the report names its kind (a mask value or
+   the credential pattern), never the matched text. A `values:` source that fails or yields no
+   value, or a scan that cannot run, posts nothing either. With `--before`, its file names a hub
+   the same way, and the scan uses the values of both hubs when they differ.
 6. **One comment per identity.** `gh pr comment --edit-last` edits the last comment of the
    account `gh` is logged in as, so that account must post nothing else on the PR. Read the login
    (`gh api user --jq .login`), then its comments on the PR in order, in step 1's repository
