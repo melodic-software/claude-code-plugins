@@ -104,6 +104,143 @@ class WantedForAReviewPath(unittest.TestCase):
         self.assertFalse(wr.wanted(None, result(PATH, other), (CLEAN, BELOW)))
 
 
+REVIEW = "claude-review"
+SECURITY = "claude-security-review"
+RERUN = "rerun-not-allowed"
+BOUND_REVIEW = risk.LaneEvidence(REVIEW, True, None, 0, False, None)
+BOUND_SECURITY = risk.LaneEvidence(SECURITY, True, None, 0, False, 0)
+
+
+def unbound(
+    lane: str, reason: str = RERUN, carried: int | None = None
+) -> risk.LaneEvidence:
+    return risk.LaneEvidence(lane, False, reason, None, False, carried)
+
+
+def scored(*lanes: risk.LaneEvidence) -> risk.RiskResult:
+    """The merge gate's own reasons for `lanes` on a diff that holds nothing."""
+    doc = risk.ChangedFile(
+        "docs/a.md", None, "modified", 1, 0, True, "100644", "100644"
+    )
+    return risk.score(risk.RiskInput((doc,), True, 200, (), lanes))
+
+
+class WantedForAnUnboundRerun(unittest.TestCase):
+    def assert_wanted(self, expected: bool, *lanes: risk.LaneEvidence) -> None:
+        self.assertIs(wr.wanted(None, scored(*lanes), lanes), expected)
+
+    def test_a_refused_rerun_on_either_lane_requests_a_whole_review(self) -> None:
+        for lanes in (
+            (unbound(REVIEW), BOUND_SECURITY),
+            (BOUND_REVIEW, unbound(SECURITY)),
+            (unbound(REVIEW), unbound(SECURITY)),
+        ):
+            with self.subTest(lanes=lanes):
+                self.assert_wanted(True, *lanes)
+
+    def test_a_refused_rerun_beside_findings_a_whole_review_closes(self) -> None:
+        self.assert_wanted(True, unbound(REVIEW), CLEARS)
+
+    def test_every_other_unbound_reason_requests_nothing(self) -> None:
+        for reason in (
+            "bad-head",
+            "base-retargeted",
+            "changed-files-unread",
+            "comment-edited",
+            "count-inconsistent",
+            "evidence-error",
+            "evidence-missing",
+            "incremental-gap",
+            "no-lane-job",
+            "no-marker",
+            "no-record",
+            "no-run",
+            "record-malformed",
+            "run-missing",
+            "run-not-success",
+            "skip-not-no-change",
+            "threads-unread",
+            "tree-unread",
+        ):
+            for lanes in (
+                (unbound(REVIEW, reason), BOUND_SECURITY),
+                (BOUND_REVIEW, unbound(SECURITY, reason)),
+            ):
+                with self.subTest(reason=reason, lanes=lanes):
+                    self.assert_wanted(False, *lanes)
+
+    def test_another_lanes_other_reason_beside_a_refused_rerun(self) -> None:
+        lanes = (unbound(REVIEW), unbound(SECURITY, "incremental-gap"))
+        self.assert_wanted(False, *lanes)
+
+    def test_a_blocking_finding_the_unbound_security_lane_carries(self) -> None:
+        self.assert_wanted(False, BOUND_REVIEW, unbound(SECURITY, carried=1))
+
+    def test_a_finding_a_whole_review_cannot_close_beside_it(self) -> None:
+        stuck = risk.LaneEvidence(SECURITY, True, None, 1, False)
+        self.assert_wanted(False, unbound(REVIEW), stuck)
+
+    def test_doubled_or_missing_evidence_for_the_lane(self) -> None:
+        self.assert_wanted(False, unbound(REVIEW), unbound(REVIEW), BOUND_SECURITY)
+        self.assert_wanted(False, BOUND_SECURITY)
+
+    def test_another_gate_refusing(self) -> None:
+        lanes = (unbound(REVIEW), BOUND_SECURITY)
+        self.assertFalse(wr.wanted("checks-failing", scored(*lanes), lanes))
+
+    def test_a_refused_rerun_that_is_not_among_the_holding_reasons(self) -> None:
+        lanes = (unbound(REVIEW), BOUND_SECURITY)
+        self.assertFalse(wr.wanted(None, result(HIGH), lanes))
+
+    def test_another_holding_reason_beside_it(self) -> None:
+        lanes = (unbound(REVIEW), BOUND_SECURITY)
+        other = risk.Reason("files-incomplete", risk.Risk.MED, "unread")
+        held = result(*scored(*lanes).reasons, other)
+        self.assertFalse(wr.wanted(None, held, lanes))
+
+    def test_a_review_path_hold_still_needs_a_bound_security_review(self) -> None:
+        lanes = (BOUND_REVIEW, unbound(SECURITY))
+        held = result(*scored(*lanes).reasons, PATH)
+        self.assertFalse(wr.wanted(None, held, lanes))
+
+
+class RequestForAnUnboundRerun(unittest.TestCase):
+    """The caps `request` applies once `wanted` admits a refused rerun."""
+
+    AT = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+
+    def setUp(self) -> None:
+        lanes = (unbound(REVIEW), BOUND_SECURITY)
+        self.assertTrue(wr.wanted(None, scored(*lanes), lanes))
+
+    def request(self, text: str, toggles: int = 0) -> tuple[list[str], Any]:
+        with (
+            mock.patch.object(wr, "lane_toggles", return_value=toggles),
+            mock.patch.object(wr, "limits", return_value=None),
+        ):
+            return wr.request("o/r", text, HEAD, "PR_1", "lanes[bot]", self.AT)
+
+    def test_a_pull_request_under_the_cap_is_toggled(self) -> None:
+        lines, answer = self.request("reasons", toggles=1)
+        self.assertEqual(answer, {"toggle": True})
+        self.assertEqual(lines, [wr.record_line(HEAD, self.AT)])
+
+    def test_two_recorded_requests_stop_it(self) -> None:
+        old = [wr.record_line(c * 40, self.AT) for c in "cd"]
+        lines, answer = self.request("\n".join(old))
+        self.assertEqual(answer, {"toggled": False, "skipped": "toggle-cap:2"})
+        self.assertEqual(lines, old)
+
+    def test_two_lane_conversions_stop_it(self) -> None:
+        lines, answer = self.request("reasons", toggles=2)
+        self.assertEqual(answer, {"toggled": False, "skipped": "toggle-cap:2"})
+        self.assertEqual(lines, [])
+
+    def test_a_head_already_recorded_is_not_toggled_again(self) -> None:
+        line = wr.record_line(HEAD, self.AT)
+        self.assertEqual(self.request(line), ([line], None))
+
+
 class RequestCommand(unittest.TestCase):
     """`request` and `toggle`, which enable-auto-merge.mjs runs for a lanes
     App pull request: the gate's caps on the prior reasons comment read from
