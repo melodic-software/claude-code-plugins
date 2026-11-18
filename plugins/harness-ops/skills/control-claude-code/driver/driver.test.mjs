@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +37,9 @@ process.env.XDG_RUNTIME_DIR = RUNTIME;
 delete process.env.CCD_RUNTIME_DIR;
 delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
+// The driver's runtime directory: win32 keeps it under LOCALAPPDATA, every other platform under RUNTIME.
+const CCD_DIR =
+  process.platform === 'win32' ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ccd') : join(RUNTIME, 'ccd');
 let sessions = 0;
 const session = () => `t${process.pid}-${++sessions}`;
 
@@ -138,18 +141,19 @@ test('--dry-run on a session verb prints the request and sends nothing, with no 
   await assert.rejects(main(['type', '--session', s, '--dry-run']), { code: 2, message: 'type needs <text> or --key <Name>' });
 });
 
-test('launch --dry-run prints the claude command line and reserves no session', posixOnly, async () => {
+test('launch --dry-run prints the claude command line and reserves no session', async () => {
   const s = session();
   const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
   try {
     const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--dry-run']);
     assert.equal(status, 0);
-    const cwd = join(RUNTIME, 'ccd', `${s}.cwd`);
+    const cwd = join(CCD_DIR, `${s}.cwd`);
     assert.equal(text, `dry run: would launch session '${s}' in ${cwd} running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
-    assert.ok(!existsSync(join(RUNTIME, 'ccd', `${s}.lock`)), 'no lock file');
+    assert.ok(!existsSync(join(CCD_DIR, `${s}.lock`)), 'no lock file');
     assert.ok(!existsSync(cwd), 'no launch directory');
     const named = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--cwd', plugin, '--dry-run']);
-    assert.match(named.text, new RegExp(`^dry run: would launch session '${s}' in ${plugin} running `));
+    // startsWith, not a RegExp: a win32 path's backslashes would read as escapes.
+    assert.ok(named.text.startsWith(`dry run: would launch session '${s}' in ${plugin} running `), named.text);
     await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', join(plugin, 'absent'), '--dry-run']), {
       code: 2,
       message: `--cwd ${join(plugin, 'absent')} is not a directory`,
