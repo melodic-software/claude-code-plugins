@@ -45,8 +45,10 @@ Use only interfaces that authorize automated access:
 
 Automated X/Twitter collection is disabled. Do not crawl, scrape, scroll, navigate, fetch,
 or extract X pages through browser automation, DOM scripts, unofficial endpoints, or Grok.
-Do not refresh following graphs or profile metadata. X's current terms expressly prohibit
-crawling or scraping without prior written consent: <https://x.com/en/tos>.
+Do not refresh following graphs or profile metadata. This plugin keeps X collection off
+because of X's terms of service on automated access.
+
+- **Pointer**: when a change would let this plugin read X pages, fetch <https://x.com/en/tos> live.
 
 If the user supplies an X URL, preserve it as user-provided citation metadata but do not
 programmatically retrieve it. Ask for the relevant text when it is necessary, and seek a
@@ -112,10 +114,13 @@ build subprocess; do not assume plugin configuration is inherited by an arbitrar
 CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"
 ```
 
-Set `CLAUDE_PLUGIN_DATA` on the launch the same way. The Bash tool's environment does not carry
-this plugin's value, and another plugin's SessionStart hook can export its own data directory
-under that name, so the build uses an inherited value only when it names ai-briefing. Basis: the
-plugins reference, <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+Set `CLAUDE_PLUGIN_DATA` on the launch the same way, from the skill's substituted
+`${CLAUDE_PLUGIN_DATA}` and never from the shell's own value. The build uses an inherited value
+only when it names ai-briefing, since a value already in the shell may name another plugin's data
+directory.
+
+- **Pointer**: when checking which plugin variables reach a Bash tool command, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
 Keep the selection per-invocation: set it on each launched process as above, never as a global
 export the consumer adds to their shell profile. A global export pins one profile for every

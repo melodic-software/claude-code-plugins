@@ -56,8 +56,6 @@ export const defaults = {
   },
 };
 
-// Required adapter methods
-
 /**
  * The configured video-player selector, falling back to the adapter default.
  * Reads the config directly: a nullish `platformCfg` is a caller error here.
@@ -214,8 +212,6 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
 export function buildLessonUrl(course, lesson, _platformCfg) {
   return `${courseBaseUrl(course.url)}${lesson.slug}/`;
 }
-
-// Optional adapter methods
 
 function applyJsonLdMetadata(metadata, jsonLd) {
   if (!jsonLd) return;

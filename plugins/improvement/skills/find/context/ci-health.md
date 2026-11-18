@@ -37,8 +37,8 @@ Derive `<owner>/<repo>` from the first configured remote URL (`git remote` /
 
 ## Never use the `/timing` endpoint
 
-`GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing` is being retired upstream, so do not build
-anything on it. Every duration number below comes from run timestamps instead.
+Do not build anything on `GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing`: every
+duration number below comes from the run's own timestamps, so the recipe needs no second endpoint.
 
 - **Pointer**: when checking the endpoint's status, fetch
   [Get workflow run usage](https://docs.github.com/en/rest/actions/workflow-runs#get-workflow-run-usage)
@@ -46,10 +46,10 @@ anything on it. Every duration number below comes from run timestamps instead.
 
 ## Iterate by `created` date windows, never deep pagination
 
-The run-listing endpoint caps the results of each filtered search, and page-walking past the cap
-returns nothing rather than an error. The bound is per search, so splitting the period into
-`created` windows gives each window its own budget, which is also the natural shape for trend
-buckets (record at the end of the list below). Use the documented `created` date filter:
+Query one `created` window at a time and never walk pages across the whole history: a bounded
+window keeps each query inside the run-listing endpoint's per-search result cap (pointer at the end
+of the list below), and the windows are also the trend buckets. Use the documented `created` date
+filter:
 
 - Split the analysis period (default: last 28 days, in 7-day buckets) into windows and query
   each window separately with `created=<start>..<end>`.
@@ -57,7 +57,7 @@ buckets (record at the end of the list below). Use the documented `created` date
   date arithmetic, whose flags are dialect-split.
 - If a window's `total_count` exceeds one page, either narrow the window or fetch the few extra
   pages *within* that window. Shallow pages inside a bounded window are fine; an unbounded page
-  walk across the whole history is what the cap breaks.
+  walk across the whole history is not.
   - **Pointer**: for the per-search result cap, the filters it applies to and the page-size
     limit (the `per_page` parameter), read
     [List workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
@@ -95,9 +95,10 @@ gh api "repos/$OWNER/$REPO/actions/runs?created=2026-07-01..2026-07-07&per_page=
 ```
 
 Via the GitHub MCP tools, the per-run fields are the same (`conclusion`, `run_attempt`,
-`run_started_at`, `updated_at`) but the window mechanics are not: the `actions_list` tooling
-exposes no `created` date filter, so date-windowed iteration is unreachable through it. On the
-MCP path, read the most recent page(s) only, cite the covered span verbatim ("last N runs,
+`run_started_at`, `updated_at`) but this recipe runs date windows only through the REST call above,
+never through `actions_list`: the `created` filter it relies on is the one the REST pointer above
+documents, and `actions_list`'s own filters are in the pointer below. On the MCP path, read the most
+recent page(s) only, cite the covered span verbatim ("last N runs,
 &lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line. Never page deep to
 reach them and never present a recent-page sample as full-window coverage. Full date-window
 iteration needs the REST call above (`gh api` or an equivalent raw-request path). Use

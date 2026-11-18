@@ -3,6 +3,29 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5] - 2026-11-18
+
+### Changed
+
+- `build-cli` states its usage-exit-code rule with its reason and points to sysexits(3) live
+  instead of glossing its codes; `audit-tools` no longer restates the status of `.claude/commands`
+  files and points to the skills page for it.
+
+## [0.6.4] - 2026-11-18
+
+### Changed
+
+- `setup` states as its own rule that a non-zero `chezmoi source-path` exit means an unmanaged file,
+  and points at the chezmoi page, to read only for a result that rule does not cover, without an
+  as-of stamp or a quoted probe output.
+
+## [0.6.3] - 2026-11-18
+
+### Removed
+
+- The `build-cli` CLI contract no longer cites the GitHub CLI, Azure CLI, Terraform, Docker, Kubernetes, Ansible, .NET System.CommandLine, PowerShell, Node.js, Python or Win32 API documentation. Each rule's Count column now counts only the sources that remain, and a count of 0 marks a rule the plugin holds on its own. The three options whose only source was one of those pages are gone from the single-source options table ([#16780](https://github.com/melodic-software/claude-code-plugins/issues/16780)).
+- `audit-tools` no longer lists example task runners (Makefile, `package.json`, `pyproject`, justfile, taskfile) in its scope. It still inventories every task-runner entry as its own item ([#16780](https://github.com/melodic-software/claude-code-plugins/issues/16780)).
+
 ## [0.6.2] - 2026-11-16
 
 ### Changed

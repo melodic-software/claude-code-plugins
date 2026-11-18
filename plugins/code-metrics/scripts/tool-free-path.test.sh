@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for tool-free-path.sh: the excluded set is derived from
-# the collector ladder, the filled directory keeps those collectors off PATH,
-# and the resolvable-collector check fails when one is put back.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -28,7 +25,6 @@ assert_eq() {
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# 1. The ladder names the shipped adapters (skipping reserved rungs).
 tools="$(cm_ladder_tools | tr '\n' ' ')"
 tools="${tools% }"
 case " $tools " in
@@ -48,8 +44,6 @@ case " $tools " in
   ;;
 esac
 
-# 2. Adapter PATH names that differ from the ladder tool name are in the
-#    excluded set (mypy-report looks up mypy, cpd looks up pmd).
 bins="$(cm_ladder_path_bins | tr '\n' ' ')"
 bins="${bins% }"
 case " $bins " in
@@ -62,15 +56,12 @@ case " $bins " in
   ;;
 esac
 
-# 3. A filled directory has none of those names resolvable, and no adapter
-#    that looks up a binary probes successfully.
 EMPTY="$WORK/empty"
 cm_fill_tool_free_path "$EMPTY"
 leftover="$(cm_resolvable_ladder_collectors "$EMPTY" | sort -u | tr '\n' ' ')"
 leftover="${leftover% }"
 assert_eq "no ladder collector is resolvable on the tool-free PATH" "" "$leftover"
 
-# 4. Putting a ladder collector back on that directory makes the check fail.
 mkdir -p "$WORK/leak"
 cp -a "$EMPTY/." "$WORK/leak/"
 cat >"$WORK/leak/lizard" <<'EOF'

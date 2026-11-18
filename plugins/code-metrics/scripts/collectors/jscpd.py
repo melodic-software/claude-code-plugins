@@ -330,7 +330,6 @@ def _command(
 ) -> list[str]:
     command = [
         exe,
-        # The file list: in a config file, never on the command line.
         "--config",
         config,
         "--reporters",
@@ -376,8 +375,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     kept, skipped = prefilter(usable, size_cap, line_cap)
     report_skips(skipped, invalid, len(files), size_text.strip(), lines_text.strip())
     if not kept:
-        # Nothing left to scan is a measurement of zero, not a failure; the
-        # skip line above says what was left out.
         return 0
     output = tempfile.mkdtemp(prefix="code-metrics-jscpd-")
     try:

@@ -72,7 +72,7 @@ the two steps.
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 | `--language <name>` | `docs` only: passed with the user's language when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#step-2-query-documentation) |
 
-**For more content per call, prefer MCP.** Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation). Use MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
+**When the MCP server is configured, prefer it for conversational lookups** (`mcp__context7__query-docs`; why: [mcp.md](mcp.md)). Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation).
 
 ### Setup / install flags (why this plugin doesn't use them)
 
@@ -99,11 +99,7 @@ On Windows with Git Bash / MSYS2, any CLI argument starting with `/` is rewritte
 ctx7 docs /reactjs/react.dev "useEffect cleanup"
 ```
 
-Git Bash converts `/reactjs/react.dev` → `C:/Program Files/Git/reactjs/react.dev` before the CLI sees it. The CLI correctly rejects the malformed ID:
-
-```text
-✖ Invalid library ID: "C:/Program Files/Git/reactjs/react.dev"
-```
+Git Bash converts `/reactjs/react.dev` → `C:/Program Files/Git/reactjs/react.dev` before the CLI sees it, and the CLI rejects the rewritten path as an invalid library ID.
 
 **Always prefix `ctx7 docs` calls with `MSYS_NO_PATHCONV=1`:**
 
@@ -150,4 +146,4 @@ ctx7 library "Entity Framework Core" "tracking" --json | jq 'sort_by(-.benchmark
 - No MCP server configured, or restricted networks where `mcp.context7.com` is blocked
 - Structured extraction with `--json`
 
-When not to: conversational lookups where the model picks the tool. MCP is more discoverable and returns more content. See [mcp.md](mcp.md) for that side.
+When not to: conversational lookups where the model picks the tool. MCP is more discoverable. See [mcp.md](mcp.md) for that side.

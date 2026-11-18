@@ -150,10 +150,10 @@ the launch and readiness rules of pstack's `create-verification-skill`, as the
 ## The Ready command
 
 Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
-it must exit non-zero when the thing it checks is wrong. A listing (`docker ps`, `kubectl get pods`)
-exits 0 when its filter matches nothing and it prints no rows, and exits 0 just the same when it
-prints another app's row. A `kubectl get` that names an object (`kubectl get deploy/shop`) is not
-a listing: it exits non-zero when the object is missing. End each listing with `grep -q` on the row the app's own instance prints,
+it must exit non-zero when the thing it checks is wrong. A listing, a command that prints the rows
+its filter matches, exits 0 when the filter matches nothing and it prints no rows, and exits 0 just
+the same when it prints another app's row. A command that names one object and exits non-zero when
+that object is missing is not a listing. End each listing with `grep -q` on the row the app's own instance prints,
 never with the listing alone. A Ready with a url placeholder runs without a shell
 ([Environments](#environments)), where `|` and `&&` are plain arguments: put the listing check in a
 `cli/` command or a script that exits non-zero itself, and name that from Ready.
@@ -178,17 +178,14 @@ A check the app gives no way to make is written in Ready as `<check>: not expose
 ## Writing the Capture section
 
 Guidance for the person or agent writing a control skill's `## Capture`; drive never reads this
-table to pick a tool. Find the runtime's column for each kind the project can record and name that
-tool in `## Capture`. Every tool below changes its flags between releases, so read the current flags
-in its manual before writing the command.
-
-| Symptom | Kind | Node.js | Browser page | Python | JVM | .NET | Go | Native (Linux / macOS) |
-|---|---|---|---|---|---|---|---|---|
-| A core pinned near 100% (spin) | `cpu` | built-in CPU profile flag | Performance panel recording | py-spy record | JFR recording | dotnet-trace | pprof CPU profile | perf record / `sample` |
-| Memory that keeps growing (leak) | `heap`, two snapshots minutes apart | built-in heap snapshot signal or inspector | Memory panel heap snapshot | memray | `jcmd` heap dump | dotnet-gcdump | pprof heap profile | heaptrack / `leaks` |
-| UI that stutters or drops frames (jank) | `trace` with CPU samples | n/a | Performance panel recording (saves a Chrome trace) | n/a | JFR recording | dotnet-trace | execution trace | perf record with call graphs |
-| A process that stops responding (hang) | `threads`, a stack of every thread | n/a | not yet | py-spy dump | `jcmd <pid> Thread.print` | `dotnet-stack report -p <pid>` | not yet | `gdb -p <pid> -batch -ex 'thread apply all bt'` / not yet |
-| An animation that feels off, or content that jumps when interrupted | `animation`, per-frame state | n/a | `/playwright:playwright` animation capture recipe | n/a | n/a | n/a | n/a | n/a |
+guidance to pick a tool. Each symptom records one kind: a core pinned near 100% (spin) is `cpu`;
+memory that keeps growing (leak) is `heap`, two snapshots minutes apart; UI that stutters or drops
+frames (jank) is `trace` with CPU samples; a process that stops responding (hang) is `threads`, a
+stack of every thread; an animation that feels off, or content that jumps when interrupted, is
+`animation`, per-frame state. For each kind, name only a tool the repository already shows for it
+(a script it runs, a doc that names it, or the tool's own config), and leave a kind with none
+empty. Read the tool's current flags in its own manual before writing the command, since flags
+change between releases.
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
@@ -230,39 +227,6 @@ still images, with `<recording>` and `<dir>` placeholders, so a recording, this 
 person hands over, can be read frame by frame. It is not a capture kind. Drive's `ready` reports
 whether this session can run it and read the images it writes; a hub with no `frames` row, or a
 session that cannot read images, is a capability gap.
-
-Manuals, each record a pointer:
-
-- Node.js CLI options: CPU profile <https://nodejs.org/api/cli.html#--cpu-prof>, heap profile
-  <https://nodejs.org/api/cli.html#--heap-prof>, heap snapshot signal
-  <https://nodejs.org/api/cli.html#--heapsnapshot-signalsignal>.
-- Chrome DevTools Performance panel:
-  <https://developer.chrome.com/docs/devtools/performance/reference#record>. Memory panel heap
-  snapshots:
-  <https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#take_a_snapshot>.
-- py-spy: <https://github.com/benfred/py-spy>. memray: <https://bloomberg.github.io/memray/>.
-  py-spy dump: <https://github.com/benfred/py-spy#dump>.
-- JDK `jcmd`, `Thread.print` included:
-  <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>. JDK
-  `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>.
-- .NET diagnostics tools:
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace#dotnet-trace-collect>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>.
-  dotnet-stack:
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>.
-  dotnet-counters:
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-counters#dotnet-counters-collect>.
-- Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
-  <https://github.com/google/pprof>.
-- GDB: `thread apply all`
-  <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Threads.html#thread-apply-all>; attaching
-  by pid and running one command
-  <https://sourceware.org/gdb/current/onlinedocs/gdb.html/File-Options.html#File-Options>; batch
-  mode <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Mode-Options.html#Mode-Options>.
-- Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>.
-- heaptrack: <https://github.com/KDE/heaptrack>.
-- macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags, so read the man
-  pages on the host (`man sample`).
 
 ## The Mask section
 
@@ -578,8 +542,8 @@ CLI through it. Otherwise write a script in the language the repository already 
   `docs/contracts/on-demand-dependencies/README.md` in the marketplace repository); an install
   kept between runs is code the pin check never sees;
 - writes nothing inside its control-skill folder (no installed dependencies, bytecode, caches or
-  temp files), and turns bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True`
-  before any import), so the folder stays exactly the pinned tree and the untracked check in
+  temp files), and turns bytecode off itself before it loads any code, so the folder stays exactly
+  the pinned tree and the untracked check in
   [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop a second run.
 
 So agents can use it well, the CLI also has these traits, which create writes and

@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# PostToolBatch hook: format the Python files a batch of tool calls wrote.
-#
-#   python-format.sh                 the PostToolBatch row
-#   python-format.sh --end-of-turn   the opt-in Stop row (python_format_end_of_turn)
-#
-# Formats only: once per batch, over every .py and .pyi file a Write, Edit or
-# MultiEdit in the batch named, the Ruff adapter runs where a Ruff config
-# governs the file (git-hooks/adapters.sh, through lib/git-hooks/resolve-tool.sh:
-# import sorting where the repository's config selects it, then `ruff format`).
-# A .claude/ecosystems/ record is never run here; /toolchain:lint runs it. No
-# lint autofix runs here; findings are the lint entry's job (git-hooks/lint.sh).
-# It prints nothing and always exits 0, so nothing reaches the model per edit.
-#
 # PostToolBatch has no matcher, so the row fires on every batch. The launcher
 # skips the script unless the payload mentions ".py", and the script then reads
 # tool_calls[].tool_input.file_path itself, so a batch with no Python edit costs
@@ -29,10 +16,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
-# without rewriting. Findings exit 2 so the model fixes them before the turn
-# ends; once a Stop hook has continued the turn (stop_hook_active) the row stays
-# quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
@@ -64,7 +47,6 @@ source "$HOOK_DIR/../lib/git-hooks/resolve-tool.sh"
 # shellcheck source=../git-hooks/adapters.sh
 source "$HOOK_DIR/../git-hooks/adapters.sh"
 
-# Per repository root, the files to format, in batch order.
 ROOTS=()
 FILES=()
 seen=$'\n'
@@ -74,7 +56,6 @@ while IFS= read -r path; do
   seen+="$path"$'\n'
   escaped=""
   hook::json_escape_to escaped "$path"
-  # Existence, symlink and project membership, as for a single-file hook.
   hook::read_file_path_to file "{\"tool_input\":{\"file_path\":\"$escaped\"}}" || continue
   [[ "$file" == */.githooks/* ]] && continue
   hook::dirname_to dir "$file"
@@ -85,7 +66,6 @@ while IFS= read -r path; do
   FILES+=("$file")
 done <<<"$PATHS"
 
-# One run per repository root and resolved command, over all its files.
 done_roots=$'\n'
 for i in "${!ROOTS[@]}"; do
   root="${ROOTS[i]}"

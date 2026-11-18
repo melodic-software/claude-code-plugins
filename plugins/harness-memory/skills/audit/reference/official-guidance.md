@@ -122,8 +122,9 @@ and unscoped rules into a skill, which loads on demand.
 
 ## Hooks vs CLAUDE.md
 
-The audit recommends a hook, not a CLAUDE.md line, for anything that must happen every time: a
-CLAUDE.md line is advisory and a hook is deterministic.
+The audit recommends a check, not a CLAUDE.md line, for anything that must happen every time: a
+CLAUDE.md line is advisory and a hook is deterministic. C8 item 3 in
+[criteria.md](criteria.md) picks the mechanism.
 
 - **Pointer**: [Enforce steps with hooks](https://code.claude.com/docs/en/best-practices#enforce-steps-with-hooks).
 
@@ -266,8 +267,9 @@ Practices we take from Boris Cherny's published workflow, in our words:
 
 ## Style enforcement
 
-The audit flags a CLAUDE.md line that asks the model to do a linter's job and recommends a linter
-or hook instead: a model is slower and costlier than a linter at that.
+The audit flags a CLAUDE.md line that asks the model to do a linter's job and recommends a check
+instead: a model is slower and costlier than a linter at that. C8 item 3 in
+[criteria.md](criteria.md) picks the mechanism.
 
 - **Pointer**: [humanlayer.dev, writing a good CLAUDE.md](https://humanlayer.dev/blog/writing-a-good-claude-md).
 
@@ -325,9 +327,13 @@ rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` ca
 
 ## No official scoring rubric
 
-We use no scoring rubric for CLAUDE.md quality, because no official one exists. The 6-category,
-100-point rubric shipped by the `claude-md-improver` skill of the `claude-md-management` plugin
-(Anthropic's `claude-plugins-official` marketplace, not this one) is invented by the plugin author,
-not derived from official documentation.
+We use no scoring rubric for CLAUDE.md quality, because no official one exists. The
+`claude-md-improver` skill of the `claude-md-management` plugin (Anthropic's
+`claude-plugins-official` marketplace, not this one) reports quality scores its author devised, not
+ones derived from official documentation.
+
+- **Pointer**: when someone asks about that skill's scores, fetch
+  [README: Skill: claude-md-improver](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-md-management#skill-claude-md-improver)
+  live.
 
 The quality measure the audit uses is the [deletion test](#the-deletion-test).

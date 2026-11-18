@@ -27,8 +27,6 @@ source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH"' EXIT
-# The markdown path persists the document; keep it out of the real data
-# directory.
 export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 
 cat >"$STUBS/lizard" <<EOF
@@ -60,17 +58,11 @@ cat "$CAPTURES/shellmetrics.csv"
 EOF
 chmod +x "$STUBS"/*
 
-# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names (and
-# the binaries those adapters look up), so the coreutils, git and the
-# interpreter stay reachable while a real lizard, radon, eslint or gocyclo on
-# this machine cannot shadow the stubs or the assertions.
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
 cm_assert_tool_free_path "$EMPTY_PATH"
 unset CODE_METRICS_DISABLE_BUNDLED
 
-# 1. Every stub resolves: the document, its references, and its run table.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "--json exits 0" 0 "$rc"
@@ -97,7 +89,6 @@ assert_doc "halstead difficulty is reported and never fabricated as zero" "$out"
 assert_doc "the four measurable fixtures are measured and CmSample.cs is deferred" "$out" \
   'sorted({r["file"].rsplit("/",1)[1] for r in d["measures"]})==["cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py"] and any(r["lane"]=="dotnet" and r["status"]=="deferred" for r in d["run"])'
 
-# 2. The markdown rendering opens with the coverage table.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES")"
 rc=$?
 assert_eq "markdown exits 0" 0 "$rc"
@@ -119,7 +110,6 @@ case "$out" in
 *) pass "no document line when nothing was persisted" ;;
 esac
 
-# 3. Every collector absent: exit 0, status empty, nothing measured silently.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when no collector resolved" 0 "$rc"
@@ -128,7 +118,6 @@ assert_doc "status empty and every run row non-ok with a reason" "$out" \
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES")"
 assert_contains "the all-unavailable run renders the Measured nothing headline" "$out" "Measured nothing"
 
-# 4. Usage.
 PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit path exits 2" 2 "$?"
 grep -q 'audit-complexity.sh \[--json\]' < <(PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1)

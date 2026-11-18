@@ -327,6 +327,15 @@ test("the scrub probe runs once per release the gate takes, on a read-only token
   for (const id of ["scan", "push-branches", "publish"]) assert.doesNotMatch(jobOf(id), /needs\.verify-env-scrub/, id);
 });
 
+test("the claude function flag check runs once per release the gate takes, against that release's CLI, and nothing waits on it", () => {
+  const job = jobOf("check-claude-function-flags");
+  assert.match(job, /^ {4}needs: select-release$/m);
+  assert.match(job, /^ {4}if: needs\.select-release\.outputs\.proceed == 'true' && github\.run_attempt == '1'$/m);
+  assert.match(stepIn("check-claude-function-flags", "Install the release's CLI outside the checkout and verify its registry signatures"), /^ {10}RELEASE: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
+  assert.match(stepIn("check-claude-function-flags", "Check the claude function's flags"), /^ {8}run: node \.base\/\.github\/scripts\/upstream-apply-changelog\/check-claude-function-flags\.mjs "\$CLAUDE_BIN"$/m);
+  assert.deepEqual([...WORKFLOW.matchAll(/^ {4}needs: .*check-claude-function-flags.*$/gm)], []);
+});
+
 test("the scrub probe runs on each credential a model leg may use, after the same handoffs", () => {
   const probe = (job) => stepIn(job, PROBE_STEP);
   assert.match(probe("verify-env-scrub"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);

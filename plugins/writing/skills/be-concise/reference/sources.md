@@ -9,23 +9,24 @@
 
 Every rule in [`doctrine.md`](doctrine.md) is paraphrased from one of the
 sources below. Nothing upstream is vendored into this repository, and no
-article is reproduced. Each entry carries the claim and the basis with its URL.
-An entry that records a figure from its basis is a stored value under this
-repository's upstream-drift convention, so it also carries the as-of date and
-the recheck trigger that obliges re-deriving the claim.
+article is reproduced. An entry that records a figure from its basis is a
+stored value under this repository's upstream-drift convention, so it carries
+the claim, the basis with its URL, the as-of date and the recheck trigger that
+obliges re-deriving the claim. Every other entry says how the doctrine uses its
+source and points to it, and stores nothing from it.
 
 The as-of date on each such entry is the verified research run of 2026-09-05,
 which fetched each basis directly. A date is not authority. Re-fetch the basis
 before relying on a claim; the stamp is a ceiling on how current the claim can
 be.
 
-Two entries carry no rule of their own. The licensing entry records what may be
-quoted from Nielsen Norman Group and why nothing is vendored. The two
+Three entries carry no rule of the doctrine. The licensing entry records our rule
+for quoting Nielsen Norman Group and why nothing is vendored. The two
 meta-analysis entries record the evidence that contradicts the 1997
 screen-reading premise, which the doctrine states rather than hides.
 
 Quoted runs attributed to nngroup.com are kept to a few words each, with the
-company, the author and the link credited, per the terms recorded below.
+company, the author and the link credited, per the licensing rule below.
 
 ## Nielsen Norman Group
 
@@ -75,22 +76,23 @@ a numeric target.
 
 ### Inverted Pyramid (Schade, 2018)
 
-Claim: Most important information first, then secondary detail ranked, then
-background; front-load every element of content; the pattern holds across
-screen sizes.
+Our use: property 1 cites this article as one of the four sources for its
+point-first rule, which is the whole of the inverted pyramid, and as the model
+for its ranking rule (key points, then supporting detail, then background).
 
-Basis: https://www.nngroup.com/articles/inverted-pyramid/
+- **Pointer**: when checking property 1's ordering against its source, fetch
+  [Inverted Pyramid](https://www.nngroup.com/articles/inverted-pyramid/) live.
 
 ### F-Shaped Pattern of Reading (Pernice, 2017, last reviewed 2026-08-19)
 
-Claim: Scanning persists on desktop and mobile; the F-pattern is the default
-when a page offers no strong cues; good formatting reduces its impact; headings
-and subheadings should start with the words carrying the most information. One
-independent industry eyetracking study disputes the F shape specifically, and
-the front-loading rule survives either result because all pools agree attention
-is weighted to the start of lines.
+Our use: the rule to front-load headings and the opening words of each
+paragraph cites this article. The doctrine keeps that rule even where the F
+shape itself is disputed, because the rule needs only that attention falls at
+the start of lines, not any one scan shape.
 
-Basis: https://www.nngroup.com/articles/f-shaped-pattern-reading-web-content/
+- **Pointer**: when checking the front-loading rule against its source, fetch
+  [F-Shaped Pattern of Reading](https://www.nngroup.com/articles/f-shaped-pattern-reading-web-content/)
+  live.
 
 ### How Little Do Users Read? (Nielsen, 2008)
 
@@ -121,15 +123,14 @@ expert readers prefer plain language.
 
 ### Nielsen Norman Group licensing terms
 
-Claim: The terms permit quoting a few lines of an article with credit, which
-requires the company name, a link to the original, and the author's name; they
-forbid reposting entire articles without written permission. The doctrine
-therefore paraphrases and quotes short runs, and this repository vendors no
-Nielsen Norman Group article text. The terms page is the licensor's own
-statement, with no independent carrier, so read it directly before relying on
-it.
+Our rule: this repository vendors no Nielsen Norman Group article text. The
+doctrine paraphrases, and any quoted run is a few words long and credits the
+company, the author and the link, so that no file here ever depends on a
+license grant.
 
-Basis: https://www.nngroup.com/terms-and-conditions/
+- **Pointer**: before quoting more than a few words, or vendoring any article
+  text, fetch the licensor's own
+  [terms and conditions](https://www.nngroup.com/terms-and-conditions/) live.
 
 ## Government and vendor writing standards
 
@@ -174,13 +175,14 @@ or the archived GSA repository is removed or unarchived and edited.
 
 ### Google developer documentation style guide
 
-Claim: Write shorter sentences; use active voice and second person; put
-conditions before instructions; numbered lists for sequences and bulleted lists
-for everything else; avoid placeholder phrases such as "please note" and "at
-this time"; avoid exclamation points, buzzwords, jargon, idiom and humor. The
-guide publishes no numeric sentence limit.
+Our use: the doctrine credits this guide for three of its rules: the
+placeholder phrases cut under property 2, the numbered-versus-bulleted list rule
+under property 3, and the tone rules (no exclamation marks, buzzwords, jargon,
+idiom or humor) under property 4. It takes no sentence-length number from it.
 
-Basis: https://developers.google.com/style/highlights
+- **Pointer**: when checking a rule the doctrine credits to Google, fetch
+  [Google developer documentation style guide highlights](https://developers.google.com/style/highlights)
+  live.
 
 ### Microsoft Writing Style Guide
 
@@ -220,39 +222,43 @@ replaces this basis, or the Army publishes a new edition.
 
 ### ACUS Recommendation 2017-3 (plain language in agency guidance)
 
-Claim: Agencies should balance brevity, usefulness and completeness, and
-guidance should be comprehensible even where that costs brevity; citations and
-hyperlinks let a reader reach the underlying regulatory or statutory
-requirement instead of the document restating it.
+Our use: one of four unrelated fields the completeness floor cites. The floor
+takes from it that brevity never outranks a reader understanding the text, and
+the "one link away" remedy for a brevity-completeness conflict.
 
-Basis: https://www.govinfo.gov/content/pkg/FR-2017-12-29/pdf/2017-28124.pdf
+- **Pointer**: when checking the floor's government-guidance basis, fetch
+  [ACUS Recommendation 2017-3](https://www.govinfo.gov/content/pkg/FR-2017-12-29/pdf/2017-28124.pdf)
+  live.
 
 ### DOE-STD-1029, Writer's Guide for Technical Procedures
 
-Claim: Procedures must be accurate, complete and usable together; actions are
-presented clearly, concisely and in sequence; the level of detail is set by the
-user's training and qualifications; the process exists partly to place warnings
-and cautions where they will be read. Concise and complete are stated together
-and never traded against each other.
+Our use: the completeness floor cites it as the field where concise and complete
+are one requirement, and takes from it two rules: set the level of detail from
+what the reader already knows, and never cut a warning or caution.
 
-Basis: https://www.osti.gov/biblio/308015 (the Department of Energy record for
-the 1992 standard; the full text was read from a third-party mirror, one rung
-below a primary read)
+- **Pointer**: when checking the floor's technical-procedures basis, fetch the
+  Department of Energy record for the 1992 standard,
+  [OSTI 308015](https://www.osti.gov/biblio/308015), live. The full text was read
+  from a third-party mirror, one rung below a primary read.
 
 ### Linux kernel patch-submission guidance
 
-Claim: A change description must describe the problem that motivated the work,
-whatever the size of the change, and its user-visible impact. That record is
-what a body shortened past the floor destroys.
+Our use: the completeness floor cites it for change descriptions. A pull
+request or commit body keeps the problem that motivated the change and its
+user-visible effect at any size, because that record is what a body shortened
+past the floor destroys.
 
-Basis: https://www.kernel.org/doc/html/latest/process/submitting-patches.html
+- **Pointer**: when checking the floor's change-description basis, fetch
+  [Describe your
+  changes](https://www.kernel.org/doc/html/latest/process/submitting-patches.html#describe-your-changes)
+  live.
 
 ### Claude Code concise output style
 
-Our use: a brevity mode in Claude Code itself keeps some content in full rather
-than shortening it, which corroborates this skill's floor (never drop an error,
-warning or confirmation). Which content that style keeps is the page's to state;
-compare our floor against it live rather than from a copy here.
+Our use: the completeness floor cites Claude Code's Concise output style as the
+fourth of its unrelated fields, one that sets a content floor of its own. Which content that style keeps is the
+page's to state, and this skill's floor governs its own rewrites wherever the
+two differ, so compare them live rather than from a copy here.
 
 - **Pointer**: when checking our floor against the Concise style, fetch
   [Output styles, Concise](https://code.claude.com/docs/en/output-styles#concise)

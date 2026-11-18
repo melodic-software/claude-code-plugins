@@ -4,9 +4,8 @@ Measure a Claude Code session's fixed startup context payload **per item**, on y
 pinned binary, and record what every trim actually saved.
 
 This plugin attributes the built-in tool pools, `System tools` and `System tools (deferred)`, per
-tool. Together they are typically the largest single contributor to the fixed payload, which is
-why the plugin targets them. The rest of the breakdown stays with the built-in `/context` command;
-what it itemizes is read at its row in
+tool, because `/context` reports them only as totals. The rest of the breakdown stays with the
+built-in `/context` command; what it itemizes is read at its row in
 [commands § All commands](https://code.claude.com/docs/en/commands#all-commands). The plugin
 attributes the pools by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
@@ -47,13 +46,18 @@ The `live_display` option picks where it shows:
 - `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
   `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
   only when auto-compaction is on. Each category follows with its tokens, percent and color;
-  deferred categories are listed dimmed with "deferred" in place of a percent.
+  deferred categories are listed dimmed with "deferred" in place of a percent. In a session drawn
+  only in the Desktop app, the app's session details panel already shows this breakdown under
+  Context, so `/context-budget live` and `live pane` open no pane there and a toast points to that
+  panel and to `live band`.
 - `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
   other plugins' rows, fitted to the available width, and out of the way while a survey prompt
   shows. `/context-budget live` opens or closes the detail pane and leaves the band on;
   `/context-budget live off` hides the band. This multi-row band is an opt-in exception to
   the repository's one-row-per-mod display guidance
-  ([mods](../user-interface/reference/types/mods.md)).
+  ([mods](../user-interface/reference/types/mods.md)). In the Desktop app the band is one line:
+  `Context <used> / <window> · <percent>%`, a colored bar with one segment per category, and on
+  hover the segment darkens and its name, tokens and percent show at the right.
 - `off`. Nothing shows and nothing is measured.
 
 `/context-budget live pane`, `live band` and `live off` set the mode for the session and survive a

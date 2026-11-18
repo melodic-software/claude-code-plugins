@@ -69,6 +69,8 @@ pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAI
 table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
+An installed plugin runs from a deeply nested cache path, and a search passed that path can fail
+to start on some hosts because the path is too long, while reading a named file still works.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The Claude Code hooks exit through their enabled-gate before probing anything, so a
@@ -224,10 +226,12 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Gotchas
 
-- **A userConfig knob is reachable natively only if the manifest declares it.** An undeclared key
-  silently cannot be set through native plugin configuration (a raw settings `env` block still
-  works). Pointer: the `--config` row in
-  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+- **Point the user only at the options the manifest declares.** Native plugin configuration is
+  the one route this skill supports for a tunable, so it never offers a key that
+  `.claude-plugin/plugin.json` does not declare under `userConfig`.
+  - **Pointer**: when a user asks to set a key the manifest does not declare, fetch the `--config`
+    row of [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+    live.
 - **What each headless route does to stored options is the convention's to state.** Read it in
   [§ The routes](../../reference/plugin-reconfiguration.md#the-routes),
   which also holds the verified-version record: which CLI release each behavior was observed on,

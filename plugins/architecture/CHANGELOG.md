@@ -3,6 +3,48 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.0] - 2026-11-18
+
+### Added
+
+- The deepening and conventions lenses of `/architecture:improve` run across several repositories when `--repo` or another target form of the shared target-scope contract (`reference/target-scope.md`) names them: `reference/improvement-steps.md` "Scope and fan-out" resolves the repositories, scans each with its root anchored, and ranks candidates together. The default stays this repository.
+
+## [5.4.0] - 2026-11-18
+
+### Added
+
+- `/architecture:improve deepening --unattended` asks nothing, renders no page, and writes a candidate file under `<memory_dir>/architecture/improve/<branch-slug>/` whose header records the mode, verification level, threshold, producer and source commit. A security defect appears there only as a `security-defect: withheld` line.
+- An `improve` settings object in `architecture.yaml`: `unattended_min_badge` (default `Speculative`, every band), `history_commits` (default 100) and `exclude_authors` (default `["[bot]"]`).
+
+### Changed
+
+- **`reference/vocabulary.md`, the sources list.** Leverage and locality as what depth produces,
+  the deletion test and the two-adapter check now credit Matt Pocock's `codebase-design` in
+  mattpocock/skills, with a link to the marketplace's upstream record, in place of calling them
+  our own.
+
+- The deepening and conventions lenses read their history window and excluded authors from those settings. The defaults match the values they used before.
+
+## [5.3.0] - 2026-11-18
+
+### Added
+
+- **`reference/vocabulary.md`, the deletion test.** The check names three fixes for a module that
+  only forwards calls: delete it, move work between it and the module it wraps so each has a
+  distinct job, or merge the two into one deeper module.
+
+## [5.2.9] - 2026-11-18
+
+### Changed
+
+- The `improve` deepening action now gives the reason it never chooses the HTML report's location from an injected scratchpad path or `CLAUDE_JOB_DIR`: those directories belong to the harness's run, and the report must outlive the invocation at the path the secure temp-file primitive created. The `map-context` "Actors are not derived" gotcha states its own reason, that tracked configuration does not say who uses a system, in place of a paraphrase of the C4 system-context page ([#16873](https://github.com/melodic-software/claude-code-plugins/issues/16873)).
+
+## [5.2.8] - 2026-11-18
+
+### Changed
+
+- `map-deployment`: the CloudFormation, Pulumi, `.tf.json` and Helm records no longer restate upstream behavior with dated claims. Each now states what the skill's file readers do and points to the upstream section to check ([#16836](https://github.com/melodic-software/claude-code-plugins/issues/16836)).
+
 ## [5.2.7] - 2026-11-18
 
 ### Changed

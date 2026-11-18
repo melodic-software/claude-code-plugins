@@ -34,8 +34,6 @@ const sampleTalk = (overrides = {}) =>
     ...overrides,
   });
 
-// In-memory fs fakes: a Map-backed readFile/writeFile/mkdir triple, optionally
-// pre-seeded so a test can read a watch.json it never wrote.
 /** @param {Iterable<[string, string]>} [seed] */
 function memoryStore(seed = []) {
   const store = new Map(seed);
@@ -51,7 +49,6 @@ function memoryStore(seed = []) {
   return { store, readFile, writeFile, mkdir };
 }
 
-// Seeded with a fresh sample watch.json, for runMarkPhase tests.
 function seededStore() {
   const sliceDir = "/tmp/slice";
   return {

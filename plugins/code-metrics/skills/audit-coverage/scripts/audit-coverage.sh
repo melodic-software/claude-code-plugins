@@ -21,8 +21,6 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
 PARSERS="$PLUGIN_ROOT/scripts/parsers"
 COMPLEXITY="$PLUGIN_ROOT/skills/audit/scripts/audit-complexity.sh"
-# Well-known artifact names, in the order they are looked for. Directories
-# excluded from the walk: node_modules, .git, vendor.
 WELL_KNOWN=(coverage/lcov.info lcov.info coverage.xml cobertura.xml coverage.json coverage.out cover.out)
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
@@ -78,8 +76,6 @@ fi
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 [[ -n "$ROOT" ]] || ROOT="$PWD"
 
-# `coverage.artifacts` and `coverage.path_prefix_strip` from the resolved
-# config, one entry per line.
 config_list() {
   "${PY[@]}" -I -c '
 import json, sys
@@ -125,8 +121,6 @@ if [[ ${#ARTIFACT_PATHS[@]} -eq 0 ]]; then
   done
 fi
 
-# Format detection by content, never by extension: lcov section headers, a
-# Cobertura root element, a coverage.py JSON report, a Go cover profile.
 detect_format() {
   local artifact="$1" first
   first="$(grep -v '^[[:space:]]*$' "$artifact" 2>/dev/null | head -n 1)"

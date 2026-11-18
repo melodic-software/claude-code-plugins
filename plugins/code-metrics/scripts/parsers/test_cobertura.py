@@ -123,10 +123,6 @@ class MultiRootTests(unittest.TestCase):
         self.assertIn("C:/workspace/cm-drive.sh", document)
 
     def test_the_probe_reads_the_scan_root_it_is_given(self) -> None:
-        # Pointed at an empty tree the probe finds no candidate anywhere, so
-        # every relative filename falls back to the first root. The resolution
-        # the other cases assert is therefore an observation of the measured
-        # tree and not an accident of the order the roots are declared in.
         with tempfile.TemporaryDirectory() as tmp:
             document = self.document(tmp)
         self.assertIn(ALPHA + "/cm-sample.sh", document)

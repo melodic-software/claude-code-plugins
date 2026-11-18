@@ -1,5 +1,5 @@
 ---
-type: tool_used
-tool: Write
-input_match: '"content"\s*:\s*"(?=(?:[^"\\]|\\.)*?Verification evidence for [0-9a-f]{40})(?!(?:[^"\\]|\\.)*?Verified by)'
+type: regex
+pattern: '^(?=[\s\S]*?Verification evidence for [0-9a-f]{40})(?![\s\S]*?Verified by)'
+target: { source: file, path: .git/eval-forge/comment-body.md }
 ---

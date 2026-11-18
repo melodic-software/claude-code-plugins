@@ -9,7 +9,7 @@ Moved to [this section](../../contracts/permission-rule-hygiene/README.md#why-th
 
 ## Auto mode is the built-in default, not a state you opt into
 
-Moved to [this section](../../contracts/permission-rule-hygiene/README.md#auto-mode-is-the-built-in-default-not-a-state-you-opt-into).
+Moved to [this section](../../contracts/permission-rule-hygiene/README.md#write-every-rule-for-the-auto-mode-case).
 
 ## Anti-pattern 1: interpreter-wildcard / blanket allow rules (dropped in auto mode)
 

@@ -16,6 +16,7 @@ file or personal override sets these keys. `/review:setup apply` writes the repo
 | `smell_baseline` | `default`, `off`, or a repository-relative path to a `.md` file | `default` | the `code-reviewer` agent's design-smell check: `default` reads the "Baseline" section of [`design-smells.md`](design-smells.md); `off` checks no smells; a path reads the repository's own list, and a missing file, or one the reviewed change set edits, falls back to the shipped baseline, never to `off`. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 | `loosened_check_verdict` | `fail`, `note` | `fail` | the bundled criterion [Fail a change that loosens a check](../skills/quality-gate/context/loosened-check.md), applied by `/review:quality-gate`'s diff modes, the `code-reviewer` agent, the `/review:code-review` CI lane (from its prompt's value lines, else `fail`), and `/review:fanout`'s `code-reviewer` leaf, criteria slices and model-diversity hunters: `fail` makes a loosening the spec does not allow a blocking finding; `note` reports it at the lowest tier. Level rule: policy floor, `fail` in any layer wins; the repository value is read from the default branch |
 | `loosened_check_patterns` | a list of path globs, or `text:` and a regular expression | none | the same criterion: a changed file a glob matches counts as a check's own code or settings; a changed line a `text:` pattern matches is judged against the criterion's kinds. The user option holds the list as JSON text. Level rule: union, every valid layer's entries apply; the repository value is read from the default branch |
+| `loosened_check_decision_record` | an https URL prefix ending in `/` | unset | the same criterion: set, a loosening, a removed check or a flaky-test quarantine also needs the spec to cite the owner's decision, with a line link under this prefix and the owner's words after `verbatim:` in double quotes; unset, no citation is needed. Repository layer only, no user option, so a person's own settings cannot switch it off; the value is read from the default branch |
 | `council_lanes` | `on`, `off` | `off` | `/review:council`: an unattended run stops with success unless this is `on`; an attended run never reads it. Repository layer only, no user option. Read as the council keys below are |
 | `council_max_rounds` | a whole number, at least `1` | `1` | `/review:council` round loop: above `1`, `/review:fanout fix` runs between rounds. Level rule: later layer; council read rule below |
 | `council_scores` | `on`, `off` | `off` | `/review:council` report: `on` adds a mark table by member and round; marks gate nothing. Level rule: later layer; council read rule below |
@@ -80,8 +81,14 @@ no layer removes another's. Both read the repository value from the default bran
 as `downstream_probe` does, so a pull request that edits `docs/conventions/review.yaml` on its head
 can neither relax the verdict nor drop a pattern to narrow its own detection. Unlike
 `downstream_probe`, when the default branch cannot be read the verdict resolves `fail`, the user's
-patterns still apply, and a WARN line says why.
-`scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves both, with
+patterns still apply, and a WARN line says why. `loosened_check_decision_record` has only the
+repository layer, read the same way. It prints `unset` only when the default branch's copy does not
+have the key. It prints `unreadable`, with a WARN, when the value could not be known or is invalid:
+no `--ref`, a default branch that cannot be read, a committed file that does not parse, or a key
+present with an invalid value, an exception to the "Resolution" rule above, so a merged typo cannot
+switch the citation off. The criterion then treats the citation as unmet, so no spec can allow the
+loosening on that run.
+`scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves all three, with
 `--verdict-option` and `--patterns-file` (a file holding the patterns option, never a shell
 argument, written to `<memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json`) for the
 user options, and prints each value with the layers that set it. Given `--spec-issue <number>`, it

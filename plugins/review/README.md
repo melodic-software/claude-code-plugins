@@ -50,12 +50,12 @@ Each agent also treats the reviewed code, `REVIEW.md`, rules files and cited doc
 an instruction embedded in them is reported as a finding, and project conventions override an
 agent's baseline only as review criteria.
 
-*Basis for the two limits:* [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
-states that with memory enabled "Read, Write, and Edit tools are automatically enabled so the
-subagent can manage its memory files", that turning auto memory off means "the `memory` field
-has no effect", and lists `permissionMode` among the fields ignored for plugin subagents.
-*Recheck* when that page stops carrying any of those three statements, or a release note names
-subagent memory tools, auto memory, or plugin-subagent frontmatter restrictions.
+- **Pointer**: for the two memory limits above, when checking what the `memory` field needs and
+  grants a subagent, fetch
+  [create custom subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
+  live; when checking which frontmatter fields a plugin subagent ignores, fetch
+  [create custom subagents: choose the subagent scope](https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope)
+  live.
 
 Invoke via `@review:<agent>` or let Claude delegate.
 
@@ -132,7 +132,7 @@ None. The guardrails plugin's connected-page guard denies publishing a page buil
   into records. Its `args` carry `diffBase` and `loosenedCheck`, the path of the bundled
   "Fail a change that loosens a check" criterion that `code-reviewer`, every slice and every model
   tier apply (both required; without
-  either the run dispatches nothing), plus `loosenedSettings` (that criterion's two resolved setting
+  either the run dispatches nothing), plus `loosenedSettings` (that criterion's resolved setting
   lines), `spec` (the issue text the change resolves), `slices`, `roles`, `maxConcurrent`
   (default 4), `diversity`, `session` and `findingsPaths`. `roles` is the map `/multi-agent:route all`
   prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
@@ -277,8 +277,10 @@ or a path to the repository's own list, which `/review:setup apply` can write fr
 [`reference/design-smells.md`](reference/design-smells.md). `loosened_check_verdict` and
 `loosened_check_patterns` tune the bundled review criterion "Fail a change that loosens a check":
 whether an unreasoned loosening blocks (`fail`, the default and a policy floor) or is only noted
-(`note`), and which extra files and lines count as a check's own code. Both read the repository
-value from the default branch. The `council_*` keys configure
+(`note`), and which extra files and lines count as a check's own code. The repository-only
+`loosened_check_decision_record` names the https URL prefix of a decision record: set, a loosening
+also needs the spec to cite the owner's decision there; unset, the default, it does not. All three
+read the repository value from the default branch. The `council_*` keys configure
 `/review:council`: its member catalog, fallback panel, selection rules, round count, score table and
 the repository-only lane switch, read from the base branch when a change edits the file. Keys,
 values and resolution:

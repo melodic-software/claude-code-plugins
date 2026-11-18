@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.2] - 2026-11-18
+
+### Changed
+
+- The WebFetch truncation hook's header comment points at the hooks page's PostToolUse input section instead of quoting it ([#16834](https://github.com/melodic-software/claude-code-plugins/issues/16834)).
+
 ## [2.2.1] - 2026-11-17
 
 ### Fixed

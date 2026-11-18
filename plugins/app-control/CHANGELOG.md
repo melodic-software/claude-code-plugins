@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3] - 2026-11-18
+
+### Removed
+
+- The control-skill contract no longer ships tool choices for one ecosystem. "Writing the Capture section" drops its per-runtime symptom-to-tool table and its list of tool manuals. It keeps which capture kind each symptom records (spin, leak, jank, hang, animation) as one sentence, and now says to name, for each kind, only a tool the repository already shows, and to read that tool's current flags in its own manual. "The Ready command" defines a listing without the `docker ps` and `kubectl get` examples. "Writing the driver CLI" drops the Python `-B` and `sys.dont_write_bytecode` example from its bytecode rule.
+
+## [0.31.2] - 2026-11-18
+
+### Changed
+
+- The `drive` skill's pid-binding reference no longer paraphrases proc(5) on who may set a process's command name or how `/proc/<pid>/cmdline` separates arguments. It states the parse and hash rules with their reasons and points at the `proc_pid_comm` and `proc_pid_cmdline` man pages ([#16844](https://github.com/melodic-software/claude-code-plugins/issues/16844)).
+
 ## [0.31.1] - 2026-11-18
 
 ### Changed

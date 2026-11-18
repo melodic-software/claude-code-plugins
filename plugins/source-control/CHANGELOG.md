@@ -3,6 +3,65 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.5] - 2026-11-18
+
+### Fixed
+
+- **`reference/evidence.md`, step 4.** The instruction to write the comment body with the Write
+  tool now comes once, after the placeholder list, with a literal target
+  (`<dir>/evidence-comment.md`, the scratchpad or the path `mktemp -d` prints), every path and
+  value filled in literally, and its reason: the Write tool's content reaches no shell, so a
+  `$(...)` or backtick in the criterion or summary text stays text. Steps 5 and 8 read that file.
+
+## [11.21.4] - 2026-11-18
+
+### Fixed
+
+- `/source-control:babysit-prs`: a `gh api` read that GitHub answers with any HTTP 500 to 599 status is sent again, at most 3 attempts in all and at most 10 retries a process, after a full-jitter wait of up to 4 s and then up to 8 s inside the call's one timeout, so a single 5xx no longer costs the merge lane a whole sweep. Every attempt passes the rate-limit guards and is counted. A write, a rate limit, any other status, a read whose response headers are not read (a `gh` subcommand or the artifact download), an answer carrying `Retry-After` and a read the artifact listing, the green-main check or the `legacy-fails` pacer already paces or repeats itself are sent once, as before.
+
+## [11.21.3] - 2026-11-18
+
+### Fixed
+
+- **`reference/evidence.md`, the leak scan.** Step 5 states the text normalization and the
+  credential pattern itself instead of sending the reader to `/app-control:drive`, whose files a
+  session without that plugin cannot read. Step 1 names `target-repo.sh` under the skill
+  directory, not the plugin's own `scripts/`, and step 4 says to read the comment template with
+  the Read tool.
+- **The four `pull-request-evidence-*` eval cases.** Each prompt names the pull-request skill, and
+  the fixture's `gh` answers `repo set-default --view`. The content graders read the posted
+  comment, so a body written another way is judged on what it holds, and a new
+  `body-written-with-write` grader checks that the body file was written with the Write tool, as
+  step 4 says.
+
+## [11.21.2] - 2026-11-18
+
+### Changed
+
+- **Restated upstream behavior cut to pointers in the README and the GitHub provider, stacked-PR and worktree-root references.** Passages that repeated Claude Code or GitHub docs now state this plugin's own rule with an anchored pointer, and drop their stamps except the async merge API's status list, which stays a stamped stored value. The rules cover which worktrees `worktree-remove-gate` leaves to `/source-control:worktree cleanup`, why you install Node.js yourself, treating GraphQL as unavailable behind the cloud GitHub proxy, marking a draft ready before a merge, the queue fields read back after `gh pr merge`, polling the `uuid` a 409 response returns, and how a stack layer merges. The `EnterWorktree(name:)` note now points to where the name form creates a worktree.
+
+### Security
+
+- `worktree-remove-gate.sh`'s `git status` no longer starts the `core.fsmonitor` command a repository's own config names: it and the gate's other git calls, `worktree-add-containment-gate.sh`, `pr-linkage-mcp-gate.sh` and `hook-utils.sh`'s repository-root lookups pass the overrides `hook::git_untrusted` uses. Not yet covered: the git calls in `scripts/worktree-create.sh` and the helpers it uses, which `worktree-create-gate.sh` runs (issue #16959 tracks them), and other commands a repository's config can name, such as a `.gitattributes` content filter, which `git status` in `worktree-remove-gate.sh` can still start.
+
+## [11.21.1] - 2026-11-18
+
+### Changed
+
+- `worktree-create.sh` runs `npm ci` once per distinct install into `<root>/.npm-seed/<key>`, makes the seed read-only, and hard-links that `node_modules` into each new worktree, so worktrees on one lockfile share one copy on disk. The key covers the lockfile, `package.json`, `.npmrc`, the Node ABI, `NODE_ENV` and `npm_config_*` variables. It runs `npm ci` in the worktree as before without `flock`, `node` or a working `cp -al`, for a package with workspaces, install lifecycle scripts or `file:`/`link:` dependencies, when the seed install fails, or with `WORKTREE_CREATE_NPM_SEED=0`. Seeds unused for `WORKTREE_CREATE_NPM_SEED_DAYS` (default 14) are removed.
+
+## [11.21.0] - 2026-11-18
+
+### Changed
+
+- **The babysit merge gate trusts the own-agent filings intake admission admits.** A pr-verify pass whose linked issue an identity on admission's `own-agents` list wrote now counts as a trusted spec when no other account edited the issue's body, the issue carries exactly one well-formed `source: <producer>` label, a listed human or the lanes App sized it small or medium, and no run's patch stopped over the scan job's size cap since a listed human last added `agent-ready`. The gate reads the list from the default branch and each condition live. Any other filing still reads `verify:untrusted-spec`, a failed read reads `verify:unreadable`, and github-actions[bot] never counts as an own-agent identity, even when the list names it.
+
+## [11.20.3] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [11.20.2] - 2026-11-18
 
 ### Changed

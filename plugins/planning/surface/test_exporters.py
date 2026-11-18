@@ -987,7 +987,7 @@ class TestBriefRestatements(SessionCase):
             (HERE / "schema" / "questions.schema.json").read_text(encoding="utf-8")
         )
         keys = sorted(schema["$defs"]["sections"]["properties"])
-        self.assertEqual(len(keys), 11, keys)
+        self.assertEqual(len(keys), 12, keys)
         text = self.brief(
             [self.rev(1, **{k: f"- marker {k} text" for k in keys})],
             [self.confirm(2, 1)],
@@ -1025,6 +1025,34 @@ class TestBriefRestatements(SessionCase):
             "--ledger", self.export("ledger"), "--brief", self.export("brief")
         )
         self.assertEqual(rc, 0, out)
+
+    def test_restated_adr_verdicts_get_their_own_section_before_deferred_questions(self):
+        verdicts = [
+            "Q3 failed-delivery storage: ADR recorded; passes the test's hard-to-reverse part",
+            "Q4 alert channel: no ADR; a process decision",
+        ]
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="Ship it.",
+                    acceptance="- it ships",
+                    adrVerdicts="\n".join(verdicts),
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertEqual(self.section(text, "ADR verdicts"), [f"- {x}" for x in verdicts])
+        self.assertLess(text.index("### ADR verdicts"), text.index("### Deferred questions"))
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        for absent in ({}, {"adrVerdicts": "- none"}):
+            text = self.brief(
+                [self.rev(1, goal="Ship it.", **absent)], [self.confirm(2, 1)]
+            )
+            self.assertNotIn("### ADR verdicts", text)
 
     def test_a_restated_deferred_of_none_is_no_entry(self):
         text = self.brief(

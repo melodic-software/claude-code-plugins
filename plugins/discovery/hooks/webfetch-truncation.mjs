@@ -19,10 +19,10 @@
 // There is no length rule, so a page WebFetch summarized with
 // no marker goes unflagged; the README says so.
 //
-// tool_response's shape for WebFetch is not documented on the hooks page
-// (https://code.claude.com/docs/en/hooks#posttooluse-input says it "depends on
-// the tool"). The shape used here, an object whose `result`
-// holds the text, comes from the captured fixtures (Claude Code 2.1.289).
+// For what the hooks page documents about tool_response, fetch
+// https://code.claude.com/docs/en/hooks#posttooluse-input live. The shape used
+// here for WebFetch, an object whose `result` holds the text, comes from the
+// captured fixtures (Claude Code 2.1.289).
 // Recheck when a capture shows a different shape.
 //
 // Fail-open: unreadable, oversized or late stdin, or any other shape, prints

@@ -140,8 +140,6 @@ printf '%s\n' 'v = 5  # noqa' >"$F/sub/i.py"
 gf add -A
 gf commit -q -m topic
 
-# field <file> <location> <column 1-7>: one cell of the row at <location>,
-# split on unescaped pipes.
 field() {
   "$PY" -c '
 import re, sys
@@ -193,8 +191,6 @@ assert_eq "a reason with no rule id leads with rule-no-rule-id, its pipe escaped
   'code-metrics/audit-suppressions/rule-no-rule-id: noqa suppression naming no rule id, reason "kept as is \| the shell example pipes it"' \
   "$(field "$FILE" e.py:1 6)"
 
-# The remedy, pinned per scope: where the reason goes depends on the tool, and a
-# rule id is asked for only where the tool can name one and the line names none.
 act="$(field "$FILE" a.js:1 7)"
 assert_contains "eslint: the reason goes after --" "$act" 'write the reason after ` -- ` at the end of the directive'
 assert_not_contains "eslint: no Justification argument offered" "$act" 'Justification'
@@ -293,8 +289,6 @@ assert_eq "with no current branch --findings exits 2" 2 "$?"
 assert_contains "with no current branch it says no file was written" "$err" "no findings file written"
 assert_eq "with no current branch no file is written" "$before" "$(find "$F/.work" -name '*.md' | wc -l)"
 
-# A configuration the entry point cannot read is named as such, not reported
-# as a missing merge-base.
 printf '{not json\n' >"$TMP/bad-config.json"
 err="$(cd "$REPO" && bash "$SCRIPT" --config "$TMP/bad-config.json" 2>&1 >/dev/null)"
 assert_eq "an unreadable configuration exits 2" 2 "$?"
@@ -338,9 +332,6 @@ frozen="$(cd "$X" && "$PY" "$SCRIPT_DIR/suppression-scan.py" --count --exclude-f
 assert_eq "--count given scope.exclude equals the report's counts" "suppressions=3
 unjustified=2" "$frozen"
 
-# ---- files the scanner has no kind for --------------------------------------------
-# The change adds a .rs and a .txt file the scanner reads no language for, a
-# .png and a .py file; only the first two are named as not read.
 N="$TMP/unread"
 mkdir -p "$N/src"
 gn() { git -C "$N" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }

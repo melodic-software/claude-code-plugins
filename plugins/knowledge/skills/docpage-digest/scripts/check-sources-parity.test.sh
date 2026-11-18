@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform wrapper so plugin-gate (plugins/**/*.test.sh) runs the
-# check-sources-parity negative-control suite.
 # test-scope: plugins/knowledge/skills/docpage-digest/scripts/test_check_sources_parity.py
 set -euo pipefail
 

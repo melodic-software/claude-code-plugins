@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.2.3] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups and `harness-ops-paths.sh`'s two `git rev-parse` calls pass the overrides `hook::git_untrusted` uses, so those calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as the ignore check already does.
+
+## [10.2.2] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
+## [10.2.1] - 2026-11-18
+
+### Fixed
+
+- `control-claude-code`: the `## Mask` section gives the one command form that resolves its `values:` source, so a run whose shell runs only listed commands is not refused and left with nothing publishable.
+
 ## [10.2.0] - 2026-11-18
 
 ### Added

@@ -318,8 +318,7 @@ eligible for skip 2. Compare the base and head manifests:
   content off the machine (publishing, uploading, posting, an external write), as for a selector;
   only prose the model reads counts. An inert key gets one summary line, `manifest userConfig.<key>: pass, inert, <the file and line that reads it>`,
   treated like a selector's line: no inline comment, no `severity:` line, nothing in the findings
-  total or `critical-findings: <n>`, and never `hold`. Basis: owner
-  decision Q3, 2026-11-04, in the owner-decisions record of `melodic-software/architecture`.
+  total or `critical-findings: <n>`, and never `hold`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
