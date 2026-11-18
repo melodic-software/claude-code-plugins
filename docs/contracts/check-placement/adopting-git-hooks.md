@@ -88,7 +88,10 @@ all of them, and `block-no-verify` keeps agents from `--no-verify` and hook-mana
    `<plugin>-remote-<entry>`. Lefthook merges `lefthook-local.yml` over the remotes and matches
    jobs by name. Use it only when the job itself is broken, not when it reports your change.
    Pointer: lefthook's [`lefthook-local`](https://lefthook.dev/examples/lefthook-local/) and
-   [`skip`](https://lefthook.dev/configuration/skip/).
+   [`skip`](https://lefthook.dev/configuration/skip/). The guardrails content scans
+   (`guardrails-remote-pre-commit-content` and `guardrails-remote-pre-push-content`, the secret and
+   machine-path scans) have no per-clone skip and print none: when one is broken, the recovery is
+   the revert or fix on main in step 2.
 2. **Fix main.** Revert the change that broke the job, or fix it, in this repository.
 3. **Pick up the fix.** `lefthook install` fetches every remote at once, whatever
    `refetch_frequency` says (`Install` in

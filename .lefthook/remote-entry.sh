@@ -5,6 +5,10 @@ event=$1 job=$2 script=$3
 shift 3
 sh "$script" "$@" && exit 0
 rc=$?
+case "$job" in
+  guardrails-remote-pre-commit-content | guardrails-remote-pre-push-content) exit "$rc" ;;
+  *) ;;
+esac
 printf '%s\n' \
   "$job failed (exit $rc): fix what it reports above." \
   "Only if the job itself is broken, skip it in this clone with an untracked lefthook-local.yml (list it in .git/info/exclude):" \

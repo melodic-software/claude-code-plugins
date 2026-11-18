@@ -5,14 +5,36 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/git-hooks/lefthook-remote-harness.sh
 . "$HERE/../../../lib/git-hooks/lefthook-remote-harness.sh"
 
+LR_NO_SKIP_JOBS="guardrails-remote-pre-commit-content guardrails-remote-pre-push-content"
 lr_static
 lr_e2e_start || lr_done
+
+no_skip() {
+  grep -q -e 'skip: true' -e 'lefthook-local\.yml' -e "^$2 failed" -e "- name: $2\$" <<<"$1" || echo yes
+}
 
 mkdir -p "$REPO/docs/conventions"
 printf "subject_pattern: '^[A-Z]+-[0-9]+: .+'\n" >"$REPO/docs/conventions/source-control.yaml"
 git -C "$REPO" add -A
 lr_commit "feat: off convention"
 lr_expect_block "commit-msg: an off-convention subject blocks" guardrails-remote-commit-msg-convention .
+
+guard() {
+  jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' |
+    CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=true bash "$PLUGIN/hooks/block-no-verify.sh" >/dev/null 2>&1
+  echo "$?"
+}
+if command -v jq >/dev/null 2>&1; then
+  expect "block-no-verify: the commit retried after the skip is allowed" 0 "$(guard "git -C $REPO commit -m 'feat: off convention'")"
+  expect "block-no-verify: writing the skip through the shell is allowed" 0 \
+    "$(guard "printf 'commit-msg:\n  jobs:\n    - name: guardrails-remote-commit-msg-convention\n      skip: true\n' >$REPO/lefthook-local.yml")"
+  expect "block-no-verify: --no-verify is still blocked" 2 "$(guard "git -C $REPO commit --no-verify -m 'feat: off convention'")"
+  expect "block-no-verify: LEFTHOOK=0 is still blocked" 2 "$(guard "LEFTHOOK=0 git -C $REPO commit -m 'feat: off convention'")"
+fi
+LR_SKIP_MSG="feat: off convention" lr_skip commit-msg guardrails-remote-commit-msg-convention commit
+git -C "$REPO" reset -q --soft HEAD~1
+lr_commit "feat: off convention"
+lr_expect_block "commit-msg: with the skip removed, the job blocks again" guardrails-remote-commit-msg-convention .
 lr_commit "ABC-1: seed"
 lr_expect_pass "commit-msg: a subject on the consumer's pattern passes"
 git -C "$REPO" push -q origin main >/dev/null 2>&1
@@ -21,31 +43,10 @@ git -C "$REPO" remote set-head origin main >/dev/null
 printf 'a\ntoken=ghp_%s\n' "$(printf 'A%.0s' {1..36})" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 lr_commit "ABC-2: notes"
-lr_expect_block "pre-commit: a staged token blocks, naming the consumer's line" guardrails-remote-pre-commit-content \
-  'notes\.md:2: secret or credential pattern'
-
-guard() {
-  jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' |
-    CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=true bash "$PLUGIN/hooks/block-no-verify.sh" >/dev/null 2>&1
-  echo "$?"
-}
-if command -v jq >/dev/null 2>&1; then
-  expect "block-no-verify: the commit retried after the skip is allowed" 0 "$(guard "git -C $REPO commit -m 'ABC-2: notes'")"
-  expect "block-no-verify: writing the skip through the shell is allowed" 0 \
-    "$(guard "printf 'pre-commit:\n  jobs:\n    - name: guardrails-remote-pre-commit-content\n      skip: true\n' >$REPO/lefthook-local.yml")"
-  expect "block-no-verify: --no-verify is still blocked" 2 "$(guard "git -C $REPO commit --no-verify -m 'ABC-2: notes'")"
-  expect "block-no-verify: LEFTHOOK=0 is still blocked" 2 "$(guard "LEFTHOOK=0 git -C $REPO commit -m 'ABC-2: notes'")"
-fi
-LR_SKIP_MSG="ABC-9: skipped" lr_skip pre-commit guardrails-remote-pre-commit-content commit
-git -C "$REPO" reset -q --soft HEAD~1
+expect "pre-commit: a staged token blocks, naming the consumer's line and no per-clone skip" "1|yes|yes" \
+  "$((LR_RC != 0))|$(grep -q 'notes\.md:2: secret or credential pattern' <<<"$LR_ERR" && echo yes)|$(no_skip "$LR_ERR" guardrails-remote-pre-commit-content)"
 git -C "$REPO" rm -q --cached notes.md
 rm "$REPO/notes.md"
-printf 'b\ntoken=ghp_%s\n' "$(printf 'C%.0s' {1..36})" >"$REPO/again.md"
-git -C "$REPO" add again.md
-lr_commit "ABC-2: again"
-lr_expect_block "pre-commit: with the skip removed, the job blocks again" guardrails-remote-pre-commit-content 'again\.md:2:'
-git -C "$REPO" rm -q --cached again.md
-rm "$REPO/again.md"
 
 if command -v jq >/dev/null 2>&1; then
   mkdir -p "$REPO/plugins/alpha/.claude-plugin" "$REPO/plugins/alpha/skills/setup"
@@ -74,8 +75,10 @@ if command -v jq >/dev/null 2>&1; then
   err="$(git -C "$REPO" push origin main 2>&1)"
   expect "pre-push: both stdin jobs block in one push, each from the refs on stdin" "1|yes|yes" \
     "$?|$(grep -q 'LATER.md:1: skill-reference-verify' <<<"$err" && echo yes)|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
+  expect "pre-push: only reference-verify names a per-clone skip; the content scan names none" "1|" \
+    "$(grep -cx '      skip: true' <<<"$err")|$(grep -e '^guardrails-remote-pre-push-content failed' -e '- name: guardrails-remote-pre-push-content$' <<<"$err")"
   git -C "$REPO" switch -q main
-elif [[ "${LEFTHOOK_REMOTE_REQUIRE:-${GUARDRAILS_REQUIRE_LEFTHOOK:-}}" == 1 ]]; then
+elif [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 || "${LEFTHOOK_REMOTE_REQUIRE:-${GUARDRAILS_REQUIRE_LEFTHOOK:-}}" == 1 ]]; then
   expect "jq is on PATH for the pre-push and guard cases" yes no
 else
   echo "SKIP: jq not on PATH -- the pre-push and guard cases skipped"

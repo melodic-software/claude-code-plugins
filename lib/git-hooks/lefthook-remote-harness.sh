@@ -36,7 +36,7 @@ LR_JOBS="$(awk '
 ' "$CONFIG")"
 
 lr_static() {
-  local event name script wrapper line target guard root out win entry
+  local event name script wrapper line target guard root out win entry rc
   expect "$NAME: one remote job per entries.json entry, at its event" \
     "$(jq -r '.entries[] | "\(.event) \(.name)"' "$HERE/entries.json" | sort | xargs)" \
     "$(while read -r event name script; do echo "$event ${name#"$NAME"-remote-}"; done <<<"$LR_JOBS" | sort | xargs)"
@@ -73,8 +73,13 @@ lr_static() {
     out="$("$SH" "$guard/git/info/lefthook-remotes/r/.lefthook/$event/$script" ok </dev/null 2>&1)"
     expect "$name: the fetched copy runs the entry script with the hook's arguments" "0:ran ok" "$?:$out"
     out="$("$SH" "$guard/git/info/lefthook-remotes/r/.lefthook/$event/$script" bad </dev/null 2>&1)"
-    expect "$name: a failing entry fails the job and names the per-clone skip" "1|ran bad|yes" \
-      "$?|$(head -n 1 <<<"$out")|$(grep -q "^$name failed (exit 1)" <<<"$out" && grep -qx "$event:" <<<"$out" && grep -qx "    - name: $name" <<<"$out" && grep -qx '      skip: true' <<<"$out" && echo yes)"
+    rc=$?
+    if [[ " ${LR_NO_SKIP_JOBS:-} " == *" $name "* ]]; then
+      expect "$name: a failing entry fails the job with the entry's output alone, naming no skip" "1:ran bad" "$rc:$out"
+    else
+      expect "$name: a failing entry fails the job and names the per-clone skip" "1|ran bad|yes" \
+        "$rc|$(head -n 1 <<<"$out")|$(grep -q "^$name failed (exit 1)" <<<"$out" && grep -qx "$event:" <<<"$out" && grep -qx "    - name: $name" <<<"$out" && grep -qx '      skip: true' <<<"$out" && echo yes)"
+    fi
     win="$guard/git\\info\\lefthook-remotes\\r\\.lefthook\\$event\\$script"
     cp "$wrapper" "$win"
     out="$("$SH" "$win" ok </dev/null 2>&1)"
