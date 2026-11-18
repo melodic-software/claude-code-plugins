@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- The babysit scripts' gh seam sends a REST read of check runs, check suites, annotations or commit statuses under `BABYSIT_JOB_GH_TOKEN` when a job sets it (`babysit_gh.job_token_env`), so a job whose process and verdict-reader token is an App token without the Checks or Commit statuses permission reads those with its own `GITHUB_TOKEN`. Writes and every other read keep their token.
+- The babysit scripts' gh seam sends a REST read of a commit's statuses under `BABYSIT_JOB_GH_TOKEN` when a job sets it (`babysit_gh.job_token_env`), so a job whose process and verdict-reader token is an App token without the Commit statuses permission reads them with its own `GITHUB_TOKEN`. Writes and every other read keep their token.
 
 ### Changed
 

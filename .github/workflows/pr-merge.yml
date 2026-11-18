@@ -995,8 +995,8 @@ jobs:
       # the job's other Actions reads use the lane token's actions read
       # (owner decision D398; https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
       actions: read
-      # Check runs, check suites and annotations, which the lane token's grant
-      # cannot read (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps). Never write: the
+      # The re-fire and escalation-clear steps read check runs and annotations
+      # with this token (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps). Never write: the
       # report-gate-checks job below writes the check runs.
       checks: read
       issues: read # the post-merge check's demotion records, read with this job's token
@@ -1487,8 +1487,8 @@ jobs:
       # failed listing nor a long gate loop holds that run back. A held
       # listing skips this step and the record below: that job's check of
       # this run stands, and the next run that lists files any record.
-      # Read-only; it reads with the lane token, and its check-run and
-      # annotation reads with the job's own token (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
+      # Read-only; it reads with the lane token, and any commit-status read
+      # with the job's own token (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
       # The same check of this run's dispatch-post-merge-runs job, with the same
       # inputs, is reused instead when it judged (exit 0, 1 or 5), the check's
       # code here reads as at the commit it ran, and the lane room's reuse
@@ -1737,8 +1737,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The verdict and review-evidence reads use the lane token (owner
-          # decision D398); check-run, check-suite, annotation and status reads,
-          # which its grant cannot make (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps),
+          # decision D398); commit-status reads, which its grant cannot make
+          # (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps),
           # and the whole-review job-bucket reads use BABYSIT_JOB_GH_TOKEN.
           # The job runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ steps.lane-token.outputs.token }}

@@ -401,12 +401,11 @@ def _send(
     return proc, headers
 
 
-# The job's own token (GITHUB_TOKEN), for the reads an App token granted no
-# Checks or Commit statuses permission cannot make: https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps
+# The job's own token (GITHUB_TOKEN), for the commit-status reads an App token
+# granted no Commit statuses permission cannot make: https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps
 JOB_TOKEN_ENV = "BABYSIT_JOB_GH_TOKEN"
 _JOB_TOKEN_ROUTE = re.compile(
-    r"^/?repos/[^/?]+/[^/?]+/(?:check-runs|check-suites"
-    r"|commits/[^/?]+/(?:check-runs|check-suites|statuses|status))(?:[/?]|$)"
+    r"^/?repos/[^/?]+/[^/?]+/commits/[^/?]+/(?:statuses|status)(?:[/?]|$)"
 )
 
 
@@ -414,8 +413,8 @@ def job_token_env(
     args: list[str], env_overrides: Mapping[str, str] | None
 ) -> Mapping[str, str] | None:
     """`env_overrides` with GH_TOKEN set to JOB_TOKEN_ENV's token for a REST
-    read of check runs, check suites or commit statuses, when the job sets
-    one; unchanged for every other call."""
+    read of a commit's statuses, when the job sets one; unchanged for every
+    other call."""
     token = os.environ.get(JOB_TOKEN_ENV)
     if (
         not token

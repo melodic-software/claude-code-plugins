@@ -178,7 +178,7 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "github-token").exists())
 
-    def test_with_a_job_token_only_check_and_status_reads_go_under_it(self) -> None:
+    def test_with_a_job_token_only_commit_status_reads_go_under_it(self) -> None:
         env = {
             "RUNNER_TEMP": self.dir,
             "GH_TOKEN": "lane",
@@ -187,16 +187,16 @@ class ApiBudgetTests(unittest.TestCase):
             "API_BUDGET_OVERRIDE_TOKEN": "github-token",
         }
         cases = [
-            (["api", "repos/o/r/check-runs/5/annotations?per_page=100"], "job"),
-            (["api", "/repos/o/r/commits/abc/check-runs?filter=all"], "job"),
-            (["api", "repos/o/r/commits/abc/check-suites?app_id=15368"], "job"),
             (["api", "repos/o/r/commits/abc/statuses?per_page=100"], "job"),
-            (["api", "repos/o/r/commits/abc/status"], "job"),
+            (["api", "/repos/o/r/commits/abc/status"], "job"),
+            (["api", "repos/o/r/commits/abc/status?per_page=1"], "job"),
+            (["api", "repos/o/r/check-runs/5/annotations?per_page=100"], None),
+            (["api", "repos/o/r/commits/abc/check-suites?app_id=15368"], None),
             (["api", "repos/o/r/actions/runs/7/jobs"], None),
-            (["api", "repos/o/r/issues/3/timeline"], None),
             (["api", "repos/o/r/commits/abc"], None),
-            (["api", "repos/o/r/check-runs", "-X", "POST", "-f", "name=x"], None),
+            (["api", "repos/o/r/commits/abc/statusesx"], None),
             (["api", "repos/o/r/statuses/abc", "-f", "state=success"], None),
+            (["api", "repos/o/r/commits/abc/statuses", "-X", "POST"], None),
         ]
         for args, token in cases:
             self.run_gh(
@@ -205,13 +205,13 @@ class ApiBudgetTests(unittest.TestCase):
                 env=env,
             )
         self.assertEqual(self.tokens, [token for _, token in cases])
-        self.assertEqual(len(self.readings("github-token").splitlines()), 5)
-        self.assertEqual(len(self.readings("lanes-app").splitlines()), 5)
+        self.assertEqual(len(self.readings("github-token").splitlines()), 3)
+        self.assertEqual(len(self.readings("lanes-app").splitlines()), 7)
 
-    def test_without_a_job_token_a_check_read_keeps_its_token(self) -> None:
+    def test_without_a_job_token_a_status_read_keeps_its_token(self) -> None:
         self.run_gh(
             "{}",
-            ["api", "repos/o/r/check-runs/5/annotations"],
+            ["api", "repos/o/r/commits/abc/statuses"],
             env={"RUNNER_TEMP": self.dir, gh.JOB_TOKEN_ENV: ""},
             overrides={"GH_TOKEN": "verify"},
         )
