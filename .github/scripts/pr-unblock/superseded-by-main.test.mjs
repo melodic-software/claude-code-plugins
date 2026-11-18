@@ -77,6 +77,22 @@ test("a pull request that already merged main keeps its own commits apart from t
   assert.equal(check(r), "superseded=true\n");
 });
 
+test("a pull request whose merge of main added work main lacks is not superseded", () => {
+  const r = repoWithMainAndPrBranches();
+  r.git("switch", "-q", "pr");
+  const fix = r.edit({ 1: "two (pr)" }, "pr: fix two");
+  r.git("switch", "-q", "main");
+  r.edit({ 6: "seven (main)" }, "main: unrelated");
+  r.git("switch", "-q", "pr");
+  r.git("merge", "-q", "--no-commit", "main");
+  r.edit({ 3: "four (adapted in the merge)" }, "merge main with an adaptation");
+  r.git("switch", "-q", "main");
+  r.git("cherry-pick", "-x", fix);
+  r.edit({ 1: "two (pr, then main)" }, "main: reword two");
+  assert.equal(r.conflicts(), true);
+  assert.equal(check(r), "superseded=false\n");
+});
+
 test("a pull request main changed the same lines under differently is not superseded", () => {
   const r = repoWithMainAndPrBranches();
   r.git("switch", "-q", "pr");

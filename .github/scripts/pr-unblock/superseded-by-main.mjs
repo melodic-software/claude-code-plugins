@@ -46,7 +46,9 @@ const commitPatchIds = (git, range) =>
  * cleanly. The head is superseded when it adds at least one non-merge commit
  * with a diff since its merge base with the base, and either
  * - every such commit's patch-id is a non-merge base commit's since that
- *   merge base (a rebase merge or cherry-picks), or
+ *   merge base (a rebase merge or cherry-picks), and no merge commit on the
+ *   head adds a change of its own (a combined diff that differs from every
+ *   parent, such as an adaptation made while merging the base in), or
  * - the head's net diff from the merge base has one such base commit's
  *   patch-id (a squash merge).
  * A head with any commit the base lacks (only partly superseded) is not, and
@@ -62,7 +64,11 @@ export function supersededBy(git, base, head) {
   }
   const onBase = commitPatchIds(git, `${mergeBase}..${base}`);
   const missing = own.filter((id) => !onBase.has(id)).length;
-  if (missing === 0) {
+  const mergeAddsWork = git(["rev-list", "--merges", `${mergeBase}..${head}`])
+    .split("\n")
+    .filter(Boolean)
+    .some((merge) => git(["diff-tree", "--no-commit-id", "--cc", "-p", ...DIFF, merge]).trim() !== "");
+  if (missing === 0 && !mergeAddsWork) {
     return { superseded: true, why: `each of the head's ${own.length} change(s) has an equivalent commit on the base` };
   }
   const [net] = git(["patch-id", "--stable"], git(["diff", ...DIFF, mergeBase, head])).split(" ");
