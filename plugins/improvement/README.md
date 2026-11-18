@@ -24,7 +24,7 @@ Every candidate cites its evidence: repo-native signals such as churn hotspots a
 local telemetry, or (weakest) model judgment from reading the target. Ranking confidence is
 a function of evidence strength. When the target has no measurement at all, the top-ranked
 candidate becomes "instrument this so future runs can rank on data," handed to the pipeline like
-any other improvement. Evidence gaps are recorded, never papered over.
+any other improvement. The finder records each evidence gap.
 
 The finder never edits the target's tracked files: it discovers and deliberates, and execution
 requests route through the normal interview → discovery → planning → implementation → verification
@@ -146,6 +146,6 @@ pushes a branch and opens a pull request, so its job needs `contents: write` and
 
 ### What is NOT a standing wrapper
 
-`/loop` is session-scoped only: it repeats a prompt inside one session and dies with it. It can
-babysit a working session, but it is not a standing schedule. A recurring unattended sweep needs
+`/loop` is session-scoped only: it repeats a prompt inside one session and dies with it. It suits
+repeating a check during a working session, but it is not a standing schedule. A recurring unattended sweep needs
 a Routine or a cron workflow, which fire fresh sessions on a standing cadence.
