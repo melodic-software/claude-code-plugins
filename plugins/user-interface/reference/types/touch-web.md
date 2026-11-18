@@ -460,7 +460,7 @@ ring.
 a code block; recipe `scrollbars-styled-only-inside-small-scrollers` holds the rule and its code.
 
 Hunt for: `::-webkit-scrollbar` with no element before it, or on `html` or `body`;
-`scrollbar-width: none` on `html` or `body`.
+`scrollbar-width` (any value) or `scrollbar-color` on `html` or `body`.
 
 **Audit: Suggestion.** A custom scrollbar on the page itself rather than inside a small scroller.
 
