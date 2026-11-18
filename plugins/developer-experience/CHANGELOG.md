@@ -3,6 +3,14 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5] - 2026-11-18
+
+### Changed
+
+- `build-cli` states its usage-exit-code rule with its reason and points to sysexits(3) live
+  instead of glossing its codes; `audit-tools` no longer restates the status of `.claude/commands`
+  files and points to the skills page for it.
+
 ## [0.6.4] - 2026-11-18
 
 ### Changed

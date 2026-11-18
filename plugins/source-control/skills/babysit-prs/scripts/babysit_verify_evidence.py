@@ -297,7 +297,7 @@ import tempfile
 import time
 import urllib.parse
 import zipfile
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -315,6 +315,7 @@ from babysit_gh import (
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    single_attempt,
     split_created_window,
 )
 from babysit_util import is_json_array, is_json_object, json_array, json_object
@@ -2433,11 +2434,12 @@ class Reader:
                 return None
             self._page_transient = False
             try:
-                proc, headers = gh_api_with_headers(
-                    ["api", *conditional, path],
-                    timeout_seconds=left,
-                    env_overrides=self._env(),
-                )
+                with single_attempt():
+                    proc, headers = gh_api_with_headers(
+                        ["api", *conditional, path],
+                        timeout_seconds=left,
+                        env_overrides=self._env(),
+                    )
             except (RuntimeError, ValueError, OSError):
                 return None
             if proc.returncode == 0:
@@ -2552,7 +2554,7 @@ class Reader:
         left = timeout
         for wait in (*LISTING_WAITS, None):
             try:
-                page = self._actions(args, label, left)
+                page = self._actions_once(args, label, left)
                 break
             except _Transient:
                 if wait is None or (
@@ -2591,7 +2593,7 @@ class Reader:
         self._read_deadline = deadline
         for wait in LISTING_WAITS:
             try:
-                return self._actions(args, "repository artifacts", timeout)
+                return self._actions_once(args, "repository artifacts", timeout)
             except _Transient:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
@@ -2600,10 +2602,17 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
-        return self._actions(args, "repository artifacts", timeout)
+        return self._actions_once(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
         return {"GH_TOKEN": self.actions_token} if self.actions_token else None
+
+    def _actions_once(
+        self, args: list[str], label: str, timeout_seconds: float | None = None
+    ) -> Any:
+        """`_actions` for a caller that reads again after `LISTING_WAITS`."""
+        with single_attempt():
+            return self._actions(args, label, timeout_seconds)
 
     def _actions(
         self, args: list[str], label: str, timeout_seconds: float | None = None
@@ -2630,13 +2639,20 @@ class Reader:
             # A body cut short while gh exits 0.
             raise _CutShort(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str, *, shared: bool = False) -> bool:
+    def _contains(
+        self,
+        sha: str,
+        *,
+        shared: bool = False,
+        unread: Mapping[str, _Unreadable] | None = None,
+    ) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
         contents read). A yes stays true while the branch only moves forward
         (main's ruleset forbids force pushes), so the run shares it; a no is
         read again by each gate process. A yes an earlier run found
         (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
-        can only count the FAIL."""
+        can only count the FAIL. A head in `unread` raises its failure with
+        no read, since its compare has spent its attempts."""
         if sha not in self._on_branch:
             key = f"{self.repo}|{sha}...{self.branch}"
             if run_cache.get("on-branch", key, None) is True:
@@ -2644,6 +2660,8 @@ class Reader:
                 return True
             if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
                 return True
+            if unread and sha in unread:
+                raise unread[sha]
             compare = json_object(
                 self._actions(
                     ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
@@ -2671,6 +2689,7 @@ class Reader:
         record = run_cache.get(RUN_SECTION, key, None) if shared else None
         cached = is_json_object(record)
         origin: bool | None = None
+        unread: dict[str, _Unreadable] = {}
         if shared and not cached:
             # A carried record counts the FAIL when it shows origin; any
             # other answer from it could turn the FAIL away, so the run is
@@ -2681,8 +2700,8 @@ class Reader:
                 try:
                     if self._origin(carried, run_id, shared=True):
                         record, cached, origin = carried, True, True
-                except _Unreadable:
-                    pass
+                except _Unreadable as exc:
+                    unread[str(carried.get("head_sha"))] = exc
         try:
             if not cached:
                 record = json_object(
@@ -2692,7 +2711,7 @@ class Reader:
                     )
                 )
             if origin is None:
-                origin = self._origin(record, run_id, shared=shared)
+                origin = self._origin(record, run_id, shared=shared, unread=unread)
         except _Unreadable:
             self._shared_runs.discard(run_id)
             self._runs[run_id] = UNREAD
@@ -2713,9 +2732,16 @@ class Reader:
         self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
 
-    def _origin(self, record: dict[str, Any], run_id: int, *, shared: bool) -> bool:
+    def _origin(
+        self,
+        record: dict[str, Any],
+        run_id: int,
+        *,
+        shared: bool,
+        unread: Mapping[str, _Unreadable] | None = None,
+    ) -> bool:
         """Whether `record` names a run of the verifier on the branch of this
-        repository whose head the branch holds."""
+        repository whose head the branch holds (`_contains`, with `unread`)."""
         head = record.get("head_sha")
         return (
             _is_id(record.get("id"), run_id)
@@ -2726,7 +2752,7 @@ class Reader:
             and json_object(record.get("head_repository")).get("full_name") == self.repo
             and isinstance(head, str)
             and merge_policy.SHA_RE.fullmatch(head) is not None
-            and self._contains(head, shared=shared)
+            and self._contains(head, shared=shared, unread=unread)
         )
 
     def _head_ref(self, run_id: int, name: str, artifact_id: Any, head_ref: str) -> Any:
@@ -5891,7 +5917,8 @@ class _Pacer:
         self._pace()
         self.calls += 1
         self.window_calls += 1
-        proc = self.real(args, **kwargs)
+        with single_attempt():
+            proc = self.real(args, **kwargs)
         detail = proc.stderr if isinstance(proc.stderr, str) else ""
         if proc.returncode != 0 and any(s in detail for s in RATE_LIMIT_SIGNS):
             self.limited = detail.strip()[:300] or "a rate-limit answer"

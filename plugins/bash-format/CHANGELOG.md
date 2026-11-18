@@ -3,6 +3,16 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.2] - 2026-11-18
+
+### Fixed
+
+- The lefthook remote runs the pre-commit `format` and `lint` jobs in one piped group, `bash-format-remote`, format first, so a consumer whose `lefthook.yml` sets `parallel: true` no longer has a commit blocked by a finding format fixes. A failing job's skip hint names the group and the job inside it. A clone whose `lefthook-local.yml` skips `bash-format-remote-format` or `bash-format-remote-lint` at the top level must move that skip under the group, or every commit fails.
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
 ## [2.2.1] - 2026-11-18
 
 ### Security

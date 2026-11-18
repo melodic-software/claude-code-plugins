@@ -12,15 +12,14 @@ records: [aihero-course.md](aihero-course.md), [aihero-shipping-course.md](aiher
 [aihero-domain-language.md](aihero-domain-language.md), [aihero-wayfinder.md](aihero-wayfinder.md)
 and [aihero-review.md](aihero-review.md).
 
-The rows cover the two sessions of 2026-11-13. Each disposition is an owner decision of
-2026-11-14; an idea without one is left out. The author's reports on his in-progress
-`chief-of-staff` skill (2026-11-09 and 2026-11-13) and the re-check of his `software-factory`
-skill are in [mattpocock-skills.md](mattpocock-skills.md), rows `chief-of-staff` and
-`software-factory`.
+The rows cover the two sessions of 2026-11-13. Each disposition is an owner decision; an idea
+without one is left out. The author's reports on his in-progress `chief-of-staff` skill
+(2026-11-09 and 2026-11-13) and the re-check of his `software-factory` skill are in
+[mattpocock-skills.md](mattpocock-skills.md), rows `chief-of-staff` and `software-factory`.
 
 - **Pointer**: for the guest talk's research claims, read the two papers under
   [The guest talk on code health](#the-guest-talk-on-code-health) at their arXiv pages.
-- **As of**: 2026-11-14
+- **As of**: 2026-11-18
 - **Recheck trigger**: a row's target lands or changes (the **Lands in** cell names it), or a new
   version of either paper appears on arXiv. Session pages are not observable events.
 
@@ -32,23 +31,23 @@ Disposition is `take`, `adapt`, `already have`, `reject` or `watch`, with the re
 
 | Idea | What it does | Disposition | Lands in |
 |---|---|---|---|
-| A model job holds no write access | The job that runs the model gets only its model credential and a read-only token; a later job with no model treats the output as untrusted and pushes it | **already have**: [ADR 0085](../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md) states the rule for lane model steps. **adapt**: one repository-wide check fails a model-running job that gains a write scope, a write credential or a dependency cache; a write credential beside a model needs a new ADR | a permission assertion beside [`model-credential.mjs`](../../.github/scripts/lib/model-credential.mjs), run by the affected-tests gate; not started |
+| A model job holds no write access | The job that runs the model gets only its model credential and a read-only token; a later job with no model treats the output as untrusted and pushes it | **already have**: [ADR 0085](../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md) states the rule for lane model steps. **adapt**: one repository-wide check fails a model-running job that gains a write scope, a write credential or a dependency cache; a write credential beside a model needs a new ADR | [`model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs), beside `model-credential.mjs` and run by the affected-tests gate; landed |
 
 ### Review and the human role
 
 | Idea | What it does | Disposition | Lands in |
 |---|---|---|---|
-| Judge agents by the defects their changes cause | Traces a bug back to the change and the run that made it | **adapt**: join the failure signals we already record (post-merge demotion records, silent-revert hits, reverts) to the merge-risk rating per rated commit, with the lane run on the record; the gate question in [#13657](https://github.com/melodic-software/claude-code-plugins/issues/13657) returns once the groups can be compared | the lanes App marker comment, and [`/work-items:measure-delivery`](../../plugins/work-items/skills/measure-delivery/SKILL.md) or the [`/review:merge-risk`](../../plugins/review/skills/merge-risk/SKILL.md) report; not started |
+| Judge agents by the defects their changes cause | Traces a bug back to the change and the run that made it | **adapt**: join the failure signals we already record (post-merge demotion records, silent-revert hits, reverts) to the merge-risk rating per rated commit, with the lane run on the record; the gate question in [#13657](https://github.com/melodic-software/claude-code-plugins/issues/13657) returns once the groups can be compared | [`/work-items:measure-delivery`](../../plugins/work-items/skills/measure-delivery/SKILL.md) `--merge-risk`, its "Merge-risk failures" section, which reads the rating from the lanes App marker comment; landed |
 | Sample human review beyond the one-way doors | A person reads one change in ten, or a change in an area nobody has looked at lately | **reject** for this repository: a recurring manual step with no defect it is shown to catch | none |
 | A factory with no person reading the code degrades | Each bad change becomes input to the next agent, so quality compounds downward | **adapt**: the unattended-merge goal stays, and a trend the owner reads is added: a weekly complexity count beside change fail rate | one line in [`/work-items:morning-brief`](../../plugins/work-items/skills/morning-brief/SKILL.md) fed by a scheduled read-only [`/code-metrics:audit`](../../plugins/code-metrics/skills/audit/SKILL.md) `complexity --all` run; not started, waits on the automation design |
-| Keep every agent session in a shared store and mine it in retros | Uploads each transcript to one bucket the retro reader can search | **watch**: not adopted, and transcripts stay local; whether a shared archive adds anything over the local session audit is under research | none in this repository yet |
+| Keep every agent session in a shared store and mine it in retros | Uploads each transcript to one bucket the retro reader can search | **reject**: transcripts stay local with no shared archive; a retro across lanes reads each lane's sessions through [`/fleet:reach`](../../plugins/fleet/skills/reach/SKILL.md) | none |
 
 ### Models and evals
 
 | Idea | What it does | Disposition | Lands in |
 |---|---|---|---|
 | A/B a recurring task with a judge | Runs the task on two models; a judge picks, and the verdicts become a data set | **watch**: the evidence comes first, with no runner built: a judge from a third model with the order swapped, its verdicts kept out of production | none in this repository yet |
-| Measure a model change by running both models | The same loop runs on two models and a judge compares the outputs | **adapt**: one pre-registered comparison of Opus against Sonnet on the `fix-docs` activity, two [`/evals:plugin-eval`](../../plugins/evals/skills/plugin-eval/SKILL.md) runs of the `ai-slop` `audit-fix-*` cases with a judge from neither arm, spend shown first | the result becomes that role's basis in [`defaults.yaml`](../../plugins/multi-agent/reference/defaults.yaml); not started |
+| Measure a model change by running both models | The same loop runs on two models and a judge compares the outputs | **adapt**: one pre-registered comparison of Opus against Sonnet on the `fix-docs` activity, two [`/evals:plugin-eval`](../../plugins/evals/skills/plugin-eval/SKILL.md) runs of the `ai-slop` `audit-fix-*` cases with a judge from neither arm, spend shown first | the mechanical-model basis in [`defaults.yaml`](../../plugins/multi-agent/reference/defaults.yaml), which records the runs on those cases, scored by deterministic graders with no judge; landed |
 
 ### Docs and memory
 

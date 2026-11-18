@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.0] - 2026-11-18
+
+### Added
+
+- draw the band in Desktop as one line with a hover bar
+
 ## [2.0.4] - 2026-11-18
 
 ### Changed

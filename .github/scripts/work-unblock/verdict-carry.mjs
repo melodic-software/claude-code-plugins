@@ -72,7 +72,7 @@ export const DECIDED_MAX = 1000;
 export const WAIT_MAX_HOURS = 24;
 const WAIT_KEY = /^[0-9a-f]{40}-[0-9a-f]{40}$/;
 const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
-const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop|limit)$/;
+const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop|limit|floor)$/;
 const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
 // A refusal reason as label-unblocked.mjs reads it (DENIAL, BREAKER), or the
 // reset a rate-limit stop names (RATE_LIMITED), with ` server-<5xx>` after it
