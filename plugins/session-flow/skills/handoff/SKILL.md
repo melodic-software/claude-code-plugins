@@ -291,14 +291,8 @@ that ends on anything else can run out of room before the rails prompt appears: 
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
 not the rails block (plus its below-rail notes) is a failed handoff even when every box above is
 ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
-to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet.
-
-**On a markdown surface** (the `surface` probe; engine doc, "Markdown surfaces"), the order holds
-and three things change shape. The panel is the numbered list that section describes. The
-checklist is one line, `Checklist: <ticked>/<total> pass`, followed by each box that is not ticked
-and each `validate` WARN or FAIL line, one bullet each, never a `- [x]` list, which the app draws
-struck through. The prompt is the `emit --format markdown` output (on the prompt-only path, each
-region as a fenced `text` block under the same copy lines), still the response's final text.
+to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet. A
+markdown surface (`surface` probe) keeps that order, shaped per engine doc "Markdown surfaces".
 
 **Full path:**
 
@@ -389,10 +383,9 @@ region as a fenced `text` block under the same copy lines), still the response's
   `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
-- [ ] Resume prompt emitted between dashed rails as the `save_point.py emit <file>` output pasted
-  verbatim, `emit --format markdown <file>` on a markdown surface (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
-  headlines, the below-rail `claude --resume` line), never retyped or regenerated, so the screen
-  equals the file's `## Resume prompt` section byte for byte; `Next:` holds 1 to 5 plain
+- [ ] Resume prompt is the `save_point.py emit <file>` output (`--format markdown` on a markdown
+  surface) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
+  or regenerated; in the terminal it equals the file's `## Resume prompt` byte for byte; `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
   `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`
   last only at a stage boundary. The directive `@`-references the file by its **absolute**,

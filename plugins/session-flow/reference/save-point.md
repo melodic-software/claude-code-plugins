@@ -794,6 +794,11 @@ surface; anything else, an unset value included, is the terminal. On a markdown 
   `← you are here` for the current unit, ⬜ for pending, ⛔ for blocked. The completeness line and
   the three blocks follow, and every other panel rule holds.
 
+- **The handoff's enforcement checklist is one line**, `Checklist: <ticked>/<total> pass`, then
+  each box not ticked and each `validate` WARN or FAIL line as one bullet, never a `- [x]` list,
+  which the app draws struck through. On the prompt-only path each region prints as a fenced
+  `text` block under the same copy lines.
+
 A citing skill's own audit lines follow that skill's rule for this surface.
 
 ## Detection contract, consumed by `/session-flow:find-handoff`
