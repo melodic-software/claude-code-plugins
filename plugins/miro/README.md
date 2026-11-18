@@ -34,9 +34,7 @@ with `claude plugin enable miro` or the `/plugin` interface. Set a token before 
 |---|---|---|
 | `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. The server starts without it; until it is set, every Miro tool call returns an error that names the option and the configure command. |
 
-Get a token from <https://miro.com/app/settings/user-profile/apps>. The server is built so an unset
-token is never a startup failure: until the token is set, each tool call fails with the configure
-instruction. Enter it with `/plugin configure miro@melodic-software` (masked input). Setting
+Get a token from <https://miro.com/app/settings/user-profile/apps>. Enter it with `/plugin configure miro@melodic-software` (masked input). Setting
 `MIRO_API_TOKEN` in the server's environment also works, and an empty value or the unexpanded
 `${user_config.miro_api_token}` text counts as unset. The token is substituted into the server's
 `MIRO_API_TOKEN` environment variable at launch. When Claude Code prompts for options, and where it
