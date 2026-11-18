@@ -108,7 +108,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   default branch's docs/upstream pages pinned to that upstream
   (`drift_scope`), or is a main-red incident github-actions[bot] filed,
   nobody else last edited, under the monitoring lane's title and marker
-  line (`main_red_incident`), else `verify:untrusted-spec`. A
+  line (`main_red_incident`), or is an own-agent filing intake admission
+  admits (`own_agent_filing`, ADR 0111): an identity on admission's
+  `own-agents` list wrote it, no other account edited its body, it carries
+  exactly one `source: <producer>` label, and a listed human or the lanes App
+  sized it small or medium (`counted_size`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -778,6 +782,21 @@ SPLIT_SOURCE_RE = re.compile(
 JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
+LANES_APP_IDENTITY = "lanes-app"
+OWN_AGENT_DEFAULT_IDENTITIES = (LANES_APP_IDENTITY,)
+OWN_AGENT_SIZES = ("small", "medium")
+SOURCE_PREFIX_RE = re.compile(r"source:", re.I | re.A)
+SOURCE_LABEL_RE = re.compile(rf"source: [^{JS_SPACE},][^,]*", re.I | re.A)
+MAX_SAFE_INTEGER = 2**53 - 1
+OWN_AGENT_ISSUE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
+    "labels(first:100){totalCount nodes{name}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+SIZE_FIELD_KEY = "models.issue-dimensions.fields.size"
+
+
 def split_child_header(
     parent: int,
     part: int,
@@ -898,6 +917,120 @@ def main_red_incident(issue: Any) -> bool:
         and issue.get("title") == MAIN_RED_TITLE
         and isinstance(body, str)
         and MAIN_RED_MARKER_RE.fullmatch(body.split("\n", 1)[0]) is not None
+    )
+
+
+def own_agent_ids(section: Any, app_id: int | None) -> frozenset[int]:
+    """admit.mjs ownAgentIds over `own-agents` (`section`, the rules file's
+    value, a missing one the default list), `lanes-app` standing for the lanes
+    App's id `app_id`. github-actions[bot] never counts, listed or not: any
+    workflow on GITHUB_TOKEN acts as it, so its filings can quote outside
+    text. A list admit.mjs loadRules refuses raises `_Unreadable`."""
+    if section is None:
+        section = {}
+    if not is_json_object(section):
+        raise _Unreadable("admission rules: `own-agents` is not an object")
+    identities = section.get("identities", list(OWN_AGENT_DEFAULT_IDENTITIES))
+    if not is_json_array(identities) or not all(
+        i == LANES_APP_IDENTITY or (type(i) is int and 0 < i <= MAX_SAFE_INTEGER)
+        for i in identities
+    ):
+        raise _Unreadable("admission rules: `own-agents.identities` is malformed")
+    named = {app_id if i == LANES_APP_IDENTITY else i for i in identities}
+    return frozenset(i for i in named if i is not None and i != ACTIONS_BOT_ID)
+
+
+def own_agent_text(issue: Any, ids: frozenset[int]) -> bool:
+    """admit.mjs ownAgentText: a Bot in `ids` wrote `issue` and no account but
+    that Bot last edited it. Pure."""
+    issue = json_object(issue)
+    author = json_object(issue.get("author"))
+    editor = json_object(issue.get("editor"))
+    return (
+        author.get("__typename") == "Bot"
+        and author.get("databaseId") in ids
+        and (
+            issue.get("lastEditedAt") is None
+            or (
+                editor.get("__typename") == "Bot"
+                and editor.get("databaseId") == author.get("databaseId")
+            )
+        )
+    )
+
+
+def one_source_label(names: list[Any]) -> bool:
+    """Whether `names` hold exactly one `source:` label and it is well formed
+    (admit.mjs sourceLabels and SOURCE_LABEL). Both patterns fold ASCII case
+    only, as JavaScript's `i` flag folds these letters: Python's own folding
+    would take U+017F for `s`. Pure."""
+    found = [n for n in names if SOURCE_PREFIX_RE.match(str(n))]
+    return len(found) == 1 and SOURCE_LABEL_RE.fullmatch(str(found[0])) is not None
+
+
+def own_agent_filing(issue: Any, ids: frozenset[int]) -> bool:
+    """Whether `issue` (as `OWN_AGENT_ISSUE_QUERY` reads it) is an own-agent
+    filing as admit.mjs decide takes one, Size apart (`counted_size`): its
+    body is own-agent text, it opens with no size-split child marker, and its
+    whole label list holds one `source:` label. Pure."""
+    issue = json_object(issue)
+    labels = json_object(issue.get("labels"))
+    nodes = labels.get("nodes")
+    return (
+        own_agent_text(issue, ids)
+        and not str(issue.get("body") or "").startswith(SPLIT_CHILD_MARKER)
+        and is_json_array(nodes)
+        and labels.get("totalCount") == len(nodes)
+        and one_source_label([json_object(n).get("name") for n in nodes])
+    )
+
+
+def size_field(text: str) -> dict[str, Any]:
+    """The Size field's id and option map in the pipeline config `text`.
+    Raises `_Unreadable` when the config names none."""
+    try:
+        rows = merge_policy._records_below(text, SIZE_FIELD_KEY)
+    except merge_policy.PolicyReadError as exc:
+        raise _Unreadable(f"{SIZE_FIELD_KEY}: {exc}") from exc
+    field_id = rows.get("field-id", "")
+    prefix = "options."
+    options = {
+        key.removeprefix(prefix): value
+        for key, value in rows.items()
+        if key.startswith(prefix)
+    }
+    if not field_id.isascii() or not field_id.isdigit() or not options:
+        raise _Unreadable(f"{SIZE_FIELD_KEY}: no field id and options")
+    return {"id": int(field_id), "options": options}
+
+
+def counted_size(
+    values: list[Any],
+    events: list[Any],
+    size: dict[str, Any],
+    trusted: Callable[[int], bool],
+) -> str | None:
+    """The Size key work-unblock's issueVerdict reads for admission: the
+    option `values` (REST issue-field-values rows) hold for the field `size`
+    names, when the newest of `events` (the field's timeline, oldest first)
+    set it and `trusted` takes that account; else None, never a default. Pure
+    but for `trusted`."""
+    row = next(
+        (r for r in map(json_object, values) if r.get("issue_field_id") == size["id"]),
+        None,
+    )
+    setter = None
+    for event in map(json_object, events):
+        field_id = json_object(event.get("issueField")).get("fullDatabaseId")
+        if field_id == str(size["id"]):
+            removed = event.get("__typename") == "IssueFieldRemovedEvent"
+            setter = (
+                None if removed else json_object(event.get("actor")).get("databaseId")
+            )
+    if row is None or type(setter) is not int or not trusted(setter):
+        return None
+    return size["options"].get(
+        str(json_object(row.get("single_select_option")).get("id"))
     )
 
 
@@ -1591,6 +1724,14 @@ class Reader:
     # Each github-actions[bot] issue judged (`_actions_issue`), with when its
     # read was taken.
     _actions_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    _own_agents: tuple[Any, datetime] | None = None
+    _size_field: tuple[Any, datetime] | None = None
+    _own_agent_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    _sizes: dict[int, tuple[str | None, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     # Each pull request's RELINK_QUERY answer, or {} for a failed read.
@@ -2796,11 +2937,12 @@ class Reader:
         path: str,
         label: str,
         pick: Callable[[Any], Any] = lambda raw: raw,
+        read: Callable[[str, str, str], Any] | None = None,
     ) -> tuple[Any, datetime]:
         """`pick` of the file at `path` on the repository's default branch's
-        tip, and when it was read, shared by the run's gate processes under
-        `section` for `run_cache.MAX_AGE`. A failed read raises
-        `_Unreadable`."""
+        tip, read by `read` (by default `_raw_file`), and when it was read,
+        shared by the run's gate processes under `section` for
+        `run_cache.MAX_AGE`. A failed read raises `_Unreadable`."""
         try:
             default = merge_policy._default_branch(self.repo, shared=True)
         except merge_policy.PolicyReadError as exc:
@@ -2810,9 +2952,21 @@ class Reader:
         if shared is not None:
             return shared
         at = run_cache.now()
-        value = pick(self._raw_file(path, self._tip(default), label))
+        value = pick((read or self._raw_file)(path, self._tip(default), label))
         run_cache.put(section, key, value, at)
         return value, at
+
+    def _text_file(self, path: str, ref: str, label: str) -> str:
+        """The repository file at `path` on `ref` as text, for a file that is
+        not JSON. A failed read or no such file raises `_Unreadable`."""
+        owner, _, name = self.repo.partition("/")
+        try:
+            text = merge_policy._file_at(owner, name, path, ref)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(f"{label}: {exc}") from exc
+        if text is None:
+            raise _Unreadable(f"{label}: {path} is not on {ref}")
+        return text
 
     def _actions_issue(self, issue: dict[str, Any]) -> Any:
         """Recorded linked issue `issue` as `ACTIONS_ISSUE_QUERY` reads it,
@@ -2848,6 +3002,104 @@ class Reader:
         wrote, is a main-red incident (`main_red_incident`)."""
         node = self._actions_issue(issue)
         return node is not None and main_red_incident(node)
+
+    def _own_agent_ids(self) -> frozenset[int]:
+        """The identities on admission's `own-agents` list at the default
+        branch (`own_agent_ids`), as resolve-pr.mjs reads them from main's
+        checkout. A failed read raises `_Unreadable`."""
+        if self._own_agents is None:
+            self._own_agents = self._default_branch_file(
+                "own-agents",
+                ADMISSION_RULES_PATH,
+                "admission rules",
+                lambda rules: json_object(rules).get("own-agents"),
+            )
+        section, at = self._own_agents
+        run_cache.note(at)
+        return own_agent_ids(section, self._lane_app_id())
+
+    def _own_agent_issue(self, number: int) -> Any:
+        """Issue `number` as `OWN_AGENT_ISSUE_QUERY` reads it, once per Reader
+        under the Actions token. A failed read raises `_Unreadable`."""
+        if number not in self._own_agent_issues:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                node = self._graphql(
+                    OWN_AGENT_ISSUE_QUERY, number, "own-agent issue", env=self._env()
+                ).get("issue")
+            self._own_agent_issues[number] = (node, tuple(taken))
+        node, read_at = self._own_agent_issues[number]
+        for at in read_at:
+            run_cache.note(at)
+        return node
+
+    def _size(self, number: int) -> str | None:
+        """Issue `number`'s Size as admission counts it (`counted_size`),
+        once per Reader under the Actions token: a listed human's or the
+        lanes App's value, under the config at the default branch. A failed
+        read raises `_Unreadable`."""
+        if number not in self._sizes:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                if self._size_field is None:
+                    self._size_field = self._default_branch_file(
+                        "issue-size-field",
+                        merge_policy.CONFIG_PATH,
+                        "pipeline config",
+                        size_field,
+                        self._text_file,
+                    )
+                size, at = self._size_field
+                run_cache.note(at)
+                values = self._actions(
+                    [
+                        "api",
+                        f"repos/{self.repo}/issues/{number}/issue-field-values",
+                        "-H",
+                        f"X-GitHub-Api-Version: {merge_policy.FIELD_API_VERSION}",
+                    ],
+                    f"#{number} field values",
+                )
+                node = self._graphql(
+                    merge_policy.ISSUE_STATUS_QUERY,
+                    number,
+                    "field events",
+                    env=self._env(),
+                ).get("issue")
+                events = json_object(json_object(node).get("timelineItems")).get(
+                    "nodes"
+                )
+                if not is_json_array(values) or not is_json_array(events):
+                    raise _Unreadable(f"#{number}: the Size field could not be read")
+                app_id = self._lane_app_id()
+                humans = self._trusted_humans()
+                counted = counted_size(
+                    values, events, size, lambda a: a in humans or a == app_id
+                )
+            self._sizes[number] = (counted, tuple(taken))
+        counted, read_at = self._sizes[number]
+        for at in read_at:
+            run_cache.note(at)
+        return counted
+
+    def _own_agent(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue` is an own-agent filing
+        admission admits (`own_agent_filing`) sized small or medium. Read
+        live: a label or Size changed since the verdict counts."""
+        number = issue.get("number")
+        author = issue.get("author_id")
+        if (
+            type(number) is not int
+            or type(author) is not int
+            or issue.get("author_type") != "Bot"
+        ):
+            return False
+        ids = self._own_agent_ids()
+        return (
+            author in ids
+            and own_agent_filing(self._own_agent_issue(number), ids)
+            and self._size(number) in OWN_AGENT_SIZES
+        )
 
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
@@ -2944,8 +3196,9 @@ class Reader:
         size split's sub-issue whose body counts (`_split_child`), a
         recurring issue naming its schedule row (`_recurring`), or the
         upstream-drift workflow's issue for a pull request `pr` that at
-        `head` only modifies its upstream's pages (`_drift`), or a main-red
-        incident the monitoring lane filed (`_incident`)."""
+        `head` only modifies its upstream's pages (`_drift`), a main-red
+        incident the monitoring lane filed (`_incident`), or an own-agent
+        filing admission admits (`_own_agent`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -2964,6 +3217,7 @@ class Reader:
             or self._drift(issue, pr, head)
             or self._recurring(issue)
             or self._incident(issue)
+            or self._own_agent(issue)
             for issue in issues
         )
 
