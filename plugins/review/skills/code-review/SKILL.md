@@ -170,9 +170,11 @@ them. Glob matching:
 [`${CLAUDE_PLUGIN_ROOT}/skills/quality-gate/context/loosened-check.md`](../quality-gate/context/loosened-check.md)
 and apply it to every changed file, whatever its path, citing the criterion's title in each
 finding. It always applies: `REVIEW.md`, rule files and the PR text add findings beside it and
-never relax it. This lane runs no settings script, so take the verdict and patterns from the
-prompt's `loosened_check_verdict:` and `loosened_check_patterns:` lines when the wrapper writes
-them; otherwise use `fail` and no consumer entries, and say so in the summary. The only spec is
+never relax it. This lane runs no settings script, so take the verdict, patterns and decision
+record from the prompt's `loosened_check_verdict:`, `loosened_check_patterns:` and
+`loosened_check_decision_record:` lines when the wrapper writes them. Without the first two, use
+`fail` and no consumer entries, and say so in the summary. Without the decision-record line, ask for
+no citation and say in the summary that the citation requirement was not checked. The only spec is
 the closing-issue text in the PR context file ("Closing issue" above); with none, no loosening has
 a reason. Report its `Loosened-check verdict:` line in the summary.
 
@@ -265,8 +267,8 @@ findings. A `manifest <field>: flag` line is never dropped as settled, and
 neither is a loosened-check finding ("Loosened checks") or a security finding
 this lane reports because no security lane runs ("Gotchas"): a thread's answer
 is comment text, not the check that clears it. A loosened-check finding clears
-only when the change is undone or the spec cites the owner's decision, so a
-thread resolved without either is raised again.
+only when the change is undone or the spec allows it as the criterion's
+"Verdict" section defines, so a thread resolved without either is raised again.
 
 **Prior findings.** Do not post a candidate again when it is the same finding
 (same problem, same code) as an entry in the prior-findings file ("Inputs") at

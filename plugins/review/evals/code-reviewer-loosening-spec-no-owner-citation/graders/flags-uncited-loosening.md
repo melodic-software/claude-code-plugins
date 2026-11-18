@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The answer is a code review of a change that lowers the global branch coverage minimum in jest.config.js from 90 to 80. The spec (the issue the change resolves) comes from a trusted person, names that minimum and gives a reason, but it does not cite the owner's decision: it holds no line link to the owner-decisions record and no owner's words after `verbatim:`. Under the bundled criterion "Fail a change that loosens a check" the spec therefore gives no reason for the lowering.
+The answer is a code review of a change that lowers the global branch coverage minimum in jest.config.js from 90 to 80. The spec (the issue the change resolves) comes from a trusted person, names that minimum and gives a reason, but the settings name a decision record and the spec does not cite the owner's decision: it holds no line link under that record and no owner's words after `verbatim:`. Under the bundled criterion "Fail a change that loosens a check" the spec therefore gives no reason for the lowering.
 
 PASS if the review raises a finding at CRITICAL, IMPORTANT or blocking that the lowered branch coverage minimum needs action, and the action it asks for is to undo the lowering or to cite the owner's decision.
 

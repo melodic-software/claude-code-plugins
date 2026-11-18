@@ -238,6 +238,65 @@ g "$R8" update-ref refs/remotes/origin/main HEAD
 out="$(spec_at "$R8" '{"number": 42, "author_association": "MEMBER", "user": {"login": "owner-person", "id": 101, "type": "User"}}')"
 assert_contains "case 8: a list that cannot be parsed gives no reason, never the fallback" "$out" "loosened_check_spec: no reason"
 
+RECORD_URL="https://records.example.com/decisions/blob/"
+R9="$(new_repo c9 "loosened_check_decision_record: $RECORD_URL"$'\n')"
+out="$(node "$RESOLVE" --root "$R9" --ref origin/main)"
+assert_eq "case 9: a committed record prints its URL, trailing slash included, and its layer" \
+  "loosened_check_decision_record: $RECORD_URL (docs/conventions/review.yaml)" "$(line_of "$out" loosened_check_decision_record)"
+R9Q="$(new_repo c9q "loosened_check_decision_record: \"$RECORD_URL\""$'\n')"
+out="$(node "$RESOLVE" --root "$R9Q" --ref origin/main)"
+assert_eq "case 9: a quoted record prints the same URL" \
+  "loosened_check_decision_record: $RECORD_URL (docs/conventions/review.yaml)" "$(line_of "$out" loosened_check_decision_record)"
+printf 'fanout_diversity: lens\n' >"$R9/docs/conventions/review.yaml"
+g "$R9" commit -q -a -m "head drops the record"
+out="$(node "$RESOLVE" --root "$R9" --ref origin/main)"
+assert_eq "case 9: a head that drops the record does not switch it off" \
+  "loosened_check_decision_record: $RECORD_URL (docs/conventions/review.yaml)" "$(line_of "$out" loosened_check_decision_record)"
+R9H="$(new_repo c9h $'fanout_diversity: lens\n')"
+printf 'loosened_check_decision_record: %s\n' "$RECORD_URL" >"$R9H/docs/conventions/review.yaml"
+g "$R9H" commit -q -a -m "head adds a record"
+out="$(node "$RESOLVE" --root "$R9H" --ref origin/main)"
+assert_eq "case 9: a record only the head adds is not read" \
+  "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
+
+out="$(node "$RESOLVE" --root "$R4" --ref origin/main)"
+assert_eq "case 10: a file without the key leaves the record unset" \
+  "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
+R10A="$TEST_TMPDIR/c10a"
+mkdir -p "$R10A"
+g "$R10A" init -q
+g "$R10A" commit -q --allow-empty -m base
+g "$R10A" update-ref refs/remotes/origin/main HEAD
+out="$(node "$RESOLVE" --root "$R10A" --ref origin/main)"
+assert_eq "case 10: a default branch with no settings file leaves the record unset" \
+  "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
+for bad in "http://records.example.com/decisions/" "https://records.example.com/decisions" \
+  "https://records.example.com/a/../b/" "records.example.com/decisions/"; do
+  R10="$(new_repo "c10-$((CASE_NUM))" "loosened_check_decision_record: $bad"$'\n')"
+  out="$(node "$RESOLVE" --root "$R10" --ref origin/main)"
+  assert_eq "case 10: the invalid value $bad leaves the record unset" \
+    "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
+  assert_contains "case 10: the invalid value $bad is named in a WARN line" "$out" "WARN docs/conventions/review.yaml"
+done
+out="$(node "$RESOLVE" --root "$R1" --ref origin/nope)"
+assert_eq "case 10: an unreadable ref prints the distinct value" \
+  "loosened_check_decision_record: unreadable (unreadable default branch)" "$(line_of "$out" loosened_check_decision_record)"
+assert_contains "case 10: an unreadable ref's WARN says no spec can allow a loosening" "$out" "no spec can allow a loosening on this run"
+out="$(node "$RESOLVE" --root "$R1")"
+assert_eq "case 10: without --ref the record is unreadable, never unset" \
+  "loosened_check_decision_record: unreadable (no --ref names the default branch)" "$(line_of "$out" loosened_check_decision_record)"
+assert_contains "case 10: without --ref a WARN names the record" "$out" "WARN loosened_check_decision_record resolves unreadable"
+R10P="$(new_repo c10p $'loosened_check_decision_record: [unclosed\n  bad: : yaml\n')"
+out="$(node "$RESOLVE" --root "$R10P" --ref origin/main)"
+assert_contains "case 10: a committed file that does not parse makes the record unreadable" \
+  "$(line_of "$out" loosened_check_decision_record)" "loosened_check_decision_record: unreadable ("
+
+node "$RESOLVE" --root "$R4" --ref origin/main --decision-record-option "$RECORD_URL" >/dev/null 2>&1
+assert_eq "case 11: the resolver takes no user option for the record" "2" "$?"
+manifest="$SCRIPT_DIR/../.claude-plugin/plugin.json"
+assert_eq "case 11: the plugin declares no userConfig option for the record" "0" \
+  "$(grep -c '"loosened_check_decision_record"' "$manifest")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

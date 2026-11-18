@@ -147,7 +147,7 @@ cat >review-input/issue.md <<'MD'
 Quarantine the test "uploads retry after a dropped connection" in `test/upload.test.js`: move it
 to `test/quarantine/`, narrow the `test` script to `test/*.test.js` so the required step skips that
 directory, and run that directory as its own soft-fail CI step.
-Owner decision: https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10 verbatim: "Approved."
+Owner decision: https://records.example.com/decisions/blob/main/owner-decisions.md#L10 verbatim: "Approved."
 
 Why: the test fails about one run in twenty on the CI runner, because its two random 0-40 ms
 delays can add up past its 50 ms bound; the code under test is not at fault. A person rewrites its
@@ -164,4 +164,4 @@ Quarantines the flaky upload retry test as #88 asks.
 Closes #88
 MD
 
-bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 88 4101 counts
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 88 4101 counts https://records.example.com/decisions/blob/

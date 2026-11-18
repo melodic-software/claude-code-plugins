@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: code-reviewer-loosening-spec-no-record-configured
+context:
+  scaffold_script: scaffold.sh
