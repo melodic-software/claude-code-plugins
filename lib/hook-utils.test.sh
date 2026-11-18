@@ -6359,7 +6359,9 @@ if command -v git >/dev/null 2>&1; then
   mkdir -p "$FSM/.work"
   printf '#!/bin/sh\ntouch "%s"\n' "$GI_ROOT/fsm-ran" >"$GI_ROOT/fsm.sh"
   chmod +x "$GI_ROOT/fsm.sh"
-  printf '[core]\n\tfsmonitor = %s\n' "$GI_ROOT/fsm.sh" >"$GI_ROOT/fsm-include"
+  FSM_HOOK="$GI_ROOT/fsm.sh"
+  command -v cygpath >/dev/null 2>&1 && FSM_HOOK=$(cygpath -m "$FSM_HOOK")
+  printf '[core]\n\tfsmonitor = %s\n' "$FSM_HOOK" >"$GI_ROOT/fsm-include"
   git -C "$FSM" config core.fsmonitor "$GI_ROOT/fsm.sh"
   git -C "$FSM" config include.path "$GI_ROOT/fsm-include"
   if hook::file_is_gitignored "$FSM/.work/x.sh" && [[ ! -e "$GI_ROOT/fsm-ran" ]]; then
