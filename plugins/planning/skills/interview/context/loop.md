@@ -413,9 +413,7 @@ The rule is also surface-agnostic: it reads the register, so it does not care wh
 
 ### Unattended path
 
-`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. The session never tries to *detect* this, since a guess that misfires either strands a real user or waits on no one, so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
-
-- **Pointer**: when checking whether Claude Code now documents a state a running session can read to tell it is unattended, fetch `https://code.claude.com/docs/en/cli-reference` and `https://code.claude.com/docs/en/env-vars` live.
+`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (`https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
 
 The ladder, in order:
 
