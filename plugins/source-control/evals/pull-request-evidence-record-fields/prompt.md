@@ -9,4 +9,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
 expected_outcome: The evidence comment body written to a file names Dana Okafor as the verifier, a UTC date and time, and an issues-found line
 ---
 
-The verifier passed PR 412's current head; Dana Okafor ran the verification. Post its verification evidence comment. The head run's drive report is evidence/head/report.json and the base run's is evidence/base/report.json.
+The verifier passed PR 412's current head; Dana Okafor ran the verification. With the pull-request skill, post its verification evidence comment. The head run's drive report is evidence/head/report.json and the base run's is evidence/base/report.json.
