@@ -21,7 +21,6 @@ plugins/autonomy/skills/setup/context/agent-session-telemetry.md 1
 plugins/autonomy/skills/setup/context/guardrail-slice.md 1
 plugins/autonomy/skills/setup/context/windows-surfaces.md 2
 plugins/autonomy/skills/setup/templates/trigger-adapters.md 2
-plugins/code-metrics/skills/audit-coverage/SKILL.md 2
 plugins/code-metrics/skills/audit-suppressions/SKILL.md 6
 plugins/code-tidying/skills/remove-comments/reference/tooling.md 1
 plugins/code-tidying/skills/tidy/reference/bundled-simplify.md 1

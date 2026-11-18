@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": ["docs/diagrams/password-reset-flow.excalidraw"]
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["docs/diagrams/password-reset-flow.md"],
+      "why": "a Mermaid document, not the Excalidraw file"
+    },
+    {
+      "answer": ["password-reset-flow.excalidraw"],
+      "why": "written at the workspace root, not under docs/diagrams"
+    },
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ]
+}
