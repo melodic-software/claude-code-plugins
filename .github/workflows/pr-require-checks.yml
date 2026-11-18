@@ -1660,6 +1660,24 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
         run: scripts/check-comment-lint.sh
 
+      - name: Check no changed file crosses the size reference
+        id: size_check
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        shell: bash scripts/run-hygiene-gate.sh size-check {0}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+          pull_request) base="origin/$BASE_REF" ;;
+          merge_group) base="$GROUP_BASE_SHA" ;;
+          *)
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no change to compare with a base."
+            exit 0
+            ;;
+          esac
+          bash plugins/code-metrics/skills/audit/scripts/audit-size.sh --check --base "$base"
+
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its
       # safety properties — one resolution, an output table whose unset values
@@ -2146,6 +2164,7 @@ jobs:
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             stale-base-overlap=${{ steps.stale_base.outcome }}
             comment-lint=${{ steps.comment_lint.outcome }}
+            size-check=${{ steps.size_check.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
             test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
