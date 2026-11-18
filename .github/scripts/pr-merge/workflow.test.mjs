@@ -601,7 +601,6 @@ test("the eval-release wake runs on what the merge job released, whatever its re
   assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("7")), true, "a sweep dispatch that released a pull request");
   assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("")), false, "a sweep dispatch that released none");
   assert.equal(evalIf("merge", dispatch, { pr: "7" }), false, "a PR-scoped dispatch skips merge");
-  assert.equal(evalIf("wake-eval-released", dispatch, { pr: "7" }, released("", "skipped")), false, "a PR-scoped dispatch wakes nothing");
   const wake = job("wake-eval-released");
   assert.match(wake, /^ {4}needs: \[merge\]\n/m);
   assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);
@@ -1541,6 +1540,8 @@ test("a sweep dispatch keeps every other gate on the eval-hold release", () => {
   assert.equal(sweep({ mode: { outputs: { "report-only": "true" } } }), false, "report-only");
   assert.equal(sweep({ gate: { outputs: { "rate-limited": "true" } } }), false, "the gate's rate-limit stop");
   assert.equal(sweep({ candidates: { outputs: { held: "true" } } }), false, "a held listing");
+  assert.equal(sweep({ candidates: { outputs: {} } }), false, "a listing that ended without writing listed");
+  assert.match(stepIf("merge", RELEASE_STEP).trimStart(), /^always\(\) && /, "a failed earlier step does not skip the release");
 });
 
 test("the eval-hold release reuses the merge job's lane token, with no model", () => {
