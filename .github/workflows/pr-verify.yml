@@ -4023,22 +4023,6 @@ jobs:
           echo "::error::the judgment left no verdict for this head"
           exit 1
 
-  # The fallback leg, the central fallback subscription, as its own job on a
-  # new VM. It runs only when check-intent-subscription succeeded and named
-  # it the next leg (a limit stop, a credit stop or a 401 or 402 handed off
-  # cleanly, or an empty subscription token, each with the fallback token
-  # set); a subscription job that failed, a denial on its leg included,
-  # leaves it skipped. Its steps repeat check-intent's from a fresh checkout,
-  # reads included (it takes none from the subscription job), but for the
-  # credential, the capture it takes from the subscription job, the fallback
-  # reason its outcome steps record, and the steps it has no use for: the
-  # key-only ones (handing the reads on, the credit gate, the credit-stop and
-  # probing markers), the leg checks and the next-leg pick, since it is the
-  # last leg and never hands off; workflow.test.mjs holds the rest equal. Of
-  # the subscription job's outputs it reads next-leg, compared to a fixed
-  # string in its `if`, next-reason, which its credential call checks against
-  # a closed list, and the capture, through env; none is written into a
-  # `run:` script.
   check-intent-fallback:
     name: Check Intent Fallback
     needs: [check-intent, check-intent-subscription]
