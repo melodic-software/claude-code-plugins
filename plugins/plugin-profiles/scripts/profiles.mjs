@@ -75,7 +75,7 @@
 // failed. Exit 2: usage, profile or settings
 // file error. apply names a missing plugin with its install command and installs nothing.
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, realpathSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { basename, dirname, join, resolve, win32 as win32Path } from "node:path";
@@ -339,9 +339,10 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
     const named = left.filter((id) => r.disabled.includes(id));
     const rest = left.filter((id) => !r.disabled.includes(id));
     const ofOff = named.length === r.disabled.length ? "every plugin it switches off" : `${named.length} of the plugins it switches off`;
-    lines.push(`Left on until the next apply (${left.length}): ${named.length ? ofOff : ""}${named.length && rest.length ? ", plus " : ""}${rest.length ? list(rest) : ""}`);
+    lines.push(`Switched off in a second write, after the next reload (${left.length}): ${named.length ? ofOff : ""}${named.length && rest.length ? ", plus " : ""}${rest.length ? list(rest) : ""}`);
   }
-  lines.push(`Writes ${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries.`);
+  const writes = `${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries`;
+  lines.push(left.length ? `Writes ${writes} now, and ${left.length} off ${left.length === 1 ? "entry" : "entries"} in the second write.` : `Writes ${writes}.`);
   if (r.repositorySkills.length) lines.push(`Hides skills a repository profile names: ${list(r.repositorySkills)}`);
   if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
@@ -410,6 +411,7 @@ function commit(p, opts, where) {
     pluginVersion: where.pluginVersion,
     doc: p.settings.doc,
     exists: p.settings.exists,
+    createdFolder: !existsSync(dirname(p.file)),
     final: p.final,
     phase: Object.keys(p.pending).length ? "off-pending" : "applied",
     pending: p.pending,
@@ -445,7 +447,9 @@ async function apply(opts, where, env, io) {
   const recorded = p.previous?.profile === opts.name && p.previous.phase === "applied";
   const upToDate = !changeCount(p) && !Object.keys(p.pending).length && opts.target !== "session" && recorded;
   if (opts.json) {
-    const others = opts.target === "folder" ? othersInFolder(where.projectDir, env.CLAUDE_CODE_SESSION_ID, undefined, { home: where.home }) : [];
+    const others = opts.target === "folder"
+      ? othersInFolder(where.projectDir, env.CLAUDE_CODE_SESSION_ID, undefined, { home: where.home }).map((s) => ({ ...s, oneSessionProfile: oneSessionProfileOf(where, s.sessionId) }))
+      : [];
     io.out(JSON.stringify(previewJson(p, gate, upToDate, others), null, 2));
     return 0;
   }
@@ -576,6 +580,12 @@ function sessionRecord(where, id) {
     if (rec?.profile) return rec;
   }
   return null;
+}
+
+/** The one-session profile a live session runs in, from its record, or null once it was resumed without it. */
+function oneSessionProfileOf(where, id) {
+  const rec = validId(id) ? sessionRecord(where, id) : null;
+  return rec && !rec.plainSince ? rec.profile : null;
 }
 
 /** The first resume or continue flag among claude's arguments: resume with an id, the resume picker, or continue. */
@@ -866,6 +876,7 @@ function sessionStartRecord(where, env, input) {
       : null;
   }
   const rec = !name && input.source === "resume" ? sessionRecord(where, input.session_id) : null;
+  if (rec && !rec.plainSince) replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify({ ...rec, plainSince: new Date().toISOString() }, null, 2)}\n`);
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
@@ -925,6 +936,13 @@ function overwrittenEdits(rec, doc) {
   return out;
 }
 
+/** Removes a folder only when it is empty; a folder that holds anything stays. */
+function removeEmptyFolder(dir) {
+  try {
+    rmdirSync(dir);
+  } catch {}
+}
+
 async function clear(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
   const file = targetFile(where, opts.target);
@@ -949,7 +967,7 @@ async function clear(opts, where, env, io) {
   preview(true, [
     `Clears profile ${rec.profile} from ${file}.`,
     removes
-      ? "Removes the file, which the first apply created."
+      ? `Removes the file${rec.createdFolder ? ", and its folder when nothing else is in it," : ""} which the first apply created.`
       : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
     ...overwrittenEdits(rec, settings.doc).map(
       (e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`,
@@ -958,8 +976,10 @@ async function clear(opts, where, env, io) {
   if (opts.dryRun) return 0;
   await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
   try {
-    if (removes) deleteSettings(file, settings.hash);
-    else writeSettings(file, settings.hash, text);
+    if (removes) {
+      deleteSettings(file, settings.hash);
+      if (rec.createdFolder) removeEmptyFolder(dirname(file));
+    } else writeSettings(file, settings.hash, text);
   } catch (error) {
     if (error instanceof SettingsConflict) throw new NotApplied(`not cleared: ${file} changed while clearing; run clear again`);
     throw error;

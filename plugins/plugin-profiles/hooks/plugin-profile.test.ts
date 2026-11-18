@@ -248,6 +248,18 @@ test('D22: the confirm names the other sessions in the folder, and Apply still w
   expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
 })
 
+test('#16914: the confirm names sessions in a one-session profile apart, as keeping theirs, with each session id', async ($, on) => {
+  const others = [
+    { name: 'probe-repo-04', sessionId: '3fa9c1d2-0000-4000-8000-000000000001', oneSessionProfile: 'build' },
+    { name: 'probe-repo-9b', sessionId: '7b2e95f0-0000-4000-8000-000000000002', oneSessionProfile: null },
+  ]
+  const w = world(on, ['Apply'], { dry: preview({ othersInFolder: others }) })
+  await run($, 'review')
+  expect(w.asks[0].question).toBe(
+    'Other sessions in this folder (probe-repo-9b (session 7b2e95f0)) also get this profile at their next reload or start; to give one its own profile, start it with the launch command instead. Sessions here in a one-session profile keep theirs and do not change: probe-repo-04 (session 3fa9c1d2), build. Apply profile review to this folder?',
+  )
+})
+
 test('AC10: Apply at the MCP prompt writes the on entries, never with --force', async ($, on) => {
   const w = world(on, ['Apply'], { dry: preview({ mcpOrLspOn: ['playwright@melodic-software'] }) })
   await run($, 'review')

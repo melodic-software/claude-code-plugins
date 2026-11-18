@@ -85,6 +85,7 @@ export function nextRecord(previous, apply) {
     phase: apply.phase,
     pending: apply.pending,
     createdFile: previous?.createdFile ?? !apply.exists,
+    createdFolder: previous?.createdFolder ?? apply.createdFolder === true,
     containers: previous?.containers ?? Object.fromEntries(Object.keys(SECTIONS).map((key) => [key, key in apply.doc])),
     installed: apply.installed,
   };

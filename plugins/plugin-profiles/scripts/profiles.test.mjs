@@ -129,6 +129,24 @@ test("AC19: with no settings file before the apply, clear removes the file", () 
   assert.notEqual(w.read(), null);
   assert.equal(w.run(["clear", "--yes"]).status, 0);
   assert.equal(existsSync(w.localFile), false);
+  assert.equal(existsSync(dirname(w.localFile)), true, "a .claude folder that was there before stays");
+});
+
+test("#16914: clear removes the .claude folder the first apply created, only while nothing else is in it", () => {
+  const w = world({ local: null });
+  rmSync(dirname(w.localFile), { recursive: true });
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const dry = w.run(["clear", "--dry-run"]);
+  assert.match(dry.stdout, /Removes the file, and its folder when nothing else is in it, which the first apply created\./);
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  assert.equal(existsSync(dirname(w.localFile)), false);
+  const kept = world({ local: null });
+  rmSync(dirname(kept.localFile), { recursive: true });
+  assert.equal(kept.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  writeFileSync(join(dirname(kept.localFile), "settings.json"), "{}\n");
+  assert.equal(kept.run(["clear", "--yes"]).status, 0);
+  assert.equal(existsSync(join(dirname(kept.localFile), "settings.json")), true, "a file added since keeps the folder");
 });
 
 test("a second apply over a first keeps the first apply's before-values, so clear still restores the original", () => {
@@ -742,7 +760,8 @@ test("AC6, AC10: apply --dry-run --json previews an in-session switch as data, n
   assert.deepEqual(preview.mcpOrLspOn, [`implementation@${M}`]);
   assert.deepEqual(preview.pending, [`songwriting@${M}`]);
   assert.ok(preview.lines.includes(`Switches off (1): songwriting@${M}`), preview.lines.join("\n"));
-  assert.ok(preview.lines.includes("Left on until the next apply (1): every plugin it switches off"), preview.lines.join("\n"));
+  assert.ok(preview.lines.includes("Switched off in a second write, after the next reload (1): every plugin it switches off"), preview.lines.join("\n"));
+  assert.ok(preview.lines.some((l) => /^Writes \d+ plugin entries and \d+ skill entries now, and 1 off entry in the second write\.$/.test(l)), preview.lines.join("\n"));
   assert.ok(preview.lines.includes(`Switches on plugins with an MCP or language server: implementation@${M}`), preview.lines.join("\n"));
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
@@ -1189,7 +1208,7 @@ test("#16893: a folder dry-run from a linked worktree names the live sessions in
   ]));
   const r = t.run(["apply", "review", "--for", "folder", "--dry-run", "--json"], { PP_STUB_AGENTS: agents, CLAUDE_CODE_SESSION_ID: "me" });
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "main checkout", sessionId: "b", kind: "interactive" }]);
+  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "main checkout", sessionId: "b", kind: "interactive", oneSessionProfile: null }]);
 });
 
 test("D22: a folder dry-run names the other live sessions in the folder, leaving out this one", () => {
@@ -1202,7 +1221,19 @@ test("D22: a folder dry-run names the other live sessions in the folder, leaving
   ]));
   const r = w.run(["apply", "review", "--for", "folder", "--defer-off", "--dry-run", "--json"], { PP_STUB_AGENTS: agents, CLAUDE_CODE_SESSION_ID: "me" });
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "builder", sessionId: "b", kind: "background" }]);
+  assert.deepEqual(JSON.parse(r.stdout).othersInFolder, [{ name: "builder", sessionId: "b", kind: "background", oneSessionProfile: null }]);
+});
+
+test("#16914: a folder dry-run marks a session started in a one-session profile, until it is resumed without it", () => {
+  const w = world();
+  sessionInBuild(w, "one-1");
+  const agents = join(w.root, "agents.json");
+  writeFileSync(agents, JSON.stringify([{ cwd: w.project, sessionId: "one-1", name: "probe-repo-04", kind: "interactive" }]));
+  const others = () => JSON.parse(w.run(["apply", "review", "--for", "folder", "--defer-off", "--dry-run", "--json"], { PP_STUB_AGENTS: agents, CLAUDE_CODE_SESSION_ID: "me" }).stdout).othersInFolder;
+  assert.equal(others()[0].oneSessionProfile, "build");
+  hookStart(w, { session_id: "one-1", source: "resume" });
+  assert.equal(others()[0].oneSessionProfile, null, "resumed without its profile, it follows the folder");
+  assert.equal(startJson(w, ["--resume", "one-1"]).profile, "build", "its record still resumes it in build");
 });
 
 test("a launch with no profile from a profiled shell clears every inherited variable, and status ignores a file variable with no marker", () => {
