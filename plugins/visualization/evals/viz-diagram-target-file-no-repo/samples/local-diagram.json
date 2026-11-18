@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "diagram_target: excalidraw-file unavailable (no repository); using auto\n\n```mermaid\nflowchart TD\n  A[User requests reset] --> B[Email one-time token]\n  B --> C[Set new password]\n  C --> D[Revoke all sessions]\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "diagram_target: excalidraw-file unavailable (no repository); using auto. The user asks for a reset, gets a token, sets a password, and sessions are revoked.",
+      "why": "no fence, the steps only in prose"
+    }
+  ]
+}

@@ -278,16 +278,15 @@ function assetErrors(assets, where) {
 
 const assetName = (asset) => path.posix.basename(asset.replace(/\\/g, "/"));
 
-// remote: optional { git_url, ref, config } naming a lefthook remote config,
-// config being its path inside that repository.
+const remotePathOk = (p) => /\.ya?ml$/.test(p) && !path.isAbsolute(p) && !p.split(/[\\/]/).includes("..");
 function remoteErrors(remote) {
   if (remote === undefined) return [];
   const errors = [];
   if (!/^(https:\/\/|git@)\S+$/.test(remote?.git_url ?? "")) errors.push("remote.git_url must be an https or ssh git URL");
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(remote?.ref ?? "")) errors.push("remote.ref must be a branch or tag name");
-  const config = remote?.config ?? "";
-  if (!/\.ya?ml$/.test(config) || path.isAbsolute(config) || config.split(/[\\/]/).includes("..")) {
-    errors.push("remote.config must be a relative .yml path inside the remote repository");
+  if (!remotePathOk(remote?.config ?? "")) errors.push("remote.config must be a relative .yml path inside the remote repository");
+  if (remote?.aggregate !== undefined && !remotePathOk(String(remote.aggregate))) {
+    errors.push("remote.aggregate must be a relative .yml path inside the remote repository");
   }
   return errors;
 }
@@ -842,7 +841,7 @@ const repoName = (url) => path.posix.basename(url.slice(0, url.length - path.pos
 
 function remoteSnippet(remote) {
   const lines = ["remotes:", `  - git_url: ${remote.git_url}`, `    ref: ${remote.ref}`, "    refetch_frequency: 1h"];
-  return [...lines, "    configs:", `      - ${remote.config}`].join("\n");
+  return [...lines, "    configs:", `      - ${remote.aggregate ?? remote.config}`].join("\n");
 }
 
 // The lefthook config's `remotes` entries as { git_url, ref, configs }: YAML
@@ -888,26 +887,77 @@ function lefthookRemotes(file, text) {
     });
 }
 
-// The ref of the remotes entry whose git_url is exactly the plugin's and whose
-// configs name its config: "" when that entry names no ref, null when none does.
-function remoteRef(info, plugin) {
-  const { git_url: url, config } = plugin.remote;
+function remoteEntry(info, plugin) {
+  const { git_url: url, config, aggregate } = plugin.remote;
   const file = lefthookFile(info, "shared");
-  const entry = lefthookRemotes(file, readText(path.join(info.top, file)) ?? "").find(
-    (r) => r?.git_url === url && Array.isArray(r.configs) && r.configs.includes(config),
+  return lefthookRemotes(file, readText(path.join(info.top, file)) ?? "").find(
+    (r) => r?.git_url === url && Array.isArray(r.configs) && (r.configs.includes(config) || (aggregate !== undefined && r.configs.includes(aggregate))),
   );
+}
+
+function remoteRef(info, plugin) {
+  const entry = remoteEntry(info, plugin);
   return entry ? String(entry.ref ?? "") : null;
 }
 
-function remoteFetched(info, plugin) {
-  const { git_url: url, ref, config } = plugin.remote;
+function remoteCaches(info, plugin) {
+  const { git_url: url, ref } = plugin.remote;
   const names = [ref.replaceAll("-", "--").replaceAll("/", "-"), ref];
   const root = path.join(path.dirname(info.excludeFile), "lefthook-remotes");
   const prefixes = names.map((name) => `${repoName(url)}-${name}`);
   // A cache directory with a suffix after the ref counts too; another ref's, or
   // another repository's whose name extends this one, does not.
   const dirs = existsSync(root) ? readdirSync(root).filter((d) => prefixes.some((p) => d === p || d.startsWith(`${p}-`))) : [];
-  return dirs.some((d) => readText(path.join(root, d, config)) !== null);
+  return dirs.map((d) => path.join(root, d));
+}
+
+function remoteFetched(info, plugin) {
+  const { config, aggregate } = plugin.remote;
+  const named = remoteEntry(info, plugin)?.configs ?? [];
+  const needed = aggregate !== undefined && named.includes(aggregate) ? [aggregate, config] : [config];
+  return remoteCaches(info, plugin).some((d) => needed.every((f) => readText(path.join(d, f)) !== null));
+}
+
+function globRegex(glob) {
+  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped.replace(/\*\*/g, "\0").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/\0/g, ".*")}$`);
+}
+
+function marketplaceClone(plugin) {
+  const market = path.resolve(plugin.root, "..", "..");
+  const cache = path.dirname(market);
+  if (path.basename(cache) !== "cache") return [];
+  try {
+    const known = JSON.parse(readText(path.join(path.dirname(cache), "known_marketplaces.json")) ?? "{}");
+    const location = known?.[path.basename(market)]?.installLocation;
+    return typeof location === "string" ? [location] : [];
+  } catch {
+    return [];
+  }
+}
+
+function aggregatePlugins(info, plugin, consumerNamesAggregate) {
+  const { git_url: url, aggregate } = plugin.remote;
+  if (aggregate === undefined || !consumerNamesAggregate) return [plugin];
+  const tops = [...remoteCaches(info, plugin), path.resolve(plugin.root, "..", ".."), ...marketplaceClone(plugin)];
+  const top = tops.find((t) => readText(path.join(t, aggregate)) !== null);
+  if (top === undefined) return [plugin];
+  const block = /^extends:[ \t]*\n((?:[ \t]+-.*(?:\n|$))*)/m.exec(readText(path.join(top, aggregate)))?.[1] ?? "";
+  const globs = [...block.matchAll(/^[ \t]+-[ \t]+["']?([^"'\s#]+)/gm)].map((m) => globRegex(m[1]));
+  const dir = path.join(top, "plugins");
+  const others = [];
+  for (const name of existsSync(dir) ? readdirSync(dir).sort() : []) {
+    let other;
+    try {
+      other = loadPlugin(path.join(dir, name));
+    } catch {
+      continue;
+    }
+    const r = other.remote;
+    if (other.name === plugin.name || r?.git_url !== url || r.aggregate !== aggregate) continue;
+    if (globs.some((g) => g.test(r.config)) && readText(path.join(top, r.config)) !== null) others.push(other);
+  }
+  return [plugin, ...others];
 }
 
 const lefthookHook = (info, event) => Boolean(readText(path.join(info.hooksDir, event))?.includes("lefthook"));
@@ -953,11 +1003,18 @@ function remotePlan(info, plugin, override) {
     decisions.push({ kind: "lefthook-install", command: "lefthook install" });
   }
   decisions.push(...sharedLeftovers(info, plugin), ...migrateDecision(info, plugin, "shared", manager), ...supersededDecisions(info, plugin));
-  for (const entry of plugin.entries) {
-    if (isDeclined(info, plugin, entry)) decisions.push({ kind: "declined", entry: entry.name });
-    decisions.push(...toolDecisions(info, plugin, entry));
+  const named = ref === null || (remoteEntry(info, plugin)?.configs ?? []).includes(plugin.remote.aggregate);
+  const enabled = aggregatePlugins(info, plugin, named);
+  for (const p of enabled) {
+    const tag = (d) => (p === plugin ? d : { plugin: p.name, ...d });
+    if (p !== plugin) decisions.push(...[...sharedLeftovers(info, p), ...migrateDecision(info, p, "shared", manager)].map(tag));
+    for (const entry of p.entries) {
+      if (isDeclined(info, p, entry)) decisions.push(tag({ kind: "declined", entry: entry.name }));
+      decisions.push(...toolDecisions(info, p, entry).map(tag));
+    }
   }
-  return { manager, actions: [], decisions };
+  const aggregate = plugin.remote.aggregate !== undefined && named ? { aggregate: { config: plugin.remote.aggregate, plugins: enabled.map((p) => p.name) } } : {};
+  return { manager, actions: [], decisions, ...aggregate };
 }
 
 // plan(info, plugin, scope, manager?) -> { manager, actions[], decisions[] }
@@ -1894,6 +1951,21 @@ function pickEntries(plugin, names) {
   });
 }
 
+function aggregateMissingTools(info, plugin) {
+  if (!plugin.remote?.aggregate || !(remoteEntry(info, plugin)?.configs ?? []).includes(plugin.remote.aggregate)) return [];
+  return aggregatePlugins(info, plugin, true)
+    .slice(1)
+    .flatMap((p) =>
+      p.entries
+        .filter((entry) => !isDeclined(info, p, entry))
+        .flatMap((entry) =>
+          resolvedTools(info, p, entry)
+            .filter((t) => !t.found)
+            .map((t) => `tool\t${t.tool}\tmissing\t${p.name}-${entry.name}`),
+        ),
+    );
+}
+
 function runVerify(info, plugin, opts, io) {
   const rows = verify(info, plugin, { tools: !opts.quiet });
   const drift = rows.filter((r) => DRIFT.includes(r.state));
@@ -1905,6 +1977,7 @@ function runVerify(info, plugin, opts, io) {
     io.stdout([row.state, row.entry, row.detail ?? ""].join("\t").trimEnd());
     for (const tool of row.state === "declined" ? [] : row.missingTools) io.stdout(`tool\t${tool}\tmissing`);
   }
+  for (const line of aggregateMissingTools(info, plugin)) io.stdout(line);
   return drift.length ? 1 : 0;
 }
 

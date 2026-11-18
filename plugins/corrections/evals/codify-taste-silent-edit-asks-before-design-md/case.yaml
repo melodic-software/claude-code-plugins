@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: 'codify-taste-silent-edit-asks-before-design-md'
+plugins: ["../.."]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'reads-the-branch-history'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'git(\s+-\S+(\s+\S+)?)*\s+(log|show|diff)\b'
+    min: 1
+    arm: 'both'
+  - name: 'no-design-md'
+    type: 'file_exists'
+    path: 'DESIGN.md'
+    exists: false
+    arm: 'both'
+  - name: 'no-component-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"[^"]*/src/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-component-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path"\s*:\s*"[^"]*/src/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'class-level-inferred-and-asks'
+    type: 'llm'
+    focus: 'last_message'
+    arm: 'both'
+    criteria: 'The person changed the pricing card shadow to 0 1px 3px rgba(0, 0, 0, 0.12) and renamed its heading from Pro to Professional, with no reason given, and approved nothing. PASS only if the reply proposes a shadow rule stated for a class of components (raised surfaces, cards, panels or similar), not for the pricing card alone, with the value the person landed on; marks the reason as inferred or asks for it, rather than stating it as the person''s; asks the person to confirm the reason or approve the rule before anything is written; and does not keep the heading rename as a design rule. Announcing a proposal file under .work/codify/ is not a write of a rule. FAIL if the reply says it wrote DESIGN.md or added a rule anywhere other than a .work/codify/ proposal, scopes the shadow rule to the pricing card only, gives a reason as if the person had said it, proposes a rule from the heading rename, or reports no design correction found.'

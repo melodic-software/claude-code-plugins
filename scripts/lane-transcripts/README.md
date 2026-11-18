@@ -10,17 +10,22 @@ vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node
 node scripts/lane-transcripts/pull.mjs status
 node scripts/lane-transcripts/pull.mjs query --lane pr-verify --model opus --outcome success --since 2026-11-01
 node scripts/lane-transcripts/pull.mjs prune
+node scripts/lane-transcripts/pull.mjs pull-outcomes
+node scripts/lane-transcripts/pull.mjs backfill
 ```
 
 | Command | Does | Exit |
 |---|---|---|
-| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old |
-| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old |
+| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old. A stale `pull-outcomes` prints its `ALERT:` here too but does not change this exit code, so a timer that chains the two still reaches it |
+| `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old; the same two checks apply to `pull-outcomes` once it has run |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
+| `pull-outcomes` | Copies the lane-outcome records of every lane workflow run to `outcomes.jsonl`, then sets each row's failure class | 0 done, including one that missed a run; 1 failed |
+| `backfill` | Fills `trace_id`, the failure class, and the cache, cost and `model_usage` fields on rows written before them; idempotent | 0 |
 
 `query` filters: `--lane` (the workflow file's stem, or `lane/job-id`), `--model` (a substring of
-any model the leg used), `--outcome`, `--since` and `--until` (`YYYY-MM-DD`, inclusive). For
+any model the leg used), `--outcome`, `--class` (a failure class), `--trace` (a trace id),
+`--since` and `--until` (`YYYY-MM-DD`, inclusive). For
 anything else, read `metrics.jsonl` with `jq`. No command prints transcript text.
 
 `--outcome` takes `error` (every leg whose result has `is_error: true`), `success` (a `success`
@@ -38,6 +43,7 @@ machine or object storage, is any directory it mounts at; nothing else changes. 
 ```text
 <sink>/transcripts/<YYYY-MM-DD>/<lane>/<run id>-<attempt>-<job id>.json.gz   the CLI messages, gzipped
 <sink>/metrics.jsonl                                                       one row per transcript, no content
+<sink>/outcomes.jsonl                                                      one row per lane-outcome record
 <sink>/state.json                                                          last success, last attempt, last error kind
 ```
 
@@ -50,6 +56,26 @@ message's `models` (its `modelUsage` keys), `outcome` (`error` when `is_error` i
 `subtype`; `omitted`, with `omitted_reason` and `omitted_bytes`, for a writer's marker), `subtype`, `is_error`, `api_error_status` (`null` when the result carries none),
 `num_turns`, `duration_ms` and token counts, the transcript's size, and its path (`null` once
 pruned).
+
+From the result message a row also keeps `cache_read_input_tokens` and
+`cache_creation_input_tokens` (the top-level loop's `usage`, as `input_tokens` is),
+`total_cost_usd`, and `model_usage`: per model in `modelUsage`, its input, output, cache-read and
+cache-creation tokens and `cost_usd`. `total_cost_usd` and `model_usage` count subagents too. The
+cost fields store the CLI's own estimate, not what was billed; on a subscription leg it measures
+the work, not spend ([track your costs](https://code.claude.com/docs/en/costs#track-your-costs)).
+A leg that crashed can report zeros. Issue #7676 left cost and tokens as published per-run fields
+to other issues; the owner's observability decision covers keeping them in this private sink.
+
+`trace_id` is the first 32 hex digits of SHA-256 over `lane-outcome:<run id>:<attempt>`, the trace
+id every lane-outcome record of that run attempt carries (ci-workflows `docs/lane-outcome.md`,
+"Run context"), so a row joins its records, and any span exported under that trace, by run
+attempt. `failure_class` comes from those records, never from the transcript: it is set when every
+record of the run attempt names the same class (null when they all succeeded), and null otherwise.
+`failure_class_source` says which held: `lane-outcome`, `disagree` (the records differ; a record
+names its lane and credential, not the leg's job-id, so a leg cannot pick its own), or `none` (no
+record held yet). A row pulled before its records is set by the next `pull-outcomes` or
+`backfill`. The `lane_runs` and `lane_outcomes` DuckDB views in
+`plugins/harness-ops/skills/observability/otel/lane-runs.sql` read both files.
 
 ## What a pull takes
 
@@ -66,7 +92,9 @@ such as an issue number; a job-id that changes inside a reusable is not checked.
 listed newest first, back to the last successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a
 re-run attempt of an older run is still pulled. It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
 run's head repository is not this repository: the public key is public, so a fork's run could seal
-a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that does not open for the
+a record. A zip must hold `transcript.json.gz.sealed` and at most one other entry, which must be
+a sealed file (`<name>.sealed`, such as a leg's telemetry); the pull opens only the transcript,
+and any other zip counts as `bad_zip`. A record that does not open for the
 key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
 counted as `sealed_mismatch` and skipped. The summary line counts each kind.
 
@@ -92,12 +120,33 @@ wrapping round, so no name starves. When that kept cutoff is more than 5 days ol
 floor would pass it and drop the rest. Every pull, failed or not, ends with a
 `gh calls: N of 1000` line.
 
+## What `pull-outcomes` takes
+
+It lists the completed runs of each workflow in `LANE_WORKFLOWS` (`pull.mjs`): those that run
+`report-lane-outcome` or `run-claude-cli`, a ci-workflows lane reusable, or a local reusable that
+does. `pull.test.mjs` fails when that list and the workflows differ. Runs are listed back to its
+own last success less 6 hours (30 days on the first run); for each run it reads the jobs of every
+attempt and each job's check-run annotations, and keeps every lane-outcome record that
+`.github/scripts/lib/lane-outcome.mjs` validates, with only its known fields. It skips a fork's
+run, a skipped job, a job it already holds a record from, and a record whose own run id, attempt
+or trace id names another run attempt (`mismatched`). It reads annotations only, never the
+`report-check-run` check run's copy of the same record. Each `outcomes.jsonl` row holds
+`run_id`, `run_attempt`, `trace_id`, `check_run_id`, `job_name`, `lane`, `workflow`,
+`created_at` (the job's completion), `date`, `record` and `job_records` (how many records its job
+holds; the next pass drops and reads again a job an interrupted pull left with fewer).
+
+It keeps the transcript pull's rules under the state's `outcomes` key, apart from the pull's own:
+the same retries and rate-limit stop, a run whose jobs or annotations still fail counts as
+`fetch_failed` and holds its last success, and a budget of `OUTCOME_CALL_BUDGET` (1,000) `gh`
+calls of its own, stopping with `budget_exhausted`, `resume_cutoff_at` and `resume_workflow` and
+resuming at that workflow. It records each run attempt it finished reading as `read_runs`, so a resumed pass skips them at no call, and drops the entries older than its next cutoff. A re-run attempt of a run created before its window is not reached.
+
 ## Retention
 
 Every pull, and `prune`, applies it in this order:
 
 1. A transcript over 30 days old is deleted; its row stays, with `transcript: null`.
-2. A metrics row over 365 days old is dropped.
+2. A metrics row, or a lane-outcome record, over 365 days old is dropped.
 3. While every file under the sink totals more than 5 GB (5,000,000,000 bytes), the oldest
    transcript is deleted.
 
@@ -125,4 +174,4 @@ same line; transcripts sealed under the old key count as `sealed_mismatch` until
 A systemd user timer on the laptop, kept in dotfiles beside `worktree-reap.timer`, runs `pull`
 daily with `Persistent=true`, so a day the laptop was off runs at the next boot. A non-zero exit
 leaves the unit failed, which `systemctl --user --failed` shows. A timer that never fires raises
-nothing; `status` is the check for that.
+nothing; `status` is the check for that. `pull-outcomes` runs after `pull` in the same unit, never beside it: both rewrite `metrics.jsonl`.

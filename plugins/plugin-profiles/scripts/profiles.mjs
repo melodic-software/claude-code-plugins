@@ -88,7 +88,7 @@ import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../l
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
-import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog } from "../lib/profile-files.mjs";
+import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
@@ -336,6 +336,23 @@ function prepare(opts, where, catalog, records) {
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
 const sameChange = (a, b) => JSON.stringify([a.final, a.pending, a.edits]) === JSON.stringify([b.final, b.pending, b.edits]);
 const list = (ids) => (ids.length ? ids.join(", ") : "none");
+const KEPT_BECAUSE = {
+  profile: "this profile switches it on",
+  repository: "the repository's settings enable it",
+  managed: "managed settings pin it",
+  folder: "folder settings pin it",
+};
+
+/** What a profile that leaves out always-on says about the always-on plugins: which go off, and which stay on and why. */
+function alwaysOnLines(r) {
+  const guardrailsOff = r.alwaysOnOff.some((id) => id.startsWith("guardrails@"));
+  return [
+    ...(r.alwaysOnOff.length
+      ? [`Switches off ${guardrailsOff ? "guardrails and the other always-on plugins" : "always-on plugins"} that other profiles keep on (${r.alwaysOnOff.length}): ${list(r.alwaysOnOff)}`]
+      : []),
+    ...r.alwaysOnKept.map((k) => `Always-on plugin left on, because ${KEPT_BECAUSE[k.by]}: ${k.id}`),
+  ];
+}
 
 /**
  * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
@@ -350,6 +367,7 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
     `Switches on (${r.enabled.length}): ${list(on)}`,
     `Switches off (${r.disabled.length}): ${list(r.disabled)}`,
   ];
+  lines.push(...alwaysOnLines(r));
   const left = Object.keys(p.pending);
   if (left.length) {
     const named = left.filter((id) => r.disabled.includes(id));
@@ -386,6 +404,8 @@ const previewJson = (p, gate, upToDate, others) => ({
   pending: Object.keys(p.pending),
   mcpOrLspOn: p.plan.mcpOrLspOn,
   hookPluginsOff: p.plan.hookPluginsOff,
+  alwaysOnOff: p.plan.alwaysOnOff,
+  alwaysOnKept: p.plan.alwaysOnKept,
   prerequisitesMissing: gate.map((g) => g.plugin),
   ignored: p.plan.ignored,
   repositoryOn: p.plan.repositoryOn,
@@ -545,7 +565,10 @@ function profileGate(name, opts, where, env, verb) {
     p.plan.enabled.map((id) => p.inv.get(id)),
     { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
   );
-  const lines = previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed"));
+  const lines = [
+    ...alwaysOnLines(p.plan),
+    ...previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed")),
+  ];
   if (gate.length && opts.unattended) throw new NotApplied(`not ${verb}: profile ${name} switches on a plugin missing a required prerequisite, and nobody is there to decide.\n${lines.join("\n")}`);
   return { p, gate, lines };
 }
@@ -1052,12 +1075,12 @@ function usage(opts, env, io) {
   return 0;
 }
 
-/** The plugins the initial profile switches on: always-on, plus the profile recorded for user settings. */
+/** The plugins the initial profile switches on: the profile recorded for user settings with what it merges, else always-on. */
 function initialMembers(where) {
   const catalog = catalogFor(where, "initial");
   const rec = recordOf(where, where.paths.user).record;
-  const chosen = rec ? catalog.profiles.get(rec.profile) : null;
-  return new Set([catalog.alwaysOn, chosen].filter(Boolean).flatMap((p) => [...p.plugins, ...p.optional]));
+  const chosen = (rec && catalog.profiles.get(rec.profile)) ?? catalog.alwaysOn;
+  return new Set(sourcesOf(catalog, chosen).flatMap((p) => [...p.plugins, ...p.optional]));
 }
 
 function switchOffAtUser(id, file) {
@@ -1109,7 +1132,7 @@ async function save(opts, where, io) {
   const path = join(levels.find((l) => l.level === opts.level).dir, `${opts.name}.yaml`);
   const files = readProfileFiles(levels);
   const current = files.find((f) => f.path === path);
-  const merged = { description: opts.description ?? current?.def.description ?? null };
+  const merged = { description: opts.description ?? current?.def.description ?? null, alwaysOn: current?.def.alwaysOn ?? null };
   for (const [flag, field] of Object.entries(SAVE_LISTS)) merged[field] = [...new Set([...(current?.def[field] ?? []), ...idsOf(opts[flag])])];
   const text = profileText(merged);
   const def = parseProfile(text, path);

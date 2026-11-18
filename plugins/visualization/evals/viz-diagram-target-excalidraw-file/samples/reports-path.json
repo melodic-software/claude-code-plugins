@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "diagram_target: excalidraw-file (docs/conventions/visualization.local.yaml)\n\nWrote `/tmp/claude-eval-x/home/w/docs/diagrams/password-reset-flow.excalidraw`. Open it in an Excalidraw editor; it is not staged."
+    },
+    {
+      "answer": "Diagram file: /w/docs/diagrams/reset-swim-lanes.excalidraw",
+      "why": "bare absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/diagrams/password-reset-flow.excalidraw.",
+      "why": "relative path only"
+    },
+    {
+      "answer": "```mermaid\nflowchart LR\n  A[Request reset] --> B[Email token]\n```",
+      "why": "an inline fence and no file"
+    }
+  ]
+}
