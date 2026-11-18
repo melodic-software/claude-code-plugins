@@ -25,8 +25,9 @@ an interaction just by dragging it, which shortens the feedback loop and speeds 
 - **Nothing else.** A panel with twenty controls is a second interface to learn. If a value isn't
   in question, leave it in the code.
 
-[DialKit](https://github.com/joshpuckett/dialkit) is the default panel in a React project; its
-README lists the controls it ships. Plain `<input type="range">` is fine everywhere else. Don't build a custom panel.
+Resolve the panel library from the repository through the plugin's copy of the ecosystem
+resolution steps, [reference/ecosystem-resolution.md](../reference/ecosystem-resolution.md). When
+none resolves, use plain `<input type="range">` controls. Don't build a custom panel.
 
 On an explore-directions mockup whose level sets `controls: everything` (the level's definition,
 resolved as [levels.md](../skills/explore-directions/reference/levels.md) says from
@@ -38,22 +39,11 @@ That panel is the bundled controls runtime drawing one manifest, not a custom pa
 
 ## Two implementation rules
 
-**1. In a DOM or CSS prototype, controls write to CSS variables, not React state.**
-
-```jsx
-<div
-  ref={root}
-  style={{ "--duration": `${duration * speed}ms`, "--ease": ease, "--blur": `${blur}px` }}
->
-```
+**1. In a DOM or CSS prototype, controls write to CSS variables on the prototype root, not to
+component state.**
 
 A slider that re-renders the whole tree on every input stutters, and the user reads that stutter
 as the animation feeling bad, then spends ten minutes fixing an animation that was fine all along.
-Outside React, set them imperatively on the prototype root:
-
-```js
-root.style.setProperty('--duration', `${value}ms`);
-```
 
 A canvas generator has no CSS to bind: each control change re-renders the canvas from the current
 values.
