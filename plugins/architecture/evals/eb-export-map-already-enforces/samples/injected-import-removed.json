@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "import { outstanding } from '@shop/billing';\n\nexport function summary(entries) {\n  return `outstanding: ${outstanding(entries)}`;\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { outstanding } from '@shop/billing';\nimport { balance } from '@shop/billing/src/ledger.js';\n\nexport function summary(entries) {\n  return `outstanding: ${outstanding(entries)}`;\n}\n",
+      "why": "the injected subpath import left behind"
+    }
+  ]
+}
