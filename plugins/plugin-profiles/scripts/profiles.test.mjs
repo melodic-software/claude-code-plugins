@@ -1466,6 +1466,33 @@ test("#16893 start --unattended stops on a missing required prerequisite before 
   assert.doesNotMatch(w.calls(), /--settings/);
 });
 
+test("#16914: start --resume takes the newest record of a session across every copy's data folder", () => {
+  const w = world();
+  const build = sessionInBuild(w, "abc-1");
+  const review = launchJson(w, ["review"]).file;
+  const other = join(w.home, ".claude", "plugins", "data", "plugin-profiles-melodic-software", "sessions", "by-id", "abc-1.json");
+  const own = JSON.parse(readFileSync(join(byIdDir(w), "abc-1.json"), "utf8"));
+  const write = (at) => writeTree(dirname(other), { "abc-1.json": { sessionId: "abc-1", profile: "review", file: review, folder: w.project, at } });
+  write(new Date(Date.parse(own.at) + 60_000).toISOString());
+  assert.equal(startJson(w, ["--resume", "abc-1"]).profile, "review", "a later resume through another copy wins");
+  write("2000-01-01T00:00:00.000Z");
+  const older = startJson(w, ["--resume", "abc-1"]);
+  assert.equal(older.profile, "build", "an older copy's record loses");
+  assert.deepEqual(older.argv, ["claude", "--settings", build, "--resume", "abc-1"]);
+});
+
+test("#16914: an unattended resume reusing its session file refuses on a missing required prerequisite, as an unattended start does; an attended one warns and resumes", () => {
+  const w = world({ prerequisiteMissing: true });
+  const file = sessionInBuild(w, "abc-1");
+  const refused = w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /not resumed: profile build switches on a plugin missing a required prerequisite/);
+  assert.equal(w.run(["start", "build", "--unattended", "--dry-run"]).status, 1, "the start it mirrors refuses too");
+  const attended = startJson(w, ["--resume", "abc-1"]);
+  assert.deepEqual(attended.argv, ["claude", "--settings", file, "--resume", "abc-1"]);
+  assert.match(attended.stderr, /Missing required prerequisite of implementation@melodic-software/);
+});
+
 test("#16893 the start picker numbers the profiles, marks the folder's, asks again on a bad answer, and gives up on an empty one", async () => {
   const pick = async (text) => {
     const input = new PassThrough();

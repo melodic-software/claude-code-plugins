@@ -538,17 +538,23 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
 /** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
+/** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
+function profileGate(name, opts, where, env, verb) {
+  const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
+  const gate = missingRequired(
+    p.plan.enabled.map((id) => p.inv.get(id)),
+    { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
+  );
+  const lines = previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed"));
+  if (gate.length && opts.unattended) throw new NotApplied(`not ${verb}: profile ${name} switches on a plugin missing a required prerequisite, and nobody is there to decide.\n${lines.join("\n")}`);
+  return { p, gate, lines };
+}
+
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
   if (name) {
-    const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
-    const gate = missingRequired(
-      p.plan.enabled.map((id) => p.inv.get(id)),
-      { env, platform: process.platform, cwd: where.projectDir, dataDirOf: (id) => join(where.configDir, "plugins", "data", dataDirName(id)) },
-    );
-    const lines = previewLines(p, gate).filter((line) => line.startsWith("Missing required prerequisite") || line.startsWith("Not installed"));
-    if (gate.length && opts.unattended) throw new NotApplied(`not launched: profile ${name} switches on a plugin missing a required prerequisite, and nobody is there to decide.\n${lines.join("\n")}`);
+    const { p, gate, lines } = profileGate(name, opts, where, env, "launched");
     result.prerequisitesMissing = gate.map((g) => g.plugin);
     const doc = { ...own };
     doc.enabledPlugins = { ...own?.enabledPlugins, ...p.final.enabledPlugins };
@@ -591,11 +597,9 @@ function launch(opts, where, env, io) {
 
 /** The record the session-start hook wrote for a session id, from this copy's data folder or another copy's. */
 function sessionRecord(where, id) {
-  for (const dir of [where.dataDir, ...otherDataDirs(where)]) {
-    const rec = readJson(join(byIdDir(dir), `${id}.json`));
-    if (rec?.profile) return rec;
-  }
-  return null;
+  const latest = (rec) => [rec.at, rec.plainSince].filter((t) => typeof t === "string").sort().at(-1) ?? "";
+  const found = [where.dataDir, ...otherDataDirs(where)].map((dir) => readJson(join(byIdDir(dir), `${id}.json`))).filter((rec) => rec?.profile);
+  return found.sort((a, b) => latest(b).localeCompare(latest(a)))[0] ?? null;
 }
 
 /** The one-session profile a live session runs in, from its record, or null once it was resumed without it. */
@@ -745,7 +749,8 @@ async function start(opts, where, env, io) {
   }
   let file = plan.reuse;
   let settingsArgs = plan.reuse && !opts.with ? ["--settings", plan.reuse] : null;
-  if (!settingsArgs) {
+  if (settingsArgs) for (const gateLine of profileGate(plan.name, opts, where, env, "resumed").lines) io.err(gateLine);
+  else {
     const at = plan.folder && !opts.with ? locate(env, where.projectDir, plan.folder) : where;
     ({ file, settingsArgs } = launchSettings(plan.name, opts, at, env, io));
   }
