@@ -59,6 +59,7 @@ quiet session. The skill-usage store and the OTEL store stay under `.claude/obse
 | Trace summary (duration, span count) | DuckDB `cc_traces` | [otel-queries.md](otel-queries.md) |
 | Prompt/API bodies (recent hot window) | DuckDB `cc_logs` | Bodies age at `CC_OTEL_BODY_RETENTION_DAYS` (default 2) |
 | Months-long structure trends | `cc_*_cold()` macros | [otel-queries.md](otel-queries.md) |
+| CI lane legs: tokens, cache tokens, cost estimate, failure class, per run attempt | DuckDB `lane_runs` joined to `lane_outcomes` on `trace_id` ([`otel/lane-runs.sql`](../otel/lane-runs.sql)), over the sink the claude-code-plugins `scripts/lane-transcripts/` puller fills. The cost is the CLI's estimate: [track your costs](https://code.claude.com/docs/en/costs#track-your-costs) | [otel-queries.md](otel-queries.md) |
 | Live telemetry UI while session runs | Aspire HTTP or CLI (`--limit`) | [otel-queries.md](otel-queries.md) |
 
 **Default:** DuckDB first. Aspire optional for live tail only.

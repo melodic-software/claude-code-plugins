@@ -1,5 +1,6 @@
 // The transcript sink: its layout, the metrics row read from one transcript,
 // retention, and queries. Nothing here reads a key or prints transcript text.
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -29,14 +30,50 @@ export function laneOf(workflowPath) {
 }
 
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+const amount = (value) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null);
 const asString = (value) => (typeof value === "string" ? value : null);
 export const OMITTED_REASONS = ["too-large", "credential"];
 
-// The metrics a transcript carries, from the CLI's messages: the init message's
-// model, and the last result message's subtype, models and usage. A result with
-// is_error true is an `error` outcome whatever its subtype says.
+/**
+ * The trace id every lane-outcome record of one run attempt carries (ci-workflows
+ * docs/lane-outcome.md, "Run context"), so a row joins its records and spans.
+ */
+export function traceIdOf(runId, attempt) {
+  if (!Number.isSafeInteger(runId) || runId < 1 || !Number.isSafeInteger(attempt) || attempt < 1) return null;
+  return createHash("sha256").update(`lane-outcome:${runId}:${attempt}`).digest("hex").slice(0, 32);
+}
+
+const modelShare = (u) => ({
+  input_tokens: count(u?.inputTokens),
+  output_tokens: count(u?.outputTokens),
+  cache_read_input_tokens: count(u?.cacheReadInputTokens),
+  cache_creation_input_tokens: count(u?.cacheCreationInputTokens),
+  cost_usd: amount(u?.costUSD),
+});
+
+/**
+ * The metrics a transcript carries, from the CLI's messages: the init message's
+ * model, and the last result message's subtype, models and usage. A result with
+ * is_error true is an `error` outcome whatever its subtype says. The token
+ * counts are the top-level loop's (`usage`); total_cost_usd and model_usage
+ * also count subagents. total_cost_usd is the CLI's own estimate, not a bill.
+ */
 export function transcriptMetrics(messages) {
-  const empty = { model: null, models: [], subtype: null, is_error: null, api_error_status: null, num_turns: null, duration_ms: null, input_tokens: null, output_tokens: null };
+  const empty = {
+    model: null,
+    models: [],
+    subtype: null,
+    is_error: null,
+    api_error_status: null,
+    num_turns: null,
+    duration_ms: null,
+    input_tokens: null,
+    output_tokens: null,
+    cache_read_input_tokens: null,
+    cache_creation_input_tokens: null,
+    total_cost_usd: null,
+    model_usage: null,
+  };
   if (!Array.isArray(messages)) return { ...empty, outcome: "unreadable" };
   const [marker] = messages;
   if (messages.length === 1 && marker?.type === "system" && marker?.subtype === "transcript_omitted") {
@@ -58,11 +95,16 @@ export function transcriptMetrics(messages) {
     duration_ms: count(result?.duration_ms),
     input_tokens: count(usage.input_tokens),
     output_tokens: count(usage.output_tokens),
+    cache_read_input_tokens: count(usage.cache_read_input_tokens),
+    cache_creation_input_tokens: count(usage.cache_creation_input_tokens),
+    total_cost_usd: amount(result?.total_cost_usd),
+    model_usage: result ? Object.fromEntries(Object.keys(modelUsage).sort().map((name) => [name, modelShare(modelUsage[name])])) : null,
   };
 }
 
 export const paths = (sink) => ({
   metrics: path.join(sink, "metrics.jsonl"),
+  outcomes: path.join(sink, "outcomes.jsonl"),
   state: path.join(sink, "state.json"),
   transcripts: path.join(sink, "transcripts"),
   tmp: path.join(sink, ".tmp"),
@@ -83,11 +125,13 @@ export function transcriptPath({ date, lane, run_id: runId, run_attempt: attempt
 // is pulled again and the next append replaces it.
 const completeText = (text) => text.slice(0, text.lastIndexOf("\n") + 1);
 
-export function readRows(sink) {
-  const file = paths(sink).metrics;
+function readJsonl(file) {
   if (!existsSync(file)) return [];
   return completeText(readFileSync(file, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
+
+export const readRows = (sink) => readJsonl(paths(sink).metrics);
+export const readOutcomes = (sink) => readJsonl(paths(sink).outcomes);
 
 function writeAtomic(file, text) {
   const next = `${file}.next`;
@@ -95,15 +139,44 @@ function writeAtomic(file, text) {
   renameSync(next, file);
 }
 
-export const writeRows = (sink, rows) => writeAtomic(paths(sink).metrics, rows.map((row) => `${JSON.stringify(row)}\n`).join(""));
+const jsonl = (rows) => rows.map((row) => `${JSON.stringify(row)}\n`).join("");
+export const writeRows = (sink, rows) => writeAtomic(paths(sink).metrics, jsonl(rows));
+export const writeOutcomes = (sink, rows) => writeAtomic(paths(sink).outcomes, jsonl(rows));
 
-export function appendRow(sink, row) {
-  const file = paths(sink).metrics;
+function appendJsonl(file, row) {
   if (existsSync(file)) {
     const text = readFileSync(file, "utf8");
     if (!text.endsWith("\n") && text !== "") truncateSync(file, Buffer.byteLength(completeText(text)));
   }
   writeFileSync(file, `${JSON.stringify(row)}\n`, { flag: "a", mode: 0o600 });
+}
+
+export const appendRow = (sink, row) => appendJsonl(paths(sink).metrics, row);
+export const appendOutcome = (sink, row) => appendJsonl(paths(sink).outcomes, row);
+
+/**
+ * A row's failure class from the lane-outcome records of its run attempt: set
+ * only when every record of that attempt names the same class (a success
+ * record names none), since a record names its lane and credential but not the
+ * leg's upload job-id. `failure_class_source` says which case held:
+ * `lane-outcome` (the records agree; the class is null when all succeeded),
+ * `disagree` (they differ, so the class is null) or `none` (no record held).
+ */
+export function failureClassOf(traceId, outcomesByTrace) {
+  const records = outcomesByTrace.get(traceId) ?? [];
+  if (records.length === 0) return { failure_class: null, failure_class_source: "none" };
+  const classes = new Set(records.map((o) => o.record?.class ?? null));
+  if (classes.size > 1) return { failure_class: null, failure_class_source: "disagree" };
+  return { failure_class: [...classes][0], failure_class_source: "lane-outcome" };
+}
+
+export function outcomesByTrace(outcomes) {
+  const byTrace = new Map();
+  for (const outcome of outcomes) {
+    if (!byTrace.has(outcome.trace_id)) byTrace.set(outcome.trace_id, []);
+    byTrace.get(outcome.trace_id).push(outcome);
+  }
+  return byTrace;
 }
 
 export function readState(sink) {
@@ -141,17 +214,22 @@ function removeEmptyDirs(dir) {
   }
 }
 
-// Transcripts over 30 days go, then metrics rows over a year, then the oldest
-// transcripts until every file under the sink fits in 5 GB. A file no row
-// names ages by its modification time.
+/**
+ * Transcripts over 30 days go, then metrics and outcome rows over a year, then
+ * the oldest transcripts until every file under the sink fits in 5 GB. A file
+ * no row names ages by its modification time.
+ */
 export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
+  const outcomes = readOutcomes(sink);
+  const keptOutcomes = outcomes.filter((o) => now - Date.parse(o.created_at) <= METRICS_DAYS * DAY);
+  if (keptOutcomes.length < outcomes.length) writeOutcomes(sink, keptOutcomes);
   const rows = readRows(sink);
   const byPath = new Map(rows.filter((r) => r.transcript).map((r) => [path.join(sink, r.transcript), r]));
   const stored = files(paths(sink).transcripts).map((f) => {
     const row = byPath.get(f.file);
     return { ...f, row, at: row ? Date.parse(row.created_at) : f.mtimeMs };
   });
-  const removed = { age: 0, cap: 0, rows: 0 };
+  const removed = { age: 0, cap: 0, rows: 0, outcomes: outcomes.length - keptOutcomes.length };
   const drop = (entry, reason) => {
     rmSync(entry.file, { force: true });
     entry.gone = true;
@@ -183,15 +261,20 @@ function hasOutcome(row, outcome) {
   return outcome === "error" || (outcome !== "success" && (row.subtype ?? row.outcome) === outcome);
 }
 
-// Rows matching every filter given: lane (or `lane/job-id`), model (any model
-// the run used, as a substring), outcome, and a date range on the run's date.
-export function query(rows, { lane, model, outcome, since, until } = {}) {
+/**
+ * Rows matching every filter given: lane (or `lane/job-id`), model (any model
+ * the run used, as a substring), outcome, failure class, trace id, and a date
+ * range on the run's date.
+ */
+export function query(rows, { lane, model, outcome, class: failureClass, trace, since, until } = {}) {
   for (const date of [since, until]) if (date !== undefined && !DATE.test(date)) throw new Error("bad-input: --since and --until take YYYY-MM-DD");
   return rows.filter(
     (row) =>
       (lane === undefined || row.lane === lane || `${row.lane}/${row.job_id}` === lane) &&
       (model === undefined || [row.model, ...(row.models ?? [])].some((m) => typeof m === "string" && m.includes(model))) &&
       (outcome === undefined || hasOutcome(row, outcome)) &&
+      (failureClass === undefined || row.failure_class === failureClass) &&
+      (trace === undefined || row.trace_id === trace) &&
       (since === undefined || row.date >= since) &&
       (until === undefined || row.date <= until),
   );
