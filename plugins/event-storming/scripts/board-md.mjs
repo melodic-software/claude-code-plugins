@@ -58,6 +58,7 @@ const META_ORDER = ["board", "format", "title", "domain", "version", "session", 
 const ATTR_KEYS = ["by", "phase", "row", "on"];
 const ID = /^[a-z][a-z0-9-]*$/;
 const UNSCANNED_KINDS = new Set(["term", "custom"]);
+const BLANK_KINDS = new Set(["aggregate"]);
 const TYPE_PREFIX = /^(?:command|event|policy|actor|person|read ?model|hot ?spot|aggregate|system)\s*:/i;
 const EMOJI = /\p{Extended_Pictographic}/u;
 const ESCAPED = /[\\`*_{}[\]<>|#]/g;
@@ -70,15 +71,17 @@ export const slug = (title) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-export function cleanText(value, what = "text") {
+export function cleanText(value, what = "text", allowEmpty = false) {
   if (typeof value !== "string") throw new BoardError(`${what} must be a string`);
   const text = value
     .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text) throw new BoardError(`${what} is empty`);
+  if (!text && !allowEmpty) throw new BoardError(`${what} is empty`);
   return text;
 }
+
+const stickyText = (value, kind) => cleanText(value, "text", BLANK_KINDS.has(kind));
 
 export const escapeText = (text) => text.replace(ESCAPED, (ch) => `\\${ch}`);
 const unescapeText = (text) => text.replace(/\\([!-/:-@[-`{-~])/g, "$1");
@@ -536,7 +539,7 @@ const OPS = {
     const { list, nested } = targetList(board, op, op.section);
     if (op.on) findSticky(board, op.on);
     const id = nextId(board, "s");
-    const sticky = { type: "sticky", nested, kind: op.kind, text: cleanText(op.text), attrs: attrsFrom(op, { id }), children: [] };
+    const sticky = { type: "sticky", nested, kind: op.kind, text: stickyText(op.text, op.kind), attrs: attrsFrom(op, { id }), children: [] };
     if (nested || op.zone) list.push(sticky);
     else insertTopLevel(list, sticky);
     return id;
@@ -547,7 +550,8 @@ const OPS = {
       if (!(op.kind in KINDS)) throw new BoardError(`unknown kind ${op.kind}`);
       at.sticky.kind = op.kind;
     }
-    if (op.text !== undefined) at.sticky.text = cleanText(op.text);
+    if (op.text !== undefined) at.sticky.text = stickyText(op.text, at.sticky.kind);
+    else if (op.kind !== undefined) stickyText(at.sticky.text, at.sticky.kind);
     if (op.on) findSticky(board, op.on);
     at.sticky.attrs = attrsFrom(op, at.sticky.attrs);
     return op.id;

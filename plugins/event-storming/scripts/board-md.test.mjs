@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 const dir = process.argv[2];
 const work = process.argv[3];
 const script = `${dir}/board-md.mjs`;
-const { parseBoard, renderBoard } = await import(pathToFileURL(script).href);
+const { KINDS, parseBoard, renderBoard } = await import(pathToFileURL(script).href);
 
 let failed = 0;
 const check = (name, cond, detail) => {
@@ -216,6 +216,29 @@ result = apply(`${work}/dl.md`, [
 ]);
 check("a design-level flow takes rows and aggregates group", result.status === 0 && readFileSync(`${work}/dl.md`, "utf8").includes("## Flow\n\n- [command] Capture Payment {#s1 row=commands}\n- [aggregate] Payment {#s2 row=aggregates}\n"));
 check("a design-level board has no Timeline zones", apply(`${work}/dl.md`, [{ op: "zones", names: ["x"] }]).status === 1);
+
+writeFileSync(`${work}/blank.md`, dl);
+result = apply(`${work}/blank.md`, [{ op: "add", section: "Flow", kind: "aggregate", text: "", row: "aggregates" }]);
+const blankBoard = readFileSync(`${work}/blank.md`, "utf8");
+const blankLine = "## Flow\n\n- [aggregate]  {#s1 row=aggregates}\n";
+check("a blank business rule is placed with no text", result.status === 0 && blankBoard.includes(blankLine), result.stderr);
+const blankRead = JSON.parse(run("parse", `${work}/blank.md`).stdout).stickies[0];
+check("a blank business rule parses back blank", blankRead?.id === "s1" && blankRead?.kind === "aggregate" && blankRead?.text === "" && blankRead?.row === "aggregates");
+check("a blank business rule renders back byte for byte and passes check", blankBoard.includes(blankLine) && renderBoard(parseBoard(blankBoard)) === blankBoard && run("check", `${work}/blank.md`).status === 0);
+result = apply(`${work}/blank.md`, [{ op: "update", id: "s1", text: "Capture within limit" }]);
+check("a later update fills the blank business rule", result.status === 0 && readFileSync(`${work}/blank.md`, "utf8").includes("## Flow\n\n- [aggregate] Capture within limit {#s1 row=aggregates}\n"), result.stderr);
+
+const handBlank = dl.replace("## Flow\n\n", "## Flow\n\n- [aggregate]  {#s1 row=aggregates}\n\n");
+writeFileSync(`${work}/blank-kind.md`, handBlank);
+result = apply(`${work}/blank-kind.md`, [{ op: "update", id: "s1", kind: "event" }]);
+check("a blank business rule cannot become a blank event", result.status === 1 && readFileSync(`${work}/blank-kind.md`, "utf8") === handBlank, result.stderr);
+result = apply(`${work}/blank-kind.md`, [{ op: "update", id: "s1", kind: "event", text: "Payment Captured" }]);
+check("a blank business rule can change kind when it gets text", result.status === 0 && readFileSync(`${work}/blank-kind.md`, "utf8").includes("- [event] Payment Captured {#s1 row=aggregates}\n"), result.stderr);
+
+const otherKinds = Object.keys(KINDS).filter((kind) => kind !== "aggregate");
+writeFileSync(`${work}/blank-other.md`, dl);
+const acceptedBlank = otherKinds.filter((kind) => apply(`${work}/blank-other.md`, [{ op: "add", section: "Flow", kind, text: "" }]).status !== 1);
+check("every other kind still refuses empty text", otherKinds.length === 16 && acceptedBlank.length === 0 && readFileSync(`${work}/blank-other.md`, "utf8") === dl, acceptedBlank.join(", "));
 
 writeFileSync(`${work}/c.md`, handWrittenBoard.replace("- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}", "- [hot-spot] Refund disputes take 6+ days {#s6 by=Finance}\n- [event] A ticket was sold to the attendee {#s20}\n- [event] COMMAND: Place Order {#s21}\n- [event] \u{1F389} Party Started {#s22}"));
 const scan = run("check", `${work}/c.md`).stdout;
