@@ -1520,6 +1520,7 @@ jobs:
           # The completed attempts kept beside dispatch-post-merge-runs's report,
           # which the fresh check answers with no read (ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
