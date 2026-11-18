@@ -201,7 +201,7 @@ throughout: the lesson pages that state them are paid and not linked.
 | Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
 | Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
 | Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's note has no traceable outcome | **deferred**: a direction for later private or own-product work, not this workshop's build; **awaiting the owner** | none |
-| Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **no change**: nothing is built for it; **awaiting the owner** | none |
+| Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **deferred**: a separate item after the Excalidraw file target, tracked in [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128) | none |
 
 ### Deferred
 
@@ -214,7 +214,9 @@ These were decided to wait, each for the condition named:
 - a private-repository runner, until that work starts, because of its cost;
 - a different runner per task, held for a later pass over the automation's shape; no condition is
   recorded;
-- vendor-agnostic providers, until private or own-product work starts; **awaiting the owner**.
+- vendor-agnostic providers, until private or own-product work starts; **awaiting the owner**;
+- agent-built templates and palette, a separate item after the Excalidraw file target, tracked in
+  [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128).
 
 ## Open decisions
 
@@ -224,9 +226,7 @@ Open owner decisions, each with its recommendation:
    lint-fix pipeline, and merges here are already unattended, so the loop would close with no person.
 2. **Vendor-agnostic providers (lesson 2).** Recommendation: deferred until private or own-product
    work starts.
-3. **Agent-built templates and palette (lesson 3).** The owner approved a recommendation, but its
-   text is not in the written record. The row's `no change` stands until that text is confirmed.
-4. **The added `deferred` and `no change` dispositions.** Recommendation: keep both beside `take`,
+3. **The added `deferred` and `no change` dispositions.** Recommendation: keep both beside `take`,
    `adapt`, `already have` and `reject`.
 
 ## License notice
