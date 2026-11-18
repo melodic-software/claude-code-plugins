@@ -1,4 +1,2 @@
-# extends resolves against this file's directory in the fetched copy, the remote's root:
-# https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/config/loader.go
 extends:
   - plugins/*/git-hooks/lefthook-remote.yml
