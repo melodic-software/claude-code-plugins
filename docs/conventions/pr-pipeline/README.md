@@ -2882,6 +2882,11 @@ still needs a listed human's issue. The same rule (`driftIssueId` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
 and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
 the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md):
+an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
+no `size-split child` marker) reaches the verifier with its body as spec while no other account
+edited it (`ownAgentText` in `admit.mjs`), so a lane pull request for it is judged against what the
+agent filed. The merge gate still reads such a spec `verify:untrusted-spec`, so a person merges it.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
