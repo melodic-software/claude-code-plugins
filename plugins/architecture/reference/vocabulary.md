@@ -17,7 +17,10 @@ Basis, by term:
   converts between a port's API and what an outside device or system needs. We use the narrower
   sense of the code plugged in at a seam.
 - Leverage and locality as the two things depth produces, the deletion test and the two-adapter
-  check: our own terms and checks.
+  check: Matt Pocock, `codebase-design` in
+  [mattpocock/skills](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/engineering/codebase-design);
+  our record:
+  [`docs/upstream/mattpocock-skills.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/mattpocock-skills.md).
 
 The examples below use one running case: tax calculation in a billing system.
 
