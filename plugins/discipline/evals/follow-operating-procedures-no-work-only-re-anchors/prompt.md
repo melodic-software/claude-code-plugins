@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
 expected_outcome: "Reads AGENTS.md, makes no edit, and says there is no work to audit yet"
 ---
 
-/discipline:follow-operating-procedures
+Run /discipline:follow-operating-procedures.

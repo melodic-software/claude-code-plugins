@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
 expected_outcome: "Reads AGENTS.md and the textkit policy and reports the missing docstring and the print in the trim helper added earlier in the session"
 ---
 
-/discipline:follow-operating-procedures
+Run /discipline:follow-operating-procedures.

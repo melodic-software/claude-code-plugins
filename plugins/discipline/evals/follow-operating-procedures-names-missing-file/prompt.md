@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: "Reads CLAUDE.md, names docs/team-rules.md as missing, and still reports that CLAUDE.md's rules govern the work"
 ---
 
-/discipline:follow-operating-procedures
+Run /discipline:follow-operating-procedures.

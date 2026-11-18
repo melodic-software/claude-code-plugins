@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
 expected_outcome: "Says no instruction files were found and stops without auditing, inventing rules or editing"
 ---
 
-/discipline:follow-operating-procedures
+Run /discipline:follow-operating-procedures.
