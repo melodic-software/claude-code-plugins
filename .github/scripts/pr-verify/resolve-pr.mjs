@@ -72,11 +72,11 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
-export { refsIssue };
+export { refsIssue, vendoredRows };
 
 // The name grammar lives with its writer; the resolver checks names against it.
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
@@ -779,27 +779,29 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
 }
 
 // The spec of an issue the upstream-drift workflow filed, or null. The issue
-// counts when it is a trusted drift issue (admit.mjs driftIssueId), `pages`
-// (this checkout's) pins its upstream id, and `files`, the pull request's
-// changed files, are only modifications of those pages. The spec is
-// admit.mjs driftSpecText for the id and those page paths, so a string an
-// upstream put in the issue's rows never becomes spec.
-export function driftSpec(issue, pages, files) {
-  const id = driftIssueId(issue);
-  if (id === null) {
+// counts when it is a trusted drift issue (admit.mjs driftIssue) and `files`,
+// the pull request's changed files, stay inside its kind's scope: for the
+// hex-pin kind, only modifications of the `pages` (this checkout's) that pin
+// its upstream id; for the vendored kind, only files under the plugin `rows`
+// (vendoredRows) maps the id to, or under that plugin's `.changes/`
+// fragments, any status. The spec is admit.mjs trustedDriftSpec, so a string
+// an upstream put in the issue's rows never becomes spec
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md).
+export function driftSpec(issue, pages, files, rows = vendoredRows()) {
+  const drift = driftIssue(issue, rows);
+  if (drift === null || !Array.isArray(files) || files.length === 0 || files.length >= COMPARE_FILES_CAP) {
     return null;
   }
-  const own = [...pages].filter(([, upstream]) => upstream === id).map(([page]) => page);
-  if (
-    own.length === 0 ||
-    !Array.isArray(files) ||
-    files.length === 0 ||
-    files.length >= COMPARE_FILES_CAP ||
-    !files.every((file) => file?.status === "modified" && own.includes(file.filename))
-  ) {
+  if (drift.kind === "vendored") {
+    const plugin = rows.get(drift.id);
+    const inside = (name) => typeof name === "string" && (name.startsWith(`plugins/${plugin}/`) || name.startsWith(`.changes/${plugin}/`));
+    return typeof plugin === "string" && files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename))) ? trustedDriftSpec(drift) : null;
+  }
+  const own = [...pages].filter(([, upstream]) => upstream === drift.id).map(([page]) => page);
+  if (own.length === 0 || !files.every((file) => file?.status === "modified" && own.includes(file.filename))) {
     return null;
   }
-  return driftSpecText(id, own);
+  return trustedDriftSpec(drift, own);
 }
 
 // The monitoring lane's main-red incident (maintenance-monitor-signals
@@ -865,8 +867,9 @@ async function compareFiles(github, repository, base, head) {
 // `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
 // defaults to this checkout's schedule, so every caller (the pr-unblock lanes
 // too) gets the same spec. A closing issue the upstream-drift workflow filed
-// takes its spec from its upstream id and `drift.pages` (driftSpec, by
-// default this checkout's docs/upstream pages), marked `source`
+// takes its spec from its upstream id, `drift.pages` and `drift.rows`
+// (driftSpec, by default this checkout's docs/upstream pages and vendored
+// rows), marked `source`
 // `upstream-drift`, only when `drift.changedFiles` reads the pull request's
 // changed files; a caller that passes none (the pr-unblock lanes) gets none.
 // A closing or `Refs:` issue the monitoring lane filed for a red main
@@ -968,7 +971,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     const files = await drift.changedFiles();
     const pages = drift.pages ?? upstreamPages();
     for (const issue of issues) {
-      const body = driftSpec(issue, pages, files);
+      const body = driftSpec(issue, pages, files, drift.rows ?? vendoredRows());
       if (body !== null) {
         driftBodies.set(issue.number, body);
       }

@@ -47,6 +47,25 @@ PAGES = {
     "docs/upstream/plain.md": "# Plain\n\nNo git pin.\n",
 }
 PAGE_ONLY = [{"filename": PAGE, "status": "modified"}]
+VENDORED_ID = "playwright/playwright"
+ROWS = (
+    "ROWS=(\n"
+    '  "playwright/playwright|plugins/playwright/skills/playwright/scripts/update.sh|--check|files-only"\n'
+    '  "split/claim|plugins/one/x.sh||files-only"\n'
+    '  "split/claim|plugins/two/x.sh||files-only"\n'
+    '  "installs/package|plugins/one/update.sh|--check"\n'
+    ")\n"
+)
+VENDORED_BODY = (
+    f"Upstream `{VENDORED_ID}` no longer matches the copy vendored here.\n\n"
+    "Run: 2026-11-18\n\n### `playwright:playwright`\n"
+)
+SYNC = [
+    {"filename": "plugins/playwright/skills/playwright/vendor/SKILL.md", "status": "modified"},
+    {"filename": "plugins/playwright/skills/playwright/vendor/new.md", "status": "added"},
+    {"filename": "plugins/playwright/skills/playwright/reference/commands.md", "status": "modified"},
+    {"filename": ".changes/playwright/sync-0123abcd.md", "status": "added"},
+]
 
 
 class FakeGitHub:
@@ -81,6 +100,10 @@ class FakeGitHub:
                 return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
             return ok({"status": "ahead", "files": self.files})
         page = f"repos/{REPO}/contents/"
+        if args == ["api", f"{page}{ve.VENDORED_REPORT_PATH}?ref={MAIN_TIP}"]:
+            self.page_reads.append(ve.VENDORED_REPORT_PATH)
+            content = base64.b64encode(ROWS.encode()).decode()
+            return ok({"encoding": "base64", "content": content})
         if len(args) == 2 and args[1].startswith(page) and "docs/upstream/" in args[1]:
             path, _, ref = args[1].removeprefix(page).partition("?ref=")
             assert ref == MAIN_TIP, ref
@@ -165,8 +188,8 @@ class ADriftIssueTheWorkflowFiled(unittest.TestCase):
         for why, kwargs in [
             ("no lead line", {"body": "<!-- factory-monitor key=x -->\n" + LEAD}),
             (
-                "the vendored-copy lead",
-                {"body": f"Upstream `{ID}` no longer matches the copy vendored here."},
+                "the vendored-copy lead without its full stop",
+                {"body": f"Upstream `{ID}` no longer matches the copy vendored here"},
             ),
             ("another title", {"title": "Monitor: something"}),
             ("a title naming another upstream", {"title": "Upstream drift: a/b"}),
@@ -248,11 +271,63 @@ class ADriftIssueTheWorkflowFiled(unittest.TestCase):
             judge(files=None)
 
 
+class AVendoredCopyDriftIssue(unittest.TestCase):
+    def vendored(self, **kwargs: Any) -> tuple[bool, FakeGitHub]:
+        return judge(
+            title=f"Upstream drift: {VENDORED_ID}",
+            body=VENDORED_BODY,
+            **({"files": SYNC} | kwargs),
+        )
+
+    def test_is_the_spec_of_a_sync_inside_its_rows_plugin(self) -> None:
+        trusted, fake = self.vendored()
+        self.assertIs(trusted, True)
+        self.assertEqual(fake.page_reads, [ve.VENDORED_REPORT_PATH], "rows read at main's tip")
+
+    def test_a_pull_request_beyond_its_plugin_refuses(self) -> None:
+        for why, files in [
+            ("a workflow beside the sync", [*SYNC, {"filename": ".github/workflows/x.yml", "status": "modified"}]),
+            ("another plugin", [{"filename": "plugins/firecrawl/x.md", "status": "modified"}]),
+            ("another plugin's fragment", [{"filename": ".changes/firecrawl/x.md", "status": "added"}]),
+            (
+                "a rename from outside the plugin",
+                [{"filename": "plugins/playwright/x.md", "previous_filename": "scripts/x.md", "status": "renamed"}],
+            ),
+            ("a docs/upstream page", PAGE_ONLY),
+            ("nothing changed", []),
+        ]:
+            with self.subTest(why):
+                self.assertIs(self.vendored(files=files)[0], False)
+
+    def test_an_id_no_row_or_two_rows_name_refuses_without_a_compare(self) -> None:
+        for upstream in ["someone/else", "split/claim", "installs/package"]:
+            with self.subTest(upstream):
+                trusted, fake = judge(
+                    title=f"Upstream drift: {upstream}",
+                    body=f"Upstream `{upstream}` no longer matches the copy vendored here.\n",
+                    files=[{"filename": "plugins/one/x.sh", "status": "modified"}],
+                )
+                self.assertIs(trusted, False)
+                self.assertEqual(fake.compares, 0)
+
+    def test_the_same_issue_another_author_wrote_or_edited_refuses(self) -> None:
+        self.assertIs(self.vendored(author=OUTSIDER)[0], False)
+        self.assertIs(self.vendored(edited=("2026-11-18T00:00:00Z", HUMAN))[0], False)
+
+
 class DriftIssue(unittest.TestCase):
     def test_matches_resolve_pr_on_the_issue_fields(self) -> None:
         base = {"title": TITLE, "body": BODY, "author": ACTIONS, "lastEditedAt": None}
-        self.assertEqual(ve.drift_issue(base), ID)
-        self.assertEqual(ve.drift_issue(base | {"body": LEAD + "\r\nmore"}), ID)
+        self.assertEqual(ve.drift_issue(base), (ID, "pinned"))
+        self.assertEqual(
+            ve.drift_issue(base | {"body": LEAD + "\r\nmore"}), (ID, "pinned")
+        )
+        self.assertEqual(
+            ve.drift_issue(
+                base | {"body": f"Upstream `{ID}` no longer matches the copy vendored here."}
+            ),
+            (ID, "vendored"),
+        )
         self.assertIsNone(ve.drift_issue(base | {"body": " " + LEAD}))
         self.assertIsNone(ve.drift_issue(base | {"title": TITLE + " "}))
         self.assertIsNone(ve.drift_issue(base | {"author": HUMAN}))

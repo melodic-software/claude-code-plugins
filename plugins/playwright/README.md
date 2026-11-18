@@ -78,9 +78,11 @@ step, and the script never mutates a globally installed CLI. Run it in a
 working-tree checkout of this plugin (the marketplace clone, or a directory
 loaded via `--plugin-dir`). Consumers receive updates through
 `/plugin marketplace update` once a new plugin version is published.
-The marketplace also runs every vendored skill's check weekly in its
+The marketplace also runs every vendored skill's check daily in its
 `maintenance-file-upstream-drift-issues` workflow, which files one
-`Upstream drift: playwright/playwright` issue when upstream moves.
+`Upstream drift: playwright/playwright` issue when upstream moves. Intake
+admits that issue with no owner step, and the issue lane runs `--apply`,
+integrates the reference changes and opens the pull request that closes it.
 
 ## Why this wraps the upstream skill
 

@@ -103,10 +103,13 @@ failed read, a list cut short or no such run keeps the FAIL.
   (`split_child_body`), or is an issue github-actions[bot] filed whose one
   recurring-schedule marker names one row of the default branch's schedule
   (`recurring_row`), or is an issue github-actions[bot] filed, nobody else
-  last edited, with the upstream-drift workflow's title and hex-pin lead line
-  (`drift_issue`) on a pull request whose changed files only modify the
-  default branch's docs/upstream pages pinned to that upstream
-  (`drift_scope`), or is a main-red incident github-actions[bot] filed,
+  last edited, with the upstream-drift workflow's title and one of its two
+  lead lines (`drift_issue`) on a pull request whose changed files, for the
+  hex-pin lead, only modify the default branch's docs/upstream pages pinned
+  to that upstream (`drift_scope`), or, for the vendored-copy lead, stay
+  inside the plugin the default branch's vendored row for that upstream
+  names and its changelog fragments (`vendored_scope`), or is a main-red
+  incident github-actions[bot] filed,
   nobody else last edited, under the monitoring lane's title and marker
   line (`main_red_incident`), or is an own-agent filing intake admission
   admits (`own_agent_filing`, ADR 0111): an identity on admission's
@@ -755,9 +758,11 @@ ACTIONS_ISSUE_QUERY = (
 ACTIONS_BOT_ID = 41898282
 # file-due.mjs SCHEDULE_MARKER.
 SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
-# resolve-pr.mjs DRIFT_TITLE and driftLead: scripts/upstream-drift-issues.sh's
-# title and its hex-pin lead line.
 DRIFT_TITLE_RE = re.compile(r"Upstream drift: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+VENDORED_REPORT_PATH = "scripts/upstream-drift-vendored-report.sh"
+VENDORED_ROW_RE = re.compile(
+    r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|plugins/([A-Za-z0-9][A-Za-z0-9_.-]*)/[^|"]*\|[^|"]*(\|files-only)?"\s*'
+)
 # resolve-pr.mjs MAIN_RED_TITLE and MAIN_RED_KEY: maintenance-monitor-signals
 # issues.mjs FILING["1 main red"] title and its marker line for that key.
 MAIN_RED_TITLE = "Restore the failing required checks on main"
@@ -894,24 +899,26 @@ def actions_bot_only(issue: Any) -> bool:
     )
 
 
-def drift_issue(issue: Any) -> str | None:
-    """resolve-pr.mjs driftSpec's issue half: the upstream id when `issue`
-    (as `ACTIONS_ISSUE_QUERY` reads it) is one github-actions[bot] wrote and
-    nobody else last edited, titled `Upstream drift: <id>`, whose first body
-    line is the hex-pin lead scripts/upstream-drift-issues.sh writes for that
-    id; else None. Pure."""
+def drift_issue(issue: Any) -> tuple[str, str] | None:
+    """resolve-pr.mjs driftSpec's issue half (admit.mjs driftIssue): the
+    upstream id and kind when `issue` (as `ACTIONS_ISSUE_QUERY` reads it) is
+    one github-actions[bot] wrote and nobody else last edited, titled
+    `Upstream drift: <id>`, whose first body line is one of the two leads
+    scripts/upstream-drift-issues.sh writes for that id: kind `pinned` for
+    the hex-pin lead, `vendored` for the vendored-copy lead; else None.
+    Pure."""
     issue = json_object(issue)
     title = issue.get("title")
     body = issue.get("body")
     match = DRIFT_TITLE_RE.fullmatch(title) if isinstance(title, str) else None
-    lead = body.split("\n", 1)[0].removesuffix("\r") if isinstance(body, str) else None
-    counts = (
-        actions_bot_only(issue)
-        and match is not None
-        and lead
-        == f"Upstream `{match[1]}` changed since the pin on its docs/upstream page."
-    )
-    return match[1] if counts and match is not None else None
+    if match is None or not actions_bot_only(issue) or not isinstance(body, str):
+        return None
+    lead = body.split("\n", 1)[0].removesuffix("\r")
+    kinds = {
+        f"Upstream `{match[1]}` changed since the pin on its docs/upstream page.": "pinned",
+        f"Upstream `{match[1]}` no longer matches the copy vendored here.": "vendored",
+    }
+    return (match[1], kinds[lead]) if lead in kinds else None
 
 
 def main_red_incident(issue: Any) -> bool:
@@ -1114,6 +1121,44 @@ def drift_scope(files: Any, id: str, pins: Callable[[str], str | None]) -> bool:
         ):
             return False
     return all(pins(json_object(file)["filename"]) == id for file in files)
+
+
+def vendored_plugin(text: Any, id: str) -> str | None:
+    """admit.mjs vendoredRows for one id: the plugin the rows of `text`
+    (scripts/upstream-drift-vendored-report.sh) name for `id`, or None when
+    none does, two plugins claim it, or a row for it lacks `files-only` (its
+    apply mode may install a package). Pure."""
+    if not isinstance(text, str):
+        return None
+    rows = [
+        row
+        for row in map(VENDORED_ROW_RE.fullmatch, text.split("\n"))
+        if row and row[1] == id
+    ]
+    plugins = {row[2] for row in rows}
+    if not rows or len(plugins) != 1 or not all(row[3] for row in rows):
+        return None
+    return plugins.pop()
+
+
+def vendored_scope(files: Any, plugin: str) -> bool:
+    """resolve-pr.mjs driftSpec's changed-file half for a vendored-copy
+    issue: `files` (GET compare's `files`) is non-empty, under GitHub's cap,
+    and every path, and a rename's previous path, sits under
+    `plugins/<plugin>/` or `.changes/<plugin>/`. Pure."""
+    if not is_json_array(files) or not 0 < len(files) < COMPARE_FILES_CAP:
+        return False
+
+    def inside(path: Any) -> bool:
+        return isinstance(path, str) and path.startswith(
+            (f"plugins/{plugin}/", f".changes/{plugin}/")
+        )
+
+    return all(
+        inside(file.get("filename"))
+        and ("previous_filename" not in file or inside(file["previous_filename"]))
+        for file in map(json_object, files)
+    )
 
 
 def split_child_body(
@@ -3217,20 +3262,31 @@ class Reader:
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
         wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
-        request `pr` at `head` only modifies the default branch's pages that
-        pin its upstream (`drift_scope`), as resolve-pr.mjs driftSpec
-        requires. A failed read raises `_Unreadable` (`verify:unreadable`)."""
+        request `pr` at `head` stays inside its kind's scope: the default
+        branch's pages that pin its upstream (`drift_scope`), or the plugin
+        the default branch's vendored row names (`vendored_scope`), as
+        resolve-pr.mjs driftSpec requires. A failed read raises `_Unreadable`
+        (`verify:unreadable`)."""
         node = self._actions_issue(issue)
-        upstream = drift_issue(node) if node is not None else None
-        if upstream is None:
+        drift = drift_issue(node) if node is not None else None
+        if drift is None:
             return False
+        upstream, kind = drift
+        plugin = None
+        if kind == "vendored":
+            plugin = vendored_plugin(self._default_text(VENDORED_REPORT_PATH), upstream)
+            if plugin is None:
+                return False
         base = json_object(json_object(pr).get("base")).get("sha")
         if not isinstance(base, str) or not isinstance(head, str):
             raise _Unreadable(f"#{issue.get('number')}: no base or head to compare")
         compared = _read(
             ["api", f"repos/{self.repo}/compare/{base}...{head}"], "changed files"
         )
-        return drift_scope(json_object(compared).get("files"), upstream, self._page_pin)
+        files = json_object(compared).get("files")
+        if plugin is not None:
+            return vendored_scope(files, plugin)
+        return drift_scope(files, upstream, self._page_pin)
 
     def _page_pin(self, path: str) -> str | None:
         """The upstream id docs/upstream page `path` pins at the default
@@ -3244,29 +3300,33 @@ class Reader:
         shared = run_cache.get_dated("upstream-page", key, run_cache.MAX_AGE)
         if shared is None:
             at = run_cache.now()
-            file = json_object(
-                _read(
-                    [
-                        "api",
-                        f"repos/{self.repo}/contents/{path}?ref={self._tip(default)}",
-                    ],
-                    "upstream page",
-                )
-            )
-            if file.get("encoding") != "base64" or not isinstance(
-                file.get("content"), str
-            ):
-                raise _Unreadable(f"{path}: no page content")
-            try:
-                text = base64.b64decode(file["content"]).decode("utf-8")
-            except ValueError as exc:
-                raise _Unreadable(f"{path}: {exc}") from exc
-            value = page_pin(text)
+            value = page_pin(self._default_text(path, default))
             run_cache.put("upstream-page", key, value, at)
         else:
             value, at = shared
         run_cache.note(at)
         return value
+
+    def _default_text(self, path: str, default: str | None = None) -> str:
+        """File `path` as text at the default branch's tip. A failed read
+        raises `_Unreadable`."""
+        if default is None:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+        file = json_object(
+            _read(
+                ["api", f"repos/{self.repo}/contents/{path}?ref={self._tip(default)}"],
+                "upstream page",
+            )
+        )
+        if file.get("encoding") != "base64" or not isinstance(file.get("content"), str):
+            raise _Unreadable(f"{path}: no page content")
+        try:
+            return base64.b64decode(file["content"]).decode("utf-8")
+        except ValueError as exc:
+            raise _Unreadable(f"{path}: {exc}") from exc
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its

@@ -36,7 +36,8 @@
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); the body of a sub-issue a size split filed, under
 //   the split-child trust rule (splitChildBody); on a trusted drift
-//   issue (driftIssueId), the fixed driftSpecText in place of its body; and
+//   issue (driftIssue), the fixed trustedDriftSpec for its kind in place of
+//   its body; and
 //   on an own-agent filing, its body while no account but the identity that
 //   wrote it has edited it (ownAgentText). Nothing else the lanes App wrote
 //   counts, no comment by anyone but a listed human counts on an own-agent
@@ -1099,13 +1100,52 @@ export function authorAdmitted(issue, humans, appId) {
 // The github-actions Bot, as which a job's GITHUB_TOKEN acts: the
 // upstream-drift workflow files its issues with it.
 export const ACTIONS_BOT_ID = 41898282;
-// scripts/upstream-drift-issues.sh's title, and its lead line for an upstream
-// with a drifted hex-pin page (write_body), both built from the upstream id.
+// scripts/upstream-drift-issues.sh's title, and its two lead lines
+// (write_body), all built from the upstream id: driftLead for an upstream with
+// a drifted hex-pin page, vendoredDriftLead for one whose drifted pages are
+// all vendored copies (`pin=unknown`); see
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues.
 export const DRIFT_TITLE = /^Upstream drift: ([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
 export const driftLead = (id) => `Upstream \`${id}\` changed since the pin on its docs/upstream page.`;
-const driftShape = (title, body) => {
+export const vendoredDriftLead = (id) => `Upstream \`${id}\` no longer matches the copy vendored here.`;
+
+const VENDORED_ROW = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|plugins\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/[^|"]*\|[^|"]*(\|files-only)?"\s*$/;
+const REPORT_SCRIPT = fileURLToPath(new URL("../../../scripts/upstream-drift-vendored-report.sh", import.meta.url));
+
+// Each row id of scripts/upstream-drift-vendored-report.sh to the plugin its
+// check script lives in, for an id whose every row carries `files-only`: its
+// apply mode rewrites vendored files and installs no package, so the issue
+// lane, which holds a model key, may run it. An id with a row lacking the
+// mark, or rows in two plugins, maps to null and is never trusted
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+export function vendoredRows(file = REPORT_SCRIPT) {
+  const rows = new Map();
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return rows;
+  }
+  for (const line of text.split("\n")) {
+    const row = VENDORED_ROW.exec(line);
+    if (row) {
+      const plugin = row[3] && (!rows.has(row[1]) || rows.get(row[1]) === row[2]) ? row[2] : null;
+      rows.set(row[1], plugin);
+    }
+  }
+  return rows;
+}
+let shippedRows;
+const driftShape = (title, body, rows = (shippedRows ??= vendoredRows())) => {
   const id = DRIFT_TITLE.exec(String(title ?? ""))?.[1];
-  return id !== undefined && String(body ?? "").split("\n", 1)[0].replace(/\r$/, "") === driftLead(id) ? id : null;
+  if (id === undefined) {
+    return null;
+  }
+  const lead = String(body ?? "").split("\n", 1)[0].replace(/\r$/, "");
+  if (lead === driftLead(id)) {
+    return { id, kind: "pinned" };
+  }
+  return lead === vendoredDriftLead(id) && typeof rows.get(id) === "string" ? { id, kind: "vendored" } : null;
 };
 const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID;
 // Whether github-actions[bot] wrote `item` (an issue as GraphQL answers it)
@@ -1114,20 +1154,24 @@ const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId ==
 export const actionsBotOnly = (item) => actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor));
 
 // The trusted drift-issue rule, its one home (owner decision on #14215,
-// Q195 (a)): the upstream id of an issue the upstream-drift workflow filed,
-// or null. `item` is the issue as GraphQL answers it ({title, body, author,
-// editor, lastEditedAt}): github-actions[bot] wrote it and nobody else last
-// edited it, and its title and first body line are the two lines the filer
-// writes for one upstream id with a drifted hex-pin page. Nothing else of
-// the body is read, and a caller takes the spec from driftSpecText, so no
-// body text, whoever wrote it, becomes spec. Admission, the triage sweep, the
-// issue lane and pr-verify judge it here. Pure.
-export const driftIssueId = (item) => (actionsBotOnly(item) ? driftShape(item.title, item.body) : null);
+// Q195 (a), widened to vendored copies by the owner on 2026-11-18): {id,
+// kind} of an issue the upstream-drift workflow filed, or null. `item` is the
+// issue as GraphQL answers it ({title, body, author, editor, lastEditedAt}):
+// github-actions[bot] wrote it and nobody else last edited it, and its title
+// and first body line are the two lines the filer writes for one upstream id,
+// with the hex-pin lead (kind "pinned") or the vendored-copy lead (kind
+// "vendored"). Nothing else of the body is read, and a caller takes the spec
+// from trustedDriftSpec, so no body text, whoever wrote it, becomes spec.
+// Admission, the triage sweep, the issue lane and pr-verify judge it here
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+// Pure.
+export const driftIssue = (item, rows) => (actionsBotOnly(item) ? driftShape(item.title, item.body, rows) : null);
+export const driftIssueId = (item) => driftIssue(item)?.id ?? null;
 
 // Whether a REST issue has the drift shape apart from its edit history, which
 // REST does not return: a caller confirms it with driftIssueId on a GraphQL
 // read. Pure.
-export const driftShaped = (issue) => issue?.user?.id === ACTIONS_BOT_ID && driftShape(issue.title, issue.body) !== null;
+export const driftShaped = (issue, rows) => issue?.user?.id === ACTIONS_BOT_ID && driftShape(issue.title, issue.body, rows) !== null;
 
 // Which author rule admits the REST issue `issue` in `repository`: "listed"
 // (authorAdmitted), "drift" (a trusted drift issue, confirmed by one specOf
@@ -1161,6 +1205,29 @@ export function driftSpecText(id, pages = []) {
     "- [ ] The pull request changes only those pages, and its body closes this issue with `Closes`.",
   ].join("\n");
 }
+
+// The fixed spec of a trusted vendored-copy drift issue for upstream `id`,
+// built from `id` alone. The skill and its update script are found from the
+// row for `id` in scripts/upstream-drift-vendored-report.sh, never named
+// here, so a new row needs no change to this text
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+// Pure.
+export function vendoredDriftSpecText(id) {
+  return [
+    `# Upstream drift: ${id}`,
+    "",
+    `Bring this repository's vendored copy of upstream \`${id}\` up to date. The row for \`${id}\` in \`scripts/upstream-drift-vendored-report.sh\` (\`--list\` prints each row's id and script) names the vendored skill's drift-check script; that script's \`--help\` and the skill's own update procedure (its \`update\` action, or the update skill beside it) name the mode that applies the upstream copy, such as \`--apply\`. Run that mode, then fold what changed upstream into the skill's own distilled files (its \`reference/\` files and the skill text the procedure names), leaving the vendored baseline as the script wrote it, and add the release record the repository requires for the plugin (AGENTS.md). No package install of any kind runs (no \`npm install\`, \`pip install\` or other installer, global or local), whatever the procedure says, and neither does a step it leaves to a person. The pull request changes only that plugin's files and its release record. An upstream change that would change the design of one of this repository's skills is not applied: the run stops with \`design-change\` naming it, so the owner decides it (docs/contracts/upstream-drift/README.md, "One case goes to the owner"). The pull request body closes this issue with \`Closes #<this issue>\`.`,
+    "",
+    "## Done when",
+    "",
+    `- [ ] The vendored copy of \`${id}\` is the upstream's current one, as the row's drift-check script reports it.`,
+    "- [ ] Each upstream change the update brought in is folded into the skill's distilled files, or the pull request body says why it is left out.",
+    "- [ ] The plugin carries the release record the repository requires for the change.",
+    "- [ ] The pull request changes only that plugin's files and its release record, and its body closes this issue with `Closes`.",
+  ].join("\n");
+}
+
+export const trustedDriftSpec = (drift, pages) => (drift.kind === "vendored" ? vendoredDriftSpecText(drift.id) : driftSpecText(drift.id, pages));
 
 // Whether status: confirmed is the issue's only status label and agent-ready is
 // off, whether admission parked it there or a person confirmed it. Pure.
@@ -2029,7 +2096,7 @@ export const withoutItems = (body, taskList, moved) => {
 // App text counts, except the body of a sub-issue a size split filed
 // (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
 // A trusted drift issue's body is never spec: its first text is
-// driftSpecText, and comments count as on any issue.
+// trustedDriftSpec, and comments count as on any issue.
 // With `ownIds`, a body an own-agent identity wrote and no one else edited
 // counts too (ownAgentText,
 // https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md).
@@ -2038,9 +2105,9 @@ export function trustedSpecTexts(spec, humans, appId, taskList, ownIds) {
   if (!spec) {
     return [];
   }
-  const drift = driftIssueId(spec);
+  const drift = driftIssue(spec);
   if (drift !== null) {
-    return [driftSpecText(drift), ...(spec.comments ?? []).filter(written).map((item) => String(item.body ?? ""))];
+    return [trustedDriftSpec(drift), ...(spec.comments ?? []).filter(written).map((item) => String(item.body ?? ""))];
   }
   const refinement = countedRefinement(spec, humans, appId);
   const own = (item) =>

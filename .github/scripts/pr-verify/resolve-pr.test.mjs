@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -460,7 +460,7 @@ test("a drift-shaped issue that is not the workflow's, or a pull request beyond 
     ["the same title from an outsider", drift({ author: { __typename: "User", login: "drive-by", databaseId: 999 } }), PAGE_ONLY],
     ["the same title from the lanes App", drift({ author: lanes }), PAGE_ONLY],
     ["a github-actions issue with no drift lead line", drift({ body: `<!-- factory-monitor key=x -->\n${DRIFT_LEAD}` }), PAGE_ONLY],
-    ["a github-actions issue with the vendored-copy lead", drift({ body: `Upstream \`${DRIFT_ID}\` no longer matches the copy vendored here.` }), PAGE_ONLY],
+    ["the vendored-copy lead for an upstream no vendored row names", drift({ body: `Upstream \`${DRIFT_ID}\` no longer matches the copy vendored here.` }), PAGE_ONLY],
     ["a github-actions issue with another title", drift({ title: "Monitor: something" }), PAGE_ONLY],
     ["a title naming another upstream than the lead line", drift({ title: "Upstream drift: emilkowalski/skills" }), [{ filename: OTHER_PAGE, status: "modified" }]],
     ["a body someone else last edited", drift({ lastEditedAt: "2026-11-10T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } }), PAGE_ONLY],
@@ -477,6 +477,73 @@ test("a drift-shaped issue that is not the workflow's, or a pull request beyond 
     const [entry] = (await resolve({ issues: [issue], changed }, { upstreamPages: PAGES })).specText;
     assert.deepEqual(entry, { number: 7, spec_kind: "closes", body: null, comments: [] }, why);
   }
+});
+
+const VENDORED_ID = "playwright/playwright";
+const vendored = (overrides = {}) =>
+  drift({
+    title: `Upstream drift: ${VENDORED_ID}`,
+    body: `Upstream \`${VENDORED_ID}\` no longer matches the copy vendored here.\n\nRun: 2026-11-18, https://example.test/run\n\n### \`playwright:playwright\`\n`,
+    ...overrides,
+  });
+const SYNC = [
+  { filename: "plugins/playwright/skills/playwright/vendor/SKILL.md", status: "modified" },
+  { filename: "plugins/playwright/skills/playwright/vendor/references/new.md", status: "added" },
+  { filename: "plugins/playwright/skills/playwright/vendor/references/old.md", status: "removed" },
+  { filename: "plugins/playwright/skills/playwright/reference/commands.md", status: "modified" },
+  { filename: ".changes/playwright/fix-sync-0123abcd.md", status: "added" },
+];
+
+test("a vendored-copy drift issue is the spec of a sync inside its row's plugin, never its own text", async () => {
+  const [entry] = (await resolve({ issues: [vendored()], changed: SYNC }, { upstreamPages: PAGES })).specText;
+  assert.equal(entry.source, "upstream-drift");
+  assert.match(entry.body, /^# Upstream drift: playwright\/playwright\n/);
+  assert.match(entry.body, /`scripts\/upstream-drift-vendored-report\.sh`/);
+  assert.doesNotMatch(entry.body, /docs\/upstream page/);
+});
+
+test("a vendored-copy drift issue has no spec beyond its row's plugin or from another author", async () => {
+  const cases = [
+    ["a workflow file beside the sync", vendored(), [...SYNC, { filename: ".github/workflows/pr-verify.yml", status: "modified" }]],
+    ["another plugin's files", vendored(), [{ filename: "plugins/firecrawl/skills/update/SKILL.md", status: "modified" }]],
+    ["another plugin's fragment", vendored(), [...SYNC, { filename: ".changes/firecrawl/x-0123abcd.md", status: "added" }]],
+    ["a rename from outside the plugin", vendored(), [{ filename: "plugins/playwright/x.md", previous_filename: "scripts/x.md", status: "renamed" }]],
+    ["a docs/upstream page", vendored(), [{ filename: DRIFT_PAGE, status: "modified" }]],
+    ["an id no vendored row names", vendored({ title: "Upstream drift: someone/else", body: "Upstream `someone/else` no longer matches the copy vendored here." }), [{ filename: "plugins/someone/x.md", status: "modified" }]],
+    ["the same title and lead from a person", vendored({ author: { __typename: "User", login: "drive-by", databaseId: 999 } }), SYNC],
+    ["a body someone else last edited", vendored({ lastEditedAt: "2026-11-18T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } }), SYNC],
+    ["a pull request changing nothing", vendored(), []],
+  ];
+  for (const [why, issue, changed] of cases) {
+    const [entry] = (await resolve({ issues: [issue], changed }, { upstreamPages: PAGES })).specText;
+    assert.deepEqual(entry, { number: 7, spec_kind: "closes", body: null, comments: [] }, why);
+  }
+});
+
+test("vendoredRows maps only files-only rows to their plugin; a package-installing row, or an id two plugins claim, maps to none", () => {
+  const shipped = vendoredRows();
+  assert.equal(shipped.get("playwright/playwright"), "playwright");
+  assert.equal(shipped.get("Dometrain/mcp"), "dometrain");
+  assert.equal(shipped.get("firecrawl/update"), null, "firecrawl's apply mode runs npm install -g");
+  assert.equal(shipped.get("upstash/context7"), null, "context7's update runs npm install -g");
+  const dir = tempDir("vendored-rows-");
+  const file = path.join(dir, "report.sh");
+  writeFileSync(
+    file,
+    [
+      "ROWS=(",
+      '  "a/b|plugins/one/skills/s/scripts/update.sh|--check|files-only"',
+      '  "g/h|plugins/one/x.sh|--check"',
+      '  "c/d|plugins/one/x.sh||files-only"',
+      '  "c/d|plugins/two/x.sh||files-only"',
+      '  "i/j|plugins/one/x.sh|--check|files-only"',
+      '  "i/j|plugins/one/y.sh|--check"',
+      '  "e/f|scripts/x.sh|--check|files-only"',
+      ")",
+      "",
+    ].join("\n"),
+  );
+  assert.deepEqual([...vendoredRows(file)], [["a/b", "one"], ["g/h", null], ["c/d", null], ["i/j", null]]);
 });
 
 test("a drift issue a Refs: line names, not a closing one, has no spec", async () => {

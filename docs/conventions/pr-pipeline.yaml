@@ -1868,6 +1868,8 @@ merge:
         class: enforcement
       - glob: "docs/upstream/**"
         class: enforcement
+      - glob: "scripts/upstream-drift-vendored-report.sh"
+        class: enforcement
       - glob: ".github/scripts/recurring-schedule/file-due.mjs"
         class: enforcement
       - glob: ".github/scripts/maintenance-monitor-signals/issues.mjs"

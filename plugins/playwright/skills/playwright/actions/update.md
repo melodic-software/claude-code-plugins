@@ -58,7 +58,7 @@ For a large or breaking diff (new files, removed sections), read the upstream Gi
 |---|---|
 | Never edit `vendor/` during integration | The baseline is only ever replaced wholesale by `--apply` |
 | Never commit a partial sync | Whole flow is one PR; `--check` default forces review before `--apply` |
-| Never auto-upgrade | The script requires `--apply`; nothing runs on a schedule |
+| Upgrade only through a reviewed pull request | The marketplace's daily drift workflow runs `--check` and files an `Upstream drift: playwright/playwright` issue when upstream moves; the issue lane then runs `--apply` and this integration, and the change merges through the pull request's review. The script itself changes nothing without `--apply` |
 | Never lose editorial additions | `reference/*.md` is never touched by the script, only by reviewed manual integration |
 | Never mutate global state | The script writes only inside the plugin directory and a temp dir |
 

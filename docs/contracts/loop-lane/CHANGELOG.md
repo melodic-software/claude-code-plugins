@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.10.2] - 2026-11-18
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Posting lanes.** The `maintenance-file-upstream-drift-issues` row says the workflow runs daily,
+  as it now does, where it said weekly.
+
 ## [19.10.1] - 2026-11-18
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

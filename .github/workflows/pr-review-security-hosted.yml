@@ -379,6 +379,7 @@ jobs:
         lib/publish-gate.mjs
         .github/recurring-schedule.json
         docs/upstream/**
+        scripts/upstream-drift-vendored-report.sh
         .github/scripts/recurring-schedule/file-due.mjs
         .github/scripts/maintenance-monitor-signals/issues.mjs
         .github/scripts/lib/github-rest.mjs
