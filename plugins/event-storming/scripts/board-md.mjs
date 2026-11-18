@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { realpathSync } from "node:fs";
-import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const BOARD_TAG = "event-storming/1";
@@ -702,6 +704,59 @@ function writeAtomic(path, text) {
   renameSync(tmp, path);
 }
 
+const isWithin = (parent, child) => {
+  const rel = relative(parent, child);
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+};
+
+function physicalPathRefusingDanglingLinks(path) {
+  const missing = [];
+  let at = path;
+  for (;;) {
+    try {
+      return join(realpathSync(at), ...missing);
+    } catch (error) {
+      const dangling = error.code === "ENOENT" && lstatSync(at, { throwIfNoEntry: false });
+      if (dangling || !["ENOENT", "ENOTDIR"].includes(error.code)) throw error;
+      missing.unshift(basename(at));
+      at = dirname(at);
+    }
+  }
+}
+
+function gitRoot() {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  const stdio = ["ignore", "pipe", "ignore"];
+  const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", env, stdio }).replace(/\r?\n$/, "");
+  return root ? realpathSync(root) : null;
+}
+
+function writableBoardPath(path) {
+  const refuse = (why) => fail(`refused ${path}: ${why}; nothing was written`, 1);
+  const isBoardName = (name) => name.endsWith(".md") && basename(name) !== ".md";
+  if (!isBoardName(path)) refuse("a board file name must end in .md");
+  if (path.split(/[\\/]/).includes("..")) refuse("a board path cannot hold a .. segment");
+  let root = null;
+  try {
+    root = gitRoot();
+  } catch {
+    root = null;
+  }
+  if (!root) refuse("the working directory is not inside a git repository");
+  let target;
+  try {
+    if (isWithin(root, physicalPathRefusingDanglingLinks(homedir()))) refuse(`the git root ${root} is the home directory or an ancestor of it`);
+    target = physicalPathRefusingDanglingLinks(resolve(path));
+  } catch (error) {
+    refuse(`the path cannot be resolved (${error.code ?? error.message})`);
+  }
+  if (!isWithin(root, target)) refuse(`it resolves outside the project root ${root}`);
+  if (!isBoardName(target)) refuse("a board file name must end in .md");
+  return target;
+}
+
 const USAGE = "usage: board-md.mjs parse|check <board.md> | new <board.md> <meta.json> | apply [--now <iso>] <board.md> <ops.json>";
 
 function main(argv) {
@@ -726,11 +781,12 @@ function main(argv) {
     process.exit(findings.some((f) => f.level === "error") ? 1 : 0);
   }
   if (command === "new" && args.length === 3) {
-    if (existsSync(path)) fail(`${path} already exists`, 1);
+    const target = writableBoardPath(path);
+    if (existsSync(target)) fail(`${path} already exists`, 1);
     try {
       const text = renderBoard(newBoard(readJson(input), now));
-      mkdirSync(dirname(path), { recursive: true });
-      writeAtomic(path, text);
+      mkdirSync(dirname(target), { recursive: true });
+      writeAtomic(target, text);
     } catch (error) {
       if (error instanceof BoardError) fail(error.message, 1);
       fail(`cannot write ${path}: ${error.code ?? error.message}`, 2);
@@ -739,7 +795,8 @@ function main(argv) {
     return;
   }
   if (command === "apply" && args.length === 3) {
-    const board = loadBoard(path);
+    const target = writableBoardPath(path);
+    const board = loadBoard(target);
     const errors = checkBoard(board).filter((f) => f.level === "error");
     if (errors.length) fail(`${path}: fix before applying: ${errors.map((e) => e.message).join("; ")}`, 1);
     const payload = readJson(input);
@@ -755,7 +812,7 @@ function main(argv) {
     const after = checkBoard(parseBoard(renderBoard(board))).filter((f) => f.level === "error");
     if (after.length) fail(`refused: the result would not check: ${after.map((e) => e.message).join("; ")}`, 1);
     try {
-      writeAtomic(path, renderBoard(board));
+      writeAtomic(target, renderBoard(board));
     } catch (error) {
       fail(`cannot write ${path}: ${error.code ?? error.message}`, 2);
     }

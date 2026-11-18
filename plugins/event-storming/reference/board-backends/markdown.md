@@ -16,10 +16,13 @@ Each session writes its boards under the board directory, one folder per session
 
 `<board_dir>` is the team file's `board_dir` key (`event-storming.yaml` in the convention home),
 default `docs/event-storming`, relative to the repository root. The skill writes these files and
-never stages or commits them: whether a board is committed is the person's call. Outside a git
-repository, or at a root that is the home directory or one of its ancestors, the skill asks for a
-directory instead of writing one. `<bc-slug>` is the bounded context's name, lower-case, with
-every run of other characters turned into one `-`.
+never stages or commits them: whether a board is committed is the person's call. `<bc-slug>` is
+the bounded context's name, lower-case, with every run of other characters turned into one `-`.
+
+`new` and `apply` write only inside the project root, git's top level of the working directory.
+They exit 1 and write nothing outside a git repository, at a root that is the home directory or
+one of its ancestors, or for a path that holds a `..` segment, does not name a `.md` file, or
+resolves outside the root through a symlink.
 
 ## Who writes
 

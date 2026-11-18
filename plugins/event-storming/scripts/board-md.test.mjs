@@ -1,9 +1,16 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const dir = process.argv[2];
-const work = process.argv[3];
+const base = process.argv[3];
+const work = `${base}/repo`;
+const outside = `${base}/outside`;
+mkdirSync(work);
+mkdirSync(outside);
+const cleanEnv = { ...process.env, GIT_CEILING_DIRECTORIES: base };
+for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete cleanEnv[key];
+spawnSync("git", ["init", "-q", work], { env: cleanEnv });
 const script = `${dir}/board-md.mjs`;
 const { KINDS, parseBoard, renderBoard } = await import(pathToFileURL(script).href);
 
@@ -16,7 +23,8 @@ const check = (name, cond, detail) => {
     failed += 1;
   }
 };
-const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+const runIn = (cwd, env, ...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8", cwd, env: { ...cleanEnv, ...env } });
+const run = (...args) => runIn(work, {}, ...args);
 const NOW = "2026-11-18T05:30:00Z";
 const apply = (board, ops) => {
   writeFileSync(`${work}/ops.json`, JSON.stringify(ops));
@@ -264,5 +272,69 @@ check("the content scan flags long, prefixed and emoji text", scan.includes("war
 check("a five-word sticky is not flagged", !scan.includes("over 5 words: s6"));
 check("a duplicate id fails check", run("check", (writeFileSync(`${work}/d.md`, handWrittenBoard.replace("{#s9}", "{#s1}")), `${work}/d.md`)).stdout.includes("error: duplicate id: s1"));
 check("check exits 2 on a missing file", run("check", `${work}/none.md`).status === 2 && !existsSync(`${work}/none.md`));
+
+const tree = () => JSON.stringify(readdirSync(base, { recursive: true }).filter((p) => !p.startsWith("repo/.git")).sort());
+const metaFile = `${work}/bp-meta.json`;
+const opsFile = `${work}/containment-ops.json`;
+writeFileSync(opsFile, JSON.stringify([{ op: "meta", phase: "wrapping-up" }]));
+writeFileSync(`${outside}/board.md`, handWrittenBoard);
+writeFileSync(`${outside}/notes.txt`, handWrittenBoard);
+writeFileSync(`${work}/notes.txt`, handWrittenBoard);
+symlinkSync(outside, `${work}/out-link`);
+symlinkSync(`${outside}/board.md`, `${work}/board-link.md`);
+symlinkSync(`${outside}/not-yet.md`, `${work}/dangling.md`);
+symlinkSync(`${outside}/not-yet`, `${work}/dangling-dir`);
+symlinkSync(`${work}/notes.txt`, `${work}/notes-link.md`);
+symlinkSync(`${work}/bp.md`, `${work}/board-alias.txt`);
+mkdirSync(`${work}/sub`);
+mkdirSync(`${base}/plain`);
+mkdirSync(`${work}/fake-home`);
+
+const refusals = [
+  ["an absolute path outside the root", work, {}, `${outside}/new/board.md`, "outside the project root"],
+  ["a .. escape", work, {}, "../outside/new/board.md", ".. segment"],
+  ["a .. segment that a symlink would redirect", work, {}, "out-link/../new/board.md", ".. segment"],
+  ["a symlinked folder that leaves the root", work, {}, "out-link/new/board.md", "outside the project root"],
+  ["a dangling symlinked folder", work, {}, "dangling-dir/board.md", "cannot be resolved"],
+  ["a dangling symlinked file", work, {}, "dangling.md", "cannot be resolved"],
+  ["a non-.md name", work, {}, "new/board.txt", "must end in .md"],
+  ["a bare .md name", work, {}, "new/.md", "must end in .md"],
+  ["a symlink to a non-.md file", work, {}, "notes-link.md", "must end in .md"],
+  ["a git root that is the home directory", work, { HOME: work }, "new/board.md", "home directory"],
+  ["a git root above the home directory", work, { HOME: `${work}/fake-home` }, "new/board.md", "home directory"],
+  ["a working directory with no git root", `${base}/plain`, {}, "new/board.md", "not inside a git repository"],
+];
+for (const [name, cwd, env, path, reason] of refusals) {
+  const before = tree();
+  result = runIn(cwd, env, "new", path, metaFile);
+  check(`new refuses ${name} and leaves nothing behind`, result.status === 1 && result.stdout === "" && result.stderr.includes(reason) && tree() === before, result.stderr);
+}
+
+const applyRefusals = [
+  ["a board outside the root", work, {}, `${outside}/board.md`, "outside the project root", `${outside}/board.md`],
+  ["a .. path to a board outside the root", work, {}, "../outside/board.md", ".. segment", `${outside}/board.md`],
+  ["a symlinked board that leaves the root", work, {}, "board-link.md", "outside the project root", `${outside}/board.md`],
+  ["a board that is not .md", work, {}, "notes.txt", "must end in .md", `${work}/notes.txt`],
+  ["a symlink to a non-.md board", work, {}, "notes-link.md", "must end in .md", `${work}/notes.txt`],
+  ["a non-.md name that links to a board", work, {}, "board-alias.txt", "must end in .md", `${work}/bp.md`],
+  ["a board under a home-directory root", work, { HOME: work }, "bp.md", "home directory", `${work}/bp.md`],
+  ["a board with no git root", outside, {}, "board.md", "not inside a git repository", `${outside}/board.md`],
+];
+for (const [name, cwd, env, path, reason, file] of applyRefusals) {
+  const before = tree();
+  const content = readFileSync(file, "utf8");
+  result = runIn(cwd, env, "apply", path, opsFile);
+  check(`apply refuses ${name} and changes nothing`, result.status === 1 && result.stdout === "" && result.stderr.includes(reason) && tree() === before && readFileSync(file, "utf8") === content, result.stderr);
+}
+
+result = runIn(`${work}/sub`, {}, "new", "--now", NOW, "boards/inside.md", metaFile);
+check("new writes a relative path inside the root from a subfolder", result.status === 0 && existsSync(`${work}/sub/boards/inside.md`), result.stderr);
+result = runIn(`${work}/sub`, {}, "apply", "--now", NOW, "boards/inside.md", opsFile);
+check("apply rewrites a board inside the root from a subfolder", result.status === 0 && readFileSync(`${work}/sub/boards/inside.md`, "utf8").includes("phase: wrapping-up"), result.stderr);
+symlinkSync(`${work}/sub/boards/inside.md`, `${work}/inside-link.md`);
+result = runIn(work, {}, "apply", "--now", NOW, "inside-link.md", opsFile);
+check("apply through a symlink that stays inside the root keeps the link", result.status === 0 && readdirSync(work, { withFileTypes: true }).find((e) => e.name === "inside-link.md")?.isSymbolicLink() === true, result.stderr);
+check("check still reads a board outside the root", runIn(outside, {}, "check", `${outside}/board.md`).status === 0);
+check("parse still reads a board outside the root", JSON.parse(runIn(outside, {}, "parse", `${outside}/board.md`).stdout).meta.format === "big-picture");
 
 if (failed > 0) process.exit(1);
