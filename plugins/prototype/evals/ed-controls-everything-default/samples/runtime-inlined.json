@@ -39,6 +39,18 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");fs.appendFileSync(\\\"/tmp/explore-directions-a1B2c3/explore-directions.html\\\", fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\"))'\",\"description\":\"x\"}}]}}",
       "why": "appended by a Node script and fs.appendFileSync"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\n{ cat /tmp/explore-directions-a1B2c3/head.html; cat /plugin/notes-bridge/controls.js; cat /tmp/explore-directions-a1B2c3/tail.html; } > \\\"$OUT\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page written by a group redirected to a shell variable"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d)\\nOUT=$d/explore-directions.html\\n{ cat /tmp/explore-directions-a1B2c3/head.html; cat /plugin/notes-bridge/controls.js; cat /tmp/explore-directions-a1B2c3/tail.html; } > \\\"$OUT\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page variable assigned on a later line of the command, then written by a redirected group"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd /tmp/explore-directions-a1B2c3\\nsed -i '/<!-- runtime -->/r /plugin/notes-bridge/controls.js' explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "read into the page by sed -i r on a later line of the command"
     }
   ],
   "fail": [
@@ -81,6 +93,18 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const fs=require(\\\"fs\\\");console.log(fs.readFileSync(\\\"/plugin/notes-bridge/controls.js\\\",\\\"utf8\\\").length,fs.existsSync(\\\"explore-directions.html\\\"))'\",\"description\":\"x\"}}]}}",
       "why": "a Node script that reads both files and writes nothing"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"{ wc -l /plugin/notes-bridge/controls.js; } > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "a redirect to a shell variable in a command that names no page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c uiFeedbackControls /plugin/notes-bridge/controls.js /tmp/explore-directions-a1B2c3/explore-directions.html > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "a read-only grep naming both files, redirected to a variable the command never sets to the page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\nLOG=/tmp/explore-directions-a1B2c3/count.txt\\ngrep -c uiFeedbackControls /plugin/notes-bridge/controls.js \\\"$OUT\\\" > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the page is assigned to one variable but the redirect writes to another"
     }
   ]
 }
