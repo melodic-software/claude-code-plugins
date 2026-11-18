@@ -59,8 +59,7 @@ Claude Code itself has no `--profile` flag; the function adds it:
 - Everything else `claude` does is unchanged.
 
 The function runs the real `claude` untouched
-unless the words start with a flag and include `-c`, `--continue`, `-r`, `--resume` or
-`--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` out of
+unless the words start with a flag and include `-r`, `--resume` or `--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` out of
 the words, writes the one-session file and starts `claude` with it and every other word. The
 function finds the plugin through `~/.claude/plugin-profiles-state/root`, which the session-start
 hook of the installed plugin writes. To try a copy from a worktree, set `PLUGIN_PROFILES_ROOT` to
