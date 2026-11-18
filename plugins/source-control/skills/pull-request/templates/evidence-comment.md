@@ -3,6 +3,11 @@
 
 {{summary}}
 
+{{#criteria}}
+
+{{criteria_table}}
+
+{{/criteria}}
 {{#record}}
 
 | Record | |
