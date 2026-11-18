@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.9] - 2026-11-18
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pull request held only by `evidence-unbound:<lane>` with the unbound reason `rerun-not-allowed` now gets the gate's whole-review request, so a new run at the same head can bind the review. No other unbound reason requests one, and the per-head, per-pull-request and per-sweep limits still apply. What the merge gate accepts does not change.
+
 ## [11.21.8] - 2026-11-18
 
 ### Changed
