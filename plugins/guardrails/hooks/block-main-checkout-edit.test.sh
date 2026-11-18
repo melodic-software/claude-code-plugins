@@ -125,8 +125,10 @@ fi
 g clone -q "$T/origin.git" "$T/fsm"
 printf '#!/bin/sh\ntouch "%s"\n' "$T/fsm-ran" >"$T/fsm.sh"
 chmod +x "$T/fsm.sh"
-printf '[core]\n\tfsmonitor = %s\n' "$T/fsm.sh" >"$T/fsm-include"
-g -C "$T/fsm" config core.fsmonitor "$T/fsm.sh"
+FSM_HOOK="$T/fsm.sh"
+if command -v cygpath >/dev/null 2>&1; then FSM_HOOK="$(cygpath -m "$FSM_HOOK")"; fi
+printf '[core]\n\tfsmonitor = %s\n' "$FSM_HOOK" >"$T/fsm-include"
+g -C "$T/fsm" config core.fsmonitor "$FSM_HOOK"
 g -C "$T/fsm" config include.path "$T/fsm-include"
 deny "planted core.fsmonitor: still judged" "$(edit_json "$T/fsm/a.txt" b)"
 assert_file_absent "planted core.fsmonitor never runs" "$T/fsm-ran"
