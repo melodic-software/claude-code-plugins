@@ -471,6 +471,7 @@ const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 const ERROR_LINE = stamped(String.raw`##\[error\]`);
+const STEP_EDGE = stamped(String.raw`##\[(?:group\]Run |start-action |end-action )`);
 const HELD_UNTIL = stamped(
   String.raw`##\[error\].* was not sent: GitHub(?:'s .+ rate limit holds until| answered HTTP (?<status>5\d\d) with a Retry-After; no call to it before) (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)(?: \(.*\))?$`,
 );
@@ -2123,9 +2124,11 @@ function floorIn(lines) {
   let found = null;
   let limited = false;
   let unexplained = true;
-  for (const line of lines.filter((item) => ERROR_LINE.test(item))) {
+  for (const line of lines.filter((item) => ERROR_LINE.test(item) || STEP_EDGE.test(item))) {
     const named = stopNamedIn(line) ?? stopNamed(HELD_UNTIL.exec(line)?.groups);
-    if (named) {
+    if (STEP_EDGE.test(line)) {
+      unexplained = true;
+    } else if (named) {
       found = !found || found === NO_RESET || Date.parse(named.split(" ")[0]) > Date.parse(found.split(" ")[0]) ? named : found;
       limited ||= !named.includes(" ");
       unexplained = false;

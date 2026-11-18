@@ -8284,6 +8284,11 @@ test("an error that is no rate limit's keeps the run an ordinary failure", async
     ["an HttpError that is no rate limit", [`2026-11-18T04:14:52.8178228Z ##[error]Unhandled error: HttpError: Bad credentials`, leak, ""].join("\n")],
     ["only the exit line", `${exit}\n`],
     ["a later step that failed with only its exit line", stopThenBareExit],
+    [
+      "a step that ended green on a retried rate limit, then a step that failed with only its exit line",
+      [floorStopLine(FLOOR_RESET), "2026-10-16T10:04:59.0000000Z ##[end-action id=gate.check;outcome=success;conclusion=success;duration_ms=5]", "2026-10-16T10:05:00.0000000Z ##[group]Run node apply.mjs", exit, ""].join("\n"),
+    ],
+    ["a retried rate limit, then a plain run step that failed with only its exit line", [floorStopLine(FLOOR_RESET), "2026-10-16T10:05:00.0000000Z ##[group]Run node apply.mjs", exit, ""].join("\n")],
   ]) {
     const { github, actions, calls } = floorRun({ jobs: scanOnly, logs: { [SCAN_JOB]: log } });
     assert.equal(await sweep({ github, actions, now: Date.parse("2026-10-16T12:30:00Z") }), 0, name);
