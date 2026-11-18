@@ -12,6 +12,7 @@ go-gh's `HTTPError.Error()`, `HTTP %d: %s (%s)` (cli/go-gh pkg/api/errors.go).
 from __future__ import annotations
 
 import io
+import json
 import os
 import pathlib
 import shutil
@@ -509,6 +510,68 @@ class AnOuterRetryDoesNotMultiply(RetryCase):
         self.assertEqual(answer, {"sha": "abc"})
         self.assertEqual(len(self.sent), 2)
         self.assertEqual(self.waits, [])
+
+    def run_record(self, head: str, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": 2,
+            "path": verify_evidence.WORKFLOW_PATH,
+            "event": "workflow_run",
+            "head_branch": "main",
+            "repository": {"full_name": "o/r"},
+            "head_repository": {"full_name": "o/r"},
+            "head_sha": head,
+            "status": "completed",
+            "conclusion": "success",
+            **fields,
+        }
+
+    def carried_run_state(
+        self, carried_head: str, live: dict[str, Any], *later: str
+    ) -> str:
+        """`_run_state` for a carried record whose compare answers 502 on all
+        three attempts, then `live` for the run read, then each of `later`."""
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        cache = {"BABYSIT_RUN_CACHE": str(pathlib.Path(temp.name, "run.json"))}
+        patcher = mock.patch.dict(os.environ, cache)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        verify_evidence.run_cache.put(
+            verify_evidence.CARRIED_RUN_SECTION, "o/r|2", self.run_record(carried_head)
+        )
+        self.bad_gateway(3)
+        self.answer(0, head(200) + json.dumps(live))
+        for body in later:
+            self.answer(0, head(200) + body)
+        self.bad_gateway(3)
+        return self.reader()._run_state(2, shared=True)
+
+    def compared_heads(self) -> list[str]:
+        return [
+            argv[-1].split("/compare/")[1].split("...")[0]
+            for argv in self.sent
+            if "/compare/" in argv[-1]
+        ]
+
+    def test_a_failed_carried_compare_is_not_sent_for_the_live_record(self) -> None:
+        sha = "a" * 40
+        state = self.carried_run_state(sha, self.run_record(sha))
+        self.assertEqual(state, verify_evidence.UNREAD)
+        self.assertEqual(self.compared_heads(), [sha] * 3)
+
+    def test_a_live_record_on_another_head_reads_its_own_compare(self) -> None:
+        carried, live = "a" * 40, "b" * 40
+        state = self.carried_run_state(
+            carried, self.run_record(live), '{"status":"identical"}'
+        )
+        self.assertEqual(state, verify_evidence.COUNTED)
+        self.assertEqual(self.compared_heads(), [carried] * 3 + [live])
+
+    def test_a_live_record_of_another_origin_stays_foreign(self) -> None:
+        sha = "a" * 40
+        state = self.carried_run_state(sha, self.run_record(sha, event="push"))
+        self.assertEqual(state, verify_evidence.FOREIGN)
+        self.assertEqual(self.compared_heads(), [sha] * 3)
 
     def test_a_read_outside_those_loops_keeps_its_retry(self) -> None:
         self.bad_gateway()

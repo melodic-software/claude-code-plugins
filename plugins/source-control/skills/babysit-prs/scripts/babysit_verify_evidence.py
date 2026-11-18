@@ -297,7 +297,7 @@ import tempfile
 import time
 import urllib.parse
 import zipfile
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -2639,13 +2639,20 @@ class Reader:
             # A body cut short while gh exits 0.
             raise _CutShort(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str, *, shared: bool = False) -> bool:
+    def _contains(
+        self,
+        sha: str,
+        *,
+        shared: bool = False,
+        unread: Mapping[str, _Unreadable] | None = None,
+    ) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
         contents read). A yes stays true while the branch only moves forward
         (main's ruleset forbids force pushes), so the run shares it; a no is
         read again by each gate process. A yes an earlier run found
         (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
-        can only count the FAIL."""
+        can only count the FAIL. A head in `unread` raises its failure with
+        no read, since its compare has spent its attempts."""
         if sha not in self._on_branch:
             key = f"{self.repo}|{sha}...{self.branch}"
             if run_cache.get("on-branch", key, None) is True:
@@ -2653,6 +2660,8 @@ class Reader:
                 return True
             if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
                 return True
+            if unread and sha in unread:
+                raise unread[sha]
             compare = json_object(
                 self._actions(
                     ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
@@ -2680,6 +2689,7 @@ class Reader:
         record = run_cache.get(RUN_SECTION, key, None) if shared else None
         cached = is_json_object(record)
         origin: bool | None = None
+        unread: dict[str, _Unreadable] = {}
         if shared and not cached:
             # A carried record counts the FAIL when it shows origin; any
             # other answer from it could turn the FAIL away, so the run is
@@ -2690,8 +2700,8 @@ class Reader:
                 try:
                     if self._origin(carried, run_id, shared=True):
                         record, cached, origin = carried, True, True
-                except _Unreadable:
-                    pass
+                except _Unreadable as exc:
+                    unread[str(carried.get("head_sha"))] = exc
         try:
             if not cached:
                 record = json_object(
@@ -2701,7 +2711,7 @@ class Reader:
                     )
                 )
             if origin is None:
-                origin = self._origin(record, run_id, shared=shared)
+                origin = self._origin(record, run_id, shared=shared, unread=unread)
         except _Unreadable:
             self._shared_runs.discard(run_id)
             self._runs[run_id] = UNREAD
@@ -2722,9 +2732,16 @@ class Reader:
         self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
 
-    def _origin(self, record: dict[str, Any], run_id: int, *, shared: bool) -> bool:
+    def _origin(
+        self,
+        record: dict[str, Any],
+        run_id: int,
+        *,
+        shared: bool,
+        unread: Mapping[str, _Unreadable] | None = None,
+    ) -> bool:
         """Whether `record` names a run of the verifier on the branch of this
-        repository whose head the branch holds."""
+        repository whose head the branch holds (`_contains`, with `unread`)."""
         head = record.get("head_sha")
         return (
             _is_id(record.get("id"), run_id)
@@ -2735,7 +2752,7 @@ class Reader:
             and json_object(record.get("head_repository")).get("full_name") == self.repo
             and isinstance(head, str)
             and merge_policy.SHA_RE.fullmatch(head) is not None
-            and self._contains(head, shared=shared)
+            and self._contains(head, shared=shared, unread=unread)
         )
 
     def _head_ref(self, run_id: int, name: str, artifact_id: Any, head_ref: str) -> Any:
