@@ -56,6 +56,10 @@ rt__reset() {
 }
 rt__reset
 
+rt_git() {
+  if declare -F hook::git_untrusted >/dev/null; then hook::git_untrusted "$@"; else git "$@"; fi
+}
+
 rt_resolve() { # <file> <concern> <root>
   rt__reset
   RT_ROOT="$3"
