@@ -2864,7 +2864,9 @@ like any other code; a change to the takeover set (the merge gate's HIGH floor) 
 care and fails when it lets someone outside the organization gain trust; touching one is not a
 defect by itself. A check, permission or
 guard weakened beyond what the spec asks fails the verdict for every change, takeover set or not,
-as the prompt's Safety step says. A diff too large to judge whole fails when a part not judged is a
+and a spec asks for a weakened check only when a `closes` or `refs` entry names it and holds both
+the line link to the owner's decision and the owner's `verbatim:` words, as the prompt's Safety
+step says. A diff too large to judge whole fails when a part not judged is a
 workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
 notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
