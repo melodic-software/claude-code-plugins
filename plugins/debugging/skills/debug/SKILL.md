@@ -160,10 +160,10 @@ prefer the first row that can reach the failing code.
 
 A human-driven loop is the fallback when nothing above works. Copy the bundled template at
 `${CLAUDE_PLUGIN_ROOT}/skills/debug/scripts/hitl-loop.template.sh`, replace its example prompts with
-the steps for this bug, and ask the **user** to run it in their own terminal: its interactive `read`
-prompts need a TTY that the Bash tool does not have. The script ends by printing a `=== results ===`
-block of `NAME=value` lines; ask the user to paste that block back so each run reaches you in the
-same shape.
+the steps for this bug, and ask the **user** to run it in their own terminal: each `read` prompt
+waits for them to do a step or say what they saw, which only they can do. The script ends by
+printing a `=== results ===` block of `NAME=value` lines; ask the user to paste that block back so
+each run reaches you in the same shape.
 
 Every answer the script collects with `ask` is printed in that results block and pasted into the
 session, so ask only for what the user observes: yes or no, a number, copied error text. Never ask

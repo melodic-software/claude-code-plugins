@@ -6,7 +6,7 @@ runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
-expected_outcome: The evidence comment body written to a file opens with the text result, holds its captures inside a collapsed section, and has no Before/After table
+expected_outcome: The body file is written with the Write tool, and the posted evidence comment opens with the text result, holds its captures inside a collapsed section, and has no Before/After table
 ---
 
-The verifier passed PR 412's current head. Post its verification evidence comment. The head run's end-to-end summary is evidence/head/e2e-summary.json and the base run's is evidence/base/e2e-summary.json.
+The verifier passed PR 412's current head. With the pull-request skill, post its verification evidence comment. The head run's end-to-end summary is evidence/head/e2e-summary.json and the base run's is evidence/base/e2e-summary.json.

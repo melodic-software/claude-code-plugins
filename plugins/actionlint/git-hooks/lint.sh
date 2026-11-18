@@ -64,7 +64,7 @@ done < <(checks_files)
 
 rt_group lint "$PWD" "${candidates[@]}"
 # shellcheck disable=SC2086 # the config names split on spaces
-checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- "${candidates[@]}" || exit 1
+checks_refuse_config_drift --if rt_config_counts $RT_DRIFT_CONFIGS -- .github/workflows || exit 1
 ((RT_GN)) || exit 0
 
 contract="$CHECKS_TMP/contract"

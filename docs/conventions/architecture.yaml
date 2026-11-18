@@ -9,3 +9,6 @@ layout:
     - "melodic-plugin-release[bot]"
     - "melodic-standards-sync[bot]"
     - "dependabot[bot]"
+
+verification_skills:
+  improve: standard

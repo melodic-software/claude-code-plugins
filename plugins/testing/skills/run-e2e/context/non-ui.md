@@ -43,9 +43,10 @@ a protocol-level smoke test that proves the server speaks MCP over stdio.
 not a copy here (the protocol is versioned). This recipe was written against the pinned `2025-06-18` revision
 (<https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle>); check the current
 revision via <https://modelcontextprotocol.io/specification/latest> and match the recipe to the
-revision your server SDK actually implements. Revisions after `2025-11-25` replace the
-`initialize` handshake with per-request metadata, so this handshake smoke test applies to
-legacy/dual-era servers only (verified 2026-08-26).
+revision your server SDK actually implements. This smoke test applies only to a server that
+still supports a revision defining the `initialize` handshake (legacy-only or dual-era). For the
+revision that changed the handshake, see the spec changelog's major changes,
+<https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes>.
 
 **Per-runtime spawn:**
 

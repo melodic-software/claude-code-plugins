@@ -11,6 +11,10 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`improvement` and the `architecture` `improve` object get Implementers rows.** `improvement`
+  declares `find_open_item_cap` as a `lowest-value` policy floor, and `architecture` (`improve`)
+  records the later-layer settings `improve-settings.mjs` reads. Both also get root-rule rows. The
+  layering axis is unchanged, so `contract_version` stays.
 - **The `verification` rows resolve `light` by default.** Each plugin's `verification` row says no
   value resolves `light` and an invalid value or unparsable file resolves `standard`, following
   the verification-level contract. The layering axis is unchanged, so `contract_version` stays.

@@ -76,13 +76,10 @@ independent only while the implementer cannot rewrite it; a re-recorded or hand-
 claim to review. Consumer-driven contract tools such as Pact need the
 provider to run them too, which rules them out for public third-party APIs.
 
-Verification record. Claim: a contract test checks that calls to a test double return what the
-real service would; Pact's docs say it does not fit APIs whose provider will not also use Pact or
-whose consumers cannot be identified, such as public APIs; vcrpy records real responses once and
-its `none` record mode errors on any unrecorded request. Basis:
-https://martinfowler.com/bliki/ContractTest.html,
-https://docs.pact.io/getting_started/what_is_pact_good_for,
-https://vcrpy.readthedocs.io/en/latest/usage.html.
+For where Pact does not fit, see
+<https://docs.pact.io/getting_started/what_is_pact_good_for#what-is-it-not-good-for>; correlate
+with <https://martinfowler.com/bliki/ContractTest.html>. For replaying a recording read-only, see
+vcrpy's `none` record mode, <https://vcrpy.readthedocs.io/en/latest/usage.html#none>.
 
 ## 2. Call counts are legitimate at unmanaged, state-changing boundaries
 

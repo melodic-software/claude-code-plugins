@@ -721,6 +721,40 @@ def test_emit_prints_resume_prompt_section_verbatim(tmp_path):
     )
 
 
+def test_emit_markdown_fences_each_region_and_keeps_its_lines(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    rails = out(run("emit", str(handoffs / HOP2))).split("\n")
+    result = run("emit", "--format", "markdown", str(handoffs / HOP2))
+    assert result.returncode == 0, err(result)
+    md = out(result).split("\n")
+    assert rail_lines(out(result)) == 0
+    assert md[0] == "Run `/clear`, then paste this:"
+    top = md.index("```text")
+    bottom = md.index("```", top + 1)
+    first, last = [i for i, line in enumerate(rails) if line.startswith("──")]
+    assert md[top + 1 : bottom] == rails[first + 1 : last]
+    assert md[bottom + 1 :] == rails[last + 1 :]
+
+
+def test_emit_markdown_fences_a_goal_region_and_outruns_backticks_inside(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP2
+    text = target.read_text(encoding="utf-8")
+    rail = "─" * 58
+    goal = (
+        "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. "
+        "Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n"
+        f"{rail}\nThe ```fenced``` example passes.\n{rail}\n\n"
+    )
+    marker = "`/clear`, then copy everything between the dashed lines:"
+    target.write_text(text.replace(marker, goal + marker, 1), encoding="utf-8")
+    md = out(run("emit", "--format", "markdown", str(target))).split("\n")
+    assert md[0].startswith("Type `/goal ` (with a trailing space), then paste this.")
+    assert md[2:5] == ["````text", "The ```fenced``` example passes.", "````"]
+    assert "Run `/clear`, then paste this:" in md
+    assert rail_lines("\n".join(md)) == 0
+
+
 def test_emit_shape1_legacy_says_so_and_exits_one(tmp_path):
     handoffs = materialize(tmp_path, "legacy-14")
     result = run("emit", str(handoffs / LEGACY))

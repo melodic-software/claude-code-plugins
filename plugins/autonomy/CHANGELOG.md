@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.5] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups and `lane-stop-gate.sh`'s branch read pass the overrides `hook::git_untrusted` uses, so those calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as the ignore check already does.
+
 ## [5.2.4] - 2026-11-18
 
 ### Security

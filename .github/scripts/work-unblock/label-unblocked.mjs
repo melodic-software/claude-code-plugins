@@ -382,7 +382,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
@@ -2306,13 +2306,7 @@ async function lanePulls({ github, repo, number, bot }) {
 // GitHub says closes it, or one with its `Refs:` line), or null: work running
 // on the issue, as an open lane PR is.
 async function humanPull({ github, repo, number, humans }) {
-  for (const pr of await openPullsFor(github, repo, number)) {
-    const pull = await github("GET", `/repos/${repo}/pulls/${pr}`);
-    if (pull?.state === "open" && humans.has(pull.user?.id)) {
-      return pull;
-    }
-  }
-  return null;
+  return (await humanPullsFor(github, repo, number, humans))[0] ?? null;
 }
 
 // The newest of those opened at or after `addedAt`, or null.

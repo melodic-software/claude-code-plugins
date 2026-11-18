@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A TypeScript shipment poller with a retry policy literal. The graded outcome is the idiom the
-# skill's TypeScript file names for a literal: satisfies.
 set -euo pipefail
 
 git init -q -b main

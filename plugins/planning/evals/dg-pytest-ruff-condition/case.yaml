@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: dg-pytest-ruff-condition
 description: A keep-working-until-green intent that fits /goal gets a paste-ready /goal line naming both checks, its length proved by the plugin's deterministic counter rather than estimated, and a note on what /clear and a resume do to the goal
 tags: [draft-goal-condition, outcome]
-expected_outcome: The plugin's goal-condition-length.sh counter runs with a --limit. The reply holds a paste-ready /goal line whose condition names both pytest and ruff, states the counted length as within the limit, and says what a resume and /clear do to an active goal.
+expected_outcome: The plugin's goal-condition-length.sh counter runs with a --limit. The reply holds a paste region, an instruction to type /goal followed by the condition alone, whose condition names both pytest and ruff, states the counted length as within the limit, and says what a resume and /clear do to an active goal.
 execution:
   prompt: "Use the draft-goal-condition skill from the planning plugin. I want Claude to keep working in this one session until every test under tests/ passes with pytest and `ruff check .` reports no errors. If the /goal docs page can't be fetched from here, use what I copied from it this morning: a condition should state one end state Claude can show in the conversation (for example a command it ran and that command's output), plus any constraint on how to get there, and a condition can be at most 4000 characters."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
@@ -22,8 +22,8 @@ graders:
     arm: both
   - name: goal-line-names-both-checks
     type: regex
-    pattern: '^[ \t>`]*/goal[ \t]+(?!clear\b)(?=[^\n]*\bpytest\b)(?=[^\n]*\bruff\b)(?![^\n]*\b(?:without|not|skip\w*|ignore|ignores|ignored|ignoring|no need to)\s+(?:running\s+|run\s+)?`?(?:pytest|ruff)\b)[^\n]+'
-    flags: mi
+    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*(?![ \t>]*/goal)[ \t>]*(?=[^\n]*\bpytest\b)(?=[^\n]*\bruff\b)(?![^\n]*\b(?:without|not|skip\w*|ignore|ignores|ignored|ignoring|no need to)\s+(?:running\s+|run\s+)?`?(?:pytest|ruff)\b)[^\n]+'
+    flags: i
     arm: both
   - name: length-within-limit
     type: regex
