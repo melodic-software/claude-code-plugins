@@ -282,7 +282,7 @@ test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricte
   }
 });
 
-test('real-setup drops --restricted and --strict-mcp-config, keeps the plugin dir, and still clears every key for "none"', () => {
+test('real-setup drops --restricted and --strict-mcp-config from the session, keeps the plugin dir, and still clears every key for "none"', () => {
   const input = { PATH: '/usr/bin' };
   for (const name of CLEARED) input[name] = 'set-by-parent';
   const { argv, env, keySource } = buildLaunch({ pluginDir: '/p', realSetup: true }, input);
@@ -291,8 +291,20 @@ test('real-setup drops --restricted and --strict-mcp-config, keeps the plugin di
   assert.equal(env.CLAUDE_CODE_HIDE_CWD, '1');
   assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
   assert.equal(keySource, 'none');
+});
+
+test('real-setup print mode keeps --strict-mcp-config and still drops --restricted; the default print argv is unchanged', () => {
   const print = driver.buildPrint({ pluginDir: '/p', realSetup: true }, {}, 'say ok').argv;
-  assert.deepEqual(print, ['claude', '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(print, ['claude', '--plugin-dir', '/p', '--strict-mcp-config', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(driver.buildPrint({ pluginDir: '/p' }, {}, 'say ok').argv, [
+    'claude',
+    '--restricted',
+    '--strict-mcp-config',
+    '--plugin-dir',
+    '/p',
+    ...driver.PRINT_FLAGS,
+    'say ok',
+  ]);
 });
 
 test('real-setup is refused with --unattended, --in-sandbox or a kept credential, before anything runs', async () => {
@@ -317,11 +329,18 @@ test('real-setup is refused with --unattended, --in-sandbox or a kept credential
   assert.equal(existsSync(out), false, 'no claude started');
 });
 
-test('a launcher replaces the bare claude and gets only the plugin dir; print mode adds the stream-json flags and the prompt', () => {
+test('a launcher replaces the bare claude and gets only the plugin dir; print mode adds --strict-mcp-config, the stream-json flags and the prompt', () => {
   const launcher = ['node', '/x/profiles.mjs', 'start', 'build'];
   const config = { pluginDir: '/p', realSetup: true, launcher };
   assert.deepEqual(buildLaunch(config, {}).argv, [...launcher, '--plugin-dir', '/p']);
-  assert.deepEqual(driver.buildPrint(config, {}, 'say ok').argv, [...launcher, '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(driver.buildPrint(config, {}, 'say ok').argv, [
+    ...launcher,
+    '--plugin-dir',
+    '/p',
+    '--strict-mcp-config',
+    ...driver.PRINT_FLAGS,
+    'say ok',
+  ]);
   assert.deepEqual(launcher, ['node', '/x/profiles.mjs', 'start', 'build'], 'the launcher is not mutated');
 });
 
@@ -924,7 +943,7 @@ test('ready stops claude at the init event and passes on apiKeySource "none"', p
   }
 });
 
-test('ready with --real-setup runs its turn through the launcher, unrestricted, and still requires "none"', posixOnly, async () => {
+test('ready with --real-setup runs its turn through the launcher, unrestricted but MCP-strict, and still requires "none"', posixOnly, async () => {
   const box = sandbox();
   stubClaude(box, 'none', 'exec sleep 30');
   const out = join(box.root, 'init.jsonl');
@@ -940,6 +959,7 @@ test('ready with --real-setup runs its turn through the launcher, unrestricted, 
     assert.deepEqual(readFileSync(join(box.root, 'argv'), 'utf8').trim().split('\n'), [
       '--plugin-dir',
       plugin,
+      '--strict-mcp-config',
       ...driver.PRINT_FLAGS,
       'Reply with the single word ok.',
     ]);
