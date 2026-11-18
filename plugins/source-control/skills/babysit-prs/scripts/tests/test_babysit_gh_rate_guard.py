@@ -371,7 +371,8 @@ class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
             1, head(503, **core(4000)) + "", "gh: Service Unavailable (HTTP 503)"
         )
         self.answer(0, head(200, **core(3999)) + "{}")
-        self.assertEqual(gh.gh_capture(["api", "repos/o/r/pulls/1"]).returncode, 1)
+        with gh.single_attempt():
+            self.assertEqual(gh.gh_capture(["api", "repos/o/r/pulls/1"]).returncode, 1)
         self.assertEqual(gh.gh_capture(["api", "repos/o/r/pulls/1"]).returncode, 0)
         self.assertEqual(len(self.sent), 2)
         self.assertFalse(self.stop_file.exists())
