@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
-# Black-box contract test for install-python-deps.sh (the playwright SessionStart hook that installs the
-# demo-video skill's packages).
-#
-# Proves the install flow end to end against a local wheel (pip's PIP_NO_INDEX and PIP_FIND_LINKS,
-# so nothing reaches a package index): the first session installs the hash-locked set into
-# CLAUDE_PLUGIN_DATA silently, the second session is a no-op, and a failed install is a user notice
-# carrying the repair line. The hook runs from a copy of the plugin's hooks and the demo-video
-# launcher with a fixture lock, so the real numpy and Pillow lock is never installed.
 # test-scope: plugins/playwright/hooks/* plugins/playwright/skills/demo-video/scripts/pydeps.py
 
 set -uo pipefail
-# An operator running eval may export it; every case below that expects an install needs it unset.
 unset EVAL_PLAYWRIGHT_SKIP_PYDEPS
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,7 +48,6 @@ digest="$("$py" "$HOOK_DIR/fixture_wheel.py" "$(native "$WHEELS")")" || {
 
 SKILL_REL="skills/demo-video"
 
-# new_plugin <name> <digest> -> a plugin root holding the hook, its libs, pydeps.py and a lock for the fixture wheel.
 new_plugin() {
   local root="$WORK/$1"
   mkdir -p "$root/hooks" "$root/$SKILL_REL/scripts"
@@ -67,7 +57,6 @@ new_plugin() {
   printf '%s' "$root"
 }
 
-# run_hook <plugin root> <find-links dir> [NAME=VALUE ...] -> sets $OUT to the hook's stdout and $RC to its exit code.
 run_hook() {
   local root="$1" links="$2"
   shift 2
@@ -77,7 +66,6 @@ run_hook() {
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
 
-# First session: installs, says nothing.
 root="$(new_plugin first "$digest")"
 data="$WORK/data-first"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -88,7 +76,6 @@ else
   fail "first session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# Second session: no-op. An empty find-links folder would make any pip run fail, so a notice means it ran.
 run_hook "$root" "$EMPTY" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
 if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
@@ -97,8 +84,6 @@ else
   fail "second session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# A failed install (wrong hash): a user notice with the reason and the repair line, exit 0, nothing left.
-# Nothing reaches the model: pydeps.py run prints the repair line when a skill runs.
 root="$(new_plugin bad "$(printf '0%.0s' {1..64})")"
 data="$WORK/data-bad"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -111,7 +96,6 @@ else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# No data directory (a host that sets none): nothing to install into, no output.
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=
 out="$OUT"
@@ -121,7 +105,6 @@ else
   fail "no data dir: rc=$RC output=[$out]"
 fi
 
-# EVAL_PLAYWRIGHT_SKIP_PYDEPS=1 (an eval case that never uses demo-video): nothing installs and nothing is said.
 root="$(new_plugin evalskip "$digest")"
 data="$WORK/data-evalskip"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" EVAL_PLAYWRIGHT_SKIP_PYDEPS=1
@@ -132,7 +115,6 @@ else
   fail "EVAL_PLAYWRIGHT_SKIP_PYDEPS=1: rc=$RC data=$data output=[$out]"
 fi
 
-# Unset, empty, or any value other than exactly 1 (a demo-video eval case, a normal session): installs as before.
 for value in unset '' 0 true ' 1' 1x; do
   data="$WORK/data-evalvalue-${#value}-${value//[^A-Za-z0-9]/_}"
   if [[ "$value" == unset ]]; then
@@ -148,7 +130,6 @@ for value in unset '' 0 true ' 1' 1x; do
   fi
 done
 
-# No Python on PATH: a notice naming the floor, not a silent skip.
 tools="$WORK/tools"
 mkdir -p "$tools"
 for t in bash cat dirname basename env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink date; do
@@ -165,11 +146,6 @@ else
   fail "no python: rc=$rc output=[$out]"
 fi
 
-# Native Windows Python under Git Bash or Cygwin: pydeps.py and a POSIX data directory reach it as drive-letter
-# paths even with MSYS path conversion switched off, and a cygpath that fails is a notice, never the unconverted
-# path. The stub python3 logs its arguments; the stub cygpath maps -m /dir to C:/dir, or fails.
-# native_hook <ostype> <cygpath body> -> runs the hook with MSYS_NO_PATHCONV=1 and a POSIX data directory; sets OUT,
-# RC and ARGV.
 # shellcheck disable=SC2016  # the stub bodies expand when the stubs run, not here
 native_hook() {
   local stubs="$WORK/stubs-$1"

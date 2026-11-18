@@ -23,7 +23,6 @@ AFTER_NARRATION = 'Job length stays the same after the list.'
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
-# The same dependencies as lib/media-render's suite, so CI's MEDIA_RENDER_REQUIRE_DEPS also makes a gap fail.
 REQUIRE = '1' in (os.environ.get('EXPLAINER_VIDEO_REQUIRE_DEPS'), os.environ.get('MEDIA_RENDER_REQUIRE_DEPS'))
 
 
@@ -193,7 +192,6 @@ class Renders(unittest.TestCase):
         cls.dir = Path(tempfile.mkdtemp())
         script = run_1080p('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')
         cls.silent = (script, cls.dir / 'probe')
-        # The 4K render needs one moment per chapter, not the whole fixture: about a third of its length to encode.
         small = board_of(cls.dir / 'small', ('title', 'compare', 'rest'))
         run('--storyboard', small, '--out', cls.dir / 'small-script', '--script-only')
         narration = tone_narration(cls.dir / 'narration', (cls.dir / 'small-script' / 'script.txt').read_text())
@@ -324,7 +322,6 @@ class Renders(unittest.TestCase):
             self.assertGreaterEqual(row['end'] - row['start'], row['minimum'] - 1 / 30, row)
         self.assertEqual([row['fit'] for row in m['quality']['frames']], [[]] * len(m['quality']['frames']))
         self.assertEqual(len(list((out / 'frames').glob('m001*.png'))), len(rows))
-        # The list's paragraph runs from the start of narration.wav to the first word of the next paragraph.
         words = json.loads((narration / 'words.json').read_text())
         paragraph = words['words'][len(REST_NARRATION.split())]['start']
         padding = sum(row['minimum'] for row in rows) - paragraph

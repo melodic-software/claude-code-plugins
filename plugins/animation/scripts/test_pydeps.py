@@ -66,7 +66,6 @@ class OnDemandInstall(unittest.TestCase):
         _, digest = make_wheel(self.wheels)
         self.lock = self.tmp / 'requirements.txt'
         self.lock.write_text(lock_text(digest), encoding='utf-8')
-        # Pin this Python: without the marker pydeps.py hands over to the first supported one on PATH.
         self.env = {**os.environ, 'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(self.wheels),
                     'ANIMATION_PYDEPS_INTERPRETER': sys.executable}
 
@@ -89,7 +88,6 @@ class OnDemandInstall(unittest.TestCase):
     def test_second_session_is_a_no_op(self):
         self.assertEqual(self.pydeps('install', '--data-dir', str(self.data)).stdout.strip(), 'installed')
         before = self.installs()
-        # Aim pip at an empty folder: a second pip run could not find the wheel and would fail.
         empty = self.tmp / 'empty'
         empty.mkdir()
         r = self.pydeps('install', '--data-dir', str(self.data), env={**self.env, 'PIP_FIND_LINKS': str(empty)})
@@ -170,7 +168,6 @@ class DataDir(unittest.TestCase):
             os.environ.update(env)
             try:
                 self.assertEqual(pydeps.data_dir('/explicit'), Path('/explicit'))
-                # a placeholder the host did not substitute, and another plugin's directory, are both ignored
                 self.assertEqual(pydeps.data_dir('${CLAUDE_PLUGIN_DATA}'), config / 'plugins/data/animation-market')
                 os.environ['CLAUDE_PLUGIN_DATA'] = str(config / 'plugins/data/animation-elsewhere')
                 self.assertEqual(pydeps.data_dir(None), config / 'plugins/data/animation-elsewhere')
@@ -343,8 +340,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_an_interpreter_named_outside_the_hooks_candidates_writes_no_stamp(self):
-        # A plugin allowing 3.14 chooses python3.14, which the hook never checks, so a change to it could not
-        # invalidate a stamp.
         config_path = self.root / 'scripts' / 'pydeps.json'
         config = json.loads(config_path.read_text(encoding='utf-8'))
         config.pop('python_min', None)
@@ -372,8 +367,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_a_failed_run_with_a_stamp_prints_the_repair_line(self):
-        # A stamped set that stops importing fails the skill's script; the hook skipped the probe, so the run says
-        # how to repair it. Without a stamp a failing script is the script's own business.
         script = self.tmp / 'fail.py'
         script.write_text('import sys\nsys.exit(1)\n', encoding='utf-8')
         self.install_here()

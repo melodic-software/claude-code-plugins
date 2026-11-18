@@ -61,7 +61,6 @@ async function seedSlice({ completed, status = "watching", tempPresent }) {
     contactSheetsDir = await mkdtemp(path.join(os.tmpdir(), "run-resume-sheets-"));
     tempDirs.push(framesDir, contactSheetsDir);
   } else {
-    // Names never created: the reaped-temp case.
     framesDir = path.join(os.tmpdir(), `run-resume-gone-frames-${process.pid}-${Date.now()}`);
     contactSheetsDir = path.join(os.tmpdir(), `run-resume-gone-sheets-${process.pid}-${Date.now()}`);
   }
@@ -182,9 +181,6 @@ describe("runResumeCli on ranged slices", () => {
 
 describe("runResumeCli slug validation", () => {
   it("rejects a slug that resolves outside the epic dir, writing nothing there", async () => {
-    // `../escape/<slug>` from `.work/youtube-watch/` lands on `.work/escape/<slug>`,
-    // inside this test's sandbox root, seeded with a real watch.json so only the
-    // slug check can stop the write.
     const escapeDir = path.join(workRoot, ".work", "escape", SLUG);
     let state = createWatchState({
       videoId: "qyPCVqFUyDo",

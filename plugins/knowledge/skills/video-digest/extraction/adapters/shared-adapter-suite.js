@@ -86,8 +86,6 @@ export function describeSourceAdapterContract(adapter, fixtures) {
         expect(claim?.sliceKey, url).toBe(sliceKey);
         expect(typeof claim?.canonicalUrl, url).toBe("string");
         expect(SAFE_SLICE_KEY_PATTERN.test(String(claim?.sliceKey)), url).toBe(true);
-        // Pre-acquisition (queue lane) and diverging-metadata calls must both
-        // resolve to the URL's key.
         expect(adapter.extractSliceKey(url, null), url).toBe(sliceKey);
         expect(
           adapter.extractSliceKey(url, { id: "divergent0", title: "", description: "" }),
@@ -104,8 +102,6 @@ export function describeSourceAdapterContract(adapter, fixtures) {
         expect(recanonical, canonicalUrl).not.toBeNull();
         expect(recanonical?.sliceKey, canonicalUrl).toBe(sliceKey);
         expect(recanonical?.canonicalUrl, canonicalUrl).toBe(canonicalUrl);
-        // The queue gate and the slice key agree on the canonical form too, so
-        // every entry path resolves the same slice by construction.
         expect(adapter.acceptForEnqueue(canonicalUrl), canonicalUrl).toEqual({
           ok: true,
           key: sliceKey,

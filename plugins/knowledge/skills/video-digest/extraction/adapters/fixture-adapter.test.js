@@ -86,8 +86,6 @@ function fixtureSpec() {
   };
 }
 
-// The capability-omitting fixture adapter passes the ENTIRE shared suite —
-// optional-capability absence is a declaration, never a failure.
 describeSourceAdapterContract(createSourceAdapter(fixtureSpec()), {
   claimedUrls: [
     { url: `https://${FIXTURE_HOST}/clip/abc_123`, sliceKey: "abc_123" },
@@ -106,8 +104,6 @@ describe("capability skew (closed by default)", () => {
     const adapter = createSourceAdapter(fixtureSpec());
     expect(validateAdapter(adapter)).toEqual([]);
     expect(adapter.capabilities).toEqual({});
-    // Shared machinery treats absence as false — the === true reads it uses
-    // resolve to false for every omitted capability.
     expect(adapter.capabilities.comments === true).toBe(false);
     expect(adapter.capabilities.browserCookieFallback === true).toBe(false);
     expect(adapter.capabilities.mediaOptional === true).toBe(false);
@@ -124,8 +120,6 @@ describe("mutation probes: the suite and the collision test bite", () => {
         violations.some((violation) => violation.includes(`"${method}"`)),
         method,
       ).toBe(true);
-      // The suite's first assertion is validateAdapter(adapter) === [] — and
-      // the factory refuses to even construct the mutant.
       expect(() => createSourceAdapter(mutated), method).toThrow(method);
     }
   });

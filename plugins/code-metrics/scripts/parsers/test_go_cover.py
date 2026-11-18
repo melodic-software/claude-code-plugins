@@ -29,16 +29,6 @@ FIXTURE = FIXTURES / "go-cover.out"
 JOIN = SCRIPT_DIR.parent.parent / "skills" / "audit-coverage" / "scripts" / "join.py"
 MODULE_PATH = "example.com/cmsample/cm-sample.go"
 
-# Three blocks, 7 statements, 2 of them hit: `go test -coverprofile` on
-#
-#     func F(x int) int {
-#         if x > 0 {
-#             return 1
-#         }
-#         a := 1; b := 2; c := 3; d := 4; return a + b + c + d
-#     }
-#
-# exercised only by F(1). `go tool cover -func` reports 28.6%.
 DENSE_PROFILE = (
     "mode: set\n"
     "example.com/m/r.go:3.19,4.11 1 1\n"
@@ -46,9 +36,6 @@ DENSE_PROFILE = (
     "example.com/m/r.go:7.2,7.54 5 0\n"
 )
 
-# Two shards of one suite over the same file, each entering the block the
-# other missed. Each reports 2 statements with 1 hit; between them both
-# statements ran, so the union is 2 of 2.
 SHARD_A = (
     "mode: set\nexample.com/m/r.go:3.19,4.11 1 1\nexample.com/m/r.go:7.2,7.54 1 0\n"
 )
@@ -80,7 +67,6 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(document[MODULE_PATH]["lines"], {})
 
     def test_the_profiles_own_statement_weights_survive(self) -> None:
-        # Five one-statement blocks, one of them never entered.
         self.assertEqual(
             totals(parsed(str(FIXTURE)), MODULE_PATH), {"total": 5, "hit": 4}
         )
@@ -98,9 +84,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(round(100.0 * weights["hit"] / weights["total"], 1), 28.6)
 
     def test_a_wide_block_does_not_outweigh_a_dense_one(self) -> None:
-        # Two hit statements over seven lines against five missed statements on
-        # one line. Counting lines calls this 87.5% covered; the statements the
-        # profile actually weighs make it 28.6%.
         body = (
             "mode: set\n"
             "example.com/m/r.go:2.10,8.4 2 1\n"
@@ -111,10 +94,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(totals(document, "example.com/m/r.go"), {"total": 7, "hit": 2})
 
     def test_the_block_table_keeps_each_blocks_own_identity(self) -> None:
-        # The aggregates cannot be unioned across two profiles of the same
-        # file once they are summed, so each block travels to the join under
-        # the profile's own `start.col,end.col` identity with its statement
-        # count and its execution count.
         with tempfile.TemporaryDirectory() as tmp:
             document = parsed(write(tmp, "dense.out", DENSE_PROFILE))
         self.assertEqual(
@@ -127,8 +106,6 @@ class StatementWeightTests(unittest.TestCase):
         )
 
     def test_a_repeated_block_is_weighed_once(self) -> None:
-        # Two profiles concatenated list the same block twice. Its statements
-        # count once, and the larger of the two counts wins.
         body = "mode: count\nm/a.go:1.1,3.2 2 0\nm/a.go:1.1,3.2 2 4\n"
         with tempfile.TemporaryDirectory() as tmp:
             document = parsed(write(tmp, "repeat.out", body))
@@ -189,23 +166,12 @@ class JoinTests(unittest.TestCase):
 
     def test_the_join_reports_the_ratio_go_tool_cover_func_prints(self) -> None:
         row = self.file_row(DENSE_PROFILE)
-        # For this profile `go tool cover -func` says 28.6%: 7 statements, 2
-        # of them hit. The percentage comes from the profile's own statement
-        # counts, so it is the tool's own number; weighing each block by the
-        # lines it spans would report 80% instead.
         self.assertEqual(row["values"]["coverage_pct"], 28.57)
-        # Those counts are statements, not lines, and the profile never says
-        # which lines carry them. Reporting 0 executable lines would claim the
-        # artifact measured none; it measured 7 of something else.
         self.assertIsNone(row["values"]["lines_executable"])
         self.assertIsNone(row["values"]["lines_hit"])
         self.assertEqual(row["cov_source"], "statement-ratio")
 
     def test_two_shard_profiles_union_their_blocks(self) -> None:
-        # Two test shards, each entering the block the other missed. Both
-        # profiles report 2 statements with 1 hit, and both statements ran
-        # between them, so the merged answer is 2 of 2. Any rule over the two
-        # aggregates reports 1 of 2, because a maximum cannot union.
         self.assertEqual(self.file_row(SHARD_A)["values"]["coverage_pct"], 50.0)
         self.assertEqual(self.file_row(SHARD_B)["values"]["coverage_pct"], 50.0)
         self.assertEqual(
@@ -213,8 +179,6 @@ class JoinTests(unittest.TestCase):
         )
 
     def test_a_block_both_shards_list_is_weighed_once(self) -> None:
-        # The union is over block identity, so the same file measured twice
-        # is not twice the statements.
         self.assertEqual(
             self.file_row(DENSE_PROFILE, DENSE_PROFILE)["values"]["coverage_pct"], 28.57
         )

@@ -235,7 +235,6 @@ export async function relayoutSlice({
       return refuse(`the temp session's video is ${id}, not this slice's ${state.videoId}`);
     }
     plan.push({ from: path.join(workDir, videos[0]), to: `media/${state.videoId}${path.extname(videos[0])}` });
-    // Acquisition can record a bare `<id>.json` fallback; its caption stem is the video's basename.
     const stem = infoName.endsWith(".info.json")
       ? infoName.slice(0, -".info.json".length)
       : path.basename(videos[0], path.extname(videos[0]));
@@ -258,7 +257,6 @@ export async function relayoutSlice({
   const entries = new Set(
     sliceFiles.flatMap((file) => file.split("/").map((_, i, parts) => parts.slice(0, i + 1).join("/"))),
   );
-  // A slice directory maps to one target directory when every kept file under it agrees.
   /** @type {Map<string, string>} */
   const dirs = new Map();
   for (const dir of entries) {

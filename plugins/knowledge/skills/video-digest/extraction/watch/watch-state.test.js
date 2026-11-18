@@ -34,8 +34,6 @@ const sampleTalk = (overrides = {}) =>
     ...overrides,
   });
 
-// In-memory fs fakes: a Map-backed readFile/writeFile/mkdir triple, optionally
-// pre-seeded so a test can read a watch.json it never wrote.
 /** @param {Iterable<[string, string]>} [seed] */
 function memoryStore(seed = []) {
   const store = new Map(seed);
@@ -51,7 +49,6 @@ function memoryStore(seed = []) {
   return { store, readFile, writeFile, mkdir };
 }
 
-// Seeded with a fresh sample watch.json, for runMarkPhase tests.
 function seededStore() {
   const sliceDir = "/tmp/slice";
   return {
@@ -188,8 +185,6 @@ describe("watch state phase map", () => {
     const state = sampleTalk();
     const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain(`watch/run-resume.js ${state.videoSlug}`);
-    // An absolute path outside a URL: a rooted POSIX path (`/a/...`, unlike a
-    // `/plugin:skill` command), a drive letter, or a UNC share.
     const absolutePath = /(?:^|[\s`'"(])(?:\/[\w.-]+\/|[A-Za-z]:[\\/]|\\\\)/m;
     expect(prompt).not.toMatch(absolutePath);
     for (const leak of ["/tmp/x", "/workspace/checkout/a", "C:/w", "C:\\w", "\\\\host\\share"]) {
@@ -364,7 +359,6 @@ describe("watch state temp-path tokenization", () => {
     expect(persisted.tempSession.framesDir).toBe("{tmp}/video-frames-abc");
     expect(persisted.tempSession.contactSheetsDir).toBe("{tmp}/video-sheets-abc");
     expect(persisted.tempSession.workDir).toBe("{tmp}/video-extraction-abc");
-    // In-memory state stays absolute — the pipeline writes frames there at runtime.
     expect(state.tempSession.framesDir).toBe(framesDir);
   });
 
@@ -398,8 +392,6 @@ describe("mark-phase CLI (idempotent)", () => {
     const second = await runMarkPhase(sliceDir, "research", { readFile, writeFile, mkdir });
     expect(first).toBe(0);
     expect(second).toBe(0);
-    // The second invocation must not overwrite completedAt — proven by writeFile
-    // firing exactly once across both calls (timestamp equality would be flaky).
     expect(writeFile).toHaveBeenCalledTimes(1);
   });
 
@@ -432,8 +424,6 @@ describe("companion phase (optional side-marker)", () => {
 
   it("does not appear in the sequential next-phase walk", () => {
     let state = sampleTalk();
-    // A no-companion watch that completed acquire..harvest must advance to research,
-    // never stall on an unmarked optional companion slot.
     for (const phase of ["acquire", "transcript", "watching", "vision", "harvest"]) {
       state = markPhaseComplete(state, phase);
     }
@@ -877,9 +867,6 @@ describe("close removes recorded tempSession directories", () => {
 
 describe("watch state persistence (real filesystem)", () => {
   it("creates the run-state lane dir when writing into a fresh slice", async () => {
-    // Regression: a fresh slice has no run-state/ subdir; the live watch ENOENT'd on
-    // run-state/watch.json because writeWatchState joined the lane path without mkdir.
-    // Unit tests above inject a fake writeFile, so they never exercised real fs.
     const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-state-"));
     try {
       const state = sampleTalk();

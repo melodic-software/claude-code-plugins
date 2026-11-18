@@ -48,13 +48,10 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(title)s",
   "%(channel)s",
   "%(uploader_id)s",
-  // Trailing emptiness probes (see isEmptyPostShell): "D" when a description
-  // exists, then the engagement counts ("NA" when null).
   "%(description&D|)s",
   "%(repost_count)s",
   "%(comment_count)s",
   "%(like_count)s",
-  // After the emptiness probes, so their field positions stay fixed.
   "%(live_status)s",
 ].join(PREFLIGHT_FIELD_SEP);
 
@@ -205,8 +202,6 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     "--skip-download",
     "--no-warnings",
     "--no-playlist",
-    // Same SSRF guard as acquisition: a source-declared extractor allow-list
-    // refuses delegated foreign URLs without fetching them.
     ...(source.allowedExtractors ? ["--use-extractors", source.allowedExtractors] : []),
     // Sources declaring 0-media posts as well-formed (mediaOptional) keep them
     // enqueueable: yt-dlp reports metadata instead of a no-formats error.
@@ -214,7 +209,6 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
     ...resolveYtDlpAuthArgs(env, authOverride, source.allowBrowserCookieProfileFallback === true),
-    // End-of-options sentinel: the URL can never be parsed as a flag.
     "--",
     url,
   ];
@@ -316,8 +310,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
       ok: false,
       status: "invalid-url",
       action: "reject",
-      // Escaped at construction: both cells can carry URL- or stderr-derived
-      // text, which must never break the markdown queue table it lands in.
       note: escapeTableCell(note),
       reason: escapeTableCell(reason),
     });
@@ -346,10 +338,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   }
   const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
-  // Probe the claim's canonical URL so the queue entry path gets adapter-level
-  // canonicalization by construction, same as acquisition dispatch. A null
-  // claim fails closed, mirroring registry dispatch — never probe a raw URL
-  // the adapter did not positively claim.
   const claim = adapter.matchUrl(url);
   if (!claim) {
     return rejectInvalid(
@@ -384,8 +372,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   if (result.success) {
     const { title, channel, handle } = parsePreflightLine(result.stdout);
     const liveStatus = parsePreflightLiveStatus(result.stdout);
-    // A live or just-ended stream is a valid link: it enqueues, and its row says why
-    // its captions may be late.
     return preflightResult({
       url,
       videoId,
@@ -406,8 +392,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   }
 
   const detail = spawnFailureDetail(result);
-  // A link post: the allow-list refused the post's outbound URL without a
-  // fetch. That is the well-formed 0-media result, so it takes the `ok` row.
   if (mediaOptional && parseDelegationRefusal(detail)) {
     return preflightResult({
       url,

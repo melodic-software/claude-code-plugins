@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the video-digest menu-view builder: hostile transcript,
-# title, and URL text renders as inert text, and the page passes the shared
-# validator.
-#
-#   bash plugins/knowledge/skills/video-digest/scripts/build-menu-view.test.sh
-#
-# Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

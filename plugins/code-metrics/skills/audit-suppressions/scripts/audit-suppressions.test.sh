@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for the audit-suppressions entry point: scope (the change, --all,
-# paths, scope.exclude), the correctness list from the team layer, the JSON
-# document, the markdown report and the kept copy. Expected values are read
-# off the fixture repository this file builds.
 # test-scope: lib/suppression-scan.py plugins/code-metrics/scripts/dispatch.sh plugins/code-metrics/scripts/resolve-config.py
 # shellcheck disable=SC2016 # `$(...)` and backticks here are fixture text, never expanded
 set -uo pipefail
@@ -108,11 +104,6 @@ assert_eq "--help prints usage" 0 "$?"
 assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRIPT" --help 2>&1)" \
   'Exit 0 report produced, 2 usage error or a scan that failed.'
 
-# ---- --findings: the review-findings file ------------------------------------
-# Expected rows come from the fixture lines below and the two crosswalk rows in
-# docs/contracts/detector-findings/README.md (rule-no-reason fires on a line
-# with no reason; rule-no-rule-id on a reason with no rule id where the tool can
-# name one; both IMPORTANT, Confidence high).
 assert_not_contains() {
   case "$2" in
     *"$3"*) fail "$1" "expected NOT to contain: [$3], actual: [$2]" ;;
@@ -140,8 +131,6 @@ printf '%s\n' 'v = 5  # noqa' >"$F/sub/i.py"
 gf add -A
 gf commit -q -m topic
 
-# field <file> <location> <column 1-7>: one cell of the row at <location>,
-# split on unescaped pipes.
 field() {
   "$PY" -c '
 import re, sys
@@ -193,8 +182,6 @@ assert_eq "a reason with no rule id leads with rule-no-rule-id, its pipe escaped
   'code-metrics/audit-suppressions/rule-no-rule-id: noqa suppression naming no rule id, reason "kept as is \| the shell example pipes it"' \
   "$(field "$FILE" e.py:1 6)"
 
-# The remedy, pinned per scope: where the reason goes depends on the tool, and a
-# rule id is asked for only where the tool can name one and the line names none.
 act="$(field "$FILE" a.js:1 7)"
 assert_contains "eslint: the reason goes after --" "$act" 'write the reason after ` -- ` at the end of the directive'
 assert_not_contains "eslint: no Justification argument offered" "$act" 'Justification'
@@ -249,10 +236,6 @@ assert_eq "bare invocation writes no findings file" "$before" "$(find "$F/.work"
 (cd "$F" && bash "$SCRIPT" --findings --json >/dev/null 2>&1)
 assert_eq "--findings with --json is a usage error" 2 "$?"
 
-# The reason slot per tool, for the tools the fixture above does not reach.
-# Each expected slot is the place the scanner reads a reason from for that
-# tool (lib/suppression-scan.py: the text after the rule ids, a further comment
-# on the line, or the attribute's Justification argument).
 S="$TMP/srepo"
 mkdir -p "$S"
 gs() { git -C "$S" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
@@ -293,8 +276,6 @@ assert_eq "with no current branch --findings exits 2" 2 "$?"
 assert_contains "with no current branch it says no file was written" "$err" "no findings file written"
 assert_eq "with no current branch no file is written" "$before" "$(find "$F/.work" -name '*.md' | wc -l)"
 
-# A configuration the entry point cannot read is named as such, not reported
-# as a missing merge-base.
 printf '{not json\n' >"$TMP/bad-config.json"
 err="$(cd "$REPO" && bash "$SCRIPT" --config "$TMP/bad-config.json" 2>&1 >/dev/null)"
 assert_eq "an unreadable configuration exits 2" 2 "$?"
@@ -309,10 +290,6 @@ printf 'open(%s, "w").write("ran")\n' "'$TMP/planted-ran'" >"$P/json.py"
 (cd "$P" && bash "$SCRIPT" --json --all >/dev/null 2>&1)
 assert_eq "a json.py planted in the cwd is not imported" "absent" "$([[ -e "$TMP/planted-ran" ]] && echo present || echo absent)"
 
-# ---- the frozen count agrees with the report -----------------------------------
-# The report drops scope.exclude matches through the dispatcher; the frozen count
-# is the scanner's --count given the same globs. Three of the six suppressions
-# below sit in excluded paths, so both must read 3 suppressions, 2 unjustified.
 X="$TMP/excluded"
 mkdir -p "$X/docs/conventions" "$X/src/api/generated" "$X/vendor" "$X/gen" "$X/web"
 gx() { git -C "$X" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
@@ -338,9 +315,6 @@ frozen="$(cd "$X" && "$PY" "$SCRIPT_DIR/suppression-scan.py" --count --exclude-f
 assert_eq "--count given scope.exclude equals the report's counts" "suppressions=3
 unjustified=2" "$frozen"
 
-# ---- files the scanner has no kind for --------------------------------------------
-# The change adds a .rs and a .txt file the scanner reads no language for, a
-# .png and a .py file; only the first two are named as not read.
 N="$TMP/unread"
 mkdir -p "$N/src"
 gn() { git -C "$N" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }

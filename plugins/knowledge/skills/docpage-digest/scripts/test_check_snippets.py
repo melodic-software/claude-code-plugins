@@ -83,7 +83,6 @@ class TestFailLoudUnparsed(GateHarness):
         self.assertIn(b"no '## Prompt snippets'", proc.stderr)
 
     def test_unparsed_prose_zero_fences_fails(self):
-        # The shipped-under-CLEAN class: section exists, no fence, recall text.
         text = """## Prompt snippets (exact)
 
 You are a helpful assistant.

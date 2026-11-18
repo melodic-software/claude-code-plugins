@@ -156,14 +156,12 @@ describe("run-watch time range (CLI-level)", () => {
       timeRange: { fromSec: 3600, toSec: 4800 },
       skipCaptionWait: true,
     });
-    // ASR ran on the ranged media; watching gets those cues back in media time.
     expect(vi.mocked(orchestrateWatching).mock.calls[0][0].cues).toEqual([
       { startSec: 0, endSec: 4, text: "first ranged cue" },
       { startSec: 4, endSec: 9, text: "second ranged cue" },
     ]);
 
     const { sliceDir, videoSlug } = JSON.parse(captured.stdout.join(""));
-    // The range is in the slice key, so another range of this video gets its own slice.
     expect(videoSlug).toMatch(new RegExp(`-${VIDEO_ID}-r3600-4800$`));
     expect(path.basename(sliceDir)).toBe(videoSlug);
     const state = JSON.parse(await fs.readFile(watchStatePath(sliceDir), "utf8"));
@@ -195,7 +193,6 @@ describe("run-watch time range (CLI-level)", () => {
     const mediaPath = path.join(fixtureDir, `${VIDEO_ID}.mp4`);
     const infoPath = path.join(fixtureDir, `${VIDEO_ID}.info.json`);
     await fs.writeFile(mediaPath, "binary", "utf8");
-    // The stream ended an hour ago, so its caption wait is still open.
     const info = {
       id: VIDEO_ID,
       title: "Conference Stream",

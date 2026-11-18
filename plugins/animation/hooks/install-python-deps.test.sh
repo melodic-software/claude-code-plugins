@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for install-python-deps.sh (the animation SessionStart hook).
-#
-# Proves the install flow end to end against a local wheel (pip's PIP_NO_INDEX and PIP_FIND_LINKS,
-# so nothing reaches a package index): the first session installs the hash-locked set into
-# CLAUDE_PLUGIN_DATA silently, the second session is a no-op, and a failed install is a notice
-# on both channels carrying the repair line. The hook runs from a copy of the plugin's hooks and
-# scripts directories with a fixture lock, so the real numpy and opencv lock is never installed.
 
 set -uo pipefail
 
@@ -51,7 +44,6 @@ digest="$("$py" "$PLUGIN_DIR/scripts/test_pydeps.py" --make-wheel "$(native "$WH
   exit 1
 }
 
-# new_plugin <name> <digest> -> a plugin root holding the hook, its libs, pydeps.py and a lock for the fixture wheel.
 new_plugin() {
   local root="$WORK/$1"
   mkdir -p "$root/hooks" "$root/scripts"
@@ -61,7 +53,6 @@ new_plugin() {
   printf '%s' "$root"
 }
 
-# run_hook <plugin root> <find-links dir> [NAME=VALUE ...] -> sets $OUT to the hook's stdout and $RC to its exit code.
 run_hook() {
   local root="$1" links="$2"
   shift 2
@@ -83,7 +74,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpat
   stamp="$data/python/.hook-ready"
   mkdir -p "$WORK/site"
   printf 'with open(%s, "a") as f:\n    f.write("start\\n")\n' "'$(native "$WORK/py-starts.log")'" >"$WORK/site/sitecustomize.py"
-  # win_run <find-links dir> -> runs the hook with the logging sitecustomize; sets OUT, RC and STARTS.
   win_run() {
     rm -f "$WORK/py-starts.log"
     run_hook "$root" "$1" CLAUDE_PLUGIN_DATA="$(native "$data")" PYTHONPATH="$(native "$WORK/site")"
@@ -122,7 +112,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpat
 fi
 echo "SKIP: the real Git Bash ready-stamp case needs Git Bash or Cygwin with cygpath"
 
-# First session: installs, says nothing.
 root="$(new_plugin first "$digest")"
 data="$WORK/data-first"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -133,7 +122,6 @@ else
   fail "first session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# Second session: no-op. An empty find-links folder would make any pip run fail, so a notice means it ran.
 run_hook "$root" "$EMPTY" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
 if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
@@ -142,8 +130,6 @@ else
   fail "second session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# A failed install (wrong hash): a user notice with the reason and the repair line, exit 0, nothing left.
-# Nothing reaches the model: pydeps.py run prints the repair line when a skill runs.
 root="$(new_plugin bad "$(printf '0%.0s' {1..64})")"
 data="$WORK/data-bad"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -156,7 +142,6 @@ else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# No data directory (a host that sets none): nothing to install into, no output.
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=
 out="$OUT"
@@ -166,7 +151,6 @@ else
   fail "no data dir: rc=$RC output=[$out]"
 fi
 
-# A candidate that resolves but cannot run (a pyenv shim for a version not enabled) is skipped for the next one.
 shim="$WORK/shim"
 mkdir -p "$shim"
 printf '#!/bin/sh\necho "pyenv: python3.13: command not found" >&2\nexit 127\n' >"$shim/python3.13"
@@ -181,7 +165,6 @@ else
   fail "unrunnable candidate: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# No Python on PATH: a notice naming the floor, not a silent skip.
 tools="$WORK/tools"
 mkdir -p "$tools"
 for t in bash cat dirname basename env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink date; do
@@ -198,11 +181,6 @@ else
   fail "no python: rc=$rc output=[$out]"
 fi
 
-# Native Windows Python under Git Bash or Cygwin: pydeps.py and a POSIX data directory reach it as drive-letter
-# paths even with MSYS path conversion switched off, and a cygpath that fails is a notice, never the unconverted
-# path. The stub python3 logs its arguments; the stub cygpath maps -m /dir to C:/dir, or fails.
-# native_hook <ostype> <cygpath body> -> runs the hook with MSYS_NO_PATHCONV=1 and a POSIX data directory; sets OUT,
-# RC and ARGV.
 # shellcheck disable=SC2016  # the stub bodies expand when the stubs run, not here
 native_hook() {
   local stubs="$WORK/stubs-$1"
@@ -237,10 +215,6 @@ else
   fail "linux paths: rc=$RC argv=[$ARGV] output=[$OUT]"
 fi
 
-# The ready stamp: pydeps.py install, started through a candidate found on PATH, writes <data>/python/.hook-ready,
-# and while it holds a session start starts no Python. Every candidate name resolves to a wrapper that logs each start
-# and execs the real interpreter. Each case restores the stamp that install wrote, shows that baseline starts nothing,
-# changes one input and shows the full path runs.
 logged="$WORK/logged"
 other="$WORK/other"
 mkdir -p "$logged" "$other"
@@ -253,8 +227,6 @@ chmod +x "$logged/"* "$other/"*
 root="$(new_plugin stamped "$digest")"
 data="$WORK/data-stamped"
 stamp="$data/python/.hook-ready"
-# stamp_run <plugin root> <find-links dir> [PATH prefix] -> runs the hook with the wrappers first on PATH; sets OUT, RC
-# and STARTS, the number of Python starts.
 stamp_run() {
   rm -f "$WORK/starts.log"
   run_hook "$1" "$2" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="${3:-}$logged:$PATH"
@@ -268,13 +240,11 @@ else
   fail "ready stamp write: rc=$RC stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
 fi
 cp "$stamp" "$WORK/good-stamp" 2>/dev/null
-# restore_stamp -> the stamp the install wrote, newer than every input it checks.
 restore_stamp() {
   cp "$WORK/good-stamp" "$stamp"
   touch -t 202001010000 "$root/requirements.txt" "$root/scripts/pydeps.py" "$root/scripts/pydeps.json" "$logged/"* "$other/"*
   touch -t 202101010000 "$stamp"
 }
-# invalidated <what> <mutation command ...> -> the baseline starts no Python; after the mutation the hook starts one.
 invalidated() {
   local what="$1" base
   shift
@@ -310,8 +280,6 @@ invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
 invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
 invalidated "a missing installed set" target_missing
 
-# One directory spelled two ways (a symlink here; an 8.3 short name or another mount on Windows): pydeps.py records
-# the resolved root, the hook's ROOT keeps the spelling it was started through, and the stamp still holds.
 ln -s "$root" "$WORK/stamped-link"
 restore_stamp
 stamp_run "$WORK/stamped-link" "$EMPTY"
@@ -324,7 +292,6 @@ fi
 # Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
 # shape holds under OSTYPE=msys and, paired, not elsewhere. Mounts, 8.3 names and .EXE suffixes need a Windows file
 # system: the real Git Bash case covers them. No case here covers a letter-case difference.
-# windows_form <path> -> the path with backslashes.
 windows_form() { printf '%s' "${1//\//\\}"; }
 target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"

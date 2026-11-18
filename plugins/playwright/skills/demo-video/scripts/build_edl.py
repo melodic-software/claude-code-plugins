@@ -220,8 +220,6 @@ def main(argv=None):
     def capture_at(t):
         return cap / frames[max(0, bisect.bisect_right(ftimes, t) - 1)]['file']
 
-    # a step id logged only by demo.moveTo is cursor travel, not a step: the cursor layer draws it
-    # inside whichever segment its source time falls in
     order = []
     for e in ev:
         if e.get('step') and e['name'] != 'move' and e['step'] not in order:
@@ -250,7 +248,6 @@ def main(argv=None):
     steps = []
     for i, s in enumerate(order):
         ck, st, typ = first(s, 'click'), last(s, 'settled'), first(s, 'type')
-        # the travel that ends at the click; an earlier demo.moveTo under the same id plays before it
         mv = next((e for e in reversed(by[s]) if e['name'] == 'move' and e['t'] <= ck['t']), first(s, 'move'))
         nav = (ck.get('url') or '') != (st.get('url') or ck.get('url') or '')
         steps.append({'id': s, 'mv': mv, 'ck': ck, 'st': st, 'typ': typ, 'navigates': nav,
@@ -279,7 +276,6 @@ def main(argv=None):
     for stp in steps:
         stp['modal_at'] = modal_settled(stp) if stp['typ'] else None
 
-    # while a modal is open only the modal is content; its dimmed backdrop is not (quality_control.py reads these)
     content_masks = [{'src0': s['modal_at'] or s['typ']['t'], 'src1': steps[k + 1]['ck']['t'] + 0.05 if k + 1 < len(steps) else end_t,
                       'box': s['st']['modal']} for k, s in enumerate(steps)
                      if s['typ'] and not s['navigates'] and s['st'].get('modal')] \
@@ -289,10 +285,6 @@ def main(argv=None):
     def mask_at(t):
         return next((m['box'] for m in content_masks if m['src0'] <= t <= m['src1']), None)
 
-    # ---- shots (source-time decisions: what each action's shot frames) ------------------------
-    # Each shot must be reachable from where the camera is in the time the edit gives it: a click shot by
-    # the click (cursor travel), a typing shot within open_modal plus a beat, a landing shot within one
-    # second; so no move runs long and the motion limits pick a smaller zoom instead of a slow drag.
     zr_shot = (CAM['zmin_shot'], CAM['zmax'])
     zr_land = (CAM['zmin_shot'], CAM['landing_zoom'] + 0.1)
 
@@ -354,7 +346,6 @@ def main(argv=None):
                 stp['land_rect'] = r
                 cur = r or full
 
-    # ---- segments (source spans with output durations) -----------------------------------------
     segments, forbidden = [], []
 
     def seg(src0, src1, dur, step, kind):
@@ -401,7 +392,6 @@ def main(argv=None):
             dur = max(P['hold'], P['after_cut'] + in_d + 1.0)
         else:
             dur = P['hold']
-        # a hold that shows an outcome caption lasts its reading time once it is up, whatever still_max says
         read = read_seconds(stp['outcome'], CAP) if stp['outcome'] and layers['captions'] else 0.0
         dur = max(dur, P['after_cut'] + in_d + read)
         seg(st['t'], nxt_mv if nxt_mv else min(st['t'] + 1.5, end_t), dur, s, 'hold')
@@ -455,7 +445,6 @@ def main(argv=None):
                              'span': [round(hs['out0'] + after, 4), round(nxt, 4)], 'hold_through_end': k + 1 == len(steps)})
         return caps
 
-    # ---- narration: schedule clips, stretch cursor travel or holds until they fit -----------------
     clips = {}
     if a.audio_dir and layers['narration']:
         for stp in steps:
@@ -494,7 +483,6 @@ def main(argv=None):
             if (stp['navigates'] or stp['outcome']) and own:   # the step caption gives way at the hold
                 need = max(x['end'] for x in own) - (hold_seg(k)['out0'] - NAR['pad'])
                 if need > 1e-3:
-                    # slower results for a typed step (their line starts with them), else slower cursor travel
                     grow = seg_idx(stp['id'], 'results') or seg_idx(stp['id'], 'move')
                     segments[grow[0]]['dur'] += need
                     stretched = True
@@ -530,9 +518,6 @@ def main(argv=None):
     cuts = [sg['out0'] for sg in segments[1:] if sg['transition_in'] and sg['transition_in']['type'] == 'cut']
     nav_cuts = [hold_seg(k)['out0'] for k, stp in enumerate(steps) if stp['navigates']]
 
-    # ---- camera keyframes -------------------------------------------------------------------------
-    # in-page changes quality control counts as page cuts (a modal opening, results replacing a page): the output
-    # times where the shown capture changes by at least nav_change_min with no source jump
     fps = 30
 
     def capture_idx(st):   # produce.py's choice of capture for a source time
@@ -636,7 +621,6 @@ def main(argv=None):
                 cam.extend({'t': round(t, 4), 'rect': q} for t, q in ((t_in, r), (t_in + d_in, cand), (t_out, cand), (t_out + d_out, r)))
                 return
 
-    # a still stretch longer than the quality control limit gets a slow push-in toward a tighter gutter-snapped shot
     still_max = cfg['quality_control']['still_max']
     keys = sorted(cam, key=lambda c: c['t'])
     moves_t = [(p['t'], q['t'], p['rect'], q['rect']) for p, q in zip(keys, keys[1:]) if p['rect'] != q['rect']]
@@ -684,14 +668,11 @@ def main(argv=None):
             if t_e - t_s < MOT['min_move_duration']:
                 continue
             nxt = next(((m0, m1, r1) for m0, m1, r1 in moves_t if m0 >= a1 - 1e-6), None)
-            # the configured drift first, then half and one and a half times it, in and out (no gutter
-            # may sit at exactly one zoom), then any push-in up to the landing zoom
             ranges = [(zz - 0.02, zz + 0.02) for zz in (min(max(z * f ** s, 1.0), CAM['zmax'])
                                                          for f in (CAM['drift'], CAM['drift'] ** 0.5, CAM['drift'] ** 1.5)
                                                          for s in (1, -1)) if abs(zz - z) >= 0.02]
             if z * CAM['drift'] < CAM['landing_zoom']:
                 ranges.append((z * CAM['drift'], CAM['landing_zoom']))
-            # a click while the drifted rect holds keeps its target in shot with headroom
             hold_end = nxt[0] if nxt else total
             targets = [s['ck']['box'] for s in steps if a0 <= out_of(s['ck']['t']) <= hold_end]
             cands = []
@@ -701,13 +682,10 @@ def main(argv=None):
                     continue
                 if not all(in_shot(cand, tb, W, H, CAM['safe_margin'] * cand[2] / W) for tb in targets):
                     continue
-                # the next move now starts from the drifted rect: it must still fit its time inside the limits
                 if nxt and move_duration(cand, nxt[2], 0.0, W, MOT) > nxt[1] - nxt[0] + 1e-3:
                     continue
                 if anchor_clear(r, cand, t_s, t_e, a0, a1, pw):
                     cands.append(cand)
-            # a drift that keeps the direction of the move into the hold first; reversing it only
-            # when nothing else keeps the stretch under the stillness limit
             onward = [c for c in cands if rb is None or a0 != g0 or keeps_direction(rb, r, c)]
             tgt = (onward or cands or [None])[0]
             if not tgt:
@@ -727,7 +705,6 @@ def main(argv=None):
                 return [p['rect'][j] + (q['rect'][j] - p['rect'][j]) * u for j in range(4)]
         return cam[-1]['rect']
 
-    # ---- cursor ---------------------------------------------------------------------------------
     last_nav = steps[-1]['navigates']
     hidden_from = hold_seg(len(steps) - 1)['out0'] if last_nav else None
 
@@ -743,7 +720,6 @@ def main(argv=None):
             pos = (m['to']['x'], m['to']['y'])
         return pos
 
-    # ---- caption placement: the primary anchor, else the one fixed fallback, on empty page --------
     def caption_mask(stp, s_t):
         """A typing step's modal is the only content from the click that opens it (the camera frames
         the modal from then on); otherwise whatever content mask is open at s_t."""
@@ -781,7 +757,6 @@ def main(argv=None):
         if layers['captions'] and occ[name] > CAM['edge_ink']:
             errs.append(f"caption {c['text']!r} has no empty anchor ({c['anchor_occupancy']})")
 
-    # ---- rules ----------------------------------------------------------------------------------
     for sg in segments:
         for a0, a1 in forbidden:
             if sg['src1'] > sg['src0'] and sg['src0'] < a1 - 1e-6 and sg['src1'] > a0 + 1e-6:
@@ -813,8 +788,6 @@ def main(argv=None):
         for key in ('click_shot', 'type_rect', 'land_rect'):
             r = stp.get(key)
             if r:
-                # each shot is checked against the content it was chosen on: a click shot held over from
-                # a typing shot keeps that shot's modal mask
                 if key == 'click_shot':
                     mask = mask_at(stp['ck']['t'])
                 elif key == 'type_rect':

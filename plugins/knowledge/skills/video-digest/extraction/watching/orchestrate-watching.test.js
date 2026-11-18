@@ -51,7 +51,6 @@ describe("orchestrateWatching", () => {
         framesDir: "/tmp/frames",
         contactSheetsDir: "/tmp/sheets",
         cues: [{ startSec: 10, endSec: 20, text: "Let me show you this code demo" }],
-        // A cap above the two 60s gaps keeps gap fill out of this composition check.
         maxFrameGapSec: 120,
       },
       {
@@ -227,7 +226,6 @@ describe("orchestrateWatching", () => {
   it("extracts a frame inside a gap between scene frames longer than the maximum gap", async () => {
     const { state, requested } = await watchSparseScenes();
 
-    // 300s is the top of the medium tier, whose default cap is 6s.
     expect(state.coveragePlan.maxFrameGapSec).toBe(6);
     expect(state.coveragePlan.forceStratifiedPass).toBe(false);
     expect(requested.some((t) => t > 0 && t < 200)).toBe(true);
@@ -238,9 +236,6 @@ describe("orchestrateWatching", () => {
   });
 
   it("never counts an untimed frame as coverage of a gap", async () => {
-    // Timed frames at 0s and 100s of 300s leave 100-300s uncovered. The two
-    // untimed frames (null time, and no time field) have no place on the
-    // timeline, so they must not hide that gap.
     const extractAnchorFrames = vi.fn(async (_videoPath, _dir, timestampsSec) =>
       timestampsSec.map((t) => ({
         path: `/tmp/anchor_${t}.png`,
@@ -284,9 +279,6 @@ describe("orchestrateWatching", () => {
   });
 
   it("does not refill a static stretch whose frames dedup dropped", async () => {
-    // Timed scene frames every 50s across 300s, all of one unchanged slide: the
-    // deduplicator keeps only the first. The screen was seen every 50s, under the
-    // 60s cap, so no gap-fill extraction may follow the anchor pass.
     const keepFirstDedup = vi.fn(async (inputs) => {
       const frames = inputs.map((input) => ({ ...input }));
       const unique = frames.slice(0, 1);
@@ -341,8 +333,6 @@ describe("orchestrateWatching", () => {
   });
 
   it("keeps a ranged run's gap-fill frames inside the range in full-video time", async () => {
-    // 1:00:00 to 1:20:00 of a long video: the ranged media is 1200s long. A dense
-    // 10s cap must fill gaps on that media only, never the rest of the video.
     const range = { fromSec: 3600, toSec: 4800 };
     const fullVideoCues = [
       { startSec: 100, endSec: 110, text: "Before the range: look at this slide" },

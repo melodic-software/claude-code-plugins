@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Public entry surface for the video-digest extraction suite. The Node
-# package under extraction/ is skill-private; external consumers (CI, docs)
-# invoke this facade instead of reaching into it.
 set -euo pipefail
 
 usage() {

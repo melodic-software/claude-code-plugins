@@ -104,7 +104,6 @@ class PositionalLayerTests(unittest.TestCase):
                 USER, str(team), "--ladder", str(LADDER), "--format", "ladder-overrides"
             ).stdout.splitlines()
             self.assertIn("python\tcyclomatic\tnone", rows)
-            # The bundled defaults (change, auto) emit no scope lines at all.
             self.assertNotIn(
                 "--scope-default change",
                 run(USER, "--format", "dispatch-args").stdout,
@@ -113,19 +112,11 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_value_carrying_a_line_break_cannot_inject_a_second_directive(
         self,
     ) -> None:
-        # The output formats are line oriented and the dispatcher reads them
-        # with `mapfile`, so a scalar holding a newline would arrive as two
-        # directives: one naming a base, one quietly disabling a lane. The
-        # YAML subset's double-quoted scalars carry a real \n, so the layer
-        # below is writable by hand.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
                 'scope:\n  base: "auto\\n--disable-lane python"\n', encoding="utf-8"
             )
-            # An invalid value never stops the run: the layer's value is
-            # dropped by name and the key keeps its bundled default (`auto`,
-            # which emits no line at all).
             result = run(str(team), "--format", "dispatch-args")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
@@ -133,8 +124,6 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("scope.base", result.stderr)
             self.assertIn("control character", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
-            # The same guard holds on the --from-json path, which is the one
-            # the dispatcher actually calls and which never runs resolve().
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
                 json.dumps({"scope": {"base": "auto\n--disable-lane python"}}),
@@ -160,11 +149,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_quoted_reference_is_dropped_by_name_and_never_falls_to_a_lower_layer(
         self,
     ) -> None:
-        # `reference: "20"` is a string scalar the assembler cannot compare.
-        # The run goes on: the team value is named and dropped, and the key
-        # takes the bundled default 20 (reference/config.md), not the user
-        # layer's 10, because a lower layer's value never stands in for an
-        # invalid higher one.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
@@ -184,7 +168,6 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("'15'", result.stderr)
             self.assertIn("number or null", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
-            # A valid higher layer still wins over the dropped value.
             local = Path(tmp) / "local.yaml"
             local.write_text(
                 "complexity:\n  cyclomatic:\n    reference: 18\n", encoding="utf-8"
@@ -198,9 +181,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_scalar_exclude_is_dropped_not_read_as_a_glob_per_character(
         self,
     ) -> None:
-        # `scope.exclude` is a closed list. Iterating a scalar would emit `v`,
-        # `e`, `n`, ... as globs; instead the team value is dropped and the
-        # bundled four (reference/config.md) apply, not the user layer's list.
         with tempfile.TemporaryDirectory() as tmp:
             user = Path(tmp) / "user.yaml"
             user.write_text('scope:\n  exclude: ["docs/**"]\n', encoding="utf-8")
@@ -216,8 +196,6 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("must be a list", result.stderr)
             self.assertIn(str(team), result.stderr)
             self.assertNotIn("Traceback", result.stderr)
-            # The dispatcher reads this format through --from-json, which
-            # never runs resolve(), so the guard has to hold there too.
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
                 json.dumps({"scope": {"exclude": "vendor/**"}}), encoding="utf-8"
@@ -254,9 +232,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_correctness_rules_take_strings_and_an_invalid_layer_never_falls_lower(
         self,
     ) -> None:
-        # The schema types each rule id as a string. A team list holding a
-        # number is dropped by file, key and value; the valid local list wins,
-        # and without it the key is the bundled `[]`, never the user layer's.
         with tempfile.TemporaryDirectory() as tmp:
             user = Path(tmp) / "user.yaml"
             user.write_text(
@@ -286,8 +261,6 @@ class PositionalLayerTests(unittest.TestCase):
             )
 
     def test_an_unusable_exclude_glob_is_dropped_by_name(self) -> None:
-        # `[z-a]` compiles to no regex, so the matcher cannot apply it; the
-        # layer's list is dropped whole and the bundled list applies.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
@@ -301,8 +274,6 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("scope.exclude", result.stderr)
 
     def test_a_layer_outside_the_subset_is_named_and_ignored(self) -> None:
-        # A file the parser rejects reads as absent, the shared reader's rule
-        # (lib/parse-concern-value.sh): the run continues on the other layers.
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("flow mapping", result.stderr)
@@ -358,8 +329,6 @@ class PositionalLayerTests(unittest.TestCase):
 
 class SchemaTests(unittest.TestCase):
     def test_the_schema_declares_every_bundled_key_and_no_other(self) -> None:
-        # The schema validates a consumer's team file in CI; a key the
-        # resolver reads but the schema lacks would fail a valid file there.
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         defs = schema["$defs"]
 
@@ -398,7 +367,6 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(declared, bundled)
         lanes_schema = schema["properties"]["lanes"]
         self.assertEqual(sorted(lanes_schema["properties"]), sorted(lanes))
-        # An extra lane id is accepted in the form the resolver accepts.
         pattern = re.compile(lanes_schema["propertyNames"]["pattern"])
         for lane in [*lanes, "rust", "cross-cutting"]:
             self.assertRegex(lane, pattern)
@@ -467,10 +435,6 @@ class DiscoveredLayerTests(unittest.TestCase):
             )
 
     def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
-        # `rust` is listed and has no shipped collector, `python` is a shipped
-        # lane listed with globs, and the unlisted `cross-cutting` record (this
-        # repository's lint-only one) is the control. Names are composed for
-        # the reason the test above gives.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             ecosystems = root / ".claude" / "ecosystems"
@@ -588,7 +552,6 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(d["_warnings"], [])
 
     def test_with_both_files_only_the_docs_file_is_read(self) -> None:
-        # A key only the .claude file sets does not apply.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             self._team_files(

@@ -123,20 +123,12 @@ class MultiRootTests(unittest.TestCase):
         self.assertIn("C:/workspace/cm-drive.sh", document)
 
     def test_the_probe_reads_the_scan_root_it_is_given(self) -> None:
-        # Pointed at an empty tree the probe finds no candidate anywhere, so
-        # every relative filename falls back to the first root. The resolution
-        # the other cases assert is therefore an observation of the measured
-        # tree and not an accident of the order the roots are declared in.
         with tempfile.TemporaryDirectory() as tmp:
             document = self.document(tmp)
         self.assertIn(ALPHA + "/cm-sample.sh", document)
         self.assertNotIn(SOURCES + "/cm-sample.sh", document)
 
     def test_a_root_that_merely_lacks_the_file_says_nothing_on_stderr(self) -> None:
-        # The stderr note belongs to a root the probe could not read, not to
-        # one that simply does not hold the file: absence is the ordinary
-        # case on every multi-root report, and a line per miss would bury the
-        # one that matters. Nothing reaches stdout either, which is parsed.
         with tempfile.TemporaryDirectory() as tmp:
             result = run(str(MULTI_ROOT), scan_root=tmp)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -177,9 +169,6 @@ class MultiRootTests(unittest.TestCase):
         self.assertNotIn(_posix(first) + "/cm-later.sh", document)
 
     def test_absent_absolute_source_roots_fall_back_to_the_first(self) -> None:
-        # The CI shape: absolute roots from the machine that produced the
-        # report, none of which exist here. Every probe misses and rule 4
-        # keys the class under the first root.
         body = _multi_root_xml(["/ci/build/alpha", "/ci/build/beta"], "later.sh")
         with (
             tempfile.TemporaryDirectory() as scan,

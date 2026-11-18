@@ -39,8 +39,6 @@ vi.mock("./temp-space-check.js", () => ({
   checkTempSpace: vi.fn(async () => ({ state: "enough", message: "" })),
 }));
 
-// The machine-under-test has no faster-whisper: capability detection reports
-// absent, and the transcription rung must never be reached.
 vi.mock("../transcript/asr-transcribe.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -115,7 +113,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
       success: true,
       data: createAcquisitionEnvelope({
         entries: [
-          // Caption-less X media entry: no captions were published for the post.
           { mediaPath, captionPaths: [], metadataPath: path.join(fixtureDir, "info.json"), caption: null },
         ],
         metadata: {
@@ -132,13 +129,9 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
-    // The named provenance field carries the capability-absent reason —
-    // explicitly, never silently, and never as a failure.
     expect(output.transcriptDegradation).toContain("faster-whisper");
     expect(output.transcriptDegradation).toContain("without a transcript");
     expect(output.transcriptStrategy).toBeNull();
-    // The X slice key is the URL's status id, and the digest continues into
-    // the visual lane (media exists even though no transcript does).
     expect(output.videoSlug.endsWith(TWID)).toBe(true);
     expect(vi.mocked(orchestrateWatching)).toHaveBeenCalledOnce();
     expect(vi.mocked(runAsrTranscription)).not.toHaveBeenCalled();
@@ -150,7 +143,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
     const state = JSON.parse(stateRaw);
     expect(state.phases.transcript.metrics.transcriptDegradation).toContain("faster-whisper");
     expect(state.phases.transcript.metrics.skipped).toBe(true);
-    // source:* provenance persists into watch state alongside the degradation.
     expect(state.sourceMetadata["source:displayId"]).toBe(TWID);
   });
 });

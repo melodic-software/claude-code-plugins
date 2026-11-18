@@ -43,8 +43,6 @@ describe("recovery source-URL resolution", () => {
   });
 
   it("reads sourceUrl from the slice's persisted watch.json — never synthesized", async () => {
-    // A non-YouTube sourceUrl proves recovery honors what the original run
-    // recorded instead of re-deriving a YouTube-shaped URL from metadata.
     const sourceUrl = "https://x.com/someone/status/1234567890";
     await writeWatchState(
       sliceDir,
@@ -124,7 +122,6 @@ describe("recovery maximum frame gap", () => {
     expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(30);
   });
 
-  // The seeded slice is a 120s video (captions end at 2:00, no probe), the medium tier: 6s.
   it("falls back to the medium-tier 6s default when the run recorded no value", async () => {
     expect(await recoverSeededSlice()).toBe(0);
 
@@ -256,7 +253,6 @@ describe("recovery of a ranged slice", () => {
     await fs.rm(sliceDir, { recursive: true, force: true });
   });
 
-  // The ranged media runs 125s for a 30s-150s range: 5s of it sits before the range's start.
   it("adds the recorded range's start to every frame time and keeps the range", async () => {
     captured.probedDurationSec = 125;
 
@@ -294,9 +290,6 @@ describe("recovery CLI argument validation", () => {
     captured.stderr.length = 0;
   });
 
-  // Regression (#3365): `path.resolve(argv[2..5])` ran BEFORE the presence
-  // check, so a missing argument threw `TypeError` and the usage branch was
-  // unreachable. A bad invocation must print the usage line and return 1.
   it.each([
     ["no arguments", []],
     ["only slice-dir", ["slice"]],
@@ -312,9 +305,6 @@ describe("recovery CLI argument validation", () => {
 });
 
 describe("stratified downsample reporting", () => {
-  // Regression (#3365): the WARN interpolated `selection.selected.length`
-  // AFTER `selection` was reassigned to the downsampled array, so it printed
-  // "N → N" and hid every dropped frame.
   it("reports the pre-downsample count, not the post-downsample count", () => {
     const selected = Array.from({ length: 50 }, (_, i) => ({ path: `f${i}.png` }));
 

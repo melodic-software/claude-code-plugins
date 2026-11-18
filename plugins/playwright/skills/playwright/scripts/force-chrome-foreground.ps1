@@ -1,12 +1,5 @@
-# Brings a running Chrome window to the foreground on Windows.
 # Workaround for Windows' no-steal-focus policy after `playwright-cli -s=<name> open --headed`
 # spawns Chrome from a background process tree. See ../reference/windows-quirks.md.
-#
-# Usage:
-#   pwsh -NoProfile -File scripts/force-chrome-foreground.ps1 [-TitleMatch <regex>]
-#
-# TitleMatch defaults to '.*' (first Chrome window with a MainWindowHandle).
-# Exit codes: 0 = focus set (or no-op on non-Windows), 1 = no matching Chrome process.
 
 #Requires -Version 7.4
 

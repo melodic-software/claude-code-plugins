@@ -39,17 +39,10 @@ import inkstats  # noqa: E402
 import render  # noqa: E402
 import workdir  # noqa: E402
 
-# Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
-# straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; flat
-# rejects texture laid over all the black; the rest reject other styles. grain and period are measured only: on
-# the source they follow codec residue and the pixel grid, not a drawn texture. straight and sliver follow the subject, so
-# they are checked only inside the content classes every film of the style has (inkstats.CLASSES), and only where
-# the source defines the class in at least two parts; over the whole frame they are MEASURED_ONLY.
 CHECK = ['straight_border', 'straight_caption', 'rough', 'offstep', 'sliver_border', 'sliver_caption',
          'flat', 'holes', 'boil', 'per_second']
 MEASURED_ONLY = ['straight', 'sliver', 'grain', 'period']
 CLEAR = 0.5
-# Shortest excerpt: a third of the source, about 10 s of a 30 s clip, the length SKILL.md asks a validation scene to be.
 FLOOR = 1 / 3
 MAX_SUBSETS = 4096
 
@@ -153,9 +146,6 @@ def main(argv=None):
             others = [v for j, v in cv if j != i] or [ref[s]]
             need = max(need, *(outside(v, min(others), max(others)) for j, v in cv if j == i))
         raw[s] = lo, hi, need, {n: v for n, nm in negs.items() if (v := inkstats.film_value(nm, s)) is not None}
-    # A control caps only the checked row that rejects it most (largest distance under the raw bands), so that row
-    # keeps rejecting it by a clear margin while the other rows keep full held-out coverage. Only a row defined in
-    # at least two parts is checked, so only such a row may carry a cap.
     check = [s for s in CHECK if s in raw and sum(value([p], s, a.base_fps) is not None for p in parts) >= 2]
     best = {n: max((s for s in check if n in raw[s][3]),
                    key=lambda s: inkstats.distance(raw[s][3][n], ref[s], *raw[s][:2]), default=None) for n in negs}
@@ -183,7 +173,6 @@ def main(argv=None):
 
     def color(rs, k):
         return np.median([r[k] for r in rs if r[k]], 0)
-    # palette tolerance = what encoding does to the colors + how far a source excerpt's colors stray from the clip's
     with tempfile.TemporaryDirectory() as tmp:
         enc = inkstats.measure(str(render.encode(controls.held(a.work, workdir.src(a.work)), 'mp4', inkstats.BASE_FPS, Path(tmp) / 'source.mp4')))
     shift = max(float(np.abs(color(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))

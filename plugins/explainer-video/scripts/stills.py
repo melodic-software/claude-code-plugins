@@ -214,7 +214,6 @@ def frame_holds(holds, frames):
         weights = [f['entries'][1] - f['entries'][0] if f['entries'] else 1 for f in mine]
         length = h['end'] - h['start']
         spare = length - sum(f['minimum'] for f in mine)
-        # The holds are rounded to the millisecond, so a hold built to its minimums can read a hair short.
         floors, spare = ([f['minimum'] for f in mine], spare) if spare > -0.005 else ([0] * len(mine), length)
         edges, t = [h['start']], h['start']
         for floor, w in zip(floors, weights):

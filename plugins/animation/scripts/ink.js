@@ -1,12 +1,3 @@
-// ink.js: stroke-built ink for two-tone, hand-drawn-looking Canvas 2D animation.
-// Contract for every function here:
-//   - deterministic: output depends only on the arguments; randomness comes from rng(seed, step).
-//   - `step` is the boil counter (e.g. floor(t * 8) for animation on 3s at 24 fps). Same step, same drawing;
-//     a new step re-lays every stroke, which is what makes the ink crawl. `boil: 0` freezes a shape.
-//   - no alpha blending on ink (two-tone rule); only paperGrain uses alpha, by design.
-//   - no dependencies, no DOM access beyond the ctx passed in (paperGrain creates one offscreen canvas).
-//   - the default ink is INK; a scene in a style passes the pack's palette.ink as `color`.
-
 export const INK = '#141211';
 
 export function rng(seed, step = 0) {
@@ -14,13 +5,11 @@ export function rng(seed, step = 0) {
   return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
 
-// One round-ended brush dab. The building block of everything else.
 export function capsule(ctx, x1, y1, x2, y2, w, color) {
   ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 + 0.01, y2); ctx.stroke();
 }
 
-// Longest-edge direction of a polygon: the natural hatch direction for rays, bars, buildings.
 export function principalAngle(pts) {
   let best = 0, ang = 0;
   for (let i = 0; i < pts.length; i++) {
@@ -30,15 +19,6 @@ export function principalAngle(pts) {
   return ang;
 }
 
-// inkFill(ctx, pts, opts): fill a closed polygon with rows of overlapping round-ended strokes.
-//   pts       [[x,y],...] closed polygon (any winding; even-odd spans)
-//   color     fill color
-//   seed,step identity and boil counter; boil (0..1) scales how much of the layout re-rolls per step
-//   angle     hatch direction in radians (default: longest edge)
-//   width     stroke thickness in px (default 12); row pitch is width * pitch (default 0.78)
-//   len       [min,max] stroke length in px (default [30, 120])
-//   dryBrush  0..1 chance of a paper gap between consecutive strokes in a row (default 0.12)
-//   overshoot how far stroke ends wander past the polygon edge, in widths (default 0.6): the comb edge
 export function inkFill(ctx, pts, o = {}) {
   const color = o.color || INK, w = o.width || 12, pitch = o.pitch || 0.78, [l0, l1] = o.len || [30, 120];
   const dry = o.dryBrush ?? 0.12, over = o.overshoot ?? 0.6, boil = o.boil ?? 1;
@@ -69,11 +49,6 @@ export function inkFill(ctx, pts, o = {}) {
   }
 }
 
-// inkStroke(ctx, pts, opts): a brushed line along a polyline, built from dabs.
-//   width     base thickness; taper [start, end] multipliers (default [1, 0.25])
-//   strands   parallel sub-strokes across the width (default 1); >1 leaves cream grooves between them
-//   dab       dab length in px (default 3 * width, min 14); dryBrush chance of a skipped dab (default 0.08)
-//   wobble    per-step perpendicular jitter in widths (default 0.15)
 export function inkStroke(ctx, pts, o = {}) {
   const color = o.color || INK, W = o.width || 10, [t0, t1] = o.taper || [1, 0.25], n = o.strands || 1;
   const dry = o.dryBrush ?? 0.08, wob = o.wobble ?? 0.15, r = rng(o.seed || 1, o.boil === 0 ? 0 : o.step || 0);
@@ -98,10 +73,6 @@ export function inkStroke(ctx, pts, o = {}) {
   }
 }
 
-// splatter(ctx, cx, cy, r, opts): specks and flicked dashes around a point.
-//   dots      count of round specks; positions fixed by seed, each blinks off with probability `flicker` per step
-//   dashes    count of short radial flicks, fully re-laid every step
-//   size      speck radius scale in px (default 3)
 export function splatter(ctx, cx, cy, R, o = {}) {
   const color = o.color || INK, fixed = rng(o.seed || 1, 0), live = rng(o.seed || 1, (o.step || 0) + 1), sz = o.size || 3;
   for (let i = 0; i < (o.dots ?? 10); i++) {
@@ -117,8 +88,6 @@ export function splatter(ctx, cx, cy, R, o = {}) {
   }
 }
 
-// dashedLine(ctx, x1, y1, x2, y2, opts): hand-inked dashed line whose dashes crawl each step.
-//   dash, gap   px lengths (default 9, 6); width px (default 2.5); double: 0 or px offset for a second parallel line
 export function dashedLine(ctx, x1, y1, x2, y2, o = {}) {
   const color = o.color || INK, dash = o.dash || 9, gap = o.gap || 6, w = o.width || 2.5, r = rng(o.seed || 1, o.step || 0);
   const L = Math.hypot(x2 - x1, y2 - y1); if (L < 1) return;
@@ -131,8 +100,6 @@ export function dashedLine(ctx, x1, y1, x2, y2, o = {}) {
   }
 }
 
-// paperGrain(ctx, w, h, opts): faint paper tooth over the whole frame, shifted per step so it boils.
-//   The one deliberate alpha use (7-10%). Cached per seed/size.
 const grains = new Map();
 export function paperGrain(ctx, w, h, o = {}) {
   const seed = o.seed || 999, key = `${seed}:${w}x${h}`, step = o.step || 0;

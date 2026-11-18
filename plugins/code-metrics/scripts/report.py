@@ -65,12 +65,7 @@ SCHEMA = "code-metrics/v2"
 ROOT_KINDS = ("repository", "directory")
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
-# The reason prefix the dispatcher writes on a run row when a collector ran and
-# produced nothing parseable; it is also what makes an entry script exit 3.
 COLLECT_FAILED = "collect failed (exit 3)"
-# The reason prefix the coverage join writes on every run row when no artifact
-# was named and none was discovered; the rendering points at the table that
-# says how to get one, since the skill itself runs nothing.
 NO_ARTIFACT = "no coverage artifact found"
 
 
@@ -130,9 +125,6 @@ def thresholds(config: dict[str, Any], measures: list[str]) -> list[dict[str, An
 
 
 def _over(threshold: dict[str, Any], value: Any) -> bool:
-    # A value that was not measured is never over a reference, and a reference
-    # that is not a number (a quoted number that reached a pre-resolved
-    # --config document) is no threshold at all.
     reference = threshold.get("reference")
     if not _is_number(value) or not _is_number(reference):
         return False
@@ -184,8 +176,6 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     for row in measures:
         if row.get("file"):
             files.add(row["file"])
-        # A row that stands for replicated copies was measured for every copy,
-        # so each copy is a measured file even though only one row survived.
         for replica in (row.get("replicas") or {}).get("files") or []:
             if replica:
                 files.add(replica)
@@ -398,9 +388,6 @@ def assemble(
         "status": status,
         "scope": scope,
         "run": run,
-        # `value_key` and `direction` travel with the document: the renderer
-        # orders rows by the primary measure, and a consumer comparing two
-        # documents needs to know which value the reference was applied to.
         "thresholds": list(threshold_entries),
         "measures": measures,
         "summary": _summary(measures, excluded, root),
@@ -630,8 +617,6 @@ def render(
     duplication = _is_duplication(doc)
     lines.append(f"# code-metrics: {doc.get('skill', '?')}")
     lines.append("")
-    # A `not-applicable` row (the `other` lane, which no detector covers) is
-    # not a probe that failed, so it neither earns the headline nor blocks it.
     detector_rows = [
         row
         for row in doc.get("run", [])
@@ -642,8 +627,6 @@ def render(
         and detector_rows
         and all(row.get("status") == "unavailable" for row in detector_rows)
     ):
-        # One headline for the whole run: the lane rows below still carry
-        # each probe's own reason, so this names the fix once, not per lane.
         hint = next((row.get("hint") for row in detector_rows if row.get("hint")), "")
         lines.append(
             "No clone detector ran in any lane"
@@ -659,9 +642,6 @@ def render(
         + (f", {scope['excluded']} excluded" if scope.get("excluded") else "")
         + "."
         + (
-            # An empty change is the common empty run; the headline says how
-            # to widen it, because the skill body is not in front of the
-            # reader when the report is.
             " No files differ from that merge-base and none are uncommitted; "
             "pass paths or `--all` to widen the scope."
             if scope.get("mode") == "change" and not scope.get("files")
@@ -722,30 +702,16 @@ def render(
         lines.append("|" + "---|" * (5 + len(keys)))
         primary = _primary_threshold(thresholds_, keys)
         if duplication:
-            # Largest group first: the reader's question is "what is the
-            # biggest copy", not which file sorts first.
             ordered = sorted(measures, key=_clone_sort_key)
         else:
-            # Rows over a reference come first, the furthest past it at the
-            # top, so the table's opening lines are the ones a reader came
-            # for; the rest follow by the primary measure's value, largest
-            # first, so a size report reads longest to shortest rather than
-            # alphabetically.
             ordered = sorted(
                 measures,
                 key=lambda r: (
-                    # A lane row (`lane-total`) is the lane's figure: it leads
-                    # its table and never falls under the row cap.
                     0 if "lane-total" in (r.get("labels") or []) else 1,
                     -len(r.get("over_reference", [])),
                     -_over_distance(r, references),
-                    # A coverage table leads with the highest-CRAP function
-                    # and lists file rows least covered first; elsewhere
-                    # this component is a constant.
                     _coverage_rank(r),
                     _primary_rank(primary, r),
-                    # A lane row (type debt) has `file: null`; `or ""` keeps
-                    # it comparable with the file rows it now sorts among.
                     r.get("file") or "",
                     r.get("start_line") or 0,
                 ),
@@ -830,8 +796,6 @@ def render(
     else:
         lines.append(
             f"Files: {summary.get('files', 0)}. "
-            # A file-level report has no functions to count; the figure is
-            # printed only where function rows exist.
             + (
                 f"Functions: {summary['functions']}. "
                 if summary.get("functions")
@@ -855,10 +819,6 @@ def render(
         excluded_line = (
             f"Excluded by a sanctioned-replication registry: {len(doc['excluded'])}."
         )
-        # `Files with clones` counts surviving groups only, while the scope
-        # header counts every file scanned. A file whose every group was
-        # excluded is in the second and not the first; name how many, so the
-        # two counts read as the different populations they are.
         counted = files_excluded_only(doc.get("measures", []), doc["excluded"])
         if counted:
             excluded_line += (
@@ -919,11 +879,6 @@ def render(
     if document_path:
         lines.append(f"Full document: {document_path}")
     if any(NO_ARTIFACT in (row.get("reason") or "") for row in doc.get("run", [])):
-        # Every lane is unavailable for the same cause, and the cause has a
-        # documented remedy the skill will not apply on its own: the table of
-        # producers and command shapes, per lane, in the skill body and README.
-        # It closes the report, after the document path, so the remedy is the
-        # last thing read.
         lines.append(
             "No coverage artifact was found, so no line was measured. The "
             '"Getting a first artifact" table in the audit-coverage skill body and '

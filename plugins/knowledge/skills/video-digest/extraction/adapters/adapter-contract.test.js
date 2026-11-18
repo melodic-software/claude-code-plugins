@@ -215,8 +215,6 @@ describe("validateAdapter", () => {
     badAllowList.allowedExtractors = 42;
     expect(validateAdapter(badAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
 
-    // An empty string is truthiness-skipped by the arg builders — for
-    // allowedExtractors that would silently drop the SSRF guard.
     const emptyAllowList = validSpec();
     emptyAllowList.allowedExtractors = "";
     expect(validateAdapter(emptyAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
@@ -235,8 +233,6 @@ describe("validateAdapter", () => {
     badStrategy.transcriptStrategy = "telepathy";
     expect(validateAdapter(badStrategy).some((v) => v.includes("transcriptStrategy"))).toBe(true);
 
-    // captionClass is CONSUMED by the shared caption ladder, so the contract
-    // rejects classes the ladder does not understand.
     const badCaptionClass = validSpec();
     badCaptionClass.captionClass = "hand-transcribed";
     expect(validateAdapter(badCaptionClass).some((v) => v.includes("captionClass"))).toBe(true);

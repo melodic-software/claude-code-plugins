@@ -182,7 +182,6 @@ def main(argv=None):
         print('quality control: no page frames found', file=sys.stderr)
         return 2
 
-    # ---- registration: zoom and rect per runtime frame, measured from the frame ------------------
     band_top = H - CAP['margin'] - CAP['pill_h'] - CAP['clear']   # top of the caption band, CSS px
     rows = int(band_top * AH / H)
     reg = Registrar(W, H, CAM['zmax'], rows)
@@ -220,14 +219,12 @@ def main(argv=None):
         z = zf[j]
         return [cx[j] - W / z / 2, cy[j] - H / z / 2, W / z, H / z]
 
-    # camera still at a frame: no zoom or pan change across a settled_frames window
     dz = np.abs(np.diff(lnz, prepend=lnz[0]))
     dp = np.hypot(np.diff(cx, prepend=cx[0]), np.diff(cy, prepend=cy[0])) * zf / W
     moving = (dz > 0.002) | (dp > 0.002)
     k = Q['settled_frames']
     settled = np.array([not moving[max(0, j - k // 2):j + k // 2 + 1].any() for j in range(len(runtime))])
 
-    # ---- zoom share ---------------------------------------------------------------------------
     if camera_on:
         zoomed = zf >= Q['zoom_threshold'] - 0.005
         share = float(zoomed.mean())
@@ -238,7 +235,6 @@ def main(argv=None):
     else:
         check('zoom-share', 'SKIP', 'camera layer off')
 
-    # ---- edge clipping on settled zoomed frames, against the capture under each edge ---------------
     masks = edl.get('content_masks', [])
 
     @lru_cache(maxsize=32)
@@ -252,8 +248,6 @@ def main(argv=None):
         rect = view(j)
         rect[0] = min(max(rect[0], 0.0), W - rect[2])
         rect[1] = min(max(rect[1], 0.0), H - rect[3])
-        # registration is good to about one analysis pixel: an edge passes if a gutter lies within that
-        # distance of where it was measured, and an edge that close to the page edge is the page edge
         prec = W / AW / zf[j]
         ink = ink_for(est[i][3], log[i]['captures'][-1])
         least = None   # each edge's lowest ink over the shifts
@@ -272,7 +266,6 @@ def main(argv=None):
     else:
         check('edge-clip', 'SKIP', 'camera layer off')
 
-    # ---- click targets keep headroom ------------------------------------------------------------
     if camera_on:
         bad, bad_at = [], []
         for s in edl.get('steps', []):
@@ -292,7 +285,6 @@ def main(argv=None):
     else:
         check('target-headroom', 'SKIP', 'camera layer off')
 
-    # ---- caption anchors ------------------------------------------------------------------------
     if edl['layers'].get('captions'):
         allowed = CAP['anchors'][:2]
         off = [c for c in edl.get('captions', [])
@@ -303,7 +295,6 @@ def main(argv=None):
     else:
         check('caption-anchor', 'SKIP', 'captions layer off')
 
-    # ---- stillness (caption band masked) --------------------------------------------------------
     band0 = int(band_top * SH / H)
     band1 = int(math.ceil((H - CAP['margin'] + CAP['clear']) * SH / H))
     sm = small.copy()
@@ -320,7 +311,6 @@ def main(argv=None):
             run_start = None
     if run_start is not None:
         runs.append((run_start, last))
-    # a hold that shows an outcome may stay still for its reading time (the EDL's hold 'read') on top of still_max
     reads = [(sg['out0'], sg['out1'], sg['read']) for sg in edl['segments'] if sg.get('kind') == 'hold' and sg.get('read')]
 
     def read_in(r):
@@ -339,7 +329,6 @@ def main(argv=None):
           + (f' at {worst[0] / fps:.2f}-{(worst[1] + 1) / fps:.2f}s' if worst else ''),
           [worst[0], (worst[0] + worst[1]) // 2, worst[1]] if worst else [])
 
-    # ---- motion: each move's peaks from its measured 10-90% duration and total change --------------
     tol = 1 + Q['motion_tolerance']
     moves, j = [], 0
     while j < len(runtime):
@@ -370,8 +359,6 @@ def main(argv=None):
                 over_at += [runtime[s0], runtime[(s0 + s1) // 2]]
     check('motion', 'FAIL' if over else 'PASS', over[:6] if over else f'{len(moves)} camera moves within the caps', over_at)
 
-    # ---- page cuts: camera still; a URL change at 1.0x, an in-page state cut at 1.0x or clean edges --
-    # The EDL says only where the URL changes; the zoom at each cut is the one measured from the frames.
     pos = {i: j for j, i in enumerate(runtime)}
     url_frames = {int(round(c * fps)) for c in edl.get('nav_cuts', [])}
     cuts, bad_cuts, bad_cut_at = [], [], []
@@ -385,8 +372,6 @@ def main(argv=None):
         j = pos[i]
         cuts.append(i)
         url_frames -= {i - 1, i, i + 1}
-        # moving[j] compares registrations against two different captures, so a zoomed cut shows a
-        # small jump there with the camera still; the frames on each side say whether it moved
         still = not (moving[max(0, j - 2):j].any() or moving[j + 1:j + 3].any())
         at_one = zf[j - 1] <= Q['nav_zoom_max'] and zf[j] <= Q['nav_zoom_max']
         clean = (i not in clipped) and ((i - 1) not in clipped)
@@ -398,7 +383,6 @@ def main(argv=None):
           bad_cuts or f'{len(cuts)} page cuts, camera still; URL changes at 1.0x, state cuts at 1.0x or with clean edges',
           bad_cut_at + [f for f in url_frames if f < n])
 
-    # ---- crossfades: a frame that is a blend of its neighbors across a page change ------------------
     # Checked around each page change only: slow camera motion also makes a frame resemble the average
     # of its neighbors, and is not a crossfade.
     blends = []
@@ -418,11 +402,9 @@ def main(argv=None):
     check('crossfade', 'FAIL' if blends else 'PASS', f'blended frames at {spans(blends, fps)[:6]}' if blends else 'every page change is a hard cut',
           blends)
 
-    # ---- blank, white or flat frames ------------------------------------------------------------
     flat = [i for i in runtime if small[i].std() < Q['blank_std'] or (small[i].mean() > Q['white_luma'] and small[i].std() < 3 * Q['blank_std'])]
     check('blank', 'FAIL' if flat else 'PASS', f'flat or white frames at {spans(flat, fps)[:6]}' if flat else 'no flat or white frame', flat)
 
-    # ---- report and contact sheets ----------------------------------------------------------------
     @lru_cache(maxsize=64)
     def rgb(fi):
         return Image.frombytes('RGB', (W, H), grab_rgb(a.video, fi, fps, W, H))

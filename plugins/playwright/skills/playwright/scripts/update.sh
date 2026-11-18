@@ -1,29 +1,5 @@
 #!/usr/bin/env bash
-# /playwright:playwright update helper — drift detection + vendor sync against
-# the @playwright/cli npm package.
-#
-# Maintainer-facing: run against a working-tree checkout of this plugin (the
-# marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy. Consumers receive updates through
-# `/plugin marketplace update`.
-#
-# Modes:
-#   --check  (default) read-only: report upstream npm version vs frontmatter
-#   --apply  npm-pack the latest release to a temp dir, diff the bundled
-#            upstream skill against vendor/, replace vendor/ wholesale, bump
-#            frontmatter metadata (upstream-version + upstream-sha + synced).
-#            Does NOT rewrite the SKILL.md body or reference/*.md content —
-#            distilled integration is a manual, reviewed step. Does NOT
-#            mutate any globally installed CLI.
-#
-# Exit codes:
-#   0  no drift OR --apply completed successfully
-#   1  drift detected in --check mode (no mutations)
-#   2  prerequisite missing (npm/tar) or network failure
-#
-# Idempotency: re-running --check on a no-drift state produces identical output.
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 UPSTREAM_PACKAGE="@playwright/cli"
@@ -36,7 +12,6 @@ TMPDIR_RUN=$(mktemp -d -t playwright-update-XXXXXX)
 
 trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
-# log, err, section, replace_metadata_field and main.
 # shellcheck source=vendor-update.sh
 source "${SCRIPT_DIR}/vendor-update.sh" || exit 2
 
@@ -51,7 +26,6 @@ check_prereqs() {
   [[ $missing -eq 0 ]] || exit 2
 }
 
-# Read a nested metadata.<field> value from the SKILL.md frontmatter.
 read_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
@@ -60,8 +34,6 @@ read_metadata_field() {
     "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
-# Read one field of the latest published release from the npm registry
-# (`version`, `dist.shasum`). Returns 1 when the registry answers nothing.
 npm_view_field() {
   local value
   value=$(npm view "$UPSTREAM_PACKAGE" "$1" 2>/dev/null | tr -d '\r')
@@ -69,8 +41,6 @@ npm_view_field() {
   printf '%s' "$value"
 }
 
-# npm-pack the latest release into TMPDIR_RUN, extract it, and emit the path
-# of the bundled upstream skill directory.
 fetch_upstream_skill_dir() {
   local skill_dir="${TMPDIR_RUN}/${UPSTREAM_SKILL_SUBDIR}"
   (cd "$TMPDIR_RUN" && npm pack "${UPSTREAM_PACKAGE}@latest" --silent >/dev/null 2>&1) || return 1
@@ -152,8 +122,6 @@ run_apply() {
   section "Diff against vendor/ (first 200 lines)"
   diff -ruN --exclude=.markdownlint-cli2.jsonc --exclude=LICENSE "$VENDOR_DIR" "$upstream_dir" | head -200 || true
 
-  # The vendor lint override is repo-local (disables markdownlint for verbatim
-  # third-party content) — it survives the wholesale replacement.
   section "Replace vendor/"
   [[ -f "$lint_override" ]] && cp "$lint_override" "$lint_backup"
   rm -rf "$VENDOR_DIR"
@@ -214,7 +182,6 @@ Source: the skill directory bundled inside the @playwright/cli npm package.
 EOF
 }
 
-# Source-guard: only run main when executed directly, not when sourced (tests).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi

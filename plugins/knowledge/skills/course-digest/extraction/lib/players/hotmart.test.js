@@ -346,8 +346,6 @@ describe("hotmart player module", () => {
     it("should fail past detection when the configured selector matches", async () => {
       const page = makeDetectionPage(".skin-v2-player");
 
-      // preparePage reaches the iframe lookup, which throws on this frameless
-      // stand-in, only when the custom selector matched.
       await expect(preparePage(page, "eng", 15000, ".skin-v2-player")).rejects.toThrow(
         "iframe not accessible",
       );

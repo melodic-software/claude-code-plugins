@@ -42,11 +42,8 @@ PINNED_SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 TRACKING_PARAMS_RE = re.compile(r"^(utm_.*|gclid|fbclid)$")
 
-# markdown link targets: [text](target) and <https://...> autolinks
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 MD_AUTOLINK_RE = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
-# leading backtick allowed (inline-code URLs still count as discovered);
-# backtick excluded from the URL chars so the closing fence never rides along
 BARE_URL_RE = re.compile(r"(?<![(<\"'])(https?://[^\s)\]>\"'`]+)", re.IGNORECASE)
 
 
@@ -76,8 +73,6 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
     # lowercase host only; userinfo is case-significant
     userinfo, at, host = parts.netloc.rpartition("@")
     netloc = userinfo + at + host.lower()
-    # trailing slashes dropped, bare root included: one spelling per
-    # resource, so root-with-slash dedupes against the bare origin
     path = parts.path.rstrip("/")
     query = urlencode(
         [

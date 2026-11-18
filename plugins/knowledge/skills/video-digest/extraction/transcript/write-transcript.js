@@ -60,8 +60,6 @@ function tokens(text) {
 
 /** @param {string} word */
 function comparableWord(word) {
-  // Apostrophes in any form (', ’, ʼ) drop out, so don't, don’t and dont match.
-  // Only sentence punctuation at either end goes, so C++. and C# stay distinct.
   const plain = word.toLowerCase().replace(/['\u2019\u02BC]/g, "");
   let start = 0;
   let end = plain.length;
@@ -109,9 +107,6 @@ function comparableRun(run) {
  * @param {readonly { startSec: number, endSec: number, text: string, carriedLineDropped?: boolean }[]} cues
  */
 function carriesOverFromPreviousCue(stamp, run, cues) {
-  // The paragraph stamp floors the opening cue's start to the second, so it
-  // identifies the opener only when exactly one cue starts in that second.
-  // With several, the evidence is ambiguous and the words stay.
   const openers = cues.flatMap((cue, at) =>
     `[${formatTimestamp(cue.startSec)}]` === stamp ? [at] : [],
   );
@@ -160,12 +155,7 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
     for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
       const run = currentWords.slice(0, length);
       if (comparableRun(previousWords.slice(-length)) !== comparableRun(run)) continue;
-      // Every match, whatever its length, needs cue-level carry-over evidence:
-      // a speaker may genuinely repeat several words ("I don't know." / "I
-      // don't know why.").
       if (!carriesOverFromPreviousCue(current[1].trim(), run, cues)) continue;
-      // Keep punctuation-only tokens before the dropped words (a `>>` speaker
-      // marker); drop any between them.
       const kept = [
         ...currentTokens.slice(0, wordAt[0]),
         ...currentTokens.slice(wordAt[length - 1] + 1),
@@ -197,7 +187,6 @@ export function buildTranscriptText(
   let cues;
 
   if (isAutoCaption) {
-    // Decode after parsing: the cleaner's VTT output must keep `&lt;` escaped.
     cues = cleanAutoCaptions(vttText)
       .cues.map((cue) => ({ ...cue, text: stripCaptionHtmlEntities(cue.text) }))
       .filter((cue) => cue.text.length > 0);
@@ -405,9 +394,6 @@ export async function writeEnvelopeTranscriptArtifacts(
 
   await mkdir(sliceDir, { recursive: true });
 
-  // The ASR toolchain probe spawns interpreters — run it only when some entry
-  // could actually take the ASR rung (caption-less media, or an explicit
-  // asr request).
   const requested = strategyOverride ?? transcriptStrategy;
   const needAsrProbe =
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
@@ -474,7 +460,6 @@ export async function writeEnvelopeTranscriptArtifacts(
           repairLexicon: plan.strategy === "captions+repair" ? repairLexicon : null,
           timeRange,
         }),
-        // The raw parsed caption cues, as watching always received them.
         sourceCues: timeRange ? cuesInRange(parsedCues, timeRange) : parsedCues,
       };
     }
@@ -498,7 +483,6 @@ export async function writeEnvelopeTranscriptArtifacts(
     });
   }
 
-  // Written last so the Artifacts list names only transcripts that exist.
   await writeSliceReadme(
     {
       sliceDir,

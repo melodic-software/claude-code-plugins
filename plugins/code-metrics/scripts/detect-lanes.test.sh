@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for detect-lanes.sh (self-contained, no external test lib).
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -34,8 +33,6 @@ assert_eq "--disable drops the lane" "$(printf 'typescript\ta/one.ts')" "$out"
 out="$(bash "$SCRIPT" --disable other a/one.ts f/notes.md)"
 assert_eq "--disable other drops the catch-all lane" "$(printf 'typescript\ta/one.ts')" "$out"
 
-# A file the consumer's globs leave out of its extension's lane is dropped,
-# not moved to `other`: the consumer scoped that lane deliberately.
 out="$(bash "$SCRIPT" --globs 'bash=scripts/**/*.bats,*.zsh' scripts/x/y.bats top.zsh other.sh)"
 assert_eq "--globs replaces the extension map for that lane" \
   "$(printf 'bash\tscripts/x/y.bats\nbash\ttop.zsh')" "$out"
@@ -50,9 +47,6 @@ assert_eq "no files is an empty result with exit 0" "0:" "$rc:$out"
 bash "$SCRIPT" --globs nonsense a.py >/dev/null 2>&1
 assert_eq "malformed --globs is a usage error" "2" "$?"
 
-# A glob the matcher cannot compile must stop the run. Declaring globs turns
-# off this lane's extension fallback, so treating the refusal as "matched
-# nothing" would drop the lane's files with no sign anything went wrong.
 out="$(bash "$SCRIPT" --globs 'python=[z-a]' a.py 2>/dev/null)"
 rc=$?
 assert_eq "an uncompilable glob exits 2 rather than measuring nothing" "2:" "$rc:$out"

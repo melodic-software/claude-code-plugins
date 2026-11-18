@@ -67,7 +67,6 @@ class TestCleanPass(GateHarness):
         self.assertIn("Nothing outside Key claims", out)
 
     def test_trailing_space_preserved(self):
-        # SOURCE has "keep me \\n" — the fence payload must keep the space.
         proc = self.run_gate(CLEAN, 0)
         self.assertIn(b"PASS", proc.stdout)
 
@@ -120,7 +119,6 @@ class TestFailLoudZeroParse(GateHarness):
 
 class TestFenceContract(GateHarness):
     def test_indented_fence_fails(self):
-        # REPAIR-pass corruption: indent the fence. strip() would hide this.
         text = CLEAN.replace(f"```\n{KEEP}\n```", f"    ```\n    {KEEP}\n    ```")
         proc = self.run_gate(text, 1)
         self.assertIn(b"indented", proc.stderr)
@@ -232,7 +230,6 @@ none
         self.assertIn(b"PASS", proc.stdout)
 
     def test_star_list_inside_fence_is_not_rewritten(self):
-        # The defect the hook caused in a blockquote; a fence holds "* ".
         proc = self.run_gate(CLEAN, 0)
         self.assertIn(b"PASS", proc.stdout)
 
@@ -256,8 +253,6 @@ none
         self.assertIn(b"1 **CN.**", proc.stdout)
 
     def test_four_tick_wrapper_around_immediate_inner_fence(self):
-        # Guards against truncation at the first inner ``` yielding payload ""
-        # and failing the empty-payload check on a valid verbatim quote.
         inner = "```\nprint(1)\n```"
         source = write(self.dir, "src-immediate.md", inner + "\n")
         text = f"""## Key claims (verbatim)

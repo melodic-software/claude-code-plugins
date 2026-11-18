@@ -239,8 +239,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.stderr, "")
 
     def test_the_lane_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
-        # A change scope of two files: the lane row is those two files'
-        # coverage, and the module the table lists for neither is noted.
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "c.py", exit_code=0)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -374,8 +372,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
     def test_zero_expressions_is_null_coverage_never_100(self) -> None:
-        # A Total of 0 over 0 is "nothing was counted", which the report
-        # contract renders as null, not as the 100.00% mypy prints.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp), exit_code=0, capture=ABORTED)
             result = run(
@@ -387,7 +383,6 @@ class MypyReportCollectTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = rows_of(result)
-            # An empty table lists no module, so the lane row is the only row.
             self.assertEqual(len(rows), 1)
             self.assertEqual(
                 rows[0]["values"],
@@ -473,10 +468,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_same_named_files_under_hyphenated_dirs_are_a_partial_not_unavailable(
         self,
     ) -> None:
-        # `a-dir/mod.py` and `b-dir/mod.py` both derive `mod`. The second is
-        # held out before mypy runs (the stub would refuse it with mypy's
-        # duplicate-module exit 2), every other file is measured, and the
-        # partial-reason file names the one that was not.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             note = Path(tmp) / "partial"
@@ -522,10 +513,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_a_duplicate_only_mypys_own_naming_gives_is_held_out_from_its_message(
         self,
     ) -> None:
-        # With namespace packages off, `pkg/mod.py` and `other/mod.py` are both
-        # `mod` to mypy although their paths derive `pkg.mod` and `other.mod`,
-        # so nothing is held out up front. mypy's duplicate message names the
-        # file it refused; that file is held out and the run repeats.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(
@@ -709,15 +696,11 @@ class MypyReportModuleNameTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
             cases = {
-                # every directory up to the base is an identifier: the dotted path
                 "plugins/perf/lib/x.py": "plugins.perf.lib.x",
-                # the walk stops at a non-identifier directory: the stem alone
                 "harness-ops/lib/x.py": "x",
-                # a package names its directory; a stub keeps its stem
                 "pkg/sub/__init__.py": "pkg.sub",
                 "pkg/sub/c.pyi": "pkg.sub.c",
                 "top.py": "top",
-                # a package under a non-identifier directory is still a package
                 "dir-with-dash/deeper/__init__.py": "deeper",
                 "dir-with-dash/deeper/leaf.py": "deeper.leaf",
             }
@@ -755,7 +738,6 @@ class MypyReportCollisionTests(unittest.TestCase):
                 )
             finally:
                 os.chdir(cwd)
-        # A repeated path is the same file, not a collision.
         self.assertEqual(scope, ["b-dir/mod.py", "pkg/mod.py", "b-dir/mod.py"])
         self.assertEqual(held_out, [("a-dir/mod.py", "mod"), ("c-dir/mod.py", "mod")])
 

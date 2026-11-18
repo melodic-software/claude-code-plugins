@@ -23,8 +23,6 @@ export const YT_DLP_COOKIES_FILE_ENV = "VIDEO_DIGEST_YT_DLP_COOKIES_FILE";
 export const YT_DLP_COOKIES_FROM_BROWSER_ENV = "VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER";
 export const YT_DLP_JS_RUNTIMES_ENV = "VIDEO_DIGEST_YT_DLP_JS_RUNTIMES";
 
-// Deprecated pre-rename spellings, resolved through `resolveEnvWithLegacy` at
-// every read site so existing environments keep working (with a warning).
 export const LEGACY_YT_DLP_COOKIES_FILE_ENV = "YOUTUBE_YT_DLP_COOKIES_FILE";
 export const LEGACY_YT_DLP_COOKIES_FROM_BROWSER_ENV = "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER";
 export const LEGACY_YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";

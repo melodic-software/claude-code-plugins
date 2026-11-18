@@ -29,7 +29,6 @@ const NO_TRANSCRIPT_SUFFIX = /No transcript available for this lesson\.\s*$/m;
 const TRANSCRIPT_TIMESTAMP_LINE = /^\d+:\d{2}$/;
 const TRAILING_LESSON_SLUG = /\/[^/]+\/$/;
 const TRAILING_COURSE_ID_SUFFIX = /-\d+\/$/;
-// Most specific first: "last updated" must win over the bare "updated" pattern.
 const VISIBLE_DATE_PATTERNS = [
   /last\s+updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
   /updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
@@ -55,8 +54,6 @@ export const defaults = {
     minFramesForScene: 5,
   },
 };
-
-// Required adapter methods
 
 /**
  * The configured video-player selector, falling back to the adapter default.
@@ -214,8 +211,6 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
 export function buildLessonUrl(course, lesson, _platformCfg) {
   return `${courseBaseUrl(course.url)}${lesson.slug}/`;
 }
-
-// Optional adapter methods
 
 function applyJsonLdMetadata(metadata, jsonLd) {
   if (!jsonLd) return;

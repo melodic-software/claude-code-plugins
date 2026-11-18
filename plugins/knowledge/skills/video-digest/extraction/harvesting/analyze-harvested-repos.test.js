@@ -175,8 +175,6 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
     expect(liveCloneGroupCount()).toBe(0);
   });
 
-  // "during spawn" holds the parent busy after the clone starts and before spawn
-  // returns, so the signal lands in the window before the clone could be tracked.
   it.each([
     ["SIGTERM", "after spawn", 0],
     ["SIGINT", "after spawn", 0],
@@ -185,7 +183,6 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
   ])("kills the clone group when the parent gets %s %s", async (signal, _when, holdMs) => {
     const pidDir = fs.mkdtempSync(path.join(os.tmpdir(), "clone-parent-"));
     const pidFile = path.join(pidDir, "clone.pid");
-    // The parent's own temp root, so the clone's isolated home it makes is visible here.
     const parentTmp = path.join(pidDir, "tmp");
     fs.mkdirSync(parentTmp);
     const moduleUrl = new URL("./analyze-harvested-repos.js", import.meta.url).href;
@@ -194,7 +191,6 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
       `import fs from "node:fs";`,
       `import { shallowCloneGitHubRepo } from ${JSON.stringify(moduleUrl)};`,
       `const fakeSpawn = (_c, _a, options) => {`,
-      // Outlives the wait below many times over, so only a kill ends it in time.
       `  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], options);`,
       `  fs.writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));`,
       `  const until = Date.now() + ${holdMs};`,

@@ -183,8 +183,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             stubs = Path(tmp) / "bin"
             argv_log = Path(tmp) / "argv"
             make_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
-            # The program holds the three files under src/, as the real
-            # listing over the scratch project's tsconfig did.
             make_node_stub(stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"])
             result = run(
                 "collect",
@@ -201,9 +199,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
                     (None, 9),
                     ("src/a.ts", 5),
                     ("src/sub/b.ts", 4),
-                    # in the program with no listed occurrence: a measured 0
                     ("src/clean.ts", 0),
-                    # other/outside.ts is outside the program: no row
                 ],
             )
             self.assertEqual(rows[0]["values"]["type_coverage_pct"], 57.14)
@@ -220,9 +216,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             )
 
     def test_the_program_drops_node_modules_by_segment_not_by_substring(self) -> None:
-        # The dependency tree is left out of the program the way the tool
-        # leaves it out; a source file whose name contains the string is not a
-        # dependency and keeps its row.
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
             helper = Path(tmp) / "src" / "node_modules_helper.ts"
@@ -341,7 +334,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             result = self._collect(tmp, capture=empty)
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
-            # Nothing counted: no file row either, only the lane row.
             self.assertEqual(len(rows), 1)
             self.assertIsNone(rows[0]["values"]["type_coverage_pct"])
             self.assertEqual(rows[0]["values"]["any_count"], 0)

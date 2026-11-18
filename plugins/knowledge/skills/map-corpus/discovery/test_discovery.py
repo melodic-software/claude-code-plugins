@@ -111,15 +111,12 @@ class TestParserLlmsTxt(Base):
         urls = out["urls"]
         self.assertEqual(urls, sorted(urls))
         self.assertEqual(out["url_count"], len(urls))
-        # relative resolved; trailing slash deduped; tracking param dropped,
-        # content param kept; anchors/mailto excluded
         self.assertIn("https://agent-plugins.org/spec", urls)
         self.assertEqual(urls.count("https://agent-plugins.org/spec"), 1)
         self.assertIn("https://agent-plugins.org/schema?version=v1", urls)
         self.assertIn("https://agent-plugins.org/governance", urls)
         self.assertIn("https://example.com/external", urls)
         self.assertNotIn("mailto:a@b.c", urls)
-        # inline-code URL: captured, but never with a trailing backtick
         self.assertIn("https://example.com/inline-code", urls)
         for u in urls:
             self.assertNotIn("utm_", u)
@@ -201,7 +198,6 @@ class TestParserSitemap(Base):
         self.assertIn(b"DOCTYPE", proc.stderr)
 
     def test_doctype_rejected_beyond_prefix_window(self):
-        # padding the prolog past any prefix window must not smuggle a DTD in
         padding = b"<!-- " + b"x" * 5000 + b" -->\n"
         snap = write(
             self.dir,
@@ -440,8 +436,6 @@ class TestLinkMapGate(LinkMapHarness):
         self.assertIn(b"not_a_real_key", proc.stderr)
 
 
-# Synthetic listing in the documented shape of GitHub's recursive trees API
-# (a stand-in for cursor/plugins: no capture, placeholder SHAs throughout).
 TREE_FIXTURE = os.path.join(HERE, "fixtures", "github-tree-pstack.json")
 REF = "1" * 40
 PSTACK_GLOBS = [

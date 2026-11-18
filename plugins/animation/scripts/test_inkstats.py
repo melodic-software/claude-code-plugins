@@ -52,7 +52,6 @@ def write_work(root, starts, duration, grays):
 @unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
 class WorkDirFinalHold(unittest.TestCase):
     def test_last_drawing_uses_index_t1_not_one_frame(self):
-        # 3, 2, then 4 frames at 24 fps: extract.py stores the 4-frame tail as the last t1.
         starts = [0.0, 3 / FPS, 5 / FPS]
         duration = 9 / FPS
         want = [3 / FPS, 2 / FPS, 4 / FPS]

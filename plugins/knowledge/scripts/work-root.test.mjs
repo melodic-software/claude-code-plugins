@@ -1,4 +1,3 @@
-// Run: node --test plugins/knowledge/scripts/work-root.test.mjs
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -152,7 +151,6 @@ describe("user_config tokens and the git environment", () => {
 
 describe("progress key", () => {
   it("matches the base derivation's hand-computed value for a fixed path", () => {
-    // printf '%s' /srv/work/api | sha256sum | cut -c1-8 -> 0b860e31
     assert.equal(progressKey("/srv/work/api"), "api-0b860e31");
   });
 

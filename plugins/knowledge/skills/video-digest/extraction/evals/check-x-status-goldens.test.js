@@ -100,7 +100,6 @@ describe("x status golden eval fixture", () => {
         const envelope = result.data;
         const expected = goldenCase.expected;
 
-        // 0..N result shape: arity is a property of the result.
         expect(envelope.entries.length, goldenCase.name).toBe(expected.entryCount);
         for (const entry of envelope.entries) {
           expect(typeof entry.mediaPath, goldenCase.name).toBe("string");
@@ -108,15 +107,11 @@ describe("x status golden eval fixture", () => {
           expect(entry.metadataPath, goldenCase.name).toContain(".info.json");
         }
 
-        // Slice-key pair: metadata.id is the media discriminator; the slice
-        // key stays the URL's status id regardless of it.
         expect(envelope.metadata.id, goldenCase.name).toBe(expected.metadataId);
         expect(adapter.extractSliceKey(goldens.canonicalUrl, envelope.metadata), goldenCase.name).toBe(
           goldens.sliceKey,
         );
 
-        // Persisted provenance: exactly what watch state stores via
-        // sourceMetadataSubset must carry the golden source:* fields.
         const persisted = sourceMetadataSubset(envelope.metadata);
         expect(persisted, goldenCase.name).toMatchObject(expected.persistedSourceMetadata);
         if (expected.aliasingRecorded) {

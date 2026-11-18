@@ -30,8 +30,6 @@ const REFUSAL_STDERR = `ERROR: No suitable extractor found for URL ${REFUSED_URL
 
 const TWID = "1720000000000000000";
 const STATUS_URL = `https://x.com/someuser/status/${TWID}`;
-// Media ids are snowflakes too: minted 60 s before the post (normal composition
-// lag) vs 3 days before (quote/retweet aliasing).
 const MEDIA_ID = String(BigInt(TWID) - (60_000n << 22n));
 const OLD_MEDIA_ID = String(BigInt(TWID) - (259_200_000n << 22n));
 const RETWEET_MEDIA_ID = String(BigInt(TWID) - (604_800_000n << 22n));
@@ -144,7 +142,6 @@ describeSourceAdapterContract(adapter, {
     "https://x.com/someuser",
     "https://x.com/i/spaces/1YqKDqWqdPLxV",
     "https://x.com/someuser/status/not-a-status-id",
-    // Bounded grammar: a 26-digit "status id" exceeds any snowflake and is refused.
     `https://x.com/someuser/status/${"9".repeat(26)}`,
     `https://x.com/someuser/status/${TWID}/video/1000`,
     "https://example.com/someuser/status/1720000000000000000",
@@ -206,7 +203,6 @@ describe("x canonicalization (adapter-level)", () => {
   it("preserves the pinned media index and normalizes /photo/<n> to /video/<n>", () => {
     expect(adapter.matchUrl(`${STATUS_URL}/video/2`)?.canonicalUrl).toBe(`${STATUS_URL}/video/2`);
     expect(adapter.matchUrl(`${STATUS_URL}/photo/2`)?.canonicalUrl).toBe(`${STATUS_URL}/video/2`);
-    // Index 0 is falsy but pinned — it must survive canonicalization.
     expect(adapter.matchUrl(`${STATUS_URL}/video/0`)?.canonicalUrl).toBe(`${STATUS_URL}/video/0`);
   });
 
@@ -261,7 +257,6 @@ describe("x slice identity (display_id canonical, id as media discriminator)", (
       adapter.extractSliceKey(noStatusUrl, { id: MEDIA_ID, title: "", description: "" }),
     ).toBe(MEDIA_ID);
     expect(adapter.extractSliceKey(noStatusUrl, null)).toBeNull();
-    // A non-path-safe fallback is refused, never returned.
     expect(
       adapter.extractSliceKey(noStatusUrl, { id: "../evil", title: "", description: "" }),
     ).toBeNull();
@@ -326,9 +321,6 @@ describe("x error-pattern taxonomy", () => {
   });
 
   it("an attacker-influenced URL echoed on stderr can never classify as login-required", () => {
-    // The refusal/unsupported line carries a URL the post author chose; the
-    // login-required patterns are anchored to [twitter]-tagged ERROR lines, so
-    // these classify fatal (the Unsupported URL pattern), never login-required.
     for (const detail of [
       "ERROR: [generic] Unsupported URL: https://evil.example/not-authorized-content",
       "ERROR: Unsupported URL: https://evil.example/NSFW%20tweet%20requires%20authentication",
@@ -344,8 +336,6 @@ describe("x error-pattern taxonomy", () => {
         `WARNING: [twitter] ${TWID}: ${X_SYNDICATION_DEGRADATION_WARNING}`,
       ),
     ).toBe("retryable");
-    // The table describes the source's stderr, never this adapter's own
-    // emitted failure messages.
     expect(
       classifyErrorDetail(adapter.errorPatterns, "X acquisition degraded (rate-limited …)"),
     ).toBeNull();
@@ -438,7 +428,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(envelope.metadata["source:displayId"]).toBe(TWID);
     expect(envelope.metadata["source:snowflakeAliasing"]).toBeUndefined();
 
-    // Probe pass first (never media), media pass second; both on the canonical URL.
     expect(spawn).toHaveBeenCalledTimes(2);
     const probeArgs = spawn.mock.calls[0][1];
     const mediaArgs = spawn.mock.calls[1][1];
@@ -533,8 +522,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
 
-    // Well-formed 0-video result — the refusal blocks the foreign fetch, it
-    // does not error the post; the media pass never runs.
     expect(result.success).toBe(true);
     expect(spawn).toHaveBeenCalledTimes(1);
     const envelope = result.data;
@@ -544,7 +531,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
       { url: REFUSED_URL, extractor: "refused-before-fetch" },
     ]);
 
-    // Blocked link lands in harvested links (provenance).
     const links = adapter.harvestLinks(envelope.metadata);
     expect(links.map((link) => link.url)).toContain(REFUSED_URL);
   });
@@ -670,9 +656,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     }
   });
 
-  // The four named identity fixtures: original post and link post (id === twid)
-  // are covered above; quote tweet and retweet are the two DISTINCT aliasing
-  // cases — media minted days before the URL's status id, at different scales.
   for (const identityCase of [
     { name: "quote tweet", mediaId: OLD_MEDIA_ID, expectedDeltaMs: 259_200_000 },
     { name: "retweet", mediaId: RETWEET_MEDIA_ID, expectedDeltaMs: 604_800_000 },
@@ -697,7 +680,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
         deltaMs: identityCase.expectedDeltaMs,
         aliasSuspected: true,
       });
-      // The slice key stays the URL's status id — aliasing never moves the slice.
       expect(adapter.extractSliceKey(STATUS_URL, result.data.metadata)).toBe(TWID);
     });
   }
@@ -759,8 +741,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
           [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
         },
       },
-      // Exit 0, but yt-dlp wrote nothing for the post's media — a silent
-      // no-op cleanup must fail loud, never continue with lost captions.
       { addFiles: {} },
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
@@ -768,7 +748,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("Caption cleanup failed");
     expect(result.error).toContain("produced no .srt output");
-    // The tagged original survives as a backup for the no-output branch too.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
   });
 
@@ -782,8 +761,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
           [`${SECOND_MEDIA_ID}.en.vtt`]: TAGGED_VTT,
         },
       },
-      // Cleanup exits 0 but converts only the FIRST entry's captions — one
-      // matching .srt must never license deleting the other entry's backup.
       { addFiles: { [`${MEDIA_ID}.en.srt`]: CLEANUP_SRT } },
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
@@ -791,7 +768,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("Caption cleanup failed");
     expect(result.error).toContain(`${SECOND_MEDIA_ID}.en.vtt`);
-    // BOTH tagged originals survive as backups — including the converted entry's.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
     expect(files.get(path.join(workDir, `${SECOND_MEDIA_ID}.en.vtt.tagged-original`))).toBe(
       TAGGED_VTT,
@@ -841,7 +817,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Caption cleanup failed");
-    // The tagged original survives as a backup until cleanup succeeds.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
   });
 });
@@ -902,8 +877,6 @@ describe("canonicalization reaches every entry path by construction", () => {
     const args = spawn.mock.calls[0][1];
     expect(args.at(-1)).toBe(STATUS_URL);
     expect(args[args.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
-    // mediaOptional: a valid 0-video X post survives the queue probe as
-    // metadata-only and enqueues (text-only digest downstream).
     expect(args).toContain("--ignore-no-formats-error");
     expect(result.title).toBe("Fixture Post");
   });

@@ -116,9 +116,6 @@ class SetupApplyTests(unittest.TestCase):
             )
 
     def test_a_claude_file_is_carried_whole_into_the_docs_file(self) -> None:
-        # With only the retired .claude file present, the first apply writes
-        # every key it holds into the docs file in the same write, so the docs
-        # file resolves to what the retired file held as a team layer.
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
             home.mkdir()
@@ -141,15 +138,11 @@ class SetupApplyTests(unittest.TestCase):
                     text=True,
                     check=True,
                 ).stdout
-                # The resolved values; which file supplied them is expected
-                # to change.
                 return {
                     k: v for k, v in json.loads(out).items() if not k.startswith("_")
                 }
 
             before = resolved(str(empty_user), str(retired))
-            # size.mode=file-lines restates the bundled default, so the
-            # apply itself changes no resolved value.
             result = run("--dir", str(root), "size.mode=file-lines")
             self.assertEqual(result.returncode, 0, result.stderr)
             target = root / "docs" / "conventions" / "code-metrics.yaml"
@@ -185,7 +178,6 @@ class SetupApplyTests(unittest.TestCase):
                 yaml_subset.parse(target.read_text(encoding="utf-8")),
                 {"size": {"file_lines": 450}},
             )
-            # Once the docs file exists the .claude file is no longer carried.
             again = run("--dir", tmp)
             self.assertEqual(again.returncode, 2)
 
@@ -293,8 +285,6 @@ class SetupApplyTests(unittest.TestCase):
                 "template keys under %s differ from the contract" % key,
             )
 
-        # The template's values are the bundled defaults, leaf for leaf, so
-        # the two surfaces cannot drift apart without this test saying so.
         def leaves(node, prefix=""):
             if isinstance(node, dict):
                 for k, v in node.items():

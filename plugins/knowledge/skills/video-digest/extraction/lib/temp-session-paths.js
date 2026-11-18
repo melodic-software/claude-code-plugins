@@ -43,7 +43,6 @@ export function normalizePortableTempPath(value) {
   if (idx > 0) {
     return toPosixSeparators(value.slice(idx));
   }
-  // idx === 0 (already portable) is serializeTempPath's own first branch.
   return serializeTempPath(value);
 }
 

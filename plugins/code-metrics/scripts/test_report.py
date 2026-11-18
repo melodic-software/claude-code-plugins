@@ -143,9 +143,6 @@ class AssembleTests(unittest.TestCase):
             {"files": 2, "functions": 0, "over_reference": {"file_lines": 1}},
         )
         self.assertEqual(doc["unavailable"], [])
-        # The value the reference was applied to, and in which direction,
-        # travel with the document: the renderer orders rows by them and a
-        # consumer comparing two documents needs them.
         self.assertEqual(doc["thresholds"][0]["value_key"], "lines_non_blank")
         self.assertEqual(doc["thresholds"][0]["direction"], "at_or_above")
 
@@ -235,11 +232,6 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(doc["summary"]["functions"], 2)
 
     def test_functions_counts_distinct_functions_not_rows(self) -> None:
-        # The row shapes the committed Python fixture produces: lizard reports
-        # cyclomatic for `classify` and `classify.inner`, radon reports
-        # halstead for `classify`, so `classify` arrives twice. A same-named
-        # function in another file is a different function, and a file row
-        # (`function: null`) is not one at all.
         doc = self.assemble(
             [
                 {
@@ -289,12 +281,6 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(doc["summary"]["files"], 2)
 
     def test_two_same_named_methods_count_as_two_functions(self) -> None:
-        # One file, two `render` methods in two classes, which a collector that
-        # reports unqualified names gives the same name. Folding on the name
-        # alone counts them once, so the summary undercounts a file the
-        # coverage join deliberately keeps apart by source position. The
-        # Halstead row for the first carries no start line and must still fold
-        # into it rather than becoming a third function.
         doc = self.assemble(
             [
                 {
@@ -376,10 +362,6 @@ class AssembleTests(unittest.TestCase):
     def test_a_run_whose_only_producing_row_is_partial_is_partial_not_empty(
         self,
     ) -> None:
-        # `partial` says a row measured some of what it implied. It withholds
-        # `complete`, but it did produce rows, so a run carrying nothing else
-        # must not read as having measured nothing: `empty` prints the headline
-        # "Measured nothing" over a table that names the files it did measure.
         run_rows = [
             {
                 "lane": "python",
@@ -410,13 +392,9 @@ class AssembleTests(unittest.TestCase):
         )
         self.assertEqual(doc["status"], "partial")
         self.assertEqual(doc["summary"]["files"], 1)
-        # A partial row is not an unavailable one; it produced what it names.
         self.assertEqual(doc["unavailable"], [])
 
     def test_a_non_numeric_reference_never_compares_and_never_crashes(self) -> None:
-        # A string reference (a quoted number that slipped past the resolver)
-        # is no threshold at all: the row is not over it, and the assembler
-        # exits 0 with a document rather than a traceback.
         doc = self.assemble(
             [
                 {
@@ -556,8 +534,6 @@ class RenderTests(unittest.TestCase):
             "| * | * |  | not-applicable | no measurable files in scope |",
             result.stdout,
         )
-        # An empty change is the common empty run: the headline says how to
-        # widen the scope, since the skill body is not in front of the reader.
         headline = result.stdout.splitlines()[2]
         self.assertIn("against `abc`", headline)
         self.assertIn("pass paths or `--all` to widen the scope", headline)
@@ -639,8 +615,6 @@ class RenderTests(unittest.TestCase):
             line for line in measures_section.splitlines() if line.startswith("| ")
         ]
         files = [line.split(" | ")[0].lstrip("| ") for line in table[1:]]
-        # Largest first, a null value after every number, the over-reference
-        # row leading because it is the extreme rather than by a separate sort.
         self.assertEqual(files, ["b.md", "d.sh", "a.py", "c.py"])
 
     def test_a_below_reference_orders_smallest_first(self) -> None:
@@ -681,9 +655,6 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
 
     def test_a_lane_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
-        # audit-type-debt emits file rows and a lane row (`file: null`) that
-        # can tie on every earlier key; the sort must not compare None with
-        # a path.
         doc = self._size_doc([])
         doc["skill"] = "audit-type-debt"
         doc["thresholds"] = [
@@ -744,8 +715,6 @@ class RenderTests(unittest.TestCase):
         return doc
 
     def test_two_lane_rows_with_equal_values_stay_two_lines(self) -> None:
-        # Both lanes fully typed: the rows tie on file, function and start
-        # line and must still render one line per lane.
         doc = self._type_debt_doc(
             [
                 {
@@ -895,7 +864,6 @@ class RenderTests(unittest.TestCase):
                 "over_reference": [],
             }
 
-        # 250 alphabetically-early filler functions would fill the cap on their own.
         filler = [
             function_row(f"a/{i:03d}.py", f"f{i}", crap=3.0 + (i % 7), cov=50.0)
             for i in range(250)
@@ -950,14 +918,10 @@ class RenderTests(unittest.TestCase):
         self.assertIn(
             "| 55 more rows; re-run with --json for the full document |", result.stdout
         )
-        # The filler outranks nothing above it: its rows follow the top function by
-        # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
         self.assertIn("| 9 |", measure_rows[1])
         self.assertNotIn("| zzz/join.py | empty |", result.stdout)
         self.assertNotIn("| zzz/c.py |", result.stdout)
 
-        # With the cap lifted, the null-CRAP function precedes every file row and the
-        # file rows read least covered first with the null percentage last.
         doc["measures"] = files + [null_crap, top]
         result = run("render", stdin=json.dumps(doc))
         rows = [
@@ -975,11 +939,6 @@ class RenderTests(unittest.TestCase):
         )
 
     def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
-        # The dispatcher writes `collect failed (exit 3)` on the run row of a
-        # collector that ran and produced nothing parseable, and the entry script
-        # exits 3 on it; the summary names that row so the exit has a visible
-        # cause. A coverage document carries the reason forward on its crap row
-        # with no collector column, so the label comes from the reason instead.
         base = {
             "schema": "code-metrics/v2",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
@@ -1048,12 +1007,6 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("Exit 3", result.stdout)
 
     def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
-        # The coverage join writes `no coverage artifact found` on every run row
-        # when nothing was named and nothing was discovered. The markdown's last
-        # line then points at the per-lane table that says how to produce one,
-        # because the skill will not run a test or install a tool on its own.
-        # The JSON document is untouched, and a run that read an artifact, even
-        # a partial one, carries no such line.
         base = {
             "schema": "code-metrics/v2",
             "skill": "audit-coverage",
@@ -1349,8 +1302,6 @@ class DuplicationRollupTests(unittest.TestCase):
         by_directory = resummarized(duplication_doc(self.ROWS))["summary"][
             "by_directory"
         ]
-        # Every group's first instance sits under `a`, so `a` carries all three
-        # while its children split them; the second instances count nowhere.
         self.assertEqual(by_directory["a"], {"groups": 3, "duplicated_lines": 32})
         self.assertEqual(by_directory["a/x"], {"groups": 2, "duplicated_lines": 25})
         self.assertEqual(by_directory["a/y"], {"groups": 1, "duplicated_lines": 7})
@@ -1430,8 +1381,6 @@ class DuplicationRenderTests(unittest.TestCase):
         )
 
     def test_a_total_exclusion_labels_the_two_file_counts(self) -> None:
-        # Every group excluded: the scope header still counts the scanned
-        # files while the summary counts none, and the report says why.
         excluded = clone_row("bash", "a/shared/u.sh", "b/shared/u.sh", 20)
         doc = resummarized(duplication_doc([]))
         doc["excluded"] = [
@@ -1500,9 +1449,6 @@ class DuplicationRenderTests(unittest.TestCase):
     def test_a_not_applicable_lane_does_not_hide_the_no_detector_headline(
         self,
     ) -> None:
-        # The `other` lane carries a `not-applicable` duplication row on every
-        # run that has a file outside the language lanes; it is not a probe
-        # that failed, so it must not defeat the all-unavailable check.
         hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
         doc = duplication_doc(
             [],
