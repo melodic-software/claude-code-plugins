@@ -2747,8 +2747,6 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
-    # A denied call a failed max-0 tool_used grader of its case forbids: the
-    # grader already scored it as the run's failure.
     forbidden = {
         r: [
             d
