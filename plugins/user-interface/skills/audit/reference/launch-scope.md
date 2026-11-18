@@ -157,14 +157,17 @@ feature-flag panels. For each, find the mount and check it's gated.
 
 Every inspector, control panel, and devtools drawer found in recon sits behind this gate. A dynamic
 import behind the gate keeps the package out of the production bundle; a static import with a gated
-render still ships the bytes. A hidden Leva panel still gets the defaults check: confirm the
-shipped `useControls` defaults are the approved ones (what `hidden` turns off: the pointer below). When a control panel was used to
-dial something in (`/prototype:explore-directions controls`, `/prototype:build-generator`), the
+render still ships the bytes. A Leva panel hidden with its `hidden` prop still gets the defaults
+check, because the shipped page renders with its `useControls` values: confirm the shipped
+defaults are the approved ones. When a control panel was used to dial something in
+(`/prototype:explore-directions controls`, `/prototype:build-generator`), the
 approved values live in a saved config file that production imports, never in a panel default. With
 no such file to compare against, put the defaults check on the human list.
 
-- **Pointer**: Leva docs, "Configuration", "Panel Props",
-  <https://github.com/pmndrs/leva/blob/main/docs/getting-started/configuration.md#panel-props>
+- **Pointer**: when a Leva panel is hidden rather than gated, fetch the Leva docs, "Configuration",
+  "Panel Props",
+  <https://github.com/pmndrs/leva/blob/main/docs/getting-started/configuration.md#panel-props>,
+  live.
 
 **Audit: Blocking.** A dev tool, inspector, control panel or debug overlay rendered in the
 production build, or imported statically so its package ships behind a render-only gate.
@@ -189,8 +192,8 @@ A `/prototype:build-generator` tool may stay in the project while the person sti
 `robots` disallow line for these routes is the `marketing-pages` concern's, in its "4. Crawlers
 find the real pages, and the icons are the product's"; it never stands in for the gate.
 
-- **Pointer**: Next.js docs, `notFound` function reference,
-  <https://nextjs.org/docs/app/api-reference/functions/not-found>
+- **Pointer**: when gating a Next.js route with `notFound()`, fetch the Next.js `notFound` function
+  reference, <https://nextjs.org/docs/app/api-reference/functions/not-found>, live.
 
 **Audit: Blocking.** A scaffolding, prototype or debug route reachable in the production build.
 

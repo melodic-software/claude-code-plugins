@@ -224,10 +224,12 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Gotchas
 
-- **A userConfig knob is reachable natively only if the manifest declares it.** An undeclared key
-  silently cannot be set through native plugin configuration (a raw settings `env` block still
-  works). Pointer: the `--config` row in
-  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+- **Point the user only at the options the manifest declares.** Native plugin configuration is
+  the one route this skill supports for a tunable, so it never offers a key that
+  `.claude-plugin/plugin.json` does not declare under `userConfig`.
+  - **Pointer**: when a user asks to set a key the manifest does not declare, fetch the `--config`
+    row of [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+    live.
 - **What each headless route does to stored options is the convention's to state.** Read it in
   [§ The routes](../../reference/plugin-reconfiguration.md#the-routes),
   which also holds the verified-version record: which CLI release each behavior was observed on,

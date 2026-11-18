@@ -72,6 +72,8 @@ class FakeGitHub:
             assert any(a == f"query={ve.ACTIONS_ISSUE_QUERY}" for a in args), args
             return ok({"data": {"repository": {"issue": self.issue}}})
         for a in args:
+            if a.startswith(f"repos/{REPO}/contents/{ve.ADMISSION_RULES_PATH}?"):
+                return ok({})
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?ref="):
                 return ok(self.schedules[a.rpartition("?ref=")[2]])
             if a.startswith(f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?"):

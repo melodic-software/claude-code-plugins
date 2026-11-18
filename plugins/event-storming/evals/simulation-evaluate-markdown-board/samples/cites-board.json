@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "The arrow-voting winner, Refund disputes take 6+ days, has three votes.", "why": "the voted hot spot"},
+    {"answer": "Chargeback Filed and Refund Requested name one moment two ways.", "why": "a board-only event"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "The board has 32 events and four zones.", "why": "names no board item"}
+  ]
+}

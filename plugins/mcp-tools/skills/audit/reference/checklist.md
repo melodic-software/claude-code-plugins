@@ -38,14 +38,14 @@ pointer, not decided here. C4 ignores the session-level override
   <https://code.claude.com/docs/en/changelog#2-1-295> and <https://code.claude.com/docs/en/changelog#2-1-296> and
   <https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors> live; for the override,
   <https://code.claude.com/docs/en/env-vars#variables>.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the mcp page's MCP server author section changes, or a release note names
+  MCP description or instructions truncation.
 - **Source conflict**: the mcp page
   (<https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors>) and the env-vars page
   (<https://code.claude.com/docs/en/env-vars#variables>) disagree with changelog 2.1.295 and
-  2.1.296 (<https://code.claude.com/docs/en/changelog#2-1-295>, <https://code.claude.com/docs/en/changelog#2-1-296>) on the MCP description and instructions
-  length limits.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the mcp page changes its stated default or states a limit per load path, or
-  a release note names MCP description or instructions truncation.
+  2.1.296 (<https://code.claude.com/docs/en/changelog#2-1-295>,
+  <https://code.claude.com/docs/en/changelog#2-1-296>) on MCP description and instructions length.
 
 **Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
 Code negotiates by default. Of the tool rules that revision added, three were weighed as criteria:
@@ -103,7 +103,7 @@ Severity levels:
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C6 | **Every parameter has a description** | ANTHROPIC | FAIL | Check each param. TS: `.describe()` on Zod schemas. Python: docstring param docs or annotation context. .NET: `[Description]`. Missing = fail, since an undescribed parameter blocks a correct call |
+| C6 | **Every parameter has a description** | ANTHROPIC | FAIL | Check each param, accepting the SDK's own way of attaching a parameter description. Missing = fail, since an undescribed parameter blocks a correct call |
 | C7 | **Descriptions guide to the right value, with a format example for non-obvious types** | ANTHROPIC | WARN | Value guidance ("Use 30 for short-term, 90 for long-term") plus examples for dates/URIs/hex/enums ("ISO 8601, e.g. 2025-01-15T10:00:00Z"). Bare type restatement ("the board id") = warn |
 | C8 | **Optional parameters marked optional with documented defaults** | OPINION | info | Optional params should note they are optional and document the default: "Optional: max results (default: 50)". Missing default = info |
 
@@ -119,7 +119,7 @@ Severity levels:
 
 The spec defines tool annotations as OPTIONAL, so every criterion here is WARN or info, never FAIL.
 
-When auditing source, accept each SDK's native spelling of these hints as satisfying the criterion, not only literal `readOnlyHint`/`destructiveHint`/`idempotentHint` keys. Native spellings include .NET `[McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]` attribute properties and the Python SDK's `annotations=` argument. The SDK maps them to the wire-level annotations.
+When auditing source, accept each SDK's native spelling of these hints as satisfying the criterion, not only literal `readOnlyHint`/`destructiveHint`/`idempotentHint` keys. The SDK maps them to the wire-level annotations.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
@@ -137,7 +137,7 @@ When auditing source, accept each SDK's native spelling of these hints as satisf
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing source (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing source (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## 7. Claude Code `_meta` annotations (C17-C19)
 
@@ -158,8 +158,8 @@ advisory that the server could benefit), and for C19 not a finding at all. Two d
 
 When auditing source, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry,
 not only a literal `_meta` key in source. Each language's **meta-extraction** entry in
-[server-discovery.md](server-discovery.md) names that way and links its SDK reference. C18 turns on
-the value's JSON type, so read it in that language's own syntax.
+[server-discovery.md](server-discovery.md) names that way. C18 turns on the value's JSON type, so
+read it in that language's own syntax.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
@@ -177,7 +177,7 @@ them.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing source, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
+| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing source, accept however the SDK attaches an extension keyword to one property's schema. A value built at run time, which source cannot show, = WARN naming the parameter |
 
 ## 9. Preview counterpart (C21)
 

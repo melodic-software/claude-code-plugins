@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling twenty **safety guards** that catch risky agent
+A Claude Code plugin bundling 22 toggleable **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs, and
 four git-hook checks that cover every commit and push. Each guard has its own kill
 switch, listed under [Per-hook kill switches](#per-hook-kill-switches).

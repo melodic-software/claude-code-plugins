@@ -235,8 +235,8 @@ current one. End with the question for any blocking install.
   the root `DESIGN.md`: the one place codify writes a rule itself. It never edits component code.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
-- `count-checks` writes nothing, runs no proof and calls no forge: it reads default-branch git
-  history only.
+- `count-checks` writes nothing, runs no proof and calls no forge; it reads only default-branch git
+  history.
 
 ## Next
 

@@ -1264,8 +1264,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-unblock.yml": Object.fromEntries(
       ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
     ),
-    "pr-review-hosted.yml": { "resolve-model": "github-token", "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
-    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-security-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
     // Not run, which logs before its head checkout, or scan, which counts its
     // own calls (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "check-broker": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },

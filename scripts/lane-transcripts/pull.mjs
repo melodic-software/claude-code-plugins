@@ -8,6 +8,7 @@
 // prints it, and an error names a kind, never a value.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -15,7 +16,6 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 import { OpenError, openRecord, parsePrivateKey } from "../../.github/actions/open-lane-output/open.mjs";
-import { readRecord } from "../../.github/scripts/lib/lane-outcome.mjs";
 import {
   appendOutcome,
   appendRow,
@@ -405,9 +405,11 @@ function allPages(deps, kind, url, key) {
  * (report-lane-outcome writes one per credential attempt), one job at a time.
  * Each row names how many records its job holds, so heldOutcomes can drop a job
  * an interrupted pull left half written. A record whose own run id, attempt or
- * trace id names another run attempt is dropped.
+ * trace id names another run attempt is dropped. The record reader loads here, not at the top of
+ * this file, so `pull` still runs from an export that holds only the files it needs.
  */
 function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
+  const { readRecord } = createRequire(import.meta.url)("../../.github/scripts/lib/lane-outcome.mjs");
   const jobs = allPages(deps, "jobs-read", `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs");
   for (const job of jobs) {
     if (known.has(job.id)) {

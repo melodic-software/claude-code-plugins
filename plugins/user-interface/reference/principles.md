@@ -64,18 +64,18 @@ The floor holds in every medium. A medium may raise it, never lower it.
   reduced-motion settings, and never animate when output is not a live screen. Under a
   reduced-motion setting, remove movement (sliding, scaling, parallax, springs, overshoot, animated
   blur) and motion that is only decoration; a short change of opacity or color that helps the
-  reader follow a state change may stay. What counts as motion animation is WCAG 2.2 success
-  criterion 2.3.3's to say (Level AAA; its exclusion of color and opacity changes is an
-  informative example).
+  reader follow a state change may stay. Where a change sits near that line, WCAG 2.2 success
+  criterion 2.3.3 decides whether it counts as motion animation: the pointer below.
 - **Keyboard first.** Every action is reachable from the keyboard, with a visible focus.
 - **Plain language.** Short sentences, the user's words, one idea each. Errors say what happened
   and what to do next. The copy rules are in "Plain-language copy" below.
 
 - **Pointer**: WCAG 2.2, <https://www.w3.org/TR/WCAG22/>
 - **Recheck trigger**: a new WCAG version becomes a W3C Recommendation.
-- **Pointer**: WCAG 2.2 Understanding 2.3.3 Animation from Interactions,
-  <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html>, read with the
-  WCAG 2.2 errata, <https://www.w3.org/WAI/WCAG22/errata/>
+- **Pointer**: when deciding whether a change counts as motion animation, fetch WCAG 2.2
+  Understanding 2.3.3 Animation from Interactions, "Key Terms",
+  <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html#key-terms>, live,
+  read with the WCAG 2.2 errata, <https://www.w3.org/WAI/WCAG22/errata/>.
 
 ## Plain-language copy
 

@@ -3,6 +3,22 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-11-18
+
+### Changed
+
+- The `drive` skill's pid-binding reference no longer paraphrases proc(5) on who may set a process's command name or how `/proc/<pid>/cmdline` separates arguments. It states the parse and hash rules with their reasons and points at the `proc_pid_comm` and `proc_pid_cmdline` man pages ([#16844](https://github.com/melodic-software/claude-code-plugins/issues/16844)).
+
+## [0.31.1] - 2026-11-18
+
+### Changed
+
+- `/app-control:drive`'s Next section no longer sends a threads capture to `/debugging:analyze-profile`, which stopped reading thread dumps.
+
+### Fixed
+
+- `/app-control:drive`'s Mask post-check says to run a `values:` `cli/` command exactly as written, with no added argument, and before the run stops the instance the command reads from; and to scan with the file tools where the run's shell runs only listed commands.
+
 ## [0.31.0] - 2026-11-17
 
 ### Added

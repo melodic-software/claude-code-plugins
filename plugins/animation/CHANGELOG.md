@@ -3,6 +3,18 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.29] - 2026-11-18
+
+### Changed
+
+- The `rotoscope` method reference records Chromium's canvas blur floor as a probe record that names its probe (the Playwright capture from [#4534](https://github.com/melodic-software/claude-code-plugins/pull/4534)) in place of the old Claim/Basis block, and drops the measured floor figure and its stamp from the prose. `roto.js` drops the comment that repeated the figure; the skill's Gotchas and the method reference keep the reason for the JS blur ([#16872](https://github.com/melodic-software/claude-code-plugins/issues/16872)).
+
+## [1.0.28] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [1.0.27] - 2026-11-17
 
 ### Changed

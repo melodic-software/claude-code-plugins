@@ -67,7 +67,6 @@ function draw(d) {
   if (b.blur) gauss(ctx, b.blur);
 }
 
-// Separable gaussian on the canvas pixels. ctx.filter blur() silently drops sigmas below ~0.8 px in Chromium.
 function gauss(c, sigma) {
   const w = cv.width, h = cv.height, im = c.getImageData(0, 0, w, h), p = im.data, R = Math.ceil(sigma * 3);
   const k = Array.from({ length: 2 * R + 1 }, (_, i) => Math.exp(-((i - R) ** 2) / (2 * sigma * sigma)));

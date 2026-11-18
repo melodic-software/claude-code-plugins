@@ -212,7 +212,7 @@ jobs:
             + "Repair each pointer by [the demotion path when a pointer later dies](\($demote)): "
             + "point at a live source that holds the same fact, or demote the pointer to a stamped record "
             + "or an archived-snapshot citation; never re-expand it into a copy. A page that is alive but "
-            + "refuses the checker gets an exact-URL `.lycheeignore` entry with a dated reason.\n\n"
+            + "refuses the checker gets an exact-URL `.lycheeignore` entry, with no comment; its commit message gives the dated reason.\n\n"
             + "Close this only once the link check no longer reports these URLs: removed, replaced, or in "
             + "`.lycheeignore`. A run that reports none closes it. A dead URL kept in a link, the marked "
             + "pointer of a demoted record included, is found again and reopens this issue on the next run.\n"

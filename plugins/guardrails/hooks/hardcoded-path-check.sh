@@ -354,7 +354,7 @@ hpc_path_allowlisted "$NORM_FILE" && exit 0
 # the file to exist on disk, so this works for new Write operations too.
 # CLAUDE_PROJECT_DIR is guaranteed non-empty here — the scope guard above
 # exited on the no-project case.
-if git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
+if hook::git_untrusted -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 

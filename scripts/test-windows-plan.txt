@@ -22,6 +22,7 @@ test-windows-secrets plugins/harness-ops/skills/audit-skill-visibility/scripts/a
 test-windows-secrets plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py
 test-windows-guards plugins/guardrails/hooks/hardcoded-path-check.test.sh
 test-windows-guards plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh
+test-windows-guards plugins/guardrails/hooks/block-main-checkout-edit.test.sh
 test-windows-hooks plugins/markdown-format/hooks/markdown-format.test.sh
 test-windows-hooks .claude/hooks/cloud-bootstrap-plugins.test.sh
 test-windows-hooks plugins/guardrails/hooks/exec-bash.test.sh

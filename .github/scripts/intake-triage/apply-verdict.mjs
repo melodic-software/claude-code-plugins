@@ -218,10 +218,44 @@ export async function checkRun({ env, humans, logins, github, log = console.log 
   return true;
 }
 
+export const knownFlags = (flags) => flags.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(flags).size === flags.length;
+
+export function typedFlags(text) {
+  let flags;
+  try {
+    flags = JSON.parse(String(text ?? ""))?.flags;
+  } catch {
+    return null;
+  }
+  return Array.isArray(flags) && knownFlags(flags) ? flags : null;
+}
+
+function typedVerdict(text, dimensionsConfig) {
+  const flags = typedFlags(text);
+  if (flags === null) {
+    return null;
+  }
+  const value = JSON.parse(text);
+  const dimensions = {};
+  for (const key of Object.keys(DIMENSIONS)) {
+    const options = Object.values(dimensionsConfig?.fields?.[key]?.options ?? {});
+    const option = options.find((name) => typeof value[key] === "string" && name.toLowerCase() === value[key].toLowerCase());
+    if (option === undefined) {
+      return null;
+    }
+    dimensions[key] = option;
+  }
+  const blockedBy = value.blocked_by;
+  if (!Array.isArray(blockedBy) || !blockedBy.every((number) => Number.isSafeInteger(number) && number > 0)) {
+    return null;
+  }
+  return { dimensions, flags, blockedBy: [...new Set(blockedBy)] };
+}
+
 // The verdict the lane comment carries: {escalated, untrusted, dimensions,
 // flags, problems}. dimensions maps each key to its config key or is null;
 // flags is a list or null. problems says why a part did not parse.
-export function parseVerdict(body, dimensionsConfig) {
+export function parseVerdict(body, dimensionsConfig, typedText = "") {
   const lines = String(body ?? "").split("\n");
   const problems = [];
   const shown = {};
@@ -259,17 +293,20 @@ export function parseVerdict(body, dimensionsConfig) {
   const untrusted = lines.some(
     (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
   );
+  const beforeFlags = problems.length;
   const flagText = lineValue("Flags");
   if (flagText === "none") {
     flags = [];
   } else if (flagText !== null) {
     const list = flagText.split(",").map((flag) => flag.trim());
-    if (list.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(list).size === list.length) {
+    if (knownFlags(list)) {
       flags = list.filter((flag) => flag !== UNTRUSTED_FLAG);
     } else {
       problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS, UNTRUSTED_FLAG].join(", ")}`);
     }
   }
+  const flagsUnreadable = flags === null && lines.some((line) => line.startsWith("Flags: "));
+  const flagProblems = flagsUnreadable ? problems.slice(beforeFlags) : [];
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
@@ -302,7 +339,21 @@ export function parseVerdict(body, dimensionsConfig) {
   if (costProblem) {
     problems.push(COST_PROBLEM);
   }
-  return { escalated, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  const typed = typedVerdict(typedText, dimensionsConfig);
+  if (typed === null) {
+    return { escalated, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  }
+  const anyUntrusted = untrusted || typed.flags.includes(UNTRUSTED_FLAG);
+  return {
+    escalated,
+    untrusted: anyUntrusted,
+    cost,
+    dimensions: escalated ? dimensions : typed.dimensions,
+    flags: flagsUnreadable ? null : [...new Set([...typed.flags.filter((flag) => flag !== UNTRUSTED_FLAG), ...(flags ?? [])])],
+    blockedBy: escalated || anyUntrusted ? [] : typed.blockedBy,
+    blockedByProblem: null,
+    problems: [...flagProblems, ...(costProblem ? [COST_PROBLEM] : [])],
+  };
 }
 
 // The writes the verdict calls for, given the issue's labels as the Work
@@ -633,7 +684,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     throw new Error(`#${number}'s lane comment was last written before this run started; this run's triage wrote none`);
   }
 
-  const verdict = parseVerdict(comment.body, dimensionsConfig);
+  const verdict = parseVerdict(comment.body, dimensionsConfig, env.VERDICT);
   const issueLabels = labelNames(issue);
   // A hold only the Work status field holds counts as its label.
   const labels = statusOf ? await statusOf(number, issueLabels) : issueLabels;

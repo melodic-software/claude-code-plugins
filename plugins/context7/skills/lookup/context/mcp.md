@@ -59,16 +59,11 @@ Same input shape as CLI, same backend, and same output substance. Only the trans
 
 ## Why prefer MCP over CLI for most lookups
 
-Empirical observation, 2026-04, React and EF Core test queries. Recheck when the `ctx7` minor
-version changes, or when Context7 changes its default response depth.
-
 | Dimension | Result |
 |---|---|
-| Default content per `query-docs` call | ~1.8× more than `ctx7 docs` at default settings |
 | Output format | Clean markdown (no ANSI codes to strip) |
 | Windows ceremony | None (no `MSYS_NO_PATHCONV=1` prefix) |
 | Auto-discovery by the model | Tool appears in the tool list, so the model picks it naturally |
-| Latency | ~2.1s (same as CLI, both network-bound) |
 
 **Default route for conversational library lookups is MCP** when it is configured. CLI's advantages kick in when you want composability (pipe to grep, dump to disk, script), not when you just want the answer.
 
