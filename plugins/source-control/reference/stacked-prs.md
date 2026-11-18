@@ -72,17 +72,18 @@ session may stack, and an unattended lane does not stack until that work lands.
 
 ## Merge
 
-- Merging a layer lands it and every open layer below it, all or nothing. Run the Phase 4.1
+- Treat merging a layer as merging it and every open layer below it. Run the Phase 4.1
   readiness re-verification
   ([pull-request merge.md](../skills/pull-request/reference/merge.md)) on **every** layer that
   will land, not only the one you merge, and get the user's approval for the whole set.
 - Merge with the extension's merge command or the async merge API
-  ([pull-request merge.md](../skills/pull-request/reference/merge.md) §4.2). The synchronous REST
-  merge endpoint does not support stacks.
-- The trunk's rules govern every layer, and GitHub evaluates them when the merge runs, not when it
-  is requested; a stack merge cannot bypass them.
-- After a partial merge, expect the layers above to re-run their checks and review lanes on their
-  new head before they are ready again.
+  ([pull-request merge.md](../skills/pull-request/reference/merge.md) §4.2), never the
+  synchronous REST merge endpoint, which cannot merge a stack.
+- Check every layer that will land against the trunk's branch rules (`rules/branches/<trunk>`),
+  not only against its own base's. An accepted merge request is not a passed rule check: treat
+  the stack as merging until its PRs read `MERGED`, below.
+- After a partial merge, treat each layer above as not ready until its checks and review lanes
+  pass again on its current head.
 - Treat a stack as merging until every one of its PRs reads `MERGED`; on a trunk with a merge
   queue, read how the queue takes the stack from the pointer below, live.
 - `/source-control:babysit-prs` holds stack layers for a human unless its `babysit_stacked_prs`

@@ -94,8 +94,16 @@ all of them, and `block-no-verify` keeps agents from `--no-verify` and hook-mana
    `lefthook-local.yml` (listed in `.git/info/exclude`) that sets `skip: true` on that job,
    `<plugin>-remote-<entry>`. Lefthook merges `lefthook-local.yml` over the remotes and matches
    jobs by name. Use it only when the job itself is broken, not when it reports your change.
-   Pointer: lefthook's [`lefthook-local`](https://lefthook.dev/examples/lefthook-local/) and
-   [`skip`](https://lefthook.dev/configuration/skip/). The guardrails content scans
+   A plugin with both a `format` and a `lint` entry runs them in one piped group,
+   `<plugin>-remote`, format first, so a consumer's `parallel: true` cannot lint a file before
+   format fixes it; a skip of either job names that group and the job inside it, as the failing
+   job prints. A skip of one of those jobs written at the top level, outside its group, fails
+   every commit: lefthook adds it as a job with nothing to run, and a job with no `run`, `script`
+   or `group` fails before its `skip` is read (`runJob` in
+   [`job.go`](https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/run/controller/job.go)).
+   Move such a skip under the group. Pointer: lefthook's [`lefthook-local`](https://lefthook.dev/examples/lefthook-local/),
+   [`skip`](https://lefthook.dev/configuration/skip/) and
+   [`group`](https://lefthook.dev/configuration/group/) pages. The guardrails content scans
    (`guardrails-remote-pre-commit-content` and `guardrails-remote-pre-push-content`, the secret and
    machine-path scans) have no per-clone skip and print none: when one is broken, the recovery is
    the revert or fix on main in step 2.

@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8] - 2026-11-18
+
+### Changed
+
+- The advise skill's `/install-github-app` Boundary cites the "is a built-in setup command" row of its verification record for who can invoke the command and whether it is gated, in place of restating it. It still offers the command and never runs it. No behavior change.
+
 ## [0.5.7] - 2026-11-16
 
 ### Changed

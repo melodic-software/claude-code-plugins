@@ -1,5 +1,5 @@
 ---
-type: tool_used
-tool: Write
-input_match: '"content"\s*:\s*"(?=(?:[^"\\]|\\.)*?Verification evidence for [0-9a-f]{40})(?=(?:[^"\\]|\\.)*?\\n\|\s*Criterion\s*\|\s*Files\s*\|\s*Test or check\s*\|\s*Result\s*\|)(?=(?:(?:[^"\\]|\\.)*?\\n\|\s*The (?:cart|checkout|receipt) page shows the total in currency\s*\|\s*`?src/cart\.ts`?\s*\|){3})'
+type: regex
+pattern: '^(?=[\s\S]*?Verification evidence for [0-9a-f]{40})(?=[\s\S]*?\n\|\s*Criterion\s*\|\s*Files\s*\|\s*Test or check\s*\|\s*Result\s*\|)(?=(?:[\s\S]*?\n\|\s*The (?:cart|checkout|receipt) page shows the total in currency\s*\|\s*`?src/cart\.ts`?\s*\|){3})'
+target: { source: file, path: .git/eval-forge/comment-body.md }
 ---

@@ -311,7 +311,7 @@ const blockRunsOn = (block, context, needs = {}) => {
   const found = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${block}\n`);
   if (!found) return true;
   const script = `return (${found[1].replace(">-\n", "").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`;
-  return new Function("steps", "needs", "github", "always", script)(context, needs, { event_name: "schedule" }, () => true);
+  return new Function("steps", "needs", "github", "always", "inputs", script)(context, needs, { event_name: "schedule" }, () => true, {});
 };
 const runsOn = (name, context, needs = {}) => blockRunsOn(step(name), context, needs);
 const SCAN = "Scan the upload for credentials";

@@ -23,8 +23,8 @@ fp() { jq -er "$1"' | strings | select(length >= 3 and length <= 254 and contain
 fp .oauthAccount.emailAddress < "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 ```
 
-The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument.
-`sha256sum` is absent on stock macOS, so the pipeline falls back to `shasum -a 256`. The `select`
+The file goes in on stdin, never as a path argument, so the read does not depend on how a `jq`
+build resolves paths. The hash step falls back to `shasum -a 256` where `sha256sum` is absent. The `select`
 is the snapshot writer's shape whitelist (reader contract, "Snapshot file shape"), so a corrupt value such as
 `logged-out` is not an account. A non-zero exit (file absent, unparsable, key missing, not a string,
 or not email-shaped) means **cannot attribute**; discard the output. A failed `jq` still leaves the

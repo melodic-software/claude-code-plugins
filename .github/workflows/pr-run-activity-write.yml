@@ -136,6 +136,15 @@ on:
         required: false
         type: string
         default: ""
+      human-pull:
+        description: >-
+          Issue mode, report-outcome: the listed human's open pull request
+          for the issue that kept apply-issue-patch from pushing (the
+          caller's check-human-pull job), which the blocked-by-pr stop waits
+          on. Exported to the script as HUMAN_PULL. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       lease-comment-id:
         description: >-
           Issue mode: the lane lease comment id the read runner's check-broker
@@ -622,6 +631,7 @@ jobs:
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
           VERIFY_CLOSE: ${{ inputs.verify-close }}
+          HUMAN_PULL: ${{ inputs.human-pull }}
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
           PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
@@ -673,6 +683,10 @@ jobs:
           if [ -n "$VERIFY_CLOSE" ] && { [ -z "$ISSUE_NUMBER" ] ||
             ! [[ $VERIFY_CLOSE =~ ^[1-9][0-9]{0,9}(,[1-9][0-9]{0,9})*$ ]]; }; then
             echo "::error::verify-close must be comma-joined issue numbers, in issue mode"
+            exit 1
+          fi
+          if [ -n "$HUMAN_PULL" ] && { [ -z "$ISSUE_NUMBER" ] || ! [[ $HUMAN_PULL =~ ^[1-9][0-9]{0,9}$ ]]; }; then
+            echo "::error::human-pull must be a pull request number, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -1616,6 +1630,7 @@ jobs:
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
           # Checked as issue numbers by the job's first step.
           VERIFY_CLOSE: ${{ inputs.verify-close }}
+          HUMAN_PULL: ${{ inputs.human-pull }}
           # Issue mode only; report-outcome counts only `true`.
           COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           LANE_HOLD_MARKER: ${{ inputs.hold-marker && format('{0}/lane-hold/{1}', runner.temp, inputs.lane) || '' }}

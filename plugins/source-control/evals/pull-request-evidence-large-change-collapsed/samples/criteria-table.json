@@ -1,56 +1,25 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nVerifier: CONFIRMED; the table covers 3 acceptance criteria.\n\n| Criterion | Files | Test or check | Result |\n|---|---|---|---|\n| The cart page shows the total in currency | src/cart.ts | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | src/cart.ts | drive: open checkout page | COMPLETE |\n| The receipt page shows the total in currency | src/cart.ts | drive: open receipt page | COMPLETE |\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nVerifier: CONFIRMED; the table covers 3 acceptance criteria.\n\n| Criterion | Files | Test or check | Result |\n|---|---|---|---|\n| The cart page shows the total in currency | src/cart.ts | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | src/cart.ts | drive: open checkout page | COMPLETE |\n| The receipt page shows the total in currency | src/cart.ts | drive: open receipt page | COMPLETE |\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![cart.png](/tmp/w/evidence/head/cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "one table row per recorded criterion row, under a text line"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nCONFIRMED for all 3 criteria.\n\n| Criterion | Files | Test or check | Result |\n| --- | --- | --- | --- |\n| The cart page shows the total in currency | `src/cart.ts` | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | `src/cart.ts` | drive: open checkout page | COMPLETE |\n| The receipt page shows the total in currency | `src/cart.ts` | drive: open receipt page | COMPLETE |\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nCONFIRMED for all 3 criteria.\n\n| Criterion | Files | Test or check | Result |\n| --- | --- | --- | --- |\n| The cart page shows the total in currency | `src/cart.ts` | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | `src/cart.ts` | drive: open checkout page | COMPLETE |\n| The receipt page shows the total in currency | `src/cart.ts` | drive: open receipt page | COMPLETE |\n",
       "why": "file cells in code spans and a spaced separator row"
     }
   ],
   "fail": [
     {
-      "answer": []
+      "answer": "",
+      "why": "nothing was posted"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n- The checkout page shows the total in currency: passed\n- The receipt page shows the total in currency: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n</details>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n- The checkout page shows the total in currency: passed\n- The receipt page shows the total in currency: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n</details>\n",
       "why": "per-criterion lines, no criteria table"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nVerifier: CONFIRMED.\n\n| Criterion | Files | Test or check | Result |\n|---|---|---|---|\n| The cart page shows the total in currency | src/cart.ts | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | src/cart.ts | drive: open checkout page | COMPLETE |\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\nVerifier: CONFIRMED.\n\n| Criterion | Files | Test or check | Result |\n|---|---|---|---|\n| The cart page shows the total in currency | src/cart.ts | drive: open cart page | COMPLETE |\n| The checkout page shows the total in currency | src/cart.ts | drive: open checkout page | COMPLETE |\n",
       "why": "two rows for three recorded criteria"
     }
   ]
