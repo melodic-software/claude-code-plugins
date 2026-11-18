@@ -5,6 +5,12 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.10] - 2026-11-18
+
+### Changed
+
+- The README, the setup skill and the capture-channel and reader references now point at the upstream page instead of restating it in five places: whether an options change reloads the module, whether installing Claude Code puts `node` on `PATH`, which sessions run a mod and what `$.session.usage()` reports (in the capture verdict), whether plugins load in a Desktop WSL session, and when the statusline percentage is computed. Those pointer records carry no as-of date or recheck trigger. The dated channel table is unchanged. No behavior change.
+
 ## [6.0.9] - 2026-11-18
 
 ### Fixed

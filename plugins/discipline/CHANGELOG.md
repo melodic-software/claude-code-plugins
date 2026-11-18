@@ -5,6 +5,15 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.14] - 2026-11-18
+
+### Changed
+
+- `sweep-all`'s batched pass sizes its wave against the concurrent subagent limit as its own rule
+  and no longer restates what `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` caps. `use-your-skills` no
+  longer restates how manual-only skills and listing overflow behave; it points at the skills page
+  for both.
+
 ## [0.28.13] - 2026-11-17
 
 ### Changed

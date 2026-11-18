@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.3] - 2026-11-18
+
+### Changed
+
+- The README's basis for the two subagent-memory limits is now a pointer to the sub-agents page's memory and plugin-scope sections, instead of quotes of three of its statements ([#16834](https://github.com/melodic-software/claude-code-plugins/issues/16834)).
+
 ## [10.3.2] - 2026-11-18
 
 ### Changed

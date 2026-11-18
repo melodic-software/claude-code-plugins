@@ -3,6 +3,15 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-18
+
+### Changed
+
+- The source-conflict records in the `audit` and `audit-posture` checklists now only name the
+  pages that disagree and the topic. The `audit-posture` SDK-entries record, which stores no
+  value, drops its as-of date and recheck trigger; the `audit` C4 length record keeps its stamp
+  under a trigger that no longer describes what the mcp page says.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added

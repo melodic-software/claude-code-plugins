@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.4] - 2026-11-18
+
+### Changed
+
+- The label-provenance passages in `item-content-trust.md`, `work-class-labels.md` and the tracker `CONTRACT.md` no longer restate how GitHub maps the triage and maintain roles. The two reference pages point to GitHub's role permissions table, and `CONTRACT.md` now gives the reason the adapter reads the `permission` field rather than `role_name`. `measure-delivery` says its metric table is the skill's own measure of each DORA metric, with the definitions left at the DORA pointer ([#16835](https://github.com/melodic-software/claude-code-plugins/issues/16835)).
+
 ## [15.6.3] - 2026-11-18
 
 ### Fixed
