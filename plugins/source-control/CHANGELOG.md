@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.8] - 2026-11-18
+
+### Changed
+
+- **Skill docs point at the upstream page instead of restating it.** The Spoke paths block in the babysit-loop, babysit-prs, commit, pull-request and setup skills, the managed-sources note in the promotion-evidence bootstrap, the conflict worker's authority note, the Monitor watch notes, and the native-surface claim cells now state this plugin's rule and link the docs section, without paraphrasing what the page says.
+
 ## [11.21.7] - 2026-11-18
 
 ### Fixed
