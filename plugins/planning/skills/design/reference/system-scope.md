@@ -61,7 +61,8 @@ its `### Risks and Mitigations` section
 |---|---|---|---|
 ```
 
-Likelihood and Impact are each `Low`, `Med` or `High`. Draw the rows from the quality scenarios a
+Likelihood and Impact are each `Low`, `Med` or `High`; a rating nobody can make yet is `High`, and
+its mitigation names the input that would lower it. Draw the rows from the quality scenarios a
 candidate design may miss, the `target assumed` inputs, and the deferred threads. A mitigation
 names a design decision, a check or a phase, never "monitor closely". The thread is named `Risks`
 so `/planning:design-handoff` lists its rows and `/planning:plan` seeds its risk table from them.

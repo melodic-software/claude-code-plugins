@@ -10,7 +10,8 @@ down. The Brief states no peak load.
 PASS if this design-threads.md holds a Risks thread written as a table with the columns Risk,
 Likelihood, Impact and Mitigation, in that order, with at least two rows that name risks specific
 to this design (for example duplicate or lost emails, a Mailgun outage outlasting the queue, an
-unknown peak load), each Likelihood and Impact one of Low, Med (or Medium) and High, and each
+unknown peak load), each Likelihood and Impact one of Low, Med (or Medium) and High (a short note
+after the level, such as `High (unrated; Q2)`, is fine), and each
 mitigation naming a design decision, a check, or a plan phase.
 
 FAIL if there is no Risks thread, the risks are prose or use other columns, a row leaves
