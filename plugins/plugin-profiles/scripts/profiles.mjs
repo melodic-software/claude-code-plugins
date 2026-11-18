@@ -118,7 +118,8 @@ const sessionProfile = (env) => env[SESSION_VAR] || null;
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
-       profiles.mjs start [<profile>] [--with <settings file or JSON>] [--unattended] [--dry-run] [claude arguments]
+       profiles.mjs start [<profile> | --profile <profile>] [--with <settings file or JSON>] [--unattended] [--dry-run] [claude arguments]
+       profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
        profiles.mjs list [--json]
@@ -140,7 +141,7 @@ const NAMED = ["apply", "install", "save"];
 const SESSION_DAYS = 30;
 const OWN_DATA_NAME = /^plugin-profiles(-|$)/;
 
-const RESUME_LINE = "A resumed session does not keep --settings; resume it with: claude-profile --resume <session id>";
+const RESUME_LINE = "A resumed session does not keep --settings; resume it with: claude --resume <session id>";
 const SESSION_ID = /^[A-Za-z0-9-]+$/;
 const validId = (id) => typeof id === "string" && SESSION_ID.test(id);
 const byIdDir = (dataDir) => join(dataDir, "sessions", "by-id");
@@ -206,12 +207,27 @@ function primaryHome(where, file) {
 /** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
 const recordOf = (where, file) => findRecord([primaryHome(where, file), where.dataDir, ...otherDataDirs(where)].filter(Boolean), file);
 
-/** start keeps its own flags and hands every other word to claude unchanged. */
+/**
+ * start keeps its own flags and hands every other word to claude unchanged, except --profile, which names the profile
+ * anywhere before a bare --. After --claude-args every word is claude's but --profile, and no first word names a profile.
+ */
 function parseStart(rest) {
-  const opts = { command: "start", name: null, target: "session", folder: null, with: null, unattended: false, dryRun: false, json: false, claudeArgs: [] };
+  const opts = { command: "start", name: null, profile: null, passthrough: false, target: "session", folder: null, with: null, unattended: false, dryRun: false, json: false, claudeArgs: [] };
+  let ended = false;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg === "--dry-run") opts.dryRun = true;
+    if (ended) opts.claudeArgs.push(arg);
+    else if (arg === "--profile" || arg.startsWith("--profile=")) {
+      const value = arg === "--profile" ? rest[++i] : arg.slice("--profile=".length);
+      if (!value || value.startsWith("-")) throw new UsageError("--profile needs a profile name");
+      if (opts.profile) throw new UsageError("start takes one --profile");
+      opts.profile = value;
+    } else if (arg === "--") {
+      ended = true;
+      opts.claudeArgs.push(arg);
+    } else if (opts.passthrough) opts.claudeArgs.push(arg);
+    else if (arg === "--claude-args") opts.passthrough = true;
+    else if (arg === "--dry-run") opts.dryRun = true;
     else if (arg === "--unattended") opts.unattended = true;
     else if (arg === "--with") {
       if (rest[i + 1] === undefined) throw new UsageError("--with needs a value");
@@ -699,13 +715,18 @@ async function start(opts, where, env, io) {
   const rows = everyProfile(catalog).map((p) => ({ name: p.name, description: p.description }));
   const listing = rows.map(profileLine).join("\n");
   const args = [...opts.claudeArgs];
-  let given = null;
-  if (args.length && !args[0].startsWith("-")) {
-    if (!profileNamed(catalog, args[0])) throw new StartRefused(`start: no profile named ${args[0]}; run start with no profile to pick one\n${listing}`);
-    given = args.shift();
+  const named = (name) => {
+    if (!profileNamed(catalog, name)) throw new StartRefused(`start: no profile named ${name}; run start with no profile to pick one\n${listing}`);
+    return name;
+  };
+  let given = opts.profile ? named(opts.profile) : null;
+  if (!opts.passthrough && args.length && !args[0].startsWith("-")) {
+    if (given) throw new UsageError("start takes the profile once: as its first word or with --profile");
+    given = named(args.shift());
   }
   const plan = resumePlan(args, given, where);
-  if (!plan.res && !given) {
+  const plain = opts.passthrough && !plan.res && !given;
+  if (!plan.res && !given && !plain) {
     if (!interactive()) throw new StartRefused(`start: name a profile; nobody is there to pick one\n${listing}`);
     const picked = await pickProfile(rows, folderProfile(where));
     if (picked === undefined) throw new NotApplied("start: no profile picked; claude was not started");
@@ -719,7 +740,7 @@ async function start(opts, where, env, io) {
   }
   const argv = [...settingsArgs, ...plan.args];
   const line = plan.line ?? (plan.name ? `Starting claude in profile ${plan.name} (${file}).` : "Starting claude with this folder's settings.");
-  io.err(line);
+  if (!plain) io.err(line);
   if (opts.dryRun) {
     io.out(JSON.stringify({ argv: ["claude", ...argv], env_removed: CLEARED, file, profile: plan.name }, null, 2));
     return 0;
@@ -773,7 +794,7 @@ function statusOf(opts, where, env, records) {
   base.earlier = earlierProfile(where);
   const recorded = recordedStatus(target, where, records);
   const inForce = name ?? (base.rememberFolder || target === "initial" ? recorded.profile : null);
-  return { ...base, ...recorded, launchCommand: inForce ? launchCommandOf(inForce, where) : null, startCommand: inForce ? `claude-profile ${inForce}` : null };
+  return { ...base, ...recorded, launchCommand: inForce ? launchCommandOf(inForce, where) : null, startCommand: inForce ? `claude --profile ${inForce}` : null };
 }
 
 /** A profile an earlier version applied to the folder's own file, which Claude Code still reads below the folder file; else null. */
@@ -815,7 +836,7 @@ function noticeLines(s, sessionId) {
   const lines = [];
   if (s.session) {
     lines.push(`This session runs in profile ${s.session.profile}.`);
-    lines.push(`Resume it in that profile with: claude-profile --resume ${validId(sessionId) ? sessionId : "<session id>"}`);
+    lines.push(`Resume it in that profile with: claude --resume ${validId(sessionId) ? sessionId : "<session id>"}`);
   } else if (s.profile) {
     lines.push(`Profile ${s.profile} applies here (${s.settingsFile}${s.repositoryWide ? ", which every worktree of this repository reads" : ""}).`);
   }
@@ -857,15 +878,28 @@ function sessionStartRecord(where, env, input) {
     const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at: new Date().toISOString() };
     replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify(rec, null, 2)}\n`);
     return before && before.profile !== name
-      ? `This session ran in profile ${before.profile} and now runs in ${name}, so a later claude-profile --resume ${input.session_id} restores ${name}.`
+      ? `This session ran in profile ${before.profile} and now runs in ${name}, so a later claude --resume ${input.session_id} restores ${name}.`
       : null;
   }
   const rec = !name && input.source === "resume" ? sessionRecord(where, input.session_id) : null;
-  return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude-profile --resume ${input.session_id}` : null;
+  return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
+}
+
+/** Points the dotfiles claude function at this installed copy when the pointer differs; never a worktree or --plugin-dir copy, and never throws. */
+function writeRootPointer(where) {
+  if (doesNotApply(where.surface) || !resolveInstall(OWN_ROOT).pluginId) return;
+  const file = join(where.configDir, "plugin-profiles-state", "root");
+  const text = `${OWN_ROOT}\n`;
+  try {
+    if (!existsSync(file) || readFileSync(file, "utf8") !== text) replaceFile(file, text);
+  } catch {
+    return;
+  }
 }
 
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
+    writeRootPointer(where);
     const input = hookInput(io);
     const resumed = (() => {
       try {

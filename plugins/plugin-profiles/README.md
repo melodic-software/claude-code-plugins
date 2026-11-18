@@ -47,17 +47,23 @@ installed, it offers to install it and installs only on your yes at that moment.
 
 ## Start a session in a profile
 
-`claude-profile` is a shell function your dotfiles provide; it runs `profiles.mjs start`, which
-writes the one-session file and starts `claude` with it. Anything after the profile goes to
-`claude` unchanged.
+Start and resume from plain `claude`:
 
-- `claude-profile build` starts a session in `build`.
-- `claude-profile` asks which profile, by number; `0` starts with the folder's settings.
-- `claude-profile --resume <id>` and `claude-profile -c` resume in the profile the session ran in.
-  A plain `claude --resume` of such a session starts without it, and its start notice prints the
-  `claude-profile --resume <id>` command that resumes it there.
+- `claude --profile build` starts a terminal in `build`.
+- `claude -c` and `claude --resume <id>` resume in the profile the session ran in.
+- Everything else `claude` does is unchanged.
 
-Without the function, run it directly:
+This needs the `claude` shell function your dotfiles provide. It runs the real `claude` untouched
+unless the words start with a flag and include `-c`, `--continue`, `-r`, `--resume` or
+`--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` out of
+the words, writes the one-session file and starts `claude` with it and every other word. The
+function finds the plugin through `~/.claude/plugin-profiles-state/root`, which the session-start
+hook of the installed plugin writes. To try a copy from a worktree, set `PLUGIN_PROFILES_ROOT` to
+that copy's plugin folder.
+
+A plain `claude --resume` without the function starts without the profile, and its start notice
+prints the command that resumes it there. Without the function, run `start` directly; with no
+profile named, it asks which one, by number, and `0` starts with the folder's settings:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
@@ -66,23 +72,6 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
 `--dry-run` prints the `claude` command and starts nothing. On Windows, `start` runs the native
 `claude.exe` it finds on `PATH`, never through a shell, and refuses a `claude.cmd`, which would
 split or interpret your arguments; this path is untested on a Windows machine.
-
-To add the function, put this in a file your bash or zsh startup sources:
-
-```bash
-claude-profile() {
-  local root=""
-  if command -v node >/dev/null 2>&1; then
-    root="$(command claude plugin list --json 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const p=JSON.parse(d).find(x=>String(x.id).startsWith("plugin-profiles@")&&x.enabled===true);if(p)process.stdout.write(p.installPath)}catch{}})')"
-  fi
-  if [ -z "$root" ] || [ ! -f "$root/scripts/profiles.mjs" ]; then
-    echo "claude-profile: plugin-profiles is not installed and enabled (or node is missing), so claude starts without a profile." >&2
-    command claude "$@"
-    return
-  fi
-  node "$root/scripts/profiles.mjs" start "$@"
-}
-```
 
 What each situation does to the profile, and how to get back to the state before any profile, is
 in [`reference/scenarios.md`](reference/scenarios.md).
@@ -102,7 +91,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" apply build --for folder
   changes. The file also sets `PLUGIN_PROFILES_SESSION` to the profile's name, and
   `SESSION_SETTINGS_FILE` to its own path, so plugin-diagnostics and harness-ops skip the
   prerequisite notices of plugins the profile turns off. A resumed session
-  does not keep `--settings`, so resume it with `claude-profile --resume <id>`. The file names every plugin and
+  does not keep `--settings`, so resume it with `claude --resume <id>`. The file names every plugin and
   every skill a profile can switch, so a folder switch in another terminal never reaches it.
 
 Where two levels set the same plugin, Claude Code's
