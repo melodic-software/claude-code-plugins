@@ -188,7 +188,10 @@ an UNPROVABLE file yields proposals only.
   repository squash-merges with the pull request's body as the commit message
   ([merge message for a squash merge](https://docs.github.com/en/pull-requests/reference/pull-request-merges#merge-message-for-a-squash-merge)),
   the branch commit's message never reaches the default branch: the landing place is the body of
-  the pull request that ships the change, which takes the whole block, trailer included.
+  the pull request that ships the change, which takes the whole block, trailer included. Decide it
+  from the repository's squash-merge commit-message setting, read through the forge's repository
+  API; when that cannot be read, name both the pending commit and the shipping pull request's body,
+  so the block survives either merge style.
 - **Every applied edit passes its tier's gate; lint never opens one.** Deletions and function-local
   renames are certified by `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh` (COMMENT-ONLY,
   RENAME-ONLY); additive and interface-creating moves need a discovered test net. Any other verdict
