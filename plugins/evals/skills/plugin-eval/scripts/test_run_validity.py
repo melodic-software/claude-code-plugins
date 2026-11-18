@@ -1314,19 +1314,30 @@ class RunValidityTest(unittest.TestCase):
     TEAM_FILE = "/tmp/claude-eval-x/workspace/.claude/improvement.md"
 
     def forbidden_write(
-        self, arm="with", passed=False, config=None, path=TEAM_FILE, input_match=None
+        self,
+        arm="with",
+        passed=False,
+        config=None,
+        path=TEAM_FILE,
+        input_match=None,
+        command=None,
     ):
         """The clean result at one run per arm with the plugin as a suite.plugins
-        path, measurable-criterion's `arm` run denied a Write to `path` and
-        scoring 0, its case holding a tool_used grader `no-write` with `config`
-        (default: forbids Write, max 0) and, with input_match, that pattern; the
-        denied run records the grader as `passed`."""
+        path, measurable-criterion's `arm` run denied a Write to `path` (or, with
+        `command`, that Bash command) and scoring 0, its case holding a tool_used
+        grader `no-write` with `config` (default: forbids Write, max 0) and, with
+        input_match, that pattern; the denied run records the grader as `passed`."""
         trace = self.dir / "denied-write.jsonl"
+        tool, tool_input = (
+            ("Bash", {"command": command})
+            if command is not None
+            else ("Write", {"file_path": path, "content": "x"})
+        )
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"result","is_error":false,"permission_denials":['
-            '{"tool_name":"Write","tool_use_id":"w1","tool_input":%s}]}\n'
-            % json.dumps({"file_path": path, "content": "x"}),
+            '{"tool_name":"%s","tool_use_id":"w1","tool_input":%s}]}\n'
+            % (tool, json.dumps(tool_input)),
             encoding="utf-8",
         )
         data = load(self.write(self.clean()))
@@ -1364,6 +1375,18 @@ class RunValidityTest(unittest.TestCase):
             proc = self.forbidden_write(**kwargs)
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.FORBIDDEN, proc.stdout)
+
+    def test_a_forbidden_call_naming_no_absolute_path_is_set_aside_only_without_the_plugin(
+        self,
+    ):
+        bash = {"config": {"tool": "Bash", "max": 0}, "command": "touch improvement.md"}
+        for kwargs in ({"path": None}, {"path": "improvement.md"}, bash):
+            proc = self.forbidden_write("with", **kwargs)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.FORBIDDEN, proc.stdout)
+            proc = self.forbidden_write("without", **kwargs)
+            self.assertDenials(proc, "WARN")
+            self.assertIn(self.FORBIDDEN, proc.stdout)
 
     def test_a_with_arm_bash_denial_outside_the_plugin_scoring_the_same_is_a_warning(
         self,
