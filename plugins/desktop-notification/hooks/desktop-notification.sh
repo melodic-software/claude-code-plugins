@@ -173,6 +173,19 @@ OSA
       # treated as a positional, never an option flag.
       notify-send -- "$HEADLINE" "$BODY" >/dev/null 2>&1 &
       CHANNELS+=("os_toast")
+    elif [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v powershell.exe >/dev/null 2>&1; then
+      T64=$(printf '%s' "$HEADLINE" | base64 -w0)
+      B64=$(printf '%s' "$BODY" | base64 -w0)
+      PS="\$d={param(\$s)[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(\$s))}
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null
+\$x=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+\$n=\$x.GetElementsByTagName('text')
+\$n.Item(0).InnerText=(& \$d '$T64')
+\$n.Item(1).InnerText=(& \$d '$B64')
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new(\$x))"
+      ENC=$(printf '%s' "$PS" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
+      powershell.exe -NoProfile -NonInteractive -EncodedCommand "$ENC" </dev/null >/dev/null 2>&1 &
+      CHANNELS+=("os_toast")
     fi
     ;;
   *) ;; # Windows / unknown — no OS toast; terminal channels carry attention.
