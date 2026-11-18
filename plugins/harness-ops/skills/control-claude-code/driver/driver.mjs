@@ -143,9 +143,17 @@ export function ciCredentials(file = CONFIG) {
  * the source must be "none"; CLAUDE_CODE_OAUTH_TOKEN, the person's own login, passes through as it
  * always has. Unattended, the one `config.credentials` variable that is set is kept, the scrub keeps it
  * from the processes Claude Code starts, and two set at once is refused before anything runs.
+ * `realSetup` drops the restriction flags and is refused with `unattended` or `inSandbox`; its
+ * `launcher` words, when given, stand in for the bare `claude`.
  */
 export function buildLaunch(config, env) {
   if (!config?.pluginDir) throw new UsageError('launch needs --plugin-dir <dir>');
+  if (config.realSetup && (config.unattended || config.inSandbox)) {
+    throw new Refused('refused: --real-setup runs attended only: it loads the person\'s own settings, MCP servers and Bash, so it never runs with --unattended or --in-sandbox');
+  }
+  const launcher = config.launcher ?? [];
+  if (launcher.length && !config.realSetup) throw new UsageError('--launcher needs --real-setup: a restricted session ignores the settings a launcher passes');
+  if (launcher.some((word) => !word)) throw new UsageError('--launcher takes a word: one non-empty argument per --launcher');
   const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
   const set = config.unattended ? (config.credentials ?? []).filter((n) => env[n]) : [];
   if (set.length > 1) throw new Refused(`refused: ${set.join(' and ')} are both set; an unattended run takes one credential`);
@@ -156,8 +164,9 @@ export function buildLaunch(config, env) {
   }
   for (const name of [...UNSET_VARS, ...(config.credentials ?? [])]) if (name !== kept) delete childEnv[name];
   if (kept && !config.inSandbox) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
+  const flags = config.realSetup ? [] : config.inSandbox ? IN_SANDBOX_FLAGS : LAUNCH_FLAGS;
   return {
-    argv: ['claude', ...(config.inSandbox ? IN_SANDBOX_FLAGS : LAUNCH_FLAGS), '--plugin-dir', config.pluginDir],
+    argv: [...(launcher.length ? launcher : ['claude']), ...flags, '--plugin-dir', config.pluginDir],
     env: childEnv,
     keySource: kept ? CI_KEY_SOURCES[kept] : NO_KEY,
   };
@@ -189,6 +198,8 @@ const launchConfig = (opts, pluginDir) => ({
   unattended: Boolean(opts.unattended),
   credentials: opts.unattended ? ciCredentials() : [],
   inSandbox: Boolean(opts['in-sandbox']),
+  realSetup: Boolean(opts['real-setup']),
+  launcher: opts.launcher ?? [],
 });
 
 class UsageError extends Error {
@@ -1017,6 +1028,8 @@ async function launch(opts) {
           opts.ttl,
           ...(config.unattended ? ['--unattended'] : []),
           ...(config.inSandbox ? ['--in-sandbox'] : []),
+          ...(config.realSetup ? ['--real-setup'] : []),
+          ...config.launcher.map((word) => `--launcher=${word}`),
         ],
         { detached: true, stdio: ['ignore', fd, fd], env },
       );
@@ -1392,12 +1405,14 @@ const OPTIONS = {
   out: { type: 'string' },
   unattended: { type: 'boolean' },
   'in-sandbox': { type: 'boolean' },
+  'real-setup': { type: 'boolean' },
+  launcher: { type: 'string', multiple: true },
   'dry-run': { type: 'boolean' },
   help: { type: 'boolean' },
 };
 
 const SESSION_OPT = '[--session <name>]';
-const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox]';
+const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox] [--real-setup [--launcher <word>]...]';
 /**
  * Per verb: `usage`, its flags after `node driver.mjs <verb>`; `brief`, the line `--help` lists it
  * with; `more`, what only `<verb> --help` adds; `writes`, whether it writes or sends, which is what
@@ -1407,7 +1422,7 @@ export const HELP = {
   launch: {
     usage: `--plugin-dir <dir> ${SESSION_OPT} [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
     brief: 'Starts Claude Code with the plugin loaded, held by a detached session holder.',
-    more: 'Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop.',
+    more: 'Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop. --real-setup, attended only, drops --restricted and --strict-mcp-config so the person\'s own settings, plugins and MCP servers load; each --launcher word (--launcher=<word> for one starting with -) replaces the bare claude, in order.',
     writes: true,
   },
   'wait-for': { usage: `<text> [--timeout <ms>] ${SESSION_OPT}`, brief: 'Waits until the session screen shows <text>; reads only.' },

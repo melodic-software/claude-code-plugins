@@ -59,6 +59,17 @@ that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen.
 
+Real setup, attended only: when the person asks to see the plugin beside their own setup, add
+`--real-setup` to `launch` and `ready`. The launch then drops `--restricted` and
+`--strict-mcp-config`, so the person's settings files, installed plugins, hooks, permission rules,
+MCP servers, status line and Bash all load; the credential clearing and Ready's `none` key source
+stay. To start through a launcher, such as a plugin profile, give its words in order, one
+`--launcher` each (`--launcher=<word>` for a word starting with `-`), and the driver appends
+`--plugin-dir <plugin-dir>`: `--launcher node --launcher <profiles.mjs path> --launcher start
+--launcher <profile>`. `--launcher` needs `--real-setup`. Both are refused with `--unattended` and
+`--in-sandbox`, and the launch broker refuses them, so no unattended or CI run takes them. Answer
+the first-run dialogs such a session shows as Gotchas says.
+
 Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
 else `~/.claude`), shared across runs, because the run reuses the account it is signed in with; a
 new directory per run would start signed out. The launch sets no config directory.
@@ -127,6 +138,9 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - usage reset | resets [^·]*[^· \t]
 - cost | (?<=Total cost:[ \t]+)[^ \t]+
 - token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
+- status line session id | [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+- status line cost | \$[ \t]*[0-9][0-9,]*(?:\.[0-9]+)?
+- status line limit | (?<![A-Za-z0-9])(?:5h|7d|weekly|session)[^0-9%─-╿]{0,12}[0-9]+(?:\.[0-9]+)?%
 
 values: `cli/account.mjs`
 
@@ -151,6 +165,15 @@ is running. It stops the session this run launched; the evidence files stay.
 - A status glyph drawn as a box is the missing font doctor names, not the plugin under test.
 - Ready stops before any request, so it does not show the session is signed in; the launched
   session's first screen does. Screenshot it before the first step.
+- A `--real-setup` session can open first-run dialogs a restricted one never shows. Answer each
+  with `type` and `--key`, and screenshot it first:
+  - Folder trust: trust only the checkout or worktree the person named for this drive; for any
+    other folder, stop the session and drive nothing.
+    <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>
+  - External CLAUDE.md imports: decline; the drive needs only the files inside the folder.
+    <https://code.claude.com/docs/en/memory#import-additional-files>
+  - The auto mode offer: decline, so the session keeps the permission mode it started in.
+    <https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode>
 
 ## Features
 
