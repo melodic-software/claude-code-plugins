@@ -12,10 +12,10 @@ records: [aihero-course.md](aihero-course.md), [aihero-shipping-course.md](aiher
 [aihero-domain-language.md](aihero-domain-language.md), [aihero-wayfinder.md](aihero-wayfinder.md)
 and [aihero-review.md](aihero-review.md).
 
-The rows cover the two sessions of 2026-11-13. Each disposition is an owner decision; an idea without one is left out. The author's reports on his in-progress
-`chief-of-staff` skill (2026-11-09 and 2026-11-13) and the re-check of his `software-factory`
-skill are in [mattpocock-skills.md](mattpocock-skills.md), rows `chief-of-staff` and
-`software-factory`.
+The rows cover the two sessions of 2026-11-13. Each disposition is an owner decision; an idea
+without one is left out. The author's reports on his in-progress `chief-of-staff` skill
+(2026-11-09 and 2026-11-13) and the re-check of his `software-factory` skill are in
+[mattpocock-skills.md](mattpocock-skills.md), rows `chief-of-staff` and `software-factory`.
 
 - **Pointer**: for the guest talk's research claims, read the two papers under
   [The guest talk on code health](#the-guest-talk-on-code-health) at their arXiv pages.
