@@ -19,7 +19,7 @@ analyzer, matcher or test library it already runs; codify names no product of it
 | Finding class | Rung | Hand-off |
 |---|---|---|
 | `invalid-state` (a value or combination the code can express but must never hold: two flags that must not both be true, a field that is always set after construction but typed as optional, two ids of different kinds that can be passed in each other's place) | `make-impossible` | `/architecture:improve` when that skill is available, otherwise `/planning:design`; the proposal names the type, data-structure or API change and implements nothing |
-| `style` (formatting, whitespace, ordering, naming style) | `editorconfig-severity` | build hand-off: the setting in the in-repo `.editorconfig` |
+| `style` (formatting, whitespace, ordering, naming style) | `formatter` when the `fix-cmd` of the repository's ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) can rewrite the code into the rule's shape; otherwise `editorconfig-severity` | build hand-off: the format setting that command reads, or the setting in the in-repo `.editorconfig` |
 | `defined-diagnostic` (a diagnostic an installed analyzer pack or linter already defines: a cited diagnostic id, or a rule the pack documents) | `analyzer-pack-rule` | build hand-off: enable the rule or raise its severity in the configuration the repository already uses for that pack |
 | `semantic-invariant` (a project-specific API or usage invariant that needs meaning, not syntax, in any language: a banned API resolved by symbol, a required attribute, a misuse pattern that depends on types or on which symbol a call reaches) | `custom-analyzer` | build hand-off: an analyzer for the compiler or linter the repository already runs |
 | `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant) | `syntax-pattern-rule` | build hand-off: a rule for the pattern matcher the repository already runs |
@@ -161,6 +161,10 @@ directory, a test project), name it.
   exist, and the change that would remove it. Hand it to `/architecture:improve` when that skill is
   available, otherwise to `/planning:design`.
 - **`shared-helper`**: name the helper and the lint or check that fails a caller who bypasses it.
+- **`formatter`**: name the format command, the `fix-cmd` of the ecosystem record the rule's files
+  fall under, and the format setting it reads that holds the rule. The check runs that command and
+  then fails when the tree changed. Existing violations take the cleanup offer, never the ratchet:
+  running the command over the tree fixes every one.
 - **`editorconfig-severity`**: name the setting and the file; no plugin is involved.
 - **`analyzer-pack-rule`**: name the diagnostic id and the config file that raises its severity.
   Where the producing detector already is the deterministic check, the next step is to keep it.

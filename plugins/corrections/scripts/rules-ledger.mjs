@@ -6,11 +6,6 @@
 // Run from the repository root: each row's `source` (<file>:<line>) is read from there, and the
 // row's `rule` text, whitespace collapsed, must start on that line (it may run on for up to ten
 // lines). Two rows that resolve to the same starting point are one rule listed twice.
-// Each input declares how many rules it holds (`rules`; zero needs a `reason`) and must have exactly
-// that many rows. A row's disposition is one of check, prose, delete, held:
-//   check   rung (a checking rung id), check, old_ref, proof_exit 0, covers (non-empty),
-//           prose "flag-delete"
-//   prose, delete, held   reason
 // Prints one tally line per file and `ledger complete: ...` on success.
 // Exit: 0 complete, 1 a rule unaccounted for (one stderr line each), 2 usage or unreadable input.
 import { readFileSync } from "node:fs";
@@ -18,6 +13,7 @@ import { readFileSync } from "node:fs";
 const CHECKING_RUNGS = [
   "shared-helper",
   "compiler-setting",
+  "formatter",
   "editorconfig-severity",
   "analyzer-pack-rule",
   "custom-analyzer",
@@ -32,6 +28,7 @@ const CHECKING_RUNGS = [
 ];
 const ALIASES = { "semgrep-rule": "syntax-pattern-rule" };
 const DISPOSITIONS = ["check", "prose", "delete", "held"];
+const STYLES = ["formatter", "lint"];
 const WINDOW = 10;
 const SOURCE = /^(.+):([1-9][0-9]*)$/;
 
@@ -133,6 +130,9 @@ for (const row of ledger.rows) {
     continue;
   }
   entry.tally[disposition] += 1;
+  if (row.style !== undefined && !STYLES.includes(row.style)) {
+    problems.push(`${source}: style ${JSON.stringify(row.style)} is not formatter or lint`);
+  }
   if (disposition !== "check") {
     if (!filled(row.reason)) problems.push(`${source}: ${disposition} row has no reason`);
     continue;
@@ -144,9 +144,16 @@ for (const row of ledger.rows) {
   } else if (!CHECKING_RUNGS.includes(row.rung)) {
     problems.push(`${source}: rung "${row.rung}" is not a checking rung: a rule no check holds stays prose`);
   }
+  if (row.rung === "formatter" && row.style !== "formatter") {
+    problems.push(`${source}: formatter rung row needs style "formatter"`);
+  } else if (row.style === "formatter" && row.rung !== "formatter") {
+    problems.push(`${source}: style "formatter" needs the formatter rung`);
+  }
   if (!filled(row.check)) problems.push(`${source}: check row has no check command`);
-  if (!filled(row.old_ref)) {
-    problems.push(`${source}: check row has no old_ref: an unproven check is held`);
+  if (filled(row.old_ref) && filled(row.plant)) {
+    problems.push(`${source}: check row has both old_ref and plant: one proof per check`);
+  } else if (!filled(row.old_ref) && !filled(row.plant)) {
+    problems.push(`${source}: check row has no old_ref or plant: an unproven check is held`);
   } else if (row.proof_exit !== 0) {
     problems.push(`${source}: proof exit ${row.proof_exit ?? "missing"}, not 0: an unproven check is held`);
   }

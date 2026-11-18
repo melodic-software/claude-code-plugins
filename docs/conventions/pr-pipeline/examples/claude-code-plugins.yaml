@@ -31,6 +31,7 @@ activities:
     inputs: [pr, head-sha]
   run-tests:
     skill: toolchain:check
+    args: --unattended
     effect: read
     gating: gate
     reads-untrusted: false
@@ -110,6 +111,7 @@ activities:
     inputs: [pr, head-sha]
   check-default-branch:
     skill: toolchain:check
+    args: --unattended
     effect: read
     gating: advisory
     reads-untrusted: false

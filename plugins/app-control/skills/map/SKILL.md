@@ -70,7 +70,10 @@ here and report.
 
 Ask only the `open` rows and the choices only a person makes: which three to five features to seed;
 the write policy per environment and per external system; the read level of each data source per
-environment; the test accounts, and which must never
+environment, and before any level above `never`, the source's `data` category, readers and review
+reference, and for a source read with a credential, its variable name and the read-only `grants`
+command that shows its grants, or `full-user-access` when the source offers no scope control (the
+contract's "Data sources"); the test accounts, and which must never
 be locked out; the recipient allowlist per side-effect channel, or never send; a flat map or one
 grouped by module; which journeys this repository owns and which belong to a related system's
 control skill, with that system's repository; which environment is production; the driver CLI's
@@ -103,7 +106,8 @@ drive finds a control skill by its hub.
   safety floor at its safe value, credential variable names only, and `config/.gitignore` holding
   `local.json`. Environment entries come from the Environments and Dependencies rows and the
   answers, per the contract's "Environments", each with the `sources` the Data sources row found
-  and the read level the person gave each (the contract's "Data sources").
+  and the read level, `credential`, `grants` and `data` the person gave each (the contract's "Data
+  sources").
 - **Integrated apps**, per the contract's section: a hub line each, steps included by reference,
   never copied, `pins.<app>` set to the other checkout's HEAD commit only as the contract's Pin
   rule allows (reported with its subject), and nothing written into another checkout beyond what

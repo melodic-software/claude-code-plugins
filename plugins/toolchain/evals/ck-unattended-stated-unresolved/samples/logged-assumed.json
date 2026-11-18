@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "assumed: bash.check-cmd=bash tools/run.sh bash check <files> (CLAUDE.md:5)"},
+    {"answer": "- `assumed: bash.check-cmd=bash tools/run.sh bash check scripts/app.sh (CLAUDE.md:5)`"}
+  ],
+  "fail": [
+    {"answer": "assumed: bash.check-cmd=bash tools/run.sh bash check <files>", "why": "no source named"},
+    {"answer": "Ran bash tools/run.sh bash check scripts/app.sh, stated in CLAUDE.md.", "why": "not an assumed: line"},
+    {"answer": "assumed: bash.check-cmd=shellcheck <files> (reference/ecosystems/bash.yaml:7)", "why": "sourced from the bundled default"}
+  ]
+}

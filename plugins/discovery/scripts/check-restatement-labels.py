@@ -46,8 +46,16 @@ at a sub-slice claim must carry that claim's label, and a root index line that
 names one must carry no sweep word. Only the root's RESEARCH.md and the root's
 own sidecars are read for lines; each sub-slice was graded on its own before
 synthesis. With --sub-slice the root needs no sidecar of its own, and each
-named sub-slice must hold at least one. An ID declared in two sub-slices, or
-in a sub-slice and the root, is ambiguous and ungradeable like any duplicate.
+named sub-slice must hold at least one.
+
+Each sub-slice's IDs are namespaced by its directory name, since its
+researcher numbered them without seeing the others: two sub-slices may each
+declare X1. A root line may cite <sub-slice name>/X1, graded against that one
+sub-slice's claim, or the bare X1, which names every claim declaring it, so
+the line must carry each one's label and a quote of it may quote any of them.
+An ID declared twice in one sub-slice, or declared in a sub-slice and the
+root, stays ungradeable like any duplicate, as do two sub-slices that share a
+directory name.
 
 Rule: skills/research/context/artifact-shape.md, "Restatements cite; they do
 not restate". The researcher runs this check before hand-back and fixes every
@@ -69,7 +77,8 @@ Exit 2 = ungradeable, FAIL CLOSED: missing slice or sub-slice dir, no
          RESEARCH.md, no sidecar (at the root without --sub-slice, or in a
          named sub-slice), a sidecar header the parser cannot read, an id:
          that is not a claim ID, a claim with an id: and no claim: text, one
-         ID declared twice across the files read,
+         ID declared twice at the root or in one sub-slice, a root ID a
+         sub-slice also declares, two sub-slices sharing a directory name,
          an unreadable or non-UTF-8 file, a parser that cannot be loaded, or a
          usage error (status=ungradeable)
 
@@ -92,8 +101,9 @@ USAGE = (
     + """
 Claim ID grammar: one or more capital letters, an optional hyphen, digits, and
 an optional lowercase letter: M1, K9, CI-02, S2a. IDs are unique across the
-slice. An ID matches on a line only as a whole token: M1 is not found in M10,
-and S2 is not found in S2a.
+slice; with --sub-slice, within each sub-slice and against the root. An ID
+matches on a line only as a whole token: M1 is not found in M10, and S2 is not
+found in S2a.
 
 Output (stdout, one line):
   status=pass ids=<n> labeled=<n> mentions=<n> quoted=<n>
@@ -220,6 +230,22 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
 
 
 def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[int, str]:
+    """Grade the slice's lines against the claims it and its sub-slices declare.
+
+    A sub-slice's sidecars declare claims only: their lines were graded in the
+    sub-slice's own run, so only the root's files are read for lines. A root claim
+    is keyed by its bare ID and a sub-slice claim by <sub-slice name>/<id>, so two
+    sub-slices may each declare X1. A root claim and a sub-slice claim sharing a
+    bare ID leave a root pointer unable to tell its own claim from the other, so
+    that is ungradeable.
+
+    A token on a line is a bare ID or a qualified one, and keys_of resolves it to
+    keys. A bare ID names every claim declaring it, so the line carries each one's
+    label, and its quote may match either claim; a qualified ID names its one
+    claim. A matching quote's words are the claim's own, so they are blanked
+    before IDs and sweep words are looked for, and ID tokens are blanked before
+    the sweep search so a sub-slice name such as all-hooks is no sweep word.
+    """
     sub_slices = sub_slices or []
     if not slice_dir.is_dir():
         raise csa.Ungradeable(f"slice directory not found: {slice_dir}")
@@ -229,20 +255,28 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
     sidecars = sidecars_in(slice_dir)
     if not sidecars and not sub_slices:
         raise csa.Ungradeable(f"no RESEARCH-*.md sidecar in {slice_dir}")
-    # A sub-slice's sidecars declare claims only: their lines were graded in
-    # the sub-slice's own run, so only the root's files are read for lines.
     declaring = list(sidecars)
+    namespace = {sidecar: "" for sidecar in sidecars}
+    names: set[str] = set()
     for sub in sub_slices:
         if not sub.is_dir():
             raise csa.Ungradeable(f"sub-slice directory not found: {sub}")
         found = sidecars_in(sub)
         if not found:
             raise csa.Ungradeable(f"no RESEARCH-*.md sidecar in sub-slice {sub}")
+        name = sub.resolve().name
+        if not name or name in names:
+            raise csa.Ungradeable(
+                f"sub-slice {sub}: directory name {name!r} is empty or already used"
+            )
+        names.add(name)
         declaring.extend(found)
+        namespace.update(dict.fromkeys(found, name))
 
     declared: dict[str, Path] = {}
     texts: dict[str, str] = {}
     labeled: dict[str, str] = {}
+    keys_of: dict[str, list[str]] = {}
     skip: dict[Path, range] = {}
     headers: dict[Path, list[str]] = {}
     for sidecar in declaring:
@@ -258,22 +292,31 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                 raise csa.Ungradeable(
                     f"{sidecar}: claim {c_no}: id is not a claim ID: {cid}"
                 )
-            if cid in declared:
+            name = namespace[sidecar]
+            key = f"{name}/{cid}" if name else cid
+            clash = key if key in declared else None
+            if clash is None:
+                owners = keys_of.get(cid, [])
+                clash = next((k for k in owners if not name or "/" not in k), None)
+            if clash is not None:
                 raise csa.Ungradeable(
-                    f"{sidecar}: claim {c_no}: id {cid} is already declared in {declared[cid]}"
+                    f"{sidecar}: claim {c_no}: id {cid} is already declared in {declared[clash]}"
                 )
             if not claim.get("claim"):
                 raise csa.Ungradeable(f"{sidecar}: claim {c_no}: id {cid} has no claim: text")
-            declared[cid] = sidecar
-            texts[cid] = claim["claim"]
+            declared[key] = sidecar
+            texts[key] = claim["claim"]
             if claim.get("confidence") in LABELS:
-                labeled[cid] = claim["confidence"]
+                labeled[key] = claim["confidence"]
+            keys_of.setdefault(cid, []).append(key)
+            if name:
+                keys_of[key] = [key]
 
     violations: list[str] = []
     mentions = quoted = 0
     if declared:
-        pattern = id_pattern(declared)
-        opener = quote_pattern(declared)
+        pattern = id_pattern(keys_of)
+        opener = quote_pattern(keys_of)
         for path in [index, *sidecars]:
             lines = csa.read_text(path).splitlines()
             block = skip.get(path, range(0))
@@ -281,7 +324,6 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
             fence: str | None = None
             fetch_level = 0
             for i, line in enumerate(lines):
-                # Front-matter index j is lines[j + 1]: lines[0] is the opening ---.
                 if i - 1 in block:
                     continue
                 if i >= start:
@@ -301,42 +343,47 @@ def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[i
                 if fetch_level:
                     continue
                 text = header_value(csa, line) if i < start else line
-                # A matching quote's words are the claim's own, so they are
-                # blanked before IDs and sweep words are looked for.
                 outside = text
                 matched: set[str] = set()
                 mismatched: set[str] = set()
                 for found in opener.finditer(text):
-                    cid = found.group(1)
-                    want = texts[cid] + '"'
-                    if text.startswith(want, found.end()):
-                        matched.add(cid)
+                    token = found.group(1)
+                    wants = (texts[key] + '"' for key in keys_of[token])
+                    want = next((w for w in wants if text.startswith(w, found.end())), None)
+                    if want is not None:
+                        matched.add(token)
                         quoted += 1
                         end = found.end() + len(want) - 1
                         outside = outside[: found.end()] + " " * (end - found.end()) + outside[end:]
-                    elif cid not in mismatched:
-                        mismatched.add(cid)
-                        violations.append(f"{path}:{i + 1}: {cid} quote does not match its claim")
+                    elif token not in mismatched:
+                        mismatched.add(token)
+                        violations.append(f"{path}:{i + 1}: {token} quote does not match its claim")
                 cited = sorted({m.group(1) for m in pattern.finditer(outside)})
-                sweep = SWEEP.search(outside) if path == index and cited else None
+                tokens_blanked = pattern.sub(lambda m: " " * len(m.group(0)), outside)
+                sweep = SWEEP.search(tokens_blanked) if path == index and cited else None
                 if sweep:
                     violations.append(
                         f"{path}:{i + 1}: {', '.join(cited)} cited beside the sweep word "
                         f'"{sweep.group(0)}"'
                     )
-                for cid in cited:
-                    if path != index and cid not in matched and cid not in mismatched:
+                checked: set[str] = set()
+                for token in cited:
+                    if path != index and token not in matched and token not in mismatched:
                         violations.append(
-                            f"{path}:{i + 1}: {cid} cited without its claim quoted verbatim"
+                            f"{path}:{i + 1}: {token} cited without its claim quoted verbatim"
                         )
-                    if cid not in labeled:
-                        continue
-                    mentions += 1
-                    label = labeled[cid]
-                    if not LABEL_ON_LINE[label].search(outside):
-                        violations.append(
-                            f"{path}:{i + 1}: {cid} ({label}) appears without its label"
-                        )
+                    keys = keys_of[token]
+                    for key in keys:
+                        if key in checked or key not in labeled:
+                            continue
+                        checked.add(key)
+                        mentions += 1
+                        label = labeled[key]
+                        if not LABEL_ON_LINE[label].search(outside):
+                            shown = token if len(keys) == 1 else key
+                            violations.append(
+                                f"{path}:{i + 1}: {shown} ({label}) appears without its label"
+                            )
         violations.extend(abstract_violations(csa, index, sidecars, headers, declared, opener))
 
     counts = (

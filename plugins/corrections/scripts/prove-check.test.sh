@@ -3,10 +3,6 @@
 # Black-box against a throwaway git fixture under a mktemp dir: a repository
 # whose first commit plants a violation (a deferred-work marker) and whose second commit
 # reverts it. No network.
-#
-# Cases: the check fails at the violation and passes after its revert (exit 0);
-# a check that passes on both refs (exit 1); a check that fails on both
-# (exit 1); a bad argument (exit 2); no worktree left behind.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
@@ -106,6 +102,67 @@ if ((rc_flag == 2 && rc_missing == 2 && rc_ref == 2)); then
 else
   fail "usage errors should exit 2" "flag=$rc_flag missing=$rc_missing ref=$rc_ref"
 fi
+
+git -C "$REPO" diff violation^ violation >"$TEST_TMPDIR/plant.patch"
+printf 'not a patch\n' >"$TEST_TMPDIR/bad.patch"
+clean() {
+  local n left
+  n="$(git -C "$REPO" worktree list | wc -l)"
+  left="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 | wc -l)"
+  if ((n == 1 && left == 0)); then
+    pass "$1"
+  else
+    fail "$1" "worktrees=$n leftover=$left"
+  fi
+}
+
+run --check "$CHECK_NO_TODO" --plant "$TEST_TMPDIR/plant.patch"
+planted="$(sed -n 's/^old (planted \([0-9a-f]*\)).*/\1/p' <<<"$OUT")"
+if ((RC == 0)) && [[ -n "$planted" && "$OUT" == *"exit 1"* && "$OUT" == *"exit 0"* ]]; then
+  pass "planted violation fails the check, current code passes it (exit 0)"
+else
+  fail "planted proof should hold" "rc=$RC out=$OUT err=$ERR"
+fi
+if [[ -n "$planted" ]] && ! grep -q "$planted" < <(git -C "$REPO" rev-list --all --reflog); then
+  pass "the plant commit is reachable from no ref or reflog"
+else
+  fail "plant commit still reachable" "planted=$planted"
+fi
+clean "no worktree left behind after a planted proof"
+
+run --check 'awk '\''!/TODO/'\'' notes.txt >n.tmp && mv n.tmp notes.txt && git diff --quiet' --plant "$TEST_TMPDIR/plant.patch"
+if ((RC == 0)); then
+  pass "a rewrite-then-diff check proves against a plant"
+else
+  fail "rewrite-then-diff check should prove" "rc=$RC out=$OUT err=$ERR"
+fi
+run --check 'git diff --quiet HEAD' --plant "$TEST_TMPDIR/plant.patch"
+if ((RC == 1)) && [[ "$OUT" == "old (planted "*"exit 0"* ]]; then
+  pass "the planted side has no uncommitted change"
+else
+  fail "planted side should be a clean commit" "rc=$RC out=$OUT err=$ERR"
+fi
+
+run --check 'true' --plant "$TEST_TMPDIR/plant.patch"
+if ((RC == 1)); then
+  pass "check that passes on the plant exits 1"
+else
+  fail "pass on the plant should exit 1" "rc=$RC out=$OUT err=$ERR"
+fi
+clean "no worktree left behind after a failed planted proof"
+
+run --check "$CHECK_NO_TODO" --plant "$TEST_TMPDIR/bad.patch"
+rc_bad=$RC
+run --check "$CHECK_NO_TODO" --plant "$TEST_TMPDIR/missing.patch"
+rc_missing=$RC
+run --check "$CHECK_NO_TODO" --plant "$TEST_TMPDIR/plant.patch" --old violation
+rc_both=$RC
+if ((rc_bad == 2 && rc_missing == 2 && rc_both == 2)); then
+  pass "unusable plant exits 2"
+else
+  fail "plant usage errors should exit 2" "bad=$rc_bad missing=$rc_missing both=$rc_both"
+fi
+clean "no worktree left behind after a plant that does not apply"
 
 # 5. No worktree left behind, after a proof, a failed proof and a usage error.
 worktrees="$(git -C "$REPO" worktree list | wc -l)"

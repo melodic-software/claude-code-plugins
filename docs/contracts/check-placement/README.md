@@ -482,6 +482,9 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 |---|---|---|---|---|---|
 | all 11 entries in a row | pre-commit | 0.91 s; 1.91 s; 96.3 s (93.1-102.8); 9.6 s (9.5-9.7) | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | bash-format `shell-check` | pre-commit | 0.32 s; 0.66 s; 98.9 s (93.8-108.7); 6.3 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| bash-format `lint`, one ShellCheck call per batch (before) | pre-commit | 0.33 s (0.32-0.34); 0.68 s (0.65-0.71); 22.0 s (21.8-22.3), 5 runs, peak RSS 4.66 GB | 1; 10; 44 files | Linux, WSL2, 24 CPUs | 2026-11-17 |
+| bash-format `lint`, parallel lanes, dataflow analysis off above 2,000 lines (after) | pre-commit | 0.35 s (0.34-0.38); 0.69 s (0.68-0.82); 2.99 s (2.94-3.01), 5 runs, peak RSS 0.33 GB | 1; 10; 44 files | Linux, WSL2, 24 CPUs | 2026-11-17 |
+| bash-format `format` | pre-commit | 0.42 s (0.42-0.43), 5 runs | 44 files | Linux, WSL2, 24 CPUs | 2026-11-17 |
 | code-tidying `comment-lint` | pre-commit | 0.37 s; 0.45 s; 0.17 s; 1.72 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | spelling `typos-check` | pre-commit | 0.06 s; 0.13 s; 0.86 s; 0.36 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | markdown-format `markdown-check` | pre-commit | 0.01 s; 0.40 s; 0.35 s; 0.55 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
@@ -493,6 +496,7 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | `scripts/check-plugin-imports.sh` alone | pre-push | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `pre-push-content` | pre-push | 0.17 s (0.15-0.19), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `reference-verify` | pre-push | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| bash-format `lint-full`, dataflow analysis on the pushed scripts over 2,000 lines | pre-push | 11.8 s (10.7-13.0), 5 runs, largest ShellCheck process 5.38 GB | 44 files (`83fb17c179` on its parent as one pushed range, work tree at the tip) | Linux, WSL2, 24 CPUs | 2026-11-17 |
 | `scripts/check-affected.sh --tests` | CI only | 4.5 s, 0 suites; 94.7 s (89.5-96.5), 10 suites; 164.3 s (159.4-165.8), 24 suites | 1 file (`151a7b0c0c`, data); 1 file (script edit); 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 
 The `pre-push` set on the 28-file sample totals 20.0 s: 18.6 s, 0.17 s and 1.25 s. Change-scoped
@@ -503,4 +507,11 @@ boundary check already runs at `pre-push`, inside the lint tier.
 The shipped `pre-commit` set took 96.3 s on the 44-file sample, a real `origin/main` commit, over
 the commit budget and the push budget. bash-format's `shell-check` alone measured 98.9 s:
 shellcheck takes 1.7 s on one copy of the 5,174-line `hook-utils.sh`, and the commit changes 22 of
-them.
+them. Linting identical copies once brought it to 22.0 s, most of it ShellCheck's dataflow analysis
+of two scripts: 12.5 s for the 6,383-line `lib/hook-utils.test.sh` and 11.3 s for
+`block-root-delete-target.sh`, 2.9 s each without it. The `lint` entry now runs ShellCheck in
+parallel lanes and turns dataflow analysis off above 2,000 lines, the size the ShellCheck manual
+names for it; 3.0 s. Those scripts' dataflow checks (SC2218, SC2319, SC2320 and SC2324) move to the
+`lint-full` pre-push entry, which lints each pushed script over 2,000 lines with full analysis in
+11.8 s on that sample. Added to `reference-verify`'s 10.6 s on the same sample (the 2026-10-16
+row above), that is 22.4 s, inside the 60 s push budget.

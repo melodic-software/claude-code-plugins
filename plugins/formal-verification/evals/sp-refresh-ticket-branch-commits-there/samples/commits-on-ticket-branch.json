@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): updated\n\nI read 5a6b7c8: take() moved unchanged to src/lock/acquire.js, so it is still covered code and the verification no longer pointed at it. The model and sync.yaml now cover src/lock/acquire.js; the check passes and a seeded break removing the held check is caught. The ticket's own commits touch no covered path, so the commit checked is the merge base c0ffee1, which becomes the sync commit. I stage only .claude/skills/formal-lock/ with git add -- and commit it with git commit -- on feat/lock-timeout. I push nothing and open no pull request; the ticket's pull request carries the commit. No upkeep branch is made.", "why": "every part"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): updated\n\nI commit on formal-verification-upkeep/formal-lock and open one pull request.", "why": "upkeep branch from a ticket branch"},
+    {"answer": "Check one-holder (formal-lock): updated\n\nCommit on feat/lock-timeout with the sync commit set to that branch's HEAD, then push it.", "why": "ticket commit as sync commit, and a push"}
+  ]
+}

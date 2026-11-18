@@ -1296,7 +1296,12 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
   review lanes pass `--permission-mode dontAsk` with a fixed tool allowlist. Read-runner
   activities (`fix-ci`, `fix-docs`) run `dontAsk` with explicit allow rules and no write token;
   `permission-mode: auto` there fails red, because under the launcher's subprocess env scrub the
-  CLI starts in the default mode. All run under the hardening in
+  CLI starts in the default mode and prints "Permission mode forced to default", naming
+  `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` and the `allowed_non_write_users` hardening (Claude Code
+  2.1.304 in [run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443/job/119640730523)
+  and a local probe at 2.1.326, 2026-11-17). The scrub stays on, so no CI lane runs in auto
+  mode. Recheck when a Claude Code release changes how the scrub sets the permission mode. All
+  run under the hardening in
   [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   which also covers the untrusted-text risk for them.
 - **`--permission-prompts none`** is documented for print-mode runs where nobody can answer a

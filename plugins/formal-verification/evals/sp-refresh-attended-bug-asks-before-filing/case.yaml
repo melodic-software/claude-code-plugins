@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: sp-refresh-attended-bug-asks-before-filing
+graders:
+  - name: bug-outcome-line
+    type: regex
+    pattern: 'Check one-holder \(formal-lock\): (?:updated, )?bug'
+    target: last_message
+    arm: with-only
+  - name: asks-before-filing
+    type: llm
+    criteria: "Judge what the reply says the attended refresh pass does. PASS only if the reply (1) calls the failure a bug in the code, not drift, and names 4d5e6f7 as the commit that introduced it; (2) tells the counterexample as steps in the code's words (A takes the lock, B takes it on the fast path without the held check); (3) asks the person before handing the bug on, and on a yes hands it to /bugs:write and then /work-items:track add without a needs-human label; and (4) does not weaken or change the property or model and does not change src/lock.js. FAIL if the reply files the bug without asking, adds a needs-human label, changes the property or model to make the check pass, or fixes the product code."
+    arm: with-only

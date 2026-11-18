@@ -2777,3 +2777,69 @@ test("main select writes the offered sections to the thread file unless pr_body_
     assert.equal("body_sections" in offRun, false, name);
   }
 });
+
+const ASK = "PR-fix lane: why does the converge step skip the cache?";
+const asking = (id, user = HUMAN, body = ASK, extra = {}) => ({ id, user: { id: user, login: LOGINS[user], type: "User" }, created_at: "2026-11-17T10:00:00Z", updated_at: "2026-11-17T10:00:00Z", body, ...extra });
+const reviewMarker = { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) };
+
+test("a trusted person's top-level comment addressed to the lane proceeds as a comment item, with no review thread left", async () => {
+  const result = await run(fakeApi({ threads: [], issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file, {
+    version: 1,
+    repository: "o/r",
+    pr: 42,
+    head_sha: HEAD,
+    pr_paths: ["src/a.js"],
+    copy_paths: [],
+    threads: [],
+    pr_comments: [{ id: "PRC_500", comment_id: 500, author: "kyle-sexton", created_at: "2026-11-17T10:00:00Z", updated_at: "2026-11-17T10:00:00Z", body: ASK }],
+  });
+  assert.deepEqual(JSON.parse(runRecord(result.file)).pr_comments, [{ id: "PRC_500", comment_id: 500, updated_at: "2026-11-17T10:00:00Z" }]);
+});
+
+test("a comment item rides beside the kept threads", async () => {
+  const result = await run(fakeApi({ issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual([result.file.threads.map((t) => t.id), result.file.pr_comments.map((c) => c.id)], [["PRRT_1"], ["PRC_500"]]);
+});
+
+test("only an unanswered lane-addressed comment by a trusted person on a lanes App PR becomes a comment item", async () => {
+  const answer = (id, user = APP) => ({ id: 900, user: { id: user, type: "Bot" }, body: `<!-- pr-unblock:answered-comment ${id} -->\n**answer**` });
+  for (const [label, options] of [
+    ["a stranger's comment", { issueComments: [reviewMarker, asking(500, STRANGER)] }],
+    ["a session status note with no lane lead", { issueComments: [reviewMarker, asking(500, HUMAN, "Held with `do-not-merge` by the local session that owns this pull request.")] }],
+    ["the lead inside a fenced block", { issueComments: [reviewMarker, asking(500, HUMAN, `\`\`\`\n${ASK}\n\`\`\``)] }],
+    ["a comment the lanes App already answered", { issueComments: [reviewMarker, asking(500), answer(500)] }],
+    ["a PR carrying the human-gated label", { labels: ["needs-human"], issueComments: [reviewMarker, asking(500)] }],
+    ["a PR a person opened", { opener: HUMAN, issueComments: [reviewMarker, asking(500)] }],
+    ["a PR that changes a workflow", { files: [{ filename: ".github/workflows/ci.yml" }], issueComments: [reviewMarker, asking(500)] }],
+  ]) {
+    const result = await run(fakeApi({ threads: [], ...options }));
+    assert.notEqual(result.decision, "proceed", label);
+    assert.equal(result.file?.pr_comments, undefined, label);
+  }
+  const forged = await run(fakeApi({ threads: [], issueComments: [reviewMarker, asking(500), answer(500, STRANGER)] }));
+  assert.deepEqual(forged.file.pr_comments.map((c) => c.id), ["PRC_500"], "an answer marker another author wrote answers nothing");
+  const other = await run(fakeApi({ threads: [], issueComments: [reviewMarker, asking(500), asking(501), answer(500)] }));
+  assert.deepEqual(other.file.pr_comments.map((c) => c.id), ["PRC_501"], "the answer to one comment leaves the next one asked");
+});
+
+test("a round takes at most ten comment items, oldest first", async () => {
+  const many = Array.from({ length: 12 }, (_, i) => asking(500 + i));
+  const result = await run(fakeApi({ threads: [], issueComments: [reviewMarker, ...many] }));
+  assert.deepEqual(result.file.pr_comments.map((c) => c.comment_id), [500, 501, 502, 503, 504, 505, 506, 507, 508, 509]);
+});
+
+test("a gated PR's fix-request thread proceeds without the comment items", async () => {
+  const reviewComments = [comment(100, REVIEWER), comment(101, HUMAN, { body: "PR-fix lane: please fix this finding." })];
+  const result = await run(fakeApi({ labels: ["needs-human"], reviewComments, threads: [thread("PRRT_1", [100, 101])], issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads.map((t) => t.id), ["PRRT_1"]);
+  assert.equal(result.file.pr_comments, undefined);
+});
+
+test("an ungated PR's kept thread and a workflow change escalate as before, with the comment ignored", async () => {
+  const result = await run(fakeApi({ files: [{ filename: ".github/workflows/ci.yml" }, { filename: "src/a.js" }], issueComments: [reviewMarker, asking(500)] }));
+  assert.equal(result.escalationReason, "feedback-protected-path");
+});

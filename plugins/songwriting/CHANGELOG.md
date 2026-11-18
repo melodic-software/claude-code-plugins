@@ -3,6 +3,13 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.11] - 2026-11-17
+
+### Changed
+
+- `/songwriting:suno` `context/power-tips.md` no longer quotes or restates Suno's v4.5 help article on style prompts. The tag-order era caveat keeps its decision (front-loading is attested for terse comma-separated prompts and unverified for v5.5 conversational ones) and links an archived capture of the article as a correlate note, since no docs page covers v5.x style-prompt ordering.
+- The same file's closing caution drops its "20% higher adherence" example and keeps the rule: magnitudes in community guides are not measured, so A/B test when stakes are high.
+
 ## [2.0.10] - 2026-11-17
 
 ### Changed
