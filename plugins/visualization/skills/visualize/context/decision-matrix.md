@@ -273,13 +273,11 @@ owned by the plugin README's future-change section.
 Gathered by a research fan-out over official documentation; re-fetch before relying on a
 time-sensitive detail.
 
-- Terminal Markdown rendering (code-block syntax highlighting, hyperlinks): the page documents the
-  syntax-highlighting toggle and clickable issue references, but no general statement about
-  rendered Markdown or its construct set (tables, headings, lists, links), which stays undocumented.
-  - **Pointer**: for syntax highlighting, fetch
+- Terminal Markdown rendering: the skill leans on tables and fenced code as the terminal's
+  dependable visuals (see [Inline terminal](#inline-terminal-claude-code-cli)).
+  - **Pointer**: when deciding whether a terminal construct renders, fetch
     [Interactive mode: Theme and display](https://code.claude.com/docs/en/interactive-mode#theme-and-display)
-    (the `Ctrl+T` row, which works inside the `/theme` picker); for clickable issue references,
-    fetch
+    and
     [Issue reference links](https://code.claude.com/docs/en/interactive-mode#issue-reference-links)
     live.
 - Mermaid emitted as source, not terminal-rendered: no official page documents
@@ -303,8 +301,8 @@ time-sensitive detail.
   under [Published Artifact](#published-artifact) and
   [Availability gating](#availability-gating-why-the-surface-is-often-absent).
 - Artifact native mermaid, favicon requirement, theme-awareness
-  (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
-  tool's own description in the session (no public docs section covers them).
+  (`prefers-color-scheme` / `data-theme`), and responsive rules: read live from the
+  Artifact tool's own description in the session before publishing.
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
 - Plugin manifest `userConfig` fixed-value fields, which this plugin's options use:
@@ -325,8 +323,11 @@ UNVERIFIED / low-confidence (flagged, not asserted):
 - Rendering of the newest "fire-icon" mermaid families in the artifact viewer
   (present upstream in the bundled version; see the Published Artifact record): verify
   empirically before use.
-- Public sharing of an artifact is reported to fail for pages containing mermaid
-  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824, #81410 a
-  sibling); the mechanism is unconfirmed; private and org sharing are unaffected.
+- Public sharing of a page holding mermaid, an SVG `data:` URI or an AVIF image:
+  issues #79824 and #81410 track it, so the skill names them to the user rather
+  than promising the public link works.
+  - **Pointer**: when the user wants a public share link for such a page, fetch
+    <https://github.com/anthropics/claude-code/issues/79824> and
+    <https://github.com/anthropics/claude-code/issues/81410> live.
 - Third-party repo maintenance signals (last-commit dates, exact star counts) and
   the AntV egress claim (from its README, not empirically exercised).

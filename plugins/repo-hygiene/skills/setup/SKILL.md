@@ -97,10 +97,11 @@ Install nothing, and run no mutating tier.
      - **Pointer**: for when a saved value reaches skill content, fetch
        [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
        live.
-   - The option is **user-scoped**: plugin option values are read from user, `--settings`, and
-     managed settings only, never from a project's `.claude/settings.json`. So there is no
-     per-repository value of this toggle. To vary the behavior for one repository, enable or disable
-     the plugin in that project's `enabledPlugins` instead.
+   - Report the option as **user-scoped**, set from user, `--settings` or managed settings, and a
+     value in a project's `.claude/settings.json` as inert. This skill keeps that rule here so
+     setup can answer without a fetch; it means the toggle has no per-repository value. To vary the
+     behavior for one repository, enable or disable the plugin in that project's `enabledPlugins`
+     instead.
 
      - **Pointer**: for which settings sources a plugin option value is read from, fetch
        [settings reference § pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
