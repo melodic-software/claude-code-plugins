@@ -34,17 +34,13 @@ function makeSixLaneSlice() {
     fs.writeFileSync(target, body);
   };
 
-  // run-state lane
   write(
     LANES.runState,
     "watch.json",
     JSON.stringify({ status: "complete", artifactPaths: { contactSheetCount: 1 } }),
   );
-  // source lane
   write(LANES.source, "transcript.txt", "[0:00] intro\n");
-  // research lane
   write(LANES.research, "claim-inventory.md", "[0:00] intro → [10:00] session one\n");
-  // key-frames lane
   write(LANES.keyFrames, "vision-plan.md", "Class: `single-talk`\n".padEnd(120, "x"));
   write(
     LANES.keyFrames,
@@ -56,7 +52,6 @@ function makeSixLaneSlice() {
       densificationWindows: [],
     }),
   );
-  // recommendations lane
   write(LANES.recommendations, "README.md", "# hub\n");
 
   return dir;
@@ -81,7 +76,6 @@ describe("check-watch-outcomes 6-lane layout contract", () => {
     const claimInventory = result.checks.find((c) => c.id === "claim-inventory");
     expect(claimInventory?.pass).toBe(true);
 
-    // No legacy lane directories were created by the layout.
     expect(fs.existsSync(path.join(dir, "context"))).toBe(false);
     expect(fs.existsSync(path.join(dir, "watching"))).toBe(false);
     expect(fs.existsSync(path.join(dir, ".bootstrap"))).toBe(false);

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Checks the run-tests.sh CLI surface only; the npm steps are CI's job.
 set -euo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run-tests.sh"

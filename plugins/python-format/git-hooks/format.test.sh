@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the python-format pre-commit format entry
-# (git-hooks/format.sh): staged Python files are rewritten by the resolved
-# format command and re-staged, a partly staged one is refused untouched, only
-# import sorting and formatting run (no lint autofix), the Ruff adapter acts
-# only where a Ruff config governs the file, a .claude/ecosystems/ record never
-# runs, file names never reach a shell as text, and the vendored installer wires
-# the entries so `git commit` runs them.
 # Expected values are Ruff's documented behavior: `x=1` formats to `x = 1`, and
 # the I001 fix sorts `import sys` after `import os`.
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
@@ -65,8 +58,6 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
   printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
-# A stand-in a record could name: logs each argument and rewrites each file it
-# is handed to "formatted". No hook may call it.
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 cat >"$BIN/stubfmt" <<EOF
@@ -77,7 +68,6 @@ for a in "\$@"; do
 done
 EOF
 chmod +x "$BIN/stubfmt"
-# A stand-in ruff that logs its subcommand and the paths after --.
 STUBRUFF="$WORK/stubruff"
 mkdir -p "$STUBRUFF"
 cat >"$STUBRUFF/ruff" <<EOF
@@ -174,8 +164,6 @@ printf 'x=1\n' >"$REPO/a.py"
 git -C "$REPO" add a.py
 expect "a drifted config above no staged file does not refuse the commit" "0|a.py|" "$(check "$REPO")"
 
-# Format only: no lint autofix. Import sorting counts as format, and runs
-# only where the repository's lint config selects the import rules.
 new_repo 'lint.select = ["I", "F"]'
 printf 'import sys\nimport os\n\nimport json\nprint(os, sys)\nif x == True:\n    pass\n' >"$REPO/a.py"
 git -C "$REPO" add a.py
@@ -261,8 +249,6 @@ git -C "$REPO" add a.py
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NORUFF" bash "$CHECK" 2>&1)"
 expect "ruff found in the repo's .venv when PATH has none" "0|a.py" "$?|$out"
 
-# A record never runs from the entry: the Ruff adapter does, and a file name
-# reaches Ruff as data.
 new_repo
 record 'globs: ["*.py"]
 fix-cmd: "stubfmt <files>"'
@@ -286,8 +272,6 @@ expect "a record with no Ruff config runs nothing at commit" "0||" "$(check "$RE
 expect "the file stays as written" "x=1" "$(cat "$REPO/a.py")"
 expect "--resolve says the record is not run by hooks and names what runs it" "python-format	format	none		n/a	no Ruff config; the python record is not run by hooks; /toolchain:lint and /toolchain:check run it" "$(cd "$REPO" && bash "$CHECK" --resolve)"
 
-# --resolve <path>: one row per file, the adapter naming the config that
-# governs it (the closest one walking up) and the binary it would run.
 new_repo NONE
 mkdir -p "$REPO/src/pkg" "$REPO/scripts" "$REPO/.venv/bin"
 printf '[project]\nname = "demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' >"$REPO/pyproject.toml"
@@ -303,7 +287,6 @@ new_repo NONE
 printf '[project]\nname = "t"\n' >"$REPO/pyproject.toml"
 expect "--resolve with nothing resolved says why the adapter did not opt in" "python-format	format	none		n/a	no Ruff config: pyproject.toml has no [tool.ruff] section" "$(cd "$REPO" && bash "$CHECK" --resolve)"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"

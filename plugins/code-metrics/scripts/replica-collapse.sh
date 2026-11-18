@@ -1,18 +1,4 @@
 # shellcheck shell=bash
-# Sourced by the dispatcher and by every entry point that assembles a document
-# of its own: apply the sanctioned-replication registries the resolved
-# configuration names (`scope.registries`, or `duplication.registries` as the
-# older name) to a `code-metrics/v2` document, so one collapse rule serves
-# every audit and a report assembled outside the dispatcher (audit-coverage's
-# join) is collapsed the same way.
-#
-#   cm_registry_paths <resolved.json>            print one resolved registry path per line;
-#                                                return 2 with a message when one does not exist
-#   cm_collapse_replicas <resolved.json> <in> <out>
-#                                                write <in> to <out> with replicas collapsed and
-#                                                the summary recomputed; a plain copy when no
-#                                                registry is configured; return 2 on an error
-#
 # A registry path is taken as given, else under the repository root, because
 # a team file names it root-relative and an audit may run from a subdirectory;
 # one that exists nowhere is a configuration error, never an empty registry.

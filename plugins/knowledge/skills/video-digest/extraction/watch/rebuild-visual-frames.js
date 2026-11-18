@@ -56,8 +56,6 @@ export function rebuildVisualFrames(sliceDir) {
   const byFile = indexSelectedFrames(sel);
   const promotionMap = readPromotionMap(absSlice);
 
-  // Pass 2 reads visual-frames.md before promotion creates frames/. A missing
-  // directory is an empty synthesis tier, same as a missing promotion-map.json.
   const synDir = lanePath(absSlice, LANES.keyFrames, "frames");
   const files = fs.existsSync(synDir)
     ? fs

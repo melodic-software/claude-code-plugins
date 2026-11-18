@@ -1,9 +1,5 @@
 # shellcheck shell=bash
-# Shared body for the docpage-digest gate suites, sourced by the *.test.sh wrappers
-# (plugin-gate resolves suites by that filename); sourced, never executed.
 
-# gate_test::run_suite <scripts-dir> <suite-file>: exits 1 on an unparsable
-# MIN_PYTHON floor, 0 (SKIP) when no interpreter meets it, else the suite's status.
 gate_test::run_suite() {
   local dir="$1" suite="$2"
   local engine="$dir/digest_fences.py"

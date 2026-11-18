@@ -44,7 +44,6 @@ describe("finalize-vision orchestrator", () => {
     ];
     const code = finalizeVision("/tmp/slice", { steps });
     expect(code).toBe(1);
-    // "c" must NOT run after "b" throws.
     expect(order).toEqual(["a"]);
   });
 });

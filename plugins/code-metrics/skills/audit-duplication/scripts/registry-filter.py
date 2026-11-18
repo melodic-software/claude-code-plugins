@@ -64,8 +64,6 @@ from pathglob import root_relative  # noqa: E402
 MIN_PYTHON = (3, 9)
 CLUSTER_MARKER = " -> "
 
-# (line number, line text, canonical path or plain token, members). A plain
-# line has no members.
 Entry = tuple[int, str, str, list[str]]
 
 
@@ -174,7 +172,6 @@ def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
     that measured nothing keeps its "Measured nothing" headline instead of an
     unearned zero.
     """
-    # A `partial` row measured what it did not skip, so its zero is earned too.
     measured = any(
         row.get("measure") == "duplication" and row.get("status") in ("ok", "partial")
         for row in document.get("run") or []
@@ -183,8 +180,6 @@ def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
         summary = document.setdefault("summary", {})
         summary.setdefault("duplicated_lines", 0)
         summary.setdefault("clone_groups", 0)
-        # The rollups are derived from surviving groups the same way, so a
-        # clone-free run states them as empty maps rather than omitting them.
         summary.setdefault("by_lane", {})
         summary.setdefault("by_directory", {})
     return document

@@ -84,8 +84,6 @@ def cluster(measures: list[dict[str, Any]], root: str = "") -> list[dict[str, An
     def union(left: int, right: int) -> None:
         left, right = find(left), find(right)
         if left != right:
-            # The lower index stays the root, so a class is emitted where its
-            # first pair stood and its `values` are that first pair's.
             parent[max(left, right)] = min(left, right)
 
     seen: dict[tuple[Any, ...], int] = {}

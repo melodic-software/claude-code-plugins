@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for python-resolve.sh: the resolver sets PY as an array,
-# honors the floor read from report.py, and returns 1 when nothing resolves.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -22,7 +20,6 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
 
-# 1. Resolves on this machine and PY runs the floor probe.
 # shellcheck source=python-resolve.sh
 source "$SCRIPT"
 cm_resolve_python
@@ -57,14 +54,10 @@ chmod +x "$stubs/py"
 out="$(PATH="$stubs:$PATH" bash -c 'source "$1"; cm_resolve_python && printf "%s|" "${CM_PY_NATIVE[@]}"' _ "$SCRIPT")"
 assert_eq "py -3 resolves as two array elements" "py|-3|" "$out"
 
-# 3. Nothing passes the probe: returns 1 and PY is empty.
 cp "$stubs/python3" "$stubs/py"
 out="$(PATH="$stubs:$PATH" bash -c 'source "$1"; cm_resolve_python; printf "%s:%s" "$?" "${#PY[@]}"' _ "$SCRIPT")"
 assert_eq "no interpreter returns 1 with an empty PY" "1:0" "$out"
 
-# 4. Whatever this machine's interpreter writes, PY hands bash LF-only lines.
-#    On native Windows Python (CRLF stdout) this is the case that exercises
-#    the wrapper; elsewhere the interpreter runs unwrapped.
 out="$("${PY[@]}" -c 'print("a"); print("b")' | od -An -c | tr -s ' \n' ' ')"
 assert_eq "PY output carries no CR on this machine" " a \n b \n " "$out"
 

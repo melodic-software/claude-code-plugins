@@ -35,7 +35,6 @@ _spec = importlib.util.spec_from_file_location('explainer_video_pydeps', SCRIPT)
 pydeps = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pydeps)
 
-# Run pydeps.main as if this Python were the supported one.
 AS_SUPPORTED = ('import sys, pydeps; pydeps.PYTHONS = (tuple(sys.version_info[:2]),); '
                 'sys.exit(pydeps.main(sys.argv[1:]))')
 
@@ -202,7 +201,6 @@ class DataDir(unittest.TestCase):
             os.environ.update(env)
             try:
                 self.assertEqual(pydeps.data_dir('/explicit'), Path('/explicit'))
-                # a placeholder the host did not substitute, and another plugin's directory, are both ignored
                 self.assertEqual(pydeps.data_dir('${CLAUDE_PLUGIN_DATA}'),
                                  config / 'plugins/data/explainer-video-market')
                 os.environ['CLAUDE_PLUGIN_DATA'] = str(config / 'plugins/data/explainer-video-elsewhere')
@@ -450,8 +448,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_an_interpreter_named_outside_the_hooks_candidates_writes_no_stamp(self):
-        # A plugin allowing 3.14 chooses python3.14, which the hook never checks, so a change to it could not
-        # invalidate a stamp.
         config_path = self.root / 'scripts' / 'pydeps.json'
         config = json.loads(config_path.read_text(encoding='utf-8'))
         config.pop('python_min', None)
@@ -479,8 +475,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_a_failed_run_with_a_stamp_prints_the_repair_line(self):
-        # A stamped set that stops importing fails the skill's script; the hook skipped the probe, so the run says
-        # how to repair it. Without a stamp a failing script is the script's own business.
         script = self.tmp / 'fail.py'
         script.write_text('import sys\nsys.exit(1)\n', encoding='utf-8')
         self.install_here()

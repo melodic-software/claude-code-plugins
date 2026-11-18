@@ -205,8 +205,6 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     "--skip-download",
     "--no-warnings",
     "--no-playlist",
-    // Same SSRF guard as acquisition: a source-declared extractor allow-list
-    // refuses delegated foreign URLs without fetching them.
     ...(source.allowedExtractors ? ["--use-extractors", source.allowedExtractors] : []),
     // Sources declaring 0-media posts as well-formed (mediaOptional) keep them
     // enqueueable: yt-dlp reports metadata instead of a no-formats error.
@@ -214,7 +212,6 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
     ...resolveYtDlpAuthArgs(env, authOverride, source.allowBrowserCookieProfileFallback === true),
-    // End-of-options sentinel: the URL can never be parsed as a flag.
     "--",
     url,
   ];
@@ -384,8 +381,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   if (result.success) {
     const { title, channel, handle } = parsePreflightLine(result.stdout);
     const liveStatus = parsePreflightLiveStatus(result.stdout);
-    // A live or just-ended stream is a valid link: it enqueues, and its row says why
-    // its captions may be late.
     return preflightResult({
       url,
       videoId,
@@ -406,8 +401,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   }
 
   const detail = spawnFailureDetail(result);
-  // A link post: the allow-list refused the post's outbound URL without a
-  // fetch. That is the well-formed 0-media result, so it takes the `ok` row.
   if (mediaOptional && parseDelegationRefusal(detail)) {
     return preflightResult({
       url,
