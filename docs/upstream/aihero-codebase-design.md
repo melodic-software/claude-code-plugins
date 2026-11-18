@@ -79,7 +79,7 @@ not linked.
 | Extract a module from a request handler, then test it | Skips a characterization step | Inference: the handler cannot be tested as it stands | Refactoring untested code first risks changing behavior unseen | **reject** the ordering as a default; covered by the exception in the row above | none |
 | Pass the current time in instead of faking timers | Makes the clock a parameter | Inference: fake timers are slow and global | Same | **already have**: the clock rule in [`/testing:write`](../../plugins/testing/skills/write/SKILL.md) | none |
 | A real in-memory database in place of a fake repository | Tests reach the real queries | Inference: a fake repository drifts from the real one | Same; a different engine standing in for the production one is still a test double | **already have** | none |
-| Seed deliberate bugs to test fresh tests | Checks that the new tests can fail | Inference: an agent's tests can pass on broken code | Same | Handed to the feedback-loops workshop | none |
+| Seed deliberate bugs to test fresh tests | Checks that the new tests can fail | Inference: an agent's tests can pass on broken code | Same | Handed to the feedback-loops workshop | [#16614](https://github.com/melodic-software/claude-code-plugins/pull/16614) (an advisory mutation run on the diff when `/implementation:implement` completes), [#16632](https://github.com/melodic-software/claude-code-plugins/pull/16632) (`/mutation-testing:seed-faults`) |
 
 ### Enforcing module boundaries
 
@@ -131,11 +131,18 @@ not linked.
 ### Handed elsewhere
 
 - A mutation check of freshly written tests, and a test-isolation rule (no write outside a
-  temporary directory; a destructive-command test never runs against the real machine): the
-  feedback-loops workshop.
+  temporary directory; a destructive-command test never runs against the real machine): handed to
+  the feedback-loops workshop, and landed in
+  [`/testing:write`](../../plugins/testing/skills/write/SKILL.md)'s determinism controls.
+  [#16610](https://github.com/melodic-software/claude-code-plugins/pull/16610) added isolation for
+  tests that run concurrently;
+  [#16955](https://github.com/melodic-software/claude-code-plugins/pull/16955) added the
+  temporary-directory write rule and the destructive-command sandbox. The mutation check is the
+  "Seed deliberate bugs" row above.
 - One shared, brandable HTML default for every plugin:
   [#16412](https://github.com/melodic-software/claude-code-plugins/issues/16412).
-- The interview loop and the design hand-off inside `/architecture:improve`: a later item.
+- The interview loop and the design hand-off inside `/architecture:improve`:
+  [#16962](https://github.com/melodic-software/claude-code-plugins/issues/16962).
 
 ## License notice
 

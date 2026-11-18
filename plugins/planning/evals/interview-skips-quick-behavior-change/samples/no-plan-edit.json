@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "src/users.ts", "old_string": "= 20", "new_string": "= 50"}}], "why": "edits the source file, not PLAN.md"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/page-size/PLAN.md", "old_string": "## Brief", "new_string": "## Brief\n\nRaise the page size."}}], "why": "edited a Brief for a one-constant change"}
+  ]
+}

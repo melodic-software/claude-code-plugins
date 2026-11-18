@@ -50,13 +50,12 @@ Default worker concurrency is **2**, applied as a hard cap in the
 dispatch loop (pairs of workers, sequential between pairs). The default
 is deliberately static and low:
 
-- Most consumers run under **shared subscription rate-limit windows**
-  (5-hour and 7-day). The windows are machine- and account-wide: other
-  concurrent sessions draw on them invisibly, so an orchestrator that
-  cannot observe the windows must assume contention.
-- Enterprise and API-key auth expose no window data at all
-  (capability-detect fails open to "unknown"), which is a reason for
-  more conservatism, not less.
+- Most consumers run under **shared subscription rate-limit windows**.
+  The windows are machine- and account-wide: other concurrent sessions
+  draw on them invisibly, so an orchestrator that cannot observe the
+  windows must assume contention.
+- Missing window data (capability-detect fails open to "unknown") is a
+  reason for more conservatism, not less.
 - Remote/cloud containers cannot see machine-scope guard state (below),
   so they always operate in unknown mode.
 

@@ -2218,3 +2218,79 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
   assert.deepEqual(gateLines(corpus), named);
   assert.ok(named.length >= 18, "the corpus exercises the list");
 });
+
+const ASKED_AT = "2026-11-17T10:00:00Z";
+const askedComment = (fields = {}) => ({ id: 500, user: { id: HUMAN, type: "User" }, updated_at: ASKED_AT, html_url: "https://github.com/o/r/pull/42#issuecomment-500", body: "PR-fix lane: why?", ...fields });
+const commentRun = (threads = []) => JSON.stringify({ version: 1, head_sha: NOW, threads, pr_comments: [{ id: "PRC_500", comment_id: 500, updated_at: ASKED_AT }] });
+const answerLine = (fields = {}) => reply({ thread: "PRC_500", disposition: "answered", evidence: [], note: "The cache is skipped on a cold start.", ...fields });
+const ANSWER = [
+  "<!-- pr-unblock:answered-comment 500 -->",
+  "**pr-unblock / address-feedback: an answer to [this comment](https://github.com/o/r/pull/42#issuecomment-500)**",
+  "",
+  "Evidence: none in the checkout",
+  "",
+  "```text",
+  "The cache is skipped on a cold start.",
+  "```",
+].join("\n");
+
+test("a round of only a comment posts one top-level answer naming the comment, then its round marker", async () => {
+  const api = fakeApi({ issueComments: [askedComment()] });
+  const result = await run(api, lines(answerLine()), commentRun());
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.markers()[0], ["comment", 42, ANSWER]);
+  assert.equal(api.markers()[1][2].split("\n")[0], ROUND);
+  assert.equal(api.markers().length, 2);
+  assert.deepEqual(api.posted(), []);
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("a comment already answered, edited since the select read, or deleted gets no answer", async () => {
+  const answered = { id: 600, user: { id: APP }, body: "<!-- pr-unblock:answered-comment 500 -->\nanswer" };
+  for (const [label, issueComments] of [
+    ["already answered", [askedComment(), answered]],
+    ["edited", [askedComment({ updated_at: "2026-11-17T11:00:00Z" })]],
+    ["deleted", []],
+  ]) {
+    const api = fakeApi({ issueComments });
+    const result = await run(api, lines(answerLine()), commentRun());
+    assert.equal(result.escalationReason, "", label);
+    assert.deepEqual(api.markers().map((call) => call[2].split("\n")[0]), [ROUND], label);
+  }
+  const forged = fakeApi({ issueComments: [askedComment(), { ...answered, user: { id: HUMAN } }] });
+  await run(forged, lines(answerLine()), commentRun());
+  assert.deepEqual(forged.markers()[0], ["comment", 42, ANSWER], "a marker another author wrote answers nothing");
+});
+
+test("a round with only comments to answer that wrote a patch posts no answer", async () => {
+  const api = fakeApi({ issueComments: [askedComment()] });
+  const result = await publish({ api, pr: 42, headSha: NOW, headRef: "feature", appId: APP, modelRun: "5000-1", reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), patchState: "written", readArtifact: () => ({ runText: commentRun(), repliesText: lines(answerLine()) }), fileExists: exists });
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.deepEqual(api.markers().filter((call) => !call[2].startsWith(ROUND)), []);
+});
+
+test("a comment with no answer is incomplete, and a comment's answer must be answered", async () => {
+  const missing = fakeApi({ issueComments: [askedComment()] });
+  const incomplete = await run(missing, lines(reply({ disposition: "VALID", note: "Fixed." })), commentRun([RUN.threads[0]]));
+  assert.equal(incomplete.escalationReason, "feedback-incomplete");
+  assert.match(missing.markers()[0][2], /^- `PRC_500` \(root comment 500\)$/m);
+  for (const fields of [{ disposition: "VALID", evidence: ["src/a.js:3"] }, { disposition: "INCORRECT", evidence: ["src/a.js:3"] }]) {
+    const api = fakeApi({ issueComments: [askedComment()] });
+    const result = await run(api, lines(answerLine(fields)), commentRun());
+    assert.equal(result.escalationReason, "feedback-invalid", fields.disposition);
+    assert.deepEqual(api.markers().filter((call) => call[2].startsWith("<!-- pr-unblock:answered-comment")), [], fields.disposition);
+  }
+  const malformed = fakeApi({ issueComments: [askedComment()] });
+  const bad = JSON.stringify({ version: 1, head_sha: NOW, threads: [], pr_comments: [{ id: "PRC_501", comment_id: 500, updated_at: ASKED_AT }] });
+  assert.equal((await run(malformed, lines(answerLine()), bad)).escalationReason, "feedback-invalid");
+});
+
+test("a comment answered beside a fixed thread posts both, and the round counts", async () => {
+  const api = fakeApi({ issueComments: [askedComment()] });
+  const result = await run(api, lines(reply({ disposition: "VALID", note: "Guarded the null case." }), answerLine()), JSON.stringify({ ...JSON.parse(commentRun([RUN.threads[0]])), head_sha: GATED }));
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.posted().length, 1);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  assert.deepEqual(api.markers()[0], ["comment", 42, ANSWER]);
+  assert.equal(api.markers()[1][2].split("\n")[0], ROUND);
+});
