@@ -1383,10 +1383,16 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A Work status other than agent-ready starts neither job, so it holds no runner.
   for (const [name, option, runs] of [["agent-ready", AGENT_READY_OPTION, true], ["another option", 86380002, false]]) {
-    const context = {
+    const event = {
       ...AGENT_READY_FIELD,
       "github.event.issue_field_value.option.id": option,
-      "needs.check-admission.outputs.proceed": "true",
+      "github.event.sender.type": "User",
+      "github.event.sender.id": 1,
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
+    };
+    const context = {
+      ...event,
+      "needs.check-admission.outputs.proceed": evaluate(jobs["check-admission"].if, event) ? "true" : "",
       "needs.pick-slot.outputs.capped": "false",
       "needs.pick-slot.outputs.skip-key": "",
     };
