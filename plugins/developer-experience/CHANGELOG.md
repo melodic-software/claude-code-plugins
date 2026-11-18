@@ -3,6 +3,14 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-11-18
+
+### Changed
+
+- `setup` states as its own rule that a non-zero `chezmoi source-path` exit means an unmanaged file,
+  and points at the chezmoi page, to read only for a result that rule does not cover, without an
+  as-of stamp or a quoted probe output.
+
 ## [0.6.3] - 2026-11-18
 
 ### Removed

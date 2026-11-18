@@ -56,8 +56,8 @@ Automated X/Twitter collection is disabled. The plugin does not scrape profiles,
 search results, or following graphs and does not configure a paid X API. If a user supplies
 an X URL, the skill may preserve the URL and user-provided context but must not
 programmatically retrieve the page; it should seek a non-X primary source for corroboration.
-This follows the current [X Terms of Service](https://x.com/en/tos), which prohibit crawling
-or scraping without prior written consent.
+The plugin keeps X collection off because of the [X Terms of Service](https://x.com/en/tos)
+on automated access.
 
 Playwright remains an optional local rendering dependency. It opens generated local HTML for
 deterministic PDF generation and layout validation; it is not a collection provider.

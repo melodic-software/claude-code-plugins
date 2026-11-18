@@ -175,6 +175,9 @@ class FakeGitHub:
             answer = {"ref": f"refs/heads/{branch}", "object": self.tips[branch]}
             return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         if args[:2] == ["api", "graphql"]:
+            if f"query={ve.OWN_AGENT_ISSUE_QUERY}" in args:
+                payload = {"data": {"repository": {"issue": {}}}}
+                return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
             assert any(a == f"query={ve.SPLIT_CHILD_QUERY}" for a in args), args
             if self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
@@ -490,17 +493,23 @@ class OneReadPerChild(unittest.TestCase):
                     judge(fake, issue, LANES_LOGIN), author["type"] == "User"
                 )
                 self.assertEqual(fake.graphql_calls(), 0)
-                self.assertEqual(fake.rules_calls(), 0)
+                self.assertEqual(
+                    fake.rules_calls(),
+                    author["type"] == "Bot",
+                    "only a Bot can be on admission's own-agents list",
+                )
 
     def test_the_identity_is_matched_with_or_without_its_bot_suffix(self) -> None:
         for identity in ("agent-lanes", " Agent-Lanes[bot] "):
             with self.subTest(identity):
                 self.assertTrue(judge(self.fake, self.child, identity))
 
-    def test_no_identity_reads_nothing_and_counts_nothing(self) -> None:
+    def test_no_identity_reads_no_issue_and_counts_nothing(self) -> None:
         self.assertFalse(judge(self.fake, self.child, None))
         self.assertEqual(self.fake.graphql_calls(), 0)
-        self.assertEqual(self.fake.rules_calls(), 0)
+        self.assertEqual(
+            self.fake.rules_calls(), 1, "only admission's own-agents list is read"
+        )
 
 
 class ScopeTargetTest(unittest.TestCase):

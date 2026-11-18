@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-11-18
+
+### Changed
+
+- The README no longer says which hook filters apply to `PostToolBatch`. It states that the row has no matcher or `if`, and points to the hooks page for what filters a `PostToolBatch` row.
+
 ## [2.1.1] - 2026-11-18
 
 ### Security

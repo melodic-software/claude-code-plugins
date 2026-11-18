@@ -8,7 +8,12 @@ installed 2.1.284 binary, 2026-09-29.
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
 | `memory` is a built-in command described as "Edit CLAUDE.md files and memory settings". User-invocable only (not model-invocable), not hidden, not gated | The extraction | 2026-09-29 | A release renames or removes it, or changes its invocability |
-| The commands reference documents `/memory` as editing `CLAUDE.md` files, enabling or disabling auto memory, and viewing auto memory entries | <https://code.claude.com/docs/en/commands>, as parsed by `/harness-ops:inventory --docs` on 2026-09-29 | 2026-09-29 | That row changes or drops the auto-memory toggle |
+
+The documented basis is a pointer, not a row: the offer names `/memory` for a toggle or a look at
+the saved entries only while the commands reference lists the command as doing each of those.
+
+- **Pointer**: when deciding whether to offer `/memory`, fetch the `/memory` row of
+  [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
 
 ## Why the verdict is complementary
 

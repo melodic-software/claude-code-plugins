@@ -60,6 +60,8 @@ class FakeGitHub:
             self.issue_reads += 1
             return ok({"data": {"repository": {"issue": self.issue}}})
         for a in args:
+            if a.startswith(f"repos/{REPO}/contents/{ve.ADMISSION_RULES_PATH}?"):
+                return ok({})
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?"):
                 return ok({"items": []})
             if a.startswith(f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?"):

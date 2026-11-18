@@ -368,9 +368,10 @@ above, with `cant-fail-ok: relation across rows`.
   either runner that fails a run on a retry-earned pass, so a count above zero or an expression
   fires and the Action is the count. When checking whether either runner now has one, fetch
   <https://vitest.dev/config/retry#retry> and
-  <https://jestjs.io/docs/jest-object#jestretrytimesnumretries-options> live. pytest's `--fail-on-flaky` needs pytest-rerunfailures
-  15.0 or later (basis: its CHANGES.rst; as-of 2026-10-06; recheck on a release renaming it or
-  adding an ini form), and the detector does not read the installed version.
+  <https://jestjs.io/docs/jest-object#jestretrytimesnumretries-options> live. pytest's
+  `--fail-on-flaky` needs a minimum pytest-rerunfailures release, and the detector does not read
+  the installed version. For the release that added the flag, see
+  <https://github.com/pytest-dev/pytest-rerunfailures/blob/master/CHANGES.rst#150-2024-11-20>.
 - **A property marker exempts only its own test.** `rule-recomputed-derived` skips a test whose
   body, or whose decorator or attribute stack, holds a marker from the adapter's
   `property_markers`; an example test beside it is still judged. A marker on an ordinary line

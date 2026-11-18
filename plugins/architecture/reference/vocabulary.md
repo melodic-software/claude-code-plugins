@@ -115,7 +115,10 @@ Which style a repository follows is its own decision, read from its standards
   Those stay private; only the **external** seam, the interface, enters the judgment.
 - **The deletion test.** Ask what each caller would have to write if the module were removed. A
   direct call to whatever the module wrapped means it only forwarded calls. The same logic, copied
-  into every caller, means it was doing real work.
+  into every caller, means it was doing real work. A module that only forwards calls has three
+  fixes: delete it so callers call what it wrapped, move work between it and the module it wraps
+  so each has a distinct job, or merge the two into one deeper module (Ousterhout, *A Philosophy
+  of Software Design*, §7.1).
 - **Count the edits one change forces.** Suppose invoice lines gain an exemption code. If
   `TaxCalculator`'s rate step, its rounding step and its receipt step each need an edit, each step
   reads the line layout for itself: the code was cut along the sequence of the pipeline, not along
