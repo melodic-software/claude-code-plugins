@@ -1891,6 +1891,8 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
+    env:
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1911,7 +1913,7 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      - name: Install the release's CLI outside the checkout, from the public registry
+      - name: Install the release's CLI outside the checkout and verify its registry signatures
         if: steps.kill.outputs.proceed == 'true'
         working-directory: ${{ runner.temp }}
         env:
@@ -1920,7 +1922,8 @@ jobs:
         run: |
           mkdir -p "$PREFIX"
           printf '{"allowScripts":{"@anthropic-ai/claude-code@%s":true}}\n' "$RELEASE" >"$PREFIX/package.json"
-          npm install --registry=https://registry.npmjs.org/ --save-exact --no-audit --no-fund --prefix "$PREFIX" "@anthropic-ai/claude-code@$RELEASE"
+          timeout 4m npm install --registry=https://registry.npmjs.org/ --save-exact --no-audit --no-fund --prefix "$PREFIX" "@anthropic-ai/claude-code@$RELEASE"
+          timeout 2m npm audit signatures --registry=https://registry.npmjs.org/ --prefix "$PREFIX"
 
       - name: Check the claude function's flags
         if: steps.kill.outputs.proceed == 'true'
