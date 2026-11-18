@@ -39,7 +39,7 @@ Inventory everything, then judge it; an item left out of the inventory gets no v
   `pyproject` entry point, a justfile or taskfile recipe) as its own item.
 - Command-line tools the repository builds or ships.
 - Git hooks and hook-manager config.
-- Agent tooling in the repository: skills, legacy `.claude/commands` files, Claude Code hooks
+- Agent tooling in the repository: skills, `.claude/commands` files, Claude Code hooks
   wherever the repository defines them, subagents, and the project `.mcp.json`. Every location
   is read live from the agent tooling pointer in [Gotchas](#gotchas).
 
@@ -53,7 +53,7 @@ Give every item exactly one verdict, with the file and line that support it:
 
 - **keep**: used and fit. Evidence: a caller, a doc or a task-runner entry that runs it.
 - **migrate**: worth keeping, but in another form or place (a stray script that belongs in the
-  team CLI, a legacy command file that belongs in a skill).
+  team CLI, a `.claude/commands` file whose job belongs in a skill).
 - **consolidate**: two or more items do the same job; name the one to keep and every caller to
   repoint.
 - **retire**: dead or unused. Evidence: "callers searched: <list>, none found", or something
@@ -103,8 +103,8 @@ is not, do the part this skill can, say the plugin is not enabled and print
 - Running without a yes never edits, even for a one-line fix.
 - A script's README describes it; it does not prove a caller. Find the caller.
 - Agent tooling locations are Claude Code's to define; read them live. **Pointer**: when
-  inventorying agent tooling, fetch skills and legacy command files at
-  <https://code.claude.com/docs/en/skills#where-skills-live>, project MCP config at
+  inventorying agent tooling, fetch skill and command-file locations, and the status of command
+  files, at <https://code.claude.com/docs/en/skills#where-skills-live>, project MCP config at
   <https://code.claude.com/docs/en/mcp#mcp-installation-scopes>, hooks at
   <https://code.claude.com/docs/en/hooks#hook-locations>, and subagents at
   <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>.
