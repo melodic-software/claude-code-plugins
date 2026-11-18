@@ -570,6 +570,8 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 
 **The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
 
+**A hand-written Brief carries no stamp lines.** The TLDR's `- Restatement:` and `- Page title:` lines mark a page export, and the `--brief` gate grades them only when present, so a Brief written from this template leaves both out.
+
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
 
 **The Finish line says when the whole effort is done and who checks it.** Propose it with a `Basis:` in the restatement's goal section; the Confirm covers it, with no register row. An `in use` checker is a person or an existing scheduled check, never the session that did the work. A Goal with no settled Finish line reads `- Finish line: not settled yet`, which the `--procedure --brief` gate rejects.
