@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Dossier branch: not deleted.** `dossier/400-checkout-redesign` is the head of open PR #412, so the ritual skips it and reports it.",
+      "why": "not deleted, branch and pull request on one line"
+    },
+    {
+      "answer": "- `origin/dossier/400-checkout-redesign` heads open PR #412, so I skip it and report it.",
+      "why": "skip it, present tense"
+    },
+    {
+      "answer": "> - Skipped: `dossier/400-checkout-redesign`. It is the head of open pull request #412; delete it after #412 is resolved.",
+      "why": "closing comment line, later delete suggested"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not part of the shipment: #412 (`dossier/400-checkout-redesign`) is an open docs-only PR handled separately, so closing this container does not depend on it.",
+      "why": "mentions both names with no skip, as a run on the old text did"
+    },
+    {
+      "answer": "The forge reports #412 open on `dossier/400-checkout-redesign`.",
+      "why": "restates the prompt"
+    },
+    {
+      "answer": "`dossier/400-checkout-redesign` heads open PR #412 but is not skipped; deleted it.",
+      "why": "skip denied"
+    },
+    {
+      "answer": "Skipped `dossier/400-checkout-redesign`.\n\nThe open PR #412 is someone else's.",
+      "why": "skip and reason on different lines, so the skip is not tied to the pull request"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

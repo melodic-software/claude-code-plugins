@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "| markdown | skip (unresolved: markdown.build-cmd) | skip (unresolved: markdown.test-cmd) | skip (unresolved: markdown.check-cmd) | INCOMPLETE |"},
+    {"answer": "| markdown | skip (unresolved: markdown.build-cmd) | skip (unresolved: markdown.test-cmd) | skip (unresolved: `markdown.check-cmd`) | INCOMPLETE |"}
+  ],
+  "fail": [
+    {"answer": "| markdown | — | — | skip (tool missing: markdownlint-cli2) | INCOMPLETE |", "why": "the bundled default was resolved"},
+    {"answer": "| markdown | — | — | pass | PASS |", "why": "a markdown lint ran"}
+  ]
+}

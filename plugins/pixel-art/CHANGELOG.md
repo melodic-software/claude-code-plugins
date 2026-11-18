@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.26] - 2026-11-17
+
+### Fixed
+
+- `capture.py` loads the scene again, at most twice, when the browser lands on its error page while loading, and names the last probe result when the scene never appears.
+
 ## [0.7.25] - 2026-11-17
 
 ### Changed

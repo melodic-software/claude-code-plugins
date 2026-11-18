@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): blocked: property change awaits a person\n\nI read 9f8e7d6.", "why": "the fixed outcome line"},
+    {"answer": "Report\n\nCheck one-holder (formal-lock): blocked\n\nThe promise changed on purpose.", "why": "the line without a reason"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): updated", "why": "the property was changed unattended"},
+    {"answer": "one-holder is blocked until someone approves the new wording.", "why": "no fixed outcome line"}
+  ]
+}

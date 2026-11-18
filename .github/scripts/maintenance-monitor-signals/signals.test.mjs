@@ -229,23 +229,83 @@ test("signal 1: a green main, or a red job with no failure annotation, stays qui
   assert.deepEqual(mainRedFindings({ ...base, mainRun: null }), []);
 });
 
-const ejection = (id, pr) => ({
+const ejection = (id, pr, extra = {}) => ({
   id,
   url: `https://github.com/o/r/actions/runs/${id}`,
   pr,
   workflow: "pr-require-checks",
   createdAt: "2026-10-19T15:00:00Z",
   failedSteps: ["Test Bash (1/4) / Run the suites"],
+  killSwitch: false,
+  ...extra,
 });
+const removal = (pr, at, extra = {}) => ({ pr, at, enqueuedAt: "2026-10-19T14:58:00Z", labels: [], ...extra });
 
-test("signal 4: 3 ejections in a day fire, 2 stay quiet", () => {
-  const found = ejectionFindings({ ...base, mergeGroupFailures: [ejection(1, 8225), ejection(2, 8031), ejection(3, 8223)] });
+test("signal 4: 3 removals in a day fire, 2 stay quiet", () => {
+  const found = ejectionFindings({
+    ...base,
+    mergeQueueRemovals: [removal(8225, "2026-10-19T15:05:00Z"), removal(8031, "2026-10-19T15:15:00Z"), removal(8223, "2026-10-19T15:25:00Z")],
+    mergeGroupFailures: [ejection(1, 8225)],
+  });
   assert.deepEqual(
     found.map((f) => f.key),
     ["merge-queue-ejections"],
   );
-  assert.ok(found[0].facts.some((line) => line.includes("#8225") && line.includes("Run the suites")));
-  assert.deepEqual(ejectionFindings({ ...base, mergeGroupFailures: [ejection(1, 8225), ejection(2, 8031)] }), []);
+  assert.ok(found[0].facts.some((line) => line.includes("#8225") && line.includes("Run the suites") && line.includes("runs/1")));
+  assert.ok(found[0].facts.some((line) => line.includes("#8031") && line.includes("no failed merge-group run read")));
+  assert.deepEqual(ejectionFindings({ ...base, mergeQueueRemovals: [removal(8225, "2026-10-19T15:05:00Z"), removal(8031, "2026-10-19T15:15:00Z")] }), []);
+});
+
+test("signal 4: failed merge groups the queue rebuilt with no removal are not ejections (#15464, #15505, #16458)", () => {
+  const groups = [1, 2, 3, 4, 5, 6, 7].map((id) => ejection(id, [15464, 15505, 16458][id % 3]));
+  assert.deepEqual(ejectionFindings({ ...base, mergeGroupFailures: groups }), []);
+  assert.deepEqual(ejectionFindings({ ...base, mergeQueueRemovals: [], mergeGroupFailures: groups }), []);
+});
+
+test("signal 4: the title and summary carry the removal count, and a head queued while refused still counts (#15193)", () => {
+  const removals = ["21:51:50", "22:12:36", "22:20:26", "22:28:03"].map((t) => removal(15193, `2026-11-10T${t}Z`, { enqueuedAt: null }));
+  const [found] = ejectionFindings({ ...base, mergeQueueRemovals: removals, mergeGroupFailures: [1, 2, 3, 4, 5, 6].map((id) => ejection(id, 15193)) });
+  assert.equal(found.title, "Merge queue: 4 ejections in the last 24 hours");
+  assert.match(found.summary, /^4 merge-queue removals for failed checks in the last 24 hours, over the 2 a day this lane allows\./);
+  assert.match(found.summary, /6 merge groups failed/);
+  assert.equal(found.signal, "4 merge-queue ejections");
+});
+
+test("signal 4: a hold label added while queued is not counted; any other label is", () => {
+  const at = (n) => `2026-10-19T15:0${n}:00Z`;
+  const held = [
+    removal(16725, at(1), { labels: ["do-not-merge"] }),
+    removal(2, at(2), { labels: ["needs-human"] }),
+    removal(3, at(3), { labels: ["pr-verify-failed"] }),
+    removal(4, at(4), { labels: ["security: outside-actor"] }),
+  ];
+  assert.deepEqual(ejectionFindings({ ...base, mergeQueueRemovals: held }), []);
+  const counted = [removal(5, at(5), { labels: ["merge-path: owner-agent"] }), removal(6, at(6)), removal(7, at(7))];
+  const [found] = ejectionFindings({ ...base, mergeQueueRemovals: [...held, ...counted] });
+  assert.equal(found.title, "Merge queue: 3 ejections in the last 24 hours");
+  assert.match(found.summary, /4 removals a hold applied while queued caused are not counted/);
+  assert.ok(found.facts.some((line) => line.startsWith("not counted: #16725") && line.includes("'do-not-merge' added while queued")));
+});
+
+test("signal 4: a removal whose failed group the lanes kill switch failed is not counted", () => {
+  const enqueuedAt = "2026-10-19T15:00:00Z";
+  const removals = [1, 2, 3].map((pr) => removal(pr, "2026-10-19T15:10:00Z", { enqueuedAt }));
+  const kill = (id, pr, createdAt) => ejection(id, pr, { createdAt, killSwitch: true });
+  assert.deepEqual(ejectionFindings({ ...base, mergeQueueRemovals: removals, mergeGroupFailures: [kill(1, 1, "2026-10-19T15:01:00Z")] }), []);
+  const [found] = ejectionFindings({ ...base, mergeQueueRemovals: [...removals, removal(4, "2026-10-19T15:10:00Z", { enqueuedAt })], mergeGroupFailures: [kill(1, 1, "2026-10-19T15:01:00Z")] });
+  assert.ok(found.facts.some((line) => line.startsWith("not counted: #1") && line.includes("the lanes kill switch")));
+  const others = [kill(2, 2, "2026-10-19T14:59:00Z"), kill(3, 3, "2026-10-19T15:11:00Z"), kill(4, 99, "2026-10-19T15:05:00Z")];
+  assert.equal(ejectionFindings({ ...base, mergeQueueRemovals: removals, mergeGroupFailures: others })[0].title, "Merge queue: 3 ejections in the last 24 hours");
+  const unknownEnqueue = [removal(1, "2026-10-19T15:10:00Z", { enqueuedAt: null }), ...removals.slice(1)];
+  assert.equal(ejectionFindings({ ...base, mergeQueueRemovals: unknownEnqueue, mergeGroupFailures: [kill(1, 1, "2026-10-19T12:00:00Z")] })[0].title, "Merge queue: 3 ejections in the last 24 hours");
+});
+
+test("signal 4: the fingerprint follows the newest counted removal", () => {
+  const fp = (removals) => ejectionFindings({ ...base, mergeQueueRemovals: removals })[0].fingerprint;
+  const r = [1, 2, 3, 4].map((n) => removal(n, `2026-10-19T15:0${n}:00Z`));
+  assert.equal(fp(r), fp(r.slice(1)));
+  assert.notEqual(fp(r), fp([...r, removal(5, "2026-10-19T15:09:00Z")]));
+  assert.equal(fp(r), fp([...r, removal(6, "2026-10-19T15:09:00Z", { labels: ["do-not-merge"] })]));
 });
 
 const row = (pr, updatedAt, extra = {}) => ({
@@ -450,7 +510,7 @@ test("detect runs every signal, and empty data files nothing", () => {
   const keys = detect({
     ...base,
     budgetReadings: [reading("lane", 4706, 5200)],
-    mergeGroupFailures: [ejection(1, 1), ejection(2, 2), ejection(3, 3)],
+    mergeQueueRemovals: [removal(1, "2026-10-19T15:01:00Z"), removal(2, "2026-10-19T15:02:00Z"), removal(3, "2026-10-19T15:03:00Z")],
   }).map((f) => f.key);
   assert.deepEqual(keys.sort(), ["ceiling:lanes-app-rest", "merge-queue-ejections"]);
 });

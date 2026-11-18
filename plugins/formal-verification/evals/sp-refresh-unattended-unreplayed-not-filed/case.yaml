@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: sp-refresh-unattended-unreplayed-not-filed
+graders:
+  - name: no-bug-skill
+    type: tool_used
+    tool: Skill
+    input_match: 'bugs:write|work-items:track'
+    min: 0
+    max: 0
+    arm: both
+  - name: keeps-in-report
+    type: llm
+    criteria: "Judge what the reply says the unattended refresh pass does. PASS only if the reply (1) keeps the counterexample in the report as not replayed, because its timeout step could be neither confirmed nor ruled out in the code; (2) hands it to no tracker, neither /bugs:write nor /work-items:track add; (3) lists .claude/skills/lock-proof/ as a verification skill outside the contract and runs its pass report-only, converting and filing nothing for it; and (4) makes no verification edit for the failing check and moves no sync commit. FAIL if the reply files the counterexample as a bug, converts lock-proof, edits the model or sync.yaml, or moves the sync commit."
+    arm: with-only

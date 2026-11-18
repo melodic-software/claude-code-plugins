@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Check one-holder (formal-lock): blocked: detached HEAD off the default branch's tip", "why": "the fixed outcome line with its reason"}
+  ],
+  "fail": [
+    {"answer": "Check one-holder (formal-lock): updated", "why": "nothing was written, so it is not updated"},
+    {"answer": "Outcome: blocked", "why": "not the fixed line"}
+  ]
+}

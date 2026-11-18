@@ -217,6 +217,12 @@
       "prompt": "Run /mutation-testing:audit. The config says `tool: stryker-net`, but dotnet-stryker is not installed.",
       "expected_output": "Does not refuse outright. Names the install command for Stryker.NET, as /mutation-testing:setup check would, and offers to continue this run with `tool: manual`. Refuses only when the user declines both. Does not install the tool unasked. Running unattended, it stops with the install command and the manual offer rather than switching tools on its own.",
       "files": []
+    },
+    {
+      "id": "equivalent_declined_line",
+      "prompt": "With --persist-findings on, one mutant survived and triage called it equivalent, demonstrated: both versions were run over the same 200 inputs and returned identical output. Where does that call land?",
+      "expected_output": "Emits no `## Findings` row for it, because equivalent is not a defect, and counts it in the `## Surfaces` returned-no-result limb as one declined candidate under `mutation-testing/audit/rule-survivor-equivalent`. Also writes one line for it in a `## Declined candidates` section after `## Surfaces`, naming that rule id, the mutated node's Location, the operator and the demonstration (what was run, what was identical, under which inputs), so the call can be re-checked rather than living only in the chat report. Does not record it in `.claude/mutation-testing-arid.md`: an equivalent mutant is never a suppression.",
+      "files": []
     }
   ]
 }

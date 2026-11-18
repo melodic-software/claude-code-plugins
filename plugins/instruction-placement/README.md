@@ -2,7 +2,7 @@
 
 Routes agent-instruction content to the surface that loads it at the right moment.
 
-A convention that only matters when someone edits a `.cs` file should not be paid for in every
+A convention that only matters when someone edits one kind of file should not be paid for in every
 session. Claude Code already provides the machinery to fix that: path-scoped rules and nested
 instruction files. Using it goes wrong easily, because no mistake
 raises an error. This plugin finds the content worth moving, validates the move mechanically
@@ -102,7 +102,7 @@ Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAU
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
 read that finds no file fires it. Delegation therefore resets the trigger instead of removing it. Nothing tells an agent a rule exists until its trigger happens to
-match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
+match: an agent that edits a file and was never told to read the rule for that kind of file first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
 rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets

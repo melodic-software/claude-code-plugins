@@ -761,6 +761,30 @@
         "C3 keeps its HIGH (single source) label wherever the synthesis cites it",
         "Output states that a synthesis adding a claim of its own would take the verifier"
       ]
+    },
+    {
+      "id": 54,
+      "name": "package-registry-is-the-one-the-library-publishes-to",
+      "prompt": "Research the latest released version of the Elixir library Jason and when it was published, for my own use.",
+      "files": [],
+      "expected_output": "Reads the version and publish date from the package registry Jason publishes to (the Hex registry, hex.pm) and corroborates them against the upstream repository's releases or CHANGELOG, fetched this turn. It does not cite a registry Jason does not publish to as the source for either fact.",
+      "expectations": [
+        "The version and publish-date claims cite the registry the library publishes to (hex.pm), fetched in this run",
+        "No claim cites a registry the library does not publish to as its source",
+        "The upstream repository's releases or CHANGELOG is read this turn and agrees with, or is reconciled against, the registry"
+      ]
+    },
+    {
+      "id": 55,
+      "name": "package-registry-holds-for-a-mainstream-registry",
+      "prompt": "Research the latest released version of the Python library httpx and when it was published, for my own use.",
+      "files": [],
+      "expected_output": "Reads the version and publish date from the package registry httpx publishes to (PyPI, pypi.org) and corroborates them against the upstream repository's releases or CHANGELOG, fetched this turn. This is the no-loss side of the registry cut: the run reaches the registry without the source-categories table naming it.",
+      "expectations": [
+        "The version and publish-date claims cite the registry the library publishes to (pypi.org), fetched in this run",
+        "No claim cites a registry the library does not publish to as its source",
+        "The upstream repository's releases or CHANGELOG is read this turn and agrees with, or is reconciled against, the registry"
+      ]
     }
   ]
 }

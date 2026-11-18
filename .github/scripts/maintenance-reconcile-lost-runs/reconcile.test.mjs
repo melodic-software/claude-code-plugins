@@ -850,6 +850,43 @@ test("a pass reads at most 100 succeeded runs' jobs for a hold, oldest first, an
   assert.equal(settled.held_since, "2026-10-19T06:40:00.000Z");
 });
 
+test("a succeeded run that follows no open head's newest checks is not read for a hold, while a held one that does is re-run", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns, calls, settled } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      doneChecks(101, 1, "2026-10-19T19:00:00Z"),
+      heldRun(310, { created: "2026-10-19T16:00:00Z" }, { marked: false }),
+      heldRun(311, { created: "2026-10-19T17:30:00Z" }),
+      heldRun(312, { created: "2026-10-19T19:00:04Z" }),
+      heldRun(313, { created: "2026-10-19T19:10:00Z" }, { marked: false }),
+    ],
+    carry: null,
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(jobReads(calls), [312, 313], "only the runs head 1's 19:00 checks completion owns are read");
+  assert.deepEqual(reruns, [312]);
+  assert.deepEqual(settled.runs, [{ id: 313, reason: "" }], "a run left unread is not settled, so a pass that cannot rule it out reads it");
+  assert.equal(settled.held_since, "2026-10-19T14:00:00.000Z", "a run left unread holds no later pass's listing back");
+  assert.ok(
+    log.mock.calls.some((c) => /2 succeeded runs follow no open pull request's newest checks run/.test(c.arguments[0])),
+    "the pass names how many runs it left unread",
+  );
+});
+
+test("a succeeded run is read for a hold when an open head's run listing failed or no open head's checks start its lane", async () => {
+  const runs = [doneChecks(101, 1, "2026-10-19T19:00:00Z"), heldRun(320, { created: "2026-10-19T16:00:00Z" })];
+  const failedHead = await reconcile({ pulls: [pr(1), pr(2)], runs, fail: { [`GET /repos/${REPO}/actions/runs?head_sha=${sha(2)}&per_page=100`]: new Error("HTTP 502") } });
+  assert.deepEqual(jobReads(failedHead.calls), [320], "with a head unread, the run may be that head's");
+  assert.deepEqual(failedHead.reruns, [320]);
+  // A failed checks run starts pr-verify but not pr-review-main, so no open
+  // head's checks start the review lane here.
+  const review = { ...mainReviewRun(321, { conclusion: "success", created: "2026-10-19T16:00:00Z" }), jobs: [] };
+  const failedChecks = run(102, sha(1), { conclusion: "failure", created: "2026-10-19T18:50:00Z", updated: "2026-10-19T19:00:00Z", jobs: [] });
+  const noStart = await reconcile({ pulls: [pr(1)], runs: [failedChecks, review] });
+  assert.ok(jobReads(noStart.calls).includes(321), "no open head could own the review run, so nothing rules it out");
+});
+
 test("a verify run the kill switch stopped is re-run once the switch is off", async () => {
   const stopped = [
     {
@@ -1246,7 +1283,7 @@ test("a lane run created more than 60 s before or 15 minutes after a head's chec
 
 test("a lost lane run created before every open head's checks completed is not re-run, while the head's newest run is, and the pass writes clean", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  const { code, reruns, outputs } = await reconcile({
+  const { code, reruns, outputs, calls } = await reconcile({
     pulls: [pr(1)],
     runs: [
       doneChecks(101, 1, "2026-10-19T19:00:00Z"),
@@ -1257,7 +1294,8 @@ test("a lost lane run created before every open head's checks completed is not r
     ],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [252, 253], "the head's newest run, and the held run, which is never left out");
+  assert.deepEqual(reruns, [252], "the head's newest run; the held run 253 follows no open head either");
+  assert.ok(!jobReads(calls).includes(253), "a held run no open head owns is not read");
   assert.deepEqual(supersededLanes(log).sort(), [250, 251], "250 followed head 1's checks before they completed again at 19:00, and 251 follows no open head");
   assert.deepEqual(deferredLanes(log), []);
   assert.equal(outputs.clean, "true", "a left-out run defers nothing");

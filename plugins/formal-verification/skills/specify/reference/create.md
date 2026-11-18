@@ -154,7 +154,8 @@ that the area has property tests, not formal verification.
 
 Tell the user what you verified, which tool you used and why, the bounds, what the check found in
 plain words, how to run it, and what it does not cover. Suggest a second target only if you found a
-close one.
+close one. Point the user at `/formal-verification:specify refresh` for bringing the verification
+back in line after changes that did not recheck it.
 
 Unattended, the hand-off is the dry run: the target, the tool and its status, the folder, the rules
 drafted, and each open question with a recommended answer.

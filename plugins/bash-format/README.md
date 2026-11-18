@@ -82,9 +82,10 @@ The plugin ships no rules of its own.
   produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions), the
   membership check is skipped and any existing edited file is processed.
 
-## Git pre-commit entries
+## Git hook entries
 
-The plugin ships two git-hook entries (`git-hooks/entries.json`):
+The plugin ships three git-hook entries (`git-hooks/entries.json`), two at pre-commit and one at
+pre-push:
 
 - `format` rewrites. At commit it refuses a partly staged shell script the shfmt adapter governs,
   untouched; runs shfmt over the staged `.sh` and `.bash` files it governs; and re-stages what
@@ -93,7 +94,12 @@ The plugin ships two git-hook entries (`git-hooks/entries.json`):
   and blocks the commit only on a finding on a line the commit adds,
   printed as `<path>:<line>: <message>`. A partly staged or deleted script is linted as staged, from
   the index. A ShellCheck that exits non-zero with no such line fails the commit and shows its
-  output. Identical staged scripts are linted once when nothing path-dependent can differ.
+  output. Identical staged scripts are linted once when nothing path-dependent can differ. A script
+  over 2,000 lines is linted with `--extended-analysis=false`, on ShellCheck 0.10 or later, which
+  keeps the commit fast and leaves its dataflow checks to `lint-full`.
+- `lint-full` reports, at pre-push. It runs ShellCheck with dataflow analysis on each pushed script
+  over 2,000 lines, as the pushed tip holds it, and blocks the push only on a finding on a line the
+  push adds. A script the push does not change, or one of 2,000 lines or fewer, is not linted again.
 
 They reach every author, not only Claude, once
 `/bash-format:setup apply install-git-hooks [scope=local|shared]` registers them with the

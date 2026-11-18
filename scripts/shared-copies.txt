@@ -110,6 +110,7 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/javascript-for
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/markdown-format/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/powershell-format/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/actionlint/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
@@ -396,6 +397,9 @@ lib/prerequisites.ps1 plugins/docs-naming/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/dometrain/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/dometrain/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/dometrain/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/domain-driven-design/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/domain-driven-design/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/domain-driven-design/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/evals/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/evals/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/evals/lib/prerequisites.ps1
