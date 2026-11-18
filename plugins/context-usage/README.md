@@ -102,8 +102,8 @@ show, the line is also drawn as one notice row above the prompt until the next t
 `/context-usage` writes the route through `/session-flow:workflow` and
 [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
 as a transcript line Claude does not read.
-The menu never reaches Claude: an exit menu in model context prompts the model to stop,
-summarize, or hand off on its own initiative, which the instruction-audit catalog flags as check I23.
+The menu never reaches Claude: an exit menu in model context manufactures the model's own
+initiative to stop, summarize, or hand off, which the instruction-audit catalog flags as check I23.
 Claude's options line lists compaction and a handoff as choices beside continuing, never as a
 step to take; it is a deliberate exception to I23, decided by the owner in #7118.
 
@@ -178,7 +178,7 @@ command runs first through `--after`, and your other `statusLine` keys stay. It 
   [Manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
   live; when checking which settings a plugin may set, fetch
   [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, the release that
-  removed the docs section on plugin settings; when checking what cache state a mod can read, fetch
+  removed the `subagentStatusLine` setting; when checking what cache state a mod can read, fetch
   [mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) live.
 
 The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never

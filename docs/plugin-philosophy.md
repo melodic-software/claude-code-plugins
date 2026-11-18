@@ -1474,7 +1474,7 @@ upstream-owned: resolve them from the model page at decision time, never from th
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
 
 We treat a lane pin as guidance, not a forced amount: a turn whose thinking differs from what the
-pin suggests is not a pin misfiring. Authoring conformance is therefore to pin the lane and let
+pin suggests is not a pin misfiring. Authoring conformance follows: pin the lane, then let
 allocation vary per request instead of writing prose that tries to force it uniform (Pointer: when a
 lane's thinking looks off its pin, fetch
 [steering thinking: how Claude decides when to think](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#how-claude-decides-when-to-think)
