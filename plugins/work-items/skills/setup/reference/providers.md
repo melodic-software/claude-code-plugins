@@ -25,15 +25,15 @@ gh repo view --json owner,name
 ```
 
 That is the same derivation the adapter's repo-scope resolution makes for every repo-scoped verb.
-Report the `owner/repo` it returns. **That one call is the operative test, and it subsumes
-authentication**: it fails unauthenticated even against a public repository, so succeeding proves
-`gh` is authenticated for the host this checkout uses.
+Report the `owner/repo` it returns. **That one call is the operative test**: its success shows
+this checkout resolves to a repository the seam can address, through the `gh` session the verbs
+will use.
 
 `gh auth status` is **not** the test. It is an account fact, not a repository one: a local-only or
-non-GitHub checkout passes it and still has no repository for the seam to address. It also tests
-every account on every known host, exiting 1 if any has an issue (`gh auth status --help`), so an
-unrelated stale credential would condemn a good checkout. Run it to explain a failure, never to
-gate the choice.
+non-GitHub checkout passes it and still has no repository for the seam to address. The gate is
+about this repository, never the health of every account `gh` holds; what the command checks is
+[`gh auth status`](https://cli.github.com/manual/gh_auth_status)'s to state. Run it to explain a
+failure, never to gate the choice.
 
 ## `local-markdown`
 
@@ -54,13 +54,11 @@ Requires `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_
 The API token is referenced by env-var name only, never stored. Binding shape and the deferred
 live-instance facts are CONTRACT.md's "jira adapter".
 
-**Listing resolutions for the won't-do classification.** The instance's resolutions come from
-`GET https://<site>/rest/api/3/resolution/search`, paginated with `startAt` / `maxResults` until
-`isLast` is true; each value carries `id`, `name`, `description`, and `default` (true on the
-instance's default resolution). The older `GET /rest/api/3/resolution` is deprecated
-([Issue resolutions API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-resolutions/)
-and its OpenAPI spec). Call it
-with the same Basic auth the adapter uses (`auth_email` plus the token from `auth_env`), and
+**Listing resolutions for the won't-do classification.** List the instance's resolutions with
+the "Search resolutions" operation, reading every page; its path, paging and response fields are
+the page's to state:
+[Search resolutions](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-resolutions/#api-rest-api-3-resolution-search-get).
+Call it with the same Basic auth the adapter uses (`auth_email` plus the token from `auth_env`), and
 write ids, never names, into `config.jira.resolutions`: admins can rename a resolution, and an id
 survives that.
 
@@ -89,8 +87,8 @@ Issue numbering lives outside the repository, so GitHub's shared PR/issue number
 bites. Whether its free plan covers solo use is Linear's to state: [Linear pricing](https://linear.app/pricing).
 
 Auth is a **personal API key**, referenced by env-var name only. That is the deliberate
-posture for headless and cloud agents: OAuth needs an interactive grant no unattended
-session can complete. The host is pinned to `.linear.app`.
+posture for headless and cloud agents: the key is set once and read from the environment, with no
+step a person must take during the session. The host is pinned to `.linear.app`.
 
 Requires `config.linear` (`host`, non-empty `scopes[]` of `<workspace>/<TEAMKEY>`,
 `auth_env`) and `curl`. Optional `done_state_types`, `page_size`, `host_suffix`,
