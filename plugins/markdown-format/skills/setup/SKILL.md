@@ -72,8 +72,7 @@ table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command:
 bash reads an unsubstituted one as a bad substitution and the whole call fails.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin
-directory: the paths already name every file this skill opens, and a search rooted at the deeply
-nested installed-plugin path can fail on the path's length.
+directory: the paths already name every file this skill opens.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js (item 1)
 downgrades from FAIL to INFO. The hook and the `SessionStart` probe both exit through the
