@@ -22,6 +22,15 @@ or out.
 The driving tool's `## Launch`. Only terminal-session entry points need it: a `logs` capture runs
 Claude Code in print mode and starts and stops its own process.
 
+The pr-verify capture and the whole-map pass drive Claude Code on an API key whose credits do not
+pay for an interactive session, so a turn typed there is refused. What those credits cover:
+<https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers#what-the-credits-cover>.
+In those two runs, launch the session, since the Mask's `values:` source reads it, and type no
+turn in it. Record each entry point typed at the prompt as
+`not driven (the key's credits do not cover interactive Claude Code)`, drive the print-mode entry
+point alone, and take every step's result, the Proof included, from its `logs` capture: a step
+that asks for a terminal screenshot records the `logs` path and its `Budget:` values instead.
+
 Data: none: a run reuses the person's signed-in Claude Code config directory, per the driving
 tool's `Data:` line.
 
