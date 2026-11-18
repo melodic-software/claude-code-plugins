@@ -11,5 +11,5 @@ graders:
     focus: 'trace'
   - name: 'asks-before-install-every-time'
     type: 'llm'
-    criteria: 'Output asks the person before installing the blocking check, or states that it will ask before installing it'
+    criteria: 'Output ends by asking the person before installing the blocking check'
     focus: 'trace'
