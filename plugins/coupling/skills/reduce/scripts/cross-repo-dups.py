@@ -45,13 +45,36 @@ import re
 import subprocess
 import sys
 
-SKIP_PATH = re.compile(r"(^|/)(fixtures?|test-data|testdata|__snapshots__|snapshots|vendor|node_modules)/")
+SKIP_PATH = re.compile(
+    r"(^|/)(fixtures?|test-data|testdata|__snapshots__|snapshots|vendor|node_modules)/"
+)
 GENERATED = re.compile(r"generated (from|by)|do not edit", re.I)
 NAMES_EVERY_REPO_OWNS = {
-    "README.md", "CHANGELOG.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "SECURITY.md", "CODEOWNERS",
-    "index.md", "SKILL.md", "package.json", "package-lock.json", "plugin.json", "marketplace.json",
-    "tsconfig.json", "config.json", "settings.json", "action.yml", "dependabot.yml", "lefthook.yml",
-    ".gitignore", ".gitattributes", ".editorconfig", "main.go", "test.sh", "__init__.py",
+    "README.md",
+    "CHANGELOG.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CODEOWNERS",
+    "index.md",
+    "SKILL.md",
+    "package.json",
+    "package-lock.json",
+    "plugin.json",
+    "marketplace.json",
+    "tsconfig.json",
+    "config.json",
+    "settings.json",
+    "action.yml",
+    "dependabot.yml",
+    "lefthook.yml",
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    "main.go",
+    "test.sh",
+    "__init__.py",
 }
 MAX_BYTES = 200_000
 MAX_VARIANTS = 12
@@ -72,7 +95,7 @@ def label_for(path):
 
 
 def resolve_ref(path, ref):
-    for cand in ([ref] if ref else ["origin/HEAD", "HEAD"]):
+    for cand in [ref] if ref else ["origin/HEAD", "HEAD"]:
         rc, out = git(path, "rev-parse", "--verify", "-q", cand + "^{commit}")
         if rc == 0:
             return cand, out.decode().strip()
@@ -126,7 +149,9 @@ def main():
     specs = list(a.repos)
     if a.repos_from:
         fh = sys.stdin if a.repos_from == "-" else open(a.repos_from, encoding="utf-8")
-        specs += [l.strip() for l in fh if l.strip() and not l.startswith("#")]
+        specs += [
+            line.strip() for line in fh if line.strip() and not line.startswith("#")
+        ]
     try:
         managed_any, managed_repo = load_managed(a.managed)
     except OSError as e:
@@ -152,7 +177,9 @@ def main():
         repos[label] = (path, commit)
         print(f"ref\t{label}\t{used}")
     if len(repos) < 2:
-        print("cross-repo-dups.py: need at least 2 readable repositories", file=sys.stderr)
+        print(
+            "cross-repo-dups.py: need at least 2 readable repositories", file=sys.stderr
+        )
         return 2
 
     excluded = collections.Counter()
@@ -185,24 +212,30 @@ def main():
 
     exact = []
     for sha, copies in by_blob.items():
-        if len({l for l, _ in copies}) < 2:
+        if len({lab for lab, _ in copies}) < 2:
             continue
         if generated(sha, copies[0][0]):
             excluded["generated"] += len(copies)
             continue
-        labels = {l for l, _ in copies}
-        exact.append((len(labels), len(copies), " | ".join(f"{l}:{p}" for l, p in sorted(copies))))
+        labels = {lab for lab, _ in copies}
+        exact.append(
+            (
+                len(labels),
+                len(copies),
+                " | ".join(f"{lab}:{p}" for lab, p in sorted(copies)),
+            )
+        )
     for n_repos, n_copies, listing in sorted(exact, key=lambda r: (-r[0], -r[1], r[2])):
         print(f"exact\t{n_repos}\t{n_copies}\t{listing}")
 
     diverged = []
     for base, copies in by_name.items():
         copies = [c for c in copies if not generated(c[0], c[1])]
-        labels = {l for _, l, _ in copies}
+        labels = {lab for _, lab, _ in copies}
         shas = collections.Counter(s for s, _, _ in copies)
         if len(labels) < 2 or len(shas) < 2:
             continue
-        owner = {s: l for s, l, _ in copies}
+        owner = {s: lab for s, lab, _ in copies}
         mode = shas.most_common(1)[0][0]
         base_text = read_blob(repos[owner[mode]][0], mode, MAX_BYTES)
         sims = []
@@ -215,9 +248,13 @@ def main():
                 continue
             a_lines = base_text.decode("utf-8", "replace").splitlines()
             b_lines = other.decode("utf-8", "replace").splitlines()
-            sims.append(difflib.SequenceMatcher(None, a_lines, b_lines, autojunk=False).ratio())
+            sims.append(
+                difflib.SequenceMatcher(None, a_lines, b_lines, autojunk=False).ratio()
+            )
         sim = "?" if None in sims or not sims else f"{min(sims):.2f}"
-        listing = " | ".join(f"{l}:{p}" for _, l, p in sorted(copies, key=lambda c: (c[1], c[2])))
+        listing = " | ".join(
+            f"{lab}:{p}" for _, lab, p in sorted(copies, key=lambda c: (c[1], c[2]))
+        )
         diverged.append((len(labels), len(shas), sim, base, listing))
     for n_repos, n_var, sim, base, listing in sorted(
         diverged, key=lambda r: (-r[0], -(float(r[2]) if r[2] != "?" else -1), r[3])

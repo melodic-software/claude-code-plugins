@@ -46,7 +46,7 @@ A=$(new_repo api)
 B=$(new_repo web)
 C=$(new_repo ops)
 for r in "$A" "$B" "$C"; do
-  put "$r" scripts/retry.sh '#!/bin/sh' 'n=0' 'until "$@"; do n=$((n+1)); [ $n -ge 3 ] && exit 1; done'
+  put "$r" scripts/retry.sh '#!/bin/sh' 'n=0' 'until make; do n=1; done'
 done
 put "$A" lib/slugify.py 'def slug(s):' '    return s.lower().replace(" ", "-")' '' 'X = 1'
 put "$B" src/slugify.py 'def slug(s):' '    return s.lower().replace(" ", "-")' '' 'X = 2'
