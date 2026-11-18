@@ -6,7 +6,7 @@
   "timeouts": {
     "launchSeconds": 30,
     "readyMs": 120000,
-    "stepMs": 15000,
+    "stepMs": 90000,
     "logMs": 600000
   },
   "credentials": {

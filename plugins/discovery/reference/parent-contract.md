@@ -326,7 +326,8 @@ operator's sandbox configuration, which `/harness-config:audit` details and date
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for
 the keys a plugin's settings may set, see
-[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)).
+[changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) and the `settings` section
+of the [manifest reference, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md)).
 
 ## Read each file once, stated once
 
