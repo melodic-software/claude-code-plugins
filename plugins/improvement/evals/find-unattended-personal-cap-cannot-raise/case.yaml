@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: find-unattended-personal-cap-cannot-raise
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: reads-personal-layer
+    type: tool_used
+    tool: 'Read'
+    input_match: 'improvement\.local\.md'
+    min: 1
+  - name: personal-value-does-not-raise-cap
+    type: llm
+    criteria: 'PASS only if the reply plans to file no work item this run because the five open items carrying source: improvement-find meet an open cap of 5, and says the personal value of 9 does not raise that cap. FAIL if it would file any item, treats the cap as 9, or never addresses the personal value.'

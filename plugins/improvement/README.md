@@ -80,13 +80,18 @@ Tuning — edit these lines as you observe real runs:
 - Suppress previously dismissed candidates.
 ```
 
-The prompt is the tuning surface for cap, scope/size band, and dismissed-candidate handling: every unattended control is a soft default the invocation prompt overrides (see
-[skills/find/context/unattended.md](skills/find/context/unattended.md)), except the open cap.
-Every item find files carries the `source: improvement-find` label, which the repository must
-already have; while the open items carrying it number at or above `find_open_item_cap` (default
-5, set in `.claude/improvement.md`, see [reference/config.md](reference/config.md)), an
-unattended run files nothing. Iterate on the wording
-after observing real runs; never fork the skill to tune a run.
+Cadence and time of day belong to the scheduler. The cap, scope, size band and dismissed-candidate
+handling resolve from the prompt, then `.claude/improvement.md`, then the bundled default (see
+[skills/find/context/unattended.md](skills/find/context/unattended.md) and
+[reference/config.md](reference/config.md)). The open cap is the exception: the prompt cannot raise
+it, and personal settings can only lower it.
+
+Each item find files carries one source label the repository must already have:
+`source: architecture-improve` for a verified candidate from `/architecture:improve`, which find
+runs inline when that plugin is installed, and `source: improvement-find` for every other. While the
+open items carrying a label number at or above `find_open_item_cap` (default 5), an unattended run
+files nothing under that label. Iterate on the wording after observing real runs; never fork the
+skill to tune a run.
 
 ### Improve-one-thing prompt (daily or hourly)
 
