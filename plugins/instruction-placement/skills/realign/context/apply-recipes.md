@@ -182,9 +182,11 @@ in a quieter place.
 Two ladder rungs produce findings this skill deliberately cannot execute, because the destination is
 not this plugin's to build:
 
-- **Rung 2, mechanical enforcement.** The remedy is a linter, formatter, analyzer, or hook. Report
-  the routing and leave the prose in place. Deleting an instruction before its replacement mechanism
-  exists removes the only thing enforcing it.
+- **Rung 2, mechanical enforcement.** The remedy is a mechanism this skill does not choose. Report
+  the route rung 2 of the [routing rubric](../../../context/routing-rubric.md#the-decision-ladder)
+  names: the `/corrections:codify` call when that skill is available, else the rubric's
+  strongest-first proposal marked unproven. Leave the prose in place. Deleting an instruction before
+  its replacement mechanism exists removes the only thing enforcing it.
 - **Rung 3, a skill.** Authoring a skill is separate work with its own quality bar. Report the
   routing; do not scaffold one mid-migration.
 
