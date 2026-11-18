@@ -263,8 +263,8 @@ hand over the local mockup.
    `${CLAUDE_PLUGIN_ROOT}` and `<option>` is `${user_config.level}`: it sets the variant count,
    screens, states, screenshots, and review-mode and real-stack offers, whose `standard` values are
    the ones this file states.
-2. Type the resolver's report line (`level: <name> (<layer>)`) and every `notice:` line yourself,
-   as your next message, before any other tool call. The person never sees tool output, so the
+2. Once the level is resolved, type its report line (`level: <name> (<layer>)`) and every
+   `notice:` line yourself, as your next message, before any other tool call. The person never sees tool output, so the
    resolver printing the line does not count. This holds when the request says to build without
    asking and when no plan is shown.
 3. Write the plan, below.
