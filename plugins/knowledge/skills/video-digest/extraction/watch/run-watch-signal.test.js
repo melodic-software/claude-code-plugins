@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const RUN_WATCH = fileURLToPath(new URL("./run-watch.js", import.meta.url));
 const URL_UNDER_TEST = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 const TEMP_PREFIXES = ["video-extraction-", "video-frames-", "video-sheets-"];
+const ANSWER_FREE_SPACE_PROBE_WITH_SMALL_SIZE = `case " $* " in *" --print "*) printf '1000\\037 60\\n'; exit 0;; esac\n`;
 
 /** @type {string} */
 let sandbox;
@@ -51,7 +52,7 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
       path.join(bin, "yt-dlp"),
       // Keeps writing into the work dir, as a real download would, so a signal that
       // leaves it running races the cleanup and recreates files after the rm.
-      `#!/bin/sh\ntouch "${started}"\nwhile :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/partial.part"\n  done\n  sleep 0.05\ndone\n`,
+      `#!/bin/sh\n${ANSWER_FREE_SPACE_PROBE_WITH_SMALL_SIZE}touch "${started}"\nwhile :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/partial.part"\n  done\n  sleep 0.05\ndone\n`,
       { mode: 0o755 },
     );
   });
@@ -95,7 +96,7 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     // in the background, which outlives a SIGKILL sent to yt-dlp alone.
     await fs.writeFile(
       path.join(sandbox, "bin", "yt-dlp"),
-      `#!/bin/sh\n( while :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/merge.part"\n  done\n  sleep 0.05\ndone ) &\necho $! > "${grandPid}"\ntouch "${started}"\nwait\n`,
+      `#!/bin/sh\n${ANSWER_FREE_SPACE_PROBE_WITH_SMALL_SIZE}( while :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/merge.part"\n  done\n  sleep 0.05\ndone ) &\necho $! > "${grandPid}"\ntouch "${started}"\nwait\n`,
       { mode: 0o755 },
     );
     const child = spawn(process.execPath, [RUN_WATCH, URL_UNDER_TEST], {
