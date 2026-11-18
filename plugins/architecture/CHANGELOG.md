@@ -3,6 +3,14 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.3.0] - 2026-11-18
+
+### Added
+
+- **`reference/vocabulary.md`, the deletion test.** The check names three fixes for a module that
+  only forwards calls: delete it, move work between it and the module it wraps so each has a
+  distinct job, or merge the two into one deeper module.
+
 ## [5.2.9] - 2026-11-18
 
 ### Changed
