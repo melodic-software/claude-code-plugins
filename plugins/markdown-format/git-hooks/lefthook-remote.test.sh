@@ -36,7 +36,7 @@ printf 'pre-commit:\n  parallel: true\n' >>"$REPO/lefthook.yml"
 git -C "$REPO" add lefthook.yml
 lr_commit parallel
 lr_expect_pass "parallel: true: a commit of the consumer config passes"
-expect "parallel: true: the consumer's merged pre-commit sets it" yes "$(cd "$REPO" && lefthook dump 2>/dev/null | grep -q 'parallel: true' && echo yes)"
+expect "parallel: true: the consumer's merged pre-commit sets it" yes "$(grep -q 'parallel: true' < <(cd "$REPO" && lefthook dump 2>/dev/null) && echo yes)"
 
 printf '# P\n\nparallel   \n' >"$REPO/p.md"
 git -C "$REPO" add p.md
