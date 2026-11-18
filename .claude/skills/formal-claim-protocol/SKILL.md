@@ -114,9 +114,11 @@ One command per cfg; each takes about a minute:
 ```
 
 `LocalLane.cfg` runs the local session against the issue lane, `LocalTriage.cfg` the local session
-against a triage claim; both with renew, every failure off and `BoundedStall`. `--rerun-states`
-must cover the whole space (1,686,588 and 1,356,633 states): after a rule breaks, the command rechecks
-the others under that bound, and a smaller bound leaves them not checked.
+against a triage claim; both with renew, every failure off and `BoundedStall`. After a rule
+breaks, the command rechecks the others under the `--rerun-states` bound, which covers the whole
+space of each unbroken model (1,686,588 and 1,356,633 states). A break's space can be larger: under
+the seeded break the `LocalLane.cfg` recheck reaches the bound, and `report.md` lists the other
+rules as not checked; that is expected and says nothing about them.
 
 Pass a new `--out` folder each run. Where `/formal-verification:chart` cannot be invoked (the
 plugin not installed), follow `plugins/formal-verification/skills/chart/SKILL.md` by hand with
@@ -168,6 +170,14 @@ the changed line numbers in the model's comments, rerun every shipped cfg and th
 and update the known results above. When a ticket branch edits a covered file, `commit` moves in a
 follow-up change after it lands, and `check`'s stale-coverage warning is expected until then.
 
-To carry the seeded break into the model, change `Min` to `Max` in `Judge` and in `ArbRunSup`, the
+The names the model reads, to search a diff for new code that touches them: `wit_lease_is_live`,
+`wit_select_active_lease`, `wit_lease_winner`, `wit_newer_live_lease` and `WIT_LEASE_SKEW_SECONDS`
+(`lib/lease.sh`); `wit_lease_released_by_run`, `_wit_login_holds_other`, `wit_hand_back_assignee`
+and `wit_run_gh` (`adapters/github/common.sh`); the lease fields `holder`, `session_id`,
+`renewed_at` and `superseded_at`; `--lease-only`; and the issue's `assignees`.
+
+The seeded break in the code: in `wit_lease_winner` (`lib/lease.sh`), read the rows as
+`sort_by(.id) | reverse | .[]` instead of `sort_by(.id) | .[]`, so the latest live lease wins. To
+carry it into the model, change `Min` to `Max` in `Judge` and in `ArbRunSup`, the
 model's two encodings of `wit_lease_winner`. `view.mjs` still labels `ArbJudge` with the unbroken
 rule, so read a break path by its actions, not that label.
