@@ -46,6 +46,7 @@ fi
 # copy of the resolved document, so a caller's --config file is left as it was.
 FILE_LINES=""
 COMMITS_SINCE=""
+CHECK=0
 REST=()
 set -- "${CM_PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
@@ -65,6 +66,11 @@ while [[ $# -gt 0 ]]; do
     fi
     COMMITS_SINCE="$2"
     shift 2
+    continue
+  fi
+  if [[ "$1" == "--check" ]]; then
+    CHECK=1
+    shift
     continue
   fi
   REST+=("$1")
@@ -94,6 +100,14 @@ iso-8.2.115) MEASURES="file_lines,function_lines" ;;
   exit 2
   ;;
 esac
+RULE="$("${PY[@]}" -I -c 'import json,sys; print((json.load(open(sys.argv[1])).get("size") or {}).get("check") or "report")' "$CM_CONFIG")"
+case "$RULE" in
+report | crossing | crossing-or-growth) ;;
+*)
+  echo "audit-size.sh: size.check must be report, crossing or crossing-or-growth, got '$RULE'" >&2
+  exit 2
+  ;;
+esac
 
 bash "$DISPATCH" audit-size --measures "$MEASURES" --config "$CM_CONFIG" "${CM_PASS_ARGS[@]}" >"$WORK/report.json"
 rc=$?
@@ -101,8 +115,20 @@ rc=$?
 if [[ -n "$COMMITS_SINCE" ]]; then
   "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" add --since "$COMMITS_SINCE" "$WORK/report.json" || exit 2
 fi
+if [[ "$CHECK" -eq 1 ]]; then
+  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" add --config "$CM_CONFIG" "$WORK/report.json"
+  check_rc=$?
+  if [[ $rc -eq 3 && "$RULE" != "report" ]]; then
+    echo "audit-size.sh: --check cannot decide: a collector produced nothing parseable (see the run table)" >&2
+    check_rc=2
+  fi
+  rc=$check_rc
+fi
 cm_emit_document audit-size "$JSON" "$WORK/report.json" || exit 2
 if [[ -n "$COMMITS_SINCE" && "$JSON" -ne 1 ]]; then
   "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" render "$WORK/report.json"
+fi
+if [[ "$CHECK" -eq 1 && "$JSON" -ne 1 ]]; then
+  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" render "$WORK/report.json"
 fi
 exit "$rc"

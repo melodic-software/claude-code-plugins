@@ -22,6 +22,7 @@ read, so its shape is stable within the `v2` schema string.
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
 | `file_commits` | object | Size only, and only under `--commits-since`: `since` (the date as passed), `excludes` (the author-name mark left out, `[bot]`), and `rows`, one per file at or above the `file_lines` reference with `file`, `lines_non_blank` and `commits`, most commits first |
+| `size_check` | object | Size only, and only under `--check`: `rule` and `layer` (the resolved `size.check` and the layer that set it), `reference` and `reference_layer` (`size.file_lines`), `base`, `failed` (how many rows fail), and `rows`, one per changed file the rule lists, with `file`, `base_file` (its name at the base), `base_lines`, `head_lines`, `kind` (`crossed` or `grew`) and `fails` |
 | `trend` | object | Duplication only, and only when an earlier document qualifies: see "Clone trend" |
 
 A reader ignores keys it does not know: fields are added within the current version (the rollups
@@ -218,8 +219,9 @@ function's range.
 | Code | Meaning |
 |---|---|
 | 0 | The document was produced, including an `empty` run |
+| 1 | `audit-size.sh --check` only: a changed file failed the resolved `size.check` rule |
 | 2 | Usage error, including an explicitly named path, artifact, or registry that does not exist, or a missing Python 3.9 |
-| 3 | A resolved collector ran and produced no parseable output; the document is still produced and the failure is in `run[]` |
+| 3 | A resolved collector ran and produced no parseable output; the document is still produced and the failure is in `run[]` (under `audit-size.sh --check` with a rule other than `report`, exit 2 instead) |
 
 An adapter's own `collect` exits 4 when its tool resolved but cannot run in this repository at
 all (ESLint reporting that it found no configuration for the files). That is not a run failure:
@@ -229,4 +231,5 @@ the entry script exits 0, and the lane's run row reads `unavailable` with the to
 
 A reference is a value to count against, never a bar. `over_reference` counts values at or above
 the reference for most measures and below it for coverage and type coverage; a `null` reference
-counts nothing. No finding, severity, or exit code follows from a count.
+counts nothing. No finding, severity, or exit code follows from a count, except under
+`audit-size.sh --check` with `size.check` set to a rule other than `report`.
