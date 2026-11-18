@@ -22,7 +22,7 @@ The plugin ships no rules of its own.
   step resolve. It takes the `.py` and `.pyi` files that `Write`, `Edit` or `MultiEdit` calls in
   the batch named, and runs the Ruff adapter once over those a Ruff config governs. It prints nothing
   and exits `0`. A file that `Read` named is never rewritten.
-  - The row has no matcher or `if` (neither applies to `PostToolBatch`). Its launcher skips the
+  - The row has no matcher or `if`. Its launcher skips the
     script unless the payload mentions `.py`, so a batch without Python costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.

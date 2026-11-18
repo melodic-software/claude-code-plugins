@@ -133,8 +133,10 @@ Each source was read at the depth noted.
   <https://martinfowler.com/bliki/StranglerFigApplication.html>). Page read.
 - Mark Seemann, "Empirical characterization testing" (2025-11-03,
   <https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/>). Post read.
-- ApprovalTests (<https://approvaltests.com/>), Verify (<https://github.com/VerifyTests/Verify>,
-  scrubbers: <https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md>), Jest snapshot
-  testing (<https://jestjs.io/docs/snapshot-testing>, 30.5 docs). Docs read.
+- ApprovalTests (<https://approvaltests.com/>), Verify snapshot management
+  (<https://github.com/VerifyTests/Verify#snapshot-management>, scrubbers:
+  <https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md>), Jest snapshot testing
+  (<https://jestjs.io/docs/snapshot-testing#updating-snapshots>, property matchers:
+  <https://jestjs.io/docs/snapshot-testing#property-matchers>, 30.5 docs). Docs read.
 - Scientist compare hook (<https://github.com/github/scientist>) and known-difference ignores
   (<https://github.blog/developer-skills/application-development/scientist/>). Docs read.
