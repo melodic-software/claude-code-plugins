@@ -61,9 +61,9 @@ key, and screenshots that first screen.
 
 Real setup, attended only: when the person asks to see the plugin beside their own setup, add
 `--real-setup` to `launch` and `ready`. The launch then drops `--restricted` and
-`--strict-mcp-config`, so the person's settings files, installed plugins, hooks, permission rules,
-MCP servers, status line and Bash all load; the credential clearing and Ready's `none` key source
-stay. To start through a launcher, such as a plugin profile, give its words in order, one
+`--strict-mcp-config`; read those two rows of <https://code.claude.com/docs/en/cli-reference#cli-flags>
+for what a session then loads from the person's setup. The credential clearing and Ready's `none`
+key source stay. To start through a launcher, such as a plugin profile, give its words in order, one
 `--launcher` each (`--launcher=<word>` for a word starting with `-`), and the driver appends
 `--plugin-dir <plugin-dir>`: `--launcher node --launcher <profiles.mjs path> --launcher start
 --launcher <profile>`. `--launcher` needs `--real-setup`. Both are refused with `--unattended` and
