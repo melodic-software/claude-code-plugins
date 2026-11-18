@@ -22,7 +22,7 @@ graders:
     arm: both
   - name: goal-line-names-both-checks
     type: regex
-    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*[ \t>]*(?!/goal)(?=[^\n]*\bpytest\b)(?=[^\n]*\bruff\b)(?![^\n]*\b(?:without|not|skip\w*|ignore|ignores|ignored|ignoring|no need to)\s+(?:running\s+|run\s+)?`?(?:pytest|ruff)\b)[^\n]+'
+    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*(?![ \t>]*/goal)[ \t>]*(?=[^\n]*\bpytest\b)(?=[^\n]*\bruff\b)(?![^\n]*\b(?:without|not|skip\w*|ignore|ignores|ignored|ignoring|no need to)\s+(?:running\s+|run\s+)?`?(?:pytest|ruff)\b)[^\n]+'
     flags: i
     arm: both
   - name: length-within-limit

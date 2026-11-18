@@ -37,6 +37,10 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\nEvery test under tests/ passes with pytest, shown in the conversation, without running ruff.\n```\n",
       "why": "ruff named only to exclude it"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\n> /goal Every test passes: `pytest tests/` ends with 0 failed and `ruff check .` prints \"All checks passed!\".\n──────────────────────────────────────────────────────────\n",
+      "why": "a block-quoted /goal inside the copied text"
     }
   ]
 }

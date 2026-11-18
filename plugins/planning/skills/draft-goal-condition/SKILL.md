@@ -223,10 +223,11 @@ Type `/goal ` (with a trailing space), then paste everything between the dashed 
 ──────────────────────────────────────────────────────────
 ```
 
-In the terminal the rails are literal `─` lines, as shown. Where the reply renders as markdown (the
-Desktop app's `CLAUDE_CODE_ENTRYPOINT` of `claude-desktop`, or a `CLAUDE_CODE_REMOTE` of `true`), the
-instruction line ends ``then paste this.`` before its confirm sentence and the condition sits in a
-fenced `text` block, which the app draws with a copy button. Both shapes match the goal region
+In the terminal the rails are literal `─` lines, as shown. On a markdown surface, detected as
+session-flow's
+[Markdown surfaces](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/session-flow/reference/save-point.md#markdown-surfaces)
+section says, the instruction line ends ``then paste this.`` before its confirm sentence and the
+condition sits in a fenced `text` block. Both shapes match the goal region
 `/session-flow:handoff` writes, so a goal drafted here pastes the same way after a handoff.
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it under
