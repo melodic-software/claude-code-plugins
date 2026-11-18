@@ -1,8 +1,12 @@
 pre-commit:
   jobs:
-    - name: powershell-format-remote-format
-      script: powershell-format-format.sh
-      runner: sh
-    - name: powershell-format-remote-lint
-      script: powershell-format-lint.sh
-      runner: sh
+    - name: powershell-format-remote
+      group:
+        piped: true
+        jobs:
+          - name: powershell-format-remote-format
+            script: powershell-format-format.sh
+            runner: sh
+          - name: powershell-format-remote-lint
+            script: powershell-format-lint.sh
+            runner: sh

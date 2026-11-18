@@ -1,80 +1,33 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "Before and After rows, no collapsed section"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| **Before** | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| **After** | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| **Before** | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| **After** | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "bold row labels"
     }
   ],
   "fail": [
     {
-      "answer": []
+      "answer": "",
+      "why": "nothing was posted"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "collapsed section for a one-criterion change"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "table and a collapsed section both"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n| | cart page |\n|---|---|\n| After | ![a](/tmp/a.png) |\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n| | cart page |\n|---|---|\n| After | ![a](/tmp/a.png) |\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "no Before row"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "| Before | x |\n| After | y |\n"
-          }
-        }
-      ],
+      "answer": "| Before | x |\n| After | y |\n",
       "why": "not the evidence comment"
     }
   ]

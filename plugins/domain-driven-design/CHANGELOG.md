@@ -3,6 +3,15 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-11-18
+
+### Added
+
+- **`ubiquitous-language curate` reports accepted against removed entries.** After removing or
+  merging glossary entries, the report gives two counts: the entries the person accepted and the
+  entries the glossary file lost, read from the file, and names any entry that is in one set and
+  not the other.
+
 ## [0.9.6] - 2026-11-18
 
 ### Added

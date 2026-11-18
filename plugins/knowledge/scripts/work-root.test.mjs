@@ -1,4 +1,3 @@
-// Run: node --test plugins/knowledge/scripts/work-root.test.mjs
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";

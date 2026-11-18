@@ -1,0 +1,14 @@
+---
+description: "Unattended find with a verified architecture candidate file. Narration: the prompt gives the tracker's state as facts, switches writes and filing off, and a scaffolded candidate file at verification standard holds one verified Strong entry, one verified Worth exploring entry, one unverified Speculative entry and one security-defect placeholder. The reply asks nothing (no-ask-tool), writes and edits nothing in the repository (no-repo-write, no-edit), reads the file (reads-candidate-file), names the architecture label (names-architecture-label), files only the verified Strong entry under it (files-only-the-verified-candidate, llm), and carries the placeholder as a count (security-line-stays-a-count, llm). Real filing is unmeasured. Needs --scaffold and --allow-tools Write Edit so the write graders can fail."
+tags: [find, unattended, narration, no-network]
+max_turns: 25
+timeout_seconds: 900
+allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, AskUserQuestion]
+expected_outcome: "The run asks nothing, would file only the verified Strong candidate under source: architecture-improve, leaves the verified Worth exploring candidate and the unverified Speculative candidate in the report, and reports the withheld security defect as a count with no detail."
+---
+
+/improvement:find --unattended
+
+This runs unattended as a scheduled routine; there is no interactive user to answer any question.
+
+Facts for this run, take them as given: the plugin's state-key helper printed `github.com/acme/checkout-service/3f9a1c2e`, and `git rev-parse HEAD` printed `4f1c2a9e7b3d5f6081a2c3d4e5f60718293a4b5c`. No `.claude/improvement.md` config layer exists. work-items:track is installed and bound to this repository's tracker, the repository has both the `source: improvement-find` and `source: architecture-improve` labels, and no open item carries either. No candidate has been dismissed before. `/architecture:improve deepening --unattended` already ran in this session and named its candidate file: `.work/architecture/improve/main/deepening-candidates-20261118T060000Z.md`. Read that file and do not invoke the skill again. Writes and tracker calls are switched off in this sandbox, so write nothing and invoke no work-items skill: instead give the exact path the report would be persisted to, and for each architecture candidate say what the filing step decides and, for any item it would file, its title and source label.

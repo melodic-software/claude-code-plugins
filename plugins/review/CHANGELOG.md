@@ -3,6 +3,39 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.0] - 2026-11-18
+
+### Added
+
+- **`loosened_check_decision_record` setting.** An optional https URL prefix in
+  `docs/conventions/review.yaml`, read from the default branch, with no user option. Set, a
+  loosening, a removed check and a quarantined flaky test also need the spec to cite the owner's
+  decision: a line link under that prefix and the owner's words after `verbatim:`. Unset, no citation
+  is needed. When the default branch cannot be read or the committed value is invalid, the citation
+  counts as unmet.
+
+### Changed
+
+- **`/review:quality-gate`, "Fail a change that loosens a check".** A finding asks for the change to
+  be undone or for the spec to supply what it lacks, never for an issue to be linked or filed.
+- **`/review:code-review`.** A thread's answer or resolution never settles a loosened-check finding,
+  and a verifier never rejects one on that ground.
+
+## [10.3.4] - 2026-11-18
+
+### Changed
+
+- The synced standards contract copy (`reference/standards-contract.md`) moves to 1.1.6: its index
+  example drops the `csharp` row, the Surface column lists no example ecosystem ids, and the
+  pointer-pattern bullet drops its C# directive. The schema, index shape, resolution ladder and
+  migration rules are unchanged.
+
+## [10.3.3] - 2026-11-18
+
+### Changed
+
+- The README's basis for the two subagent-memory limits is now a pointer to the sub-agents page's memory and plugin-scope sections, instead of quotes of three of its statements ([#16834](https://github.com/melodic-software/claude-code-plugins/issues/16834)).
+
 ## [10.3.2] - 2026-11-18
 
 ### Changed

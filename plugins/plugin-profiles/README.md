@@ -84,7 +84,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" start build
 
 `--dry-run` prints the `claude` command and starts nothing. On Windows, `start` runs the native
 `claude.exe` it finds on `PATH`, never through a shell, and refuses a `claude.cmd`, which would
-split or interpret your arguments; this path is untested on a Windows machine.
+split or interpret your arguments. Tried on one Windows lane (PowerShell 7.7.0, plugin-profiles
+0.5.0, 2026-11-18) through the dotfiles PowerShell `claude` function: `--profile build` printed
+"This session runs in profile build." and its resume line.
 
 What each situation does to the profile, and how to get back to the state before any profile, is
 in [`reference/scenarios.md`](reference/scenarios.md).

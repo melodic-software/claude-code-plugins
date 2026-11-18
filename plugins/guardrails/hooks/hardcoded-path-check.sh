@@ -330,10 +330,7 @@ fi
 #
 # One git process answers both questions this lane asks of the project dir:
 # line 1 is the work-tree test, line 2 the toplevel hpp::resolve_scan_root needs.
-# Where --show-toplevel fails, git has already printed line 1, so the toplevel
-# is empty, as a separate call's would be. `exec` makes git the substitution's
-# own process: with a redirect on the command, bash would fork once more.
-_hpc_git="$(exec git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null)"
+{ _hpc_git="$(hook::git_untrusted -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel)"; } 2>/dev/null
 [[ "${_hpc_git%%$'\n'*}" == "true" ]] || exit 0
 _hpc_toplevel=""
 [[ "$_hpc_git" == *$'\n'* ]] && _hpc_toplevel=${_hpc_git#*$'\n'}
@@ -354,7 +351,7 @@ hpc_path_allowlisted "$NORM_FILE" && exit 0
 # the file to exist on disk, so this works for new Write operations too.
 # CLAUDE_PROJECT_DIR is guaranteed non-empty here — the scope guard above
 # exited on the no-project case.
-if git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
+if hook::git_untrusted -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 

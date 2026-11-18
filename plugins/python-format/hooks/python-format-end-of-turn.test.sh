@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the opt-in Stop row (python_format_end_of_turn), launched
-# exactly as hooks.json registers it: off by default; on, an uncommitted finding
-# exits 2 with the finding on stderr and nothing is rewritten; stop_hook_active
-# keeps it from blocking twice in one turn; the plugin kill switch wins. The
-# spawn budget case fences the cost every user pays per turn with the option
-# off: the node launcher only.
 # test-scope: plugins/python-format/hooks/hooks.json plugins/python-format/git-hooks/lint.sh plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED
@@ -35,7 +29,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# The Stop row's args from hooks.json, with the plugin root substituted.
 mapfile -t ARGS < <(jq -r '.hooks.Stop[0].hooks[0].args[]' "$PLUGIN/hooks/hooks.json" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN#g")
 expect "the Stop row launches node with the end-of-turn gate" \
   "node --run-if-unset-or-true PYTHON_FORMAT_ENABLED --require-true PYTHON_FORMAT_END_OF_TURN --end-of-turn" \
@@ -73,9 +66,6 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED=false)"
-# Without ruff the check script fails an agent (git-hooks test); the row turns
-# that one failure into a silent pass, since the SessionStart probe already
-# reports the missing tool.
 NOTOOL="$WORK/no-ruff"
 mkdir -p "$NOTOOL"
 for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
@@ -86,9 +76,6 @@ expect "on: a missing ruff passes silently" "0|" \
 git -C "$R" checkout -q a.py
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN=true)"
 
-# A missing-tool line is a host problem the row stays quiet about, but it never
-# hides a finding printed beside it. A copy of the plugin with a stand-in lint
-# entry prints both.
 COPY="$WORK/plugin-copy"
 mkdir -p "$COPY/git-hooks"
 cp -R "$HOOK_DIR" "$COPY/hooks"

@@ -26,7 +26,6 @@ export function lessonDirName(position, title) {
   return `${padded}-${slug}`;
 }
 
-// Stable lesson identity shared by logs, dedup-report keys and manifest lookups.
 export function formatLessonLabel(mod, lesson) {
   return `M${mod.position}L${lesson.position}`;
 }

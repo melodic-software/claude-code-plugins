@@ -688,12 +688,13 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
     as of 2026-10-07; recheck when that section drops the seed variable).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
     the path [resolves against the repository's main checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
-    so every git worktree shares it, with no separate `marketplace add` step. The marketplace
-    registers only in a folder the collaborator trusted: after the trust dialog in an interactive
-    session and, in a `-p` run, only in a folder already trusted. A cloud session
-    [doesn't load the plugins the repository's settings turn on](https://code.claude.com/docs/en/plugins/install#install-a-plugin)
-    (Cloud session tab).
-    See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
+    so every git worktree shares it, with no separate `marketplace add` step. Rely on it only in a
+    folder the collaborator has already trusted, in an interactive session or a `-p` run. When
+    checking how folder trust gates the registration, fetch that section live; when checking what a
+    cloud session loads, fetch
+    [install a plugin](https://code.claude.com/docs/en/plugins/install#install-a-plugin) (Cloud
+    session tab) live, and see [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions
+    on this repo".
 
 ## Per-plugin migration gate
 

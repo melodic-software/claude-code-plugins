@@ -1,8 +1,12 @@
 pre-commit:
   jobs:
-    - name: javascript-format-remote-format
-      script: javascript-format-format.sh
-      runner: sh
-    - name: javascript-format-remote-lint
-      script: javascript-format-lint.sh
-      runner: sh
+    - name: javascript-format-remote
+      group:
+        piped: true
+        jobs:
+          - name: javascript-format-remote-format
+            script: javascript-format-format.sh
+            runner: sh
+          - name: javascript-format-remote-lint
+            script: javascript-format-lint.sh
+            runner: sh

@@ -12,7 +12,7 @@ metadata:
 
 ## Context. Gather first
 
-Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `surface`. Probe commands, the
 one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
@@ -291,7 +291,8 @@ that ends on anything else can run out of room before the rails prompt appears: 
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
 not the rails block (plus its below-rail notes) is a failed handoff even when every box above is
 ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
-to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet.
+to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet. A
+markdown surface (`surface` probe) keeps that order, shaped per engine doc "Markdown surfaces".
 
 **Full path:**
 
@@ -382,10 +383,9 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
-- [ ] Resume prompt emitted between dashed rails as the `save_point.py emit <file>` output pasted
-  verbatim (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
-  headlines, the below-rail `claude --resume` line), never retyped or regenerated, so the screen
-  equals the file's `## Resume prompt` section byte for byte; `Next:` holds 1 to 5 plain
+- [ ] Resume prompt is the `save_point.py emit <file>` output (`--format markdown` on a markdown
+  surface) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
+  or regenerated; in the terminal it equals the file's `## Resume prompt` byte for byte; `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
   `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`
   last only at a stage boundary. The directive `@`-references the file by its **absolute**,

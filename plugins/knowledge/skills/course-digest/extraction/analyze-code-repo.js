@@ -117,7 +117,6 @@ async function resolveCloneDir(parsed, codeOutputDir) {
   }
 
   checkRepoSize(parsed);
-  // mkdtemp creates the directory with mode 0700 and an unpredictable name.
   const tempRoot = await mkdtemp(join(tmpdir(), "course-repo-"));
   /** @type {string | null} */
   let cloneDir = null;

@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.2] - 2026-11-18
+
+### Changed
+
+- The tooling reference no longer describes what StrykerJS writes when `inPlace` is `true`. It keeps the classification as its own rule: `false` is out-of-tree and `true` is in-tree whole-file, so Phase 0 picks the whole-file restoration gate. The linked StrykerJS section covers what each value writes.
+
+## [0.20.1] - 2026-11-18
+
+### Changed
+
+- The audit's `test-command` table no longer repeats the `dotnet test` empty-filter exit code in its .NET row; the row points at "Running a .NET test set", which keeps the refusal and its reason ([#16878](https://github.com/melodic-software/claude-code-plugins/issues/16878)).
+
 ## [0.20.0] - 2026-11-17
 
 ### Added

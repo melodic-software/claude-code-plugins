@@ -55,8 +55,6 @@ class ScopeFilterTests(unittest.TestCase):
         os.name != "posix" or os.geteuid() == 0, "needs a non-root POSIX user"
     )
     def test_an_unreadable_file_is_dropped_and_named_on_stderr(self) -> None:
-        # Dropped, so one locked file does not turn its whole lane unavailable;
-        # named, so it does not vanish from the scope with nothing said.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "open.md").write_text("x\n", encoding="utf-8")

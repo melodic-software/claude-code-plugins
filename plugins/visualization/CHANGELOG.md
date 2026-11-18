@@ -3,6 +3,14 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.1] - 2026-11-18
+
+### Changed
+
+- The `visualize` decision matrix no longer restates the interactive-mode page on terminal
+  Markdown or the open issues on public sharing, and reads the Artifact tool's rules live from the
+  tool's own description. Each entry now gives the skill's own rule and a pointer to read live.
+
 ## [1.3.0] - 2026-11-18
 
 ### Added

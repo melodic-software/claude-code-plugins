@@ -132,8 +132,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
-    // The named provenance field carries the capability-absent reason —
-    // explicitly, never silently, and never as a failure.
     expect(output.transcriptDegradation).toContain("faster-whisper");
     expect(output.transcriptDegradation).toContain("without a transcript");
     expect(output.transcriptStrategy).toBeNull();
@@ -150,7 +148,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
     const state = JSON.parse(stateRaw);
     expect(state.phases.transcript.metrics.transcriptDegradation).toContain("faster-whisper");
     expect(state.phases.transcript.metrics.skipped).toBe(true);
-    // source:* provenance persists into watch state alongside the degradation.
     expect(state.sourceMetadata["source:displayId"]).toBe(TWID);
   });
 });

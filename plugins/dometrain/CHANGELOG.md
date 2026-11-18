@@ -3,6 +3,13 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.10] - 2026-11-18
+
+### Changed
+
+- `/dometrain:grounding` no longer describes how `search_dometrain` results are ranked or what they contain. It says to rank a hit a result marks as a partial or semantic-only match below an exact one, and points to the server README's Tools section for the result shape.
+- `/dometrain:update`'s spoke-path rule no longer explains how Claude Code resolves `${…}` tokens. It says never to pass one from the `context/` files to the Bash tool, and links the plugins reference section on where each variable resolves.
+
 ## [0.9.9] - 2026-11-17
 
 ### Changed

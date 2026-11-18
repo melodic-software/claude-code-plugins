@@ -157,7 +157,7 @@ _BFR_TEAM_REL="docs/conventions/guardrails.yaml"
 _bfr_allowed() {
   local root text recs val key=$'\nfix_request_post\t'
   hook::repo_root_to root "$_BFR_CWD" || return 1
-  text=$(git -C "$root" show "refs/remotes/origin/HEAD:$_BFR_TEAM_REL" 2>/dev/null) || return 1
+  text=$(hook::git_untrusted -C "$root" show "refs/remotes/origin/HEAD:$_BFR_TEAM_REL" 2>/dev/null) || return 1
   if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
     printf 'guardrails: %s does not parse; fix_request_post stays block.\n' "$_BFR_TEAM_REL" >&2
     return 1

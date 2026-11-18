@@ -175,8 +175,9 @@ complete and usable together, sets the level of detail from the user's training,
 and exists partly to place warnings and cautions where they will be read. The
 Linux kernel's patch-submission guidance says a body must describe the problem
 that motivated the work and its user-visible impact, which is the record a
-shorter body destroys. Claude Code's own Concise output style also keeps a
-floor of content in full
+shorter body destroys. Claude Code's Concise output style sets a content floor
+of its own; where it differs from this one, this floor governs every rewrite
+this skill makes
 ([record](sources.md#claude-code-concise-output-style)).
 
 When brevity and completeness genuinely conflict, put the bottom line first and

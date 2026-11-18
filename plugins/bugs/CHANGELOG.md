@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.2] - 2026-11-18
+
+### Changed
+
+- The `scan` skill's refill cap drops the unsourced ~1:50 signal-to-noise figure and keeps the token-sink reason, now stated by mechanism: each refill wave pays the full gate again ([#16873](https://github.com/melodic-software/claude-code-plugins/issues/16873)).
+
 ## [0.24.1] - 2026-11-16
 
 ### Changed

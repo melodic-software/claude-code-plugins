@@ -187,7 +187,8 @@ provenance decides whether the `L3` bar applies,
 ## Required plugins per stage
 
 Derived from the skills each stage skill invokes on its normal path. A `cloud-routine` stage may carry
-only the connectors its row lists; the probe fails on any other.
+only the connectors its row lists; the probe fails on any other, since this contract does not count
+on a routine leaving a connector out or asking before its tools run.
 
 | Stage | Required plugins | Reads untrusted input | `cloud-routine` connectors |
 |---|---|---|---|
@@ -230,10 +231,10 @@ The lanes launcher carries a copy of the plugin column (`stage_required_plugins`
 
 ## Vendor facts this contract depends on
 
-- **Routine triggers.** Pointer: the "Supported events" table on
-  [Routines](https://code.claude.com/docs/en/routines#supported-events) (pull request and release
-  events), and its "Connectors" section (every connected connector is included by default and its
-  tools run without approval). The open conflict is anthropics/claude-code#72290 (an issue-opened
+- **Routine triggers.** Pointer: when checking which events can trigger a routine, fetch
+  [Routines: Supported events](https://code.claude.com/docs/en/routines#supported-events) live;
+  when checking which connectors a routine carries and whether their tools need approval, fetch
+  [Routines: Connectors](https://code.claude.com/docs/en/routines#connectors) live. The open conflict is anthropics/claude-code#72290 (an issue-opened
   routine trigger that did not fire, closed as stale); nothing here relies on an issue trigger.
 - **Cloud launch and upload.** Pointer:
   [Start a cloud session from your terminal](https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal)

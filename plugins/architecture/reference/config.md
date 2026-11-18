@@ -5,8 +5,8 @@ consumer's convention home**, bound by the pointer line the consuming marketplac
 expression doctrine defines. Zero config is not a working state for this surface, because `architecture_dir`
 has no default and a plugin guessing where a repository keeps its architecture artifacts would
 write two files into a directory nobody asked for. The `record-decision` keys use a separate
-surface, [Decision-record keys](#decision-record-keys), and so does `/architecture:improve-layout`,
-[Layout keys](#layout-keys).
+surface, [Decision-record keys](#decision-record-keys), and so do `/architecture:improve-layout`,
+[Layout keys](#layout-keys), and `/architecture:improve`, [Improve keys](#improve-keys).
 
 ## Where the config lives
 
@@ -128,6 +128,26 @@ layout:
   min_revs: 3
   exclude_authors:
     - "dependabot[bot]"
+```
+
+## Improve keys
+
+`/architecture:improve` reads one `improve` object through the same team and personal files and the
+same `<home>` rules as the decision-record keys above, with
+`skills/improve/scripts/improve-settings.mjs`. It has no `userConfig` entries. A value the invocation
+prompt names wins for that run. An unknown key inside `improve`, or a value the schema rejects, is
+reported with its file and key, and that value is dropped as above.
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `unattended_min_badge` | `Speculative`, `Worth exploring`, `Strong` | `Speculative` | The weakest badge an unattended deepening run writes to its candidate file. The default writes every band |
+| `history_commits` | integer, at least 1 | `100` | How many of the newest commits the deepening and conventions lenses read to find the paths that change most |
+| `exclude_authors` | list of strings | `["[bot]"]` | A commit whose author name contains any of them is left out of that read. A layer that sets the list replaces a lower layer's list whole |
+
+```yaml
+improve:
+  unattended_min_badge: Strong
+  history_commits: 250
 ```
 
 ## Verification level

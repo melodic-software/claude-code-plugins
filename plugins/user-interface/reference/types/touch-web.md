@@ -93,9 +93,7 @@ Hunt for: `:hover` rules outside `@media (hover: hover)`.
 tap elsewhere.
 
 **Hover enhances, never enables.** A control that only appears on hover is unreachable on touch and
-by keyboard. Feedback (errors, confirmations, status) is visible without hover. Never rely on hover
-for the UI to function: hover reveals and embellishes, it must not be the only way to reach an
-action. A row action that only appears on hover doesn't exist on a phone. Render it always at lower
+by keyboard. Feedback (errors, confirmations, status) is visible without hover. A row action that only appears on hover doesn't exist on a phone. Render it always at lower
 emphasis, or reveal it on `:focus-within` too.
 
 Hunt for: `opacity: 0` → `:hover { opacity: 1 }` and `group-hover:opacity-100` on containers
@@ -424,7 +422,7 @@ key, the same element claiming every gesture before a tap is also a finding; und
 one that leaves the page no strip to scroll by is.
 
 **Nothing scrolls sideways.** One element wider than the viewport makes the whole page pan
-horizontally on a phone, and every screen feels loose. The usual causes: a long URL or email in a
+horizontally on a phone. The usual causes: a long URL or email in a
 card, a `<pre>` block, a wide table, a fixed-width element, `100vw` on a page that has a vertical
 scrollbar. Fix the element that overflows. `overflow-x: hidden` on `body` hides the symptom and
 breaks `position: sticky`. Recipe: `nothing-wider-than-the-viewport`; long text in a card is the
@@ -460,7 +458,7 @@ ring.
 a code block; recipe `scrollbars-styled-only-inside-small-scrollers` holds the rule and its code.
 
 Hunt for: `::-webkit-scrollbar` with no element before it, or on `html` or `body`;
-`scrollbar-width: none` on `html` or `body`.
+`scrollbar-width` (any value) or `scrollbar-color` on `html` or `body`.
 
 **Audit: Suggestion.** A custom scrollbar on the page itself rather than inside a small scroller.
 

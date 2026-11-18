@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6] - 2026-11-18
+
+### Removed
+
+- `/performance:target` no longer points at the Cachegrind manual or names one tool as the source of its counter rule; the rule keeps its reason, and spawns, syscalls and queries stay labeled as this plugin's own generalization.
+
 ## [0.15.5] - 2026-11-18
 
 ### Changed
