@@ -235,6 +235,15 @@ test("status alerts when pull-outcomes has not succeeded in 5 days or its backlo
   assert.equal(statusOf({}).code, 0);
 });
 
+test("a fresh pull exits 0 while pull-outcomes is stale, so a timer that chains them still reaches pull-outcomes, and it prints the alert", () => {
+  const { privateText } = generate();
+  const sink = sinkDir();
+  seedState(sink, { last_success_at: iso(NOW - 86400_000), outcomes: { last_success_at: iso(NOW - 6 * 86400_000) } });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([]) });
+  assert.equal(result.code, 0, result.err);
+  assert.match(result.err, /^ALERT: no pull-outcomes pass has succeeded/m);
+});
+
 test("a budget-stopped pull's successor starts listing at the name it stopped on and wraps, so two pulls together list every name", () => {
   const { privateText } = generate();
   const sink = sinkDir();

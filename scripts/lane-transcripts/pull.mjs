@@ -671,7 +671,9 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     // A complete pull is fresh; one that missed an artifact or stopped at its
     // budget is stale once its kept window is.
     pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    return alertIfStale(status(sink, d.now()));
+    const after = status(sink, d.now());
+    alertIfStale(after);
+    return after.pull_stale ? 1 : 0;
   } catch (error) {
     const kind = failureKind(error, "artifact-list");
     try {
