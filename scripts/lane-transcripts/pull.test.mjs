@@ -813,6 +813,24 @@ test("pull-outcomes copies each validated record from a lane run's job annotatio
   assert.equal(readOutcomes(sink).length, 1);
 });
 
+test("a job an interrupted pull left half written is read again whole, so its records can still disagree", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  writeRows(sink, [{ artifact_id: 1, run_id: 501, run_attempt: 1, job_id: "check-intent", created_at: iso(NOW - 3600_000), date: "2026-11-02", transcript: null }]);
+  const first = laneRecord({ class: "rate-limit" });
+  const half = { run_id: 501, run_attempt: 1, trace_id: traceIdOf(501, 1), check_run_id: 9001, job_name: "check-intent", lane: "pr-verify", workflow: "pr-verify", created_at: iso(NOW - 3600_000), date: "2026-11-02", record: first, job_records: 2 };
+  writeFileSync(paths(sink).outcomes, `${JSON.stringify(half)}\n`);
+  const deps = outcomeDeps({
+    runs: { "pr-verify.yml": [laneRun(501)] },
+    jobs: { 501: [laneJob(9001)] },
+    annotations: { 9001: [annotation(first), annotation(laneRecord({ class: "overloaded" }))] },
+  });
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps }).code, 0);
+  assert.deepEqual(readOutcomes(sink).map((o) => [o.record.class, o.job_records]), [["rate-limit", 2], ["overloaded", 2]]);
+  const [row] = readRows(sink);
+  assert.deepEqual([row.failure_class, row.failure_class_source], [null, "disagree"]);
+});
+
 test("a row's failure class stays null when its run attempt's records disagree, and differs per attempt", () => {
   const sink = sinkDir();
   mkdirSync(sink, { recursive: true });

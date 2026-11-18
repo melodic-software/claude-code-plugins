@@ -132,7 +132,8 @@ run, a skipped job, a job it already holds a record from, and a record whose own
 or trace id names another run attempt (`mismatched`). It reads annotations only, never the
 `report-check-run` check run's copy of the same record. Each `outcomes.jsonl` row holds
 `run_id`, `run_attempt`, `trace_id`, `check_run_id`, `job_name`, `lane`, `workflow`,
-`created_at` (the job's completion), `date` and `record`.
+`created_at` (the job's completion), `date`, `record` and `job_records` (how many records its job
+holds; the next pass drops and reads again a job an interrupted pull left with fewer).
 
 It keeps the transcript pull's rules under the state's `outcomes` key, apart from the pull's own:
 the same retries and rate-limit stop, a run whose jobs or annotations still fail counts as

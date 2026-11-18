@@ -35,6 +35,7 @@ import {
   traceIdOf,
   transcriptMetrics,
   transcriptPath,
+  writeOutcomes,
   writeRows,
   writeState,
 } from "./store.mjs";
@@ -401,9 +402,10 @@ function allPages(deps, kind, url, key) {
 
 /**
  * One run's lane-outcome records, read from each job's check-run annotations
- * (report-lane-outcome writes one per credential attempt), one job at a time
- * so a stopped pull never keeps half a job. A record whose own run id,
- * attempt or trace id names another run attempt is dropped.
+ * (report-lane-outcome writes one per credential attempt), one job at a time.
+ * Each row names how many records its job holds, so heldOutcomes can drop a job
+ * an interrupted pull left half written. A record whose own run id, attempt or
+ * trace id names another run attempt is dropped.
  */
 function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
   const jobs = allPages(deps, "jobs-read", `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs");
@@ -416,6 +418,7 @@ function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
     const traceId = traceIdOf(run.id, job.run_attempt);
     const annotations = allPages(deps, "annotations-read", `repos/${repo}/check-runs/${job.id}/annotations`, null);
     tally.jobs++;
+    const rows = [];
     for (const annotation of annotations) {
       const record = readRecord(annotation?.message);
       if (!record) continue;
@@ -423,7 +426,7 @@ function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
         tally.mismatched++;
         continue;
       }
-      appendOutcome(sink, {
+      rows.push({
         run_id: run.id,
         run_attempt: job.run_attempt,
         trace_id: traceId,
@@ -435,10 +438,23 @@ function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
         date: job.completed_at.slice(0, 10),
         record,
       });
+    }
+    for (const row of rows) {
+      appendOutcome(sink, { ...row, job_records: rows.length });
       known.add(job.id);
       tally.records++;
     }
   }
+}
+
+/** The outcome rows held, first removing any job that has fewer rows than its `job_records`. */
+function heldOutcomes(sink) {
+  const held = readOutcomes(sink);
+  const perJob = new Map();
+  for (const { check_run_id: id } of held) perJob.set(id, (perJob.get(id) ?? 0) + 1);
+  const whole = held.filter((o) => o.job_records === perJob.get(o.check_run_id));
+  if (whole.length < held.length) writeOutcomes(sink, whole);
+  return whole;
 }
 
 /**
@@ -483,7 +499,7 @@ function pullOutcomesWithin({ sink, repo, deps, log }) {
   const last = Date.parse(own.last_success_at ?? "");
   const resume = Date.parse(own.resume_cutoff_at ?? "");
   const cutoff = Number.isNaN(resume) ? (Number.isNaN(last) ? now - OUTCOME_FIRST_DAYS * 24 * HOUR : last - OVERLAP) : resume;
-  const known = new Set(readOutcomes(sink).map((o) => o.check_run_id));
+  const known = new Set(heldOutcomes(sink).map((o) => o.check_run_id));
   const read = { ...own.read_runs };
   const tally = { runs: 0, read_runs: 0, fork: 0, jobs: 0, known_jobs: 0, records: 0, mismatched: 0, fetch_failed: 0 };
   const failedKinds = new Set();
