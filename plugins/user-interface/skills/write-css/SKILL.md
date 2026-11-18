@@ -165,7 +165,10 @@ from, and what stays fixed and why. `/user-interface:setup` shows and changes th
 
 - Never put `text-box` trim on `*`: it shrinks every text block. The scoped label technique in
   text-and-media.md is the version to use.
-- Never set `text-rendering: optimizeLegibility`; body text keeps `auto`.
+- Never set `text-rendering: optimizeLegibility` anywhere in the stylesheet; body text keeps
+  `auto`. MDN does not recommend the value for typical article text because of its performance
+  cost: it trades rendering speed for kerning and optional ligatures,
+  [`text-rendering`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-rendering#optimizelegibility).
 - Never use a reset that puts `display: contents` or one shared grid cell on every element: it
   removes every container's box and breaks the content grid and any component that styles a `div`.
 - A scoped stylesheet never matches `:root`, `html` or `body`, and does not reach elements a child
