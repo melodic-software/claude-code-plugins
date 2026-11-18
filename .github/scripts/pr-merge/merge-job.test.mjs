@@ -971,11 +971,11 @@ test("a tick runs the check itself for no report, a refusal, a crash or a check 
 // The attempt carry (babysit_postmerge.py ATTEMPTS_ENV): the last run's
 // attempts file is handed to the check at the path the step names, and kept
 // for the next tick whether the check runs or an idle tick reuses the report.
-test("the merge job's check reads and fills the run cache the last run's reads started", () => {
-  const merge = jobBlock("merge");
-  const check = step("Check earlier lane merges", stepsOf(merge));
-  assert.ok(check.includes("BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json\n"));
-  assert.ok(merge.indexOf("- name: Start the run cache from them") < merge.indexOf("- name: Check earlier lane merges"));
+test("the merge gate answers a carried attempt from the file the merge job's check was handed", () => {
+  const merge = stepsOf(jobBlock("merge"));
+  const file = "BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json\n";
+  assert.ok(step("Check earlier lane merges", merge).includes(file));
+  assert.ok(step("Run the merge gate on each candidate", merge).includes(file));
 });
 
 test("dispatch-post-merge-runs hands the last run's attempts to the check and keeps them", () => {

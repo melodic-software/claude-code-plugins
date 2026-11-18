@@ -150,9 +150,9 @@ ATTEMPTS_VERSION = 1
 # (`_Context._compare`). A branch tip is never kept there: it moves.
 COMPARE_SECTION = "postmerge-compare"
 _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
-ATTEMPT_JOBS_SECTION = "attempt-jobs"
-CARRIED_ATTEMPT_JOBS_SECTION = "carried-attempt-jobs"
 ATTEMPT_JOBS_MAX_AGE = timedelta(days=30)
+ATTEMPT_JOBS_MAX = 400
+ATTEMPT_JOBS_BYTES = 32_768
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -1154,6 +1154,49 @@ def _attempt_answer_valid(value: Any, head_sha: str) -> bool:
     )
 
 
+def _attempt_jobs_entry_usable(key: str, entry: Any, now: datetime) -> bool:
+    """Whether a carried attempt answer can be used at `now`: its key and shape
+    are the ones `_keep_attempt` writes, the current code computed it, and it
+    is inside the age and size bounds."""
+    if not _ATTEMPT_KEY.fullmatch(key) or not is_json_object(entry):
+        return False
+    head_sha = entry.get("head_sha")
+    if not isinstance(head_sha, str) or not _FULL_SHA.fullmatch(head_sha):
+        return False
+    code = _attempt_jobs_code()
+    if code is None or entry.get("code") != code:
+        return False
+    try:
+        at = datetime.fromisoformat(entry["at"])
+        age = now - at
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        timedelta(0) <= age <= ATTEMPT_JOBS_MAX_AGE
+        and len(json.dumps(entry)) <= ATTEMPT_JOBS_BYTES
+        and _attempt_answer_valid(entry, head_sha)
+    )
+
+
+def load_attempt_jobs(path: str, repo: str, now: datetime) -> dict[str, dict[str, Any]]:
+    """The usable attempt answers in the attempts file at `path`, by
+    `<run id>:<attempt>`. An unusable entry is left out, so only its attempt
+    is read from GitHub."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    entries = data.get("jobs")
+    if (
+        data.get("version") != ATTEMPTS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(entries)
+    ):
+        return {}
+    return {
+        key: entry
+        for key, entry in entries.items()
+        if _attempt_jobs_entry_usable(key, entry, now)
+    }
+
+
 # --- Judging runs -------------------------------------------------------------------
 
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -1493,6 +1536,8 @@ class _Context:
     )
     attempts_carried: dict[str, dict[str, Any]] | None = None
     attempts_used: dict[str, dict[str, Any]] = field(default_factory=dict)
+    attempt_jobs_carried: dict[str, dict[str, Any]] | None = None
+    attempt_jobs_new: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -2044,48 +2089,68 @@ class _Context:
         return self.baseline_cache[key]
 
     def _attempt_carry_key(self, run: Run, attempt: int) -> str | None:
-        """The run cache key of `attempt` of `run`, or None while that attempt
-        must be read live: its run has not completed."""
-        code = _attempt_jobs_code()
-        if code is None or run.status != "completed" or not 1 <= attempt <= run.attempt:
+        """The attempts file's key for `attempt` of `run`, or None while that
+        attempt must be read live: no file is named, or its run has not
+        completed."""
+        key = f"{run.id}:{attempt}"
+        if (
+            not self.attempts_path
+            or run.status != "completed"
+            or not 1 <= attempt <= run.attempt
+            or not _ATTEMPT_KEY.fullmatch(key)
+        ):
             return None
-        return f"{self.owner}/{self.name}|{run.id}|{attempt}|{code}"
+        return key
+
+    def _carried_attempt_jobs(self) -> dict[str, dict[str, Any]]:
+        if self.attempt_jobs_carried is None:
+            self.attempt_jobs_carried = {}
+            path = self.attempts_path
+            if path and Path(path).exists():
+                try:
+                    self.attempt_jobs_carried = load_attempt_jobs(
+                        path, f"{self.owner}/{self.name}", datetime.now(UTC)
+                    )
+                except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+                    text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")
+                    print(f"attempt jobs not used: {text[:300]}", file=sys.stderr)
+        return self.attempt_jobs_carried
 
     def _restore_attempt(self, run: Run, attempt: int) -> bool:
-        """Answer `failing_checks` from a saved answer. An answer is saved only
-        with no unknown steps, so none is restored."""
+        """Answer `failing_checks` from a carried answer. An answer is kept
+        only with no unknown steps, so none is restored."""
         carry_key = self._attempt_carry_key(run, attempt)
         if carry_key is None:
             return False
-        for section in (ATTEMPT_JOBS_SECTION, CARRIED_ATTEMPT_JOBS_SECTION):
-            value = run_cache.get(section, carry_key, ATTEMPT_JOBS_MAX_AGE)
-            if _attempt_answer_valid(value, run.head_sha):
-                key = (run.id, attempt)
-                self.checks_cache[key] = frozenset(value["checks"])
-                self.unknown_checks[key] = frozenset()
-                self.passed_jobs[key] = frozenset(value["passed"])
-                self.check_jobs[key] = value["jobs"]
-                return True
-        return False
+        value = self._carried_attempt_jobs().get(carry_key)
+        if not _attempt_answer_valid(value, run.head_sha):
+            return False
+        key = (run.id, attempt)
+        self.checks_cache[key] = frozenset(value["checks"])
+        self.unknown_checks[key] = frozenset()
+        self.passed_jobs[key] = frozenset(value["passed"])
+        self.check_jobs[key] = value["jobs"]
+        return True
 
     def _keep_attempt(self, run: Run, attempt: int) -> None:
         carry_key = self._attempt_carry_key(run, attempt)
-        if carry_key is None:
+        code = _attempt_jobs_code()
+        if carry_key is None or code is None:
             return
         key = (run.id, attempt)
-        run_cache.put(
-            ATTEMPT_JOBS_SECTION,
-            carry_key,
-            {
-                "head_sha": run.head_sha,
-                "checks": sorted(self.checks_cache[key]),
-                "passed": sorted(self.passed_jobs[key]),
-                "jobs": {
-                    name: {"id": job.get("id"), "steps": _failed_steps(job)}
-                    for name, job in self.check_jobs[key].items()
-                },
+        entry = {
+            "at": datetime.now(UTC).isoformat(),
+            "code": code,
+            "head_sha": run.head_sha,
+            "checks": sorted(self.checks_cache[key]),
+            "passed": sorted(self.passed_jobs[key]),
+            "jobs": {
+                name: {"id": job.get("id"), "steps": _failed_steps(job)}
+                for name, job in self.check_jobs[key].items()
             },
-        )
+        }
+        if len(json.dumps(entry)) <= ATTEMPT_JOBS_BYTES:
+            self.attempt_jobs_new[carry_key] = entry
 
     def failing_checks(self, run: Run, attempt: int) -> frozenset[str]:
         """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
@@ -2593,16 +2658,21 @@ class _Context:
         return self.attempts_carried
 
     def save_attempts(self) -> None:
-        """Write the attempts file: the completed attempts this check used.
-        Untouched when the check looked up no attempt. Best effort: a
+        """Write the attempts file: the completed attempts this check used,
+        and the newest usable attempt answers, carried or new. Untouched when
+        the check looked up no attempt and computed no answer. Best effort: a
         failure is logged, and the file is left as it was."""
         path = self.attempts_path
-        if not path or self.attempts_carried is None:
+        looked_up = self.attempts_carried is not None
+        if not path or not (looked_up or self.attempt_jobs_new):
             return
+        answers = {**self._carried_attempt_jobs(), **self.attempt_jobs_new}
+        newest = sorted(answers, key=lambda k: answers[k]["at"], reverse=True)
         payload = {
             "version": ATTEMPTS_VERSION,
             "repo": f"{self.owner}/{self.name}",
-            "attempts": self.attempts_used,
+            "attempts": self.attempts_used if looked_up else self._carried_attempts(),
+            "jobs": {k: answers[k] for k in newest[:ATTEMPT_JOBS_MAX]},
         }
         _write_carried(path, payload, "attempts")
 

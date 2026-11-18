@@ -1520,7 +1520,6 @@ jobs:
           # The completed attempts kept beside dispatch-post-merge-runs's report,
           # which the fresh check answers with no read (ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
-          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -1754,6 +1753,7 @@ jobs:
           # The lane records read and added to above, for a gate that checks
           # earlier lane merges again.
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
