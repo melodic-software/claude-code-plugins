@@ -31,6 +31,11 @@ the tree already holds (a plugin registry, a route table) is reported as a secon
 comparison of keeping it, discovering its entries at build time, and generating it from the tree
 with a drift check. The report never changes the list.
 
+A run covers this repository by default. Name several (`--repo`, `--owner`, `--fleet`) and it
+runs one pass per repository and also lists files copied between them: identical files, and files
+of one name whose copies drifted apart, leaving out copies a sync manifest, a vendoring registry or
+a generated-file header already owns. Changes still ship as one pull request per repository.
+
 Two lanes keep the skill honest:
 
 - **Apply lane.** Mechanical, contained, behavior-preserving reductions, applied under a
@@ -46,6 +51,7 @@ for a one-to-one call, is refused.
 /coupling:reduce                 # full pass over an inferred scope
 /coupling:reduce src/billing     # narrowed to a path
 /coupling:reduce dry-run docs    # findings and ledger only, no edits
+/coupling:reduce dry-run --owner acme  # every acme clone, plus what they copy from each other
 /coupling:reduce status          # what is open, applied, routed, and recommended next
 /coupling:reduce change old new  # every site stating a changed value, classified, no edits
 /coupling:reduce change apply old new  # the same, then change the confirmed setup sites

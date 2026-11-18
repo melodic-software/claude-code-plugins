@@ -2,3 +2,4 @@
 # Team layer for the review plugin's settings.
 # Resolution: plugins/review/reference/config.md (read by the review skills, written by /review:setup apply).
 reproduce_findings: label
+loosened_check_decision_record: https://github.com/melodic-software/architecture/blob/

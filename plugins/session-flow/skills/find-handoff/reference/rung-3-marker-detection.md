@@ -77,7 +77,11 @@ section names. **Accept hits only from assistant text output**, in two stages:
   successful `claude --bg` launch (step 1's definition) delivered is not a lost handoff, wherever
   it was discovered.
 - **Prompt-only mode**, no file, no directive. Detect off the `─` rails and the instruction
-  line; the resume content is the region inline between its rails. `Prior session:` is
+  line; the resume content is the region inline between its rails. A handoff printed on a
+  markdown surface (`save-point.md`, "Markdown surfaces") carries each region as a fenced `text`
+  block instead, the resume one under the ``Run `/clear`, then paste this:`` line and a goal one
+  under the goal line ending ``then paste this.``; take the block's content as the region, the
+  same as the text between rails, and apply every rule below to it. `Prior session:` is
   **optional corroboration, never a required key**, the producer's prompt-only checklist
   requires only a self-contained prompt between the rails plus the copy instruction, so
   requiring it would skip valid handoffs. **Apply the same placeholder filter as file mode:** a

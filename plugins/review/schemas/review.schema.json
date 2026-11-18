@@ -59,6 +59,11 @@
       "items": { "type": "string", "minLength": 1 },
       "default": []
     },
+    "loosened_check_decision_record": {
+      "description": "The https URL prefix, ending in /, of the record that holds the decisions allowing a loosened check. Set: the bundled criterion 'Fail a change that loosens a check' also needs the spec to cite the decision, with a line link under this prefix and the owner's words after verbatim: in double quotes. Unset: no citation is needed. Read from the default branch's committed copy, so a pull request cannot change it for its own review. Repository only: no user option sets it.",
+      "type": "string",
+      "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/(?!.*(^|/)\\.{1,2}/)([A-Za-z0-9._~%+-]+/)*$"
+    },
     "council_lanes": {
       "description": "The council's lane switch. on: an unattended run (a lane, claude -p, an autonomous loop) may start /review:council in this repository. off: an unattended run stops with success and says the switch is off. An attended run never reads it. Repository only: no user option sets it.",
       "enum": ["on", "off"],

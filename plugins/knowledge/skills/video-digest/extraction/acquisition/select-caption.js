@@ -188,7 +188,6 @@ export function selectCaptionFile(
     const filenameRung = classifyCaptionRung(filePath, captionClass);
     const rung = refineWithManualKeys(filePath, filenameRung, manualKeys);
     if (filenameRung === "manual-en" && rung === "auto-en") {
-      // Ranked after the original `.en-orig.vtt` within the auto-en rung.
       autoBareEn ??= filePath;
     } else if (rung && !byRung.has(rung)) {
       byRung.set(rung, filePath);
@@ -201,7 +200,6 @@ export function selectCaptionFile(
   for (const rung of ladder) {
     const match = byRung.get(rung);
     if (!match) continue;
-    // autoBareEn is only ever stored under the auto-en rung.
     return {
       success: true,
       selection: {

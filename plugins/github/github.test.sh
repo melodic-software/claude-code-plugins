@@ -32,8 +32,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# sweep <ok-message> <failure-prefix> <grep arg>... -> pass when the grep finds
-# nothing, fail with the hits listed under the prefix otherwise.
 sweep() {
   local ok_msg="$1" fail_msg="$2" hits
   shift 2
@@ -45,25 +43,19 @@ sweep() {
   fi
 }
 
-# --- D4 sweep: no baked endpoints anywhere in the plugin --------------------
-# This file holds the very patterns it hunts, so the tree sweeps exclude it.
 SELF_EXCLUDE=(--exclude="$(basename "${BASH_SOURCE[0]}")")
 sweep "D4: no baked API endpoints" "D4 endpoint pattern found:" \
   -rEn "${SELF_EXCLUDE[@]}" "api\.github\.com|/orgs/\{|/repos/\{|/enterprises/" "$PLUGIN_DIR"
 
-# --- D4 sweep: no dollar prices anywhere in the plugin ----------------------
 sweep "D4: no shipped prices" "D4 price pattern found:" \
   -rEn "${SELF_EXCLUDE[@]}" '\$[0-9]' "$PLUGIN_DIR"
 
-# --- D4 sweep: no scope names shipped as guidance ---------------------------
 # Scope tokens in shipped prose (*.md) would be a vendored mechanics table; eval
 # scenario prompts (*.json) may legitimately posit a scope by name.
 sweep "D4: no scope names in shipped prose" "scope token in shipped prose:" \
   -r -E -i -n "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
   "$PLUGIN_DIR" --include='*.md'
 
-# --- agnostic conformance: no publisher/org/tool assumptions in prose -------
-# plugin.json author metadata is the sanctioned exception (json excluded by the glob).
 # Spelled out rather than routed through sweep: scripts/validate-plugin-contracts.mjs
 # reads this literal grep to keep the regex aligned with
 # scripts/org-agnosticism-tokens.txt class github.
@@ -74,7 +66,6 @@ else
   fail "agnosticism violation:"$'\n'"$hits"
 fi
 
-# --- area-coverage oracle ---------------------------------------------------
 # Canonical area keys from the Brief coverage matrix. This fixture is the
 # independent source the router rows are diffed against — update it only when
 # the Brief's coverage list changes.
@@ -111,7 +102,6 @@ canonical_areas=(
 if [[ ! -f "$AREAS" ]]; then
   fail "missing $AREAS"
 else
-  # Router rows are "| `key` | tier | ..." — extract the backticked key column.
   # shellcheck disable=SC2016  # literal backtick/$ in the patterns, no expansion wanted
   mapfile -t router_areas < <(grep -oE '^\| `[a-z0-9-]+`' "$AREAS" | sed 's/^| `//; s/`$//' | sort)
   diff_out=$(diff <(printf '%s\n' "${canonical_areas[@]}" | sort) <(printf '%s\n' "${router_areas[@]}") || true)
@@ -122,7 +112,6 @@ else
   fi
 fi
 
-# --- recipe non-hollow contract ---------------------------------------------
 recipes=(billing.md security-posture.md rulesets-repo-drift.md actions-policy.md)
 fixed_headings=(
   "## Credential-and-gate preflight"
@@ -144,14 +133,11 @@ for r in "${recipes[@]}"; do
       fail "$r missing heading '$h'"
     fi
   done
-  # Sixth section is area-shaped: cost levers (billing) or posture heuristics.
   if grep -qE "^## (Cost-control levers|Posture heuristics)$" "$f"; then
     ok "$r carries a levers/heuristics section"
   else
     fail "$r missing '## Cost-control levers' or '## Posture heuristics'"
   fi
-  # Checklist depth: >=10 numbered questions between the checklist heading and
-  # the next H2 (wrapped lines: count only list-starting lines).
   qcount=$(awk '/^## Audit-question checklist$/{flag=1; next} /^## /{flag=0} flag && /^[0-9]+\./{n++} END{print n+0}' "$f")
   if [[ "$qcount" -ge 10 ]]; then
     ok "$r checklist has $qcount questions (>=10)"
@@ -160,7 +146,6 @@ for r in "${recipes[@]}"; do
   fi
 done
 
-# --- evals present for every judgment-bearing skill -------------------------
 for s in audit advise setup; do
   e="$PLUGIN_DIR/skills/$s/evals/evals.json"
   if [[ -f "$e" ]] && grep -q '"skill_name"' "$e"; then

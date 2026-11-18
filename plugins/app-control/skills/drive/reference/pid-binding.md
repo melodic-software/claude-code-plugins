@@ -14,16 +14,18 @@ rules.
   (`launch`, [`evidence.md`](evidence.md)). The uid is the one every uid field of the
   process holds (real, effective, saved and filesystem must all be equal). The start time is the
   integer the process table gives (on Linux, the `starttime` field of
-  <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html#DESCRIPTION>), read from the fields
-  after the last `)` of `/proc/<pid>/stat`, since the command name before it is one the process
-  can write itself (<https://man7.org/linux/man-pages/man5/proc_pid_comm.5.html#DESCRIPTION>),
-  spaces and `)` included. The hash is taken over the raw command line bytes, on Linux every byte of
-  `/proc/<pid>/cmdline` exactly as read, NUL separators and the trailing NUL included
-  (<https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html#DESCRIPTION>); the stored
-  `command_line` is a display form, never the hash input. A `capture` in a later invocation reads the record
-  from the run directory named by `--out`. No launch record means this run launched nothing:
-  unattended, `blocked: no process launched by this run`; interactive, only
-  [Attach](../SKILL.md#attach).
+  <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html#DESCRIPTION>), counted from the
+  fields after the last `)` of `/proc/<pid>/stat`, never from the start of the line, so no text in
+  the command name field can shift the count. The hash is taken over the raw command line bytes,
+  on Linux every byte of `/proc/<pid>/cmdline` exactly as read, with nothing split, trimmed or
+  re-joined, so argument boundaries stay part of the hash. The stored `command_line` is a display
+  form, never the hash input. A `capture` in a later invocation reads the record from the run
+  directory named by `--out`. No launch record means this run launched nothing: unattended,
+  `blocked: no process launched by this run`; interactive, only [Attach](../SKILL.md#attach).
+  - **Pointer**: when checking who may set a process's command name, fetch
+    <https://man7.org/linux/man-pages/man5/proc_pid_comm.5.html#DESCRIPTION> live.
+  - **Pointer**: when checking how `/proc/<pid>/cmdline` lays out its bytes, fetch
+    <https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html#DESCRIPTION> live.
 - **A capture picks its record by app.** The launched pid is that of the one `launch` entry whose
   `app` is the app of the control skill whose `## Capture` row the capture uses; an entry with no
   `app`, as a one-object record from an earlier run holds, takes the report's `app`. No such entry is

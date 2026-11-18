@@ -316,7 +316,7 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
       { get: (known, id) => known[id] ?? (/^scan-upload(-\d+)?$/.test(id) ? { outcome: "success", outputs: { clean: "true" } } : undefined) },
     );
     const always = () => true;
-    const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "dispatch-post-merge-runs": { result: "success", outputs: { "rate-limited": "" } } }, always);
+    const value = new Function("steps", "github", "needs", "always", "inputs", `return (${condition.replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "dispatch-post-merge-runs": { result: "success", outputs: { "rate-limited": "" } } }, always, {});
     // It reads the job's own token, and runs on a kill switch too.
     if (name === "Log the API budget at job end") {
       continue;
@@ -597,6 +597,11 @@ test("the eval-release wake runs on what the merge job released, whatever its re
   assert.equal(evalIf("wake-eval-released", schedule, {}, released("7", "failure")), true);
   assert.equal(evalIf("wake-eval-released", schedule, {}, released("", "skipped")), false);
   assert.equal(evalIf("wake-eval-released", schedule, {}, released("")), false);
+  const dispatch = { event_name: "workflow_dispatch", event: { sender: { type: "User" } } };
+  assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("7")), true, "a sweep dispatch that released a pull request");
+  assert.equal(evalIf("wake-eval-released", dispatch, { pr: "" }, released("")), false, "a sweep dispatch that released none");
+  assert.equal(evalIf("merge", dispatch, { pr: "7" }), false, "a PR-scoped dispatch skips merge");
+  assert.equal(evalIf("wake-eval-released", dispatch, { pr: "7" }, released("", "skipped")), false, "a PR-scoped dispatch wakes nothing");
   const wake = job("wake-eval-released");
   assert.match(wake, /^ {4}needs: \[merge\]\n/m);
   assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);
@@ -1507,16 +1512,44 @@ test("the merge job's ceiling covers the gate's sweep, the escalation clear and 
   assert.ok(total >= 2 + Math.max(10 + 4, 20) + 4 + clear + release, `${total} minutes for the gate, a ${clear}-minute clear and a ${release}-minute release`);
 });
 
-// The eval-hold release runs no model and mints nothing: it reuses the merge
-// job's lane token on the schedule only, under the escalation clear's gate.
-test("the eval-hold release reuses the merge job's lane token on the schedule, with no model", () => {
+const RELEASE_STEP = "Release eval holds whose record matches the head";
+const releaseRuns = (github, inputs = {}, overrides = {}) => {
+  const text = stepIf("merge", RELEASE_STEP).replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]');
+  const steps = {
+    "lane-token": { outputs: { token: "t" } },
+    mode: { outputs: { "report-only": "false" } },
+    gate: { outputs: { "rate-limited": "" } },
+    candidates: { outputs: { listed: "true" } },
+    ...overrides,
+  };
+  return new Function("always", "github", "inputs", "steps", `return (${text});`)(() => true, github, inputs, steps);
+};
+
+test("the eval-hold release runs on the schedule and a sweep dispatch, never a PR-scoped dispatch or a PR event", () => {
+  const dispatch = { event_name: "workflow_dispatch" };
+  assert.equal(releaseRuns({ event_name: "schedule" }), true, "a scheduled run");
+  assert.equal(releaseRuns(dispatch, { pr: "" }), true, "a dispatch with an empty pr");
+  assert.equal(releaseRuns(dispatch), true, "a dispatch with no pr input");
+  assert.equal(releaseRuns(dispatch, { pr: "12" }), false, "a PR-scoped dispatch");
+  assert.equal(releaseRuns({ event_name: "pull_request_target" }), false, "a pull_request_target run");
+  assert.equal(releaseRuns({ event_name: "push" }), false, "a push");
+});
+
+test("a sweep dispatch keeps every other gate on the eval-hold release", () => {
+  const sweep = (overrides) => releaseRuns({ event_name: "workflow_dispatch" }, { pr: "" }, overrides);
+  assert.equal(sweep({ "lane-token": { outputs: { token: "" } } }), false, "no lane token");
+  assert.equal(sweep({ mode: { outputs: { "report-only": "true" } } }), false, "report-only");
+  assert.equal(sweep({ gate: { outputs: { "rate-limited": "true" } } }), false, "the gate's rate-limit stop");
+  assert.equal(sweep({ candidates: { outputs: { held: "true" } } }), false, "a held listing");
+  assert.equal(sweep({ candidates: { outputs: {} } }), false, "a listing that ended without writing listed");
+  assert.match(stepIf("merge", RELEASE_STEP).trimStart(), /^always\(\) && /, "a failed earlier step does not skip the release");
+});
+
+test("the eval-hold release reuses the merge job's lane token, with no model", () => {
   const gate = job("merge");
-  const start = gate.indexOf("- name: Release eval holds whose record matches the head\n");
+  const start = gate.indexOf(`- name: ${RELEASE_STEP}\n`);
   assert.ok(start > 0, "the merge job has the eval-hold release step");
   const step = gate.slice(start, gate.indexOf("\n\n", start));
-  assert.match(step, /github\.event_name == 'schedule'/);
-  assert.match(step, /steps\.lane-token\.outputs\.token != ''/);
-  assert.match(step, /steps\.mode\.outputs\.report-only == 'false'/);
   assert.match(step, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/release-eval-hold\.mjs$/);
   assert.doesNotMatch(step, /claude|anthropic|request-lane-token|uses:|github\.event\.comment/i);

@@ -24,21 +24,14 @@ the server `instructions` field C4 sizes is not in its output. Resolve it once p
 
 The construction site is usually **not** one of that server's `Tool file:` paths. A server typically
 constructs itself at one entry point while tools are registered elsewhere. Search the directory subtree
-those paths share for the server constructor or options (python `FastMCP(...)` or
-`MCPServer(...)`, typescript `new McpServer(...)`, dotnet `McpServerOptions`) and the SDK's own
-spelling of the instructions setting there, rather than reading the tool files alone. Read that
-spelling at the SDK's reference:
+those paths share for where the server is constructed and the SDK's own setting for its
+instructions there, rather than reading the tool files alone.
 
-- **Pointer**: when locating where a server sets its instructions, fetch the
-  [python `MCPServer` class](https://py.sdk.modelcontextprotocol.io/api/mcp/server/#mcp.server.MCPServer),
-  the [typescript `ServerOptions`](https://ts.sdk.modelcontextprotocol.io/v2/api/@modelcontextprotocol/server/server/server.html#serveroptions),
-  or the [dotnet `McpServerOptions` class](https://csharp.sdk.modelcontextprotocol.io/v1/api/ModelContextProtocol.Server.McpServerOptions.html)
-  live; when checking which protocol message carries the field in a revision, fetch the
+- **Pointer**: when checking which protocol message carries the field in a revision, fetch the
   [2026-07-28 changelog, Major changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes)
   live.
 - **As of**: 2026-11-03
-- **Recheck trigger**: an SDK release renames or moves its instructions setting, or a new spec
-  revision changes how a server advertises itself.
+- **Recheck trigger**: a new spec revision changes how a server advertises itself.
 
 A server whose construction site declares no
 `instructions` has nothing to size, and C4's per-server clause is not a finding against it; record it

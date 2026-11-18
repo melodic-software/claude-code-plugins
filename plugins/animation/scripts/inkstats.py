@@ -284,7 +284,6 @@ def one(rgb):
     n, lab, st, _ = cv2.connectedComponentsWithStats(ink.astype(np.uint8), connectivity=8)
     field = core_i & (lab == 1 + int(np.argmax(st[1:, 4]))) if n > 1 else core_i
 
-    # a statistic with nothing to measure in this drawing is None (n/a), never 0
     def pct(v, q):
         return float(np.percentile(v, q)) if len(v) else None
 

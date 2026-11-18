@@ -204,8 +204,11 @@ silently dropped, and never re-classified as a placement finding just because th
 missing. A section can be both misplaced and duplicated; routing one question does not cancel the
 other finding.
 
-Two rungs of this plugin's own ladder are deliberately report-only. Content that a linter should
-enforce, and content that should become a skill, are routed rather than executed: authoring the
+Two rungs of this plugin's own ladder are deliberately report-only. Content that a mechanism should
+enforce, and content that should become a skill, are routed rather than executed. When
+`/corrections:codify` is available, the finding names the codify call that chooses the mechanism;
+otherwise it proposes the strongest mechanism that can decide the rule and says the proposal is
+unproven. Authoring the
 replacement mechanism is separate work, and deleting an instruction before its replacement exists
 removes the only thing enforcing it.
 

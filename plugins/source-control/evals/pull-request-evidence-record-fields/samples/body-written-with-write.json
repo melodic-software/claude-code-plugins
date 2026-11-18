@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/evidence-412.md",
+            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n| Record | |\n|---|---|\n| Verified by | Dana Okafor |\n| Verified at | 2026-11-16T19:20:00Z |\n| Issues found and resolution | none found in this run |\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
+          }
+        }
+      ],
+      "why": "the body file written with the Write tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no body file written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > /tmp/evidence-412.md <<'EOF'\n<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- The cart page shows the total in currency: passed\n\n| Record | |\n|---|---|\n| Verified by | Dana Okafor |\n| Verified at | 2026-11-16T19:20:00Z |\n| Issues found and resolution | none found in this run |\n\nCaptured with /app-control:drive. Before is base 1f2e3d4c5b6a, After is 58acec248c73c4308349647924aaa337a9d02fb6.\n\n| | cart page |\n|---|---|\n| Before | ![base-cart.png](/tmp/w/evidence/base/base-cart.png)<br>open on cart page |\n| After | ![head-cart.png](/tmp/w/evidence/head/head-cart.png)<br>open on cart page |\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\nEOF"
+          }
+        }
+      ],
+      "why": "the same body written with a Bash heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/notes.md",
+            "content": "Evidence comment to post for PR 412.\n"
+          }
+        }
+      ],
+      "why": "a Write that holds no evidence body"
+    }
+  ]
+}

@@ -39,7 +39,6 @@ class BodyExtractor(HTMLParser):
 
     def flush(self, prefix=""):
         if self.cells is not None:
-            # A block boundary inside a table row stays in the cell's text.
             self.buf.append(" ")
             return
         text = " ".join("".join(self.buf).split())
@@ -58,8 +57,6 @@ class BodyExtractor(HTMLParser):
             entry[2] = " " * len(entry[2])
 
     def start_skip(self, a):
-        # Widget chrome: copy buttons, video controls, and the code header,
-        # whose language label becomes the next fence's info string.
         self.skip = 1
         self.buf.append(" ")
         if "ch" in classes(a):
@@ -151,8 +148,6 @@ class BodyExtractor(HTMLParser):
         if tag == "table" and self.table is not None:
             if self.table:
                 if self.lists:
-                    # A table inside a list item stays in the item: the first row takes the
-                    # item's pending prefix, every later row its continuation indent.
                     entry = self.lists[-1]
                     indent = " " * len(entry[2])
                     rows = [entry[2] + self.table[0], *(indent + row for row in self.table[1:])]

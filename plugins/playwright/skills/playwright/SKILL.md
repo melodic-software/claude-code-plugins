@@ -136,10 +136,12 @@ This skill is the browser-automation driver; it is self-contained. If your proje
 
 The `reference/` files write this skill's directory as `<skill-dir>`, which is
 `${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
-it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
-would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
-to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+it into a brief; never hand a `${…}` token from those files to the Bash tool.
+
+- **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
+  carries, fetch
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
 
 ## Next
 

@@ -3,6 +3,22 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.0] - 2026-11-18
+
+### Changed
+
+- When `/corrections:codify` is available, `/harness-memory:audit` hands it the choice of mechanism for a C8 instruction that could move up the enforcement hierarchy. The audit's own list of six mechanisms is gone. Without codify, the audit proposes the strongest mechanism that can decide the rule (make the mistake impossible, then a blocking check, then a test, then an instruction) and says the proposal is unproven. The C3 placement table and the "Hooks vs CLAUDE.md" and "Style enforcement" notes send content a check could decide the same way.
+- The `fix` action gains a C8 pattern. It hands the file to `/corrections:codify rules <the file>`, or offers the user `/corrections:codify "<the rule>"` to type for one rule, and keeps the prose until the check exists, unless C8 item 5 holds it. C8 items 4 and 5 are unchanged.
+
+## [2.2.4] - 2026-11-18
+
+### Changed
+
+- `audit`: the "No official scoring rubric" record no longer describes the `claude-md-improver`
+  skill's rubric. It keeps the decision and points at that plugin's README section.
+- `stateless`: the `/memory` record no longer restates the commands reference's `/memory` row. It
+  points at the anchored All commands section and keeps the binary-extraction record.
+
 ## [2.2.3] - 2026-11-18
 
 ### Changed

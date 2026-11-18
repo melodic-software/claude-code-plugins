@@ -1,32 +1,17 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "result lines then collapsed sections"
     }
   ],
   "fail": [
     {
-      "answer": []
+      "answer": "",
+      "why": "nothing was posted"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/evidence-412.md",
-            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
-          }
-        }
-      ],
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n",
       "why": "a collapsed section comes first"
     }
   ]

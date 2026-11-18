@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.3] - 2026-11-18
+
+### Security
+
+- The convention resolver (`resolve-convention-pattern.sh`, run by `block-convention-violation`) and `stale-path-verify` no longer start the `core.fsmonitor` command a repository's own config names: their `git ls-files` and `git check-ignore` calls pass `--no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null`. The other git calls guardrails hooks make (`rev-parse`, `show`, `config`, `branch`, `log`) take the same overrides, through `hook::git_untrusted` where the hook loads `hook-utils.sh`.
+
+## [3.10.2] - 2026-11-18
+
+### Security
+
+- The git ignore checks in secret-pattern-detection (`secret_pattern_detection_skip_gitignored`),
+  hardcoded-path-check and the shared hook::file_is_gitignored run git with core.fsmonitor and
+  core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a
+  repository whose config names a command cannot make it run.
+
+## [3.10.1] - 2026-11-18
+
+### Fixed
+
+- The README intro and the manifest description now both count 22 toggleable guards, the guards
+  with their own `userConfig` switch; the README said twenty and the manifest 25.
+
 ## [3.10.0] - 2026-11-18
 
 ### Added

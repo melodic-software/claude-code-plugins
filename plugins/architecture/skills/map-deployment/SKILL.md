@@ -350,42 +350,49 @@ its report line is printed. Procedure:
   whose name names a credential are redacted wherever they land, including in a name, image or
   port. A secret that differs between two environments is reported as differing, and neither value
   is printed.
-- **CloudFormation template shape.** Claim: the YAML short form `!Ref name` equals
-  `Ref: name`, and JSON writes `{ "Ref": "name" }`. Basis:
-  <https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ref.html>.
-  Claim: `Fn::Sub`, `Fn::GetAtt`, and the other functions take the same `!Name` short form and
-  `Fn::Name` long form; `Ref` to a parameter returns its value. Basis: the same reference index,
-  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html>.
-  Claim: `AWS::ECS::Service` takes `Cluster`, `DesiredCount`, `ServiceName`, and `TaskDefinition`.
-  Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-service.html>.
-  As of: 2026-09-30. Recheck when any of those pages changes a form or property name.
+- **CloudFormation template shape.** The reader takes a YAML short-form tag (`!Ref`, `!Sub`,
+  `!GetAtt`) as its long form (`Ref`, `Fn::Sub`, `Fn::GetAtt`), so a YAML and a JSON template
+  record the same values, and resolves a `Ref` to a parameter from the sources listed above. A
+  service is read from the `AWS::ECS::Service` properties `Cluster`, `DesiredCount`, `ServiceName`
+  and `TaskDefinition`. Pointer: when checking those forms or property names, fetch
+  [`Ref` § Declaration](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ref.html#ref-declaration),
+  [§ Return value](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ref.html#ref-return-value),
+  [`Fn::Sub` § Declaration](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-sub.html#intrinsic-function-reference-sub-declaration),
+  [`Fn::GetAtt` § Declaration](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-getatt.html#getatt-declaration)
+  and `AWS::ECS::Service` [§ Cluster](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-service.html#cfn-ecs-service-cluster),
+  [§ DesiredCount](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-service.html#cfn-ecs-service-desiredcount),
+  [§ ServiceName](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-service.html#cfn-ecs-service-servicename)
+  and [§ TaskDefinition](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-service.html#cfn-ecs-service-taskdefinition)
+  live.
 - **CloudFormation parameters and secrets.** The redaction and resolution rules above read
   `NoEcho`, `Default` and the `{{resolve:...}}` forms. Pointer: when checking what those mean or
   how a dynamic reference is written, fetch
   [Parameters § Properties](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#parameters-section-structure-properties)
   and
   [Dynamic references](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#dynamic-references)
-  live. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
-  array or a template configuration file with a top-level `Parameters` object. Basis:
-  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-using-cli-parameters.html>. No
-  document names a per-environment file convention, so the pairing rules above are this skill's own.
-  As of: 2026-09-30. Recheck when those pages change the syntax or add a parameter file shape.
+  live. The reader takes a JSON file as a parameter file when it is a
+  `ParameterKey`/`ParameterValue` array, or an object whose first key is `Parameters` with no
+  `Resources`. The pairing rules above that tie a parameter file to an environment are this
+  skill's own.
 - **Pulumi YAML program and stack shape.** The reader maps the project file's `runtime`, the
   program's `resources`, `variables` and `outputs`, `config` items, `${...}` interpolation and the
   `fn::toJSON`, `fn::secret` and `fn::join` forms. Pointer: when checking those forms, fetch
   [project file § Attributes](https://www.pulumi.com/docs/concepts/projects/project-file/#attributes), [§ Runtime options](https://www.pulumi.com/docs/concepts/projects/project-file/#runtime-options),
   and the YAML language reference's [§ Config](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#config), [§ Interpolation](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#interpolation),
   [§ Built-in variables](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#built-in-variables), [§ fn::toJSON](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fntojson),
-  [§ fn::secret](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnsecret) and [§ fn::join](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnjoin) live. Claim:
-  `Pulumi.<stack>.yaml` holds a `config` map keyed `[<namespace>:]<key>`, the project name is the default
-  namespace, and an encrypted value is `secure: <ciphertext>`. Basis:
-  <https://www.pulumi.com/docs/concepts/config/> and
-  <https://www.pulumi.com/docs/iac/concepts/secrets/>. Claim: `aws:ecs:Service` takes `cluster`,
-  `taskDefinition`, `desiredCount`, and `name`, and `aws:ecs:TaskDefinition` takes `containerDefinitions`
-  as `fn::toJSON` over a list of `name`, `image`, `portMappings` (`containerPort`). Basis:
-  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/> and
-  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>. As of: 2026-09-30.
-  Recheck when any of those pages changes a key, the `secure:` form, or the `runtime` forms.
+  [§ fn::secret](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnsecret) and [§ fn::join](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnjoin) live.
+  The reader takes each `Pulumi.<stack>.yaml` as one environment, resolves a `${key}` from
+  `<project>:<key>`, then `<key>`, and treats a `secure:` value as a secret. It reads an
+  `aws:ecs:Service`'s `cluster`, `taskDefinition`, `desiredCount` and `name`, and an
+  `aws:ecs:TaskDefinition`'s `containerDefinitions` as `fn::toJSON` over a list of containers with
+  `name`, `image` and `portMappings` (`containerPort`). The `<project>:<key>`-then-`<key>` lookup
+  is this skill's own rule: it reads the project's namespace first so a key the stack file
+  writes under the project wins over a bare one. Pointer: when checking the `secure:` form, fetch
+  [secrets § Encrypted secrets in configuration data](https://www.pulumi.com/docs/iac/concepts/secrets/#secrets)
+  live; when checking an ECS input, fetch the
+  [`aws.ecs.Service` § Inputs](https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/#inputs)
+  and [`aws.ecs.TaskDefinition` § Inputs](https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/#inputs)
+  live.
 - **Bicep and ARM values are resolved, never evaluated.** A parameter resolves from a module
   `params` argument, then the environment's parameters file, then its default, and `${name}` inside
   a Bicep string the same way. An ARM value resolves only when it is exactly
@@ -452,11 +459,11 @@ its report line is printed. Procedure:
   when checking Terraform's precedence, fetch
   [input variables § Assign values to variables](https://developer.hashicorp.com/terraform/language/values/variables#assign-values-to-variables)
   live.
-- **A `.tf.json` block may be an array of objects at any level.** Claim: each label level of a
-  block (a resource's type and name) and its body may be a JSON object or a JSON array of objects,
-  so `"resource": [{"aws_s3_bucket": {"b": {}}}]` declares the same resource as the object form.
-  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks). As of:
-  2026-09-30. Recheck when that spec changes where an array may stand in for an object.
+- **A `.tf.json` block may be an array of objects at any level.** The reader takes each label
+  level of a block (a resource's type and name) and its body as either a JSON object or a JSON
+  array of objects, so `"resource": [{"aws_s3_bucket": {"b": {}}}]` places the same resource as the
+  object form. Pointer: when checking where an array may stand in for an object, fetch
+  [HCL JSON syntax § Blocks](https://github.com/hashicorp/hcl/blob/main/json/spec.md#blocks) live.
 - **One task definition, several services.** Each service that runs a shared task definition places
   the task definition's containers on its own cluster with its own desired count, named
   `<container>@<service>`. The `@` separates the two parts, and a label prints it as `(at)`, like
@@ -467,13 +474,14 @@ its report line is printed. Procedure:
   [`name`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html#ECS-Type-ContainerDefinition-name)
   and [`serviceName`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html#ECS-CreateService-request-serviceName)
   live.
-- **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
-  as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
-  `kubernetes:helm.sh/v3:Release`. Basis:
-  <https://raw.githubusercontent.com/hashicorp/terraform-provider-helm/main/docs/resources/release.md>
-  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. As of:
-  2026-09-30. Recheck when either page renames the type. Either one declines Helm, which refuses the
-  whole record as `partial-read`, because the chart's workloads are not read. `kubernetes_manifest`
+- **Helm reached through IaC is still Helm.** The collector declines Helm when a Terraform file
+  declares a `helm_release` resource or a Pulumi program a `kubernetes:helm.sh` type, which refuses
+  the whole record as `partial-read`, because the chart's workloads are not read. Pointer: when
+  checking either type name, fetch the Terraform Helm provider's
+  [`helm_release`](https://raw.githubusercontent.com/hashicorp/terraform-provider-helm/main/docs/resources/release.md)
+  and the Pulumi Kubernetes provider's
+  [`helm.sh/v3.Release`](https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/)
+  pages live. `kubernetes_manifest`
   and the `kubernetes_*` types the Terraform reader does not map appear under `## Unmapped
   resources`, since the Kubernetes tool itself is a shipped reader.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.

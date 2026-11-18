@@ -462,6 +462,11 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
   the plugin's own `CHANGELOG.md`, so a consumer updating deliberately sees what shifted. A change
   that adds a new trust surface additionally re-triggers the plugin-acceptance security review below.
+- **A breaking change bumps major at 1.0 or above, and minor at 0.x** with a `**Breaking:**` note
+  leading its entry, as item 4 of the
+  [Semantic Versioning specification](https://semver.org/#semantic-versioning-specification-semver)
+  allows. `write-changelog-fragments.sh` applies this; release 1.0.0 deliberately with its
+  `--level major` or `scripts/new-changelog-fragment.sh <plugin> major`.
 
 **The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
 by a version bump and a changelog note. An install that still names an old id gets
@@ -688,12 +693,13 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
     as of 2026-10-07; recheck when that section drops the seed variable).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
     the path [resolves against the repository's main checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
-    so every git worktree shares it, with no separate `marketplace add` step. The marketplace
-    registers only in a folder the collaborator trusted: after the trust dialog in an interactive
-    session and, in a `-p` run, only in a folder already trusted. A cloud session
-    [doesn't load the plugins the repository's settings turn on](https://code.claude.com/docs/en/plugins/install#install-a-plugin)
-    (Cloud session tab).
-    See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
+    so every git worktree shares it, with no separate `marketplace add` step. Rely on it only in a
+    folder the collaborator has already trusted, in an interactive session or a `-p` run. When
+    checking how folder trust gates the registration, fetch that section live; when checking what a
+    cloud session loads, fetch
+    [install a plugin](https://code.claude.com/docs/en/plugins/install#install-a-plugin) (Cloud
+    session tab) live, and see [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions
+    on this repo".
 
 ## Per-plugin migration gate
 

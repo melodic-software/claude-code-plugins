@@ -30,39 +30,41 @@ point the tooling at wherever your copy lives (any path you choose):
 
 **Important:** EPUB file names (`chap{N}.xhtml`) do not match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
 
-| EPUB File | Book Ch. | Content | Book % | Skill Coverage | Notes |
-|-----------|----------|---------|--------|---------------|-------|
-| chap00 | Preface | Scope, formats, audience | 100% | 95% | All formats listed; Blink Modeling in glossary |
-| chap01 | Ch. 1 | What does ES look like? (4 stories) | 98% | 90% | Core patterns from all stories captured |
-| chap03 | Ch. 2 | Problem space: silos, pretending to know | 95% | 85% | Captured in persona DEEP/GREY/PRETEND zones |
-| chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 90% | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
-| chap05 | **Ch. 4** | **Running Big Picture** (core chapter) | **98%** | **98%** | Fully captured: all phases, facilitator behavior, metrics |
-| chap06 | Ch. 5 | Playing with value: currencies, purpose | 95% | 95% | All 5 sub-rounds captured |
-| chap07 | Ch. 6 | Discovering Bounded Contexts: 6 heuristics | 90% | 95% | All heuristics + "merge people split software" |
-| chap08 | Ch. 7 | Making it happen: facilitator behavior | 80% | 85% | No arrows, legend, definitions, manage conflicts |
-| chap09 | Ch. 8 | Preparing the workshop: room, invitations | 30% | 90%* | *of what exists. Room setup, focus, invitations captured |
-| chap10 | Ch. 9 | Workshop Aftermath: visual checks | 20% | 95%* | *of what exists. All 4 visual checks + artifact management |
-| chap11 | Ch. 10 | BP Variations: discovery, induction | 50% | 80%* | Induction mode + project discovery captured |
-| chap12 | Ch. 11 | Big Picture Remote Mode | 80% | 90% | Anticipate structure, colors, iterate on copy, make interests explicit |
-| chap14 | Ch. 12 | What Software Dev Really Is | 40% | 30% | Philosophical. "Learning is bottleneck" captured implicitly |
-| chap16 | **Ch. 13** | **PM cooperative game: win conditions** | **100%** | **98%** | 4 win conditions, System/User Happy, color grammar |
-| chap17 | Ch. 14 | PM Building Blocks: Speak Out Loud | 90% | 95% | 3-pass technique, Magic Keywords, 4 event sources, policies |
-| chap18 | Ch. 15 | PM game strategies: Rush to Goal | 50% | 85%* | Opening strategies, rabbit hole, split & merge captured |
-| chap21 | Ch. 17 | Running Design-Level ES | 10% | beyond the book | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
-| chap22 | Ch. 18 | DL Modeling Tips | 20% | 90%* | Alternatives, rewrite, symmetry, hide complexity |
-| chap23 | Ch. 19 | Building Blocks: why events are special | 20% | 80%* | Events as state transitions, triggers for consequences |
-| chap24 | Ch. 20 | Modeling Aggregates | 30% | **95%+** | `[SUPPLEMENTED]` with Bourgau + Vernon invariant/sizing |
-| chap26 | Ch. 22 | Paper Roll to Code: CRC Cards | 15% | 90%* | CRC Cards + coding ASAP + --crc simulation mode |
-| chap27 | Ch. 23 | ES to User Stories | 5% | 80%* | Events→acceptance criteria, ES vs Story Mapping |
-| chap29 | Ch. 25 | Corporate Environment: fog model | 5% | 60%* | Fog-me-fog captured conceptually in persona zones |
-| chap32 | Ch. 28 | Remote ES: "no such thing" | 10% | 90%* | Full remote guidance in remote-eventstorming.md |
-| chap34 | Ch. 29 | Patterns catalog | 75% | 90% | 29 patterns enriched from eventstorming.com + practitioners |
-| chap35 | Ch. 30 | Rush to the Goal (dedicated) | 50% | 90%* | Detailed + Raise the Bar companion pattern added |
-| chap36 | Ch. 29b | Anti-Patterns catalog | 75% | 90% | 14 anti-patterns enriched with Brandolini blog sources |
-| chap38 | Recipe | BP recipe: ingredients, setup | 100% | 90% | Shopping list, refreshments in glossary-tools |
-| chap39 | Recipe | DL recipe: ingredients, differences | 100% | 90% | Captured in design-level.md prerequisites |
-| chap41 | Glossary | Terms: fuzzy by design | 80% | 85% | Theory of Constraints, Blink Modeling, Model Storming added |
-| chap42 | Tools | Paper rolls, markers, stickies | 90% | 90% | Physical + digital tools in glossary-and-tools.md |
+| EPUB File | Book Ch. | Content | Skill Coverage | Notes |
+|-----------|----------|---------|---------------|-------|
+| chap00 | Preface | Scope, formats, audience | 95% | All formats listed; Blink Modeling in glossary |
+| chap01 | Ch. 1 | What does ES look like? (4 stories) | 90% | Core patterns from all stories captured |
+| chap03 | Ch. 2 | Problem space: silos, pretending to know | 85% | Captured in persona DEEP/GREY/PRETEND zones |
+| chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
+| chap05 | **Ch. 4** | **Running Big Picture** (core chapter) | **98%** | Fully captured: all phases, facilitator behavior, metrics |
+| chap06 | Ch. 5 | Playing with value: currencies, purpose | 95% | All 5 sub-rounds captured |
+| chap07 | Ch. 6 | Discovering Bounded Contexts: 6 heuristics | 95% | All heuristics + "merge people split software" |
+| chap08 | Ch. 7 | Making it happen: facilitator behavior | 85% | No arrows, legend, definitions, manage conflicts |
+| chap09 | Ch. 8 | Preparing the workshop: room, invitations | 90%* | Room setup, focus, invitations captured |
+| chap10 | Ch. 9 | Workshop Aftermath: visual checks | 95%* | All 4 visual checks + artifact management |
+| chap11 | Ch. 10 | BP Variations: discovery, induction | 80%* | Induction mode + project discovery captured |
+| chap12 | Ch. 11 | Big Picture Remote Mode | 90% | Anticipate structure, colors, iterate on copy, make interests explicit |
+| chap14 | Ch. 12 | What Software Dev Really Is | 30% | Philosophical. "Learning is bottleneck" captured implicitly |
+| chap16 | **Ch. 13** | **PM cooperative game: win conditions** | **98%** | 4 win conditions, System/User Happy, color grammar |
+| chap17 | Ch. 14 | PM Building Blocks: Speak Out Loud | 95% | 3-pass technique, Magic Keywords, 4 event sources, policies |
+| chap18 | Ch. 15 | PM game strategies: Rush to Goal | 85%* | Opening strategies, rabbit hole, split & merge captured |
+| chap21 | Ch. 17 | Running Design-Level ES | beyond the book | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
+| chap22 | Ch. 18 | DL Modeling Tips | 90%* | Alternatives, rewrite, symmetry, hide complexity |
+| chap23 | Ch. 19 | Building Blocks: why events are special | 80%* | Events as state transitions, triggers for consequences |
+| chap24 | Ch. 20 | Modeling Aggregates | **95%+** | `[SUPPLEMENTED]` with Bourgau + Vernon invariant/sizing |
+| chap26 | Ch. 22 | Paper Roll to Code: CRC Cards | 90%* | CRC Cards + coding ASAP + --crc simulation mode |
+| chap27 | Ch. 23 | ES to User Stories | 80%* | Events→acceptance criteria, ES vs Story Mapping |
+| chap29 | Ch. 25 | Corporate Environment: fog model | 60%* | Fog-me-fog captured conceptually in persona zones |
+| chap32 | Ch. 28 | Remote ES: "no such thing" | 90%* | Full remote guidance in remote-eventstorming.md |
+| chap34 | Ch. 29 | Patterns catalog | 90% | 29 patterns enriched from eventstorming.com + practitioners |
+| chap35 | Ch. 30 | Rush to the Goal (dedicated) | 90%* | Detailed + Raise the Bar companion pattern added |
+| chap36 | Ch. 29b | Anti-Patterns catalog | 90% | 14 anti-patterns enriched with Brandolini blog sources |
+| chap38 | Recipe | BP recipe: ingredients, setup | 90% | Shopping list, refreshments in glossary-tools |
+| chap39 | Recipe | DL recipe: ingredients, differences | 90% | Captured in design-level.md prerequisites |
+| chap41 | Glossary | Terms: fuzzy by design | 85% | Theory of Constraints, Blink Modeling, Model Storming added |
+| chap42 | Tools | Paper rolls, markers, stickies | 90% | Physical + digital tools in glossary-and-tools.md |
+
+\* Coverage of the part of the chapter Brandolini has written so far.
 
 Coverage of any given chapter is judged per run against the copy you own, since the book is
 published on Leanpub and continues to change. The known gaps are philosophical or narrative (Ch. 2-3
@@ -81,7 +83,7 @@ book, using the Bourgau and Vernon sources marked in Notes.
 
 Run these checks before starting any simulation:
 
-- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails or no Miro server is connected, route to structured-markdown mode (SKILL.md "Miro availability & graceful degradation"). Do not fall back to a raw Miro REST/token/curl call, which would reintroduce the very dependency the markdown path exists to avoid
+- [ ] **Backend preflight:** `check_available` on the chosen backend (SKILL.md "Board backend"). If it fails, stop and offer the routes there; never switch backends unasked, and never reach a board through a raw REST, token or curl call
 - [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, create the extract directory with the temp primitive and echo its path in the same call (`mktemp -d "${TMPDIR:-/tmp}/eventstorming-epub-XXXXXX"`), then extract into that literal path: `unzip -d "<echoed path>" /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
@@ -98,7 +100,7 @@ Run these checks before starting any simulation:
 |-----------|----------------|----------|--------------|--------|
 | Events-only notation | Ch. 4, Ch. 7 | Only orange stickies during this phase | Board color audit: `count(non-orange) == 0` | Critical |
 | Event brevity | Ch. 1 examples | 2-5 words per event, past tense | Word count analysis on all stickies | Critical |
-| Event count | Ch. 9 visual check | 100-200 after cool-down | `miro_list_board_items` count | High |
+| Event count | Ch. 9 visual check | 100-200 after cool-down | `event` stickies counted in `read_board` | High |
 | Persona differentiation | Ch. 2-3 (siloed knowledge) | Remove [PersonaName] prefix. Can you tell who wrote it? | Manual vocabulary analysis | High |
 | Natural duplicates | Ch. 6 (divergence = BC signal) | 3+ events where different personas name same moment differently | Scan for overlapping events across y-rows | High |
 | Phase names detected | Ch. 1, Ch. 7 | 0-3 stickies flagged as "not an event" | Scan for stickies without past-tense verbs | Medium |
@@ -137,7 +139,7 @@ trusting this line.
 | Narrator relay race | Ch. 4 | Different narrators for different segments | Check agent invocations per segment | High |
 | Natural language paragraphs | Ch. 4 (walking + speaking) | Connected narrative, not bullet lists | Read the narrative outputs | High |
 | [STUMBLE] markers | Ch. 4 (body feels weird) | 3+ gaps identified where story doesn't flow | Count [STUMBLE] markers | High |
-| New events from walk-through | Ch. 4 (bumpy storytelling adds events) | 15-25 new events | Count new events on the Walk-through row (see the Big Picture Y-Coordinate Table in `miro-integration.md`) | High |
+| New events from walk-through | Ch. 4 (bumpy storytelling adds events) | 15-25 new events | Count events with `phase=walk-through` | High |
 | Reverse narrative executed | Ch. 4 (30-40% additional) | 3+ terminal events traced backward; about 30-40% additional flow beyond what Walk-through found | Check reverse narrative outputs and count new events on the Reverse narrative row | High |
 
 ### Big Picture: Value Exploration
@@ -172,9 +174,9 @@ trusting this line.
 | Criterion | Source Reference | Expected | How to Check | Weight |
 |-----------|----------------|----------|--------------|--------|
 | Color grammar strict | Ch. 13-14 | Policy (violet) between every Event→Command | Visual audit of flow | Critical |
-| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies on the Pass 2 corrections row (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Critical |
+| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies on the Flow's `corrections` row | Critical |
 | "Always/Immediately" applied | Ch. 14 | Magic Words challenge breaks 50%+ of policies | Count corrected vs original policies | High |
-| Alternative paths modeled | Ch. 15 | Failure events on the Exception flows / Secondary alternatives rows for each command (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Count failure events | High |
+| Alternative paths modeled | Ch. 15 | Failure events on the Flow's `exceptions` / `alternatives` rows for each command | Count failure events | High |
 | Read models present | Ch. 14 | light_green stickies showing info needed for decisions | Board check | High |
 | Win conditions met (4/4) | Ch. 13 | All paths complete, grammar preserved, hot spots addressed, stakeholders happy | Explicit win condition assessment | Critical |
 | Legend complete | Ch. 14 | Full color grammar shown | Count legend entries | Medium |
@@ -246,7 +248,7 @@ Design-Level:
   BC contracts (outbound/inbound): [out]/[in]
 
 Process:
-  MCP used: [yes/no/fallback]
+  Backend: [markdown/miro]
   Source material consulted: [yes/no]
   Visual verification screenshots taken: [count]
   Legend complete at each phase: [yes/no]
@@ -322,21 +324,19 @@ After every simulation run, answer these questions:
 
 ## Visual Verification Checklist (live-board path)
 
-Screenshot verification applies **only on the live Miro-board path** and requires a browser MCP
-(e.g. chrome-devtools), an optional surface rather than a declared plugin dependency. When a browser MCP
-is connected, take a screenshot after every phase transition and check the items below; it is a
-strong quality gate for board runs. When no browser MCP is available, or the run is in
-structured-markdown mode, skip screenshot capture and verify against the markdown artifact instead.
+A `snapshot` after every phase transition is a strong quality gate where the backend offers one
+(on Miro, a screenshot through a browser MCP, an optional surface rather than a declared plugin
+dependency). Without one, check the items below against the board as `read_board` returns it.
 Do not block the run on an undeclared tool.
 
 | Check | What to Look For | Action if Failed |
 |-------|-----------------|------------------|
 | Legend completeness | All building block types currently on the board have a legend entry | Add missing legend entries |
-| Legend frame overflow | All legend stickies are fully visible within the frame bounds | Resize frame using the sizing formula in miro-integration.md |
-| Color correctness | Each building block uses its correct color (orange=events, blue=commands, etc.) | Update miscolored stickies via `miro_update_sticky_note` |
+| Legend fully visible | Every legend entry can be read (on Miro, inside the frame bounds) | Per the backend file (Miro: the legend frame sizing formula) |
+| Kind correctness | Each building block has its correct kind (events `event`, commands `command`, etc.) | `update_sticky` with the right kind |
 | Stickies outside expected zones | No stickies floating far from the main content area | Reposition outliers |
 | Density and readability | Stickies are not overlapping excessively; content is readable at normal zoom | Adjust spacing |
-| Milestone/pivotal positioning | Temporal milestones are above events (negative y), not below | Reposition milestones |
+| Milestone/pivotal positioning | Each zone is marked by its milestone or pivotal event | `move_sticky` the markers |
 | Emoji presence | No emoji characters visible on any sticky | Update sticky content to remove emojis |
 | Type prefix presence | No "COMMAND:", "EVENT:", "🔵" prefixes on stickies | Update sticky content to remove prefixes |
 
@@ -350,22 +350,22 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 ## How to Run an Evaluation
 
 1. **Complete the simulation**: all 3 formats (BP, PM, DL) or the subset being evaluated
-2. **Read all boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
+2. **Read all boards**: `read_board` on each, the whole board. Keep each sticky's kind, place and content as the board export
 3. **Score each rubric section in a fresh context**: the context that ran the simulation never
    scores it. Run the plugin's `lib/read-verification.sh --plugin event-storming --skill simulation`
    (the full command is in SKILL.md, "Scoring in a fresh context") and copy its line into the evaluation report
    ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
    - At standard or strict, dispatch a fresh-context subagent with the board export from
-     step 2 (in structured-markdown mode, the markdown artifact), the round transcripts a
+     step 2 (for a markdown board, the board file itself), the round transcripts a
      criterion reads, and this file's rubric, never your own notes or verdicts. It returns
      Pass/Partial/Fail for each criterion with the item it rests on.
    - Under `light`, and `off`, which acts as `light` here, dispatch no scorer and never score the
      board yourself in its place. The report writes `verification: skipped (<level>)` and every
      criterion reads `unscored`; the `history.jsonl` entry carries no scores, and step 5 reports
      that no comparison was made.
-4. **Take screenshots (live-board path with a browser MCP only)**: visual verification at every
-   phase transition per the checklist above. Without a browser MCP, or in structured-markdown mode,
-   skip this step and verify against the markdown artifact instead
+4. **Take snapshots where the backend offers them**: visual verification at every
+   phase transition per the checklist above. Without one, skip this step and verify against the
+   board as read
 5. **Compare against prior version** using the version comparison framework
 6. **Run the retrospective protocol** and answer all 26 questions
 7. **Update the run-state store**: record findings in `${CLAUDE_PLUGIN_DATA}/history.jsonl`

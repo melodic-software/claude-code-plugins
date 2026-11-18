@@ -69,7 +69,6 @@ export async function detectAsrCapability({ spawn = spawnAsync, env = process.en
   /** @type {string[]} */
   const attempts = [];
   for (const candidate of candidates) {
-    // spawnAsync never rejects — a spawn failure resolves success:false + error.
     const result = await spawn(candidate, [...DETECT_ARGS], { timeout: 30_000 });
     if (result.success) {
       const version = (result.stdout ?? "").trim() || null;
@@ -133,7 +132,6 @@ export async function runAsrTranscription({
     String(ASR_BATCH_SIZE),
     ...(initialPrompt ? ["--initial-prompt", initialPrompt] : []),
   ];
-  // spawnAsync never rejects — a spawn failure resolves success:false + error.
   const result = await spawn(python, args, {});
   if (!result.success) {
     return {

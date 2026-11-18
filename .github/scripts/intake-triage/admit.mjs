@@ -542,6 +542,17 @@ export async function openPullsFor(github, repository, number) {
   );
 }
 
+export async function humanPullsFor(github, repository, number, humans) {
+  const pulls = [];
+  for (const pr of await openPullsFor(github, repository, number)) {
+    const pull = await github("GET", `/repos/${repository}/pulls/${pr}`);
+    if (pull?.state === "open" && humans.has(pull.user?.id)) {
+      pulls.push(pull);
+    }
+  }
+  return pulls;
+}
+
 // Done-when items an unattended lane run cannot perform. Each pattern needs
 // an action or a place within one clause of its subject, so an item that only
 // names a host, a threshold or a retention period passes.

@@ -62,9 +62,13 @@ if (!LOOSENED) {
   log('no valid loosenedCheck in args: nothing was dispatched')
   return { error: 'missing-loosened', next: 'Pass args.loosenedCheck, the bundled loosened-check.md path.' }
 }
-// The criterion's two settings as scripts/loosened-check-settings.mjs printed them, resolved once
-// by the caller. Only the two value lines pass, rebuilt from their parsed values, so the arg cannot
-// carry other text into a prompt; without them every leaf would fall back to `fail` and no entries.
+const RECORD_URL = new RegExp('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/(?!.*(^|/)\\.{1,2}/)([A-Za-z0-9._~%+-]+/)*$', 'u')
+function parseDecisionRecord(raw, layers) {
+  const lines = raw.match(/^loosened_check_decision_record: .*$/gm) || []
+  const m = lines.length === 1 ? lines[0].match(new RegExp('^loosened_check_decision_record: (\\S+)' + layers + '$')) : null
+  if (!m || !(m[1] === 'unset' || m[1] === 'unreadable' || RECORD_URL.test(m[1]))) return 'loosened_check_decision_record: unreadable (not resolved by the caller)'
+  return 'loosened_check_decision_record: ' + m[1] + (m[2] ? ' (' + m[2] + ')' : '')
+}
 function parseLoosenedSettings(raw) {
   if (typeof raw !== 'string') return ''
   const layers = '(?: \\(([A-Za-z0-9/._, -]{1,200})\\))?'
@@ -75,7 +79,7 @@ function parseLoosenedSettings(raw) {
   try { list = JSON.parse(p[1]) } catch { return '' }
   if (!Array.isArray(list) || !list.every(x => typeof x === 'string' && x.length > 0 && !/[\u0000-\u001f\u2028\u2029]/.test(x))) return ''
   const from = m => m ? ' (' + m + ')' : ''
-  return 'loosened_check_verdict: ' + v[1] + from(v[2]) + '\nloosened_check_patterns: ' + JSON.stringify(list) + from(p[2])
+  return 'loosened_check_verdict: ' + v[1] + from(v[2]) + '\nloosened_check_patterns: ' + JSON.stringify(list) + from(p[2]) + '\n' + parseDecisionRecord(raw, layers)
 }
 const LOOSENED_SETTINGS = parseLoosenedSettings(input.loosenedSettings)
 if (input.loosenedSettings != null && !LOOSENED_SETTINGS) log('loosenedSettings is not the value lines of loosened-check-settings.mjs: leaves use the criterion\'s unresolved fallback')

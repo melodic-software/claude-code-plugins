@@ -3,6 +3,26 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.1] - 2026-11-18
+
+### Fixed
+
+- `/prototype:explore-directions` now says the level report line (`level: <name> (<layer>)`) is still printed when the request says to build without asking or no plan is shown, before the run's first tool call that writes a file ([#16467](https://github.com/melodic-software/claude-code-plugins/issues/16467)).
+- The `ed-controls-everything-default` eval's `runtime-inlined` grader now passes a page written by a redirect to a shell variable, such as `{ cat ...; } > "$OUT"`, and its samples include one of that shape ([#16467](https://github.com/melodic-software/claude-code-plugins/issues/16467)).
+
+## [0.36.0] - 2026-11-18
+
+### Changed
+
+- The control panel no longer names a default panel library for React projects. It resolves the
+  panel library from the repository through the plugin's new copy of the ecosystem resolution
+  steps (`reference/ecosystem-resolution.md`, version 1.1.0), and uses plain range inputs when
+  none resolves.
+- The control panel's rule that controls write CSS variables on the prototype root no longer
+  carries framework-specific code examples.
+- `/prototype:pressure-test` no longer shows package-manager or SDK commands as examples of the
+  one start command; it asks for one short command through the project's task runner.
+
 ## [0.35.2] - 2026-11-18
 
 ### Changed

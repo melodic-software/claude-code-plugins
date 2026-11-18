@@ -28,9 +28,6 @@ trap 'rm -rf "$WORK"' EXIT
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
 cm_require_python audit-type-debt.sh
 
-# Resolve the configuration once (or take the caller's --config), so the
-# reference the report prints is read from the same document the dispatcher
-# measured against.
 cm_split_config "${ARGS[@]}"
 if [[ -z "$CM_CONFIG" ]]; then
   CM_CONFIG="$WORK/config.json"

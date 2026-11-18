@@ -75,10 +75,6 @@ MEASURE = "type_coverage"
 LANE = "typescript"
 LOCAL_BIN = os.path.join("node_modules", ".bin", "type-coverage")
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
-# Prints the tsconfig program's source files (absolute paths, dependencies
-# included) as a JSON array, or `null` when no tsconfig.json resolves from the
-# working directory, through the same `typescript` the tool itself uses. The
-# `node_modules` exclusion is applied here, by path segment.
 PROGRAM_SCRIPT = """
 const ts = require('typescript');
 const path = require('path');
@@ -272,8 +268,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     program: set[str] | None = None
     why = ""
     if isinstance(payload, dict) and payload.get("totalCount"):
-        # Only a run that counted something needs to know which files the
-        # program holds; the no-tsconfig case never reaches node.
         program, why = program_files()
     try:
         rows, notes = translate(result.stdout, lane, files, program, why)
@@ -291,8 +285,6 @@ def measures() -> None:
     print(f"{LANE}/{MEASURE}")
 
 
-# The dispatcher relays this line when the probe fails, so it names both
-# halves of the requirement, not just the binary.
 INSTALL_HINT = (
     "type-coverage: npm install --save-dev type-coverage typescript "
     "(https://github.com/plantain-00/type-coverage; type-coverage needs a resolvable typescript)"

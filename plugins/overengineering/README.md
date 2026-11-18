@@ -175,7 +175,7 @@ The method's reasoning is grounded in primary sources, cited in full with their 
 
 - [Martin Fowler, "Yagni"](https://martinfowler.com/bliki/Yagni.html). The four costs, the
   carry-cost frame, and the explicit scope boundary around quality-enabling practices
-- [Kohavi et al., controlled-experiment case studies](https://ai.stanford.edu/~ronnyk/ExP_DMCaseStudies.pdf).
+- [Kohavi et al., controlled-experiment case studies](https://exp-platform.com/Documents/ExP_DMCaseStudies.pdf).
   The base rate behind the default-skeptical posture
 - [John Ousterhout, *A Philosophy of Software Design*](https://milkov.tech/assets/psd.pdf).
   Incremental accumulation, and why a single removal reads as no improvement

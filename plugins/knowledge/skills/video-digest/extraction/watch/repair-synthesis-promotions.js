@@ -199,7 +199,6 @@ function repairPromotionRows(doc, reserved, absSlice) {
   let sessionsFixed = 0;
   /** @type {[string, string][]} */
   const renamePairs = [];
-  // Loaded on the first row that needs a session fix, then reused.
   /** @type {SessionIndex|null|undefined} */
   let sessionIndex;
 
@@ -225,7 +224,6 @@ function repairPromotionRows(doc, reserved, absSlice) {
     }
   }
 
-  // Every rename recorded a pair, so the pair list IS the rename count.
   return { renamed: renamePairs.length, rejected, sessionsFixed, renamePairs };
 }
 

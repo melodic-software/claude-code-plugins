@@ -20,9 +20,6 @@
 #   returns 0 and sets WORKTREE_ROOT_VALUE / WORKTREE_ROOT_KEY_USED
 #   returns 1 if no key yields a non-empty last value
 #   KEY_USED is always the current key when a value is returned
-#
-# Git invocation: _worktree_root_git if that function is defined (the
-# fleet-audit allowlist wrapper), else git. No scope flag: includes stay on.
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 
@@ -34,6 +31,8 @@ source "${BASH_SOURCE[0]%/*}/worktree-root-legacy.sh"
 worktree_root_git() {
   if declare -F _worktree_root_git >/dev/null 2>&1; then
     _worktree_root_git "$@"
+  elif declare -F hook::git_untrusted >/dev/null 2>&1; then
+    hook::git_untrusted "$@"
   else
     command git "$@"
   fi

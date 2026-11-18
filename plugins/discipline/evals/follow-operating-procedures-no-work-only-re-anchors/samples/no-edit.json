@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/AGENTS.md" } }],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Edit", "input": { "file_path": "/work/AGENTS.md", "old_string": "a", "new_string": "b" } }],
+      "why": "an edit with no work to correct"
+    }
+  ]
+}

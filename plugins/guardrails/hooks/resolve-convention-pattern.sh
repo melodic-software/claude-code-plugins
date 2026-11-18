@@ -144,6 +144,11 @@ bom="$(printf '\357\273\277')"
 # never inside `$( )`, so the exit reaches the caller; the others hand results
 # back in named variables or through `$( )`.
 
+# hook::git_untrusted in hook-utils.sh, for POSIX sh: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
+rcp_git() {
+  git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
+}
+
 # yaml_scalar <key> <line>: sets yaml_v to the flat-scalar value of a `<key>:`
 # line from the folder-form file: surrounding whitespace trimmed (a CRLF
 # line's CR included, since [:space:] holds CR), ONE pair of matching
@@ -297,7 +302,7 @@ load_yaml() {
 }
 
 if [ -f "$TEAM_YAML" ] &&
-  git -C "$repo_root" ls-files --error-unmatch -- "$TEAM_YAML_REL" >/dev/null 2>&1; then
+  rcp_git -C "$repo_root" ls-files --error-unmatch -- "$TEAM_YAML_REL" >/dev/null 2>&1; then
   load_yaml "$TEAM_YAML_REL" "the team file"
 fi
 
@@ -397,7 +402,7 @@ NEUTRAL_READY=0
 resolve_neutral() {
   NEUTRAL_READY=1
   if [ ! -f "$repo_root/$WELL_KNOWN_NEUTRAL" ] ||
-    ! git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
+    ! rcp_git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
     return 0
   fi
   NEUTRAL_FILE="$repo_root/$WELL_KNOWN_NEUTRAL"
@@ -520,7 +525,7 @@ fi
 read_personal() {
   [ -f "$repo_root/$PERSONAL_YAML_REL" ] || return 0
   ignore_rc=0
-  git -C "$repo_root" check-ignore -q -- "$PERSONAL_YAML_REL" >/dev/null 2>&1 || ignore_rc=$?
+  rcp_git -C "$repo_root" check-ignore -q -- "$PERSONAL_YAML_REL" >/dev/null 2>&1 || ignore_rc=$?
   if [ "$ignore_rc" -eq 1 ]; then
     printf '%s\n' "resolve-convention-pattern: $PERSONAL_YAML_REL is not ignored by git (it is tracked, or no .gitignore, .git/info/exclude or core.excludesFile rule matches it); the personal layer is read only while git ignores it — enforcement disabled." >&2
     exit 1

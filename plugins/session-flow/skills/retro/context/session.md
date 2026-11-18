@@ -239,8 +239,8 @@ filter keeps it.
 | Lasts six months | Renamed files, new versions or new commit hashes in that time would make it false |
 | Covers unlisted cases | It lists observed cases (failing tests, broken paths, flaky jobs) without saying how a later session recognizes a case not on the list, or it tells the reader to treat unlisted cases as caused by its own work |
 
-"PR 412's first CI run timed out in the Playwright suite" records an event and fails the
-six-month test. "When a Playwright timeout is the only CI failure, read the trace before changing
+"PR 412's first CI run timed out in the end-to-end suite" records an event and fails the
+six-month test. "When an end-to-end timeout is the only CI failure, read the trace before changing
 the test" can still guide a session next year. A durable fact (the test command, where logs live)
 passes the last test as is. A list of known failures covers only the cases it names, and one that
 calls every other failure new sends later sessions to investigate failures they did not cause

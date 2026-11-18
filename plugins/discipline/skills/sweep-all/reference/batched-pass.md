@@ -58,19 +58,18 @@ unchanged and bind every member.
    dozen" wave: it is calibrated for cheap fresh-context subagents that carry no such
    invariant.
 
-   One wave is usually possible, and the two documented limits are not the
-   same kind of limit. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` caps how many
-   run at once. It does not cap how many you
-   dispatch. The hard one is the session's concurrent subagent limit, which
-   fails a spawn past it and is shared with everything else the session is
-   running. For its default, what counts against it, and which sessions are
-   exempt, read
+   One wave is usually possible. Size it against the session's concurrent
+   subagent limit, never against `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`, and
+   count the subagents the session already holds against that limit: the
+   one-wave rule needs every member to spawn. For the limit's default, what
+   counts against it, which sessions are exempt, and how it differs from the
+   tool-use setting, read
    [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
    live, through the shared docs lookup
    (the discipline plugin's `scripts/fetch-docs.sh --cache`, following its
    `reference/docs-lookup-procedure.md`; both sit two levels above this
    skill's directory), rather than
-   from this file. The concurrency
+   from this file. The concurrent subagent
    and depth limits are the only ones to plan around.
 
    - **Pointer**: when planning the wave against these limits, fetch the

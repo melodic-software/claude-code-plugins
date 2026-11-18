@@ -254,6 +254,6 @@ Observed failure modes. Every one leaves a repository that looks migrated and is
 - **Re-proposing a declined finding.** A `declined` status is a decision, not a gap to be filled on
   the next run. Resurrecting it trains the operator to stop reading carefully, which is how a
   per-item gate degrades into a rubber stamp.
-- **Marking a report-only rung `applied`.** A linter or skill routing has no destination this skill
-  builds. `blocked` there means "executed elsewhere", and recording it as applied hides work that
-  still needs doing.
+- **Marking a report-only rung `applied`.** A mechanism or skill routing has no destination this
+  skill builds. `blocked` there means "executed elsewhere", and recording it as applied hides work
+  that still needs doing.

@@ -25,7 +25,6 @@ import { isHighVolume } from "../watching/frame-budget.js";
 import { watchStatePath } from "./watch-state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Bundled template — resolve relative to this script under the plugin (cache-isolated).
 const TEMPLATE_PATH = path.resolve(__dirname, "../../templates/watch-checklist.md");
 
 /**

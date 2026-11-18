@@ -29,9 +29,9 @@ graders:
     pattern: '\bdisallowedTools\b\s*["'']?\s*[:=]'
     match: 'not_contains'
     target: last_message
-  - name: classifier-reason
+  - name: prompt-not-confirmation
     type: regex
-    pattern: '\bauto[- ]mode\b[^\n]{0,200}\bclassifier\b|\bclassifier\b[^\n]{0,200}\bauto[- ]mode\b'
+    pattern: '\bprotected[- ]path\b[^\n]{0,200}\b(?:confirm\w*|approv\w*)\b|\b(?:confirm\w*|approv\w*)\b[^\n]{0,200}\bprotected[- ]path\b'
     flags: 'i'
     target: last_message
   - name: no-claims-applied

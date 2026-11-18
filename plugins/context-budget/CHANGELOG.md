@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.0] - 2026-11-18
+
+### Added
+
+- draw the band in Desktop as one line with a hover bar
+
+## [2.0.4] - 2026-11-18
+
+### Changed
+
+- `/context-budget:audit` and the README no longer claim the built-in tool pools are typically the largest part of the startup payload, a size nobody measured. The plugin targets them because `/context` reports them only as totals. The stdin gotcha now states the rule for a hand capture and points at the engine's parse traps for the reason, without restating what the headless binary prints.
+
+## [2.0.3] - 2026-11-18
+
+### Changed
+
+- `/context-budget:audit fix` no longer says who decides a protected-path write in auto mode. It gives its own reason for printing a user-global edit: a protected-path prompt never counts as a person confirming the write. The permission-modes pointer says who decides. The `au-fix-user-global-print-only` eval now grades that reason.
+
 ## [2.0.2] - 2026-11-17
 
 ### Changed

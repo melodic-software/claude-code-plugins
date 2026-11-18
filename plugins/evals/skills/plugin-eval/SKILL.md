@@ -455,8 +455,8 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
 - A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
   message before treating an exit 1 as a failing case.
-- A usage or rate limit mid-suite is **not** marked partial, so `partial: false` does not show the
-  runs ended normally. Later runs end with the error and get 0 with no grader run, in both arms, so the suite reads as a regression (pointer: [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through)). Check each affected run's `error`
+- `partial` is never this skill's signal for a usage or rate limit: a suite that hit one partway
+  through is not marked partial, so `partial: false` does not show every run ended normally, and its later runs then read as a regression (pointer: when a suite's scores drop partway through, fetch [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through) live). Check each affected run's `error`
   (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.

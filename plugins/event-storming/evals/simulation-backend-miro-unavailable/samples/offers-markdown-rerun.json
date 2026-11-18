@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Or rerun with --backend markdown to put the board in a markdown file.", "why": "the argument"},
+    {"answer": "You can run it again on the markdown backend.", "why": "rerun in words"},
+    {"answer": "Use a markdown board instead.", "why": "markdown board instead"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Enable the miro plugin and try again.", "why": "only the Miro route"}
+  ]
+}

@@ -54,6 +54,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -143,9 +144,17 @@ export function ciCredentials(file = CONFIG) {
  * the source must be "none"; CLAUDE_CODE_OAUTH_TOKEN, the person's own login, passes through as it
  * always has. Unattended, the one `config.credentials` variable that is set is kept, the scrub keeps it
  * from the processes Claude Code starts, and two set at once is refused before anything runs.
+ * `realSetup` starts Claude Code with none of the isolating flags, so the person's own settings,
+ * plugins, hooks and MCP servers load; it runs only attended, and only it takes a `launcher`, the
+ * argument vector run in place of the bare `claude`.
  */
 export function buildLaunch(config, env) {
   if (!config?.pluginDir) throw new UsageError('launch needs --plugin-dir <dir>');
+  const launcher = config.launcher ?? [];
+  if (launcher.length && !config.realSetup) throw new UsageError('--launcher runs only with --real-setup');
+  if (config.realSetup && (config.unattended || config.inSandbox)) {
+    throw new Refused('refused: --real-setup loads the person\'s own settings, MCP servers and Bash, so it runs only attended: never with --unattended, --in-sandbox or a kept credential');
+  }
   const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
   const set = config.unattended ? (config.credentials ?? []).filter((n) => env[n]) : [];
   if (set.length > 1) throw new Refused(`refused: ${set.join(' and ')} are both set; an unattended run takes one credential`);
@@ -156,8 +165,9 @@ export function buildLaunch(config, env) {
   }
   for (const name of [...UNSET_VARS, ...(config.credentials ?? [])]) if (name !== kept) delete childEnv[name];
   if (kept && !config.inSandbox) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
+  const flags = config.realSetup ? [] : config.inSandbox ? IN_SANDBOX_FLAGS : LAUNCH_FLAGS;
   return {
-    argv: ['claude', ...(config.inSandbox ? IN_SANDBOX_FLAGS : LAUNCH_FLAGS), '--plugin-dir', config.pluginDir],
+    argv: [...(launcher.length ? launcher : ['claude']), ...flags, '--plugin-dir', config.pluginDir],
     env: childEnv,
     keySource: kept ? CI_KEY_SOURCES[kept] : NO_KEY,
   };
@@ -189,6 +199,8 @@ const launchConfig = (opts, pluginDir) => ({
   unattended: Boolean(opts.unattended),
   credentials: opts.unattended ? ciCredentials() : [],
   inSandbox: Boolean(opts['in-sandbox']),
+  realSetup: Boolean(opts['real-setup']),
+  launcher: opts.launcher ?? [],
 });
 
 class UsageError extends Error {
@@ -594,16 +606,21 @@ const MIRROR_READY = 'ccd-mirror-ready';
 const MIRROR_MS = 5000;
 const FRAME_MS = 250;
 
-/** The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions. */
-export function readMasks(text) {
+/**
+ * The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions;
+ * the lines under its `### Real setup` only for a session launched with --real-setup.
+ */
+export function readMasks(text, { realSetup = false } = {}) {
   const masks = [];
   let inside = false;
+  let skip = false;
   let fence = false;
   for (const line of text.split(/\r?\n/)) {
     if (/^\s*(```|~~~)/.test(line)) fence = !fence;
     else if (fence) continue;
-    else if (line.startsWith('## ')) inside = line.trim() === '## Mask';
-    else if (inside) {
+    else if (line.startsWith('## ')) [inside, skip] = [line.trim() === '## Mask', false];
+    else if (inside && line.startsWith('### ')) skip = line.trim() === '### Real setup' && !realSetup;
+    else if (inside && !skip) {
       const m = /^- ([^|]*[^|\s])\s*\|\s*(\S.*)$/.exec(line);
       if (m) masks.push({ label: m[1].trim(), pattern: new RegExp(m[2].trimEnd(), 'gi') });
     }
@@ -783,7 +800,7 @@ async function openMirror(ctx, size) {
 
 /** The live screen, masked. */
 async function maskedFrame(t, ctx) {
-  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: statusValues(sessionStatus(ctx)) };
+  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8'), ctx), values: statusValues(sessionStatus(ctx)) };
   const size = await t.getSize();
   const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values, size.cols);
   return { size, text, draw: renderFrame(rows) };
@@ -912,7 +929,7 @@ async function serve(opts) {
   for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
-  const ctx = { TuiTest, env: launch.env, keySource: launch.keySource };
+  const ctx = { TuiTest, env: launch.env, keySource: launch.keySource, realSetup: Boolean(opts['real-setup']) };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
   // still shows the environment the holder started with, which #8651's isolation probe covers.
@@ -973,6 +990,24 @@ async function serve(opts) {
   server.listen(sock);
 }
 
+/**
+ * The directory claude starts in: the one --cwd names; under --in-sandbox the caller's own, since
+ * the caller's sandbox is the boundary; else `<session>.cwd` in the runtime directory, which
+ * `launch` empties and makes private each time (`fresh`), so a driven session never starts in the
+ * caller's checkout.
+ */
+export function launchCwd(opts) {
+  if (opts.cwd !== undefined) {
+    if (!opts.cwd) throw new UsageError('--cwd takes a directory');
+    const dir = resolve(opts.cwd);
+    if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new UsageError(`--cwd ${dir} is not a directory`);
+    return { dir, fresh: false };
+  }
+  if (opts['in-sandbox']) return { dir: process.cwd(), fresh: false };
+  checkSession(opts.session);
+  return { dir: join(runtimeDir(process.platform), `${opts.session}.cwd`), fresh: true };
+}
+
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   const config = launchConfig(opts, pluginDir);
@@ -980,10 +1015,11 @@ async function launch(opts) {
   if (!WHOLE.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
+  const cwd = launchCwd(opts);
   if (opts['dry-run']) {
     checkSession(opts.session);
     depsBase(opts['deps-dir'], false);
-    return `dry run: would launch session '${opts.session}' running ${argv.join(' ')}; started nothing`;
+    return `dry run: would launch session '${opts.session}' in ${cwd.dir} running ${argv.join(' ')}; started nothing`;
   }
   // Everything from here on, the pipe name and the log included, happens under the reservation.
   const lock = reserve(opts.session);
@@ -999,6 +1035,10 @@ async function launch(opts) {
     }
     install = ensureInstalled(opts['deps-dir']);
     const { dir } = endpoint(opts.session, process.platform, { fresh: true });
+    if (cwd.fresh) {
+      rmSync(cwd.dir, { recursive: true, force: true });
+      privateDir(cwd.dir);
+    }
     log = join(dir, `${opts.session}.log`);
     const fd = openSync(log, 'w', 0o600);
     try {
@@ -1012,13 +1052,15 @@ async function launch(opts) {
           '--plugin-dir',
           pluginDir,
           '--install',
-          install,
+          resolve(install),
           '--ttl',
           opts.ttl,
           ...(config.unattended ? ['--unattended'] : []),
           ...(config.inSandbox ? ['--in-sandbox'] : []),
+          ...(config.realSetup ? ['--real-setup'] : []),
+          ...config.launcher.map((word) => `--launcher=${word}`),
         ],
-        { detached: true, stdio: ['ignore', fd, fd], env },
+        { cwd: cwd.dir, detached: true, stdio: ['ignore', fd, fd], env },
       );
     } finally {
       closeSync(fd);
@@ -1037,7 +1079,7 @@ async function launch(opts) {
   for (const deadline = Date.now() + 30_000; Date.now() < deadline && !exited; ) {
     try {
       await request(opts.session, 'ping');
-      return `launched session '${opts.session}' (holder pid ${holder.pid}, log ${log})`;
+      return `launched session '${opts.session}' in ${cwd.dir} (holder pid ${holder.pid}, log ${log})`;
     } catch {
       await sleep(250);
     }
@@ -1385,6 +1427,7 @@ const OPTIONS = {
   session: { type: 'string', default: 'default' },
   'plugin-dir': { type: 'string' },
   'deps-dir': { type: 'string' },
+  cwd: { type: 'string' },
   install: { type: 'string' },
   ttl: { type: 'string', default: '3600' },
   timeout: { type: 'string' },
@@ -1392,12 +1435,14 @@ const OPTIONS = {
   out: { type: 'string' },
   unattended: { type: 'boolean' },
   'in-sandbox': { type: 'boolean' },
+  'real-setup': { type: 'boolean' },
+  launcher: { type: 'string', multiple: true },
   'dry-run': { type: 'boolean' },
   help: { type: 'boolean' },
 };
 
 const SESSION_OPT = '[--session <name>]';
-const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox]';
+const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox] [--real-setup [--launcher <word>]...]';
 /**
  * Per verb: `usage`, its flags after `node driver.mjs <verb>`; `brief`, the line `--help` lists it
  * with; `more`, what only `<verb> --help` adds; `writes`, whether it writes or sends, which is what
@@ -1405,9 +1450,9 @@ const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox]';
  */
 export const HELP = {
   launch: {
-    usage: `--plugin-dir <dir> ${SESSION_OPT} [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
+    usage: `--plugin-dir <dir> ${SESSION_OPT} [--cwd <dir>] [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
     brief: 'Starts Claude Code with the plugin loaded, held by a detached session holder.',
-    more: 'Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop.',
+    more: 'Claude Code starts in --cwd, under --in-sandbox in the caller\'s directory, else in <session>.cwd under the runtime directory, emptied on each launch. Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop. --real-setup starts it without --restricted and --strict-mcp-config, attended only; each --launcher adds one word of the command run in place of claude.',
     writes: true,
   },
   'wait-for': { usage: `<text> [--timeout <ms>] ${SESSION_OPT}`, brief: 'Waits until the session screen shows <text>; reads only.' },
@@ -1536,6 +1581,7 @@ async function main(argv) {
   }
   const broker = process.env.CCD_BROKER_SOCK;
   if (broker && BROKERED.includes(verb)) {
+    if (parsed.values['real-setup']) throw new Refused('refused: --real-setup runs only attended, and the launch broker runs unattended');
     checkBrokerSocket(broker);
     // The broker refuses an option it does not know, so a dry run stops here, after the verb's own
     // dry run has checked the arguments the way a real run would.

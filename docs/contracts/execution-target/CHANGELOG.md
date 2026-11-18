@@ -1,5 +1,12 @@
 # Changelog for the execution-target convention
 
+## 2.0.2 - 2026-11-18
+
+The routine-triggers pointer no longer restates the Routines page's events or connector default;
+it names when to fetch its "Supported events" and "Connectors" sections live, per the
+upstream-drift convention 6.0.0. The required-plugins section states its own reason for failing
+the probe on an unlisted connector.
+
 ## 2.0.1 - 2026-11-11
 
 The vendor-fact pointers no longer carry an as-of date or recheck trigger, per the upstream-drift

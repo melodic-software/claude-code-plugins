@@ -1460,6 +1460,7 @@ export function decide({
   checks = null,
   resumed = "",
   escalation = "",
+  humanPull = "",
   unmarked = null,
   collectRefused = false,
   linkage = [],
@@ -1496,6 +1497,17 @@ export function decide({
   }
   if (outcome.stop === "scan-refused-output") {
     return routeStop(outcome.stop, { outcome, issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
+  }
+  if (humanPull && outcome.exit === "done") {
+    return routeStop("blocked-by-pr", {
+      outcome: stopped(`A listed human's open pull request #${humanPull} names this issue, so the lane pushed no branch and opened no pull request.`),
+      issueNumber,
+      branch: branch || resumed,
+      humanLabel,
+      runUrl,
+      runId,
+      onResumed,
+    });
   }
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -2514,6 +2526,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (escalation && !Object.hasOwn(PATCH_REASONS, escalation)) {
       throw new Error("ESCALATION_REASON is not an apply-issue-patch escalation reason");
     }
+    const humanPull = env.HUMAN_PULL ?? "";
+    if (humanPull && !/^[1-9][0-9]{0,9}$/.test(humanPull)) {
+      throw new Error("HUMAN_PULL is not a pull request number");
+    }
     const reuse = env.REUSE_BRANCH ?? "";
     const reused = laneBranch(issueNumber).exec(reuse);
     if (reuse && !reused) {
@@ -2732,6 +2748,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
           checks,
           escalation,
+          humanPull,
           unmarked,
           collectRefused: env.COLLECT_REFUSED === "true",
           linkage,

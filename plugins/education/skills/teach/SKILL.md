@@ -74,10 +74,11 @@ Path resolution rules every action must follow:
   `"Domain-Driven Design"` → `domain-driven-design`. **Record the exact raw name** as the source of
   truth for collision checks: `MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept,
   the `**Concept:**` line in `lesson.md` or `<meta name="concept" content="…">` in `lesson.html`.
-  **Guard against slug collisions** (`C++` and `C#` → `c`): before creating a workspace whose slug
-  directory exists, read its recorded raw name; if it names a different subject, append `-` plus
-  `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new
-  slug.
+  **Guard against slug collisions**: slugifying strips symbols, so different raw names can share
+  one slug. Before giving or creating a workspace path, list the directory its slug would sit in;
+  if the slug directory exists, read its recorded raw name; if it names a different subject, append
+  `-` plus `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4`
+  to the new slug.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (an ADR-style append-only log).
   Scan for the highest existing `NNNN` and increment.
 - Plugin-data workspaces live under `${CLAUDE_PLUGIN_DATA}` so they outlive the session
@@ -317,15 +318,14 @@ about a project's layout:
 
 1. **Read the repo's own guidance**: the nearest `CLAUDE.md` / `AGENTS.md` climbing from
    `${CLAUDE_PROJECT_DIR}`, `README.md`, `docs/`, architecture-decision records (commonly
-   `docs/adr/`, `docs/decisions/`), and convention/rules files (`.claude/rules/`,
-   `.cursor/rules/`, a `CONTRIBUTING` file). When a guidance file is empty, boilerplate, or
+   `docs/adr/`, `docs/decisions/`), and convention/rules files (`.claude/rules/`, a
+   `CONTRIBUTING` file). When a guidance file is empty, boilerplate, or
    contradicts its siblings, flag it to the user, fall back to the next source (README → docs →
    the code), and record the discrepancy in `RESOURCES.md`; never treat an empty file as guidance
    and never silently pick a side.
 2. **Survey the structure.** Inspect the top-level layout (`src/`, `apps/`, `libs/`,
-   `packages/`, tests), identify languages and frameworks from the manifest files present
-   (`package.json`, `*.csproj`/`*.sln`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, …),
-   and locate the files that embody the concept.
+   `packages/`, tests), identify languages and frameworks from the manifest files present, and
+   locate the files that embody the concept.
 3. **Persist what you discover** in `RESOURCES.md` "Repo Sources" so later sessions don't
    re-derive it. If discovery finds no grounding for the concept, ask the user to point at the
    area rather than guessing.

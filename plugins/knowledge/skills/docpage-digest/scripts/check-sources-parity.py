@@ -150,7 +150,6 @@ def check(slice_dir):
     h2_text = {n: t for n, lv, t in found if lv == 2}
     print(f"source: {len(lines)} line(s), {len(found)} heading(s) ({len(h2_text)} H2)")
 
-    # Heading table.
     body = section(sources_text, "Headings")
     if body is None:
         failures.append("SOURCES.md has no '## Headings' section")
@@ -172,7 +171,6 @@ def check(slice_dir):
         if len(listed) != len(set(listed)):
             failures.append("SOURCES.md Headings lists a heading more than once")
 
-    # Digest map: contiguity, coverage, unit starts.
     mapped = []
     body = section(sources_text, "Digest map")
     if body is None:
@@ -209,7 +207,6 @@ def check(slice_dir):
             for line in sorted(got - want):
                 failures.append(f"digest unit starts at line {line}, which is neither line 1 nor an H2")
 
-    # Counts: map rows, digest files, status rows.
     status = []
     body = section(sources_text, "Status")
     if body is None:

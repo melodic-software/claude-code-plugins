@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.10] - 2026-11-18
+
+### Changed
+
+- The `audit` skill's silent-regex gotcha keeps the rule that every awk regex in the plugin's scripts uses explicit repetition, and drops its mawk-specific failure claim, which the skill stated with no pointer to the probe behind it. The reason now stands on its own: no rule should depend on how the installed awk treats interval expressions ([#16873](https://github.com/melodic-software/claude-code-plugins/issues/16873)).
+
 ## [0.20.9] - 2026-11-17
 
 ### Changed

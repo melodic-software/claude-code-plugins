@@ -119,7 +119,6 @@ class TestParserLlmsTxt(Base):
         self.assertIn("https://agent-plugins.org/governance", urls)
         self.assertIn("https://example.com/external", urls)
         self.assertNotIn("mailto:a@b.c", urls)
-        # inline-code URL: captured, but never with a trailing backtick
         self.assertIn("https://example.com/inline-code", urls)
         for u in urls:
             self.assertNotIn("utm_", u)

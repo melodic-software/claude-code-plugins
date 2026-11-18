@@ -3,6 +3,24 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-11-18
+
+### Changed
+
+- `/performance:protect` section 5 no longer picks a guardrail mechanism for a fragile optimization
+  from its own list. It names what each of the three fragility cases must keep true and hands the
+  choice of mechanism to `/corrections:codify` when that skill is available, or proposes the
+  strongest mechanism that can decide the rule and says the proposal is unproven. It proposes the
+  same way when codify stops with no proposal below its recurrence threshold. The ceiling and
+  its hand-off to `/toolchain:ratchet` are unchanged, and the Output's "Guardrails proposed" line
+  names the hand-off or the fallback proposal.
+
+## [0.15.6] - 2026-11-18
+
+### Removed
+
+- `/performance:target` no longer points at the Cachegrind manual or names one tool as the source of its counter rule; the rule keeps its reason, and spawns, syscalls and queries stay labeled as this plugin's own generalization.
+
 ## [0.15.5] - 2026-11-18
 
 ### Changed

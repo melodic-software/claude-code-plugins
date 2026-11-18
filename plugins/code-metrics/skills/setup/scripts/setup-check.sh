@@ -54,7 +54,6 @@ fi
 
 FAILS=0
 row() {
-  # row <status> <subject> <detail>
   [[ "$1" == "FAIL" ]] && FAILS=$((FAILS + 1))
   printf '%-4s  %-28s  %s\n' "$1" "$2" "$3"
 }
@@ -69,9 +68,7 @@ else
   exit 1
 fi
 
-# ---- layers ------------------------------------------------------------------
 check_layer() {
-  # check_layer <name> <path> <expect-tracked: yes|no|n/a>
   local name="$1" path="$2" tracked="$3" err
   if [[ ! -f "$path" ]]; then
     row INFO "layer $name" "absent ($path); the plugin runs on the layers that exist, or the bundled defaults"
@@ -105,9 +102,6 @@ check_layer() {
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
-# The team layer is docs/conventions/code-metrics.yaml alone; the retired
-# .claude/code-metrics.yaml is reported, never read. With the repository at
-# the home directory that path is the user-global layer, which is read.
 team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
 retired_file="$REPO_ROOT/.claude/code-metrics.yaml"
 if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metrics.yaml" ]]; then
@@ -140,8 +134,6 @@ for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   ecos+=("$eco")
   lanes+=("$lane")
 done
-# One status per lane, in order: invalid (not a lane id the resolver accepts),
-# unknown (the configuration did not resolve), listed, or unlisted.
 statuses=()
 if [[ ${#ecos[@]} -gt 0 ]]; then
   resolved_doc=""
@@ -185,7 +177,6 @@ for i in "${!ecos[@]}"; do
   esac
 done
 
-# ---- resolved references -----------------------------------------------------
 if [[ $resolved_ok -eq 1 ]]; then
   while IFS=$'\t' read -r measure reference provenance layer; do
     row INFO "reference $measure" "$reference (layer: $layer) $provenance"
@@ -205,16 +196,12 @@ else
 fi
 rm -f "$RESOLVED.err"
 
-# ---- collectors --------------------------------------------------------------
-# A probe that passes says the binary resolves, not that it measures, so a
-# collector row also runs one measure from the ladder on a bundled fixture.
 FIXTURES="$SCRIPTS/fixtures/sources"
 # Tools that resolve from the project's ./node_modules and need its own
 # configuration; a temporary directory carries neither.
 PROJECT_BOUND=" eslint-complexity sonarjs type-coverage "
 
 fixture_files() {
-  # fixture_files <lane> <measure>: the bundled sources, relative to $FIXTURES.
   if [[ "$2" == duplication ]]; then
     [[ "$1" == bash ]] && echo "cluster/alpha/shared/shared-utils.sh cluster/beta/shared/shared-utils.sh"
     return 0
@@ -231,7 +218,6 @@ fixture_files() {
 }
 
 check_collector() {
-  # check_collector <name> <adapter> <version>
   local name="$1" adapter="$2" version="$3" lane measure files="" first_lane="" first_measure=""
   while IFS=$'\t' read -r lane measure; do
     [[ -n "$first_lane" ]] || {
