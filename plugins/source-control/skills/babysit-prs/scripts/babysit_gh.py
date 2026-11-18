@@ -2545,7 +2545,7 @@ def fetch_review_threads(
 # checks the same key and format.
 LANE_RUN_SECTION = "lane-run"
 CARRIED_LANE_RUN_SECTION = "carried-lane-run"
-LANE_RUN_FORMAT = "v1"
+LANE_RUN_FORMAT = "v2"
 # What `babysit_review_evidence.bind()` reads of an attempt, a job and an
 # annotation; a saved attempt keeps only these. A change to what bind() reads
 # changes LANE_RUN_FORMAT, so no record saved without the new field is used.
@@ -2991,11 +2991,24 @@ def collect_lane_runs(
                     # name before that rename, and `kill-switch` a head tested
                     # before an earlier rename, or a repository whose job has
                     # no display name.
-                    if job in lane_jobs or (
-                        not lane_jobs
-                        and job.get("name")
-                        in ("Kill Switch", "kill-switch", "Check Kill Switch")
-                        and job.get("conclusion") in ("success", "failure")
+                    if (
+                        job in lane_jobs
+                        or (
+                            not lane_jobs
+                            and job.get("name")
+                            in ("Kill Switch", "kill-switch", "Check Kill Switch")
+                            and job.get("conclusion") in ("success", "failure")
+                        )
+                        or (
+                            lane_jobs
+                            and job.get("conclusion") == "success"
+                            and any(
+                                isinstance(step, dict)
+                                and step.get("name") == "Claude review"
+                                and step.get("conclusion") == "skipped"
+                                for step in job.get("steps") or ()
+                            )
+                        )
                     ):
                         job["annotations"] = pages(
                             f"repos/{repo}/check-runs/{job.get('id')}/annotations"
