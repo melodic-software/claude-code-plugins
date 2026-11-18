@@ -9605,11 +9605,13 @@ test("pr-unblock.yml: the group relock runs uv with no token, and only a base-co
   assert.ok(!JSON.stringify(relock).includes("github.token"), "no token handed to a step");
   assert.deepEqual(
     relock.steps.map((step) => (step.uses ?? "run").split("@")[0]),
-    ["actions/download-artifact", "actions/setup-python", "run", "actions/upload-artifact"],
+    ["actions/download-artifact", "run", "actions/upload-artifact"],
     "no checkout and no cache step",
   );
-  assert.equal(relock.steps[1].with.cache, undefined, "setup-python restores no cache the relock could write");
-  assert.equal(relock.steps[3].with.path, "${{ runner.temp }}/relock-work/requirements.txt", "only the relocked lock leaves");
+  assert.match(relock.steps[1].env.RELOCK_IMAGE, /^python:3\.12-slim@sha256:[0-9a-f]{64}$/, "a digest-pinned image");
+  assert.match(relock.steps[1].run, /docker run --rm -v "\$RUNNER_TEMP\/relock-work:\/w" -v "\$RUNNER_TEMP\/relock-request:\/r:ro"/, "uv runs in a container that sees only the work and request directories");
+  assert.doesNotMatch(relock.steps[1].run, /--privileged|docker\.sock|--pid|--network[= ]host/, "the container reaches no runner process");
+  assert.equal(relock.steps[2].with.path, "${{ runner.temp }}/relock-work/requirements.txt", "only the relocked lock leaves");
 
   const patch = jobs["review-dependency-relock-patch"];
   assert.deepEqual(patch.permissions, { contents: "read" });

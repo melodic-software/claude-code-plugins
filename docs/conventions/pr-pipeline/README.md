@@ -574,13 +574,16 @@ jobs so uv, which may run a package's build code, never runs beside a token.
 `review-dependency-select` reads the lagging directory's files from the head and uploads the
 relock request; a lock whose header names another command than the one the lane runs, or a missing
 file, goes to the model instead. `review-dependency-relock` runs uv, at the version
-`.github/requirements-relock.txt` pins and by the lock's own command, with no permissions, no
-secret and no checkout, and uploads only the relocked `requirements.txt`.
+`.github/requirements-relock.txt` pins and by the lock's own command, inside a digest-pinned
+`python:3.12-slim` container that sees only the request and work directories, in a job with no
+permissions, no secret and no checkout, and uploads only the relocked `requirements.txt`.
 `review-dependency-relock-patch`, base code with a read-only token, checks that lock pins the
 requested version and passes `dependency-version-change`, and writes the patch
 `apply-dependency-relock` pushes under the `dependency-relock` row. A relock that fails or that
 the rule refuses, such as one that adds a package (`requirements-new-package`), does not go to
-the model: it stops as `dependency-pin-invalid` for the session queue.
+the model: it stops as `dependency-pin-invalid`, which
+[`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json) routes to a
+failing status and the `needs-session` label.
 `dependency-relock.mjs check` and an explicit playwright comparison fail `test-bash` while a
 group's directories pin different versions; the check also fails when no pip group reads or a
 group directory's `requirements.in` cannot be read.

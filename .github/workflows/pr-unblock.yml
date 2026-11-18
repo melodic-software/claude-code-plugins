@@ -3769,18 +3769,14 @@ jobs:
           name: dependency-relock-request-${{ needs.review-dependency-select.outputs.relock-attempt }}
           path: ${{ runner.temp }}/relock-request
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-
       - name: Relock the lagging directory
         env:
-          RELOCK_REQUIREMENTS: ${{ runner.temp }}/relock-request/requirements-relock.txt
+          RELOCK_IMAGE: python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
         run: |
           mkdir -p "$RUNNER_TEMP/relock-work"
           cp "$RUNNER_TEMP/relock-request/requirements.in" "$RUNNER_TEMP/relock-request/requirements.txt" "$RUNNER_TEMP/relock-work/"
-          bash "$RUNNER_TEMP/relock-request/relock-requirements.sh" "$RUNNER_TEMP/relock-work"
+          docker run --rm -v "$RUNNER_TEMP/relock-work:/w" -v "$RUNNER_TEMP/relock-request:/r:ro" \
+            -e RELOCK_REQUIREMENTS=/r/requirements-relock.txt "$RELOCK_IMAGE" bash /r/relock-requirements.sh /w
 
       - name: Upload the relocked lock
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
