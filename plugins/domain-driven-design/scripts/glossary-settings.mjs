@@ -36,6 +36,13 @@ const { values: opts } = parseArgs({
 
 const STDIN_FD = 0;
 const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
+const readNameValueLines = (fd) =>
+  Object.fromEntries(
+    readFileSync(fd, "utf8")
+      .split(/\r?\n/u)
+      .filter((line) => line.includes("="))
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
 const schema = readJson(join(ROOT, "schemas/domain-driven-design.schema.json"));
 const KEYS = ["glossary_file", "glossary_map_file"];
 const manifestConfig = readJson(join(ROOT, ".claude-plugin/plugin.json")).userConfig;
@@ -67,7 +74,7 @@ function userConfig(file) {
   if (!file) return { value: undefined, errors: [], keys: [] };
   let value;
   try {
-    value = readJson(file === "-" ? STDIN_FD : file);
+    value = file === "-" ? readNameValueLines(STDIN_FD) : readJson(file);
   } catch (e) {
     return { value: undefined, errors: [`userConfig (${file}): unreadable or not JSON (${e.code ?? "parse error"})`], keys: [null] };
   }
