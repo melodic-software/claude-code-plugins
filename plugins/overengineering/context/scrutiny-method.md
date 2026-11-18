@@ -147,8 +147,7 @@ that look safe.
    budget? A mechanism that is invoked and then killed, refuses to start, or exits before deciding
    enforces nothing.
 
-**Generic false-green failure modes.** Each has been observed in the wild and each passes at least
-one question while failing another:
+**Generic false-green failure modes.** Each passes at least one question while failing another:
 
 - **A checked-in artifact whose header claims wiring it lost.** The file is present and its own
   comment block still describes the registration that used to exist. Q1 green, Q2 red, and the only
@@ -298,8 +297,7 @@ returns no information about them and applying one is a category error.
 This is the Piranha paper's own finding: determining staleness is "surprisingly non-trivial", and
 "even when flags are completely rolled out, they may not necessarily be stale". Fully-rolled-out
 controls may be intentionally retained as kill switches or monitoring flags
-(<https://manu.sridharan.net/files/ICSE20-SEIP-Piranha.pdf>). Practitioner documentation in the
-feature-flag ecosystem has converged on the same treatment for permanent operational flags.
+(<https://manu.sridharan.net/files/ICSE20-SEIP-Piranha.pdf>).
 
 Retiring an intentionally-dormant mechanism therefore requires an argument about the **hazard**, not
 about the mechanism's activity: the hazard no longer exists, or another mechanism now covers it. Its
@@ -433,8 +431,7 @@ A corollary worth stating because it is easy to trip over: this method never rec
 the practices whose **output it uses as evidence**. Retiring the record-keeping that makes tier 1
 and tier 2 readable would make the next audit weaker than this one.
 
-Some practitioners dispute how crisp this boundary is in practice. The dispute is about crispness,
-not about existence. Where a finding sits genuinely near the line, say so in the finding and let a
+This boundary is not always crisp in practice, though it does exist. Where a finding sits genuinely near the line, say so in the finding and let a
 human place it.
 
 ## 11. The rollback ladder

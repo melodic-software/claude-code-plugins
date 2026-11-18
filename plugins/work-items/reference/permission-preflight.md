@@ -221,7 +221,7 @@ that worktree. Two cases:
   very link git does not record in reverse. `<path>`
   also satisfies all three legs of the verification predicate, byte for byte, exactly as a
   conventional `<root>` does; any test strong enough to reject it also rejects the conventional
-  layout. So the preflight resolves to `<path>`: **git's own answer**, arrived at by verification
+  layout. So the preflight resolves to `<path>`, which is **git's own answer**, reached by verification
   rather than by string arithmetic. Where the operator intended a different directory to be the
   working tree, the layout is ambiguous at the git level and no consumer of git can do better.
   Two consequences: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout

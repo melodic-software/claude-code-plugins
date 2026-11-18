@@ -1488,7 +1488,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
 
 A lane pin guides effort and does not force it. Thinking is adaptive, so a lane pinned `low` still
 thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
-misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
+misfiring. Authoring conformance is therefore to pin the lane and let allocation vary per request
 instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to
 think, see
 [steering thinking: how Claude decides when to think](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#how-claude-decides-when-to-think)).

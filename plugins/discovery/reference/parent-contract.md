@@ -898,7 +898,7 @@ it as the level's choice and does not dispatch on it. `strict` is research's onl
 limit, or the invoking context is itself a subagent with no spawn: write
 `verification: unverified (none, <YYYY-MM-DD>)`, add the reason as a numbered gap in the index, and
 tell the user the handoff is unverified. Never grade the verifier's criterion yourself instead:
-the parent read the payload and is the context most motivated to call the run finished. A resuming
+the parent read the payload and is biased toward accepting its own run as finished. A resuming
 session that finds `pending` or `unverified` dispatches the verifier before relying on the artifact.
 
 ### The `verification:` values
