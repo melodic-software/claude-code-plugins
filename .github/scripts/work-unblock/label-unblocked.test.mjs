@@ -8570,6 +8570,40 @@ const THREE_FLOOR_RECORDS = {
 };
 const FAILED_AGAIN_CAUSE = "The work-resolve-issue run that `agent-ready` started failed or was cancelled before it reported, over 3 hours ago.";
 
+const failedAttempts = (count) => ["2026-10-16T11:52:00Z", "2026-10-16T11:54:00Z", "2026-10-16T11:56:00Z"].slice(0, count).map((at, index) => floorNote(FLOOR_RESET, at, 850 + index));
+
+test("a third attempt on one reset still fires", async () => {
+  const { github, actions, calls } = floorRun({ comments: [note(), ...failedAttempts(2)] });
+  assert.equal(await sweep({ github, actions }), 0);
+  floorFired(calls);
+});
+
+test("a fourth attempt on one reset goes to the failed-again backoff and posts no floor record", async () => {
+  const held = floorRun({ comments: [note(), ...failedAttempts(3)] });
+  assert.equal(await sweep({ github: held.github, actions: held.actions }), 0);
+  assert.deepEqual(writes(held.calls), [], "inside the backoff, 3 hours from the run's end");
+  const due = floorRun({ comments: [note(), ...failedAttempts(3)] });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T13:05:00Z") }), 0);
+  assert.deepEqual(writes(due.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refireComment(KEY, FAILED_AGAIN_CAUSE) })}`, ...restarted(30)]);
+});
+
+test("an issue out of attempts on one reset takes none of the batch's room", async () => {
+  const floors = floorIssues([41, 42, 43, 44]);
+  const fake = world({ ...floors, comments: { ...floors.comments, 41: [note(), ...failedAttempts(3)] } });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github, now: Date.parse("2026-10-16T13:00:00Z") }), 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 42", "RESTART 43", "RESTART 44"]);
+  assert.ok(!writes(fake.calls).some((call) => call.includes("/issues/41/")), writes(fake.calls).join("\n"));
+});
+
+test("a person's agent-ready starts the attempts on one reset again", async () => {
+  const { github, actions, calls } = floorRun({
+    comments: [note(), floorNote(FLOOR_RESET, "2026-10-16T09:52:00Z", 850), floorNote(FLOOR_RESET, "2026-10-16T09:54:00Z", 851), floorNote(FLOOR_RESET, "2026-10-16T09:56:00Z", 852)],
+    events: [added("2026-10-16T05:00:00Z", OWNER), added(LABELED_AT, OWNER)],
+  });
+  assert.equal(await sweep({ github, actions }), 0);
+  floorFired(calls);
+});
+
 test("past limits.limit-stops-per-issue floor re-fires the issue goes to the failed-again backoff", async () => {
   const held = floorRun(THREE_FLOOR_RECORDS);
   assert.equal(await sweep({ github: held.github, actions: held.actions }), 0);

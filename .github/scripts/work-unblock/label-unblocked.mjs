@@ -2641,6 +2641,10 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     if (named.some(relabeled)) {
       return stranded(ended, `already re-fired after its floor stop until ${isoSecond(reset)}`, "failed-again");
     }
+    const attempts = named.filter((marker) => marker.at > from).length;
+    if (attempts >= limits["limit-stops-per-issue"]) {
+      return stranded(ended, `${attempts} floor re-fire attempts for the reset ${isoSecond(reset)} did not restart it`, "failed-again");
+    }
     const spent = new Set(markers.filter((marker) => marker.floor !== undefined && marker.at > from).map((marker) => marker.floor)).size;
     if (named.length === 0 && spent >= limits["limit-stops-per-issue"]) {
       return stranded(ended, `${spent} floor re-fires since a person last added ${LABEL} or a run last reported`, "failed-again");
