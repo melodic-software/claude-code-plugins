@@ -4,6 +4,7 @@ set -euo pipefail
 issue="$1"
 author_id="$2"
 expected="$3"
+record="${4:-}"
 resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/loosened-check-settings.mjs"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -12,6 +13,10 @@ list='{"version": 1, "actors": [{"id": 4101, "login": "eval-owner", "kind": "hum
 blob="$(printf '%s' "$list" | git hash-object -w --stdin)"
 GIT_INDEX_FILE="$work/index" git read-tree main
 GIT_INDEX_FILE="$work/index" git update-index --add --cacheinfo "100644,$blob,.github/standards/trusted-actors/trusted-actors.json"
+if [[ -n "$record" ]]; then
+  settings="$(printf 'loosened_check_decision_record: %s\n' "$record" | git hash-object -w --stdin)"
+  GIT_INDEX_FILE="$work/index" git update-index --add --cacheinfo "100644,$settings,docs/conventions/review.yaml"
+fi
 tree="$(GIT_INDEX_FILE="$work/index" git write-tree)"
 seeded="$(git commit-tree "$tree" -p main -m "chore: trusted-actor list")"
 git update-ref refs/remotes/origin/main "$seeded"
@@ -36,3 +41,7 @@ case "$spec" in
   exit 1
   ;;
 esac
+grep -q "^loosened_check_decision_record: ${record:-unset} (" review-input/loosened-settings.txt || {
+  printf 'spec-author.sh: expected loosened_check_decision_record: %s\n' "${record:-unset}" >&2
+  exit 1
+}

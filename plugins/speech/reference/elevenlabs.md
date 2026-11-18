@@ -6,8 +6,9 @@ each entry states what the plugin decided and where to read the upstream specifi
 ## Models
 
 The script keeps a `MODELS` table with each model's per-request limit and whether the
-with-timestamps endpoint is confirmed for it. The default is `eleven_v4`: the models page lists it
-for Text to Dialogue only, but a live with-timestamps call returned clean word timings for it.
+with-timestamps endpoint is confirmed for it. The default is `eleven_v4`, chosen because a live
+with-timestamps call returned clean word timings for it. That support rests on the live call, not
+on the models page.
 
 - **Pointer**: when choosing a model or rechecking a limit, fetch
   <https://elevenlabs.io/docs/overview/models> live.

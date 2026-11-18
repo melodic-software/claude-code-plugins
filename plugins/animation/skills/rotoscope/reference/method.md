@@ -56,9 +56,10 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 - The brush defaults are in `scripts/brush.json`, which `roto.js`, `measure.py` and `fit.py` all
   read. `bias` (px): a ring of ink.js `capsule` dabs of width 2 x bias on the T contour. `blur`
   (sigma, px): a JS separable gaussian, because of the floor below.
-- Chromium's canvas blur floor. Claim: `ctx.filter = 'blur()'` silently does nothing below about
-  0.8 px. Basis: a Playwright capture of a blurred two-tone canvas. As of: 2026-09-24, Chromium
-  build 1246. Recheck trigger: the Chromium build `render.json` records changes.
+- Chromium's canvas blur floor: `ctx.filter = 'blur()'` silently does nothing below a small
+  sigma, so `blur` uses the JS gaussian. **Pointer**: the probe, a Playwright capture of a blurred
+  two-tone canvas in headless Chromium, ran while the plugin was built in
+  [#4534](https://github.com/melodic-software/claude-code-plugins/pull/4534).
 - Brush texture does not help a traced copy: an `inkStroke` ring, wobble and dry-brush all
   measured slightly worse than capsules, and `paperGrain` lowers SSIM (uncorrelated grain). The
   source's texture is already in the traced geometry.

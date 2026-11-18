@@ -2,14 +2,15 @@
 
 ## A silent regex failure looks like a clean corpus
 
-mawk panics at compile time on interval expressions (`{0,4}`), and the scan then returns nothing
-while the script still exits 0. A whole rule stopped firing and the run looked healthy: no
-error, no findings, a plausible-looking summary.
+A regex the installed awk does not handle as written can make the scan return nothing while the
+script still exits 0, so a rule can stop firing while the run looks healthy: no error, no
+findings, a plausible-looking summary.
 
 If a detector reports zero candidates where you expected many, run it against one file you know
-trips it before believing the zero. Every regex in this plugin's scripts uses explicit
-repetition for this reason; a contributed patch that reintroduces `{n,m}` will pass its own
-tests on gawk and go quiet on mawk.
+trips it before believing the zero. Every awk regex in this plugin's scripts uses explicit
+repetition, never an interval expression such as `{0,4}`, so no rule depends on how the
+installed awk treats intervals; a contributed patch that reintroduces `{n,m}` in an awk program
+can pass its own tests on one awk and go quiet on another.
 
 ## A stamp keyword next to a date is not always a stamp
 

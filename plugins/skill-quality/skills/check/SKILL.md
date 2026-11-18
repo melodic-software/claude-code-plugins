@@ -142,14 +142,13 @@ lists the skill's directory name in a one-line `tags: [...]`.
 2. Read the bundled schema at
    [`${CLAUDE_PLUGIN_ROOT}/reference/evals.schema.json`](../../reference/evals.schema.json) and the
    skill's `evals.json`.
-3. If a JSON-schema validator is available (`check-jsonschema`, `ajv`, or `python -m jsonschema`),
-   run it and report conformance. Otherwise validate structurally against the schema: `skill_name`
-   and a non-empty `evals` array are required; each case requires `id`, `prompt`, and at least one
-   non-empty grading criterion: a non-empty `expected_output` string, a non-empty `expectations`
-   array, or a non-empty `assertions` array (a case that cannot be graded is not an eval); a
-   rich-form case may add `name` (kebab-case) and `files`, and any case may add `difficulty`
-   (`hard` or `routine`), `why_hard` (the reason a person judged it hard) and `source` (where
-   the case came from).
+3. If a JSON-schema validator is available, run it and report conformance. Otherwise validate
+   structurally against the schema: `skill_name` and a non-empty `evals` array are required; each
+   case requires `id`, `prompt`, and at least one non-empty grading criterion: a non-empty
+   `expected_output` string, a non-empty `expectations` array, or a non-empty `assertions` array
+   (a case that cannot be graded is not an eval); a rich-form case may add `name` (kebab-case)
+   and `files`, and any case may add `difficulty` (`hard` or `routine`), `why_hard` (the reason
+   a person judged it hard) and `source` (where the case came from).
 4. Report each violation with its JSON path, or confirm the file conforms.
 5. Run the deterministic eval-quality lint over every located file, all at once. The script
    accepts multiple paths:

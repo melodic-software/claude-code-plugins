@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/AGENTS.md" } }],
+      "why": "the project rules were read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/textkit/trim.py" } }],
+      "why": "only the code was read"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

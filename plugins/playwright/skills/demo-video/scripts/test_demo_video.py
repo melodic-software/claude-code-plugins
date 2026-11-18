@@ -339,8 +339,6 @@ class DemoPipelineSmoke(unittest.TestCase):
             self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
 
     def test_modal_opening_after_the_click_passes_quality_control(self):
-        # A click that opens a modal 0.25 s later (DocSearch: the scrim changes most of the page) must
-        # give a plan quality control passes: nav-cuts fails any such page change taken while the camera moves.
         capture = self.tmp / 'capture-modal'
         make_capture(capture, modal=True)
         edl_path = self.tmp / 'edl-modal.json'
@@ -353,8 +351,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual(self.failed(report), set(), r.stdout)
 
     def test_click_at_the_page_edge_gets_a_zoomed_shot(self):
-        # A target touching the page edge (a header button at y 8) is framed against that edge, not
-        # left at 1.0x; quality control's target-headroom treats the page boundary as headroom.
         def edit(ev):
             for e in ev:
                 if e['name'] == 'move' and e['step'] == 'search':
@@ -371,8 +367,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertLess(rect[2], W / 1.2, rect)   # zoomed in at the click
 
     def test_refused_plan_removes_the_earlier_edl(self):
-        # An edge_ink limit below zero leaves no caption anchor empty, so the plan is refused; the
-        # earlier approved plan at the same path must not survive for produce.py to render.
         cfg = self.tmp / 'refuse.json'
         cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
         edl_path = self.tmp / 'edl-refused.json'
@@ -383,7 +377,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertTrue(edl_path.with_suffix('.rejected.json').exists())
 
     def test_refusal_names_the_steps_whose_shot_search_found_nothing(self):
-        # No zoom rect passes the edge test, so every caption also has no empty anchor.
         cfg = self.tmp / 'refuse-shots.json'
         cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
         r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', self.tmp / 'edl-noshot.json', '--config', cfg)
@@ -391,7 +384,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertIn('shot search: no click shot passed for get-started, search, open-result', r.stdout)
 
     def test_an_outcome_hold_lasts_its_reading_time_and_passes_stillness_with_the_camera_off(self):
-        # Long outcomes on an in-place step and on the last step, with no camera drift to break the stillness.
         per_word = json.loads((HERE / 'defaults.json').read_text())['captions']['seconds_per_word']
         script = json.loads(json.dumps(SCRIPT))
         script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'   # a step that stays on its page
@@ -551,8 +543,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertIn('nav-cuts', self.failed(report), r.stdout)
         self.assertNotIn('edge-clip', self.failed(report), r.stdout)
 
-        # The same frames, with the EDL naming no URL change there: an in-page state cut, which clean
-        # edges allow while zoomed.
         edl['nav_cuts'] = edl['nav_cuts'][1:]
         state_edl = self.tmp / 'edl-zoomed-state-cut.json'
         state_edl.write_text(json.dumps(edl))

@@ -41,8 +41,9 @@ see the result. When either is missing, prompt once instead.
   which says when the bundled `claude-api` skill's hillclimb fits and who starts it.
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop`, not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) →
-  routines / `/schedule`. Before recommending them, read their release status (a research-preview
-  label, for instance) on `https://code.claude.com/docs/en/routines` during the Step 1 fetch.
+  routines / `/schedule`. Before recommending them, read their release status on
+  `https://code.claude.com/docs/en/routines` during the Step 1 fetch, and name it in the
+  recommendation, so the user knows whether the surface may still change.
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a
   prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or orchestration worth codifying as a
@@ -211,11 +212,24 @@ doctrine and is out of scope.
 
 ## Step 4. Output
 
-Emit the final, counter-passed condition as a paste-ready invocation:
+Emit the final, counter-passed condition as a paste region the person copies after typing `/goal` and a space
+themselves, since the copied text holds the condition only. One instruction line, then the
+condition alone; no line of the region starts with `/goal`:
 
 ```text
-/goal <condition>
+Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:
+
+──────────────────────────────────────────────────────────
+<condition>
+──────────────────────────────────────────────────────────
 ```
+
+In the terminal the rails are literal `─` lines, as shown. On a markdown surface, detected as
+session-flow's
+[Markdown surfaces](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/session-flow/reference/save-point.md#markdown-surfaces)
+section says, the instruction line ends ``then paste this.`` before its confirm sentence and the
+condition sits in a fenced `text` block. Both shapes match the goal region
+`/session-flow:handoff` writes, so a goal drafted here pastes the same way after a handoff.
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it under
 the conditions the Boundary section lists (no subagent, interactive local session, not plan mode).

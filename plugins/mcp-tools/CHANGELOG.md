@@ -3,6 +3,17 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-18
+
+### Changed
+
+- `/mcp-tools:audit`'s checklist rows C6, C16 and C20 and its annotations note accept the SDK's own form and no longer list Zod, Python or .NET examples.
+- The server-discovery page's "Server instructions" section tells the audit to find where the server is constructed; it no longer names each SDK's constructor or links SDK reference pages.
+
+### Removed
+
+- `/mcp-tools:audit-posture`'s P3 check drops the `postmark-mcp` worked case and its Postmark source record; the P3 rules are unchanged.
+
 ## [0.9.1] - 2026-11-18
 
 ### Changed

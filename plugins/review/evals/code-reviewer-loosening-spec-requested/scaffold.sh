@@ -141,6 +141,7 @@ Lower the global branch coverage minimum in `jest.config.js` from 90 to 80. Why:
 request-body branch is exercised by the billing API team's contract tests in their repository, and
 our vendoring policy keeps generated files unedited, in the coverage report, and out of our own
 test suite. With the client counted, branch coverage is 5 of 6 branches (83%), below 90.
+Owner decision: https://records.example.com/decisions/blob/main/owner-decisions.md#L10 verbatim: "Approved."
 
 ## Done when
 
@@ -154,4 +155,4 @@ Vendors the generated billing client and lowers the branch coverage minimum to 8
 Closes #41
 MD
 
-bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 41 4101 counts
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 41 4101 counts https://records.example.com/decisions/blob/

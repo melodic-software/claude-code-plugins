@@ -3,6 +3,30 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-18
+
+### Changed
+
+- The shared `resolve-tool.sh` adds `rt_git`, the git that format and lint adapters run: `hook::git_untrusted` inside a Claude Code hook, plain git otherwise. This plugin's adapter runs no git.
+
+## [2.1.3] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
+## [2.1.2] - 2026-11-18
+
+### Changed
+
+- The README no longer says which hook filters apply to `PostToolBatch`. It states that the row has no matcher or `if`, and points to the hooks page for what filters a `PostToolBatch` row.
+
+## [2.1.1] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [2.1.0] - 2026-11-18
 
 ### Added

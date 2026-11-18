@@ -215,12 +215,12 @@ Boards live where their backend keeps them: markdown boards in the board directo
 boards go"), Miro boards on Miro. Persist all other run state, session archives, board references,
 version metrics, run findings, under `${CLAUDE_PLUGIN_DATA}/`. A run-state entry records each board
 as `{"backend": "markdown" | "miro", "ref": "<path or URL>"}`; an older entry holding a bare URL is
-a Miro board. Session archives go to
-`${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`; comparison baselines (prior-version metrics) to a
-JSON/JSONL file such as `${CLAUDE_PLUGIN_DATA}/history.jsonl`. Read the store and this skill's
-reference files with the Read tool by absolute path (a missing `history.jsonl` means no prior run),
-never with `cd`, `ls`, `cat` or `sed` in a shell. Never write run state inside
-the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree;
+a Miro board. Session archives go to `${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`; comparison
+baselines (prior-version metrics) to a JSON/JSONL file such as `${CLAUDE_PLUGIN_DATA}/history.jsonl`.
+Read the store and this skill's reference files with the Read tool by absolute path (a missing
+`history.jsonl` means no prior run), never with `cd`, `ls`, `cat` or `sed` in a shell, so no command
+chains a `cd` into the skill with a listing of the plugin data directory. Never write run state
+inside the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree;
 the board files in the board directory are the only files this skill writes there.
 For what each directory guarantees, fetch
 [Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)

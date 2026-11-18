@@ -159,8 +159,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         check=False,
     )
     if no_configuration(result):
-        # Not a failure: the tool resolved and nothing was measured, so the
-        # dispatcher writes an `unavailable` row with this reason (exit 4).
         said = next(
             (
                 line.strip()

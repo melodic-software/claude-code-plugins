@@ -1,6 +1,6 @@
 ---
 description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening|boundaries|conventions] [--medium <value>]"
+argument-hint: "[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan for shallow modules, boundary crossings or unwritten conventions, then hand on the fix
 ---
 
-**Arguments.** `[deepening|boundaries|conventions] [--medium <value>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
+**Arguments.** `[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]`. e.g., boundaries. `--repo` and the other target forms in [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md) run the deepening or conventions lens across several repositories ([../../reference/improvement-steps.md](../../reference/improvement-steps.md), "Scope and fan-out"); the default stays this repository. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `--unattended` is the caller's declaration that no user is present; it is never inferred, and only the deepening lens has that mode (`actions/deepening.md`, "Unattended mode"). With another lens, say so and stop. `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
 
 ## Repository context. Gather first
 
@@ -38,6 +38,14 @@ Verification level: for the `deepening` lens, run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin architecture --skill improve` and
 keep its line; Phase 1.5 says what the level does there
 ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+
+Improve settings: for the `deepening` and `conventions` lenses, resolve `<home>` ("Convention home"
+in [../../reference/improvement-steps.md](../../reference/improvement-steps.md)), then run
+`node "${CLAUDE_SKILL_DIR}/scripts/improve-settings.mjs" --home <home>` from the repository root,
+with `--no-config` in place of `--home <home>` when no home resolves. Keep its `values`, and report
+each entry of its `errors`. A value the invocation prompt names wins for that run. If the script
+cannot run, use the defaults in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` ("Improve keys") and say
+so.
 
 ## Purpose
 
@@ -123,4 +131,5 @@ Graceful degradation: where a named step below is not available in the consuming
 Failure modes this lens runs into, each stated as the rule it implies.
 
 - **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects. Pointer: when deciding what may live in that directory and when it is removed, fetch [plugins reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) and [plugin components § Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data) live. The artifact lands in the memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
+- **Unattended output is treated as public.** A routine's log or a filed item can be read by anyone with access to the repository, so a security defect reaches neither the candidate file nor the final output beyond its placeholder line (`actions/deepening.md`, "Unattended mode").
 - **Scan-agent claims are shipped only after Phase 1.5 reproduction, or labeled `unverified`.** Exploration subagents infer from partial reads, so a claim that a service is unused or a call path is dead can be wrong in a way a single grep settles. Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report; under the `light` and `off` verification levels it is labeled `unverified` instead. The report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.

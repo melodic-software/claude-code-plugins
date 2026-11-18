@@ -3,6 +3,24 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.38] - 2026-11-18
+
+### Changed
+
+- `/repo-hygiene:clean` keeps the rule to single-quote a `stash@{n}` ref on the PowerShell tool and drops the restated parsing mechanism and git's error string for a pointer to PowerShell's argument-mode parsing. The old text named splatting as the cause; the cause is the unquoted braces. The `git` tier's batch reference points at the `git-gc` entries for `gc.auto` and `gc.autoPackLimit` instead of quoting their defaults.
+
+## [0.21.37] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
+## [0.21.36] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [0.21.35] - 2026-11-18
 
 ### Changed

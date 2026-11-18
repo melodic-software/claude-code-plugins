@@ -30,7 +30,6 @@ describe("full-registry conformance", () => {
         `registered adapter "${adapter.id}" has no canonical example URL — add it to CANONICAL_EXAMPLE_URLS`,
       ).toBeTruthy();
     }
-    // …and the inverse: every example-URL row names a registered adapter.
     const registeredIds = adapters.map((adapter) => adapter.id);
     for (const id of Object.keys(CANONICAL_EXAMPLE_URLS)) {
       expect(registeredIds, `stale example URL row "${id}"`).toContain(id);
@@ -43,8 +42,6 @@ describe("full-registry conformance", () => {
       expect(adapter.id, url).toBe(id);
       const claim = adapter.matchUrl(url);
       expect(claim, url).not.toBeNull();
-      // The canonical URL the claim yields still dispatches to the same
-      // adapter — canonicalization can never re-route a URL across sources.
       expect(resolveSourceAdapter(String(claim?.canonicalUrl)).id, url).toBe(id);
     }
   });

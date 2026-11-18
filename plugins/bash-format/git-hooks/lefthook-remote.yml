@@ -1,11 +1,15 @@
 pre-commit:
   jobs:
-    - name: bash-format-remote-format
-      script: bash-format-format.sh
-      runner: sh
-    - name: bash-format-remote-lint
-      script: bash-format-lint.sh
-      runner: sh
+    - name: bash-format-remote
+      group:
+        piped: true
+        jobs:
+          - name: bash-format-remote-format
+            script: bash-format-format.sh
+            runner: sh
+          - name: bash-format-remote-lint
+            script: bash-format-lint.sh
+            runner: sh
 pre-push:
   jobs:
     - name: bash-format-remote-lint-full

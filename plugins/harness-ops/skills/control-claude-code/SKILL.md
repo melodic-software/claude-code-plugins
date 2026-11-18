@@ -14,11 +14,14 @@ switches accounts, and it never drives Claude Desktop (Gotchas).
 In the commands below, `<skill-dir>` is this skill's folder; `<plugin-dir>` is the plugin directory
 the person names, else each line Launch's `plugins` prints, resolved from the directory the run
 starts in; `<plugin>` is the last segment of `<plugin-dir>`; `<run-dir>` is drive's run directory;
-`<session>` is one name for the whole run; `<file>` is `<plugin>`, then the feature id with each `/`
+`<session>` is one name for the whole run, 1 to 32 letters, digits, `_` or `-`, not starting with
+`-` (a longer name exits 2); `<file>` is `<plugin>`, then the feature id with each `/`
 as `-`, then the entry point (`context-budget-mods-band-01`), so two plugins driving the same entry
 point keep separate evidence. The `--timeout`
-values come from `timeouts` in `config/local.json`, else `config/defaults.json`: `stepMs` for every
-`wait-for`, `readyMs` for Ready, `logMs` for `logs`. A run takes at most `maxCaptures` screenshots
+values come from `timeouts` in `config/local.json`, else `config/defaults.json`: `stepMs` for each
+`wait-for`, `readyMs` for Ready, `logMs` for `logs`. A step whose turn runs longer than `stepMs`,
+such as a skill that fans out to subagents, passes its own `--timeout <ms>` to that one `wait-for`.
+A run takes at most `maxCaptures` screenshots
 and videos together, and drives at most `maxEntryPoints` entry points across all its plugins, both
 from the same config; the driver caps only the plugins Launch lists, so the run keeps both counts. At a cap it takes no
 further capture, or drives no further entry point, and records each entry point it skipped as
@@ -35,6 +38,15 @@ the run directory holds `affected.json`; otherwise `<plugin-dir>` is the one the
 `pluginDir` from `config/local.json`, else from `config/defaults.json`.
 
 `node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session>`
+
+Claude Code starts in `<session>.cwd` under the runtime directory (`CCD_RUNTIME_DIR` below), not
+the caller's shell directory; each launch empties that directory and makes it private. Add
+`--cwd <dir>` to start it in a directory the person names. `--restricted` keeps the file tools inside
+that working directory. Ready and `logs` run print mode in the directory the run starts in, so start
+them outside the checkout when a prompt may write. A launch under `--in-sandbox` (below) starts in
+the caller's own directory, since that sandbox is the boundary. Config isolation is the pr-verify
+capture's sandbox, which runs the broker with `--in-sandbox`: a local drive still uses the person's
+config directory (`Data:`).
 
 The launch clears every API-key, gateway and provider variable and hides the working directory on
 the startup screen. An unattended run adds `--unattended` to `launch`, `ready` and `log`: the one
@@ -59,9 +71,28 @@ that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen.
 
+To drive the plugin beside the person's own setup, add `--real-setup` to `launch`, `ready` and
+`log`: it drops `--restricted` and `--strict-mcp-config` and nothing else, so Ready still requires
+`none`. What each flag withholds: <https://code.claude.com/docs/en/cli-reference#cli-flags>. It runs
+only attended, at the person's request; the driver refuses it with `--unattended`, `--in-sandbox`,
+a kept credential, or through the launch broker. With it, `--launcher <word>` once per word
+(`--launcher=<word>` for one starting with `-`) runs that command in place of `claude`, followed
+only by `--plugin-dir <plugin-dir>` and, for `ready` and `log`, the print-mode flags and prompt. No
+shell runs it, and it runs with the person's own permissions, so use only a launcher the person
+named, such as the plugin-profiles plugin's `profiles.mjs`. Without `--cwd`, `launch` starts in a
+fresh folder the person has not trusted, so name the checkout they work in:
+
+`node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session> --cwd <checkout> --real-setup --launcher node --launcher <profiles.mjs path> --launcher start --launcher <profile>`
+
+Run `ready` from that checkout with the same flags but `--cwd`, and answer any first-run dialog as
+Gotchas says.
+
 Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
 else `~/.claude`), shared across runs, because the run reuses the account it is signed in with; a
-new directory per run would start signed out. The launch sets no config directory.
+new directory per run would start signed out. The launch sets no config directory. A local drive
+writes the evidence under `<run-dir>`; the session's socket, lock file, holder log and `<session>.cwd`
+under the runtime directory; the terminal engine under the install base `doctor` prints; and what
+Claude Code keeps in the config directory, such as the session transcript.
 
 Side by side: yes, one `<session>` name each: `launch` reserves the name with a lock file and
 refuses a name that is already running.
@@ -135,10 +166,23 @@ before `## Cleanup` stops it: no `--session`, no other argument, and no pipe, re
 around it. A run whose shell runs only listed commands is refused any other form, and the
 post-check then publishes nothing.
 
+### Real setup
+
+The driver adds these lines only for a session launched with `--real-setup`, to hide the person's
+status line. Their shapes follow the session, cost and rate-limit fields of
+<https://code.claude.com/docs/en/statusline#available-data>; a status line that prints them in
+another form gets its own line here before its first capture.
+
+- status line session id | [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+- status line cost | \$[ \t]*[0-9]
+- status line limit | (?<![a-z0-9])(?:5h|7d|spend)(?=[: \t]*[0-9$])
+
 ## Cleanup
 
-`node <skill-dir>/driver/driver.mjs stop --session <session>`, after `record stop` when a recording
-is running. It stops the session this run launched; the evidence files stay.
+1. `node <skill-dir>/driver/driver.mjs record stop --session <session>` when a recording is running.
+2. The `## Mask` post-check: `node <skill-dir>/cli/account.mjs`, while the session still runs.
+3. `node <skill-dir>/driver/driver.mjs stop --session <session>`. It stops the session this run
+   launched; the evidence files and `<session>.cwd` stay until the next launch of that name.
 
 ## Next
 
@@ -154,8 +198,29 @@ is running. It stops the session this run launched; the evidence files stay.
 - Wait for a step's text with `wait-for` before each screenshot: a capture taken first shows the
   frame before the redraw.
 - A status glyph drawn as a box is the missing font doctor names, not the plugin under test.
+- A `.png` capture refused because no installed font has a glyph on screen (the error names the
+  glyph, such as `⎿` (U+23BF)) is a font gap, not the plugin under test, and doctor's font line
+  does not catch it: it checks one family, not each glyph. Take that capture as `.svg`, which
+  draws text without rasterizing it, and name the glyph in the run's report.
 - Ready stops before any request, so it does not show the session is signed in; the launched
   session's first screen does. Screenshot it before the first step.
+- A local drive cannot load a plugin's declared dependencies. `--restricted` loads only managed
+  settings and `--settings`, so none of the person's enabled plugins load: Ready's `plugins` lists
+  the plugin under test and the built-in ones, and a plugin that depends on another fails with
+  `dependency-unsatisfied` (seen on Claude Code 2.1.325). Record each entry point of such a plugin
+  as `blocked: dependency-unsatisfied`. Basis: the `--restricted` row of
+  <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-11-18; recheck when that row
+  changes which settings it loads).
+- When a `--real-setup` session shows a first-run dialog, screenshot it, answer it as below, and
+  take the next step only once the prompt shows:
+  - Folder trust: trust only the checkout the person already works in; for any other folder, stop
+    the run. Run `--real-setup`, Ready included, only from a folder the person already trusts;
+    what print mode and an untrusted folder load:
+    <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>.
+  - External CLAUDE.md imports: decline; the drive needs no file from outside the project
+    (<https://code.claude.com/docs/en/memory#import-additional-files>).
+  - The auto-mode offer: decline
+    (<https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode>).
 
 ## Features
 

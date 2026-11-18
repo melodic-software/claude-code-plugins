@@ -368,10 +368,8 @@ function pushSessionCoverageChecks(checks, slice) {
     severity: "fail",
   });
 
-  // A logged talking-head-only gap stands in for the frame the synthesis contract rejects.
   const talkingHeadOnly = parseTalkingHeadOnlySessions(visualGapsBody);
   const sessionFrameCounts = sessions.map((session) => {
-    // Open-ended: runs past every frame (a ranged slice's frames sit beyond `durationSec`).
     const end = session.endSec ?? Number.POSITIVE_INFINITY;
     const gapLogged = talkingHeadOnly.has(session.name.trim().toLowerCase());
     const promoted = promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length;
@@ -439,8 +437,6 @@ function pushTriageManifestChecks(checks, slice) {
   const { sliceDir, triageBody, triageManifestPath } = slice;
   const triageJson = validateTriageManifestForSlice(sliceDir, { requireIndexMatch: true });
   const triageManifestExists = fs.existsSync(triageManifestPath);
-  // Parsed once and shared by the agentic/batch-file checks below — both only
-  // read it on the same manifest-present-and-valid branch.
   const triageManifestUsable = triageManifestExists && triageJson.valid;
   const triageManifest = triageManifestUsable
     ? JSON.parse(fs.readFileSync(triageManifestPath, "utf8"))
@@ -714,7 +710,6 @@ function pushSynthesisCloseoutChecks(checks, sliceDir) {
 function writeWatchOutcomeReport(sliceDir, checks, pass) {
   const verificationDir = lanePath(sliceDir, LANES.verification);
   fs.mkdirSync(verificationDir, { recursive: true });
-  // Latest report is authoritative: clear prior outcome reports before writing this run's.
   for (const name of fs.readdirSync(verificationDir)) {
     if (name.endsWith("-watch-outcomes.md")) {
       fs.rmSync(path.join(verificationDir, name));

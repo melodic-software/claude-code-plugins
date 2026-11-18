@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/docs/policies/textkit-style.md" } }],
+      "why": "only the relevant policy was read"
+    },
+    {
+      "answer": [],
+      "why": "no policy was read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/docs/policies/deploy.md" } }],
+      "why": "the deploy policy was read though no deployment work is in flight"
+    }
+  ]
+}

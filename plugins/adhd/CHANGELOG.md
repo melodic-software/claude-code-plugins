@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5] - 2026-11-18
+
+### Changed
+
+- `/adhd:shape` drops the weak and strong examples under rules 1, 2, 3 and 7, which were written for one stack: they named `npm`, `jsonwebtoken` and `src/auth.ts`. Each rule's own text still states what the reply does.
+
 ## [0.11.4] - 2026-11-17
 
 ### Changed

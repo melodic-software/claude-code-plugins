@@ -17,7 +17,7 @@ records: [aihero-course.md](aihero-course.md) (crash-course and Steering lessons
   and
   [`grill-with-docs`](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/engineering/grill-with-docs).
   The workshop's skill text matched these files when it was absorbed.
-- **As of**: 2026-11-17
+- **As of**: 2026-11-18
 - **Recheck trigger**: a mattpocock/skills changeset naming `domain-modeling` or `grill-with-docs`,
   checked as [mattpocock-skills.md](mattpocock-skills.md) describes. Course page updates are not
   observable events; the skills-repo changeset stream is the proxy, as in
@@ -93,7 +93,7 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 | Everyday words stay out of the glossary | Admits only terms that remove ambiguity | Inference: a bloated glossary hides the useful terms | Same | **take:** one admission sentence (Q96) | [#15140](https://github.com/melodic-software/claude-code-plugins/pull/15140) |
 | Competing verbs for one action | Picks one verb | Inference: verbs drift like nouns | No place for a verb | **adapt:** an `Actions:` line under the entity with the rejected verb (Q97); readers treat it as rejected | [#15140](https://github.com/melodic-software/claude-code-plugins/pull/15140), [#15199](https://github.com/melodic-software/claude-code-plugins/pull/15199) |
 | Closing recap with an ADR pass | Restates decisions and asks again about ADRs | Inference: catch decisions the first pass missed | A second ADR pass swung between too few and too many | **adapt:** grouped closing summary with one ADR verdict line per decision, overrulable in the reply (Q98) | [#15142](https://github.com/melodic-software/claude-code-plugins/pull/15142) |
-| Decisions that fail the gate go to the spec | Routes non-ADR decisions elsewhere | Inference: keep them without an ADR | Same | **already have:** [`/planning:prd`](../../plugins/planning/skills/prd/SKILL.md) | none |
+| Decisions that fail the gate go to the spec | Routes non-ADR decisions elsewhere | Inference: keep them without an ADR | The interview Brief held one ADR verdict line per decision, but no later step posted them, so a decision that failed the gate had no record past the branch | **adapt** (Q1187): the Brief's `### ADR verdicts` section stays the home; plan close-out posts its lines with the Brief to the pull request body and any linked issue and reads them back. Not [`/planning:prd`](../../plugins/planning/skills/prd/SKILL.md), which holds product intent only | [#17187](https://github.com/melodic-software/claude-code-plugins/pull/17187) |
 
 ### Lesson 5: Pruning the Glossary
 

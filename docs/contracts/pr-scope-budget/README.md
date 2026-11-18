@@ -33,8 +33,7 @@ that is too coarse: narrow the scope, never raise the cap.
 ## What counts
 
 - Lines: additions plus deletions, formatter-only whitespace included, because a reviewer still
-  scans past it. Machine-generated lockfiles (`uv.lock`, `package-lock.json`, and similar) do not
-  count.
+  scans past it. Machine-generated lockfiles do not count.
 - Files: every file with a non-whitespace edit. A rename counts once.
 
 ## Overflow

@@ -221,6 +221,7 @@ at the plan. With no rule recorded it writes nothing and points at the
 ```shell
 /architecture:improve            # defaults to the deepening lens
 /architecture:improve deepening  # explicit
+/architecture:improve deepening --unattended # no questions; writes a candidate file for the caller
 /architecture:improve boundaries # recorded boundary rules against manifest edges
 /architecture:improve conventions # derive conventions and propose rules
 /architecture:improve-layout     # do files that change together live together?

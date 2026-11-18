@@ -50,11 +50,11 @@ skip that feature, continue with the documented reduced result.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
-- License: a paid download under the Aseprite EULA, which replaced GPLv2 in August 2016 and
-  forbids redistributing compiled builds; source can still be compiled for personal use, and art
-  made with it can be sold. Do not copy the FAQ's pledge amount into a reply.
-- Verification record: claim = that license shape. Basis =
-  [Aseprite FAQ, Licensing & Commercial](https://www.aseprite.org/faq/).
+- License: the plugin never installs, bundles or redistributes Aseprite; the user brings their own
+  copy. State no license terms from memory and do not copy the FAQ's pledge amount into a reply.
+  - **Pointer**: when the user asks about Aseprite's license, building it from source, or selling
+    art made with it, fetch [Aseprite FAQ, Licensing & Commercial](https://www.aseprite.org/faq/)
+    live.
 - Verification record: claim = `--batch` means do not start the UI, `--script` runs a Lua file,
   `--script-param` is read as `app.params`, `--version` prints the version, and the export flags
   above exist; the script uses `Sprite`, `Image:drawPixel`, `app.pixelColor.rgba`, `Sprite:newTag`,

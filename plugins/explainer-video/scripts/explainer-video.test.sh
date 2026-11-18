@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for pydeps.py, render.py, narration.py and stills.py. The check functions and the installer need only the
-# standard library and always run; the mux test needs ffmpeg and ffprobe; the stills renders need ffmpeg, ffprobe and
-# Playwright for Python with its Chromium. The real renders need ManimCE, ffmpeg and ffprobe and skip without them, so
-# EXPLAINER_VIDEO_REQUIRE_DEPS=1 fails the run instead: run it through the launcher, which puts the installed set
-# on the path, e.g. `python3 pydeps.py run -- -m unittest test_explainer_video_render` from this directory.
 # test-scope: plugins/explainer-video/skills/*/SKILL.md plugins/explainer-video/skills/*.py plugins/explainer-video/scripts/* plugins/explainer-video/hooks/*.sh plugins/explainer-video/requirements.txt plugins/explainer-video/vendor/gitleaks/*
 set -uo pipefail
 

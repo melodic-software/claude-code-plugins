@@ -1,9 +1,3 @@
-// roto.js: render traced drawings from <dir>/dNNN.json through the ink.js brush engine. Loaded by render.html?scene=roto.js.
-//   window.renderDrawing(k) -> Promise; draws drawing k onto canvas#c at the source size.
-//   window.renderFrame(t)   -> Promise; draws the drawing on screen at film time t: the last k with pts <= t.
-//   Query: ?mode=a (plain even-odd fill, the baseline) | b (default: tone layers, bias ring, blur), ?dir=d (JSON folder),
-//          ?brush={json} (overrides BRUSH), ?brushes=file.json ({"k": {brush}}, wins over everything; used by fit.py).
-//   Deterministic: same k, same pixels. Paths only; no raster data.
 import { capsule, paperGrain } from './ink.js';
 
 const q = new URLSearchParams(location.search), MODE = q.get('mode') || 'b', DIR = q.get('dir') || 'd';
@@ -51,7 +45,6 @@ function draw(d) {
   if (MODE === 'a') return fillPaths(ctx, d, d.ink);
   const off = new OffscreenCanvas(cv.width, cv.height), o = off.getContext('2d');
   o.fillStyle = d.paper; o.fillRect(0, 0, cv.width, cv.height);
-  // tone layers light to dark; the T layer (d.paths) is the one XOR measures, and the only one `bias` moves
   const layers = [...(b.tones === 0 ? [] : d.tones || []), { lv: d.T, color: b.tones === 0 ? d.ink : d.t_color || d.ink, paths: d.paths }]
     .sort((p, q) => q.lv - p.lv);
   let above = d.paper;
@@ -67,7 +60,6 @@ function draw(d) {
   if (b.blur) gauss(ctx, b.blur);
 }
 
-// Separable gaussian on the canvas pixels. ctx.filter blur() silently drops sigmas below ~0.8 px in Chromium.
 function gauss(c, sigma) {
   const w = cv.width, h = cv.height, im = c.getImageData(0, 0, w, h), p = im.data, R = Math.ceil(sigma * 3);
   const k = Array.from({ length: 2 * R + 1 }, (_, i) => Math.exp(-((i - R) ** 2) / (2 * sigma * sigma)));

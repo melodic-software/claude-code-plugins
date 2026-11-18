@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-11-18
+
+### Changed
+
+- Rung 2 of the routing rubric no longer picks a mechanism from its own list. When `/corrections:codify` is available, `/instruction-placement:audit` and `/instruction-placement:realign` name the codify call for a mechanically checkable rule; otherwise they propose the strongest mechanism that can decide the rule and say the proposal is unproven. Both still report the route without building it and keep the prose in place, and realign still marks the finding `blocked` ([#17163](https://github.com/melodic-software/claude-code-plugins/issues/17163)).
+
 ## [1.6.0] - 2026-11-18
 
 ### Added

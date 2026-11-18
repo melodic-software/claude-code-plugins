@@ -36,7 +36,7 @@ Before dispatch, resolve the loosened-check settings once (SKILL.md "Arguments",
 settings"; the command is run-everything-mode.md step 5's). The bundled criterion
 (`quality-gate`'s `context/loosened-check.md`) always applies; consumer criteria apply in addition.
 Every `code-reviewer` brief and, in the large tier, every slice's per-slice template carries the
-two value lines and the spec, the text of the issue the change resolves (never the pull request
+three value lines and the spec, the text of the issue the change resolves (never the pull request
 body), the spec only when the resolver's `loosened_check_spec:` line says `counts`.
 
 ## Size-crossing brief

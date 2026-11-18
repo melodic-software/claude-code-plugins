@@ -188,16 +188,28 @@ request event triggers.
 
 ## 5. Guardrails for fragile optimizations
 
-A ratchet guards a count, not correctness. Guardrails scale with how brittle the optimization is:
+A ratchet guards a count, not correctness. A brittle optimization also needs a guardrail on what it
+must keep true:
 
-- **A fast path that copies a slow one** (a static placeholder, a precomputed table, a cache): generate
-  the copy from the source, and add a test that fails when the two drift.
-- **A fast path that must match the real one:** keep verify's differential as a standing test, over
-  every mode and configuration it covered.
-- **A handoff between two implementations:** a test that drives input through the switch and fails
-  on anything lost or reordered.
+- **A fast path that copies a slow one** (a static placeholder, a precomputed table, a cache): the
+  copy must stay in step with its source.
+- **A fast path that must match the real one:** its output must match the real path's over every
+  mode and configuration verify's differential covered.
+- **A handoff between two implementations:** no input that passes through the switch may be lost or
+  reordered.
 
-Propose these beside the ratchet. The ratchet alone passes a subject that got cheaper by breaking.
+For each case that applies, when `/corrections:codify` is among the available skills, hand it the
+choice of mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule
+and proves the check. Call it as `/corrections:codify "<what must not drift>"`. Otherwise, propose
+the strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
+then a check that blocks it, then a test, and an instruction only when nothing a machine runs can
+decide it. Say that `/corrections:codify` was not available, so the proposal is unproven.
+
+When codify stops with no proposal, as it does below its recurrence threshold, propose the same
+way and say that it stopped, in place of saying it was not available.
+
+Propose the guardrails beside the ratchet. The ratchet alone passes a subject that got cheaper by
+breaking.
 
 ## 6. Win decay the ratchet does not see
 
@@ -216,7 +228,7 @@ Ceiling:   <value> in <ceilings file>, written by <toolchain:ratchet | protect Â
 Protects:  <goal>. Correlation: <goal's value>
 CI step:   <workflow file and job>                   Required check: <name>
 Tighten:   same-PR | scheduled draft PR (<workflow file>)
-Guardrails proposed: <tests, or none needed and why>
+Guardrails proposed: <per case, handed to /corrections:codify | fallback proposal (unproven); or none needed and why>
 Awaiting:  human approval of the files above
 ```
 
