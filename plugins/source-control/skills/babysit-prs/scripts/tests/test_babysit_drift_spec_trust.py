@@ -90,6 +90,8 @@ class FakeGitHub:
             content = base64.b64encode(PAGES[path].encode()).decode()
             return ok({"encoding": "base64", "content": content})
         for a in args:
+            if a.startswith(f"repos/{REPO}/contents/{ve.ADMISSION_RULES_PATH}?"):
+                return ok({})
             # A look-alike falls through to the recurring rule, whose schedule
             # names no row.
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?"):
