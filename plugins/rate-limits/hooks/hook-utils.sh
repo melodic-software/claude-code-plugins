@@ -1033,7 +1033,7 @@ hook::git_untrusted_exec() {
 hook::git_untrusted_env() {
   local n="${GIT_CONFIG_COUNT:-0}" kv
   if [[ ! "$n" =~ ^[0-9]+$ ]]; then
-    printf '%s: skipped the end-of-turn check: GIT_CONFIG_COUNT is not a number\n' "${0##*/}" >&2
+    printf '%s: cannot run the end-of-turn check: GIT_CONFIG_COUNT is not a number\n' "${0##*/}" >&2
     return 1
   fi
   n=$((10#$n))
