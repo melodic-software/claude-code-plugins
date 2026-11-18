@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/work/AGENTS.md" } }],
+      "why": "the project rules were reread"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "relied on memory of the rules"
+    }
+  ]
+}
