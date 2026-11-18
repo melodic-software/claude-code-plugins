@@ -179,6 +179,10 @@ is running. It stops the session this run launched; the evidence files stay.
 - Wait for a step's text with `wait-for` before each screenshot: a capture taken first shows the
   frame before the redraw.
 - A status glyph drawn as a box is the missing font doctor names, not the plugin under test.
+- A `.png` capture refused because no installed font has a glyph on screen (the error names the
+  glyph, such as `⎿` (U+23BF)) is a font gap, not the plugin under test, and doctor's font line
+  does not catch it: it checks one family, not each glyph. Take that capture as `.svg`, which
+  draws text without rasterizing it, and name the glyph in the run's report.
 - Ready stops before any request, so it does not show the session is signed in; the launched
   session's first screen does. Screenshot it before the first step.
 - When a `--real-setup` session shows a first-run dialog, screenshot it, answer it as below, and
