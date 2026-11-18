@@ -352,6 +352,7 @@ const GATES = {
     "verify-env-scrub": "switch",
     "verify-env-scrub-subscription": "switch",
     "verify-env-scrub-fallback": "switch",
+    "check-claude-function-flags": "switch",
     "push-branches": "switch",
     publish: "switch",
   },

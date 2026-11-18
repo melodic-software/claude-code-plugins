@@ -78,7 +78,7 @@ explicit confirmation before any conversion (see Setup and migration).
 
 | Column | Form | Notes |
 |---|---|---|
-| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces, one per language or framework the repository uses; cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …); `paved-path`, the one file of paved paths (see Paved paths). No stage axis: one SSOT serves plan-time and review-time |
+| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces; cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …); `paved-path`, the one file of paved paths (see Paved paths). No stage axis: one SSOT serves plan-time and review-time |
 | Applies when | free-form context clues | File globs and/or task keywords; the model matches task context against them |
 | File | forward-slash path | In-root rows: path relative to `<standards_dir>` (bare filename, or a subdirectory path). External rows: repo-relative path from the resolution root, allowed (adoption without reorg) and subject to the validation duty below. Always forward slashes, on every platform |
 
