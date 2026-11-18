@@ -1541,9 +1541,11 @@ jobs:
       # What each listener spent through the key proxy, the driven session's
       # socket and the driver legs' loopback port, for setting
       # pr-pipeline.yaml's token-cap and driver-token-cap from measured
-      # runs. The log is the proxy's own, which the runner's user cannot
-      # write; only numbers jq computes from it are printed, never a line
-      # of it.
+      # runs, then the fields of up to 20 refused upstream requests, so a
+      # refusal says why. The log is the proxy's own, which the runner's user
+      # cannot write; only what jq computes from it is printed, printable
+      # ASCII with no "::" or "##", never a line of it.
+      # Pointer: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
       - name: Report the key proxy's usage
         if: always() && steps.proxy.outcome != 'skipped'
         continue-on-error: true
@@ -1561,6 +1563,10 @@ jobs:
             | ([$r[] | .committed | numbers] | max // 0) as $committed
             | ([$r | group_by(.status)[] | "\(.[0].status):\(length)"] | join(" ")) as $statuses
             | "::notice::key proxy \($r[0].listener | tostring | gsub("[^a-z]"; "")): \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
+          jq -R -s -r '
+            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | .[:20][]
+            | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas // [] | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"
+            | gsub("[^ -~]"; " ") | gsub(":(?=:)"; ": ") | gsub("#(?=#)"; "# ")' "$log"
 
       # The upload: run-e2e's e2e-summary.json from the run directory the
       # prompt names, and the files its publishable list names, each a

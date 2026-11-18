@@ -1213,6 +1213,10 @@ jobs:
             | ([$r[] | .committed | numbers] | max // 0) as $committed
             | ([$r | group_by(.status)[] | "\(.[0].status):\(length)"] | join(" ")) as $statuses
             | "::notice::key proxy \($r[0].listener | tostring | gsub("[^a-z]"; "")): \($r | length) requests, \($used) tokens used, \($committed) committed; by status \($statuses)"' "$log"
+          jq -R -s -r '
+            [split("\n")[] | fromjson? | select(type == "object" and (.upstreamStatus | type) == "number")] | .[:20][]
+            | "key proxy \(.listener | tostring | gsub("[^a-z]"; "")): upstream \(.upstreamStatus) on \(.upstreamPath | tostring), \(.errorType // .upstreamError | tostring) \(.errorMessage // "" | tojson), model \(.model | tostring), betas \(.betas // [] | map(tostring) | join(",")), max_tokens \(.maxTokens // "none")"
+            | gsub("[^ -~]"; " ") | gsub(":(?=:)"; ": ") | gsub("#(?=#)"; "# ")' "$log"
 
       - name: Collect the pass
         id: collect

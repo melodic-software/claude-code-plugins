@@ -46,8 +46,13 @@
 //
 // It logs one JSON line per request to stderr: the listener (socket or
 // loopback), method, path without query, status and token counts, and for a beta refusal the refused beta names, so a
-// failed capture says what to add to `betas`. Never the key, any other header
-// value, or a body.
+// failed capture says what to add to `betas`. A non-2xx upstream answer adds
+// one line: its error type and the first 120 characters of its message, keys
+// masked and made single-line and inert, and the request's model,
+// anthropic-beta names and max_tokens. Never the key, any other header value,
+// or any other part of a body.
+// Pointer: https://platform.claude.com/docs/en/api/errors (Error shapes)
+// As of: 2026-11-17. Recheck trigger: that section changes the error object's fields.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { chmodSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
@@ -113,6 +118,14 @@ const retryable = (message) => ({ ...refuse(502, "api_error", message), retry: t
 const UPSTREAM_TIMEOUT = "UPSTREAM_TIMEOUT";
 const upstreamFailure = (err) => retryable(err?.code === UPSTREAM_TIMEOUT ? "upstream timed out" : "upstream unreachable");
 const clip = (v) => String(v).slice(0, 80);
+
+const ERROR_BODY_BYTES = 8192;
+const ERROR_MESSAGE_CHARS = 120;
+const ERROR_TYPE = /^[a-z_]{1,64}$/;
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,79}$/;
+const BETA_NAME = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+const KEY_SHAPED = /sk-ant-[A-Za-z0-9_-]*/g;
+const UNPRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 const stringList = (c, name) => {
   if (!Array.isArray(c[name]) || !c[name].every((m) => typeof m === "string" && m)) throw new Error(`config ${name} must be a list of strings`);
@@ -404,6 +417,47 @@ const relayHeaders = (incoming) => Object.fromEntries(Object.entries(incoming).f
 
 const digest = (s) => createHash("sha256").update(s, "utf8").digest();
 
+const inert = (text, secrets) => {
+  const masked = secrets.reduce((t, s) => t.split(s).join("[key]"), text).replace(KEY_SHAPED, "[key]");
+  return Array.from(masked.replace(UNPRINTABLE, " ").replace(/:(?=:)/g, ": ").replace(/#(?=#)/g, "# ")).slice(0, ERROR_MESSAGE_CHARS).join("");
+};
+
+function errorCapture() {
+  const chunks = [];
+  let bytes = 0;
+  let overflow = false;
+  return {
+    feed(c) {
+      const part = c.subarray(0, ERROR_BODY_BYTES - bytes);
+      if (part.length < c.length) overflow = true;
+      if (part.length) chunks.push(part);
+      bytes += part.length;
+    },
+    get raw() { return overflow ? null : Buffer.concat(chunks); },
+  };
+}
+
+function upstreamErrorEntry(upstreamPath, upstreamStatus, raw, ctx, secrets) {
+  let error;
+  try { error = raw && JSON.parse(decoder.decode(raw))?.error; } catch { error = undefined; }
+  const readable = error && typeof error === "object" && typeof error.type === "string" && typeof error.message === "string";
+  const model = ctx.body?.model;
+  const maxTokens = ctx.body?.max_tokens;
+  const header = ctx.headers["anthropic-beta"];
+  return {
+    method: ctx.method,
+    path: ctx.path,
+    upstreamPath,
+    upstreamStatus,
+    ...(readable
+      ? { errorType: ERROR_TYPE.test(error.type) ? error.type : "unrecognized", errorMessage: inert(error.message, secrets) }
+      : { upstreamError: "error body unreadable" }),
+    model: typeof model === "string" && MODEL_ID.test(model) ? model : "unrecognized",
+    betas: header === undefined ? [] : String(header).split(",").map((b) => b.trim()).filter((b) => BETA_NAME.test(b)),
+    ...(Number.isFinite(maxTokens) ? { maxTokens } : {}),
+  };
+}
+
 // clientKey, when set, is the x-api-key every request must carry, compared in
 // constant time over SHA-256 digests so the length leaks nothing either.
 // relayPreflightErrors relays every non-200 count_tokens preflight answer
@@ -412,6 +466,8 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
   if (typeof key !== "string" || !key) throw new Error("key is required");
   if (clientKey !== undefined && (typeof clientKey !== "string" || !clientKey || clientKey === key)) throw new Error("clientKey must be a non-empty string other than the key");
   const clientDigest = clientKey === undefined ? null : digest(clientKey);
+  const secrets = clientKey === undefined ? [key] : [key, clientKey];
+  const logUpstreamError = (ctx, path, status, raw) => log(upstreamErrorEntry(path, status, raw, ctx, secrets));
   const admitted = (header) => clientDigest === null || (typeof header === "string" && timingSafeEqual(digest(header), clientDigest));
   const budget = createBudget(config.tokenCap);
   const state = { inFlight: 0, countTokensRequests: 0, preflights: 0 };
@@ -446,6 +502,7 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
         const raw = Buffer.concat(chunks);
+        if (res.statusCode < 200 || res.statusCode >= 300) logUpstreamError(ctx, COUNT_TOKENS, res.statusCode, raw.length > ERROR_BODY_BYTES ? null : raw);
         if (res.statusCode === 429 || res.statusCode >= 500 || (relayPreflightErrors && res.statusCode !== 200)) return resolve({ relay: { status: res.statusCode, headers: relayHeaders(res.headers), body: raw } });
         if (res.statusCode !== 200) return resolve({});
         try { resolve({ input: JSON.parse(raw.toString("utf8")).input_tokens }); } catch { resolve({}); }
@@ -554,17 +611,20 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
     const upReq = upstreamRequest(ctx, ctx.path, body, (upRes) => {
       const streaming = /^text\/event-stream/i.test(upRes.headers["content-type"] ?? "");
       meter = createUsageMeter(streaming);
+      const ok = upRes.statusCode >= 200 && upRes.statusCode < 300;
+      const errorBody = ok ? null : errorCapture();
       res.writeHead(upRes.statusCode, relayHeaders(upRes.headers));
       res.flushHeaders();
       upRes.on("data", (c) => {
         meter.feed(c);
         res.write(c);
+        errorBody?.feed(c);
       });
       upRes.on("end", () => {
         finished = true;
         meter.end();
         res.end();
-        const ok = upRes.statusCode >= 200 && upRes.statusCode < 300;
+        if (errorBody) logUpstreamError(ctx, ctx.path, upRes.statusCode, errorBody.raw);
         // An error status with no usage commits nothing. A success commits
         // its usage, except a stream that ended before its message_delta
         // (an incomplete response) or a body with no usage: those commit at
