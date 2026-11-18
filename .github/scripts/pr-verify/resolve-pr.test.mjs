@@ -2288,6 +2288,7 @@ const childNode = ({ child }) => ({
   lastEditedAt: child.last_edited_at,
   author: actorOf(child.author),
   editor: actorOf(child.editor),
+  labels: { nodes: (child.labels ?? []).map((name) => ({ name })) },
 });
 const parentNode = ({ child, parent }) =>
   child.parent === null
@@ -2309,15 +2310,16 @@ for (const vector of VECTORS.cases) {
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
     const { child } = vector;
     const ownAgent =
+      (child.labels ?? []).filter((name) => /^source:/i.test(name)).length === 1 &&
       appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
     assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
   });
 }
 
-test("an own-agent filing's body is spec only while no other account edited it, and only the lanes App's", async () => {
+test("an own-agent filing's body is spec only while no other account edited it, it carries one source label, and only the lanes App's", async () => {
   const BODY = "## Done when\n\n- [ ] Line 3 says nineteen.";
   const bot = (id) => ({ type: "Bot", id });
-  const node = (author, editor = null) => childNode({ child: { body: BODY, last_edited_at: editor ? "2026-11-17T00:00:00Z" : null, author, editor } });
+  const node = (author, editor = null, labels = ["source: improvement-find"]) => childNode({ child: { body: BODY, last_edited_at: editor ? "2026-11-17T00:00:00Z" : null, author, editor, labels } });
   const app = bot(VECTORS.app_id);
   for (const [name, issue, expected] of [
     ["unedited", node(app), BODY],
@@ -2326,6 +2328,8 @@ test("an own-agent filing's body is spec only while no other account edited it, 
     ["edited by another bot", node(app, bot(41898282)), null],
     ["github-actions[bot] off the drift shape", node(bot(41898282)), null],
     ["a bot not on the list", node(bot(99)), null],
+    ["no source label", node(app, null, []), null],
+    ["two source labels", node(app, null, ["source: improvement-find", "source: upstream"]), null],
   ]) {
     assert.deepEqual(await specBody(issue, null), [[8, expected]], name);
   }

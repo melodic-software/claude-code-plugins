@@ -203,6 +203,21 @@ describe("decide", () => {
       });
     });
 
+    test("a filing whose run's patch was over the scan cap holds for a listed human and is never split", () => {
+      const stop = {
+        user: { id: APP },
+        created_at: "2026-10-21T10:00:00Z",
+        body: "<!-- work-resolve-issue outcome=intake run=555 -->\nThe work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size.\nIt removed `agent-ready` and `status: ready`.",
+      };
+      const events = [{ event: "labeled", label: { name: READY }, actor: { id: APP }, created_at: "2026-10-21T11:00:00Z" }];
+      assert.deepEqual(decide(own({ verdict: sized("medium"), comments: [stop], events })), {
+        verdict: "refuse",
+        reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and an own-agent filing is never split automatically, so a listed human decides it"],
+        hold: true,
+        reason: "intent",
+      });
+    });
+
     test("a filing waits while its producer has the cap of 5 older open issues, in any status", () => {
       const issue = ownIssue();
       assert.deepEqual(decide(own({ issue: { ...issue, number: 9 }, sourceOpen: [1, 2, 3, 4, 9, 12, 13] })), { verdict: "admit", reasons: [] }, "4 older, 2 newer");
