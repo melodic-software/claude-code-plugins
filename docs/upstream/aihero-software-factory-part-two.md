@@ -110,7 +110,7 @@ are paid and not linked.
 | Rules checked only on staged files | Shows that old violations surface only where an agent happens to edit | Inference: a repository-wide fix is one large, risky change | CI already checks the whole tree | **already have**: CI is the hard stop | none |
 | A daily run that fixes one violation | Opens one small fix per run so the codebase tightens over time | Inference: a backlog of violations never shrinks without a steady worker | The main branch is mostly clean, so a fixing lane has little to do | **adapt**: no lint-fix pipeline; a [linter bump carries its own whole-tree fix](../review/linters.md), and [`/toolchain:ratchet`](../../plugins/toolchain/skills/ratchet/SKILL.md) stays our name for the count ceiling | [#17044](https://github.com/melodic-software/claude-code-plugins/pull/17044) |
 | Design checks for the fixing run | Avoids two fixes for one failure and stops above an open limit | Inference: parallel fixers collide | Same | **already have**: [tidy upkeep](../../.github/workflows/maintenance-tidy-code-upkeep.yml) selects areas under an open cap | none |
-| A merge starts the next run | Lets merge speed set the pace | Inference: the factory should run as fast as work is accepted | Merges here are already unattended, so the loop would close with no person | **deferred**: the lint-fix pipeline it would have paced was dropped; the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) decides whether any task starts this way | none |
+| A merge starts the next run | Lets merge speed set the pace | Inference: the factory should run as fast as work is accepted | Merges here are already unattended, so the loop would close with no person | **deferred**: a strong accelerator that adapts the pace to how fast the developer wants to move that day, so it stays open until the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) settles its brakes | none |
 | Two lint grades, with graduation | Moves a rule from a full set to a strict set once it reaches zero | Inference: a rule needs a path from advisory to enforced | A baseline does this with one rule set | **reject**: `/toolchain:ratchet` holds one rule set at error with a baseline | none |
 | Automatic review on ratchet pull requests | Adds a review step to the merge | Inference: small fixes should not wait for a person | Same | **already have**: the verifier verdict and both AI review lanes | none |
 | Failure text written for an agent | Words a check's failure as instructions | Inference: the agent reads the failure first | Same | **already have**: [ADR 0072](../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md) | none |
@@ -198,12 +198,12 @@ are paid and not linked.
 | A parent issue for agent-filed work | n/a (raised while absorbing) | n/a | Agent filings of one kind have no grouping | **no change**: the source label comes first, and a parent only if needed | none |
 | Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
 | Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
-| Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's note needs a traceable outcome | **deferred**: a direction for later private or own-product work, not this workshop's build; carried into [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) | none |
+| Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's direction needs a design | **deferred**: carried into the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) as direction to design there | none |
 | Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **deferred**: a separate item after the Excalidraw file target, tracked in [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128) | none |
 
 ### Deferred
 
-These were decided to wait, each for the condition named:
+These were decided to wait, each for the condition or in the issue named:
 
 - a daily design filer, until the source label gives counts of open filings;
 - a production-incident pipeline, until a production source exists; an alert starts the agent
@@ -212,11 +212,12 @@ These were decided to wait, each for the condition named:
 - a private-repository runner, until that work starts, because of its cost;
 - a different runner per task, held for a later pass over the automation's shape; no condition is
   recorded;
-- a merge that starts the next run, until the map of factory tasks in
-  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) decides whether any
-  task starts this way;
-- vendor-agnostic providers, until private or own-product work starts, carried into
-  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133);
+- a merge that starts the next run, a strong accelerator that adapts the pace to how fast the
+  developer wants to move that day, until the map of factory tasks in
+  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) settles its brakes;
+- vendor-agnostic providers, carried into the map of factory tasks in
+  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) as direction to
+  design there;
 - agent-built templates and palette, a separate item after the Excalidraw file target, tracked in
   [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128).
 
