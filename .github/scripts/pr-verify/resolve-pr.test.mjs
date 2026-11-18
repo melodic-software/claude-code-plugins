@@ -520,7 +520,7 @@ test("a vendored-copy drift issue has no spec beyond its row's plugin or from an
   }
 });
 
-test("vendoredRows maps only files-only rows to their plugin; a package-installing row, or an id two plugins claim, maps to none", () => {
+test("vendoredRows maps only files-only rows to their plugin; a package-installing row, an unparsable row, or an id two plugins claim, maps to none", () => {
   const shipped = vendoredRows();
   assert.equal(shipped.get("playwright/playwright"), "playwright");
   assert.equal(shipped.get("Dometrain/mcp"), "dometrain");
@@ -539,11 +539,22 @@ test("vendoredRows maps only files-only rows to their plugin; a package-installi
       '  "i/j|plugins/one/x.sh|--check|files-only"',
       '  "i/j|plugins/one/y.sh|--check"',
       '  "e/f|scripts/x.sh|--check|files-only"',
+      '  "k/l|plugins/one/x.sh|--check"',
+      '  "k/l|plugins/one/y.sh|--check|files-only"',
+      '  "m/n|plugins/one/x.sh|--check|files-only"',
+      '  "m/n|plugins/one/y.sh|--check|files-only" # a comment',
+      '  "o/p|plugins/one/x.sh|--check|files-only"',
+      '  "o/p|plugins/one/y.sh|--check|file-only"',
+      '  "q/r|plugins/one/x.sh|--check|files-only"',
+      '  "q/r|plugins/one/y.sh|--check|files-only|extra"',
       ")",
       "",
     ].join("\n"),
   );
-  assert.deepEqual([...vendoredRows(file)], [["a/b", "one"], ["g/h", null], ["c/d", null], ["i/j", null]]);
+  assert.deepEqual(
+    [...vendoredRows(file)],
+    [["a/b", "one"], ["g/h", null], ["c/d", null], ["i/j", null], ["e/f", null], ["k/l", null], ["m/n", null], ["o/p", null], ["q/r", null]],
+  );
 });
 
 test("a drift issue a Refs: line names, not a closing one, has no spec", async () => {

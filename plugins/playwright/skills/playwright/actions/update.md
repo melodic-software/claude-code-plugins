@@ -48,7 +48,7 @@ For a large or breaking diff (new files, removed sections), read the upstream Gi
 
 ## Finishing steps
 
-1. Optionally upgrade the local CLI to match: `npm install -g @playwright/cli@latest` (the script never mutates global npm state).
+1. A person may upgrade their local CLI to match: `npm install -g @playwright/cli@latest`. The script never mutates global npm state, and the upstream-drift issue lane never runs this step.
 2. Add the repo's release record for the plugin so consumers receive the update: a `version` bump in `.claude-plugin/plugin.json` plus CHANGELOG entry, or a changelog fragment where the repo uses them (see the repo's AGENTS.md).
 3. Commit: `chore(playwright): sync to upstream v<new-version>`. Note integrated reference changes and any breaking changes in the body.
 

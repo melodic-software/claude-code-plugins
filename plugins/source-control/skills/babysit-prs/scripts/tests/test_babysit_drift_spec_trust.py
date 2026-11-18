@@ -54,6 +54,16 @@ ROWS = (
     '  "split/claim|plugins/one/x.sh||files-only"\n'
     '  "split/claim|plugins/two/x.sh||files-only"\n'
     '  "installs/package|plugins/one/update.sh|--check"\n'
+    '  "mixed/rows|plugins/one/x.sh|--check|files-only"\n'
+    '  "mixed/rows|plugins/one/y.sh|--check"\n'
+    '  "unparsed/row|plugins/one/x.sh|--check|files-only"\n'
+    '  "unparsed/row|plugins/one/y.sh|--check|files-only" # a comment\n'
+    '  "outside/plugins|plugins/one/x.sh|--check|files-only"\n'
+    '  "outside/plugins|scripts/y.sh|--check|files-only"\n'
+    '  "misspelled/mark|plugins/one/x.sh|--check|files-only"\n'
+    '  "misspelled/mark|plugins/one/y.sh|--check|file-only"\n'
+    '  "fifth/field|plugins/one/x.sh|--check|files-only"\n'
+    '  "fifth/field|plugins/one/y.sh|--check|files-only|extra"\n'
     ")\n"
 )
 VENDORED_BODY = (
@@ -300,7 +310,16 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
                 self.assertIs(self.vendored(files=files)[0], False)
 
     def test_an_id_no_row_or_two_rows_name_refuses_without_a_compare(self) -> None:
-        for upstream in ["someone/else", "split/claim", "installs/package"]:
+        for upstream in [
+            "someone/else",
+            "split/claim",
+            "installs/package",
+            "mixed/rows",
+            "unparsed/row",
+            "outside/plugins",
+            "misspelled/mark",
+            "fifth/field",
+        ]:
             with self.subTest(upstream):
                 trusted, fake = judge(
                     title=f"Upstream drift: {upstream}",

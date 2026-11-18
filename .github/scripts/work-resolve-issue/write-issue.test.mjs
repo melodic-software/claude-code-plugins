@@ -288,6 +288,10 @@ describe("a trusted upstream-drift issue", () => {
       ["another bot's issue", drift({ author: { __typename: "Bot", databaseId: 999 } }, { ...DRIFT, user: { id: 999, login: "other[bot]", type: "Bot" } })],
       ["a wrong title", drift({}, { ...DRIFT, title: "Upstream drift: sandcastle" })],
       ["a vendored lead for another upstream", drift({}, { ...DRIFT, body: "Upstream `other/repo` no longer matches the copy vendored here." })],
+      [
+        "a well-formed vendored issue for a package-installing upstream",
+        drift({}, { ...DRIFT, title: "Upstream drift: firecrawl/update", body: "Upstream `firecrawl/update` no longer matches the copy vendored here.\n\nRun: 2026-11-18\n" }),
+      ],
     ]) {
       const { code, issue, logged } = await run(github);
       assert.equal(code, 1, name);

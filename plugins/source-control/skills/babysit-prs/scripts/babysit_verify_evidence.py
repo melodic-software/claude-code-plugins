@@ -763,6 +763,7 @@ VENDORED_REPORT_PATH = "scripts/upstream-drift-vendored-report.sh"
 VENDORED_ROW_RE = re.compile(
     r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|plugins/([A-Za-z0-9][A-Za-z0-9_.-]*)/[^|"]*\|[^|"]*(\|files-only)?"\s*'
 )
+VENDORED_ROW_ID_RE = re.compile(r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|')
 # resolve-pr.mjs MAIN_RED_TITLE and MAIN_RED_KEY: maintenance-monitor-signals
 # issues.mjs FILING["1 main red"] title and its marker line for that key.
 MAIN_RED_TITLE = "Restore the failing required checks on main"
@@ -1126,17 +1127,20 @@ def drift_scope(files: Any, id: str, pins: Callable[[str], str | None]) -> bool:
 def vendored_plugin(text: Any, id: str) -> str | None:
     """admit.mjs vendoredRows for one id: the plugin the rows of `text`
     (scripts/upstream-drift-vendored-report.sh) name for `id`, or None when
-    none does, two plugins claim it, or a row for it lacks `files-only` (its
-    apply mode may install a package). Pure."""
+    none does, two plugins claim it, a row for it does not parse, or a row
+    for it lacks `files-only` (its apply mode may install a package). Pure."""
     if not isinstance(text, str):
         return None
-    rows = [
-        row
-        for row in map(VENDORED_ROW_RE.fullmatch, text.split("\n"))
-        if row and row[1] == id
+    lines = [
+        line
+        for line in text.split("\n")
+        if (head := VENDORED_ROW_ID_RE.match(line)) and head[1] == id
     ]
+    rows = [VENDORED_ROW_RE.fullmatch(line) for line in lines]
+    if not rows or not all(rows):
+        return None
     plugins = {row[2] for row in rows}
-    if not rows or len(plugins) != 1 or not all(row[3] for row in rows):
+    if len(plugins) != 1 or not all(row[3] for row in rows):
         return None
     return plugins.pop()
 

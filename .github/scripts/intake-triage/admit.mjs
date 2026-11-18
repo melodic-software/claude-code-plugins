@@ -1110,13 +1110,15 @@ export const driftLead = (id) => `Upstream \`${id}\` changed since the pin on it
 export const vendoredDriftLead = (id) => `Upstream \`${id}\` no longer matches the copy vendored here.`;
 
 const VENDORED_ROW = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|plugins\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/[^|"]*\|[^|"]*(\|files-only)?"\s*$/;
+const VENDORED_ROW_ID = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|/;
 const REPORT_SCRIPT = fileURLToPath(new URL("../../../scripts/upstream-drift-vendored-report.sh", import.meta.url));
 
 // Each row id of scripts/upstream-drift-vendored-report.sh to the plugin its
 // check script lives in, for an id whose every row carries `files-only`: its
 // apply mode rewrites vendored files and installs no package, so the issue
 // lane, which holds a model key, may run it. An id with a row lacking the
-// mark, or rows in two plugins, maps to null and is never trusted
+// mark, a row this parser cannot read, or rows in two plugins, maps to null
+// and is never trusted
 // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
 export function vendoredRows(file = REPORT_SCRIPT) {
   const rows = new Map();
@@ -1131,6 +1133,11 @@ export function vendoredRows(file = REPORT_SCRIPT) {
     if (row) {
       const plugin = row[3] && (!rows.has(row[1]) || rows.get(row[1]) === row[2]) ? row[2] : null;
       rows.set(row[1], plugin);
+    } else {
+      const id = VENDORED_ROW_ID.exec(line)?.[1];
+      if (id !== undefined) {
+        rows.set(id, null);
+      }
     }
   }
   return rows;
