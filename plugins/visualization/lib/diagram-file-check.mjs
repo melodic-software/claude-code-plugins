@@ -36,7 +36,11 @@ function elementProblems(element, at, ids) {
   } else if (!(finite(element.width) && finite(element.height) && (element.width !== 0 || element.height !== 0))) {
     problems.push(`${name} needs a finite width and height, not both zero`);
   }
-  if (element.type === "text" && (typeof element.text !== "string" || element.text === "")) problems.push(`${name} has no text`);
+  if (element.type === "text") {
+    if (typeof element.text !== "string" || element.text === "") problems.push(`${name} has no text`);
+    if (!(finite(element.fontSize) && element.fontSize > 0)) problems.push(`${name} needs a positive fontSize`);
+    if (element.lineHeight != null && !(finite(element.lineHeight) && element.lineHeight > 0)) problems.push(`${name} has a lineHeight that is not a positive number`);
+  }
   if (element.type === "frame" && element.name != null && typeof element.name !== "string") problems.push(`${name} has a name that is not a string`);
   const refs = [
     ["frameId", element.frameId],

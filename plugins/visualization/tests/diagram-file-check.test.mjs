@@ -13,7 +13,7 @@ const scratch = mkdtempSync(join(tmpdir(), "diagram-file-check-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 const box = (id, extra = {}) => ({ id, type: "rectangle", x: 0, y: 0, width: 160, height: 60, ...extra });
-const label = (id, containerId, text) => ({ id, type: "text", x: 10, y: 20, width: 140, height: 20, text, containerId });
+const label = (id, containerId, text, extra = {}) => ({ id, type: "text", x: 10, y: 20, width: 140, height: 20, fontSize: 16, text, containerId, ...extra });
 const arrow = (id, from, to) => ({ id, type: "arrow", x: 160, y: 30, width: 80, height: 0, points: [[0, 0], [80, 0]], startBinding: { elementId: from }, endBinding: { elementId: to } });
 const lane = (id, name) => ({ id, type: "frame", x: -20, y: -20, width: 600, height: 120, name });
 const file = (elements, top = {}) => JSON.stringify({ type: "excalidraw", version: 2, source: "https://excalidraw.com", elements, appState: {}, files: {}, ...top });
@@ -56,6 +56,10 @@ describe("diagram-file-check", () => {
     assert.deepEqual(problems(file([box("a", { width: 0, height: 0 })])), ["elements[0] (a) needs a finite width and height, not both zero"]);
     assert.deepEqual(problems(file([{ id: "l", type: "line", x: 0, y: 0, points: [[0, 0]] }])), ["elements[0] (l) needs at least two [x, y] points"]);
     assert.deepEqual(problems(file([box("a"), label("t", "a", "")])), ["elements[1] (t) has no text"]);
+    assert.deepEqual(problems(file([box("a"), label("t", "a", "Hi", { fontSize: undefined })])), ["elements[1] (t) needs a positive fontSize"]);
+    assert.deepEqual(problems(file([box("a"), label("t", "a", "Hi", { fontSize: 0 })])), ["elements[1] (t) needs a positive fontSize"]);
+    assert.deepEqual(problems(file([box("a"), label("t", "a", "Hi", { lineHeight: "tall" })])), ["elements[1] (t) has a lineHeight that is not a positive number"]);
+    assert.equal(checkExcalidraw(file([box("a"), label("t", "a", "Hi", { lineHeight: 1.25 })])).ok, true);
     assert.deepEqual(problems(file([box("a"), box("a")])), ['elements[1] repeats the id "a"']);
     assert.deepEqual(problems(file([{ type: "rectangle", x: 0, y: 0, width: 1, height: 1 }])), ["elements[0] has no string id"]);
     assert.deepEqual(problems(file([box("a", { isDeleted: true })])), ["elements[0] (a) is marked deleted"]);

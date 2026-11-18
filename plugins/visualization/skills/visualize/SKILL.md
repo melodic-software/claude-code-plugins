@@ -223,7 +223,8 @@ form the person names (a Mermaid diagram, a table, ASCII); and a calling skill t
 fenced form because the diagram goes into its own document. It draws flows, flowcharts, state
 diagrams and swim lanes; any other diagram keeps the layers above. A swim lane is one `frame`
 element per lane, named with the lane's label, holding its steps by their `frameId`. Give every
-element an id, a position, and a size (two or more points for an arrow or line); bind each label to
+element an id, a position, and a size (two or more points for an arrow or line, and a `fontSize` for
+text); bind each label to
 its shape and each arrow to the shapes it joins. The element fields come from the format pointer in
 [the catalog's file-backed targets section](context/decision-matrix.md#file-backed-targets). Write
 it in this order:
