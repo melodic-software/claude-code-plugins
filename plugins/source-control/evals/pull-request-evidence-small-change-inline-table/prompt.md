@@ -6,7 +6,7 @@ runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
-expected_outcome: The evidence comment body written to a file opens with the text result under its heading, holds a table with Before and After rows and no collapsed section, and has no Verified by record
+expected_outcome: The body file is written with the Write tool, and the posted evidence comment opens with the text result under its heading, holds a table with Before and After rows and no collapsed section, and has no Verified by record
 ---
 
-The verifier passed PR 412's current head. Post its verification evidence comment. The head run's drive report is evidence/head/report.json and the base run's is evidence/base/report.json.
+The verifier passed PR 412's current head. With the pull-request skill, post its verification evidence comment. The head run's drive report is evidence/head/report.json and the base run's is evidence/base/report.json.

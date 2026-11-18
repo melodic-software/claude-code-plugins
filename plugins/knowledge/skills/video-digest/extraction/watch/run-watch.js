@@ -189,7 +189,6 @@ export async function runWatchCli(argv) {
   /** @type {TempDirs} */
   const temp = { dirs: {}, recorded: false, interrupted: false };
   const children = trackChildren(temp);
-  // The signal handlers and the finally block share one cleanup, so it runs once.
   /** @type {Promise<void> | null} */
   let cleanup = null;
   const cleanUpOnce = () => {
@@ -339,7 +338,6 @@ async function watchUrl({
     if (temp.interrupted) throw new InterruptedError();
   };
   throwIfInterrupted();
-  // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
   temp.dirs.workDir = workDir;
   throwIfInterrupted();
@@ -350,8 +348,6 @@ async function watchUrl({
   temp.dirs.contactSheetsDir = sheetsDir;
   throwIfInterrupted();
 
-  // A ranged run that can transcribe its own media does not wait on captions. An explicit
-  // caption strategy never falls through to ASR, so it keeps the wait.
   const asrCanStandIn = strategyArg.override === null || strategyArg.override === "asr";
   const asrDetection = timeRange && asrCanStandIn ? await detectAsrCapability() : null;
   throwIfInterrupted();
@@ -394,7 +390,6 @@ async function watchUrl({
 
   const envelope = acquisition.data;
   const { metadata, entries } = envelope;
-  // The note an expired caption wait left; the queue row's `notes` carries it.
   const captionWait = envelope.acquireMetrics?.captionWait ?? null;
   const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
   const videoSlug = deriveVideoSlug(metadata.title, rangedSliceKey(sliceKey, timeRange));
@@ -510,8 +505,6 @@ async function watchUrl({
   };
 
   if (!primary?.mediaPath) {
-    // 0-media envelope: well-formed text-only slice — watching/vision cannot
-    // run without media, recorded as skipped so resume advances past them.
     writeStderr("watch: watching start");
     state = markPhaseComplete(state, "watching", { skipped: true, reason: "no media entries" });
     writeStderr("watch: watching end (skipped: no media entries)");
@@ -548,10 +541,6 @@ async function watchUrl({
     return 0;
   }
 
-  // The cues the primary transcript was built from: caption cues, or the ASR
-  // cues when no caption exists.
-  // An explicit asr override that fails on a captioned entry writes no
-  // transcript, so the caption still supplies the cues, as it always did.
   const cues =
     primaryWritten?.cues ??
     (primary.caption
@@ -572,7 +561,6 @@ async function watchUrl({
   temp.recorded = true;
   throwIfInterrupted();
 
-  // The cues are full-video time; a ranged run watches media that starts at the range.
   const mediaWatching = await orchestrateWatching({
     videoPath: primary.mediaPath,
     framesDir,
@@ -580,7 +568,6 @@ async function watchUrl({
     cues: timeRange ? cuesInMediaTime(cues, timeRange) : cues,
     maxFrameGapSec,
   });
-  // A killed ffmpeg yields a degraded result, not a rejection: write nothing from it.
   throwIfInterrupted();
   let watching = mediaWatching;
   if (timeRange && state.timeRange) {
@@ -607,7 +594,6 @@ async function watchUrl({
     candidateCount: watching.candidateCount,
   };
 
-  // Ranged media is shorter than the video by design; its extra length is the offset error.
   if (!timeRange) {
     state = await recordDurationMismatch(state, sliceDir, {
       metadataDurationSec: metadata.durationSec,

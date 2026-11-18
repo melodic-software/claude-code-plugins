@@ -1893,6 +1893,7 @@ RESTATE_SECTIONS = (
     "outOfScope",
     "deferred",
     "planningOwned",
+    "adrVerdicts",
 )
 
 

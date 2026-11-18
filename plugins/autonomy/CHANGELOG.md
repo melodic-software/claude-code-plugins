@@ -3,6 +3,24 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.6] - 2026-11-18
+
+### Changed
+
+- **Owner exemptions for local lanes in the isolation ladder.** `reference/guardrails/isolation-ladder.md` says what an owner exemption from the `L2` floor for local lanes records (paths, grant date, end condition, what stays required), that the floor applies again when it ends, and that the `L2` level, the unattended floor, the CI-lane section and the fail-closed rule each exempt a covered local path only while its exemption holds. It also states this marketplace's exemption: granted by the owner on 2026-11-18 for five local paths, ending when the repository has no open issues and no open pull requests.
+
+## [5.2.5] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups and `lane-stop-gate.sh`'s branch read pass the overrides `hook::git_untrusted` uses, so those calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as the ignore check already does.
+
+## [5.2.4] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [5.2.3] - 2026-11-18
 
 ### Changed

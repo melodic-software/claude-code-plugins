@@ -59,13 +59,6 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # post-merge check also files the demotion record once it reads the run red,
 # and either filer's record is found by the other through its failing run.
 #
-# On its schedule it also gives a PR a new head, an empty commit, when a lane
-# run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named,
-# and takes off a needs-human label the lanes App set for a pr-unblock
-# escalation once its recorded reason no longer holds, and a do-not-merge
-# held only for eval evidence once its no-loss record names the head.
-#
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
 # human-gated role label). The gate refuses all of them.
@@ -1533,6 +1526,9 @@ jobs:
           kept=$RUNNER_TEMP/post-merge-kept
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code=
+          # Copied whether or not the report is reused: the merge gate reads
+          # this file too.
+          [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
           if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
             kept_code=$(cat "$kept/post-merge-code")
             kept_sha=$(cat "$kept/post-merge-code-sha" 2>/dev/null || true)
@@ -1549,7 +1545,6 @@ jobs:
             fi
           fi
           if [ -z "$code" ]; then
-            [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             code=0
             python3 "$scripts/babysit_postmerge.py" \
@@ -1760,6 +1755,7 @@ jobs:
           # The lane records read and added to above, for a gate that checks
           # earlier lane merges again.
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
@@ -2273,15 +2269,11 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
-      # Takes do-not-merge off a pull request held only for eval evidence
-      # (`<!-- pr-hold reason=eval -->`) once a listed human posts the VALID
-      # no-loss eval-pair record for its current head, after a comment naming
-      # the record and the head. At most five a run, under the same gate as
-      # the escalation clear. Rules: .github/scripts/pr-merge/release-eval-hold.mjs.
       - name: Release eval holds whose record matches the head
         id: release-eval
         if: >-
-          always() && github.event_name == 'schedule'
+          always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && !inputs.pr
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
           && steps.gate.outputs.rate-limited != 'true'

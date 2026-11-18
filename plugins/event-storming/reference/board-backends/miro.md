@@ -158,9 +158,9 @@ For the board's coordinate origin and a sticky note's default size, fetch
 
 **Horizontal spacing: 400px between items on the main flow.** This gives ~200px of clear space between stickies. 200px is too tight (stickies touch, text overlaps). For Problems/Opportunities zones with longer text, use 300px minimum.
 
-**Vertical spacing: 250px minimum between ALL adjacent rows.** Sticky notes are ~199px tall. Any spacing below 200px creates overlaps. 250px provides a 50px visual buffer.
+**Vertical spacing: 250px minimum between all adjacent rows.** Any spacing below 200px creates overlaps: a default sticky (square or rectangle) renders ~199px tall in our tests. 250px provides a 50px visual buffer.
 
-**No reactor sub-rows.** Any offset below the 199px sticky height overlaps by construction, so each
+**No reactor sub-rows.** Any row offset below the ~199px sticky height overlaps by construction, so each
 persona gets ONE y-row and hermit/reactor behavioral mode is tracked in persona profile files, not
 as a second board row. Confirm with `miro_detect_overlaps` rather than by eye.
 
@@ -279,7 +279,7 @@ Next Event       x=1600    row: Domain Events
 **Legend frame positioning and sizing:**
 
 - Place at x=-800, y=-600 (top-left, out of the main flow)
-- **Frame size formula:** `width=500, height = (sticky_count * 200) + 200`, because each sticky is ~199px tall with ~50px gap, plus 200px padding top/bottom
+- **Frame size formula:** `width=500, height = (sticky_count * 200) + 200`: 200px per sticky (the legend stack spacing below), plus 200px of padding
 - Big Picture legend (up to 11 types by Problems & Opportunities, per the simulation skill's `reference/agentic-simulation.md` "Legend completeness requirements"; size it once for the final count, since the frame is never resized): `500w x 2400h`
 - Process Modeling legend (7 types): `500w x 1600h`
 - Design-Level legend (8+ types): `500w x 1800h`
@@ -341,7 +341,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 
 ## Gotchas
 
-- **Frame positioning uses center point.** `x, y` is the CENTER of the frame, not the top-left corner. A frame at `x=0, width=6000` spans from `x=-3000` to `x=3000`. Calculate center as: `x = (content_min_x + content_max_x) / 2`
+- **Frame positioning uses center point.** Place a frame by its center, not its top-left corner: `x = (content_min_x + content_max_x) / 2`. For the position origin, fetch [Create frame](https://developers.miro.com/reference/create-frame-item) live
 - **Frame z-order**: frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely. Rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
 - **Practical recommendation**: use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
 - **Deleting frames with children**: if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames

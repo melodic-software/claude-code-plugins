@@ -438,7 +438,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(envelope.metadata["source:displayId"]).toBe(TWID);
     expect(envelope.metadata["source:snowflakeAliasing"]).toBeUndefined();
 
-    // Probe pass first (never media), media pass second; both on the canonical URL.
     expect(spawn).toHaveBeenCalledTimes(2);
     const probeArgs = spawn.mock.calls[0][1];
     const mediaArgs = spawn.mock.calls[1][1];
@@ -791,7 +790,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("Caption cleanup failed");
     expect(result.error).toContain(`${SECOND_MEDIA_ID}.en.vtt`);
-    // BOTH tagged originals survive as backups — including the converted entry's.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
     expect(files.get(path.join(workDir, `${SECOND_MEDIA_ID}.en.vtt.tagged-original`))).toBe(
       TAGGED_VTT,
@@ -841,7 +839,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Caption cleanup failed");
-    // The tagged original survives as a backup until cleanup succeeds.
     expect(files.get(path.join(workDir, `${MEDIA_ID}.en.vtt.tagged-original`))).toBe(TAGGED_VTT);
   });
 });

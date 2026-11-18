@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Final plan for this issue.\n\n### ADR verdicts\n- Q1 attempt count: no ADR; no real alternative weighed\n- Q2 backoff schedule: no ADR; no real alternative weighed\n- Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the record-decision skill judged it easy to reverse\n- Q4 alert channel: no ADR; a process decision\n",
+      "why": "all four verdict lines in the issue copy"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Closed by the PR. See the PR description for the plan.\n",
+      "why": "the issue copy carries no verdict lines"
+    },
+    {
+      "answer": "### ADR verdicts\n- Q1 attempt count: no ADR\n- Q2 backoff schedule: no ADR\n- Q3 failed-delivery storage: no ADR; easy to reverse\n- Q4 alert channel: no ADR\n",
+      "why": "the lines were shortened, not copied verbatim"
+    }
+  ]
+}

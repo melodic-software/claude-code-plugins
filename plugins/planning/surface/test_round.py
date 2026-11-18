@@ -2589,14 +2589,23 @@ class TestClaudeActivity(DirCase):
         self.apply(
             {
                 "op": "restate",
-                "sections": {"goal": "Ship it.", "planningOwned": "- file layout"},
+                "sections": {
+                    "goal": "Ship it.",
+                    "planningOwned": "- file layout",
+                    "adrVerdicts": "- Q1 storage: no ADR",
+                },
             }
         )
         r = self.doc()["restatement"]
         self.assertEqual(r["rev"], 1)
         self.assertTrue(r["at"])
         self.assertEqual(
-            r["sections"], {"goal": "Ship it.", "planningOwned": "- file layout"}
+            r["sections"],
+            {
+                "goal": "Ship it.",
+                "planningOwned": "- file layout",
+                "adrVerdicts": "- Q1 storage: no ADR",
+            },
         )
         [e] = self.entries()
         self.assertEqual(e["text"], "Restated the shared understanding")

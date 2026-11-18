@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1] - 2026-11-18
+
+### Fixed
+
+- The `confirm-lists-every-verifier-verdict` eval's `lists-both-in-order` grader passes a report that lists both verdicts in a table. Its window from "Verifier" to NEEDS WORK widens from 120 to 400 characters, so a table header no longer puts the verdicts out of reach. A wrong-order table still fails.
+
 ## [0.28.0] - 2026-11-18
 
 ### Added

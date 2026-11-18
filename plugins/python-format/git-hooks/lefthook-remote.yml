@@ -1,8 +1,12 @@
 pre-commit:
   jobs:
-    - name: python-format-remote-format
-      script: python-format-format.sh
-      runner: sh
-    - name: python-format-remote-lint
-      script: python-format-lint.sh
-      runner: sh
+    - name: python-format-remote
+      group:
+        piped: true
+        jobs:
+          - name: python-format-remote-format
+            script: python-format-format.sh
+            runner: sh
+          - name: python-format-remote-lint
+            script: python-format-lint.sh
+            runner: sh

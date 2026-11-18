@@ -20,9 +20,8 @@ configure it with `/context7:setup`:
 - **`/context7:lookup <library> <query>`** (default). The two-step Context7
   workflow: resolve the library name to a `/org/project` ID, then query its
   docs. Works through the `ctx7` CLI, or through the Context7 MCP server when
-  the consuming project has one configured (same backend, ~1.8× more content
-  per call). Also exposes a maintainer **`update`** action
-  (`/context7:lookup update`) that checks the installed `ctx7` CLI against the
+  the consuming project has one configured (same backend). Also exposes a
+  maintainer **`update`** action (`/context7:lookup update`) that checks the installed `ctx7` CLI against the
   latest npm release (`--fix` upgrades it) and diffs Upstash's upstream
   reference skills against the plugin's bundled `vendor/` baselines, reporting
   anything new for manual review. It never auto-rewrites the skill.

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Public entry for the course-digest extraction suite; CI and docs call this
-# facade instead of reaching into the skill-private extraction/ package.
 set -euo pipefail
 
 usage() {

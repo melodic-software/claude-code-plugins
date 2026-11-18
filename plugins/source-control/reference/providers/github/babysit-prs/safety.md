@@ -42,17 +42,18 @@ App installation token with "Enqueuer is not authorized to merge", so the gate d
 
 ### A CLI merge the queue took
 
-`gh pr merge` adds a PR to the queue on any base that has one, `--auto` or not, and exits `0`.
+The spoke's queue read-back after a successful CLI merge reads these GraphQL fields:
+`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueueEntry` and `autoMergeRequest`.
 
-**Claim, basis:** that `gh pr merge` adds a PR to a required merge queue, or
-enables auto-merge until its checks pass, and exits `0` for a PR already queued,
-[merging a pull request with a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue),
-the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge), and
-[`pkg/cmd/pr/merge/merge.go`](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/merge/merge.go);
-the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueueEntry`,
-`autoMergeRequest`), the
-[`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest);
-why a PR leaves the queue, the first page's removal section.
+- **Pointer**: when you need how `gh pr merge` acts on a merge-queue base, fetch
+  [Adding a pull request to a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue#adding-a-pull-request-to-a-merge-queue)
+  and the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge) live; correlate with
+  [`pkg/cmd/pr/merge/merge.go`](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/merge/merge.go).
+- **Pointer**: when you need a queue field, fetch the
+  [`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest)
+  live; when you need why a PR left the queue, fetch
+  [Understanding why your pull request was removed from the merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue#understanding-why-your-pull-request-was-removed-from-the-merge-queue)
+  live.
 
 ## Rerun a rate-limited review
 

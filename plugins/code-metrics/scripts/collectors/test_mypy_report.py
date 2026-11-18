@@ -239,8 +239,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.stderr, "")
 
     def test_the_lane_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
-        # A change scope of two files: the lane row is those two files'
-        # coverage, and the module the table lists for neither is noted.
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "c.py", exit_code=0)
             self.assertEqual(result.returncode, 0, result.stderr)

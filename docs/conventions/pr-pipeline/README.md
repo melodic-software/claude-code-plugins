@@ -952,6 +952,12 @@ a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
 set never resumes an item, expedites it, sets its work class or lifts a hold.
 
+On its schedule, `pr-merge` gives a PR a new head, an empty commit, when the token broker refused
+a `pr-unblock` run on its current head as `workflow-modified`, once per version of the workflow
+file the broker named. An `address-feedback` run refused that way is left to the feedback sweep
+(`.github/scripts/pr-merge/refire-refused.mjs`). A scheduled run or a sweep dispatch also releases
+an eval hold: [Cross-lane PR hold](../../contracts/loop-lane/README.md#cross-lane-pr-hold).
+
 A pr-unblock escalation whose reason repository state can settle is also cleared without a
 person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
 label and removes it, after one comment naming the reason and the head, when every reason the
@@ -1979,7 +1985,10 @@ outdated with none of its flagged lines left at the head; an unresolved thread s
 
 Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull request passes every other gate
 and its only risk reasons are open findings a clean whole review of the head would close (no review
-of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
+of that head reported a finding or was whole, and no lane thread is unresolved), `review-path:` holds
+that such findings on the security lane keep standing, or `evidence-unbound:<lane>` with the unbound
+reason `rerun-not-allowed` (the new run's first attempt binds where the re-run did not; no other unbound
+reason requests one), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-platforms.yml` and pr-merge itself. The
@@ -2858,7 +2867,9 @@ like any other code; a change to the takeover set (the merge gate's HIGH floor) 
 care and fails when it lets someone outside the organization gain trust; touching one is not a
 defect by itself. A check, permission or
 guard weakened beyond what the spec asks fails the verdict for every change, takeover set or not,
-as the prompt's Safety step says. A diff too large to judge whole fails when a part not judged is a
+and a spec asks for a weakened check only when a `closes` or `refs` entry names it and holds both
+the line link to the owner's decision and the owner's `verbatim:` words, as the prompt's Safety
+step says. A diff too large to judge whole fails when a part not judged is a
 workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
 notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
@@ -2866,10 +2877,11 @@ opened the pull request: a spec written by a trusted human counts, so an adopted
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
-never supplies its own spec. A listed human's comment on such an issue reaches the verifier, but it
-never makes the issue trusted, and neither does a listed human's edit of its body. To give work a Bot
-filed a spec, a listed human opens an issue that restates it, and the pull request links that one.
+parent's task-list lines or those of intake's refinement on it (below) and an own-agent filing
+intake admission admits (below), so a lane pull request never supplies its own spec. A listed
+human's comment on such an issue reaches the verifier, but it never makes the issue trusted, and
+neither does a listed human's edit of its body. To give any other work a Bot filed a spec, a listed
+human opens an issue that restates it, and the pull request links that one.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
@@ -2886,7 +2898,13 @@ An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-sma
 an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
 no `size-split child` marker) reaches the verifier with its body as spec while no other account
 edited it (`ownAgentText` in `admit.mjs`), so a lane pull request for it is judged against what the
-agent filed. The merge gate still reads such a spec `verify:untrusted-spec`, so a person merges it.
+agent filed. The merge gate trusts the filing admission admits, read live at each judgment: an
+identity on main's `own-agents` list wrote it, no other account edited its body, it carries exactly
+one well-formed `source: <producer>` label, its Size field holds small or medium, last set by a
+listed human or the lanes App, and no run's patch stopped over the scan job's size cap
+(`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
+failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
+the list names it, and comments still count only when a listed human wrote them.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
@@ -3023,7 +3041,8 @@ head:
   title, first body line, author and last editor read again, and the pull request's changed files
   from its base to the head (GET compare) only modifications of `docs/upstream` pages that pin its
   upstream at the default branch's tip, read there, or is the main-red incident as above, its
-  title, first body line, author and last editor read again (otherwise `verify:untrusted-spec`; a
+  title, first body line, author and last editor read again, or is an own-agent filing as above, its
+  body, author, last editor, labels, Size field, comments and events read again (otherwise `verify:untrusted-spec`; a
   failed read refuses `verify:unreadable`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's

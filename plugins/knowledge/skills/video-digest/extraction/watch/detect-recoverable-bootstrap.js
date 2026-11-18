@@ -30,8 +30,6 @@ function listDir(dir) {
  */
 function workDirComplete(workDir) {
   const entries = listDir(workDir);
-  // Any `.vtt` (including the `*-orig.vtt` auto-caption) counts — recovery
-  // rebuilds transcript from it, matching resolveWorkArtifacts' fallback.
   return [".mp4", ".vtt", ".info.json"].every((ext) => entries.some((n) => n.endsWith(ext)));
 }
 

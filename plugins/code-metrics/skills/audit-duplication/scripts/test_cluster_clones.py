@@ -93,8 +93,6 @@ class ClusterClonesTests(unittest.TestCase):
         self.assertEqual(sum(row["values"]["lines"] for row in rows), 41)
 
     def test_overlap_without_an_identical_range_stays_two_groups(self) -> None:
-        # The third copy carries only part of the fragment, so its pair names
-        # the first copy with a shorter range.
         result = run(
             document(
                 pair(("c1.sh", 3, 36), ("c2.sh", 4, 37), lines=34),
@@ -192,10 +190,6 @@ class ClusterClonesTests(unittest.TestCase):
         self.assertEqual(run(document(), "--registry", "x").returncode, 2)
 
     def test_root_sorts_instances_by_their_root_relative_path(self) -> None:
-        # From `lib/`, the dispatcher names the root copy `hook-utils.sh` and
-        # a plugin copy `../plugins/a/hooks/hook-utils.sh`, which sorts first
-        # as text; relative to the root the `lib/` copy comes first, so the
-        # rollup attributes the class the same way a root run does.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             lib = root / "lib"

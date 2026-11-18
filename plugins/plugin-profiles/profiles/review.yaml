@@ -1,16 +1,16 @@
 description: "Start here at a pull request you did not build: another author's PR, a dispatched PR you watch and merge, or a container close-out. Reviewing your own change stays in build."
 plugins:
-  - review@melodic-software
-  - code-tidying@melodic-software
-  - user-interface@melodic-software
-  - testing@melodic-software
-  - tdd@melodic-software
-  - code-metrics@melodic-software
-  - mutation-testing@melodic-software
   - ai-slop@melodic-software
-  - multi-agent@melodic-software
-  - verification@melodic-software
-  - toolchain@melodic-software
-  - work-items@melodic-software
+  - code-metrics@melodic-software
+  - code-tidying@melodic-software
   - corrections@melodic-software
+  - multi-agent@melodic-software
+  - mutation-testing@melodic-software
+  - review@melodic-software
+  - tdd@melodic-software
+  - testing@melodic-software
+  - toolchain@melodic-software
+  - user-interface@melodic-software
+  - verification@melodic-software
+  - work-items@melodic-software
   - writing@melodic-software

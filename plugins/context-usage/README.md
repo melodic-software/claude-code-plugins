@@ -97,8 +97,10 @@ or the status tool) that showed the crossing, even when Claude's line waits for 
 turn [operator mode](#operator-mode) holds gets neither, and neither does a session whose first
 reading is already past `light`, which gets only Claude's line. A crossing already shown in an
 unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
-carrier. On every surface but the terminal (the Desktop app, VS Code, mobile), where a toast may not
-show, the line is also drawn as one notice row above the prompt until the next typed prompt.
+carrier. On every surface but the terminal, where a toast may not show, the crossing is also drawn
+above the prompt until the next typed prompt. The Desktop app draws it as one row naming the new
+zone in color, with Compact, Handoff, Details and Dismiss buttons; each runs its command, or puts it
+in the prompt box when the app refuses to run it. Other surfaces draw the line as one notice row.
 `/context-usage` writes the route through `/session-flow:workflow` and
 [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
 as a transcript line Claude does not read.
@@ -125,8 +127,8 @@ suggestion, so it stays in the box after that hand-off.
   [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods)
   live.
 
-Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe
-of this plugin ran in the Desktop app or VS Code.
+Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. The
+Desktop row was previewed in a Desktop 6.6695.0 session; no probe of this plugin ran in VS Code.
 
 - **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
@@ -177,8 +179,8 @@ command runs first through `--after`, and your other `statusLine` keys stay. It 
   checking where the `statusLine` edit goes, fetch
   [Manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
   live; when checking which settings a plugin may set, fetch
-  [manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
-  live; when checking what cache state a mod can read, fetch
+  [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, the release that
+  removed the `subagentStatusLine` setting; when checking what cache state a mod can read, fetch
   [mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) live.
 
 The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never

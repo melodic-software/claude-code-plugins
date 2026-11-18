@@ -45,8 +45,10 @@ Use only interfaces that authorize automated access:
 
 Automated X/Twitter collection is disabled. Do not crawl, scrape, scroll, navigate, fetch,
 or extract X pages through browser automation, DOM scripts, unofficial endpoints, or Grok.
-Do not refresh following graphs or profile metadata. X's current terms expressly prohibit
-crawling or scraping without prior written consent: <https://x.com/en/tos>.
+Do not refresh following graphs or profile metadata. This plugin keeps X collection off
+because of X's terms of service on automated access.
+
+- **Pointer**: when a change would let this plugin read X pages, fetch <https://x.com/en/tos> live.
 
 If the user supplies an X URL, preserve it as user-provided citation metadata but do not
 programmatically retrieve it. Ask for the relevant text when it is necessary, and seek a

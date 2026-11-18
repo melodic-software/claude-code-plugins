@@ -55,30 +55,15 @@ The first line is a thing the reader can do. Not context, not a plan, the
 action. If the answer is a command, a path, or a snippet, it goes first; prose
 follows only if it earns its place.
 
-- Weak: "Let's think about this. Your auth flow has a few moving parts…"
-- Strong: "Run `npm install jsonwebtoken`, then edit `src/auth.ts:42`."
-
 ### 2. Number multi-step work
 
 More than one step means a numbered list. Each item is one bounded action; no
 item hides a second "and then."
 
-- Weak: "Open the file, find the function, swap it, then run the tests."
-- Strong:
-
-  ```
-  1. Open src/auth.ts
-  2. Replace verifyToken (lines 42–58) with the snippet below
-  3. Run npm test -- auth.spec.ts
-  ```
-
 ### 3. End with one concrete next action
 
 If anything stays open, name exactly **one** thing the reader can do in under
 two minutes. "Open the file" counts.
-
-- Weak: "Hope that helps. Let me know if you want to dig deeper." <!-- ai-slop-ignore: quotes the tell it documents -->
-- Strong: "Next: run `npm test` and paste the first failing line."
 
 ### 4. Suppress tangents
 
@@ -142,10 +127,6 @@ hour").
 ### 7. Make finished work visible
 
 Show what works now, concretely. Do not bury the win in a recap.
-
-- Weak: "I've made some changes to the auth flow, among other things…"
-- Strong: "Login works with magic links now. Try: `npm run dev`, open
-  `/login`."
 
 ### 8. State errors flat
 

@@ -90,8 +90,6 @@ crap_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(crap_module)
 
 NO_END_LINES = "the resolved collector reports no function end lines"
-# How many of a lane's unmeasured scope files a run-row reason names before
-# it counts the rest; the JSON row carries every one.
 MISSING_SHOWN = 5
 
 
@@ -291,9 +289,6 @@ def merge_artifacts(
     }
     for artifact in artifacts:
         fmt = artifact.get("format") or "unknown"
-        # Which accumulated records this one artifact has already folded into,
-        # per file. One artifact never lists a function twice, so a record it
-        # has claimed belongs to a different function and is not a fold target.
         claimed: dict[str, set[int]] = {}
         sections = artifact.get("files") or {}
         for raw_path, section in sections.items():
@@ -643,18 +638,11 @@ def _function_row(
         "lane": row.get("lane"),
     }
     tail = _tail(row.get("function"))
-    # Whether another measured function in this file ends in the same name. A
-    # short name in the artifact is only ambiguous when there is a second
-    # function it could belong to.
     rival = sum(1 for other in siblings if _tail(other.get("function")) == tail) > 1
     matched, ambiguity = _match_function(
         entry["functions"], row.get("function"), start, end, rival
     )
     if ambiguity:
-        # Refused, not guessed. Coverage, line counts, hit, and CRAP are
-        # withheld; cyclomatic from the complexity row is kept. The row says
-        # why through its label, and the lane's run row carries the reason, so
-        # the gap is visible in the markdown as well as in the JSON.
         return {
             **identity,
             "values": {
@@ -727,9 +715,6 @@ def join(
     scope = [normalize(path) for path in scope]
     merged = merge_artifacts(artifacts, scope, root, prefixes)
     cyclomatic = _cyclomatic_rows(complexity)
-    # The dispatcher's own lane assignment leads: it covers every file in scope,
-    # including the ones no complexity collector produced a row for. The
-    # complexity document fills in only where the dispatcher said nothing.
     lane_of: dict[str, str] = dict(scope_lanes or {})
     for row in complexity.get("measures") or []:
         if row.get("file"):
@@ -808,11 +793,6 @@ def join(
                 )
             continue
         matched = [path for path in files if path in merged]
-        # The scope files no artifact mentions, root-relative and sorted. The
-        # count alone says how much of the lane went unmeasured; the paths say
-        # which files, which is what a reader needs to tell a test file that
-        # never appears in an artifact from a source file the suites never
-        # reach. The first few ride on the reason; the JSON row carries all.
         missing = sorted(path for path in files if path not in merged)
         shown_missing = ", ".join(missing[:MISSING_SHOWN])
         if len(missing) > MISSING_SHOWN:
@@ -867,9 +847,6 @@ def join(
             "reason": reason,
         }
         if artifacts and missing:
-            # Only a row whose reason carries the `N of M` count lists the
-            # files behind it; a no-artifact row names the paths searched
-            # instead, and an `ok` row has nothing to list.
             coverage_row["missing"] = missing
         run.append(coverage_row)
         lane_cyclomatic = [
@@ -891,9 +868,6 @@ def join(
         if lane_cyclomatic and all(
             row.get("end_line") is None for row in lane_cyclomatic
         ):
-            # A collector that reports no function end lines can never produce
-            # CRAP for this lane, whatever the coverage side did, so that stays
-            # the reported cause.
             crap_status, crap_reason = "not-applicable", NO_END_LINES
         elif collector_failed:
             # The lane's cyclomatic collector did not resolve, or ran and produced
@@ -908,18 +882,10 @@ def join(
                 f"{comp_row.get('reason') or 'no reason given'}"
             )
             if status != "ok":
-                # Both inputs are missing; the collector leads and the coverage
-                # row's own reason (a partial count, or the paths searched for an
-                # artifact) follows, so neither cause is hidden by the other.
                 crap_reason = f"{crap_reason}; coverage {status}: {reason}"
         elif status != "ok":
-            # CRAP is coverage times complexity, so a lane with no coverage has
-            # no CRAP whatever the cyclomatic side produced; the coverage row's
-            # reason is the blocker worth reporting.
             crap_status, crap_reason = status, reason
         elif not lane_cyclomatic:
-            # The collector resolved and ran, and the scope holds no functions
-            # for this lane.
             crap_status = "not-applicable"
             crap_reason = "no function-level cyclomatic rows in scope for this lane"
         else:
@@ -1054,8 +1020,6 @@ def main(argv: list[str]) -> int:
             "usage: join.py --complexity <doc> --scope <files> [...]", file=sys.stderr
         )
         return 2
-    # The scope file is the dispatcher's `--print-scope` output: `lane<TAB>path`
-    # rows. A bare path (no tab) is still accepted and carries no lane.
     scope: list[str] = []
     scope_lanes: dict[str, str] = {}
     with open(args.scope, encoding="utf-8") as handle:

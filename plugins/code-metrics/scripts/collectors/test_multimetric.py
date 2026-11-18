@@ -61,8 +61,6 @@ class MultimetricAdapterTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            # A launcher whose shebang names an interpreter that answers the
-            # metadata question, the shape pip writes for a console script.
             fake_python = Path(tmp) / "fakepython"
             fake_python.write_text(
                 "#!/usr/bin/env bash\nprintf '9.9.9\\n'\n", encoding="utf-8"

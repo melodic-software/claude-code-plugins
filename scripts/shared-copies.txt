@@ -113,10 +113,13 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/actionlint/ref
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/review/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/verification/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/improvement/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/prototype/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
+docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh
@@ -497,6 +500,8 @@ lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/session-telemetry/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/plugin-diagnostics/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/actionlint/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/powershell-format/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
 lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
 lib/view-runtime.js plugins/work-items/lib/view-runtime.js

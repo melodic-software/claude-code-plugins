@@ -674,7 +674,7 @@ if [[ "$STOP_ACTIVE" == "true" ]]; then
     # empty. git refuses every `[[:cntrl:]]` byte in a ref name, so the strip
     # changes no branch git can print; lane::notify strips C0 bytes again on
     # its own before any sink.
-    { BRANCH=$(git -C "$CWD" branch --show-current); } 2>/dev/null || BRANCH=""
+    { BRANCH=$(hook::git_untrusted -C "$CWD" branch --show-current); } 2>/dev/null || BRANCH=""
     BRANCH="${BRANCH//[[:cntrl:]]/}"
   fi
   LANE="${CWD##*/}"

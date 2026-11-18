@@ -24,7 +24,6 @@ export function expandVisualGaps(sliceDir) {
   const sel = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
   const visualFramesPath = lanePath(absSlice, LANES.keyFrames, "visual-frames.md");
   const exact = loadPromotedTimestampsSec(absSlice);
-  // Minute labels are the fallback for slices with no promoted frames on disk.
   const promoted =
     exact.length > 0 || !fs.existsSync(visualFramesPath)
       ? exact

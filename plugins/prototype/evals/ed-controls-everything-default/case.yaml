@@ -3,7 +3,7 @@ name: ed-controls-everything-default
 description: "Controls for everything that can vary, MB:plugins/prototype/context/control-panel.md and MB:plugins/prototype/skills/explore-directions/reference/controls.md: with no level asked for, the run resolves to standard, whose controls dimension is everything, so the mockup of a design-system screen carries one prototype-controls manifest with controls in the layout, typography and color groups and inlines the controls runtime. The brief names no number, so a panel appears only because of the level."
 tags: [explore-directions, controls, levels]
 runs: 3
-expected_outcome: "The run prints 'level: standard (default)' above its plan. The mockup page written into a mktemp run directory holds a script element of type application/json with id prototype-controls whose controls include at least one control in each of the layout, typography and color groups, and the page inlines the bundled controls runtime (window.uiFeedbackControls)."
+expected_outcome: "The run prints 'level: standard (default)' in its own text before its first Write or Edit call. The mockup page written into a mktemp run directory holds a script element of type application/json with id prototype-controls whose controls include at least one control in each of the layout, typography and color groups, and the page inlines the bundled controls runtime (window.uiFeedbackControls)."
 execution:
   prompt: "/prototype:explore-directions a design-system preview screen for a new recipe-sharing app: its buttons, text inputs, cards and type styles on one screen. There is no app yet. I'm the only person deciding and I want the mockup now: build it without asking me anything first."
   allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]

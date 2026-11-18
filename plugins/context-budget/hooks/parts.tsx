@@ -36,7 +36,7 @@ export const SKILLS_FIX = 'Skills holds 1% or more of the window: run /skill-doc
 
 // Skills is the one category with a documented level. Its kind is shared with other used rows, so
 // this one check reads the name.
-const warns = (c: LiveCategory) => c.name === 'Skills' && !c.deferred && c.percent >= SKILLS_WARN_PERCENT
+export const warns = (c: LiveCategory) => c.name === 'Skills' && !c.deferred && c.percent >= SKILLS_WARN_PERCENT
 
 // The engine documents a breakdown row's color as its key in the theme.
 const theme = (c: LiveCategory): ThemeKey => c.color as ThemeKey

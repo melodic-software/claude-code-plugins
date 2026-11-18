@@ -53,6 +53,8 @@ plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notifi
 one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
+An installed plugin runs from a deeply nested cache path, and a search passed that path can fail
+to start on some hosts because the path is too long, while reading a named file still works.
 
 When the plugin's toggle is disabled, every prerequisite absence except Node.js (step 3)
 downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing anything, so

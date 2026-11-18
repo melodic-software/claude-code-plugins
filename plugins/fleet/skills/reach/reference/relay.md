@@ -85,13 +85,14 @@ A headless receiver is a `-p` turn with a name and inbound messages switched on:
 claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>" < /dev/null
 ```
 
-- Without `crossSessionInbound: accept`, a `-p` turn does not take messages unattended: it cannot
-  show the approval dialog, so a message the default holds expires undelivered. How long a held
-  message waits, and which interactive sessions deliver without the setting, are in the sections
-  below.
-  - **Pointer**: [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
+- We always start a `-p` receiver with `crossSessionInbound: accept`: nobody is present to approve
+  a message, and our R2 receiver started that way took messages across accounts
+  ([Verified behavior](#verified-behavior)).
+  - **Pointer**: when a message to a receiver is not delivered, or when weighing the setting's
+    default, fetch
+    [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
     and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
-    fetched live.
+    live.
 - Its standing instructions say what to do with each message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
   quote. Double-quote it with escaped inner quotes instead, and send the instructions on stdin:
@@ -145,10 +146,10 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 ```
 
 - The directory must be trusted: run `claude` there interactively once and accept the prompt.
-  Anywhere else the start fails with a workspace-not-trusted error and exit 1. For its wording,
-  fetch
-  [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live (as of 2026-10-11; recheck when that entry's message or fix changes).
+  Our R2 start failed in an untrusted directory ([Verified behavior](#verified-behavior)).
+  - **Pointer**: when a start fails for trust, fetch
+    [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
+    live for its message and fix.
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
 - We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`
@@ -162,9 +163,9 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
   hop. Untested.
-- Where agent view's background sessions run, and when they stop: its limits section.
-  - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
-    fetched live.
+- **Pointer**: when deciding whether a background session can outlast what the task needs, fetch
+  [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations) live for
+  where those sessions run and when they stop.
 
 ## Start in the target's plugin profile
 
@@ -306,11 +307,15 @@ credential through a prompt or a copy.
 
 ## Verified behavior
 
-Claim: the per-lane account model and the route results below. Basis: live probes between
-a desktop and a laptop, each lane on its own claude.ai sign-in. As of 2026-09-29, Claude
-Code 2.1.284. Recheck when a Claude Code release note touches `ListAgents`, `SendMessage`, Remote
-Control session listing, `crossSessionInbound` or `-n`/`--name`, or when a route below fails its
-hop check.
+The per-lane account model and the route results below are what our live probes between a
+desktop and a laptop observed, each lane on its own claude.ai sign-in, on Claude Code 2.1.284. A
+row that names a later Claude Code version records a later probe and carries its own recheck.
+
+- **Pointer**: when a 2.1.284 route below fails its hop check, or a Claude Code release note touches
+  `ListAgents`, `SendMessage`, Remote Control session listing, `crossSessionInbound` or
+  `-n`/`--name`, read the probe evidence in
+  [#5337](https://github.com/melodic-software/claude-code-plugins/pull/5337) and probe the route
+  again.
 
 The hub's guidance on `notify_when_idle`, `--bare`, `--bg`, `--session-id` and a `-p` receiver
 also rests on documented flag behavior.
@@ -334,7 +339,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | Untested on a live hop. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. The script's lines, with `--version` in place of `-p -n <name>` and a stub `profiles.mjs`, removed the prompt file on each exit path: not installed (exit 0), launch refused (exit 1), launch output not JSON (exit 1), profile applied (exit 0), `claude.exe` missing (exit 1), background prompt `--version` stopped by the `-` line (exit 1), and with launch also refused, the refusal's reason was the one reported (exit 1). Without that line, `Q '--version'` as the only argument printed the version. No `-p` turn started in a profile. Recheck when the lane's PowerShell version changes |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | An R2 hop (WSL to another machine's WSL) ran live on Claude Code 2.1.327 on 2026-11-18, with a `-p` turn started in a profile (plugin-profiles probe P14); the Windows rows remain untried live. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. The script's lines, with `--version` in place of `-p -n <name>` and a stub `profiles.mjs`, removed the prompt file on each exit path: not installed (exit 0), launch refused (exit 1), launch output not JSON (exit 1), profile applied (exit 0), `claude.exe` missing (exit 1), background prompt `--version` stopped by the `-` line (exit 1), and with launch also refused, the refusal's reason was the one reported (exit 1). Without that line, `Q '--version'` as the only argument printed the version. No `-p` turn started in a profile on R1. Recheck when the lane's PowerShell version changes |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change

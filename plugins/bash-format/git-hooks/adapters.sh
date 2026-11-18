@@ -117,7 +117,7 @@ bf__dedupe() {
     [[ "$f" == *[$'\t\n']* ]] || plain+=("$f")
   done
   ((${#plain[@]} > 1)) || return 0
-  printf '%s\n' "${plain[@]}" | git hash-object --no-filters --stdin-paths >"$CHECKS_TMP/hashes" || return 1
+  printf '%s\n' "${plain[@]}" | rt_git hash-object --no-filters --stdin-paths >"$CHECKS_TMP/hashes" || return 1
   : >"$table"
   while IFS= read -r h; do
     f="${plain[i]}"
@@ -282,7 +282,7 @@ rt_adapter_in_repo() {
       while IFS= read -r f; do
         [[ "$f" == */* ]] && editorconfig_shell_section_here "$2/${f%/*}" && break
         f=""
-      done < <(git -C "$2" ls-files -- ':(glob)**/.editorconfig' 2>/dev/null)
+      done < <(rt_git -C "$2" ls-files -- ':(glob)**/.editorconfig' 2>/dev/null)
     fi
     if [[ -z "$f" ]]; then
       RT_DETAIL="no .editorconfig section names shell files"
@@ -294,7 +294,7 @@ rt_adapter_in_repo() {
     elif [[ -e "$2/shellcheckrc" ]]; then
       f=shellcheckrc
     else
-      f="$(git -C "$2" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null | head -n 1)"
+      f="$(rt_git -C "$2" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null | head -n 1)"
     fi
     [[ -n "$f" ]] || f="none (ShellCheck defaults)"
   fi

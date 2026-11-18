@@ -601,8 +601,6 @@ export async function hasHotmartPlayer(page, videoPlayerSelector = DEFAULT_VIDEO
   return hasPlayerElement(page, videoPlayerSelector);
 }
 
-// Test helpers (exported for unit tests only)
-
 /**
  * @param {import('playwright').Page} page
  * @returns {boolean}

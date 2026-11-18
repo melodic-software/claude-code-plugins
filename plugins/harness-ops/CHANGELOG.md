@@ -3,6 +3,25 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.3.0] - 2026-11-18
+
+### Added
+
+- `control-claude-code`: `--real-setup` on the driver's `launch`, `ready` and `log` starts Claude Code without `--restricted` and `--strict-mcp-config`, so a drive shows the plugin under test beside the person's own settings, plugins, hooks, MCP servers and status line. It runs only attended: the driver refuses it with `--unattended`, `--in-sandbox`, a kept credential, or through the launch broker. With it, `--launcher <word>`, once per word, runs a command such as `profiles.mjs start <profile>` in place of the bare `claude`, as an argument vector with no shell.
+- `control-claude-code`: for a `--real-setup` session only, captures hide the status line's session id, cost and limit rows (`## Mask`, `### Real setup`), and `## Gotchas` names the first-run dialogs a `--real-setup` session can show (folder trust, external CLAUDE.md imports, the auto-mode offer) with the answer to give each.
+
+## [10.2.3] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups and `harness-ops-paths.sh`'s two `git rev-parse` calls pass the overrides `hook::git_untrusted` uses, so those calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as the ignore check already does.
+
+## [10.2.2] - 2026-11-18
+
+### Security
+
+- The shared hook::file_is_gitignored check runs git with core.fsmonitor and core.hooksPath turned off on the command line, through the new hook::git_untrusted helper, so a repository whose config names a command cannot make it run.
+
 ## [10.2.1] - 2026-11-18
 
 ### Fixed

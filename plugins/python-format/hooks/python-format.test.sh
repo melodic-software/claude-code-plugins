@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for the python-format PostToolBatch row, launched exactly
-# as hooks.json registers it (node exec-bash.mjs with the row's args).
-#
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
-# the .py and .pyi files a Write, Edit or MultiEdit in the batch named, once per
-# batch, and never anything a Read named; it prints nothing (no finding, no
-# disclosure reaches the model) and exits 0; a Ruff config must govern the file
-# (present -> run, absent -> leave bytes untouched; pyproject.toml counts only
-# with [tool.ruff]); only formatting and selected import sorting run, never a
-# lint autofix; a python record never runs; a crafted file name never runs as
-# shell; the
-# config's excludes, .githooks/, gitignored files and the kill switch are
-# honored; a batch with no Python edit costs only the launcher.
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures.
-# Each repo gets a .venv/bin/ruff shim that forwards to a real Ruff, so the
-# hook's virtual-environment resolution path is exercised. The row is run from an
-# UNRELATED cwd so any reliance on the caller's working directory would surface.
-#
-# Requires a real Ruff binary: $RUFF_TEST_BIN if set, else `ruff` on PATH.
-# Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/hooks.json plugins/python-format/prerequisites.json plugins/python-format/lib/prerequisites.mjs plugins/python-format/lib/git-hooks/install.mjs
 # test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
 
@@ -100,7 +79,6 @@ else
   fail "probe cases need git and node"
 fi
 
-# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, so its launcher flag is the only filter. The script reads
 # the paths itself.
@@ -121,14 +99,9 @@ else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe: run by harness-ops behind python_format_enabled ---
-# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
-# option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on python_format_enabled" "PYTHON_FORMAT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
-# Resolve a real Ruff binary. .venv/bin/ruff shims in each fixture forward to
-# this. Skip the rest of the suite when none is available.
 if [[ -n "${RUFF_TEST_BIN:-}" && -x "${RUFF_TEST_BIN}" ]]; then
   REAL_RUFF="${RUFF_TEST_BIN}"
 elif command -v ruff >/dev/null 2>&1; then
@@ -144,11 +117,8 @@ WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
 
-# The row's args from hooks.json, with the plugin root substituted.
 mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
 
-# new_ruff_repo <dir> [config_body] -> init a git repo with a .venv ruff shim
-# and (unless config_body is the literal NO_CONFIG) a ruff.toml.
 new_ruff_repo() {
   local r="$1" cfg="${2:-}"
   mkdir -p "$r/.venv/bin"
@@ -169,15 +139,12 @@ new_ruff_repo() {
   fi
 }
 
-# payload <tool> <file>...: a PostToolBatch payload with one call per file.
 payload() {
   local tool="$1"
   shift
   jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
 }
 
-# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
-# stays unset so scoping falls to git-working-tree membership.
 fire() {
   local p="$1"
   shift
@@ -187,12 +154,8 @@ fire() {
   )
 }
 
-# run_edit <file>: Edit one file in a batch; prints the row's whole output.
 run_edit() { fire "$(payload Edit "$1")"; }
 
-# --- Opt-in gate OFF (no Ruff config) -> file left untouched ----------------
-# A repo with Ruff installed but NO config must not have its files rewritten to
-# Ruff's built-in defaults.
 REPO_NO="$WORK/no-config"
 new_ruff_repo "$REPO_NO" NO_CONFIG
 printf 'x=1\n' >"$REPO_NO/nofmt.py"
@@ -217,8 +180,6 @@ printf 'x=1\n' >"$REPO_PT/opt.py"
 run_edit "$REPO_PT/opt.py" >/dev/null
 expect "pyproject with [tool.ruff]: file formatted" "x = 1" "$(cat "$REPO_PT/opt.py")"
 
-# Known limitation: the bare [tool] header with an inline ruff table is not
-# recognized; the repo is skipped, never rewritten.
 REPO_PI="$WORK/pyproject-inline"
 new_ruff_repo "$REPO_PI" NO_CONFIG
 printf '[project]\nname = "t"\n\n[tool]\nruff = { line-length = 88 }\n' >"$REPO_PI/pyproject.toml"
@@ -226,7 +187,6 @@ printf 'x=1\n' >"$REPO_PI/inline.py"
 run_edit "$REPO_PI/inline.py" >/dev/null
 expect "pyproject with [tool] inline-table ruff: file left untouched (known limitation)" "x=1" "$(cat "$REPO_PI/inline.py")"
 
-# --- Rewrites, and prints nothing --------------------------------------------
 REPO="$WORK/consumer"
 new_ruff_repo "$REPO"
 mkdir -p "$REPO/src" "$REPO/lib"
@@ -240,7 +200,6 @@ printf 'x = 1\n' >"$REPO/clean.py"
 OUT=$(run_edit "$REPO/clean.py")
 expect "a clean file: silent exit 0 and unchanged" "0||x = 1" "$?|$OUT|$(cat "$REPO/clean.py")"
 
-# Findings no longer reach the model: an unfixable F821 is neither fixed nor reported.
 printf 'x=1\nprint(undefined_name)\n' >"$REPO/lib/lint.py"
 OUT=$(run_edit "$REPO/lib/lint.py")
 expect "a lint finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
@@ -250,35 +209,28 @@ printf 'def f(:\n' >"$REPO/syntax.py"
 OUT=$(run_edit "$REPO/syntax.py")
 expect "a mid-edit syntax error is silent" "0|" "$?|$OUT"
 
-# A just-added import is not auto-deleted mid-edit (--unfixable F401).
 printf 'import os\n' >"$REPO/imp.py"
 run_edit "$REPO/imp.py" >/dev/null
 expect "an unused import survives the in-session rewrite" "import os" "$(cat "$REPO/imp.py")"
 
-# Import sorting counts as format: the selected isort rule orders the imports.
 REPO_FIX="$WORK/safe-fix"
 new_ruff_repo "$REPO_FIX" $'[lint]\nselect = ["I"]'
 printf 'import sys\nimport os\n\nprint(os, sys)\n' >"$REPO_FIX/fix.py"
 run_edit "$REPO_FIX/fix.py" >/dev/null
 expect "selected import sorting is applied" "$(printf 'import os\nimport sys\n\nprint(os, sys)')" "$(cat "$REPO_FIX/fix.py")"
 
-# No lint autofix in session: a safe fix of another selected rule stays undone.
 REPO_LF="$WORK/no-lint-fix"
 new_ruff_repo "$REPO_LF" $'[lint]\nselect = ["F", "I"]'
 printf 'x = f"plain"\n' >"$REPO_LF/f.py"
 run_edit "$REPO_LF/f.py" >/dev/null
 expect "a safe fix of a selected lint rule (F541) is not applied in session" 'x = f"plain"' "$(cat "$REPO_LF/f.py")"
 
-# unsafe-fixes = true in the consumer config must not apply an intent-changing fix.
 REPO_UNSAFE="$WORK/unsafe-fixes"
 new_ruff_repo "$REPO_UNSAFE" $'unsafe-fixes = true\nlint.select = ["E712"]'
 printf 'x = 1\nif x == True:\n    pass\n' >"$REPO_UNSAFE/u.py"
 run_edit "$REPO_UNSAFE/u.py" >/dev/null
 expect "an unsafe fix is not applied despite unsafe-fixes = true" "if x == True:" "$(sed -n 2p "$REPO_UNSAFE/u.py")"
 
-# --- The batch -----------------------------------------------------------------
-# One call, several files, all rewritten; a Read, a non-Python file and a
-# duplicate are not.
 printf 'a=1\n' >"$REPO/b1.py"
 printf 'b=1\n' >"$REPO/b2.pyi"
 printf 'c=1\n' >"$REPO/b3.py"
@@ -297,7 +249,6 @@ expect "batch: an Edit'd .pyi is rewritten" "b = 1" "$(cat "$REPO/b2.pyi")"
 expect "batch: a Read'd .py is never rewritten" "c=1" "$(cat "$REPO/b3.py")"
 expect "batch: a non-Python file is untouched" "q=1" "$(cat "$REPO/notes.txt")"
 
-# A file that does not parse does not stop its neighbors from being rewritten.
 printf 'def f(:\n' >"$REPO/bad.py"
 printf 'z=1\n' >"$REPO/good.py"
 fire "$(payload Edit "$REPO/bad.py" "$REPO/good.py")" >/dev/null
@@ -307,14 +258,11 @@ printf 'm=1\n' >"$REPO/multi.py"
 fire "$(payload MultiEdit "$REPO/multi.py")" >/dev/null
 expect "a MultiEdit'd file is rewritten" "m = 1" "$(cat "$REPO/multi.py")"
 
-# --- Skips ----------------------------------------------------------------------
-# .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/python-format"
 printf 'g=1\n' >"$REPO/.githooks/python-format/copy.py"
 fire "$(payload Write "$REPO/.githooks/python-format/copy.py")" >/dev/null
 expect "a file under .githooks/ is skipped" "g=1" "$(cat "$REPO/.githooks/python-format/copy.py")"
 
-# The config's excludes hold for an explicitly passed path, silently.
 REPO_EX="$WORK/exclude-config"
 new_ruff_repo "$REPO_EX" 'extend-exclude = ["gen"]'
 mkdir -p "$REPO_EX/gen"
@@ -322,12 +270,10 @@ printf 'x=1\n' >"$REPO_EX/gen/g.py"
 OUT=$(run_edit "$REPO_EX/gen/g.py")
 expect "an excluded file is left untouched and silent" "0|x=1" "$?|$OUT$(cat "$REPO_EX/gen/g.py")"
 
-# The kill switch.
 printf 'k=1\n' >"$REPO/kill.py"
 OUT=$(fire "$(payload Edit "$REPO/kill.py")" CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED=false)
 expect "kill switch off: silent and the file untouched" "0|k=1" "$?|$OUT$(cat "$REPO/kill.py")"
 
-# No .venv shim -> PATH resolves Ruff.
 REPO_PATH="$WORK/path-fallback"
 mkdir -p "$REPO_PATH"
 git -C "$REPO_PATH" init -q
@@ -336,7 +282,6 @@ printf 'p=1\n' >"$REPO_PATH/p.py"
 fire "$(payload Edit "$REPO_PATH/p.py")" PATH="$(dirname "$REAL_RUFF"):$PATH" >/dev/null
 expect "PATH fallback: Ruff resolved and file formatted" "p = 1" "$(cat "$REPO_PATH/p.py")"
 
-# Ruff absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NR="$WORK/no-ruff"
 mkdir -p "$REPO_NR"
 git -C "$REPO_NR" init -q
@@ -351,7 +296,6 @@ done
 OUT=$(fire "$(payload Edit "$REPO_NR/app.py")" PATH="$FAKEBIN")
 expect "ruff absent: silent exit 0 and the file untouched" "0|x=1" "$?|$OUT$(cat "$REPO_NR/app.py")"
 
-# Gitignored path: neither rewritten by default, unless python_format_lint_gitignored is set.
 REPO_IGN="$WORK/gitignored"
 new_ruff_repo "$REPO_IGN"
 git -C "$REPO_IGN" config core.excludesFile /dev/null
@@ -363,7 +307,6 @@ expect "gitignored: file not rewritten" "x=1" "$(cat "$REPO_IGN/.work/scratch.py
 fire "$(payload Edit "$REPO_IGN/.work/scratch.py")" CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_LINT_GITIGNORED=true >/dev/null
 expect "gitignored + python_format_lint_gitignored=true: file formatted" "x = 1" "$(cat "$REPO_IGN/.work/scratch.py")"
 
-# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_ruff_repo "$REPO_SL"
@@ -375,9 +318,6 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# --- A record never runs ---------------------------------------------------------
-# A python record names a formatter; the batch row runs the Ruff adapter, never
-# the record's command, and a file name never reaches a shell as text.
 STUB="$WORK/stub"
 mkdir -p "$STUB"
 # shellcheck disable=SC2016 # the stub's own shell text
@@ -400,7 +340,6 @@ expect "the record's command never ran" "" "$(cat "$WORK/stub.log")"
 expect "a crafted file name reached Ruff as data" "x = 1" "$(cat "$REPO_REC/$CRAFTED")"
 expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
 
-# --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that never mentions .py costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"

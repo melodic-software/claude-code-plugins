@@ -139,7 +139,7 @@ than jitter it, because the deterministic floor is what makes daily coverage pre
   evidence strength and drop the tail rather than widening the wave; the dropped tail is reported,
   never discarded.
 - **Refill cap:** if a whole wave is refuted, at most **2** refill waves, then report the refuted set
-  and stop. An unbounded refill loop is a token sink against a ~1:50 signal-to-noise base rate.
+  and stop. An unbounded refill loop is a token sink: each refill wave pays the full gate again.
 - **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** Never claim
   exhaustive coverage.
 

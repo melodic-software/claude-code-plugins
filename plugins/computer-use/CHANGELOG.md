@@ -3,6 +3,14 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.20] - 2026-11-18
+
+### Changed
+
+- `diagnose`'s sleeping-display step states our rule (report it and let the operator wake the
+  machine) and points to the Cowork article's Current limitations section live, instead of
+  restating it.
+
 ## [0.1.19] - 2026-11-15
 
 ### Changed

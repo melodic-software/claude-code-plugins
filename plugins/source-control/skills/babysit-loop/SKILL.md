@@ -452,8 +452,8 @@ is a manual-restart state, per the convention. A forge rate-limit error ends the
 
 The `reference/` files write `<plugin-root>` for `${CLAUDE_PLUGIN_ROOT}` and `<plugin-data>` (the
 upsert's `--body-dir`) for `${CLAUDE_PLUGIN_DATA}`. Substitute those paths before running a command
-or writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}`
-token in them would reach the Bash tool unsubstituted, with no such variable to expand. Basis: the plugins reference,
+or writing it into a brief: we never rely on a `${…}` token in a file read from disk being
+expanded later. Where each plugin variable resolves: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next

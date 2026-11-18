@@ -413,7 +413,7 @@ sequencer_in_progress() {
   # note in ensure_convention_patterns. One command in the group, so the
   # `|| return 1` still reads git's own status and a sequencer probe that fails
   # is still "no sequencer", exactly as before.
-  { dir=$(git -C "$repo" rev-parse --absolute-git-dir); } 2>/dev/null || return 1
+  { dir=$(hook::git_untrusted -C "$repo" rev-parse --absolute-git-dir); } 2>/dev/null || return 1
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
     [[ -e "$dir/$f" ]] && return 0
@@ -579,7 +579,7 @@ check_segment() {
       # that sits on the per-tool-call path: every non-builtin git subcommand
       # is probed for an alias. `pexp` empty (git found nothing, or git is
       # absent) still means "no alias", unchanged.
-      { pexp=$(git -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
+      { pexp=$(hook::git_untrusted -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
       [[ -n "$pexp" ]] && recheck_alias_expansion "$pexp"
     fi
   fi

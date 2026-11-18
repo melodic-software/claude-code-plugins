@@ -120,7 +120,7 @@ rt_adapter_in_repo() {
     for c in $RT_DRIFT_CONFIGS; do
       specs+=(":(glob)**/$c")
     done
-    found="$(git -C "$2" ls-files -- "${specs[@]}" 2>/dev/null | grep -v -e '^node_modules/' -e '/node_modules/' | head -n 1)"
+    found="$(rt_git -C "$2" ls-files -- "${specs[@]}" 2>/dev/null | grep -v -e '^node_modules/' -e '/node_modules/' | head -n 1)"
   fi
   if [[ -z "$found" ]]; then
     RT_DETAIL="no markdownlint config"

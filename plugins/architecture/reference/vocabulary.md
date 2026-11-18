@@ -17,7 +17,10 @@ Basis, by term:
   converts between a port's API and what an outside device or system needs. We use the narrower
   sense of the code plugged in at a seam.
 - Leverage and locality as the two things depth produces, the deletion test and the two-adapter
-  check: our own terms and checks.
+  check: Matt Pocock, `codebase-design` in
+  [mattpocock/skills](https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d/skills/engineering/codebase-design);
+  our record:
+  [`docs/upstream/mattpocock-skills.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/mattpocock-skills.md).
 
 The examples below use one running case: tax calculation in a billing system.
 
@@ -115,7 +118,10 @@ Which style a repository follows is its own decision, read from its standards
   Those stay private; only the **external** seam, the interface, enters the judgment.
 - **The deletion test.** Ask what each caller would have to write if the module were removed. A
   direct call to whatever the module wrapped means it only forwarded calls. The same logic, copied
-  into every caller, means it was doing real work.
+  into every caller, means it was doing real work. A module that only forwards calls has three
+  fixes: delete it so callers call what it wrapped, move work between it and the module it wraps
+  so each has a distinct job, or merge the two into one deeper module (Ousterhout, *A Philosophy
+  of Software Design*, §7.1).
 - **Count the edits one change forces.** Suppose invoice lines gain an exemption code. If
   `TaxCalculator`'s rate step, its rounding step and its receipt step each need an edit, each step
   reads the line layout for itself: the code was cut along the sequence of the pipeline, not along

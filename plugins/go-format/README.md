@@ -21,7 +21,7 @@ command.
   the vendored `lib/git-hooks/resolve-tool.sh`). It prints nothing and exits `0`: no
   finding and no notice goes to Claude or the user. A file that `Read` named is never rewritten,
   and a file `goimports` cannot parse is left as it is.
-  - The row has no matcher or `if` (neither applies to `PostToolBatch`). Its launcher skips the
+  - The row has no matcher or `if`. Its launcher skips the
     script unless the payload mentions `.go`, so a batch without Go costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.

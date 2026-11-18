@@ -47,7 +47,6 @@ def decode(video, work):
         prev = rgb.astype(np.int16)
         cv2.imwrite(str(workdir.source(work, len(ts))), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
         ts.append(t)
-    # the last drawing holds for the median hold; a lone drawing lasts until the clip ends
     t1 = ts[1:] + [round(ts[-1] + float(np.median(np.diff(ts))), 6) if len(ts) > 1 else round(end(video), 6)]
     ix = dict(w=w, h=h, duration=t1[-1], drawings=[[k, t, e] for k, (t, e) in enumerate(zip(ts, t1))])
     json.dump(ix, open(workdir.index(work), 'w', encoding='utf-8'))
