@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: none\\nNo project glossary, so I name the feature from the request.\"}]}}\n",
+      "why": "the skill's no-glossary line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Prerequisites checked.\\n\\n**Glossary:** `none`\"}]}}\n",
+      "why": "bold label, backticked value, after other text"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: None (searched the root and docs/).\"}]}}\n",
+      "why": "capitalized, with a note after it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: GLOSSARY.md\"}]}}\n",
+      "why": "claims a glossary the workspace does not have"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Read the match that covers the code. Print one line, `Glossary: <path | none>`.\"}]}}\n",
+      "why": "the skill body's instruction arriving as a tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"Glossary: none\"}]}}\n",
+      "why": "the line appears only in tool output, not printed by the run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"No glossary found; naming it checkout after the request.\"}]}}\n",
+      "why": "says it in prose but prints no Glossary line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Glossary: nonexistent.md\"}]}}\n",
+      "why": "near miss: a path starting with none"
+    }
+  ]
+}

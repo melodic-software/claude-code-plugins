@@ -178,7 +178,8 @@ fails closed like every other guard-relevant unknown in this plugin.
    preferring either channel (the probe sees user settings only; managed settings or a
    `--settings` flag can carry a value the probe cannot see).
 6. **Plugin registration**. INFO: confirm the plugin is enabled for this project
-   (`/plugin` → Installed) rather than parsing settings files.
+   with `claude plugin list` rather than parsing settings files; read its output fields in
+   [plugin list](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list).
 
 ## `apply` (idempotent)
 

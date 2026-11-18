@@ -67,7 +67,7 @@ area.
 ## Make sure the tool runs
 
 Never install a verification tool. Run the tool's own version or help command, as its official
-documentation gives it, before writing anything:
+documentation gives it, before writing anything. A runtime the tool needs counts as the tool:
 
 - **It runs:** go on.
 - **It is missing, and `<plugin-root>/prerequisites.json` declares it with a `/formal-verification:setup`
@@ -130,10 +130,12 @@ property in the real code. It must catch the break.
    into the model copy.
 3. Run the skill's `## Run` command from the worktree. The check must fail on the rule the break
    targets.
-4. Remove the worktree (`git worktree remove --force <scratch folder>`). It is outside the unattended
-   write boundary, and nothing from it is kept.
-5. Record the break in `sync.yaml`: `change` in the code's words, `caught: true`, and the commit it
-   was made against: the sync commit from step 1.
+4. Remove the worktree (`git worktree remove --force <scratch folder>`, after
+   `git worktree unlock <scratch folder>` when it is locked by this session). It is outside the
+   unattended write boundary, and nothing from it is kept.
+5. Record the break in `sync.yaml`: `change` in the code's words, with the model edit that carried
+   it where the check reads a model, `caught: true`, and the commit it was made against: the sync
+   commit from step 1.
 6. Run every check in `sync.yaml` again on the unbroken tree: each is back where it started,
    passing, or failing only on the findings you will report.
 
