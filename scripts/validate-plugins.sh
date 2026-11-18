@@ -74,14 +74,18 @@ fi
 # asserts the shipping tree draws none, but the selection runs that suite only
 # when the change reaches it, so a warning a pull request introduces would
 # otherwise pass its own run and fail first in the merge queue (#6215).
-contracts=$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1) || {
+if ((foreign)) && [[ -n "${CHECK_SKIP_CONTRACTS-}" ]]; then
+  echo "SKIP contract-validator ($CHECK_SKIP_CONTRACTS)"
+else
+  contracts=$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1) || {
+    printf '%s\n' "$contracts"
+    exit 1
+  }
   printf '%s\n' "$contracts"
-  exit 1
-}
-printf '%s\n' "$contracts"
-if grep -q '^warning: ' <<<"$contracts"; then
-  echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
-  exit 1
+  if grep -q '^warning: ' <<<"$contracts"; then
+    echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
+    exit 1
+  fi
 fi
 bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
 # Before the catalog, which groups by the category this generates.

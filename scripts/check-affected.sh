@@ -739,8 +739,12 @@ elif ((${#plugins[@]} == 0)); then
 elif ! command -v claude >/dev/null 2>&1; then
   skip validate-plugins "claude CLI not installed"
 else
+  contracts_skip=
+  if ((foreign && !snapshot)) && grep -qxE 'scripts/validate-plugin-contracts\.(mjs|test\.sh)' <<<"$all_raw"; then
+    contracts_skip="the branch changes the validator; CI runs the branch's copy"
+  fi
   run_check validate-plugins "scripts/validate-plugins.sh --only \"${plugins[*]}\"" \
-    "$tools/scripts/validate-plugins.sh" --only "${plugins[*]}"
+    env CHECK_SKIP_CONTRACTS="$contracts_skip" "$tools/scripts/validate-plugins.sh" --only "${plugins[*]}"
 fi
 
 if ((halt)); then
