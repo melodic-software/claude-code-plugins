@@ -1,22 +1,13 @@
-# Lychee link-check exclusions. One regex per line (matches anywhere in URL).
-# Every entry carries a one-line reason; an external URL is listed exactly, never by host.
-
-# Vendored upstream snapshots: their relative links may target upstream files that are not vendored.
 /plugins/[^/]+/skills/[^/]+/vendor/
 
-# Eval-only review stand-ins carry a verbatim copy of the findings contract: its relative links target fanout files the stand-ins do not hold.
 /plugins/attribution/evals/[^/]+/review-stub/skills/fanout/context/
 
-# Claude Code runtime variables, expanded after a plugin installs: not filesystem paths in source.
 CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
 
-# Fictional release feed in the ai-briefing eval fixtures: test data, not an external dependency.
 github\.com/meridian-labs/agent-cli/releases/tag/
 
-# Fictional forge URLs in the docs-naming audit-file-names fixture tree: test data, not an external dependency.
 ^https://(github\.com|raw\.githubusercontent\.com)/acme/fixture/
 
-# Fictional repository in the playwright saved-login eval prompt: test data, not an external dependency.
 ^https://github\.com/acme-example/widgets$
 
 # ISO bot block on GitHub runners: 403 on the runner, 200 to a browser User-Agent from a workstation (verified 2026-10-11).
@@ -59,11 +50,9 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://testing\.googleblog\.com/2017/07/code-health-to-comment-or-not-to-comment\.html$
 ^https://testing\.googleblog\.com/2016/05/flaky-tests-at-google-and-how-we\.html$
 
-# Fictional course and video in knowledge eval prompts: the YouTube id answers 404 by design, and the Udemy course page answers 403 to the runner and to a browser User-Agent; test data, not an external dependency (verified 2026-10-21).
 ^https://www\.udemy\.com/course/clean-architecture-in-dotnet/$
 ^https://www\.youtube\.com/watch\?v=Ab3dE5fGh7I$
 
-# Fictional repository in the map-corpus eval prompt: answers 404 by design; test data, not an external dependency (verified 2026-10-21).
 ^https://raw\.githubusercontent\.com/example-org/retry-spec/main/README\.md$
 ^https://raw\.githubusercontent\.com/example-org/retry-spec/main/SPEC\.md$
 
@@ -109,5 +98,4 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://developer\.apple\.com/design/human-interface-guidelines/color#iOS-iPadOS$
 ^https://developer\.apple\.com/design/human-interface-guidelines/dark-mode#iOS-iPadOS$
 
-# Unfilled placeholder link in the absorb-upstream record template: filled per record, never a real URL.
 ^https://github\.com/(%3C|<)owner(%3E|>)/(%3C|<)repo(%3E|>)$

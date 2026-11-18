@@ -1,22 +1,10 @@
-# Repository-local Ruff policy, `locally-owned` in melodic-software/standards
-# `distribution/sync-manifest.yml`; the managed policy is a migration, standards#335.
-
-# `select` is explicit because upstream's default set churns between releases.
-
-# Prefixes, not codes: a new rule under one auto-enables, so hold the ruff pin in
-# `.github/requirements-ci.txt` equal to dotfiles `.chezmoidata/uv-tools.yaml`.
-
-# A floor, not an aspiration: raise it with `extend-select` as categories clear.
-# Ref: https://docs.astral.sh/ruff/settings/#lint_select
-
-# Fixtures hold the defect their eval asserts on, so linting them fails by design.
 # Excludes govern traversal only: a directly-passed path needs `--force-exclude`.
 extend-exclude = ["**/evals/fixtures/**"]
 
 [lint]
 select = [
-  "E4", # pycodestyle — import errors
-  "E7", # pycodestyle — statement errors
-  "E9", # pycodestyle — syntax/IO errors
-  "F",  # Pyflakes — correctness
+  "E4",
+  "E7",
+  "E9",
+  "F",
 ]

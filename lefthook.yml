@@ -1,22 +1,5 @@
-# Git hooks for this repository (https://lefthook.dev/configuration/). Install once per clone:
-# `lefthook install`, which also fetches the git hooks named in `remotes:` below; until
-# then the .claude/settings.json pre-push row runs the check-affected check on a Claude Code
-# session's pushes and says to install. Placement rules:
-# docs/contracts/check-placement/README.md.
 pre-push:
   jobs:
-    # Runs .claude/hooks/check-affected-pre-push.sh as committed at the merge-base with
-    # origin/main, never the pushed branch's copy, and that script runs the merge-base copy of any
-    # check tooling the branch changes, so a contributor branch checked out to review or fix
-    # cannot run its own check code. This file itself is read from the checked-out branch, as
-    # lefthook and husky always read their config, so a branch that edits lefthook.yml still
-    # controls this job: read a branch's diff to lefthook.yml, lefthook-local.yml, .lefthook/ and
-    # .lefthook-local/ before committing or pushing on it, since the guardrails hooks below fire at
-    # commit too.
-    # This job reads no stdin, so it judges HEAD rather than the pushed refs. A failing check
-    # exits 1 and blocks the push. So does a merge-base copy of the hook that cannot be extracted:
-    # the job then checked nothing, and passing would read as a checked push. With no origin/main
-    # merge-base the job says it skipped and passes; CI checks the pushed commit either way.
     # Keep double quotes out of `run`: on Windows lefthook wraps it in double quotes without
     # escaping them, and sh gets a cut-off script. mktemp paths hold no spaces, so $tmp needs none.
     - name: check-affected
@@ -37,10 +20,6 @@ pre-push:
         fi
         bash $tmp/.claude/hooks/check-affected-pre-push.sh --git-hook </dev/null
 
-# The guardrails git hooks (plugins/guardrails/README.md#git-hooks) and the code-tidying comment
-# lint, which needs a python3 that imports pygments (plugins/code-tidying/README.md), run from
-# lefthook's fetched copy of this repository's main as in every consumer; each .lefthook/ script
-# exits 0 when run from the work tree, so a checked-out branch's copy never runs.
 remotes:
   - git_url: https://github.com/melodic-software/claude-code-plugins
     ref: main
