@@ -388,9 +388,8 @@ that it is present. The four-part records live in [reference/native-commit.md](r
 
 The `reference/` files write this skill's directory as `<skill-dir>`, which is
 `${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
-it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
-would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
-to expand it from. Basis: the plugins reference,
+it into a brief: we never rely on a `${…}` token in a file read from disk being expanded later.
+Where each plugin variable resolves: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
