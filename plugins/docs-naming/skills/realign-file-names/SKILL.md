@@ -1,6 +1,6 @@
 ---
 description: "Apply a file-name rename plan one file at a time, one human acceptance each: git mv, rewrite only the reference shapes each citing file's tier allows, rebuild generated records, and sweep for stragglers. Refuses a blanket yes, a range, a glob, and 'all'. Use when: 'apply the rename plan', 'apply FN-...', 'do the docs renames', 'rename these files', 'execute the file-name findings', 'accept that rename'. Needs a plan from docs-naming:audit-file-names; never commits."
-argument-hint: "[FN-xxxxxxxx ...]"
+argument-hint: "[FN-xxxxxxxx ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/apply-rename.sh:*)", "Bash(git branch --show-current:*)", "Bash(git status --porcelain:*)", "Bash(git rev-parse:*)", "Bash(git diff --name-status:*)", "Bash(git grep:*)", "Read", "Skill"]
@@ -76,6 +76,27 @@ directory it sits in. A mismatch against the current branch is a refusal with
 
 `head:` is recorded and never checked. A consumer commits between accepted
 renames, so an equality test on it would block the walk after the first one.
+
+## Over several repositories
+
+With no target form, the run applies this checkout's plan, as it always has. A
+target form selects the repositories an audit over several of them planned,
+resolved as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+"Target forms" and "Resolving repositories" say. What differs here:
+
+- **An acceptance names its repository.** One id can name a file in each
+  repository, so an acceptance is `owner/name FN-xxxxxxxx`. With more than one
+  repository in scope, a bare id is a question, not an acceptance: ask which
+  repository it means.
+- **Apply in the audit's worktree.** The plan is checkout-local, so it is not in
+  the clone a repository resolves to. Take each repository's worktree from the
+  audit's report, else find it with `git -C <root> worktree list`, and pass it as
+  `--root`. A repository with no such worktree, or no plan in it, is reported as
+  "no plan found" and skipped.
+- **One repository at a time.** Finish one repository's findings and its closing
+  pass before the next starts. Its renames stay uncommitted in that worktree, per
+  "Writes stay per repository".
 
 ## Run the loop
 
