@@ -51,7 +51,11 @@ Start and resume from plain `claude` through the `claude` shell function your do
 Claude Code itself has no `--profile` flag; the function adds it:
 
 - `--profile build` given to the function starts a terminal in `build`.
-- `claude -c` and `claude --resume <id>` resume in the profile the session ran in.
+- `claude --resume <id>` resumes in the profile the session ran in.
+- `claude -c` reaches Claude Code unchanged, so it continues the same conversation it always
+  would. When that conversation ran in a profile, its start notice prints the
+  `claude --resume <id>` that reopens it there. The tool cannot tell which conversation
+  `-c` picks, so it never guesses.
 - Everything else `claude` does is unchanged.
 
 The function runs the real `claude` untouched

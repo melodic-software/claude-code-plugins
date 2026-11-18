@@ -1476,20 +1476,22 @@ test("#16893 start --resume rewrites a missing session file through launch", () 
   assert.ok(existsSync(file));
 });
 
-test("#16893 start -c resumes the latest session started here in a profile, else passes -c through", () => {
+test("#16914: -c passes through unchanged, so it continues the conversation plain claude -c would, never another one", () => {
   const w = world();
   const none = startJson(w, ["-c"]);
   assert.deepEqual(none.argv, ["claude", "-c"]);
-  assert.match(none.stderr, /No session started here in a profile was found; continuing with this folder's settings\./);
-  const file = sessionInBuild(w, "old-1");
-  hookStart(w, { session_id: "new-2", source: "startup" }, JSON.parse(readFileSync(file, "utf8")).env);
-  const elsewhere = join(byIdDir(w), "far-3.json");
-  writeFileSync(elsewhere, JSON.stringify({ sessionId: "far-3", profile: "review", file, folder: join(w.root, "other"), at: new Date(Date.now() + 60_000).toISOString() }));
-  const old = JSON.parse(readFileSync(join(byIdDir(w), "old-1.json"), "utf8"));
-  writeFileSync(join(byIdDir(w), "old-1.json"), JSON.stringify({ ...old, at: "2000-01-01T00:00:00.000Z" }));
+  assert.match(none.stderr, /Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there\./);
+  const file = sessionInBuild(w, "profiled-1");
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "-c"], "a profile session, then a newer plain one: claude -c continues the plain one");
+  const used = JSON.parse(readFileSync(join(byIdDir(w), "profiled-1.json"), "utf8"));
+  writeFileSync(join(byIdDir(w), "profiled-1.json"), JSON.stringify({ ...used, at: "2000-01-01T09:00:00.000Z" }));
+  writeFileSync(join(byIdDir(w), "brief-3.json"), JSON.stringify({ sessionId: "brief-3", profile: "review", file, folder: w.project, at: "2000-01-01T10:00:00.000Z" }));
   const s = startJson(w, ["--continue", "--model", "opus"]);
-  assert.deepEqual(s.argv, ["claude", "--settings", file, "--resume", "new-2", "--model", "opus"]);
-  assert.match(s.stderr, /Continuing new-2, the latest session started here in profile build\./);
+  assert.deepEqual(s.argv, ["claude", "--continue", "--model", "opus"], "a session started earlier but used later: claude -c continues it, not the later start");
+  assert.equal(s.profile, null);
+  const given = startJson(w, ["review", "-c"]);
+  assert.deepEqual(given.argv, ["claude", "--settings", given.file, "-c"]);
 });
 
 test("#16893 launch sweeps session records no session has written for 30 days", () => {
@@ -1622,14 +1624,14 @@ test("#16893 start --claude-args with no profile and no resume runs claude with 
   assert.deepEqual(started.argv, ["--model", "opus", "a b"]);
 });
 
-test("#16893 start --claude-args resumes -c and --resume in the profile the session ran in", () => {
+test("#16893 start --claude-args resumes --resume in the profile the session ran in and passes -c through", () => {
   const w = world();
   const file = sessionInBuild(w, "abc-1");
   const resumed = argsJson(w, ["--resume", "abc-1", "--model", "opus"]);
   assert.equal(resumed.profile, "build");
   assert.deepEqual(resumed.argv, ["claude", "--settings", file, "--resume", "abc-1", "--model", "opus"]);
   const continued = argsJson(w, ["-c"]);
-  assert.deepEqual(continued.argv, ["claude", "--settings", file, "--resume", "abc-1"]);
+  assert.deepEqual(continued.argv, ["claude", "-c"]);
   assert.equal(argsJson(w, ["--resume", "abc-1", "--profile", "review"]).profile, "review", "a given profile wins");
 });
 

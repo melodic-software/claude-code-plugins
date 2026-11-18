@@ -578,21 +578,7 @@ function sessionRecord(where, id) {
   return null;
 }
 
-/** The newest session record whose folder is this folder, or null. */
-function latestHere(where) {
-  const here = realPath(where.projectDir);
-  const records = [where.dataDir, ...otherDataDirs(where)].flatMap((dir) => {
-    try {
-      return readdirSync(byIdDir(dir)).filter((n) => n.endsWith(".json")).map((n) => readJson(join(byIdDir(dir), n)));
-    } catch {
-      return [];
-    }
-  });
-  const ours = records.filter((r) => r?.profile && validId(r.sessionId) && typeof r.at === "string" && typeof r.folder === "string" && realPath(r.folder) === here);
-  return ours.sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
-}
-
-/** The first resume or continue flag among claude's arguments: resume with an id, the resume picker, or continue at its index. */
+/** The first resume or continue flag among claude's arguments: resume with an id, the resume picker, or continue. */
 function resumeOf(args) {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -601,7 +587,7 @@ function resumeOf(args) {
       const next = args[i + 1];
       return next !== undefined && !next.startsWith("-") ? { kind: "resume", id: next } : { kind: "pick" };
     }
-    if (arg === "-c" || arg === "--continue") return { kind: "continue", index: i };
+    if (arg === "-c" || arg === "--continue") return { kind: "continue" };
   }
   return null;
 }
@@ -689,22 +675,20 @@ function resumePlan(args, given, where) {
   const res = resumeOf(args);
   const plan = { args, name: given, reuse: null, folder: null, line: null, res };
   if (res?.kind === "pick" && !given) plan.line = "Pick the session; if it ran in a profile, its start notice gives the command that resumes it there.";
-  if (res?.kind !== "resume" && res?.kind !== "continue") return plan;
-  const rec = res.kind === "resume" ? (validId(res.id) ? sessionRecord(where, res.id) : null) : latestHere(where);
+  if (res?.kind === "continue" && !given) plan.line = "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+  if (res?.kind !== "resume") return plan;
+  const rec = validId(res.id) ? sessionRecord(where, res.id) : null;
   if (!rec) {
-    if (res.kind === "resume") plan.line = given ? `Resuming ${res.id} in profile ${given}.` : `No profile is recorded for session ${res.id}; resuming with this folder's settings.`;
-    else if (!given) plan.line = "No session started here in a profile was found; continuing with this folder's settings.";
+    plan.line = given ? `Resuming ${res.id} in profile ${given}.` : `No profile is recorded for session ${res.id}; resuming with this folder's settings.`;
     return plan;
   }
   const id = rec.sessionId ?? res.id;
-  if (res.kind === "continue") plan.args = [...args.slice(0, res.index), "--resume", id, ...args.slice(res.index + 1)];
-  const verb = res.kind === "resume" ? "Resuming" : "Continuing";
   if (given && given !== rec.profile) {
-    plan.line = `${verb} ${id} in profile ${given} (it ran in ${rec.profile}).`;
+    plan.line = `Resuming ${id} in profile ${given} (it ran in ${rec.profile}).`;
     return plan;
   }
   plan.name = rec.profile;
-  plan.line = res.kind === "resume" ? `Resuming ${id} in profile ${rec.profile}.` : `Continuing ${id}, the latest session started here in profile ${rec.profile}.`;
+  plan.line = `Resuming ${id} in profile ${rec.profile}.`;
   if (existsSync(rec.file ?? "")) plan.reuse = rec.file;
   else plan.folder = rec.folder;
   return plan;
