@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/src/checkout.js" } }], "why": "no write" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "~/.claude/plugins/data/improvement-acme/find/github.com/acme/checkout-service/3f9a1c2e/reports/improvement-20261106T100000Z.md", "content": "# Improvement report" } }], "why": "the report under the plugin data folder" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/improvement-report.md", "content": "# Improvement report" } }], "why": "report written into the repository" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/docs/improvement/report.md", "content": "x" } }], "why": "a docs path in the target repository" }
+  ]
+}
