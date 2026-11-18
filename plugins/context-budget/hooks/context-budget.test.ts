@@ -53,7 +53,8 @@ const breakdown = (threshold: boolean, skills?: number) => ({
 // The engine beneath the plugin, and a second plugin's band row beneath this one's.
 // `held`: that usage call answers only once `until` settles, with an older 50k total.
 const world = (on: any, usage: Usage = 'breakdown', held?: { call: number; until: Promise<void> }) => {
-  const w = { open: [] as string[], registered: [] as unknown[], usageCalls: 0 }
+  const w = { open: [] as string[], registered: [] as unknown[], usageCalls: 0, toasts: [] as string[], surfaces: ['terminal'] }
+  on('session.surfaces', () => ({ value: w.surfaces }))
   on('session.usage', async ($: unknown, e: { breakdown?: string }) => {
     w.usageCalls += 1
     const older = held?.call === w.usageCalls
@@ -75,7 +76,10 @@ const world = (on: any, usage: Usage = 'breakdown', held?: { call: number; until
   on('ui.panes', () => ({
     value: w.open.map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })),
   }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', ($: unknown, e: { text: string }) => {
+    w.toasts.push(e.text)
+    return { value: undefined }
+  })
   on('command.register', ($: unknown, e: { name: string }) => {
     w.registered.push(e)
     return { value: { command: e.name } }
@@ -221,6 +225,26 @@ test('band: bare /context-budget live toggles the detail pane and leaves the ban
   await live($)
   expect(w.open).toEqual([])
   expect(await texts(await mountBand($))).toContain(HEADER)
+})
+
+for (const args of ['live', 'live pane']) {
+  test(`pane (desktop): /context-budget ${args} points to the app's Context panel and opens no pane`, async ($, on) => {
+    const w = world(on)
+    w.surfaces = ['desktop']
+    await run($, args)
+    expect(w.open).toEqual([])
+    expect(w.toasts).toEqual([
+      'The Desktop app shows this breakdown under Context in the session details panel; /context-budget live band keeps it above the prompt',
+    ])
+  })
+}
+
+test('pane: a session drawn in a terminal and the Desktop app still opens the pane', async ($, on) => {
+  const w = world(on)
+  w.surfaces = ['terminal', 'desktop']
+  await live($)
+  expect(w.open).toEqual([PANE])
+  expect(w.toasts).toEqual([])
 })
 
 test('pane: a second /context-budget live closes the open pane', async ($, on) => {

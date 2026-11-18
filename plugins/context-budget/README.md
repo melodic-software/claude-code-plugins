@@ -46,7 +46,10 @@ The `live_display` option picks where it shows:
 - `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
   `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
   only when auto-compaction is on. Each category follows with its tokens, percent and color;
-  deferred categories are listed dimmed with "deferred" in place of a percent.
+  deferred categories are listed dimmed with "deferred" in place of a percent. In a session drawn
+  only in the Desktop app, the app's session details panel already shows this breakdown under
+  Context, so `/context-budget live` and `live pane` open no pane there and a toast points to that
+  panel and to `live band`.
 - `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
   other plugins' rows, fitted to the available width, and out of the way while a survey prompt
   shows. `/context-budget live` opens or closes the detail pane and leaves the band on;

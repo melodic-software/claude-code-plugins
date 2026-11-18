@@ -63,6 +63,22 @@ const refresh = async ($: EngineInterface) => {
 
 const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PANE)
 
+const NATIVE = 'The Desktop app shows this breakdown under Context in the session details panel; /context-budget live band keeps it above the prompt'
+
+const desktopOnly = async ($: EngineInterface) => {
+  const surfaces = await $.session.surfaces()
+  return surfaces.includes('desktop') && !surfaces.includes('terminal')
+}
+
+const openPane = async ($: EngineInterface) => {
+  if (await desktopOnly($)) {
+    $.ui.toast(NATIVE)
+    return
+  }
+  await refresh($)
+  await $.ui.open({ id: PANE, title: TITLE })
+}
+
 const registerCommand = ($: EngineInterface) =>
   $.command.register({
     name: COMMAND,
@@ -113,8 +129,7 @@ export const register: Register = (on, options) => {
       } else if (await paneOpen($)) {
         await $.ui.close({ id: PANE })
       } else {
-        await refresh($)
-        await $.ui.open({ id: PANE, title: TITLE })
+        await openPane($)
       }
       return {}
     }
@@ -123,8 +138,8 @@ export const register: Register = (on, options) => {
       if (await paneOpen($)) await $.ui.close({ id: PANE })
       return {}
     }
-    await refresh($)
-    if (arg === 'pane' && !(await paneOpen($))) await $.ui.open({ id: PANE, title: TITLE })
+    if (arg === 'band' || (await paneOpen($))) await refresh($)
+    else await openPane($)
     return {}
   }).catch(($, e, next) => next(e))
 
