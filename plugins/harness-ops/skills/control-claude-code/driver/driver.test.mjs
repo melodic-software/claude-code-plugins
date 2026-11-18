@@ -152,6 +152,19 @@ test('launch --dry-run prints the claude command line and reserves no session', 
   }
 });
 
+test('launch --real-setup --dry-run prints the launcher command line with no restriction flags', async () => {
+  const s = session();
+  const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
+  try {
+    const args = ['launch', '--plugin-dir', plugin, '--session', s, '--real-setup', '--launcher=node', '--launcher=/x/profiles.mjs', '--launcher=start', '--launcher=dev', '--dry-run'];
+    const { status, text } = await printed(args);
+    assert.equal(status, 0);
+    assert.equal(text, `dry run: would launch session '${s}' running node /x/profiles.mjs start dev --plugin-dir ${plugin}; started nothing`);
+  } finally {
+    rmSync(plugin, { recursive: true, force: true });
+  }
+});
+
 test('log --dry-run prints the print-mode command line and writes no --out file', async () => {
   const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
   const out = join(plugin, 'run.jsonl');
@@ -279,6 +292,48 @@ test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricte
     [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { CLAUDE_CODE_OAUTH_TOKEN: 'ccd-dummy-x' }],
   ]) {
     assert.throws(() => buildLaunch(config, env), /--in-sandbox/, JSON.stringify(env));
+  }
+});
+
+test('--real-setup drops --restricted and --strict-mcp-config and still clears every API-key, gateway and provider variable', () => {
+  const input = { CLAUDE_CODE_OAUTH_TOKEN: 'sub' };
+  for (const name of CLEARED) input[name] = 'set-by-parent';
+  const { argv, env, keySource } = buildLaunch({ pluginDir: '/p', realSetup: true }, input);
+  assert.deepEqual(argv, ['claude', '--plugin-dir', '/p']);
+  for (const name of CLEARED) assert.equal(name in env, false, `${name} must be unset`);
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'sub');
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+});
+
+test('--launcher replaces the bare claude with its words, in order, and the driver adds the plugin dir after them', () => {
+  const launcher = ['node', '/x/profiles.mjs', 'start', 'dev'];
+  const { argv } = buildLaunch({ pluginDir: '/p', realSetup: true, launcher }, {});
+  assert.deepEqual(argv, [...launcher, '--plugin-dir', '/p']);
+});
+
+test('--real-setup is refused with --unattended or --in-sandbox, whatever credential is set', () => {
+  for (const [config, env] of [
+    [{ pluginDir: '/p', realSetup: true, unattended: true, credentials: CI }, {}],
+    [{ pluginDir: '/p', realSetup: true, unattended: true, credentials: CI }, { ANTHROPIC_API_KEY: 'fake' }],
+    [{ pluginDir: '/p', realSetup: true, unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'ccd-dummy-x' }],
+    [{ pluginDir: '/p', realSetup: true, inSandbox: true }, {}],
+  ]) {
+    assert.throws(() => buildLaunch(config, env), { code: 1, message: /--real-setup runs attended only/ }, JSON.stringify(config));
+  }
+});
+
+test('--launcher without --real-setup, or with an empty word, is a usage error', () => {
+  assert.throws(() => buildLaunch({ pluginDir: '/p', launcher: ['node'] }, {}), { code: 2, message: /--launcher needs --real-setup/ });
+  assert.throws(() => buildLaunch({ pluginDir: '/p', realSetup: true, launcher: ['node', ''] }, {}), { code: 2, message: /--launcher takes a word/ });
+});
+
+test('launch and ready refuse --real-setup with --unattended before anything is installed or run', async () => {
+  for (const args of [
+    ['launch', '--plugin-dir', '/p', '--real-setup', '--unattended'],
+    ['ready', '--plugin-dir', HERE, '--out', join(RUNTIME, 'x.jsonl'), '--real-setup', '--unattended'],
+  ]) {
+    await assert.rejects(main(args), { code: 1, message: /--real-setup runs attended only/ }, args.join(' '));
   }
 });
 
@@ -714,6 +769,34 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('a real-setup launch reaches the holder: claude starts through the launcher, unrestricted', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ cmd, args })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  try {
+    await withPath(box.bin, () =>
+      main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--real-setup', '--launcher=node', '--launcher=/x/profiles.mjs', '--launcher=--dash-word']),
+    );
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.equal(got.cmd, 'node');
+    assert.deepEqual(got.args, ['/x/profiles.mjs', '--dash-word', '--plugin-dir', '/p']);
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -1079,6 +1162,18 @@ test('an email value in a bordered row masks to the border and keeps it', () => 
 test('a row shorter than the screen is masked to the screen width maskCells is given', () => {
   const { text } = driver.maskCells(toCells('Opus 5.5 · Claude Max'), MASKS, [], COLS);
   assert.equal(text, `Opus 5.5 · ${'*'.repeat(COLS - 11)}`);
+});
+
+test('a status line loses its session id, cost and limit percentages, each to its segment end', () => {
+  assert.equal(maskRow('│ 3f2b9c1e-1111-4222-8333-444455556666 │ main │', [], 0), `│ ${'*'.repeat(37)}│ main │`);
+  assert.equal(maskRow('│ ctx 40k │ $0.42 │ main │', [], 0), `│ ctx 40k │ ${'*'.repeat(6)}│ main │`);
+  assert.equal(maskRow('│ 5h 42% │ 7d 13.5% │ weekly: 9% │ main │', [], 0), `│ ${'*'.repeat(7)}│ ${'*'.repeat(9)}│ ${'*'.repeat(11)}│ main │`);
+});
+
+test('status line rows without a session id, cost or limit keep their text', () => {
+  for (const kept of ['cache hit 80% · ctx 40k', 'main ✓ 3 files', 'Total duration (wall): 14s', 'build 1234-5678 passed']) {
+    assert.equal(maskRow(kept, [], 0), kept);
+  }
 });
 
 test('the status screen keeps its labels and loses the account, session, cwd and usage values', () => {

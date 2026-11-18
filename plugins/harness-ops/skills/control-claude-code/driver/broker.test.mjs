@@ -91,6 +91,15 @@ test('a request that is not an object of a verb and a list of strings is refused
   refuses({ verb: 'launch', args: [1] }, /list of strings/);
 });
 
+test('a request carrying --real-setup or --launcher is refused: a brokered run is always unattended', posixOnly, () => {
+  const b = box();
+  for (const verb of ['launch', 'ready']) {
+    const args = ['--plugin-dir', b.plugin, ...(verb === 'ready' ? ['--out', join(b.root, 'o.jsonl')] : [])];
+    refuses({ verb, args: [...args, '--real-setup'] }, /Unknown option '--real-setup'/, b);
+    refuses({ verb, args: [...args, '--launcher=node'] }, /Unknown option '--launcher'/, b);
+  }
+});
+
 test('an argument holding a NUL character is refused', posixOnly, () => {
   const b = box();
   refuses({ verb: 'launch', args: ['--plugin-dir', `${b.plugin}\0x`] }, /may not hold a NUL character/, b);
