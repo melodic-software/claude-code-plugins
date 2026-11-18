@@ -23,7 +23,7 @@ When a grant is dropped the failure is silent: it parses, looks correct, and doe
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
 the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
 
-## Auto mode is the built-in default, not a state you opt into
+## Write every rule for the auto-mode case
 
 Read every "under auto mode" clause below as the **default** condition, not as a conditional one. We
 assume any session that loads a rule may have started in auto mode without its operator choosing
@@ -35,22 +35,19 @@ particular session starts in is not something the convention tracks.
 - **Pointer**: when you need to know which mode a given session starts in, fetch
   [permission modes: which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section stops starting interactive sessions in auto mode by default.
-- **Source conflict**: the first release that starts sessions in auto mode, between the
-  [changelog](https://code.claude.com/docs/en/changelog) (v2.1.284 entry) and that section. Recheck
-  trigger: either is revised on that point.
+- **Source conflict**: the [changelog](https://code.claude.com/docs/en/changelog) (v2.1.284 entry)
+  and that section disagree on the release in which the start mode changed.
 
 Two consequences for this convention, and one non-consequence:
 
-- **A dropped rule is the expected outcome, not the edge case.** A session that **takes** the
-  default starts with the broad grant already suspended, so the silent-failure mode described above
+- **A dropped rule is the expected outcome, not the edge case.** A session that **starts** in auto
+  mode starts with the broad grant already suspended, so the silent-failure mode described above
   is that session's *first* run, not a later one. Sessions that start in another mode keep the
-  anti-patterns latent, but the default path alone is enough to make writing for the auto-mode case
-  the only safe authoring posture; it is not a claim that every session is in auto mode.
-- **"Run it outside auto mode" is a downgrade, not a remedy.** The mode is switchable at any time,
-  but this asks an operator to leave the default. It is the fallback for the one case with no better
-  answer (an `Agent` allow rule, which has no bare-command-on-PATH analog to re-scope to), never the
+  anti-patterns latent, but a session that starts in auto mode is enough to make writing for the
+  auto-mode case the only safe authoring posture; it is not a claim that every session is in auto
+  mode.
+- **"Run it outside auto mode" is a downgrade, not a remedy.** It asks an operator to leave the mode
+  the session started in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has no bare-command-on-PATH analog to re-scope to), never the
   first-resort fix. Re-scoping to the [correct pattern](#the-correct-pattern) is.
 - **Nothing about *which* rules get dropped changes**, and a repository still cannot grant itself
   auto mode: we never ship a repository settings file that tries to, and treat the mode as arriving
@@ -252,10 +249,11 @@ Two consequences for anyone writing a guarded helper today:
   and works now. Resolve `${CLAUDE_PLUGIN_ROOT}` in skill or agent content, where it is substituted.
   It is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
   empty string ([Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)).
-- **Do not assume the operator can pre-approve the helper.** `bash` is not one of the
-  [wrappers Claude Code strips](https://code.claude.com/docs/en/permissions#process-wrappers)
-  before matching, so a rule for a `bash <path> …` command has to name `bash`, making it
-  interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
+- **Do not assume the operator can pre-approve the helper.** A rule for a `bash <path> …` command
+  names `bash`, which makes it interpreter-led, i.e. anti-pattern 1; this convention does not count
+  on Claude Code stripping `bash` before matching. When checking which wrappers it strips, fetch
+  [permissions: process wrappers](https://code.claude.com/docs/en/permissions#process-wrappers)
+  live. The documented drop categories clearly reach the
   wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
   (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
   rather than a confirmed drop. What happens to an uncovered call is then the **permission mode's**
