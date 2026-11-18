@@ -72,11 +72,26 @@ lr_skip_file() {
   done
 }
 
+lr_expect_pair() {
+  jq -e '[.entries[] | select(.event == "pre-commit").name] | index("format") and index("lint")' "$1" >/dev/null || return 0
+  expect "$NAME: pre-commit format and lint run in one piped group, format first" \
+    "$NAME-remote true $NAME-remote-format $NAME-remote-lint" \
+    "$(awk -v format="$NAME-remote-format" '
+      /^[a-z-]+:$/ { event = $1; group = ""; next }
+      event != "pre-commit:" { next }
+      /^    - name: / { group = $3 }
+      /^        piped: / { piped[group] = $2 }
+      /^          - name: / { jobs[group] = jobs[group] " " $3; if ($3 == format) home = group }
+      END { print home, piped[home] jobs[home] }
+    ' "$2")"
+}
+
 lr_static() {
   local event name script wrapper line target guard root out win entry rc
   expect "$NAME: one remote job per entries.json entry, at its event" \
     "$(jq -r '.entries[] | "\(.event) \(.name)"' "$HERE/entries.json" | sort | xargs)" \
     "$(while read -r event name script; do echo "$event ${name#"$NAME"-remote-}"; done <<<"$LR_JOBS" | sort | xargs)"
+  lr_expect_pair "$HERE/entries.json" "$CONFIG"
   expect "entries.json's remote names this config and the root aggregate" \
     "plugins/$NAME/git-hooks/lefthook-remote.yml lefthook-remote.yml main" \
     "$(jq -r '.remote | "\(.config) \(.aggregate) \(.ref)"' "$HERE/entries.json")"
