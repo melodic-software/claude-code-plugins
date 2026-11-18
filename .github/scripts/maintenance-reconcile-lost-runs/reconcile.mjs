@@ -132,7 +132,11 @@
 //   caller reads it (REVIEW_SWITCHES, only `true`, in any case, stops), and the upstream
 //   gate. One lane per head per pass, so a place holds one record; the other
 //   lane goes on the next pass. No lookback: a switch may be on for days, up
-//   to GitHub's RERUN_WINDOW_DAYS.
+//   to GitHub's RERUN_WINDOW_DAYS. A first attempt whose leg held on a GitHub
+//   API rate limit (`rateHeld`), named by ci-status's RATE_HELD_NOTE, goes the
+//   same way, once RATE_RESET_GRACE_MS past the latest reset its refusals
+//   name; the merge gate binds that attempt 2 (babysit_review_evidence
+//   `_rate_held`).
 // Other lost lane runs (a review lane run lost any other way, refine) are listed
 // in the summary for a person: a review re-run would trade one review for
 // another, and refine's lanes token broker refuses a re-run
@@ -604,6 +608,9 @@ export const killSwitchNoted = (annotations) =>
 export const REVIEW_STOP_NOTE = "a kill switch was on when it started";
 export const reviewStopNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(REVIEW_STOP_NOTE));
+export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review that counts";
+export const rateHeldNoted = (annotations) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
 const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // The errors ci-status's review-lane step writes for a review still running,
@@ -855,6 +862,28 @@ export const reviewStopped = (jobs) =>
   Array.isArray(jobs) &&
   !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
   jobs.some((job) => GATE_JOBS.has(job?.name) && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
+
+const CLAUDE_REVIEW_STEP = "Claude review";
+const APPLY_HOLD_STEP = "Apply the hold";
+const LEG_HOLD_NOTE = "this leg holds and runs no review";
+const RATE_REFUSAL = /\b(?:403|429)\b.*x-ratelimit-remaining[:=] *0\b/i;
+const RATE_RESET = /x-ratelimit-reset[:=] *([0-9]{9,12})/gi;
+export const rateHeld = async (jobs, notesOf) => {
+  if (!Array.isArray(jobs) || jobs.some((job) => job?.steps?.some((step) => (step?.name === CLAUDE_REVIEW_STEP || step?.name === APPLY_HOLD_STEP) && step.conclusion === "success"))) {
+    return undefined;
+  }
+  const legs = jobs.filter((job) => job?.conclusion === "success" && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === CLAUDE_REVIEW_STEP && step.conclusion === "skipped")).slice(0, 3);
+  for (const leg of legs) {
+    const messages = (await notesOf(leg)).map((a) => String(a?.message ?? ""));
+    if (!messages.some((m) => m.includes(LEG_HOLD_NOTE))) {
+      continue;
+    }
+    const resets = messages.filter((m) => RATE_REFUSAL.test(m)).flatMap((m) => [...m.matchAll(RATE_RESET)].map((match) => Number(match[1])));
+    return resets.length > 0 ? Math.max(...resets) : undefined;
+  }
+  return undefined;
+};
+export const RATE_RESET_GRACE_MS = 60_000;
 
 // Why the run's first attempt must not be re-run, with whether that hold is
 // final (`settle`), or undefined when it may be re-run: no job started any
@@ -1238,15 +1267,28 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
             say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
             continue;
           }
-          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000 || !reviewStopped(await readJobs(r))) {
+          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000) {
             continue;
+          }
+          const jobs = await readJobs(r);
+          const stopped = reviewStopped(jobs);
+          if (!stopped) {
+            const reset = await rateHeld(jobs, (job) => job.annotations ?? call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`));
+            if (reset === undefined) {
+              continue;
+            }
+            if (now <= reset * 1000 + RATE_RESET_GRACE_MS) {
+              say(`#${pull.number}: review run ${r.id} (${r.path}) held on a GitHub API rate limit; waiting for its reset at ${new Date(reset * 1000).toISOString()}`);
+              continue;
+            }
           }
           const hold = await gateHold();
           if (hold) {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting, ${hold}`);
+            say(`#${pull.number}: review run ${r.id} (${r.path}) ${stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
             continue;
           }
-          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion: "success (kill switch stop)", attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) };
+          const conclusion = stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
+          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) };
         }
         return undefined;
       };
@@ -1261,7 +1303,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
         // A lanes App PR's ci-status that failed on the kill switch.
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
-        if (reviewStopNoted(notes)) {
+        if (reviewStopNoted(notes) || rateHeldNoted(notes)) {
           const review = await stoppedReview();
           if (review) {
             set.push(review);
@@ -1756,7 +1798,7 @@ async function act({ repo, call, say, since, sleep, items }) {
           : item.kind === "too-old"
             ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: the pull request is past ${TOO_OLD_DAYS} days and its head has no verdict`
             : item.kind === "review"
-            ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
+            ? `${where}: re-ran review run ${item.id} (${item.path}), which ${item.conclusion === "success (rate-limit hold)" ? "held on a GitHub API rate limit" : "a kill switch stopped"}; its completion re-runs ci-status`
             : item.kind === "fault-held"
             ? `${where}: re-ran run ${item.id} (${item.path}), which held on a GitHub fault`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,

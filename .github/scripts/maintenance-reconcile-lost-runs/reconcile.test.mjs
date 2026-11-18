@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -152,7 +152,7 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
 // listing; the pass then writes its own, returned as `settled`.
 const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
 const CARRY_ARTIFACT = 4242;
-async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry, carryRuns = [], download } = {}) {
+async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry, carryRuns = [], download, now = NOW } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail, statuses });
   const sleeps = [];
   const order = [];
@@ -195,7 +195,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
           sleeps.push(ms);
           order.push(`sleep ${ms}`);
         },
-        now: NOW,
+        now,
         download:
           download ??
           ((id) => {
@@ -2776,6 +2776,79 @@ test("a review run that changed since the plan is left alone", async () => {
 test("the review-stop note is the text ci-status writes", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): ${REVIEW_STOP_NOTE}.`));
+});
+
+// Recorded from https://github.com/melodic-software/claude-code-plugins/actions/runs/44114943906 (check run 134151640257).
+const RATE_HELD = fixture("annotations-rate-held.json");
+const RESET_MS = Date.parse("2026-11-17T15:41:48Z");
+const HELD_AT = "2026-11-17T15:30:00Z";
+const rateHeldJobs = ({ review = "skipped", apply = "skipped", legNotes = RATE_HELD } = {}) => [
+  {
+    id: 321,
+    name: "Check Kill Switch",
+    status: "completed",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", status: "completed", conclusion: "success" },
+      { name: REVIEW_STOP_STEP, status: "completed", conclusion: "skipped" },
+    ],
+  },
+  { id: 322, name: "PR Review / Review Subscription", status: "completed", conclusion: "success", steps: [{ name: "Claude review", status: "completed", conclusion: review }], notes: legNotes },
+  { id: 323, name: "PR Review / Publish Review", status: "completed", conclusion: "success", steps: [{ name: "Apply the hold", status: "completed", conclusion: apply }] },
+];
+const rateHeldRun = (id, head, opts = {}, jobs = rateHeldJobs()) => run(id, head, { path: REVIEW, conclusion: "success", created: HELD_AT, jobs, ...opts });
+const rateHeldChecks = (id, head) =>
+  failed(id, head, {
+    created: HELD_AT,
+    updated: HELD_AT,
+    jobs: switchJobs({
+      message: `'pr-review / claude-review-status' did not review ${head} (https://github.com/o/r/actions/runs/1): its 'PR Review / Review Subscription' leg held (the compare read of the merge base failed) ${RATE_HELD_NOTE}. Once GitHub's rate limit resets at 2026-11-17T15:41:48Z, a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/1; ci-status re-runs when it finishes.`,
+    }),
+  });
+
+test("a review whose leg held on a rate limit is re-run whole once, recorded, a minute past its reset", async () => {
+  const { code, outputs, reruns, failedJobReruns, calls } = await reconcile({ pulls: [pr(1)], runs: [rateHeldChecks(101, sha(1)), rateHeldRun(201, sha(1))], now: RESET_MS + 61_000 });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201]);
+  assert.deepEqual(failedJobReruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""]);
+  assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/322/annotations?per_page=100`), "the held leg's annotations are read");
+});
+
+test("a review whose leg held on a rate limit waits until a minute past its reset", async () => {
+  for (const now of [RESET_MS - 600_000, RESET_MS + 59_000]) {
+    const { code, outputs, reruns } = await reconcile({ pulls: [pr(1)], runs: [rateHeldChecks(101, sha(1)), rateHeldRun(201, sha(1))], now });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [], new Date(now).toISOString());
+    assert.deepEqual(records(outputs), ["", "", ""]);
+  }
+});
+
+test("a rate-held review is re-run only at attempt 1, and never when it reviewed or held for another cause", async () => {
+  const noLimit = RATE_HELD.filter((a) => !/x-ratelimit/i.test(a.message));
+  const cases = [
+    rateHeldRun(201, sha(1), { attempt: 2 }),
+    rateHeldRun(201, sha(1), {}, rateHeldJobs({ review: "success", apply: "success" })),
+    rateHeldRun(201, sha(1), {}, rateHeldJobs({ apply: "success" })),
+    rateHeldRun(201, sha(1), {}, rateHeldJobs({ legNotes: noLimit })),
+  ];
+  for (const review of cases) {
+    const { code, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [rateHeldChecks(101, sha(1)), review], now: RESET_MS + 61_000 });
+    assert.equal(code, 0, JSON.stringify(review.jobs));
+    assert.deepEqual([...reruns, ...failedJobReruns], [], JSON.stringify(review.jobs));
+  }
+});
+
+test("the lane's own switch keeps a rate-held review from its re-run", async () => {
+  const { reruns } = await reconcile({ pulls: [pr(1)], runs: [rateHeldChecks(101, sha(1)), rateHeldRun(201, sha(1))], now: RESET_MS + 61_000, env: { CLAUDE_REVIEW_DISABLED: "true" } });
+  assert.deepEqual(reruns, []);
+});
+
+test("the rate-held note is the text ci-status writes", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const limit = /cause="\$cause (on a GitHub API rate limit)"/.exec(workflow)?.[1];
+  const tail = /did not review \$HEAD_SHA \(\$url\): its \$cause(, so it ran no review that counts)\./.exec(workflow)?.[1];
+  assert.equal(`${limit}${tail}`, RATE_HELD_NOTE);
 });
 
 test("a ci-status past attempt 1 with no review stop stays with a person", async () => {

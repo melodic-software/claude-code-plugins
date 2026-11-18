@@ -2496,6 +2496,94 @@ class KillSwitchRerunTests(Base):
             self.assertUnbound(result[lane], "lane-source-changed")
 
 
+# Recorded from https://github.com/melodic-software/claude-code-plugins/actions/runs/44114943906 (check run 134151640257).
+LEG_HOLD = "the compare read of the merge base failed; this leg holds and runs no review."
+LEG_REFUSALS = (
+    "The compare call failed: HTTP/2.0 403 Forbidden X-Ratelimit-Remaining: 0"
+    " X-Ratelimit-Reset: 1794930108",
+    "GitHub API GET https://api.github.com/repos/melodic-software/claude-code-plugins"
+    "/issues/16810/comments?per_page=100 failed with HTTP 403:"
+    " x-ratelimit-remaining=0 x-ratelimit-reset=1794930108",
+)
+
+
+def rate_held(
+    lane: str,
+    sha: str = S,
+    *,
+    leg: tuple[str, ...] = (LEG_HOLD, *LEG_REFUSALS),
+    status: tuple[dict[str, Any], ...] = (),
+) -> dict[str, Any]:
+    """Attempt 1 as #16810's review runs recorded it: green, its leg held on a
+    GitHub API rate limit, and its status job wrote the `held:` notice with no
+    completion record."""
+    held = {
+        "annotation_level": "notice",
+        "title": "",
+        "message": f"held: {lane} did not review {sha}: the compare read of the"
+        " merge base failed. A later run of this workflow reviews it.",
+    }
+    first = attempt(lane, sha, 1, [held, *status])
+    first["jobs"].append(
+        {
+            "id": next(_ids),
+            "run_attempt": 1,
+            "name": JOBS[lane].split(" / ", 1)[0] + " / Review Subscription",
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": sha,
+            "annotations": [
+                {"annotation_level": "warning", "title": "", "message": m} for m in leg
+            ],
+        }
+    )
+    return first
+
+
+class RateHeldRerunTests(Base):
+    """A re-run after a leg held attempt 1 on a GitHub API rate limit (#16810):
+    the review never ran, so attempt 2 is the first review of the head."""
+
+    lane_run = KillSwitchRerunTests.lane_run
+    ok = KillSwitchRerunTests.ok
+
+    def test_second_attempt_after_a_rate_limit_hold_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind([self.lane_run(lane, rate_held(lane), self.ok(lane))])
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_second_attempt_after_a_review_does_not_bind(self) -> None:
+        reviewed = attempt(
+            "claude-review", S, 1, [record("claude-review", S, "findings=0 inline=0 scope=whole")]
+        )
+        result = self.bind([self.lane_run("claude-review", reviewed, self.ok("claude-review"))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_hold_with_no_rate_limit_refusal_or_with_a_record_does_not_bind(
+        self,
+    ) -> None:
+        cases = {
+            "no refusal": rate_held("claude-review", leg=(LEG_HOLD,)),
+            "no hold": rate_held("claude-review", leg=LEG_REFUSALS),
+            "a record": rate_held(
+                "claude-review",
+                status=(record("claude-review", S, "findings=0 inline=0 scope=whole"),),
+            ),
+            "another head's notice": rate_held("claude-review", S0),
+        }
+        for name, first in cases.items():
+            with self.subTest(name):
+                first["head_sha"] = S
+                for job in first["jobs"]:
+                    job["head_sha"] = S
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+
 def superseded(
     lane: str,
     sha: str = S,
