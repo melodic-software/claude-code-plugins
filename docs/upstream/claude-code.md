@@ -7,7 +7,20 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.322` (published 2026-11-10). `2.1.321` and
+**Last audited upstream state:** changelog through `2.1.326` (published 2026-11-16). `2.1.326`
+was not read release by release: it was past the replay cap, so on 2026-11-18 the components were
+rechecked against the current docs instead
+([#16655](https://github.com/melodic-software/claude-code-plugins/issues/16655)). That recheck
+checked every tracked link into the docs against the page and its rendered anchors, checked each
+Claude Code environment variable the repository names against the docs, and searched the
+repository for the identifiers named by the `2.1.323` through `2.1.326` items that removed,
+deprecated or re-defaulted a setting, key or flag. It read against their records only the pages
+behind the 2.1.319 and 2.1.321 docs-lag rows, the 296-003 row, the userConfig gotcha, the
+`--resume --bg` decline, and the open `2.1.325` handoffs; every other page got the link check
+only. `2.1.323` and `2.1.325` were read by the release lane, their handoffs open in
+[#15693](https://github.com/melodic-software/claude-code-plugins/issues/15693) and
+[#16035](https://github.com/melodic-software/claude-code-plugins/issues/16035); the changelog has
+no `2.1.324` block. `2.1.321` and
 `2.1.322` were read release by release as raw markdown on 2026-11-11; no `2.1.320` was published.
 `2.1.319` was read by the release lane, its handoffs in
 [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033). Releases
@@ -24,7 +37,7 @@ it to the newest published release.
 
 - **Pointer**: for what a release after the marker changed, fetch
   <https://code.claude.com/docs/en/changelog> live.
-- **As of**: 2026-11-11
+- **As of**: 2026-11-18
 - **Recheck trigger:** a new release block appears above the version on the marker line. Nothing
   before `2.1.257` was read release by release; the fleet's coverage of older releases, and of the
   rechecked range, rests on each skill's own verification stamps and the docs-conformance rechecks
@@ -32,7 +45,10 @@ it to the newest published release.
 
 Rows below are the decisions from the `2.1.257` through `2.1.296` read. The recheck added no rows:
 its fixes are in the pull requests that
-[#13286](https://github.com/melodic-software/claude-code-plugins/issues/13286) lists. A record names
+[#13286](https://github.com/melodic-software/claude-code-plugins/issues/13286) lists. The 2026-11-18
+recheck added no rows either; it updated the 296-003 docs-lag row, removed the 319-005 docs-lag
+row because settings-reference now lists `permissions.denyInsteadOfPrompting`, and routed what it
+did not fix in the pull request that moved the marker. A record names
 the pull request that first carried the apply, or this file when the apply is on the branch that
 introduces the ledger. Pages fetched again on 2026-09-28 for the rows in this file did not move the
 marker: later releases were not read as a range.
@@ -194,7 +210,7 @@ docs index.
 | `$.ui.notify` in the mods API | 295-013 | [2.1.295](https://code.claude.com/docs/en/changelog#2-1-295) | [mods reference, API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) |
 | Terminals that implement OSC 7501 | 295-003 | [2.1.295](https://code.claude.com/docs/en/changelog#2-1-295) | [terminal-config, See session status in your terminal](https://code.claude.com/docs/en/terminal-config#see-session-status-in-your-terminal) |
 | `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` | 296-004 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [env-vars](https://code.claude.com/docs/en/env-vars); [workflows](https://code.claude.com/docs/en/workflows) |
-| `autoCompactWindow` in subagent frontmatter and `--agents` | 296-003 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [sub-agents, Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields); as of 2026-10-11 that section lists no `autoCompactWindow`; recheck when it does or the anchor stops resolving |
+| `autoCompactWindow` in subagent frontmatter and `--agents` | 296-003 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [sub-agents, Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields); as of 2026-11-18 its frontmatter table lists `autoCompactWindow`, and the page names it for no `--agents` JSON; recheck when it names it there or the anchor stops resolving |
 | WebFetch read-on notice and `offset` input | 290-047 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [tools-reference, WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) |
 | What attaches a subdirectory AGENTS.md | 290-132 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [memory, AGENTS.md](https://code.claude.com/docs/en/memory#agents-md) |
 | `/code-review` effort coverage per model | 290-030 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [code-review](https://code.claude.com/docs/en/code-review) |
@@ -228,7 +244,6 @@ not yet state the release's behavior; recheck a row when its page does.
 
 | Topic | Items | Release | Page |
 |---|---|---|---|
-| `permissions.denyInsteadOfPrompting` | 319-005 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [settings-reference](https://code.claude.com/docs/en/settings-reference); recheck when it lists the setting |
 | `/permissions` in cloud sessions | 319-072 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [claude-code-on-the-web, Manage context](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context); recheck when it names `/permissions` |
 | Nested skill loading under the Bash sandbox | 319-114 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the sandbox condition |
 | Self-paced `/loop` end and `CLAUDE_CODE_LOOP_KEEPALIVE` | 319-115 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [scheduled-tasks, Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop); [env-vars](https://code.claude.com/docs/en/env-vars); recheck when the section drops its fallback-wakeup sentence |
