@@ -208,6 +208,15 @@
       "reason": "It is the only record a later pass compares against (owner decision on #16564: the repository's retention, 90 days, and no paid storage); a pass dispatched after it expires finds no baseline and reports every finding NEW.",
       "scan": "upload"
     },
+    "map-findings-narrowed": {
+      "retention-days": "max",
+      "readers": [
+        ".github/workflows/maintenance-verify-whole-map.yml its run summary names it for a person comparing passes narrowed by features; \"Find the baseline\" never takes it"
+      ],
+      "max-reader": ".github/workflows/maintenance-verify-whole-map.yml",
+      "reason": "Owner decision on #16564: every pass keeps findings.json at the repository's retention, 90 days. A pass narrowed by features keeps it under this name so a later whole-map pass does not take it as its baseline and report the other features' findings NEW.",
+      "scan": "upload"
+    },
     "map-evidence": {
       "retention-days": 7,
       "readers": [

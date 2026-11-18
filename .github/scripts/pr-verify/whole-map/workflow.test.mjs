@@ -355,10 +355,13 @@ test("findings.json uploads alone for 90 days and the evidence for 7, each behin
     uploads.map((s) => [input(s.block, "name"), input(s.block, "path"), input(s.block, "retention-days")]),
     [
       ["map-findings", "${{ runner.temp }}/map-findings", "90"],
+      ["map-findings-narrowed", "${{ runner.temp }}/map-findings", "90"],
       ["map-evidence", "${{ runner.temp }}/map-evidence", "7"],
     ],
   );
-  for (const [upload, scan, id] of [["Upload the findings", "Scan the findings for credentials", "scan-findings"], ["Upload the evidence", "Scan the evidence for credentials", "scan-evidence"]]) {
+  assert.match(step("Upload the findings"), /steps\.inputs\.outputs\.features == ''\)/);
+  assert.match(step("Upload the narrowed findings"), /steps\.inputs\.outputs\.features != ''\)/);
+  for (const [upload, scan, id] of [["Upload the findings", "Scan the findings for credentials", "scan-findings"], ["Upload the narrowed findings", "Scan the narrowed findings for credentials", "scan-narrowed"], ["Upload the evidence", "Scan the evidence for credentials", "scan-evidence"]]) {
     assert.equal(input(step(scan), "path"), input(step(upload), "path"));
     assert.match(step(upload), new RegExp(`&& steps\\.${id}\\.outputs\\.clean == 'true'$`, "m"));
     assert.ok(at(scan) < at(upload));
@@ -366,7 +369,6 @@ test("findings.json uploads alone for 90 days and the evidence for 7, each behin
   const collect = scriptOf(step("Collect the pass"));
   assert.match(collect, /index\("findings\.json"\) != null[\s\S]*bash \/opt\/ccd\/findings-compare\.sh "\$findings"[\s\S]*cp -P -- "\$findings" "\$FINDINGS\/findings\.json"/);
   assert.match(collect, /\.capture\.status[^\n]*= blocked \]; then\n\s*echo "reason=the map skill reported the pass blocked[^\n]*" >>"\$GITHUB_OUTPUT"/);
-  assert.match(collect, /if \[ -n "\$FEATURES" \]; then\n\s*echo "::notice::a pass narrowed by features keeps no findings\.json[^\n]*"\n\s*elif jq -e '\.publishable/);
   assert.match(step("Report the pass"), /BLOCKED: \$\{\{ steps\.collect\.outputs\.reason \|\| steps\.blocked\.outputs\.reason \}\}[\s\S]*if \[ -n "\$BLOCKED" \]; then[\s\S]*exit 1/);
   assert.ok(at("Install the findings checker") < at("Isolate the runner"));
   assert.match(step("Install the findings checker"), /sudo install -m 0755 -o root -g root \.base\/plugins\/testing\/skills\/run-e2e\/scripts\/findings-compare\.sh \/opt\/ccd\/findings-compare\.sh/);

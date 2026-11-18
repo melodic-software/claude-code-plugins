@@ -1219,7 +1219,6 @@ jobs:
         if: always() && steps.probe-check.outcome == 'success' && steps.sibling-stop.outcome == 'success'
         env:
           APP: ${{ steps.inputs.outputs.app }}
-          FEATURES: ${{ steps.inputs.outputs.features }}
           FINDINGS: ${{ runner.temp }}/map-findings
           OUT: ${{ runner.temp }}/map-evidence
           DRIVE_OUTCOME: ${{ steps.drive.outcome }}
@@ -1256,9 +1255,7 @@ jobs:
             echo "reason=the map skill reported the pass blocked; its reason is in the evidence artifact's e2e-summary.json" >>"$GITHUB_OUTPUT"
           fi
           findings="$run_dir/findings.json"
-          if [ -n "$FEATURES" ]; then
-            echo "::notice::a pass narrowed by features keeps no findings.json: a later whole-map pass compared with it would report the other features' findings NEW"
-          elif jq -e '.publishable | arrays | index("findings.json") != null' "$OUT/e2e-summary.json" >/dev/null 2>&1 &&
+          if jq -e '.publishable | arrays | index("findings.json") != null' "$OUT/e2e-summary.json" >/dev/null 2>&1 &&
             [ "$(realpath -e -- "$findings" 2>/dev/null)" = "$findings" ] && [ -f "$findings" ] &&
             [ "$(stat -c %s "$findings")" -le 1048576 ] &&
             bash /opt/ccd/findings-compare.sh "$findings" >/dev/null 2>&1; then
@@ -1268,13 +1265,12 @@ jobs:
             echo "findings=true" >>"$GITHUB_OUTPUT"
           else
             rm -rf "${FINDINGS:?}"
-            [ -n "$FEATURES" ] || echo "::warning::the pass left no publishable findings.json the checker accepts; no baseline is kept"
+            echo "::warning::the pass left no publishable findings.json the checker accepts; no baseline is kept"
           fi
           kept=0
           while IFS= read -r rel; do
             [ "$kept" -lt 400 ] || break
-            [ "$rel" != e2e-summary.json ] || continue
-            [ -n "$FEATURES" ] || [ "$rel" != findings.json ] || continue
+            [ "$rel" != e2e-summary.json ] && [ "$rel" != findings.json ] || continue
             case "/$rel/" in
               */../* | */./* | //*) continue ;;
             esac
@@ -1298,16 +1294,32 @@ jobs:
 
       - name: Scan the findings for credentials
         id: scan-findings
-        if: always() && steps.collect.outputs.findings == 'true'
+        if: always() && steps.collect.outputs.findings == 'true' && steps.inputs.outputs.features == ''
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/map-findings
 
       - name: Upload the findings
-        if: (always() && steps.collect.outputs.findings == 'true') && steps.scan-findings.outputs.clean == 'true'
+        if: (always() && steps.collect.outputs.findings == 'true' && steps.inputs.outputs.features == '') && steps.scan-findings.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: map-findings
+          path: ${{ runner.temp }}/map-findings
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Scan the narrowed findings for credentials
+        id: scan-narrowed
+        if: always() && steps.collect.outputs.findings == 'true' && steps.inputs.outputs.features != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/map-findings
+
+      - name: Upload the narrowed findings
+        if: (always() && steps.collect.outputs.findings == 'true' && steps.inputs.outputs.features != '') && steps.scan-narrowed.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: map-findings-narrowed
           path: ${{ runner.temp }}/map-findings
           retention-days: 90
           if-no-files-found: error
@@ -1334,6 +1346,7 @@ jobs:
           SUMMARY: ${{ runner.temp }}/map-evidence/e2e-summary.json
           BLOCKED: ${{ steps.collect.outputs.reason || steps.blocked.outputs.reason }}
           FINDINGS: ${{ steps.collect.outputs.findings }}
+          FEATURES: ${{ steps.inputs.outputs.features }}
           PLANNED_ROWS: ${{ steps.plan.outputs.rows }}
           BASELINE_RUN: ${{ steps.baseline.outputs.run-id }}
         run: |
@@ -1356,6 +1369,7 @@ jobs:
             echo "- compare: $new NEW, $pre PRE-EXISTING, $gone GONE, $stale not checked"
             echo "- measured: $wall seconds, $tokens tokens; $unmeasured entries unmeasured"
             [ "$FINDINGS" = true ] || echo "- no findings.json kept, so this run is no later pass's baseline"
+            [ "$FINDINGS" != true ] || [ -z "$FEATURES" ] || echo "- narrowed by features: findings.json is kept as map-findings-narrowed, which no later pass takes as its baseline"
           } | tee -a "$GITHUB_STEP_SUMMARY"
           rows=$((${passed//\?/0} + ${failed//\?/0} + ${unchecked//\?/0}))
           if [ "$rows" != "$PLANNED_ROWS" ]; then
