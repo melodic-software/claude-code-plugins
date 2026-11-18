@@ -15,10 +15,7 @@ while IFS= read -r candidate; do
     break
   fi
 done < <(type -ap python3)
-if [[ -z "$PY" ]]; then
-  echo "SKIP: no python3 on PATH imports pygments -- the seeded code-tidying cases skipped"
-  lr_done
-fi
+[[ -n "$PY" ]] || lr_missing pygments "no python3 on PATH imports pygments"
 mkdir -p "$WORK/py"
 ln -s "$PY" "$WORK/py/python3"
 export PATH="$WORK/py:$PATH"

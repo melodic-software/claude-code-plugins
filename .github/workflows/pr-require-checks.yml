@@ -3784,6 +3784,19 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      - name: Install pinned typos for the spelling remote suite
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
+        uses: melodic-software/ci-workflows/.github/actions/typos@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        with:
+          config: _typos.toml
+          paths: lefthook-remote.yml
+          annotations: 'false'
+      - name: Install pinned actionlint for the actionlint remote suite
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        with:
+          paths: .github/workflows/pr-review-approved.yml
+          color: 'false'
       # The guardrails remote's end-to-end suite runs real lefthook against a
       # stand-in remote; a broken lefthook-remote.yml would block every
       # consumer's commits, so it fails here instead of skipping
@@ -3822,6 +3835,7 @@ jobs:
           VISUAL_COMPARE_DEPS_DIR: .work
           # The guardrails remote's end-to-end cases fail on a missing lefthook here instead of skipping green.
           GUARDRAILS_REQUIRE_LEFTHOOK: '1'
+          LEFTHOOK_REMOTE_REQUIRE_TOOLS: '1'
           # On main (schedule, dispatch) a failing suite in
           # scripts/run-plugin-tests-advisory.txt warns instead of failing the
           # leg; pull requests and merge groups still fail on it.

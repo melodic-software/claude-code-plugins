@@ -118,8 +118,12 @@ lr_e2e_start() {
     "$(node "$INSTALL" plan --scope remote --repo "$REPO")" >"$REPO/lefthook.yml"
   expect "the plan's snippet names the root aggregate" "      - lefthook-remote.yml" "$(tail -n 1 "$REPO/lefthook.yml")"
   (cd "$REPO" && lefthook install >/dev/null 2>&1)
+  out="$(node "$INSTALL" verify --repo "$REPO")"
   expect "lefthook install fetches the remote and verify reports every entry ok" \
-    "$(jq -r '.entries[] | "ok"' "$HERE/entries.json" | xargs)" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1 | xargs)"
+    "$(jq -r '.entries[] | "ok"' "$HERE/entries.json" | xargs)" "$(grep -v $'^tool\t' <<<"$out" | cut -f1 | xargs)"
+  expect "verify reports a tool missing exactly when it is not on PATH" \
+    "$(jq -r '.entries[].tools[]' "$HERE/entries.json" | sort -u | while read -r tool; do command -v "$tool" >/dev/null 2>&1 || echo "$tool"; done | xargs)" \
+    "$(awk -F '\t' '$1 == "tool" && $3 == "missing" { print $2 }' <<<"$out" | sort -u | xargs)"
   FETCHED="$REPO/.git/info/lefthook-remotes/claude-code-plugins-main"
   out="$(cd "$REPO" && lefthook dump 2>/dev/null)"
   while read -r event name script; do
@@ -138,13 +142,27 @@ lr_e2e_start() {
   done <<<"$LR_JOBS"
 }
 
+lr_allowed_missing() {
+  case "$1" in
+    goimports) echo "the repository pins no goimports for CI" ;;
+    *) return 1 ;;
+  esac
+}
+
+lr_missing() {
+  local why
+  if [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 ]] && ! why="$(lr_allowed_missing "$1")"; then
+    expect "$1 is on PATH for the seeded $NAME cases (LEFTHOOK_REMOTE_REQUIRE_TOOLS=1)" yes no
+  else
+    echo "SKIP: ${2:-$1 not on PATH} -- the seeded $NAME cases skipped${why:+ ($why)}"
+  fi
+  lr_done
+}
+
 lr_require_tools() {
   local tool
   for tool in "$@"; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      echo "SKIP: $tool not on PATH -- the seeded $NAME cases skipped"
-      lr_done
-    fi
+    command -v "$tool" >/dev/null 2>&1 || lr_missing "$tool"
   done
 }
 
