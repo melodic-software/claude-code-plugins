@@ -52,8 +52,8 @@ scans it with the rest of the rendered body.
 
 ## Steps
 
-1. **Head, body and verdict.** Resolve the PR's repository once with `scripts/target-repo.sh`
-   (`--dir <checkout>` out of tree), report the `target repository:` line it prints, and stop on
+1. **Head, body and verdict.** Resolve the PR's repository once with
+   `bash "<skill-dir>/scripts/target-repo.sh"` (`--dir <checkout>` out of tree), report the `target repository:` line it prints, and stop on
    a non-zero exit with its stderr reported; every forge read and write below names that
    `<owner>/<repo>`. Read the PR's number, URL, head commit, base branch and body
    (`gh pr view <pr> -R <owner>/<repo> --json number,url,headRefOid,baseRefName,body`). The acceptance
