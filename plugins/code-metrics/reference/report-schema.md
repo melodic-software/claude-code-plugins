@@ -1,8 +1,8 @@
 # The `code-metrics/v2` report
 
 Every audit skill in this plugin prints exactly one JSON document on stdout (its `audit-size.sh --json`)
-and renders markdown from it; diagnostics go to stderr. The document is the seam other tools
-read, so its shape is stable within the `v2` schema string.
+and renders markdown from it; diagnostics go to stderr. Other tools read the document, so its
+shape is stable within the `v2` schema string.
 
 ## Top level
 
