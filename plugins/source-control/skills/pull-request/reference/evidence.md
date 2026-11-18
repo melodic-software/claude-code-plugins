@@ -89,7 +89,6 @@ scans it with the rest of the rendered body.
 4. **Render the body** from [`../templates/evidence-comment.md`](../templates/evidence-comment.md),
    the layout this step reads instead of inline text, so the format changes by editing that file.
    Read it with the Read tool by its absolute path under the skill directory.
-   Write the body to a file in the scratchpad (else the system temp directory) with the Write tool.
    Keep the marker line first and the blank lines inside each `<details>` block, which let the
    markdown inside it render
    ([GFM spec: HTML blocks](https://github.github.com/gfm/#html-blocks), for where such a block
@@ -161,7 +160,12 @@ scans it with the rest of the rendered body.
      (`expires after <n> days`, else `expires with the repository's artifact retention setting`).
      With no artifact URL and no capture attached, the line reads `Media not uploaded: <reason>`,
      such as no capture was publishable; with captures attached and no artifact URL, it is empty.
-5. **Leak scan.** Scan the rendered body, the text the comment would hold, as
+
+   Write the body with the Write tool, in a call of its own, to `<dir>/evidence-comment.md`, where
+   `<dir>` is the scratchpad when one is listed, else the absolute path `mktemp -d` prints. Fill in
+   every path and value literally: the Write tool's content reaches no shell, so a `$(...)` or
+   backtick in the criterion or summary text stays text.
+5. **Leak scan.** Scan the file step 4 wrote, the text the comment would hold, as
    `/app-control:drive`'s Mask post-check scans a capture; everything the scan needs is below, so
    read no other plugin's files for it. First delete box-drawing characters (U+2500 to U+257F),
    then join line wraps by deleting each line break with the whitespace around it. A hit is either:
@@ -205,7 +209,7 @@ scans it with the rest of the rendered body.
 8. **Post or update** with one call that names each capture to attach:
 
    ```bash
-   gh pr comment <pr> -R <owner>/<repo> --edit-last --create-if-none --body-file "<body file>" --attach "<capture>" --attach "<capture>"
+   gh pr comment <pr> -R <owner>/<repo> --edit-last --create-if-none --body-file "<file step 4 wrote>" --attach "<capture>" --attach "<capture>"
    ```
 
    It edits the account's last comment, the evidence comment step 6 found, or creates it when
@@ -216,7 +220,7 @@ scans it with the rest of the rendered body.
 
    ```bash
    gh pr comment <pr> -R <owner>/<repo> --delete-last --yes
-   gh pr comment <pr> -R <owner>/<repo> --body-file "<body file>" --attach "<capture>"
+   gh pr comment <pr> -R <owner>/<repo> --body-file "<file step 4 wrote>" --attach "<capture>"
    ```
 
    With no evidence comment yet, run only the second command. Run the delete exactly as written,
