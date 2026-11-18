@@ -385,9 +385,10 @@ its report line is printed. Procedure:
   `<project>:<key>`, then `<key>`, and treats a `secure:` value as a secret. It reads an
   `aws:ecs:Service`'s `cluster`, `taskDefinition`, `desiredCount` and `name`, and an
   `aws:ecs:TaskDefinition`'s `containerDefinitions` as `fn::toJSON` over a list of containers with
-  `name`, `image` and `portMappings` (`containerPort`). Pointer: when checking the key, namespace
-  or `secure:` forms, fetch the [configuration](https://www.pulumi.com/docs/iac/concepts/config/)
-  page and [secrets § Encrypted secrets in configuration data](https://www.pulumi.com/docs/iac/concepts/secrets/#secrets)
+  `name`, `image` and `portMappings` (`containerPort`). The `<project>:<key>`-then-`<key>` lookup
+  is this skill's own rule: it reads the project's namespace first so a key the stack file
+  writes under the project wins over a bare one. Pointer: when checking the `secure:` form, fetch
+  [secrets § Encrypted secrets in configuration data](https://www.pulumi.com/docs/iac/concepts/secrets/#secrets)
   live; when checking an ECS input, fetch the
   [`aws.ecs.Service` § Inputs](https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/#inputs)
   and [`aws.ecs.TaskDefinition` § Inputs](https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/#inputs)
