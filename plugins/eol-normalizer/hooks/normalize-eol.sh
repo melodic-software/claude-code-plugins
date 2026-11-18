@@ -126,7 +126,7 @@ normalize_eol_resolve_attrs() {
   NORMALIZE_EOL_ATTR_EOL=""
   NORMALIZE_EOL_ATTR_TEXT=""
   local raw line attr
-  raw=$(git -C "$1" check-attr eol text -- "$2" 2>/dev/null) || return 0
+  raw=$(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$1" check-attr eol text -- "$2" 2>/dev/null) || return 0
   while IFS= read -r line; do
     attr="${line% *}"
     case "${attr##* }" in

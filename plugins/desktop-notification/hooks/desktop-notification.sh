@@ -150,7 +150,7 @@ if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "
   # git repo → body is just the message). Branch is also untrusted input — strip
   # C0 bytes through the same gate as .message (a ref name can't legally carry
   # them, but defense-in-depth so the branch can never reach a sink un-sanitized).
-  BRANCH=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null) || BRANCH=""
+  BRANCH=$(hook::git_untrusted -C "$REPO_ROOT" branch --show-current 2>/dev/null) || BRANCH=""
   strip_c0_to BRANCH "$BRANCH"
   BODY="$MESSAGE"
   [[ -n "$BRANCH" ]] && BODY="$MESSAGE — $BRANCH"
@@ -172,6 +172,20 @@ OSA
       # `--` terminates option parsing so a title/body starting with `-` is
       # treated as a positional, never an option flag.
       notify-send -- "$HEADLINE" "$BODY" >/dev/null 2>&1 &
+      CHANNELS+=("os_toast")
+    elif [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v powershell.exe >/dev/null 2>&1; then
+      T64=$(printf '%s' "$HEADLINE" | base64 -w0)
+      B64=$(printf '%s' "$BODY" | base64 -w0)
+      PS="\$d={param(\$s)[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(\$s))}
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null
+\$x=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+\$n=\$x.GetElementsByTagName('text')
+\$n.Item(0).InnerText=(& \$d '$T64')
+\$n.Item(1).InnerText=(& \$d '$B64')
+\$app=('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}','WindowsPowerShell','v1.0','powershell.exe') -join [char]92
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(\$app).Show([Windows.UI.Notifications.ToastNotification]::new(\$x))"
+      ENC=$(printf '%s' "$PS" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
+      powershell.exe -NoProfile -NonInteractive -EncodedCommand "$ENC" </dev/null >/dev/null 2>&1 &
       CHANNELS+=("os_toast")
     fi
     ;;

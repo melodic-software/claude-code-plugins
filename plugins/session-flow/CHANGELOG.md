@@ -1,5 +1,14 @@
 # Changelog: session-flow plugin
 
+## [9.7.2] - 2026-11-18
+
+### Changed
+
+- The handoff structure and save-point examples no longer name a .NET test command, the session
+  retro's durability example no longer names a browser-testing tool, and the running-retro
+  observer's state-wide-consumer rule no longer lists example commands; each now describes the
+  step without naming a tool.
+
 ## [9.7.1] - 2026-11-18
 
 ### Changed
