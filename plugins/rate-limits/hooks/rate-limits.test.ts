@@ -800,7 +800,7 @@ test('notice: a row wraps rather than truncating', NO_WRITES, async ($, on) => {
   await bash($)
   w.limits = limits(97, 95)
   await bash($)
-  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const ui = await $.ui.mount({ ...BAND, surface: 'vscode' })
   const row = await ui.find({ type: 'Text', text: NOTICE })
   await ui.unmount()
   expect(row?.props.wrap).toBe('wrap')
@@ -825,7 +825,7 @@ test('toast: a refused toast leaves the line to Claude, the transcript line and 
   expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
   expect(runs).toBe(2)
   expect(crossingLogs(w)).toEqual([{ text: LOG_EDGE, to: 'transcript' }])
-  expect((await drawn($, 'desktop')).filter(t => NOTICE.test(t))).toEqual([LOG_EDGE])
+  expect((await drawn($, 'vscode')).filter(t => NOTICE.test(t))).toEqual([LOG_EDGE])
 })
 
 const prefixes = (text: string) => text.split('rate-limits:').length - 1
@@ -836,9 +836,11 @@ test('notice: two windows changing together share one row with the plugin prefix
   w.limits = limits(97, 95)
   expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97, EDGE_7D])
   expect(crossingLogs(w).map(l => l.text)).toEqual([LOG_EDGE, 'rate-limits: 7d at the 95% line threshold · resets 2026-10-08 09:00 UTC · more: /rate-limits'])
-  const rows = (await drawn($, 'desktop')).filter(t => NOTICE.test(t))
+  const rows = (await drawn($, 'vscode')).filter(t => NOTICE.test(t))
   expect(rows).toEqual(['rate-limits: 5h at the 95% line threshold · resets 21:00 UTC; 7d at the 95% line threshold · resets 2026-10-08 09:00 UTC · more: /rate-limits'])
   expect(prefixes(rows[0])).toBe(1)
+  const desktop = await drawn($, 'desktop')
+  expect(desktop.filter(t => /^\d-(hour|day) limit at /.test(t))).toEqual(['5-hour limit at 97% (past 95% · resets in 3h)', '7-day limit at 95% (past 95% · resets in 4d 15h)'])
 })
 
 test('operator mode: two windows held together are offered in one notice with the plugin prefix once', OPERATOR, async ($, on) => {
@@ -874,8 +876,23 @@ test('notice: after a window change a terminal mount returns only what is drawn 
   w.limits = limits(96)
   await bash($)
   expect(await drawn($, 'terminal')).toEqual(['drawn beneath'])
-  for (const surface of ['desktop', 'vscode'] as const) expect(await drawn($, surface)).toEqual([LOG_EDGE, 'drawn beneath'])
+  expect(await drawn($, 'vscode')).toEqual([LOG_EDGE, 'drawn beneath'])
+  expect((await drawn($, 'desktop')).filter(t => t.startsWith('5-hour limit at '))).toEqual(['5-hour limit at 96% (past 95% · resets in 3h)'])
   await prompt($, 'composer')
+  expect(await drawn($, 'desktop')).toEqual(['drawn beneath'])
+})
+
+test('notice: on desktop Dismiss clears the row, which names no command and carries Details and Dismiss', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(96)
+  await bash($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const buttons = (await ui.findAll({ type: 'Button' })).map((b: { props: { label: string } }) => b.props.label)
+  expect(buttons).toEqual(['Details', 'Dismiss'])
+  expect((await ui.findAll({ type: 'Text', text: /\/rate-limits/ })).length).toBe(0)
+  await ui.press({ key: 'dismiss' })
+  await ui.unmount()
   expect(await drawn($, 'desktop')).toEqual(['drawn beneath'])
 })
 

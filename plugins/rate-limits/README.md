@@ -86,8 +86,10 @@ never toasted, and neither is a restatement after a compaction, a resume, `/clea
 those only restate the verdict to Claude. Windows belong to the account, so a rise across `/clear`
 or a resume is a change and is toasted. The toast does not depend on `model_notices`. `rate_limits_toast` set to
 `false` drops the toast and keeps the transcript line. Outside the terminal (the Desktop app, VS
-Code, mobile), where toast drawing is unverified, the change also shows as a single row above the
-prompt, covering every window that changed, until your next prompt.
+Code, mobile), where toast drawing is unverified, the change also shows above the prompt, covering
+every window that changed, until your next prompt. The Desktop app draws one line per window with
+the percentage in color and the time left until it resets, plus Details and Dismiss buttons; other
+surfaces draw a single text row. Desktop's own usage ring holds the figures between changes.
 
 ### Operator mode
 
@@ -104,8 +106,9 @@ could not show, or a survey hid the row until the line went to Claude. A suggest
 but was not taken goes to Claude as the automatic line at the next turn no person started; a turn
 a person starts drops it unsent.
 
-Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe of this plugin ran in the Desktop app or VS Code, so the band, the
-notice rows, the toast and the suggestion there are untested.
+Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. The
+Desktop row was previewed in a Desktop 6.6695.0 session; no probe of this plugin ran in VS Code, so
+the band, the notice row, the toast and the suggestion there are untested.
 
 - **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
