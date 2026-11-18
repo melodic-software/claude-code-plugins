@@ -360,6 +360,10 @@ case "$cmd $sub" in
     parse "$@"
     emit '{"name":"app","nameWithOwner":"eval-fixture/app","owner":{"login":"eval-fixture"},"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE","url":"https://github.com/eval-fixture/app","squashMergeAllowed":true,"mergeCommitAllowed":false,"rebaseMergeAllowed":false}'
     ;;
+  "repo set-default")
+    [[ "${3:-}" == --view ]] || refuse "$@"
+    echo "No default remote repository has been set for this directory." >&2
+    ;;
   "auth status")
     echo "github.com"
     echo "  ✓ Logged in to github.com account eval-fixture (eval fixture forge)"
