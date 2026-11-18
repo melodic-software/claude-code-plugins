@@ -1,0 +1,8 @@
+---
+bump: patch
+---
+
+### Fixed
+
+- `address-feedback-select` writes `body_view` to `threads.json`: every `##` section of the pull request body, each cut to 8,000 characters, read-only. `body_sections`, the sections a round may rewrite, is unchanged, so a round can now read a Summary over the 4,000-character refresh cap, the last section and unlisted headings.
+- pr-merge's `clear-escalations` settles an address-feedback stop at the current head with reason `feedback-disputed`, `feedback-untaken-threads` or `feedback-uncertain` once pr-verify settled it: no review thread is unresolved, at least one opens with a pr-verify fail note, the lane answered no other thread from the first fail note to the stop, every body edit and issue link change since the first fail note is by a human on `trusted-actors.json` (at least one edit), and the gate's reader answers a pass or pass-notes at that head with no verdict refusal, superseding a FAIL there. A bot's edit never counts. The step hands each such head to pr-merge's `report-unarmed-status` job, which already holds `statuses: write`. That job runs `report-escalation.sh clear` to post a github-actions[bot] success over the head's failing `pr-unblock/address-feedback` status, so neither enable-auto-merge nor ci-status holds the head on it. The label comes off on a later run, once that success is newer than the stop (the same-head lift). A clear that failed is therefore requested again on every run while all the conditions still hold. `report-escalation.sh clear` takes an optional `CLEAR_DESCRIPTION`. The kill-switch and rate-limit gates on the step are unchanged.
