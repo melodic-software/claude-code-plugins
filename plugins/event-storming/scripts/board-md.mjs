@@ -2,7 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -701,8 +701,11 @@ function loadBoard(path) {
 
 export function writeAtomic(path, text) {
   const tmp = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  const existing = statSync(path, { throwIfNoEntry: false });
+  const mode = existing ? existing.mode & 0o7777 : 0o666;
   try {
-    writeFileSync(tmp, text, { flag: "wx" });
+    writeFileSync(tmp, text, { flag: "wx", mode });
+    if (existing) chmodSync(tmp, mode);
     renameSync(tmp, path);
   } catch (error) {
     if (error.code !== "EEXIST") rmSync(tmp, { force: true });

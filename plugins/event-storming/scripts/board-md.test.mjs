@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -357,5 +357,13 @@ try {
 }
 check("a temp file a killed run left under this pid does not block the write", staleError === null && readFileSync(`${work}/stale.md`, "utf8") === "after\n", staleError?.code);
 check("the write leaves another run's temp file alone", readFileSync(`${work}/stale.md.tmp-${process.pid}`, "utf8") === "left by a killed run\n");
+
+if (process.platform !== "win32") {
+  writeFileSync(`${work}/private.md`, "before\n");
+  chmodSync(`${work}/private.md`, 0o600);
+  writeAtomic(`${work}/private.md`, "after\n");
+  const mode = statSync(`${work}/private.md`).mode & 0o777;
+  check("a rewrite keeps the board's file mode", mode === 0o600, mode.toString(8));
+}
 
 if (failed > 0) process.exit(1);
