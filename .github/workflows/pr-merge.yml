@@ -2770,7 +2770,7 @@ jobs:
             last_code=$(cat "$last/post-merge-code")
             last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
             if [[ $last_code =~ ^[05]$ ]]; then
-              settled=$(settle "$last_sha") && kept=true
+              settled=$(settle "$last_sha" --probe-unmoved) && kept=true
               echo "$settled"
               last_reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || last_reason=''
             fi

@@ -4681,7 +4681,13 @@ UNATTRIBUTED_UNMOVED = "unattributed-unmoved"
 
 
 def _settle(
-    repo: str, path: str, code_sha: str, *, idle: bool = False, fresh: bool = False
+    repo: str,
+    path: str,
+    code_sha: str,
+    *,
+    idle: bool = False,
+    fresh: bool = False,
+    unmoved: bool = False,
 ) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
@@ -4693,11 +4699,13 @@ def _settle(
     any read, the verifying runs (two reads) before `settle_shared`, and the
     quarantine issues and pins after it. The report checks run again last,
     so their clock is never earlier than it was with the room's rule first.
-    An idle report that every other part keeps but that lists unattributed
-    runs refuses as `UNATTRIBUTED_UNMOVED`: such a run stops counting only
-    once a newer commit passes (`postmerge._recovered`), which the verifying
-    runs test sees, so a fresh check would list it again and pr-merge.yml's
-    PR-scoped wake runs none. With `fresh` as well, this job's own check just made the report from the
+    With `unmoved` (`--probe-unmoved`), an idle report that lists unattributed
+    runs but that every other part keeps refuses as `UNATTRIBUTED_UNMOVED`:
+    such a run stops counting only once a newer commit passes
+    (`postmerge._recovered`), which the verifying runs test sees, so a fresh
+    check would list it again and pr-merge.yml's PR-scoped wake runs none.
+    Without it that refusal reads nothing, as the sweep runs its check
+    anyway. With `fresh` as well, this job's own check just made the report from the
     verifying runs as they are, so their two reads are skipped, as a sweep
     arms on the report dispatch-post-merge-runs just made with no idle rule; the
     report checks and the quarantine and pin reads still apply.
@@ -4712,7 +4720,7 @@ def _settle(
     elif shared is not None:
         try:
             reason = _settle_reason(
-                repo, shared, idle=idle, fresh=fresh, outcome=outcome
+                repo, shared, idle=idle, fresh=fresh, unmoved=unmoved, outcome=outcome
             )
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
@@ -4730,6 +4738,7 @@ def _settle_reason(
     *,
     idle: bool,
     fresh: bool = False,
+    unmoved: bool = False,
     outcome: dict[str, str | None],
 ) -> str | None:
     """`_settle`'s refusal for a readable report, `outcome` filled by
@@ -4739,7 +4748,7 @@ def _settle_reason(
         return refusal and f"idle tick {refusal}"
 
     if idle and (refused := postmerge.idle_report_refusal(shared)):
-        if refused == "unattributed" and not fresh:
+        if refused == "unattributed" and unmoved:
             report = {**shared.gate.report, "unattributed": []}
             cleared = replace(shared, gate=replace(shared.gate, report=report))
             with contextlib.suppress(RuntimeError, ValueError, OSError):
@@ -6223,6 +6232,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     settle.add_argument("--fresh", action="store_true")
+    settle.add_argument("--probe-unmoved", action="store_true")
     code = sub.add_parser("check-code", allow_abbrev=False)
     code.add_argument("--code-sha", required=True)
     legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
@@ -6257,12 +6267,15 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     if args.command == "settle":
         if args.fresh and not args.idle_tick:
             parser.error("--fresh needs --idle-tick")
+        if args.probe_unmoved and (args.fresh or not args.idle_tick):
+            parser.error("--probe-unmoved needs --idle-tick and no --fresh")
         return _settle(
             args.repo,
             args.postmerge_result,
             args.code_sha,
             idle=args.idle_tick,
             fresh=args.fresh,
+            unmoved=args.probe_unmoved,
         )
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
