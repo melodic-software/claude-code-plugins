@@ -108,8 +108,8 @@ result for a settings hook rather than an assumption.
 
 Every row but the mods API, hook stdin and `subagentStatusLine` rows records what we read on the
 live page on **2026-08-21**, before mods shipped: a dated observation behind this file's verdict,
-not a statement of what the pages say today. To act on a row now, re-read the section its Source column
-points at.
+not a statement of what the pages say today. To act on a row now, re-read the section its Source
+column points at.
 
 - **Pointer**: the Source column, per row.
 - **As of**: 2026-10-11 for the section anchors; 2026-11-04 for the hook stdin row; 2026-11-18 for
