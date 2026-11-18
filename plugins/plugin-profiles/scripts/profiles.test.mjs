@@ -393,10 +393,9 @@ test("Q69: on VS Code a one-session apply is refused with the folder offer and w
 });
 
 const CLOUD = { CLAUDECODE: "1", CLAUDE_CODE_REMOTE: "true", CLAUDE_CODE_ENTRYPOINT: "remote" };
-const DESKTOP_WSL = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "claude-desktop", WSL_DISTRO_NAME: "Ubuntu" };
 
-test("Q69: cloud and Desktop WSL sessions: status says plugin profiles do not apply, and apply, clear and install write nothing", () => {
-  for (const [surface, env] of [["a cloud session", CLOUD], ["a Claude Desktop WSL session", DESKTOP_WSL]]) {
+test("Q69: cloud sessions: status says plugin profiles do not apply, and apply, clear and install write nothing", () => {
+  for (const [surface, env] of [["a cloud session", CLOUD]]) {
     const w = world();
     const before = snapshot(settingsFiles(w));
     assert.match(w.run(["status"], env).stdout, new RegExp(`Surface: ${surface}; plugin profiles do not apply here and nothing is written`));
@@ -414,7 +413,7 @@ test("Q69: cloud and Desktop WSL sessions: status says plugin profiles do not ap
 test("status names the session's surface", () => {
   const w = world();
   for (const [entry, line] of [["cli", "Surface: the Claude Code CLI (applies --for session, folder, initial)."], ["claude-vscode", "Surface: VS Code (applies --for folder, initial)."], ["claude-desktop", "Surface: Claude Desktop (applies --for folder, initial)."]]) {
-    const env = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry };
+    const env = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: entry, WSL_DISTRO_NAME: "Ubuntu" };
     assert.ok(w.run(["status"], env).stdout.split("\n").includes(line), entry);
     assert.equal(JSON.parse(w.run(["status", "--json"], env).stdout).surface.id, entry);
   }
@@ -470,14 +469,14 @@ test("the session-start notice prints nothing in a folder with no applied profil
   assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/);
 });
 
-test("Q69: in cloud and Desktop WSL sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
+test("Q69: in cloud sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
   const w = world();
   installOnDisk(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/, "on the CLI the notice speaks");
   const before = snapshot(settingsFiles(w));
   const records = w.records();
-  for (const env of [CLOUD, DESKTOP_WSL]) assert.equal(sessionStart(w, env), "", env.CLAUDE_CODE_ENTRYPOINT);
+  assert.equal(sessionStart(w, CLOUD), "", "cloud");
   assert.deepEqual(snapshot(settingsFiles(w)), before);
   assert.deepEqual(w.records(), records);
 });
