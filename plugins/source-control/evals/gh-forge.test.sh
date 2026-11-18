@@ -136,6 +136,18 @@ assert_eq "repo set-default --view: no default printed, so target-repo.sh falls 
 run_gh "$THREADED" repo set-default other/repo >/dev/null 2>&1
 assert_exit "repo set-default: setting a default is refused" 1 "$?"
 
+DRAFT="$TEST_TMPDIR/draft"
+make_forge draft
+DRAFT_HEAD=$(git -C "$DRAFT" rev-parse HEAD)
+RUNS_BEFORE=$(run_gh "$DRAFT" run list --commit "$DRAFT_HEAD" --event pull_request -L 100 --json databaseId -q 'map(.databaseId)' 2>&1)
+assert_eq "run list: a draft's head has one run before the flip" "[1]" "$(jq -c . <<<"$RUNS_BEFORE")"
+run_gh "$DRAFT" pr ready 7 >/dev/null 2>&1
+out=$(run_gh "$DRAFT" run list --commit "$DRAFT_HEAD" --event pull_request -L 100 \
+  --json databaseId -q "map(select(.databaseId as \$id | $RUNS_BEFORE | index(\$id) | not)) | length" 2>&1)
+assert_eq "run list: after the flip one run is new to the snapshot" "1" "$out"
+out=$(run_gh "$DRAFT" run list --commit 0000000 --event pull_request -L 100 --json databaseId -q 'length' 2>&1)
+assert_eq "run list: another commit has no runs" "0" "$out"
+
 out=$(run_gh "$THREADED" search prs --author eval-fixture --json number,title --jq '.[] | "\(.number) \(.title)"' 2>&1)
 assert_eq "search prs: serves the fixture pull request" "7 feat: x" "$out"
 assert_eq "search prs: the served call is recorded as a read" "read search prs" \
