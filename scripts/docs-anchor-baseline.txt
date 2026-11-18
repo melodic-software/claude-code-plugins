@@ -16,7 +16,7 @@
 # Blank lines and `#` lines are ignored.
 
 plugins/ai-briefing/skills/generate/reference/build-pipeline.md 2
-plugins/architecture/skills/map-deployment/SKILL.md 8
+plugins/architecture/skills/map-deployment/SKILL.md 3
 plugins/autonomy/skills/setup/context/agent-session-telemetry.md 1
 plugins/autonomy/skills/setup/context/guardrail-slice.md 1
 plugins/autonomy/skills/setup/context/windows-surfaces.md 2
