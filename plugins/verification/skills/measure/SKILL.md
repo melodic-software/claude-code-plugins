@@ -29,7 +29,7 @@ Baseline storage: the topic's memory tier. `<memory_dir>/<slug>/baselines/` (def
 
 **Behavior baselines.** Recorded outputs captured before a rewrite, the old-implementation side of `/verification:confirm refactor`'s differential evidence for a Replace, are not a third family: they use this same `baselines/` storage and the same rule, captured before the change and never after the fact. Outputs recorded from the new implementation compare it with itself and are not a baseline. Such a baseline proves sameness with the old behavior, not correctness.
 
-**Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline. Do not add a harness speculatively.
+**Measurement tooling:** use whatever harness the consuming project wires; when none exists, run both phases manually per the context-file discipline. Do not add a harness speculatively.
 
 ## Mode dispatch
 

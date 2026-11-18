@@ -209,9 +209,10 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
     const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
       (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
     );
-    const counts = { released: 0, kept: 0, failed: 0 };
+    const counts = { kept: 0, failed: 0 };
+    const released = [];
     for (const { number } of held) {
-      if (counts.released >= RELEASES_PER_RUN) {
+      if (released.length >= RELEASES_PER_RUN) {
         console.log(`release-eval-hold: #${number} kept: ${RELEASES_PER_RUN} released this run`);
         counts.kept += 1;
         continue;
@@ -247,7 +248,7 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
           continue;
         }
         await github("DELETE", `${base}/labels/${LABEL}`);
-        counts.released += 1;
+        released.push(number);
         const wait = Math.round((now() - Date.parse(record.created_at)) / 60000);
         console.log(`release-eval-hold: #${number} released head=${head} record=${record.html_url} wait-minutes=${Number.isFinite(wait) ? wait : "unknown"}`);
       } catch (error) {
@@ -255,7 +256,10 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
         console.log(`::error title=release-eval-hold::#${number}: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    summary(`release-eval-hold: held=${held.length} released=${counts.released} kept=${counts.kept} failed=${counts.failed}`);
+    summary(`release-eval-hold: held=${held.length} released=${released.length} kept=${counts.kept} failed=${counts.failed}`);
+    if (env.GITHUB_OUTPUT) {
+      appendFileSync(env.GITHUB_OUTPUT, `released=${released.join(" ")}\n`);
+    }
     return counts.failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=release-eval-hold::${escapeCommand(error?.message ?? error)}`);

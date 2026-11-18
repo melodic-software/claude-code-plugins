@@ -69,7 +69,7 @@ area.
 Never install a verification tool. Run the tool's own version or help command, as its official
 documentation gives it, before writing anything. A runtime the tool needs counts as the tool:
 
-- **It runs:** go on.
+- **It runs** (the command printed the tool's version or usage, whatever its exit code): go on.
 - **It is missing, and `<plugin-root>/prerequisites.json` declares it with a `/formal-verification:setup`
   check:** attended, tell the user to type `/formal-verification:setup` and stop; unattended, report
   `blocked: tool missing: <tool>` and stop.

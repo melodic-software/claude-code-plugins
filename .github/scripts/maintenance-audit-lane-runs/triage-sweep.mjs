@@ -65,6 +65,7 @@ import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 const outOfBudget = (error) => /call budget/.test(error.message);
+const STOP_PASS = Symbol("stop the pass");
 
 export const MAX_DISPATCHES = 5;
 const MAX_HANDED = 5;
@@ -416,6 +417,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
+  const redispatches = [];
+  let outOfCalls = false;
   for (const issue of candidates) {
     const { number } = issue;
     if (checked >= MAX_CHECKED) break;
@@ -471,8 +474,38 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       }
       // Unread, every run counts.
       const { attempts, dispatches } = tally(state.runs, reached);
-      let action = decide({ state, latest: finished, reached: attempts, dispatches });
+      const action = decide({ state, latest: finished, reached: attempts, dispatches });
       if (action === "wait") result.waiting.push(number);
+      const entry = { issue, state, known, reached, last, latest };
+      if (action === "dispatch" && state.runs.length > 0) {
+        if ((await act(entry, "stop")) === STOP_PASS) break;
+        redispatches.push({ ...entry, state: { ...state, reached: known } });
+        continue;
+      }
+      if ((await act(entry, action)) === STOP_PASS) break;
+    } catch (error) {
+      if (endsPass(number, error)) break;
+    }
+  }
+  if (outOfCalls) return result;
+  for (const entry of redispatches) {
+    if ((await act(entry, "dispatch")) === STOP_PASS) break;
+  }
+  return result;
+
+  function endsPass(number, error) {
+    if (!outOfBudget(error)) {
+      result.failed.push({ number, error: error.message });
+      return false;
+    }
+    result.truncated = `stopped at #${number}: ${error.message}`;
+    outOfCalls = true;
+    return true;
+  }
+
+  async function act({ issue, state, known, reached, last, latest }, action) {
+    const { number } = issue;
+    try {
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "hand" && result.handed.length >= MAX_HANDED) action = "stop";
       // A capped issue records what this pass read, so no later pass reads it
@@ -488,14 +521,14 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         } catch (error) {
           if (outOfBudget(error)) throw error;
         }
-        continue;
+        return;
       }
       // Never start a run the budget left cannot record, or a hand-off it cannot finish.
       // A hand-off reads each run's conclusion but a transient one's.
       const reads = state.runs.filter((id) => id !== last && reached.get(id) !== "~").length;
       if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < reads + 2)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
-        break;
+        return STOP_PASS;
       }
       // intake-triage.yml admits this token's dispatch whoever wrote the
       // issue, so the author check in selectCandidates is the only one.
@@ -524,19 +557,14 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         // The state first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which sets it again.
-        if (!(await handOff(issue))) continue;
+        if (!(await handOff(issue))) return;
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }
     } catch (error) {
-      if (outOfBudget(error)) {
-        result.truncated = `stopped at #${number}: ${error.message}`;
-        break;
-      }
-      result.failed.push({ number, error: error.message });
+      if (endsPass(number, error)) return STOP_PASS;
     }
   }
-  return result;
 }
 
 // Each open issue the Work status field or a status label places, mapped to

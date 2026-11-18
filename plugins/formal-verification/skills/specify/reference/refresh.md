@@ -58,7 +58,8 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    the fetched SHA right after the fetch (`git rev-parse FETCH_HEAD`), since another fetch can
    repoint `FETCH_HEAD`: that SHA is the tip for the whole pass. When the read or fetch fails, every
    check is `blocked` with git's stderr line.
-3. Name the start: the default branch, an upkeep branch `formal-verification-upkeep/<folder>`, or a
+3. Name the start: the default branch, an upkeep branch `formal-verification-upkeep/<folder>`
+   (`<folder>` is the folder's name, not its path), or a
    detached HEAD at the tip (the pass commits on the upkeep branch), a ticket branch, which is any
    other branch (it commits there), or a detached HEAD off the tip (it commits nothing).
 4. Choose the commit checked, for each `formal-<area>` folder. On a start that takes the upkeep
@@ -75,7 +76,8 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
 
 1. **Find the checks.** A verify skill has no fixed name, so find it by what it does: a project skill
    that runs a model checker, a prover, or another verifier against named code. Read each one you
-   find under `skills_dir`, or the folders the user named. `/formal-verification:specify check` names
+   find under `skills_dir`, or the folders the user named. `/formal-verification:specify check` (its
+   [SKILL.md](../SKILL.md) command, run by hand where the slash command cannot be invoked) names
    the folders that hold a `sync.yaml` or `model/` outside the contract, one `WARN` line each; those
    follow "Verification skills outside the contract" below. For each check, collect the property (`## Property`), the code
    it covers (`covers`), the bounds and assumptions (`## Bounds and assumptions` and the bounds in
@@ -103,8 +105,10 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    (`git log <sync commit>..<commit checked> -- <covers>`). Also look for code that moved: a covered
    function that is renamed, split, or moved to another file is still covered code. Also look for new
    code that touches the state that a check guards, such as a new function that writes the same
-   fields: search the whole diff since the sync commit for the names the model reads. For each
-   change, decide which of these it is:
+   fields: search the whole diff since the sync commit for the names the model reads, as the verify
+   skill's `## Updating` lists them; where it lists none, take them from the verification's own
+   citations of the covered code, and add the list in step 6. For each change, decide which of
+   these it is:
    - **No effect.** The change does not alter anything the verification describes, such as
      formatting, comments, or code paths that the verification does not cover. Check this against
      the model or harness, not against the commit message.
@@ -147,16 +151,17 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
      it to the report as evidence. Do not commit it to the product code. A counterexample with a
      step you could not confirm or rule out in the code is unreplayed: the check is
      `blocked: counterexample not replayed`, and the counterexample stays in the report.
-6. **Update the verify skill.** Update the code that each check covers, the commands, the bounds, the
-   assumptions, and the sync commit, from the throwaway worktree into the place "Commit" below
-   names. Set the sync commit to the commit that you checked, and `seeded_break` to the break step 5
-   used, with that commit. Do not move the sync commit for a blocked check, and say so in the
+6. **Update the verify skill.** In the place "Commit" below names, update the code that each check
+   covers, the commands, the bounds, the assumptions, and the sync commit, carrying step 4's edits
+   from the throwaway worktree. Set the sync commit to the commit that you checked, and
+   `seeded_break` to the break step 5 used, with that commit. Do not move the sync commit for a blocked check, and say so in the
    report. When the commit checked is a ticket branch's `HEAD`, leave the sync commit and
    `seeded_break` as they were, and report the break that was caught: both commits must be on the
    default branch, so they move in the follow-up change after the ticket lands. A file that a check ending without a write also reads stays as it was, and the check that
    needed it is `blocked: shares <file> with <check>`. Then follow the verify skill once as the next
    agent would, so that you know its steps still run: its `## Run` commands and its `## Reading a
-   result`, then `/formal-verification:specify check` on the folder. Remove the throwaway worktree
+   result`, then `/formal-verification:specify check` on the folder. When the write changed no file
+   a `## Run` command reads, the earlier run of that command stands. Remove the throwaway worktree
    (`git worktree remove --force <scratch folder>`); when git refuses because this session's lock
    is on it, as when a hook locks each new worktree, run `git worktree unlock <scratch folder>`
    first.
@@ -182,8 +187,8 @@ stays in the report and goes to no tracker. Without either plugin, the bug stays
 ## Commit
 
 Commit only when step 6 has something to write, in a commit that holds the verification alone,
-never a product fix. Stage by path: the `formal-<area>` folder, its `outside_model` paths and the
-conversion path, with `git add -- <paths>` then `git commit -- <paths>`, so work already staged
+never a product fix, with a subject that passes the repository's commit convention. Stage by
+path: the `formal-<area>` folder, its `outside_model` paths and the conversion path, with `git add -- <paths>` then `git commit -- <paths>`, so work already staged
 stays staged. Done when `git show --name-only --format= HEAD` lists only those paths.
 
 - **Ticket branch:** write and commit on that branch in the person's working tree. When
@@ -206,6 +211,7 @@ stays staged. Done when `git show --name-only --format= HEAD` lists only those p
   `/source-control:pull-request create`. Its body is built from this folder's part of the report:
   each check's outcome line and prose, then the bugs filed and the checks left blocked. Without
   that plugin, leave the commit on the branch and report that a pull request still needs opening.
+  Then remove that worktree as step 6 removes the throwaway one; the branch keeps the commit.
 - **Detached HEAD off the tip:** commit nothing. Each check that had a write is `blocked: detached
   HEAD off the default branch's tip`, its edits in the report unwritten.
 

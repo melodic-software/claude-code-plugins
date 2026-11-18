@@ -16,6 +16,7 @@ import { createAcquisitionEnvelope, UnsupportedSourceError } from "../adapters/a
 import { acquireMedia } from "../adapters/registry.js";
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { runWatchCli } from "./run-watch.js";
+import { checkTempSpace } from "./temp-space-check.js";
 
 vi.mock("@melodic/video-digestion/shared/terminal", () => ({
   writeStderr: () => {},
@@ -26,6 +27,8 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, acquireMedia: vi.fn() };
 });
+
+vi.mock("./temp-space-check.js", () => ({ checkTempSpace: vi.fn() }));
 
 vi.mock("../transcript/asr-transcribe.js", async (importOriginal) => {
   const actual = await importOriginal();
@@ -70,6 +73,7 @@ describe("run-watch temp dirs on a failed watch", () => {
     process.env.YOUTUBE_WORK_ROOT = path.join(sandbox, "work");
     vi.mocked(acquireMedia).mockReset();
     vi.mocked(orchestrateWatching).mockReset();
+    vi.mocked(checkTempSpace).mockResolvedValue({ state: "enough", message: "" });
   });
 
   afterEach(async () => {
@@ -89,6 +93,25 @@ describe("run-watch temp dirs on a failed watch", () => {
     expect(await runWatchCli(["node", "run-watch.js", URL])).toBe(1);
     expect(vi.mocked(acquireMedia)).toHaveBeenCalledOnce();
     expect(await watchTempDirs()).toEqual([]);
+  });
+
+  it("exits 1 before any download, removing the dirs, when temp space is short", async () => {
+    vi.mocked(checkTempSpace).mockResolvedValue({ state: "short", message: "ERROR: short" });
+
+    expect(await runWatchCli(["node", "run-watch.js", URL])).toBe(1);
+    expect(vi.mocked(checkTempSpace)).toHaveBeenCalledWith(
+      expect.objectContaining({ tempDir: os.tmpdir(), timeRange: null }),
+    );
+    expect(vi.mocked(acquireMedia)).not.toHaveBeenCalled();
+    expect(await watchTempDirs()).toEqual([]);
+  });
+
+  it("goes on to acquire when the media size is unknown", async () => {
+    vi.mocked(checkTempSpace).mockResolvedValue({ state: "unknown", message: "WARN: unknown" });
+    vi.mocked(acquireMedia).mockResolvedValue({ success: false, error: "stop after the check" });
+
+    expect(await runWatchCli(["node", "run-watch.js", URL])).toBe(1);
+    expect(vi.mocked(acquireMedia)).toHaveBeenCalledOnce();
   });
 
   it("removes all three dirs when acquisition rejects the URL as unsupported", async () => {
