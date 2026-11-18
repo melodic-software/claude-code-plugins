@@ -389,7 +389,6 @@ function* listedRuns(deps, repo, cutoff, at) {
   }
 }
 
-/** Every page of a listing whose items sit under `key` (the whole body when null). */
 function allPages(deps, kind, url, key) {
   const items = [];
   for (let page = 1; ; page++) {
@@ -485,7 +484,8 @@ function pullOutcomesWithin({ sink, repo, deps, log }) {
   const resume = Date.parse(own.resume_cutoff_at ?? "");
   const cutoff = Number.isNaN(resume) ? (Number.isNaN(last) ? now - OUTCOME_FIRST_DAYS * 24 * HOUR : last - OVERLAP) : resume;
   const known = new Set(readOutcomes(sink).map((o) => o.check_run_id));
-  const tally = { runs: 0, fork: 0, jobs: 0, known_jobs: 0, records: 0, mismatched: 0, fetch_failed: 0 };
+  const read = { ...own.read_runs };
+  const tally = { runs: 0, read_runs: 0, fork: 0, jobs: 0, known_jobs: 0, records: 0, mismatched: 0, fetch_failed: 0 };
   const failedKinds = new Set();
   const at = { workflow: own.resume_workflow ?? null };
   let exhausted = false;
@@ -496,9 +496,15 @@ function pullOutcomesWithin({ sink, repo, deps, log }) {
         tally.fork++;
         continue;
       }
+      const key = `${run.id}:${run.run_attempt}`;
+      if (key in read) {
+        tally.read_runs++;
+        continue;
+      }
       tally.runs++;
       try {
         copyRunOutcomes({ sink, repo, deps, run, known, tally });
+        read[key] = run.created_at;
       } catch (error) {
         if (!(error instanceof FetchFailed)) throw error;
         tally.fetch_failed++;
@@ -512,8 +518,10 @@ function pullOutcomesWithin({ sink, repo, deps, log }) {
   const joined = refreshRows(sink);
   const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} run(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null, resume_cutoff_at: null };
   if (exhausted) finished.resume_cutoff_at = new Date(cutoff).toISOString();
+  const nextCutoff = exhausted || tally.fetch_failed > 0 ? cutoff : now - OVERLAP;
+  const readRuns = Object.fromEntries(Object.entries(read).filter(([, created]) => Date.parse(created) >= nextCutoff));
   const current = readState(sink);
-  writeState(sink, { ...current, outcomes: { ...current.outcomes, ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_workflow: exhausted ? at.workflow : null } });
+  writeState(sink, { ...current, outcomes: { ...current.outcomes, ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_workflow: exhausted ? at.workflow : null, read_runs: readRuns } });
   log(`copied ${tally.records} lane-outcome record(s); ${JSON.stringify(tally)}; ${joined} row(s) joined${exhausted ? `; stopped at the gh call budget of ${deps.meter.budget}` : ""}`);
   return tally;
 }
@@ -554,6 +562,8 @@ export function status(sink, now = Date.now()) {
     transcripts: rows.filter((r) => r.transcript).length,
     outcome_records: readOutcomes(sink).length,
     outcomes_last_success_at: state.outcomes?.last_success_at ?? null,
+    outcomes_budget_exhausted: state.outcomes?.budget_exhausted ?? false,
+    outcomes_resume_cutoff_at: state.outcomes?.resume_cutoff_at ?? null,
     bytes: sinkBytes(sink),
   };
 }

@@ -138,7 +138,7 @@ It keeps the transcript pull's rules under the state's `outcomes` key, apart fro
 the same retries and rate-limit stop, a run whose jobs or annotations still fail counts as
 `fetch_failed` and holds its last success, and a budget of `OUTCOME_CALL_BUDGET` (1,000) `gh`
 calls of its own, stopping with `budget_exhausted`, `resume_cutoff_at` and `resume_workflow` and
-resuming at that workflow. A re-run attempt of a run created before its window is not reached.
+resuming at that workflow. It records each run attempt it finished reading as `read_runs`, so a resumed pass skips them at no call, and drops the entries older than its next cutoff. A re-run attempt of a run created before its window is not reached.
 
 ## Retention
 
@@ -173,4 +173,4 @@ same line; transcripts sealed under the old key count as `sealed_mismatch` until
 A systemd user timer on the laptop, kept in dotfiles beside `worktree-reap.timer`, runs `pull`
 daily with `Persistent=true`, so a day the laptop was off runs at the next boot. A non-zero exit
 leaves the unit failed, which `systemctl --user --failed` shows. A timer that never fires raises
-nothing; `status` is the check for that.
+nothing; `status` is the check for that. `pull-outcomes` runs after `pull` in the same unit, never beside it: both rewrite `metrics.jsonl`.

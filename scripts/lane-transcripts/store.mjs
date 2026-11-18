@@ -35,8 +35,8 @@ const asString = (value) => (typeof value === "string" ? value : null);
 export const OMITTED_REASONS = ["too-large", "credential"];
 
 /**
- * The trace id every lane-outcome record of one run attempt carries (ci-workflows
- * docs/lane-outcome.md, "Run context"), so a row joins its records and spans.
+ * The trace id every lane-outcome record of one run attempt carries, so a row joins its records
+ * and spans: https://github.com/melodic-software/ci-workflows/blob/main/docs/lane-outcome.md#run-context
  */
 export function traceIdOf(runId, attempt) {
   if (!Number.isSafeInteger(runId) || runId < 1 || !Number.isSafeInteger(attempt) || attempt < 1) return null;

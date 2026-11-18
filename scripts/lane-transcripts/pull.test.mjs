@@ -749,7 +749,7 @@ test("a pulled row carries its run attempt's trace id, and no failure class whil
 
 const annotation = (record) => ({ annotation_level: "notice", message: `Lane stopped. lane-outcome ${JSON.stringify(record)} Last SDK result: ${MARKER}` });
 const laneRecord = (fields) => ({ v: 1, lane: "pr-verify", outcome: "failure", class: "max-turns", credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" }, ...fields });
-const laneRun = (id, { attempt = 1, fork = false, path: workflowPath = ".github/workflows/pr-verify.yml" } = {}) => ({ id, run_attempt: attempt, name: "pr-verify", path: workflowPath, repository: { id: REPO_ID }, head_repository: { id: fork ? 1 : REPO_ID } });
+const laneRun = (id, { attempt = 1, fork = false, path: workflowPath = ".github/workflows/pr-verify.yml" } = {}) => ({ id, run_attempt: attempt, name: "pr-verify", path: workflowPath, repository: { id: REPO_ID }, head_repository: { id: fork ? 1 : REPO_ID }, created_at: iso(NOW - 3600_000) });
 const laneJob = (id, { attempt = 1, conclusion = "failure", name = "check-intent" } = {}) => ({ id, run_attempt: attempt, name, conclusion, completed_at: iso(NOW - 3600_000) });
 
 /**
@@ -905,4 +905,18 @@ test("every workflow whose runs write lane-outcome records is in LANE_WORKFLOWS,
   const expected = [...lane].filter((file) => !callOnly(files.get(file))).sort();
   assert.ok(expected.includes("pr-verify.yml") && !expected.includes("pr-run-activity-read.yml"), "a lane caller is in, a reusable is out");
   assert.deepEqual([...LANE_WORKFLOWS].sort(), expected);
+});
+
+test("a pull-outcomes pass after a budget stop skips each run attempt it already read, though its jobs held no record", () => {
+  const sink = sinkDir();
+  const backlog = { runs: { [LANE_WORKFLOWS[0]]: [laneRun(701), laneRun(702)] }, jobs: { 701: [laneJob(71, { conclusion: "success", name: "gate" })], 702: [laneJob(72)] }, annotations: { 72: [annotation(laneRecord({}))] } };
+  const first = { ...outcomeDeps(backlog), outcomeCallBudget: 3 };
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: first }).code, 0);
+  assert.deepEqual(first.calls.filter((c) => c.includes("/runs/7")).map((c) => /runs\/(\d+)/.exec(c)[1]), ["701"]);
+  const shown = JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out);
+  assert.deepEqual({ exhausted: shown.outcomes_budget_exhausted, resume: shown.outcomes_resume_cutoff_at }, { exhausted: true, resume: new Date(NOW - 30 * 86400_000).toISOString() });
+  const second = outcomeDeps(backlog);
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps: second }).code, 0);
+  assert.ok(!second.calls.some((c) => c.includes("runs/701/") || c.includes("check-runs/71/")), "the run read before the stop costs no call");
+  assert.deepEqual(readOutcomes(sink).map((o) => o.check_run_id), [72]);
 });
