@@ -80,10 +80,18 @@ further down.
 can derive from the code (directory layouts, dependency lists, restatements of well-named APIs) is
 cut, not relocated. Relocating derivable content just moves the waste.
 
-**2. Is it mechanically checkable?** A compiler, linter, formatter, analyzer, or hook could enforce
-it deterministically → **route to that mechanism**. Formatting rules, import ordering, naming
-patterns a regex can express. Never send an agent to do a linter's job. This plugin *reports* the
-routing; it does not author linters, and it does not delete the prose until the mechanism exists.
+**2. Is it mechanically checkable?** Something a machine runs could decide it deterministically →
+**route to a mechanism**. Formatting rules, import ordering, naming patterns a regex can express.
+Never send an agent to do a check's job. A finding hands a rule to codify by naming the call,
+`/corrections:codify "<the rule>"` for one candidate or
+`/corrections:codify rules <the instruction file>` for several from one file, and never invokes it
+unasked. When `/corrections:codify` is among the available skills, hand it the choice of mechanism;
+it picks the strongest rung of the enforcement ladder that can decide the rule and proves the
+check. Otherwise, propose the strongest mechanism that can decide the rule: a change that makes the
+mistake impossible first, then a check that blocks it, then a test, and an instruction only when
+nothing a machine runs can decide it. Say that `/corrections:codify` was not
+available, so the proposal is unproven. This plugin *reports* the routing; it does not build the
+mechanism, and it does not delete the prose until the mechanism exists.
 
 **3. Is it a multi-step procedure?** Content that reads as *how to do a task* rather than *a fact to
 hold* → **skill**. Trigger words: numbered steps, "first… then…", a workflow with branches. Note the
@@ -222,5 +230,6 @@ Named so a reader chasing one of these lands somewhere real rather than bending 
 - **Whether two instructions contradict each other**: consistency across the instruction layer is
   its own audit. This rubric moves content; it does not adjudicate conflicts, and a candidate known
   to conflict with another surface is reported rather than moved.
-- **Authoring the linter, hook, or skill** that rung 2 and rung 3 route to. The routing is the
-  output; building the destination is separate work.
+- **Choosing and proving rung 2's mechanism**, which is `/corrections:codify`'s when it is
+  available, and **authoring the mechanism or skill** that rung 2 and rung 3 route to. The routing
+  is the output; building the destination is separate work.
