@@ -16,7 +16,7 @@ graders:
     target: 'last_message'
   - name: offers-install-miro
     type: regex
-    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)'
+    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure|turn on|turning on|switch on|switching on)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)'
     flags: 'i'
     target: 'last_message'
   - name: offers-markdown-rerun

@@ -19,6 +19,14 @@
     {
       "answer": "backend: markdown (default)",
       "why": "the backend line the skill states"
+    },
+    {
+      "answer": "**Backend:** markdown. You didn't pass `--backend`, so the default applies.",
+      "why": "the backend line, default in the next sentence"
+    },
+    {
+      "answer": "No `board_backend` option is set, so the skill falls back to markdown.",
+      "why": "falls back to markdown"
     }
   ],
   "fail": [
@@ -49,6 +57,10 @@
     {
       "answer": "Miro is the default, markdown the fallback.",
       "why": "the marker belongs to Miro; markdown follows the comma"
+    },
+    {
+      "answer": "Markdown boards need Node, which I could not check.",
+      "why": "markdown named, never chosen as the backend"
     }
   ]
 }
