@@ -1936,6 +1936,60 @@ class SettleCommand(unittest.TestCase):
         self.assertEqual((code, reason), (1, "idle tick runs-changed"))
         settle.assert_not_called()
 
+    def unattributed_settle(
+        self, *flags: str, runs: str | None = None, marks: str | None = None
+    ) -> tuple[int, str | None, mock.Mock]:
+        """`settle` with `flags` on a report, computed now, that would stand
+        but for one unattributed run; the verifying runs read `runs`, the
+        quarantine and pin reads `marks`, and the lane room's rule keeps it."""
+        report = replace(
+            shared(report={**SETTLED, "unattributed": ["https://run/31/attempts/2"]}),
+            computed_at=datetime.now(UTC),
+        )
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value=report),
+            mock.patch.object(policy, "check_code_unchanged", return_value=True),
+            mock.patch.object(policy, "_default_branch", return_value="main"),
+            mock.patch.object(policy, "_default_branch_config", return_value=config()),
+            mock.patch.object(ve.postmerge, "idle_runs_refusal", return_value=runs) as idle_runs,
+            mock.patch.object(ve.postmerge, "idle_marks_refusal", return_value=marks),
+            mock.patch.object(policy, "settle_shared", return_value=("answer", None)),
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    *flags,
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--code-sha",
+                    MAIN,
+                ]
+            )
+        return code, json.loads(out.getvalue())["reason"], idle_runs
+
+    def test_an_unattributed_report_nothing_else_refuses_is_refused_as_unmoved(
+        self,
+    ) -> None:
+        code, reason, idle_runs = self.unattributed_settle("--idle-tick")
+        self.assertEqual((code, reason), (1, "idle tick unattributed-unmoved"))
+        idle_runs.assert_called_once()
+
+    def test_an_unattributed_report_with_anything_moved_is_refused_plainly(
+        self,
+    ) -> None:
+        for flags, runs, marks in (
+            (("--idle-tick",), "runs-changed", None),
+            (("--idle-tick",), None, "pins-changed"),
+            (("--idle-tick", "--fresh"), None, None),
+        ):
+            with self.subTest(flags=flags, runs=runs, marks=marks):
+                code, reason, _ = self.unattributed_settle(*flags, runs=runs, marks=marks)
+                self.assertEqual((code, reason), (1, "idle tick unattributed"))
+
     def test_changed_verifying_runs_refuse_before_the_lane_rooms_reads(self) -> None:
         # 41345813084: `runs-changed` after settle_shared's 22 calls. The two
         # run listings now come first.

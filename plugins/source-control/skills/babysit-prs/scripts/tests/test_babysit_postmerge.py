@@ -2699,6 +2699,83 @@ class Baseline(CheckCase):
         self.assertEqual(verdict.unattributed, (self.SIGHTING,))
         self.assertEqual(verdict.report()["unattributed"], [self.SIGHTING])
 
+    def red_in_window(self, *, baseline: str = "failure") -> None:
+        """Schedule run 31 (10:02Z, on LATER_SHA), red again on the identity's
+        re-run inside the window that green dispatch run 11 (10:05Z, also on
+        LATER_SHA) closes; `baseline` is run 30's conclusion before the merge."""
+        bash = failed_job(301, "Test Bash", "Run the bash tests")
+        self.before_merge(baseline, *([bash] if baseline == "failure" else []))
+        at = "2026-10-12T10:02:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(31, run_attempt=2, triggering_actor=by(IDENTITY), created_at=at),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(31, created_at=at)
+        self.gh.jobs[(31, 2)] = [failed_job(312, "Test Bash", "Run the bash tests")]
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+
+    def passed_on_newer_commit(self) -> None:
+        """Dispatch run 12 by the identity passed at 10:10Z on TIP_SHA, a
+        commit on main that descends from run 31's LATER_SHA."""
+        self.gh.descendants.add(TIP_SHA)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(12, head_sha=TIP_SHA, created_at="2026-10-12T10:10:00Z"),
+        )
+
+    def idle_report_refusal(self, verdict: pm.PostMergeVerdict) -> str | None:
+        """What the idle rule says of the report with nothing else changed:
+        computed now, so it is not stale."""
+        now = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
+        shared = pm.policy.SharedPostMerge(
+            main_sha=TIP_SHA,
+            config_sha=TIP_SHA,
+            identity=IDENTITY,
+            self_logins=frozenset(),
+            lane_merges_only=False,
+            computed_at=now,
+            demotion=pm.policy.Demotion(False, None, ()),
+            floor=SINCE,
+            gate=pm.policy.PostMergeGate(None, verdict.report(), lambda merge: True),
+        )
+        return pm.idle_report_refusal(shared, now=now)
+
+    def test_a_pre_existing_red_run_stops_counting_once_a_newer_commit_passes(
+        self,
+    ) -> None:
+        self.red_in_window()
+        self.passed_on_newer_commit()
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (), "run 12 passed on a newer commit")
+        self.assertIsNone(self.idle_report_refusal(verdict))
+
+    def test_a_pre_existing_red_run_counts_while_no_newer_commit_passed(
+        self,
+    ) -> None:
+        self.red_in_window()
+        verdict = self.check()
+        self.assertEqual(
+            verdict.unattributed,
+            (self.SIGHTING,),
+            "run 11 passed after run 31, but on the same commit",
+        )
+        self.assertEqual(self.idle_report_refusal(verdict), "unattributed")
+
+    def test_a_newer_passing_commit_does_not_excuse_a_newly_failing_check(
+        self,
+    ) -> None:
+        self.red_in_window(baseline="success")
+        self.passed_on_newer_commit()
+        verdict = self.check()
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("schedule", self.SIGHTING)],
+        )
+        self.assertEqual(verdict.unattributed, ())
+
     def test_a_check_red_before_the_rename_is_not_charged_to_the_merge(self) -> None:
         # A baseline run tested before the jobs got display names names the
         # same leg and gate in lower case.

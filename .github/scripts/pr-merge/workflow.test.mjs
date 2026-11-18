@@ -735,6 +735,19 @@ test("a PR-scoped run whose last report is refused as code-changed runs no fresh
   assert.match(run.stdout, /::notice::the last sweep's post-merge report predates a code change/);
 });
 
+test("a PR-scoped run whose last report is refused as unattributed-unmoved runs no fresh check, and one refused as unattributed still does", () => {
+  const unmoved = keepReport({ settles: [1], refusal: "idle tick unattributed-unmoved" });
+  assert.equal(unmoved.status, 0);
+  assert.equal(unmoved.kept, false);
+  assert.equal(unmoved.output, "stands=false\nfresh=\nfresh-reason=\n");
+  assert.equal(unmoved.calls.length, 1);
+  assert.match(unmoved.calls[0], SETTLE("c{40}"));
+  assert.match(unmoved.stdout, /::notice::the last sweep's post-merge report lists a red full run charged to no merge/);
+  const moved = keepReport({ settles: [1, 1], refusal: "idle tick unattributed" });
+  assert.equal(moved.output, "fresh-started=true\nstands=false\nfresh=0\nfresh-reason=idle tick unattributed\n");
+  assert.ok(moved.calls.some((c) => FRESH_CHECK.test(c)), "the fresh check ran");
+});
+
 // The code-changed refusal decided before the run cache and lane records are
 // read: the step's script, its check-code exit stubbed.
 const CODE_STEP = "Check whether the last sweep's report predates a code change";

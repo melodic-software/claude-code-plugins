@@ -4677,6 +4677,9 @@ def _when(value: Any) -> datetime | None:
     return when if when.tzinfo is not None else None
 
 
+UNATTRIBUTED_UNMOVED = "unattributed-unmoved"
+
+
 def _settle(
     repo: str, path: str, code_sha: str, *, idle: bool = False, fresh: bool = False
 ) -> int:
@@ -4690,7 +4693,11 @@ def _settle(
     any read, the verifying runs (two reads) before `settle_shared`, and the
     quarantine issues and pins after it. The report checks run again last,
     so their clock is never earlier than it was with the room's rule first.
-    With `fresh` as well, this job's own check just made the report from the
+    An idle report that every other part keeps but that lists unattributed
+    runs refuses as `UNATTRIBUTED_UNMOVED`: such a run stops counting only
+    once a newer commit passes (`postmerge._recovered`), which the verifying
+    runs test sees, so a fresh check would list it again and pr-merge.yml's
+    PR-scoped wake runs none. With `fresh` as well, this job's own check just made the report from the
     verifying runs as they are, so their two reads are skipped, as a sweep
     arms on the report dispatch-post-merge-runs just made with no idle rule; the
     report checks and the quarantine and pin reads still apply.
@@ -4731,8 +4738,14 @@ def _settle_reason(
     def idle_tick(refusal: str | None) -> str | None:
         return refusal and f"idle tick {refusal}"
 
-    if idle and (refused := idle_tick(postmerge.idle_report_refusal(shared))):
-        return refused
+    if idle and (refused := postmerge.idle_report_refusal(shared)):
+        if refused == "unattributed" and not fresh:
+            report = {**shared.gate.report, "unattributed": []}
+            cleared = replace(shared, gate=replace(shared.gate, report=report))
+            with contextlib.suppress(RuntimeError, ValueError, OSError):
+                if _settle_reason(repo, cleared, idle=True, outcome={}) is None:
+                    return idle_tick(UNATTRIBUTED_UNMOVED)
+        return idle_tick(refused)
     default = merge_policy._default_branch(repo, shared=True)
     config = merge_policy._default_branch_config(repo, default)
     if not config.agent_identity:

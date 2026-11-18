@@ -2780,6 +2780,9 @@ jobs:
           elif [ "$last_reason" = "post-merge answer code-changed" ]; then
             rm -rf "${last:?}"
             echo "::notice::the last sweep's post-merge report predates a code change; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
+          elif [ "$last_reason" = "idle tick unattributed-unmoved" ]; then
+            rm -rf "${last:?}"
+            echo "::notice::the last sweep's post-merge report lists a red full run charged to no merge, and no full run finished since that could clear it; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
           else
             [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
