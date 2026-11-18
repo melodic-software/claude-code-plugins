@@ -88,10 +88,9 @@ Rules:
 - In an app shell with its own scroll areas, add the root rule of
   `no-rubber-band-bounce-on-desktop` (`scroll-and-viewport.md`); a scrolling document leaves it
   out.
-- `text-wrap: pretty` on `:root` is deliberate, and long-form body text keeps it; the pointer
-  below records what the value is for and what it costs. Where layout speed matters more than the
-  last line, as in a long text that re-lays often, such as a live log, set `text-wrap: wrap` on
-  that element.
+- `text-wrap: pretty` on `:root` is deliberate, and long-form body text keeps it. Where layout
+  speed matters more than the last line, as in a long text that re-lays often, such as a live log,
+  set `text-wrap: wrap` on that element.
 - Typed text inherits `pretty` in `textarea` and `contenteditable`. If lines shift while typing,
   set `text-wrap: stable` on that element.
 - The reserved gutter puts centered content slightly off-center on a page too short to scroll.
@@ -100,10 +99,11 @@ Rules:
   `height: 100dvh`, so it tracks the browser toolbar
   (`full-height-that-browser-chrome-cannot-cover`, `scroll-and-viewport.md`).
 
-- **Pointer**: MDN, `text-wrap-style`, "Values" (`pretty`) and "Selecting a value" (its
-  performance note),
+- **Pointer**: when choosing between `pretty` and `wrap` for an element, fetch MDN,
+  `text-wrap-style`, "Values" and "Selecting a value",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#values> and
-  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#selecting_a_value>
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#selecting_a_value>,
+  live.
 
 ## Logical properties: `logical-properties`
 
@@ -191,14 +191,14 @@ Rules:
 
 - Switch themes by setting `color-scheme`.
 - Grays use `none` for the hue so they mix without drifting toward red (`oklch-color`).
-- `light-dark()` takes two colors, or two images such as `url()` values or gradients. Check the
-  image form's own compat row before relying on it. Anything else that differs by theme needs its
-  own rule.
+- Before passing `light-dark()` anything but two colors, read its syntax (the pointer below) and
+  the image form's own compat row. Anything else that differs by theme needs its own rule.
 - In a two-theme app, add `<meta name="color-scheme" content="light dark">` so the browser paints
   the right background before the CSS loads. A single-theme app's tag names its one scheme.
 
-- **Pointer**: MDN, `light-dark()`, "Syntax" (the color and image forms),
-  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#syntax>
+- **Pointer**: when a theme value is not a plain color, fetch MDN, `light-dark()`, "Syntax",
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#syntax>,
+  live.
 
 ## Fluid sizes with `clamp()`: `fluid-sizes-with-clamp`
 
