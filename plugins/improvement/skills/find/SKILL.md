@@ -225,7 +225,7 @@ declared-by-the-caller convention. In unattended mode:
 
   Consultation order and its rationale: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`.
 - **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report,
-  the filed items, the candidate file `architecture:improve` writes when it is available, and, when code-metrics is enabled, the kept duplication report and the
+  the filed items, the candidate file `architecture:improve` writes (with its memory-root `.gitignore`) when it is available, and, when code-metrics is enabled, the kept duplication report and the
   clone-growth findings file (with its memory-root `.gitignore`) that the verb contract below names; it never picks a candidate, never prioritizes the queue, never starts
   implementation. Prioritization of filed items is human-gated always, the autonomy catalog's
   `tech-debt-sweep` C1 contract.
@@ -267,7 +267,8 @@ mode:
   the `audit` verb's autofix override, and it authorizes exactly three more things: the report
   persisted under `${CLAUDE_PLUGIN_DATA}/find/<state-key>/` (with the dismissed-candidate memory
   beside it), presence-gated work-item filing, and the git-ignored candidate file
-  `architecture:improve` writes under `<memory_dir>/architecture/improve/<branch-slug>/`.
+  `architecture:improve` writes under `<memory_dir>/architecture/improve/<branch-slug>/`, with the
+  `<memory_dir>/.gitignore` it creates when that file is absent.
 - **Either mode, only when code-metrics is enabled**:
   - `/code-metrics:audit-duplication --json --keep`, which this skill runs, keeps its report in
     code-metrics' own data directory, `reports/<state-key>/audit-duplication-<UTC stamp>.json`
