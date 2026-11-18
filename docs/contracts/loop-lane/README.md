@@ -1593,7 +1593,7 @@ the time zone a scheduled prompt names for dates (#7679).
 
 ## 9. Designing a new pipeline
 
-Before a new lane, workflow or pipeline is built, its design answers six questions, each in a line
+Before a new lane, workflow or pipeline is built, its design answers seven questions, each in a line
 of its plan or PR body, naming the mechanism that answers it:
 
 | Question | What the answer names |
@@ -1604,6 +1604,7 @@ of its plan or PR body, naming the mechanism that answers it:
 | Where does a person re-enter? | The hold, label or queue a stopped item lands in, and who reads it (§2 "When work stops for the owner", §7) |
 | What stops a duplicate run? | The `concurrency:` group or atomic claim, listed in [`posting-lanes.md`](posting-lanes.md) when the lane posts |
 | How does a person do what the agent does? | The manual way in beside each agent way in: a dispatch input, a label or a skill a person can run on the same item |
+| What does it look like drawn? | A diagram with one lane per place a step runs (person, tracker, runner, git host, orchestrator, token broker), each step in the lane where it happens, not where it was decided, and the person's way in drawn |
 
 A question the design cannot answer is a gap to close before the build, not after.
 
