@@ -459,8 +459,8 @@ def _send_once(
     return proc, headers, status
 
 
-# The rate-limit guard. GitHub: "Continuing to make requests while you are rate
-# limited may result in the banning of your integration." Once a response
+# The GitHub API rate guard. GitHub: "Continuing to make requests while you are
+# rate limited may result in the banning of your integration." Once a response
 # shows a pool exhausted, this process sends nothing more to that pool until
 # its reset: every later call raises `RateLimitExhausted` before it runs, and
 # the process exits red naming the reset, with no retry and no wait. The

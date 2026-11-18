@@ -20,10 +20,6 @@
 // is (babysit_merge_skip.py reads its skip-unchanged section), with only the
 // carried-* sections of the pr-merge-verify-run-cache file added to its own.
 //
-// The carried reads stay untrusted all the same: each kept read lands in a
-// carried-* section that babysit_verify_evidence.py reads only on a FAIL's
-// path and only where the value counts the FAIL; any other answer is read
-// from GitHub. lane-run, last below, is the one exception.
 //   run-record        a pr-verify run's record of origin shape (a run of
 //                     pr-verify.yml on the branch of this repository), kept
 //                     as carried-run-record with each repository trimmed to

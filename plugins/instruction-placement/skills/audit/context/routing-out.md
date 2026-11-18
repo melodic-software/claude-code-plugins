@@ -40,7 +40,7 @@ Those audits ask whether a piece of content is *good*, *needed*, or *duplicated*
 where it should **live**, and owns the capability none of them has: the validated move, including
 glob derivation and the index that keeps the result reachable afterwards.
 
-The two ladder rungs this plugin deliberately reports rather than executes, content a linter should
-enforce and content that should become a skill, follow the same logic. Building the replacement
-mechanism is separate work, and deleting an instruction before its replacement exists removes the
-only thing enforcing it.
+The two ladder rungs this plugin deliberately reports rather than executes, content a mechanism
+should enforce (the finding names a `/corrections:codify` call when that skill is available) and
+content that should become a skill, follow the same logic. Building the replacement mechanism is separate work, and
+deleting an instruction before its replacement exists removes the only thing enforcing it.

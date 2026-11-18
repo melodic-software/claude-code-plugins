@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the audit-size entry point (audit-size.sh): option parsing,
-# JSON versus markdown output, and exit-code passthrough from dispatch.sh.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit/SKILL.md plugins/code-metrics/skills/audit/actions/size.md
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
@@ -39,7 +37,6 @@ assert_contains "markdown carries the run table" "$out" "## Coverage of this run
 assert_contains "markdown carries the plugin-default reference" "$out" "| file_lines | 1000 |"
 assert_contains "markdown lists the python fixture" "$out" "cm_sample.py"
 
-# A host scc would still measure; the tool-free PATH keeps every collector away.
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
 cm_assert_tool_free_path "$EMPTY_PATH"
@@ -66,9 +63,6 @@ done
 bash "$SCRIPT" --all "$SOURCES" --file-lines >/dev/null 2>&1
 assert_eq "--file-lines with no value exits 2" 2 "$?"
 
-# --commits-since against a scratch repository: one long file committed three
-# times (once by a bot) and then renamed, one long file committed once, one
-# short file.
 CHURN="$(mktemp -d)"
 (
   cd "$CHURN" || exit 2
@@ -91,6 +85,88 @@ assert_doc "no --commits-since, no file_commits key" "$out" '"file_commits" not 
 bash "$SCRIPT" --all "$SOURCES" --commits-since >/dev/null 2>&1
 assert_eq "--commits-since with no value exits 2" 2 "$?"
 rm -rf "${CHURN:?}"
+
+GATE="$(mktemp -d)"
+GATE_HOME="$(mktemp -d)"
+(
+  cd "$GATE" || exit 2
+  git init -q && git symbolic-ref HEAD refs/heads/main
+  seq 1 3 >small.txt && seq 1 6 >over.txt
+  git add small.txt over.txt
+  git -c user.name=dev -c user.email=t@example.invalid commit -q -m base
+  mkdir -p docs/conventions .claude
+)
+team() { printf 'scope:\n  exclude: ["docs/**", ".claude/**"]\nsize:\n%s' "$1" >"$GATE/docs/conventions/code-metrics.yaml"; }
+gate() { (cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" bash "$SCRIPT" --base HEAD "$@" 2>&1); }
+
+team $'  file_lines: 5\n  check: crossing\n'
+seq 1 6 >"$GATE/small.txt"
+out="$(gate --check)"
+assert_eq "--check fails a file that crossed the reference (exit 1)" 1 "$?"
+assert_contains "--check names the crossing with both counts" "$out" "| small.txt | 3 | 6 | fails: crossed the reference |"
+assert_contains "--check says what to do" "$out" "Split each failing file along a real responsibility boundary"
+out="$(cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" bash "$SCRIPT" --json --base HEAD --check 2>/dev/null)"
+assert_eq "--json --check keeps the failing exit" 1 "$?"
+assert_doc "--json --check carries the size_check block" "$out" \
+  'd["size_check"]["rule"]=="crossing" and d["size_check"]["layer"]=="team" and d["size_check"]["failed"]==1'
+gate >/dev/null
+assert_eq "without --check the crossing only reports (exit 0)" 0 "$?"
+out="$(gate --check --all)"
+assert_eq "--check over --all cannot decide (exit 2)" 2 "$?"
+assert_contains "--check over --all says it needs the change scope" "$out" "needs the change scope"
+
+printf '.claude/\n' >"$GATE/.gitignore"
+printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
+out="$(gate --check)"
+assert_eq "a personal override of report wins over the team rule (exit 0)" 0 "$?"
+assert_contains "the report names the personal layer" "$out" "\`size.check\` is \`report\` (local)"
+rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/.gitignore"
+
+team $'  file_lines: 50\n  check: crossing\n'
+gate --check >/dev/null
+assert_eq "a raised team reference is honored (exit 0)" 0 "$?"
+team $'  file_lines: 5\n  check: crossing\n'
+gate --check --file-lines 50 >/dev/null
+assert_eq "a raised --file-lines reference is honored (exit 0)" 0 "$?"
+printf 'scope:\n  exclude: ["docs/**", ".claude/**", "small.txt"]\nsize:\n  file_lines: 5\n  check: crossing\n' >"$GATE/docs/conventions/code-metrics.yaml"
+gate --check >/dev/null
+assert_eq "an excluded file is not checked (exit 0)" 0 "$?"
+
+team $'  file_lines: 5\n  check: report\n'
+gate --check >/dev/null
+assert_eq "check off passes whatever the sizes (exit 0)" 0 "$?"
+
+seq 1 3 >"$GATE/small.txt"
+seq 1 9 >"$GATE/over.txt"
+team $'  file_lines: 5\n  check: crossing\n'
+out="$(gate --check)"
+assert_eq "an already-over file that grew passes under crossing (exit 0)" 0 "$?"
+assert_contains "and is reported" "$out" "| over.txt | 6 | 9 | reported: already over, grew |"
+team $'  file_lines: 5\n  check: crossing-or-growth\n'
+gate --check >/dev/null
+assert_eq "an already-over file that grew fails under crossing-or-growth (exit 1)" 1 "$?"
+
+BROKEN="$(mktemp -d)"
+cat >"$BROKEN/scc" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'scc version 9.9.9\n'; exit 0; fi
+printf 'not json\n'
+exit 1
+EOF
+chmod +x "$BROKEN/scc"
+team $'  file_lines: 5\n  check: report\n'
+(cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" PATH="$BROKEN:$PATH" bash "$SCRIPT" --base HEAD --check >/dev/null 2>&1)
+assert_eq "--check under report keeps a failed collector's exit 3" 3 "$?"
+team $'  file_lines: 5\n  check: crossing\n'
+(cd "$GATE" && CODE_METRICS_HOME="$GATE_HOME" PATH="$BROKEN:$PATH" bash "$SCRIPT" --base HEAD --check >/dev/null 2>&1)
+assert_eq "--check under a rule cannot decide past a failed collector (exit 2)" 2 "$?"
+rm -rf "${BROKEN:?}"
+
+team $'  file_lines: 5\n  check: true\n'
+out="$(gate --check)"
+assert_eq "an invalid size.check exits 2" 2 "$?"
+assert_contains "the invalid value is named" "$out" "size.check must be report, crossing or crossing-or-growth"
+rm -rf "${GATE:?}" "${GATE_HOME:?}"
 
 grep -q 'audit-size.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
@@ -120,7 +196,6 @@ doc = json.load(open(sys.argv[1]))
 print(next(t["provenance"] for t in doc["thresholds"] if t["measure"] == "file_lines"))
 ' "$PLUGIN_ROOT/scripts/config-defaults.json")"
 for surface in "$SCRIPT_DIR/../actions/size.md" "$SCRIPT_DIR/../../principles/reference/thresholds.md"; do
-  # Markdown wraps the sentence across lines; compare with whitespace folded.
   folded="$(tr -s '[:space:]' ' ' <"$surface")"
   case "$folded" in
   *"$provenance"*) pass "${surface##*/} carries the file_lines provenance verbatim" ;;
@@ -128,8 +203,6 @@ for surface in "$SCRIPT_DIR/../actions/size.md" "$SCRIPT_DIR/../../principles/re
   esac
 done
 
-# The router's description names `--all` as a scope in its own right and no
-# longer disowns the whole-tree run, and stays inside the field maximum.
 description="$(sed -n '2p' "$SCRIPT_DIR/../SKILL.md")"
 case "$description" in
 *"wrong tool"*) fail "the description no longer disowns --all" "no 'wrong tool' clause" "$description" ;;

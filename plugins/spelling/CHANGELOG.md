@@ -3,6 +3,18 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.4] - 2026-11-18
+
+### Changed
+
+- The shared `resolve-tool.sh` adds `rt_git`, the git that format and lint adapters run: `hook::git_untrusted` inside a Claude Code hook, plain git otherwise. This plugin's adapters do not call it yet.
+
+## [3.1.3] - 2026-11-18
+
+### Changed
+
+- `setup` `check` gives the reason it opens plugin files by path and never runs Glob or Grep over the plugin directory: a search passed the installed plugin's deeply nested cache path can fail to start on some hosts because the path is too long ([#16871](https://github.com/melodic-software/claude-code-plugins/issues/16871)).
+
 ## [3.1.2] - 2026-11-18
 
 ### Security

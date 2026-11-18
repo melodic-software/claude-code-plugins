@@ -104,7 +104,6 @@ def translate(pattern: str) -> str:
             i += 1
         parts.append(piece + ("" if last else "/"))
     body = "".join(parts)
-    # A `**/` part already carries its own trailing slash.
     body = body.replace("(?:.*/)?/", "(?:.*/)?")
     prefix = "^" if anchored else "^(?:.*/)?"
     return prefix + body + "$"

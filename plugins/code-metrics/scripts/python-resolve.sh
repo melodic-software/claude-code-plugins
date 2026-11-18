@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Sourced by every shell entry point in this plugin: resolve a Python
-# interpreter at or above the plugin's floor into the array PY, so a
-# two-word launcher (`py -3` on Windows) is invoked correctly as
-# "${PY[@]}". One copy, one policy (design T20).
-#
-#   source "$PLUGIN_ROOT/scripts/python-resolve.sh"
-#   cm_resolve_python || { echo "..." >&2; exit 2; }
-#   "${PY[@]}" "$PLUGIN_ROOT/scripts/report.py" ...
-#
 # cm_resolve_python reads MIN_PYTHON from report.py beside this file, tries
 # python3, python, then `py -3`, skips the Windows Store App Execution Alias
 # stub (a zero-length file under a WindowsApps path), and returns 1 when

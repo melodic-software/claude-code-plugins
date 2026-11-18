@@ -122,8 +122,9 @@ and unscoped rules into a skill, which loads on demand.
 
 ## Hooks vs CLAUDE.md
 
-The audit recommends a hook, not a CLAUDE.md line, for anything that must happen every time: a
-CLAUDE.md line is advisory and a hook is deterministic.
+The audit recommends a check, not a CLAUDE.md line, for anything that must happen every time: a
+CLAUDE.md line is advisory and a hook is deterministic. C8 item 3 in
+[criteria.md](criteria.md) picks the mechanism.
 
 - **Pointer**: [Enforce steps with hooks](https://code.claude.com/docs/en/best-practices#enforce-steps-with-hooks).
 
@@ -266,8 +267,9 @@ Practices we take from Boris Cherny's published workflow, in our words:
 
 ## Style enforcement
 
-The audit flags a CLAUDE.md line that asks the model to do a linter's job and recommends a linter
-or hook instead: a model is slower and costlier than a linter at that.
+The audit flags a CLAUDE.md line that asks the model to do a linter's job and recommends a check
+instead: a model is slower and costlier than a linter at that. C8 item 3 in
+[criteria.md](criteria.md) picks the mechanism.
 
 - **Pointer**: [humanlayer.dev, writing a good CLAUDE.md](https://humanlayer.dev/blog/writing-a-good-claude-md).
 

@@ -41,11 +41,6 @@ mkdir -p "$STUBS" "$EMPTY_PATH" "$HOME_DIR"
 trap 'rm -rf "$WORK"' EXIT
 export CODE_METRICS_REPORT_DIR="$WORK/reports"
 
-# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names (and
-# the binaries those adapters look up), so git, the coreutils, and the
-# interpreter stay reachable while `mypy` and `type-coverage` do not (this
-# machine may have either installed).
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
 cm_assert_tool_free_path "$EMPTY_PATH"
@@ -55,11 +50,7 @@ cat >"$STUBS/type-coverage" <<EOF
 if [[ "\${1:-}" == "--version" ]]; then printf 'Version: 2.30.1\n'; exit 0; fi
 cat "$TC_CAPTURE"
 EOF
-# The body every mypy stub shares: it answers --version and copies the capture
-# it is given into the --any-exprs-report directory. Cases 3b and 3c append
-# their own stderr and exit status to it.
 mypy_stub() {
-  # mypy_stub <capture>
   cat <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
@@ -88,8 +79,6 @@ printf '%s\n' '["plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts"]'
 EOF
 chmod +x "$STUBS/type-coverage" "$STUBS/mypy" "$STUBS/node"
 
-# A scratch working directory whose node_modules/typescript makes the
-# type-coverage probe pass, and a bare one that makes it fail.
 PROJECT="$WORK/project"
 BARE="$WORK/bare"
 mkdir -p "$PROJECT/node_modules/typescript" "$BARE"
@@ -107,7 +96,6 @@ for fixture in cm-sample.ts cm_sample.py cm-sample.sh cm-sample.go CmSample.cs; 
 done
 pass "the five lane fixtures are present"
 
-# 1. Both tools present: a percentage per typed lane, not-applicable elsewhere.
 out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
 assert_eq "--json exits 0 with both collectors stubbed" 0 "$rc"
@@ -137,7 +125,6 @@ assert_doc "the type_coverage reference is null by design" "$out" \
 assert_doc "no row is counted over a reference" "$out" \
   'all(r["over_reference"]==[] for r in d["measures"])'
 
-# 2. The markdown rendering carries the coverage table.
 out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --all "$SCOPE")"
 rc=$?
 assert_eq "markdown exits 0" 0 "$rc"
@@ -148,9 +135,6 @@ assert_contains "markdown lists the python file row" "$out" "cm_sample.py |"
 assert_contains "markdown marks the lane row" "$out" "| lane-total |"
 assert_contains "markdown counts the files measured" "$out" "Files: 2."
 
-# 3. type-coverage resolves but typescript does not: the probe's requirement
-# reaches the run row's reason (the dispatcher relays the adapter's install
-# hint, which names both halves of the requirement).
 out="$(cd "$BARE" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when the typescript probe fails" 0 "$rc"
@@ -208,7 +192,6 @@ assert_doc "the python run row is ok and its reason counts the errors and missin
 assert_doc "the python lane row is labeled and the file row is not" "$out" \
   'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["labels"]==["lane-total","mypy-reported-errors"] and next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["labels"]==[]'
 
-# 4. Neither tool present: exit 0, nothing measured, the install hint is named.
 out="$(cd "$BARE" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when no collector resolves" 0 "$rc"
@@ -220,7 +203,6 @@ assert_doc "the python reason names the mypy install hint" "$out" \
 assert_doc "unavailable lists both typed lanes" "$out" \
   'sorted(d["unavailable"])==["python/type_coverage","typescript/type_coverage"]'
 
-# 5. Usage.
 (cd "$BARE" && PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.ts" >/dev/null 2>&1)
 assert_eq "a missing explicit path exits 2" 2 "$?"
 grep -q 'audit-type-debt.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)

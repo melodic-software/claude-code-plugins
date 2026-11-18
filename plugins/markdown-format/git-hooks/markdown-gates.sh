@@ -268,7 +268,7 @@ md_trust() {
   fi
   if [[ -z "$MD_TRUST" ]]; then
     base=""
-    if common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+    if common="$(rt_git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
       base="$common/markdown-format"
     fi
     if [[ "$base" == [A-Za-z]:[\\/]* ]] && command -v cygpath >/dev/null 2>&1; then
@@ -281,16 +281,16 @@ md_trust() {
       printf '%s\n' "$root"
       for f in "${MD_CODE_CONFIGS[@]}"; do
         f="$(md_abs "$f")" || exit 1
-        h="$(git hash-object --no-filters -- "$f")" || exit 1
+        h="$(rt_git hash-object --no-filters -- "$f")" || exit 1
         printf 'config\t%s\t%s\n' "$f" "$h"
       done
       if ((${#MD_MODULES[@]} > 0)); then
         for f in "${MD_MODULES[@]}"; do
-          h="$(git hash-object --no-filters -- "$f")" || exit 1
+          h="$(rt_git hash-object --no-filters -- "$f")" || exit 1
           printf 'module\t%s\t%s\n' "$f" "$h"
         done
       fi
-    )" && sig="$(git hash-object --no-filters --stdin <<<"$sig")" && [[ -n "$sig" ]]; then
+    )" && sig="$(rt_git hash-object --no-filters --stdin <<<"$sig")" && [[ -n "$sig" ]]; then
       MD_TRUST_DIR="${base%/}/trust-approvals/md-$sig"
       MD_TRUST=gate
       [[ -d "$MD_TRUST_DIR" ]] && MD_TRUST=approved
@@ -311,7 +311,7 @@ md_local_bin() {
   while :; do
     cand="$dir/node_modules/.bin/markdownlint-cli2"
     # A node_modules the repository commits is its code, not the user's install.
-    if [[ -f "$cand" && -x "$cand" && -z "$(git -C "$dir" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]; then
+    if [[ -f "$cand" && -x "$cand" && -z "$(rt_git -C "$dir" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]; then
       target="$cand"
       depth=0
       while [[ -L "$target" ]]; do

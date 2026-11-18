@@ -336,7 +336,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         *(["mypy-reported-errors"] if result.returncode else []),
     ]
     by_path = {path: name for name, path in matched.items()}
-    # File rows in scope order, whatever order the names matched in.
     file_rows = [_row(lane, p, modules[by_path[p]], []) for p in scope if p in by_path]
     if file_rows:
         lane_counts = _summed([modules[name] for name in matched])
@@ -359,8 +358,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     unlisted = len(scope) - len(matched)
     if unlisted and modules:
         notes.append(f"{unlisted} scope file(s) mypy did not list")
-    # The lane row leads, so the lane's figure is the first row a reader of
-    # the raw rows meets.
     for row in [_row(lane, None, lane_counts, labels), *file_rows]:
         print(json.dumps(row))
     if held_out:

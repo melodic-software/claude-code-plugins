@@ -23,7 +23,6 @@ from gates import failures, headings  # noqa: E402  (the plugin's shared gate pr
 MIN_PYTHON = (3, 9)
 
 CLAIM_LABEL = re.compile(r"^\*\*C(\d+)\.\*\*")
-# Group 2 is the heading text.
 ATX_H2 = headings.atx_heading(level=2, max_indent=0, title_required=True, trail=headings.TRAIL_WHITESPACE)
 FENCE = headings.fence(chars="`", indent=headings.INDENT_SPACES_TABS)
 NONE_MARKERS = frozenset({"none", "n/a", "(none)", "no prompt snippets", "no snippets", "none."})

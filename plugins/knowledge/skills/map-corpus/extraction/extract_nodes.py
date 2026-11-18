@@ -66,7 +66,6 @@ class Line:
     def __init__(self, start: int, end: int, raw: bytes):
         self.start = start  # byte offset of line start
         self.end = end  # byte offset just past the newline (or EOF)
-        # matching text: newline and trailing \r stripped; offsets stay raw
         self.text = raw.rstrip(b"\r\n")
 
 
@@ -123,7 +122,6 @@ def markdown_boundaries(data: bytes):
                 frontmatter_end = lines[j].end
                 idx = j + 1
                 break
-        # no closing marker: not frontmatter; idx stays 0
 
     boundaries = []  # (byte offset, level, title)
     in_fence = False
@@ -166,8 +164,6 @@ def markdown_boundaries(data: bytes):
                 boundaries.append((prev.start, level, decode_title(prev.text)))
                 consumed.update((i - 1, i))
 
-    # A fence left open runs to EOF; everything after its opener was consumed
-    # as fence interior — that is deterministic, so no error.
     return frontmatter_end, boundaries
 
 
@@ -194,11 +190,9 @@ def html_boundaries(data: bytes):
     masked = data
     for rx in HTML_MASK_RES:
         masked = rx.sub(lambda m: b" " * len(m.group()), masked)
-    # unclosed comment: mask opener..EOF (closed ones were masked above)
     comment_start = masked.find(b"<!--")
     if comment_start != -1 and masked.find(b"-->", comment_start) == -1:
         masked = masked[:comment_start] + b" " * (len(masked) - comment_start)
-    # unclosed script/style/pre/textarea: mask opener..EOF
     for name in (b"script", b"style", b"pre", b"textarea"):
         rx = re.compile(rb"<" + name + rb"\b", re.IGNORECASE)
         m = rx.search(masked)
@@ -291,9 +285,6 @@ def self_check(nodes, data: bytes) -> None:
     if cursor != n:
         fail(3, f"self-check: partition ends at {cursor}, snapshot is {n} bytes")
 
-
-# Format registry: to support a new snapshot format, add a handler returning
-# (frontmatter_end, boundaries, whole_kind) and register its extensions here.
 
 
 def handle_markdown(data: bytes):

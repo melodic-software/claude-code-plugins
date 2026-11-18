@@ -45,7 +45,7 @@ jf__topmost() {
 }
 
 jf__local_bin_here() {
-  [[ -x "$1/node_modules/.bin/biome" && -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
+  [[ -x "$1/node_modules/.bin/biome" && -z "$(rt_git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
 }
 
 jf__dir() {
@@ -106,7 +106,7 @@ rt_adapter() {
 rt_adapter_in_repo() {
   local f config_dir="$2"
   if ! jf__config_here "$2"; then
-    f="$(git -C "$2" ls-files -- ':(glob)**/biome.json' ':(glob)**/biome.jsonc' 2>/dev/null | head -n 1)"
+    f="$(rt_git -C "$2" ls-files -- ':(glob)**/biome.json' ':(glob)**/biome.jsonc' 2>/dev/null | head -n 1)"
     if [[ -z "$f" ]]; then
       RT_DETAIL="no Biome config"
       [[ -f "$2/.biome.json" || -f "$2/.biome.jsonc" ]] && RT_DETAIL="no Biome config: a hidden .biome.json does not opt in"
@@ -137,7 +137,7 @@ rt_lint_index() {
     rest="${rest#*/}"
     mkdir -p "$base/$rel"
   done
-  git show ":$1" >"$base/$1" 2>/dev/null
+  rt_git show ":$1" >"$base/$1" 2>/dev/null
   sub="${RT_DIR#"$RT_ROOT"}"
   sub="${sub#/}"
   local o s

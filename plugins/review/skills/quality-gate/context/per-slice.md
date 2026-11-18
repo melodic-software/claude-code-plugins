@@ -24,7 +24,7 @@ Read in order:
    Bare `git diff HEAD` alone is empty on a clean committed branch.
 4. <plugin-root>/skills/quality-gate/context/loosened-check.md: the bundled
    criterion "Fail a change that loosens a check", with the resolved settings
-   <the two value lines>. The spec, the issue the change resolves: <its text or "none">.
+   <the three value lines>. The spec, the issue the change resolves: <its text or "none">.
    It always applies; the slice's criteria add findings beside it.
 
 Review every changed file against only that slice's criteria and that bundled criterion.

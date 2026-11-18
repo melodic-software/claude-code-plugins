@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for detect-lanes.sh (self-contained, no external test lib).
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -34,8 +33,6 @@ assert_eq "--disable drops the lane" "$(printf 'typescript\ta/one.ts')" "$out"
 out="$(bash "$SCRIPT" --disable other a/one.ts f/notes.md)"
 assert_eq "--disable other drops the catch-all lane" "$(printf 'typescript\ta/one.ts')" "$out"
 
-# A file the consumer's globs leave out of its extension's lane is dropped,
-# not moved to `other`: the consumer scoped that lane deliberately.
 out="$(bash "$SCRIPT" --globs 'bash=scripts/**/*.bats,*.zsh' scripts/x/y.bats top.zsh other.sh)"
 assert_eq "--globs replaces the extension map for that lane" \
   "$(printf 'bash\tscripts/x/y.bats\nbash\ttop.zsh')" "$out"

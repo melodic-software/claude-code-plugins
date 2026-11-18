@@ -298,7 +298,6 @@ export async function recoverWatchBootstrapCli(argv) {
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
   const timeRange = await resolveRecoveryTimeRange(sliceDir);
-  // The captions are full-video time; ranged media starts at the range.
   const videoCues = normalizeVttCues(vttText);
   const cues = timeRange ? cuesInMediaTime(videoCues, timeRange) : videoCues;
 
@@ -399,7 +398,6 @@ export async function recoverWatchBootstrapCli(argv) {
     candidateCount: watching.candidateCount,
   };
 
-  // Ranged media is shorter than the video by design; its extra length is the offset error.
   if (!timeRange) {
     state = await recordDurationMismatch(state, sliceDir, {
       metadataDurationSec: metadata.durationSec,

@@ -211,7 +211,6 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
   /** @type {string[]} */
   const missing = [];
   for (const ref of markdownReferences(text)) {
-    // The first reading that names something wins, a missing file only when no other does.
     /** @type {Lookup|null} */
     let found = null;
     let reading = /** @type {[string, string]} */ (["", ""]);
@@ -222,7 +221,6 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
     }
     if (!found) continue;
     if ("missing" in found) {
-      // A link is checked in the staged layout anyway; a code span may not look like a path there.
       if (ref.kind === "code") missing.push(ref.value);
     } else if ("target" in found) {
       if (ref.from === null) continue; // written with escapes: left for the link check
@@ -235,7 +233,6 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
     } else {
       const named = `${found.retired}${reading[0].endsWith("/") ? "/" : ""}`;
       if (ref.labelStart !== null && ref.labelEnd !== null) {
-        // Keep the link text in place, so edits inside it (a rewritten image) still apply.
         edits.push({ from: ref.nodeStart, to: ref.labelStart, text: "", part: true });
         edits.push({ from: ref.labelEnd, to: ref.nodeEnd, text: ` (${named}, ${found.note})` });
         retiredLabels.push([ref.labelStart, ref.labelEnd]);
@@ -249,9 +246,6 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
       edits.push({ from: ref.nodeStart, to: ref.nodeEnd, text: plain, retire: true });
     }
   }
-  // A retired link already names what it pointed at, so a retirement inside its
-  // text (a code span naming the same file) is dropped; an overlapping edit
-  // after one kept is dropped too.
   const inRetiredLabel = (/** @type {{ from: number, to: number }} */ edit) =>
     retiredLabels.some(([start, end]) => start <= edit.from && edit.to <= end);
   /** @type {typeof edits} */
@@ -261,7 +255,6 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
     const last = kept.at(-1);
     if (!last || edit.from >= last.to) kept.push(edit);
   }
-  // Back to front, so earlier offsets stay valid.
   let out = text;
   for (const edit of kept.reverse()) {
     out = out.slice(0, edit.from) + edit.text + out.slice(edit.to);

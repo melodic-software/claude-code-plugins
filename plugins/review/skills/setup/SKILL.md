@@ -85,10 +85,12 @@ a regular file). `apply` is the fix.
    acting on findings nobody reproduced (`require`); `reproduce_findings_floor`: `IMPORTANT`, the
    default, unless the team wants the gate to see only CRITICAL findings or SUGGESTION ones too;
    `smell_baseline`: `default`, unless the team wants no smell check (`off`) or its own list, which
-   [Design-smell list](#design-smell-list) writes and points the key at). Never
+   [Design-smell list](#design-smell-list) writes and points the key at;
+   `loosened_check_decision_record`: unset, the default, unless the team keeps a record of the
+   decisions that allow a loosened check, in which case its https URL prefix ending in `/`). Never
    invent a key the schema
-   does not list. `downstream_probe` is a policy floor read from the default branch, so a value
-   written here takes effect once it is merged there.
+   does not list. `downstream_probe` and `loosened_check_decision_record` are read from the default
+   branch, so a value written here takes effect once it is merged there.
 2. **Write.** One call with every value:
 
    ```bash

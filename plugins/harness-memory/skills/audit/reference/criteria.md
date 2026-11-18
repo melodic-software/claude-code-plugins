@@ -124,8 +124,7 @@ diluting the ones that matter.
 | One-off steering for the current conversation | A conversational `@`-mention of the file (pointer: [Reference files and directories](https://code.claude.com/docs/en/common-workflows#reference-files-and-directories)); distinct from `@path` imports *in* CLAUDE.md, which load at launch every session (priced in the imports row below). **Provenance**: the one-conversation scope and the cheaper-than-any-permanent-pointer framing are inferred, not doc-stated, and the placement posture is a repo extension (that doc is outside this file's `Source:` set), so the `update` action must not overwrite this row |
 | Reference material needed sometimes | Skills: the body loads on demand; a new skill's listing entry does not (priced below) |
 | Learnings Claude discovered while working, not instructions you authored | Auto memory, which Claude writes rather than you; a request to remember something also belongs here rather than in CLAUDE.md. Available only while auto memory is enabled (gated below) |
-| Deterministic enforcement | Hooks (guaranteed execution) |
-| Compile-time/build-time rules | Analyzers, linters, architecture tests |
+| Content a check could decide | A check, not prose: `/corrections:codify` picks its mechanism when it is among the available skills, else the fallback in C8 item 3 |
 | Information that changes frequently | Neither: keep it out |
 | Content split out of a long CLAUDE.md purely to shorten it | **Not `@path` imports**: imported files load at launch, so the split reorganizes and saves nothing |
 
@@ -175,9 +174,9 @@ Whether the target's listing budget is oversubscribed is a separate question thi
 answer: `/harness-ops:audit-skill-visibility` answers it for a session's live listing, and
 `/skill-quality:check`'s `listing-budget` for a repository's authored skills.
 
-**Why**: We place sometimes-needed domain knowledge in skills, deterministic enforcement in hooks,
-and never count an `@path` split as a saving. The per-destination compaction model and its pointer
-live in [official-guidance.md](official-guidance.md), not here.
+**Why**: We place sometimes-needed domain knowledge in skills, content a check could decide in the
+check C8 item 3 routes it to, and never count an `@path` split as a saving. The per-destination
+compaction model and its pointer live in [official-guidance.md](official-guidance.md), not here.
 
 - **Pointer**: for skills and hooks as alternatives to CLAUDE.md, see
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short)
@@ -296,15 +295,15 @@ that posture honest, so give C5-kept navigation entries particular attention her
 
 **How to check**:
 
-1. For each rule/instruction, check if it could be:
-   - A compiler setting
-   - A static-analyzer or linter rule
-   - An architecture test
-   - A pre-commit/pre-push git hook
-   - A CI gate
-   - A Claude Code hook (deterministic)
+1. For each rule/instruction, ask whether a check a machine runs could decide it
 2. WARN per instruction that could move up the hierarchy
-3. Include which enforcement level it could move to
+3. Name where the move goes: when `/corrections:codify` is among the available skills, hand it
+   the choice of mechanism; it picks the strongest rung of the enforcement ladder that can decide
+   the rule and proves the check. The finding names `/corrections:codify`, and the `fix` action
+   makes the hand-off. Otherwise, propose the strongest mechanism that can decide the rule: a
+   change that makes the mistake impossible first, then a check that blocks it, then a test, and
+   an instruction only when nothing a machine runs can decide it. Say that `/corrections:codify`
+   was not available, so the proposal is unproven.
 4. For each instruction a deterministic check already enforces (a hook, a CI check, a linter
    rule, a test), WARN and flag the prose for deletion, naming the enforcing check by its location
    (the hook file, CI workflow and job, lint rule id, or test path). The check must be located in
@@ -322,8 +321,9 @@ that posture honest, so give C5-kept navigation entries particular attention her
    destructive-action or security rail, for example); when the register cannot be read, hold a
    candidate that may match one and say the register was unread.
 
-**Provenance**: items 4 and 5 are this repo's rule, not doc-stated, so the `update` action must
-not overwrite them.
+**Provenance**: items 1 and 3 (the question without a mechanism list, the hand-off to
+`/corrections:codify` and its fallback) and items 4 and 5 are this repo's rule, not doc-stated, so
+the `update` action must not overwrite them.
 
 **Why**: Prefer deterministic enforcement over documentation. When a guideline can become a
 compile-time or runtime check, that is the stronger default, and once the check exists the prose

@@ -24,7 +24,7 @@ per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
 One check has a different unit of judgment, do two surfaces contradict each other, and Phase B2
 answers it against [reference/conflict-criteria.md](reference/conflict-criteria.md).
-Every `context/`, `reference/` and `scripts/` path below, linked or bare, is under `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/`. Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, with the Read tool, never `cat`, `sed` or `head`; never Glob or Grep the plugin directory.
+Every `context/`, `reference/` and `scripts/` path below, linked or bare, is under `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/`. Open this plugin's own files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names, one Read each, never a shell read (`cat`, `sed` or `head`) and never a Glob or Grep of the plugin directory: the paths are already known, and in our eval runs a sandbox denied such calls on the plugin directory and invalidated the runs ([#13768](https://github.com/melodic-software/claude-code-plugins/issues/13768)).
 
 ## Read-only contract
 

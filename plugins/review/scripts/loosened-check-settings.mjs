@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// Resolve the two settings of the bundled "Fail a change that loosens a check"
-// criterion (skills/quality-gate/context/loosened-check.md):
-//
-//   loosened_check_verdict   policy floor: fail from any valid layer wins; default fail
-//   loosened_check_patterns  union of every valid layer's entries; default none
-//
-// Usage: loosened-check-settings.mjs [--root <dir>] [--ref <origin/name|40-hex>]
-//          [--verdict-option <value>] [--patterns-file <path>] [--spec-issue <number>]
-//
-// The repository layer is read only from --ref, through setup-apply.mjs --check
-// --ref, never from the working tree, so a change cannot relax the verdict or
-// drop a pattern for its own review. Without --ref the repository layer is
-// skipped and the output says why. When the ref cannot be read, the verdict
-// resolves fail, the user's patterns still apply, and a WARN line says why. An option
-// that is empty or an unrendered ${user_config.<key>} placeholder is unset.
-// --spec-issue reads the trusted-actor list from the default branch this script
-// resolves itself; when --ref names another commit, the spec gives no reason.
-//
-// Output, one line each:
-//   loosened_check_verdict: <fail|note> (<layers that set it, or default>)
-//   loosened_check_patterns: <JSON list> (<layers that added entries, or default>)
-//   loosened_check_spec: <counts|no reason> (<why>)
-// then an INFO or WARN line per skipped or invalid layer. Exit 0 when both keys
-// resolved; 2 on a usage error.
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -33,6 +9,13 @@ import { parse } from "../lib/yaml-subset.mjs";
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APPLY = join(PLUGIN, "skills", "setup", "scripts", "setup-apply.mjs");
 const VERDICTS = ["fail", "note"];
+const REPOSITORY_FILE = "docs/conventions/review.yaml";
+const RECORD_KEY = "loosened_check_decision_record";
+const RECORD_PATTERN = new RegExp(
+  JSON.parse(readFileSync(join(PLUGIN, "schemas", "review.schema.json"), "utf8")).properties[RECORD_KEY].pattern,
+  "u",
+);
+const UNREADABLE_CITATION = "no spec can allow a loosening on this run";
 
 function usage(message) {
   process.stderr.write(`loosened-check-settings: ${message}\n`);
@@ -168,13 +151,14 @@ function userLayer(opts, notes) {
 function repositoryLayer(opts, notes) {
   if (opts.ref === null) {
     notes.push("INFO repository layer skipped: no --ref names the default branch");
-    return {};
+    notes.push(`WARN ${RECORD_KEY} resolves unreadable: no --ref names the default branch, so ${UNREADABLE_CITATION}`);
+    return { record: { value: "unreadable", from: "no --ref names the default branch" } };
   }
   const args = [APPLY, "--check", "--ref", opts.ref, ...(opts.root ? ["--root", opts.root] : [])];
   const check = spawnSync(process.execPath, args, { encoding: "utf8" });
   const unreadable = (why) => {
-    notes.push(`WARN ${opts.ref} could not be read (${why}): verdict resolves fail, the safe floor, and only the user's patterns apply`);
-    return { verdict: "fail", unreadable: true };
+    notes.push(`WARN ${opts.ref} could not be read (${why}): verdict resolves fail, the safe floor, only the user's patterns apply, and ${UNREADABLE_CITATION}`);
+    return { verdict: "fail", unreadable: true, record: { value: "unreadable", from: "unreadable default branch" } };
   };
   if (check.status === 2 || check.status === null) return unreadable((check.stderr || "").trim() || `exit ${check.status}`);
   const out = check.stdout;
@@ -190,17 +174,33 @@ function repositoryLayer(opts, notes) {
   const layer = {};
   const verdict = out.match(/^PASS loosened_check_verdict: (fail|note)$/m);
   if (verdict) layer.verdict = verdict[1];
-  if (passed("loosened_check_patterns")) {
+  const committed = (key) => {
     const root = resolve(opts.root ?? process.cwd());
     const shown = spawnSync("git", ["-C", root, "show", `${read[2]}:${read[1]}`], { cwd: PLUGIN, encoding: "utf8" });
-    let value;
     try {
-      value = shown.status === 0 ? parse(shown.stdout)?.loosened_check_patterns : undefined;
+      return shown.status === 0 ? parse(shown.stdout)?.[key] : undefined;
     } catch {
-      value = undefined;
+      return undefined;
     }
+  };
+  if (passed("loosened_check_patterns")) {
+    const value = committed("loosened_check_patterns");
     if (isPatternList(value)) layer.patterns = value;
     else notes.push(`WARN ${read[1]} at ${read[2]}: loosened_check_patterns could not be read as a list; layer dropped for this key`);
+  }
+  if (!/^PASS /m.test(out)) {
+    notes.push(`WARN ${read[1]} at ${read[2]} could not be parsed: ${RECORD_KEY} resolves unreadable, so ${UNREADABLE_CITATION}`);
+    layer.record = { value: "unreadable", from: `${read[1]} could not be parsed` };
+  } else if (!new RegExp(`^PASS ${RECORD_KEY}: `, "m").test(out)) {
+    notes.push(`WARN ${read[1]} at ${read[2]}: ${RECORD_KEY} is invalid; it resolves unreadable, so ${UNREADABLE_CITATION}`);
+    layer.record = { value: "unreadable", from: `invalid value in ${read[1]}` };
+  } else if (passed(RECORD_KEY)) {
+    const value = committed(RECORD_KEY);
+    if (typeof value === "string" && RECORD_PATTERN.test(value)) layer.record = { value, from: read[1] };
+    else {
+      notes.push(`WARN ${read[1]} at ${read[2]}: ${RECORD_KEY} could not be read; it resolves unreadable, so ${UNREADABLE_CITATION}`);
+      layer.record = { value: "unreadable", from: `${read[1]} could not be read` };
+    }
   }
   return layer;
 }
@@ -234,13 +234,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const repo = repositoryLayer(opts, notes);
   const layers = [
     ["userConfig", user],
-    [repo.unreadable ? "unreadable default branch" : "docs/conventions/review.yaml", repo],
+    [repo.unreadable ? "unreadable default branch" : REPOSITORY_FILE, repo],
   ];
   const r = resolveLoosenedCheck(layers);
+  const record = repo.record ?? { value: "unset", from: "default" };
   const [counts, why] = specTrust(opts);
   process.stdout.write(
     `loosened_check_verdict: ${r.verdict} (${r.verdictFrom.join(", ")})\n` +
       `loosened_check_patterns: ${JSON.stringify(r.patterns)} (${r.patternsFrom.join(", ")})\n` +
+      `${RECORD_KEY}: ${record.value} (${record.from})\n` +
       `loosened_check_spec: ${counts ? "counts" : "no reason"} (${why})\n` +
       notes.map((n) => `${n}\n`).join(""),
   );

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nThe branch coverage minimum drops from 90 to 80 at jest.config.js:8; the spec (#41) names it and gives the reason, and no decision record is configured, so it passes the loosened-check criterion.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "passes the reasoned lowering with no citation asked for"
+    },
+    {
+      "answer": "No findings.\n\nCoverage: all changed files reviewed",
+      "why": "no finding at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches 90 to 80; the spec does not cite the owner's decision. Undo the lowering, or cite the owner's decision in the spec. Confidence: high",
+      "why": "demands a citation no configured record calls for"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `jest.config.js:8`: the spec gives a reason for the lower minimum; consider adding a link to the owner's decision. Confidence: low",
+      "why": "asks for a citation at a lower tier"
+    },
+    {
+      "answer": "**IMPORTANT**\n- `jest.config.js:8`: restore the branch coverage minimum to 90. Confidence: medium",
+      "why": "asks to restore a lowering the spec allows"
+    }
+  ]
+}

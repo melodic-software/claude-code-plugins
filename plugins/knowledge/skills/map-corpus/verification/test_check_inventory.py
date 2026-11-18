@@ -112,7 +112,6 @@ class TestCleanPass(GateHarness):
         proc = self.run_gate(expect_code=0)
         out = proc.stdout.decode()
         self.assertIn("PASS", out)
-        # a clean result names what it exercised
         self.assertIn("rows", out)
         self.assertIn("byte-exact", out)
         self.assertIn("relevant", out)
@@ -293,7 +292,6 @@ class TestParserDifferential(GateHarness):
         inv = copy.deepcopy(self.inventory)
         row = inv["rows"][0]
         row_json = json.dumps(row)
-        # inject a FIRST evidence key with a fabricated quote before the real one
         smuggled = row_json.replace(
             '"evidence":',
             '"evidence": {"quote": "FABRICATED", "start_byte": 0, '

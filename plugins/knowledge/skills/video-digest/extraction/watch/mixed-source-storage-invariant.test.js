@@ -104,11 +104,9 @@ describe("storage invariant: mixed-source batches share one queue root", () => {
     const ytSlice = path.join(epicDir, "fixture-video-7zZy1QTvokM");
     const xSlice = path.join(epicDir, `fixture-post-${TWID}`);
 
-    // Both slices resolve under the literal epic dir.
     await expect(fs.access(path.join(ytSlice, "run-state", "watch.json"))).resolves.toBeUndefined();
     await expect(fs.access(path.join(xSlice, "run-state", "watch.json"))).resolves.toBeUndefined();
 
-    // One queue root: .work contains ONLY the epic dir — no per-source level.
     expect(await fs.readdir(path.join(workRoot, ".work"))).toEqual([YOUTUBE_WATCH_EPIC_DIR]);
     const epicEntries = await fs.readdir(epicDir);
     expect(epicEntries).toContain("fixture-video-7zZy1QTvokM");
@@ -116,14 +114,12 @@ describe("storage invariant: mixed-source batches share one queue root", () => {
     expect(epicEntries).not.toContain("x");
     expect(epicEntries).not.toContain("youtube");
 
-    // Source lives in slice metadata (watch.json sourceUrl), not in the path.
     const xState = JSON.parse(
       await fs.readFile(path.join(xSlice, "run-state", "watch.json"), "utf8"),
     );
     expect(xState.sourceUrl).toBe(X_URL);
     expect(xSlice).not.toContain("x.com");
 
-    // Shared claims namespace: rows for both sources claim in the SAME claims dir.
     const epicFromRoot = resolveEpicDir(workRoot);
     expect(epicFromRoot).toBe(epicDir);
     claimRow(epicFromRoot, 1, { videoId: "7zZy1QTvokM", claimedBy: "test" });
