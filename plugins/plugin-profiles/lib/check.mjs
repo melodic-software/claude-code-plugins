@@ -16,12 +16,13 @@
 // are reported too: an apply switches them off unless the repository enables them.
 import { readFileSync } from "node:fs";
 import { excludedAlwaysOn } from "./plan.mjs";
-import { ALWAYS_ON, ignoredLine, resolveCatalog } from "./profile-files.mjs";
+import { ALWAYS_ON, alphabetical, ignoredLine, resolveCatalog } from "./profile-files.mjs";
 
 export class CheckError extends Error {}
 
 const SUPERSETS = [["interface-design", "planning"]];
 const ID_LISTS = ["plugins", "optional", "remove", "exclude"];
+const FILE_KEYS = { plugins: "plugins", optional: "optional", remove: "remove", exclude: "exclude", hideSkills: "hide_skills" };
 
 const nameOf = (id) => id.slice(0, id.lastIndexOf("@"));
 const marketplaceOf = (id) => id.slice(id.lastIndexOf("@") + 1);
@@ -55,6 +56,15 @@ function idProblems({ level, path, def }, catalog, installed) {
   return out;
 }
 
+/** A shipped file's lists out of alphabetical order, naming the first pair out of place. */
+function orderProblems({ path, def }) {
+  return Object.entries(FILE_KEYS).flatMap(([field, key]) => {
+    const sorted = alphabetical(def[field]);
+    const at = def[field].findIndex((name, i) => name !== sorted[i]);
+    return at < 0 ? [] : [`${path}: ${key} is not in alphabetical order: ${sorted[at]} goes before ${def[field][at]}`];
+  });
+}
+
 function excludeProblems(catalog) {
   return [...catalog.profiles.values()].flatMap((p) => excludedAlwaysOn(catalog, p).map((id) => `profile ${p.name} excludes always-on member ${id}`));
 }
@@ -65,7 +75,7 @@ export function checkProfiles({ files, catalog, installed }) {
   const shippedCatalog = resolveCatalog(shipped);
   const fullCatalog = resolveCatalog(files);
 
-  const failures = shipped.flatMap((f) => idProblems(f, catalog, installed));
+  const failures = shipped.flatMap((f) => [...idProblems(f, catalog, installed), ...orderProblems(f)]);
   for (const f of shipped) if (f.name !== ALWAYS_ON && !f.def.description) failures.push(`${f.path}: no description line saying when to pick the profile`);
   const shippedExcludes = excludeProblems(shippedCatalog);
   failures.push(...shippedExcludes);
