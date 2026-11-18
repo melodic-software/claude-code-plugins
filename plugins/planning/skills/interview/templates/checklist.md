@@ -70,9 +70,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 
 ## Self-answered facts
 
-One line per candidate question the self-answer step answered instead of asking: no register row, `- F<N> | answered-from-<tag> | <question> | <fact> | <basis>`. Rules: `context/loop.md` "Self-answer gate". Replace the example line with this run's facts.
-
-- F1 | answered-from-codebase | Which queue library is in use? | BullMQ 5 | package.json:14 "bullmq": "^5.1.0"
+One line per candidate question the self-answer step answered instead of asking: no register row, `- F<N> | answered-from-<tag> | <question> | <fact> | <basis>`. Rules: `context/loop.md` "Self-answer gate".
 
 ## Assumption sweep
 

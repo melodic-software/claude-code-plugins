@@ -10,6 +10,7 @@ cohesion.
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import subprocess
@@ -47,6 +48,12 @@ def deadline_after(seconds: float | None) -> float | None:
 
 def _reached(at: float | None) -> bool:
     return at is not None and _clock() >= at
+
+
+def read_seconds_left() -> float:
+    """The seconds before the current read phase's deadline; infinite outside
+    a phase (`read_deadline`)."""
+    return math.inf if _read_deadline is None else _read_deadline - _clock()
 
 
 @contextmanager

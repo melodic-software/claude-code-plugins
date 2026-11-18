@@ -6,8 +6,9 @@ Grammar (bash-style tokenization of `$ARGUMENTS`):
 
 **Parse and validate explicit invocation tokens before telemetry lookup or cycle work.** Reject
 unknown flags fail-closed. A launch-prompt `Scope:` line or other standing prose is not binding.
-Only tokens on the skill invocation line are. Under `/loop` that line is re-sent every cycle, so
-it is the run config's source on every cycle, not only the first.
+Only tokens on the skill invocation line are. Under `/loop` that line is the run config's source
+on every cycle, not only the first
+([Run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop)).
 
 **Resolution order** (first supplied value wins per key; report effective values and their source
 at lane start):

@@ -232,35 +232,34 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   Microsoft Learn WSL pages do not cover it. As of 2026-11-10. Recheck when a
   WSL release note changes or drops `WSL_UTF8`, or the Learn basic-commands
   page documents a different switch for `wsl.exe` output encoding.
-- The store rung calls `Get-Secret -AsPlainText` with no `-Vault`, so it searches
-  every registered vault, the default vault first and remote ones included, on any
-  platform where the module and a vault are present. Nothing gates it to Windows. A
-  locked SecretStore whose `Interaction` is `Prompt` asks for its password in an
-  interactive session, so `-WhatIf` and `-Test` can prompt for it too; with
-  `Interaction` set to `None` the read fails and the rung is skipped.
-  `-AsPlainText` converts only a `String` or `SecureString`, so a `PSCredential`,
-  hashtable or `byte[]` secret is skipped with a warning and the ladder goes on
-  to the hidden prompt. Pointers: the SecretManagement
-  [overview](https://learn.microsoft.com/en-us/powershell/utility-modules/secretmanagement/overview)
-  (how SecretStore encrypts, which platforms it runs on, and the modules'
-  maintenance status), Get-Secret
-  [`-Vault`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-vault)
-  and
-  [`-AsPlainText`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-asplaintext),
-  and Set-SecretStoreConfiguration
-  [`-Interaction`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules#-interaction).
-- The native store rungs can block an unattended run. The Keychain can raise an
-  access dialog for an item the calling app is not trusted for or in a locked
-  keychain, and `pass` runs `gpg`, which asks for a passphrase through pinentry
-  when the agent has none cached. Before an unattended run, unlock the keychain
+- The store rung calls `Get-Secret -AsPlainText` with no `-Vault`, so it reads
+  whichever vaults the human registered, on any platform where the module is
+  present. Nothing gates it to Windows. It uses only a string: any other secret
+  type is skipped with a warning and the ladder goes on. `-WhatIf` and `-Test`
+  run the store rung too, so a locked vault that asks for its password blocks
+  them as it blocks a real run; a read that fails is caught and the ladder goes
+  on.
+  - **Pointer**: when a store read prompts, fails or picks an unexpected vault,
+    fetch Get-Secret
+    [`-Vault`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-vault)
+    and
+    [`-AsPlainText`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-asplaintext),
+    and Set-SecretStoreConfiguration
+    [`-Interaction`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules#-interaction)
+    live; for which platforms SecretStore supports, fetch the SecretManagement
+    [overview](https://learn.microsoft.com/en-us/powershell/utility-modules/secretmanagement/overview)
+    live.
+- The native store rungs can block an unattended run on an unlock or passphrase
+  prompt. Before an unattended run, unlock the keychain
   (`security unlock-keychain`) or add the calling app to the item's trusted
   applications, and start `gpg-agent` with the passphrase cached (for example by
-  running `pass show <name>` once). `pass show` prints the whole file; the rung
-  takes the first line. Pointers: the Apple
-  [`security` man page](https://keith.github.io/xcode-man-pages/security.1.html)
-  (`find-generic-password`, `unlock-keychain`) and the passwordstore.org
-  [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1)
-  (`show`, `gpg-agent`).
+  running `pass show <name>` once). The rung takes the first line of what
+  `pass show` prints.
+  - **Pointer**: when a Keychain or `pass` read prompts or fails, fetch the Apple
+    [`security` man page](https://keith.github.io/xcode-man-pages/security.1.html)
+    (`find-generic-password`, `unlock-keychain`) and the passwordstore.org
+    [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1)
+    (`show`) live.
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the

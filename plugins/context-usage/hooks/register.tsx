@@ -1,4 +1,5 @@
 import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code'
+import { desktopNotice, type DesktopCrossing } from './desktop-notice.tsx'
 import { alias, followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-usage'
@@ -90,7 +91,7 @@ type Session = {
 }
 // A crossing's notice is drawn only where a toast may not show (any surface but the terminal);
 // operator mode's held line is drawn on every surface.
-type Notice = { text: string; kind: 'crossing' | 'operator' }
+type Notice = { text: string; kind: 'crossing' | 'operator'; crossing?: DesktopCrossing }
 type State = {
   origin: PromptOrigin | undefined
   forceAutomatic: boolean
@@ -629,7 +630,7 @@ function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[
   const showable = crossed !== undefined && crossed.from !== 'unobserved'
   const to = showable ? menuZone(crossed.zone, crossed.degraded) : ''
   if (showable) {
-    st.notice = { text: menuLine(crossed.from, to), kind: 'crossing' }
+    st.notice = { text: menuLine(crossed.from, to), kind: 'crossing', crossing: { from: crossed.from, to, zone: crossed.zone } }
     $.ui.log(st.notice.text)
   }
   for (const e of due) e.shown = true
@@ -964,7 +965,13 @@ export const register: Register = (on, options) => {
     const theirs = await next(e)
     const notice = noticeShows(st, e.surface) ? st.notice?.text : undefined
     if (e.props.hasSurvey || (!st.bandShown && notice === undefined)) return theirs
-    const { Box, Text } = $.ui.resolve(e)
+    const ui = $.ui.resolve(e)
+    const { Box, Text } = ui
+    const crossing = e.surface === 'desktop' ? st.notice?.crossing : undefined
+    const dismiss = () => {
+      st.notice = undefined
+      $.ui.invalidate('ui.render')
+    }
     return (
       <Box flexDirection="column">
         {st.bandShown ? (
@@ -972,7 +979,7 @@ export const register: Register = (on, options) => {
             {bandText(st.reading)}
           </Text>
         ) : null}
-        {notice !== undefined ? <Text wrap="wrap">{notice}</Text> : null}
+        {crossing !== undefined ? desktopNotice($, ui, crossing, dismiss) : notice !== undefined ? <Text wrap="wrap">{notice}</Text> : null}
         {theirs}
       </Box>
     )

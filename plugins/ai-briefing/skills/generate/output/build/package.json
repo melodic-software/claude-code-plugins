@@ -19,13 +19,13 @@
   "dependencies": {
     "linkinator": "^8.1.0",
     "node-pptx-parser": "^1.0.1",
-    "playwright": "1.65.0",
+    "playwright": "1.65.1",
     "pptxgenjs": "^4.0.1",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.2.0",
-    "unpdf": "^2.1.0",
+    "unpdf": "^2.2.1",
     "zod": "^4.6.7"
   },
   "overrides": {

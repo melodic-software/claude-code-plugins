@@ -1,39 +1,59 @@
 # Official source record
 
-These sources define the runtime and evidence contracts; the plugin does not rely on remembered
-behavior.
+Each entry states what the plugin does and where to read the upstream specifics live; the plugin
+does not rely on remembered behavior.
 
 ## Claude Code
 
-- [Plugin layout](https://code.claude.com/docs/en/plugins/create#plugin-layout) and
-  [Develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace):
-  plugin root/layout, namespaced skills, local `--plugin-dir` testing, and reusable plugin boundary.
-- [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables):
-  manifest path variables such as `${CLAUDE_PLUGIN_ROOT}`.
-- [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk): plugin cache
-  isolation.
-- [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
-  [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill):
-  skill frontmatter, arguments, and what `allowed-tools` does and does not restrict. The skill states its
-  report-only behavioral boundary explicitly rather than relying on `allowed-tools` for it.
-- [Marketplace file](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-file) and
-  [Validation messages](https://code.claude.com/docs/en/plugins/marketplace-reference#validation-messages):
-  local marketplace catalog structure and validation.
+- **Pointer**: when changing the plugin's layout or testing it locally with `--plugin-dir`, fetch
+  [Plugin layout](https://code.claude.com/docs/en/plugins/create#plugin-layout) and
+  [Develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace)
+  live.
+- **Pointer**: when a manifest or skill path uses `${CLAUDE_PLUGIN_ROOT}`, fetch
+  [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+  live.
+- **Pointer**: when a script reads a path outside the plugin root, fetch
+  [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk) live.
+- The skill states its report-only boundary in its own text and does not rely on `allowed-tools`
+  to hold it.
+  - **Pointer**: when changing the skill's frontmatter or `allowed-tools`, fetch
+    [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
+    [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill)
+    live.
+- **Pointer**: when changing the marketplace entry or reading a validation message, fetch
+  [Marketplace file](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-file) and
+  [Validation messages](https://code.claude.com/docs/en/plugins/marketplace-reference#validation-messages)
+  live.
 
 ## Git
 
-- [`git` environment and global options](https://git-scm.com/docs/git): `GIT_NO_LAZY_FETCH=1`
-  prevents on-demand promisor-remote fetches, while `GIT_OPTIONAL_LOCKS=0` prevents optional
-  lock-taking side effects such as index refreshes.
-- [`git for-each-ref`](https://git-scm.com/docs/git-for-each-ref): exact ref iteration fields and the
-  documented `%00` NUL and `%09` TAB format escapes used for branch/tip records.
-- [`git rev-parse`](https://git-scm.com/docs/git-rev-parse): `--show-toplevel`,
-  `--git-common-dir`, `--path-format=absolute`, and repository-layout-safe path resolution.
-- [`git remote`](https://git-scm.com/docs/git-remote): `get-url` expands Git URL rewrite rules and
-  returns the configured fetch URL without changing it.
-- [`git worktree`](https://git-scm.com/docs/git-worktree): stable porcelain output, `locked` and
-  `prunable` annotations, the linked-worktree `.git` file/common-directory relationship, repair after
-  moves, and the instruction to use Git plumbing instead of assuming administrative paths.
+- Every Git probe sets `GIT_NO_LAZY_FETCH=1` and `GIT_OPTIONAL_LOCKS=0`, so the audit fetches no
+  objects and takes no optional lock.
+  - **Pointer**: when changing the probe environment, fetch
+    [`GIT_NO_LAZY_FETCH`](https://git-scm.com/docs/git#Documentation/git.txt-GITNOLAZYFETCH) and
+    [`--no-optional-locks`](https://git-scm.com/docs/git#Documentation/git.txt---no-optional-locks)
+    live.
+- Branch and tip records come from `git for-each-ref` with `%09` between fields and `%00`
+  ending each record.
+  - **Pointer**: when changing the record format, fetch
+    [`git for-each-ref --format`](https://git-scm.com/docs/git-for-each-ref#Documentation/git-for-each-ref.txt---formatformat)
+    live.
+- Repository paths come from `git rev-parse`, never from an assumed `.git` layout.
+  - **Pointer**: when changing path resolution, fetch
+    [`--show-toplevel`](https://git-scm.com/docs/git-rev-parse#Documentation/git-rev-parse.txt---show-toplevel),
+    [`--git-common-dir`](https://git-scm.com/docs/git-rev-parse#Documentation/git-rev-parse.txt---git-common-dir)
+    and
+    [`--path-format`](https://git-scm.com/docs/git-rev-parse#Documentation/git-rev-parse.txt---path-formatabsoluterelative)
+    live.
+- The remote URL is read with `git remote get-url`; the audit changes no remote.
+  - **Pointer**: when changing how the remote URL is read, fetch
+    [`git remote get-url`](https://git-scm.com/docs/git-remote#Documentation/git-remote.txt-get-url)
+    live.
+- Worktree registrations come from `git worktree list --porcelain -z`, never from Git's
+  administrative directories.
+  - **Pointer**: when changing the worktree probe or how its `locked` and `prunable` lines are
+    read, fetch [Porcelain Format](https://git-scm.com/docs/git-worktree#_porcelain_format) and
+    [DETAILS](https://git-scm.com/docs/git-worktree#_details) live.
 
 ### Git claims the skill bodies restate
 
@@ -75,32 +95,43 @@ Each entry: claim, basis, as-of date, recheck trigger.
 
 ## GitHub
 
-- [`gh api graphql`](https://cli.github.com/manual/gh_api): aliased `repository` /
-  `pullRequests(headRefName:, first:, states:)` queries for exact-name merged-PR evidence; `--jq`
-  flattens alias pages. Never use the search API's `head:` qualifier (prefix semantics).
+- Merged-PR evidence comes from aliased `gh api graphql` `repository` /
+  `pullRequests(headRefName:, first:, states:)` queries, flattened with `--jq`. Never use the
+  search API's `head:` qualifier: the evidence needs an exact branch-name match.
+  - **Pointer**: when changing the merged-PR query, fetch
+    [`gh api`](https://cli.github.com/manual/gh_api) live.
 - GitHub GraphQL limits: the measured cost for the collector's aliased merged-PR page stays 1
   (nodeCount equals the alias count, ≤100 per page). Pointer: when sizing a query, fetch the
   [primary rate limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#primary-rate-limit)
   and [node limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit)
   live. As of: 2026-11-10. Recheck trigger: either section lowers a limit below the collector's
   measured page.
-- [`gh repo view`](https://cli.github.com/manual/gh_repo_view) and
-  [`gh api`](https://cli.github.com/manual/gh_api): repository-qualified JSON/API lookup and
-  formatted output.
-- [`gh environment`](https://cli.github.com/manual/gh_help_environment): host, prompt, update-check,
-  extension-update-check, and telemetry controls used to keep the audit non-interactive and constrain
-  undeclared egress.
-- [Get a repository REST endpoint](https://docs.github.com/en/rest/repos/repos#get-a-repository):
-  canonical `full_name`/`default_branch` response and documented 200, 301, 403, and 404 outcomes.
-- [Transferring a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository):
-  old repository URLs redirect after transfer, but GitHub recommends updating existing local remotes.
+- Every repository lookup goes through `gh api` and names its repository explicitly.
+  - **Pointer**: when changing a repository lookup or its output format, fetch
+    [`gh api`](https://cli.github.com/manual/gh_api) live.
+- The collector sets gh's host, prompt, update-check, extension-update-check and telemetry
+  variables, and clears its repository, pager, editor and browser ones, so the audit never prompts
+  and makes no network call it does not declare.
+  - **Pointer**: when changing those variables, fetch
+    [`gh environment`](https://cli.github.com/manual/gh_help_environment) live.
+- Identity lookups read the canonical `full_name` and `default_branch`; how each status is
+  treated is under [Design consequences](#design-consequences).
+  - **Pointer**: when changing the identity lookup or adding a status it handles, fetch
+    [Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository) live.
+- A transfer or rename is reported as `github-remote-moved` with a `git remote set-url`
+  suggestion. Analysis goes on against the resolved `full_name`, and the audit changes no remote.
+  - **Pointer**: when deciding how a moved repository is reported, fetch
+    [What's transferred with a repository?](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository#whats-transferred-with-a-repository)
+    live.
 
 ## Process bounds
 
-- [GNU Coreutils `timeout`](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html):
-  `--kill-after` guarantees KILL escalation after the initial TERM deadline, including when the
-  managed command ignores or blocks TERM. The collector feature-detects this capability and otherwise
-  uses an equivalent finite Bash watchdog.
+- Each gh call is bounded by `timeout --signal=TERM --kill-after` when an installed `timeout` or
+  `gtimeout` offers `--kill-after`, and otherwise by a finite Bash watchdog, so a hung call
+  cannot stall the audit.
+  - **Pointer**: when changing the deadline or its fallback, fetch
+    [GNU Coreutils `timeout`](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html)
+    live.
 
 ## Design consequences
 

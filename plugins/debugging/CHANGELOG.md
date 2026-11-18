@@ -3,6 +3,13 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.1] - 2026-11-18
+
+### Changed
+
+- `debug` gives its own reason for the user running the human-driven loop script, that only the person
+  can do each step and answer its questions, and no longer restates what the Bash tool lacks.
+
 ## [2.2.0] - 2026-11-18
 
 ### Removed

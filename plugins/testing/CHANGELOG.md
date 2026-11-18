@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.4] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
+## [5.7.3] - 2026-11-18
+
+### Changed
+
+- `audit`, `run-e2e` and `test-value` keep each rule and its reason but move the upstream specifics behind anchored pointers (#16867). The pytest-rerunfailures `--fail-on-flaky` floor now links the changelog entry instead of naming the version. The MCP handshake smoke test is scoped to servers that still support the `initialize` handshake and links the spec changelog's major changes. The canned-response rule's verification record becomes pointers to Pact's "not good for" section and vcrpy's `none` record mode, with Fowler's contract-test note as a correlate.
+
 ## [5.7.2] - 2026-11-18
 
 ### Security

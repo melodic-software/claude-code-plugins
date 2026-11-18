@@ -77,14 +77,14 @@ it there.
 
 Two failure modes, and the first is worse:
 
-1. **Fixing what the desktop shows you.** The bugs in this skill don't reproduce in Chrome's device
-   emulation. If you only test there, you ship all of them.
+1. **Fixing what the desktop shows you.** Never count device emulation as verifying a touch
+   fix: verify it on a device, or report it as a device check. The `touch` concern's "7. Verify on
+   hardware" says why.
 2. **Reaching for JavaScript when CSS or a meta tag does it.** Almost every item here is one
    declaration. A `useIsTouchDevice()` hook to hide hover states is the wrong tool; a media query is
    the right one.
 
-In both, "the bugs in this skill" and "every item here" are the `touch` concern's symptoms and their
-fixes.
+In the second, "every item here" is the `touch` concern's symptoms and their fixes.
 
 `launch` adds its own posture, in its procedure.
 

@@ -389,7 +389,8 @@ a code block, matches it to the surface without replacing the page's.
 Baseline: [`::-webkit-scrollbar`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar#browser_compatibility),
 [`scrollbar-color`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-color#browser_compatibility).
 
-Never replace the page scrollbar. Customize scrollbars only inside small elements like code blocks:
+Never replace or hide the page scrollbar: no bare `::-webkit-scrollbar`, and no
+`::-webkit-scrollbar`, `scrollbar-width` or `scrollbar-color` on `html` or `body`. Customize scrollbars only inside small elements like code blocks:
 `spacing.xs` wide, a black thumb at `color.overlay_alpha`, `radius.s` radius.
 
 Write that thumb as `oklch(0 0 none / {{color.overlay_alpha}})`: colors here are `oklch()` with

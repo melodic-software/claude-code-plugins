@@ -71,9 +71,8 @@ coordination provider instead of publishing a spec that cannot travel.
     frontmatter, copied verbatim including its info string, and nothing else. Not the frontmatter,
     and not the prose that follows the block, which may carry fences of its own: that prose is
     design exploration, and carrying it over is the inflation this rule otherwise forbids. The producer already fixes the info string per dialect (`mermaid`, `dbml`, `yaml`
-    for the OpenAPI 3.1 sketch, `likec4`, `plantuml`), so one path serves every dialect. Only
-    mermaid renders as a diagram in the bundled providers; the rest land as plain code fences,
-    which is why the note below has to name the dialect.
+    for the OpenAPI 3.1 sketch, `likec4`, `plantuml`), so one path serves every dialect. The note below
+    names the dialect because a fence may land unrendered.
   - **The provenance note.** One line immediately after each block, naming the producing scope and
     the dialect **as the frontmatter spells it** (`openapi-3.1`, `c4-plantuml`), never the fence
     tag (`yaml`, `plantuml`). For example: `Design artifact from the integration-scope design

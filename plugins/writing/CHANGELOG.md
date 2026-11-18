@@ -5,6 +5,15 @@ All notable changes to the `writing` plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-11-18
+
+### Changed
+
+- `be-concise` sources no longer restate their upstream pages: the Inverted Pyramid, F-shaped
+  pattern, Google style guide, ACUS, DOE and kernel entries now say how the doctrine uses each
+  source and point to it live, the licensing entry states our quoting rule, and the doctrine's
+  Concise output style line says this skill's floor governs where the two differ.
+
 ## [0.4.2] - 2026-11-15
 
 ### Changed

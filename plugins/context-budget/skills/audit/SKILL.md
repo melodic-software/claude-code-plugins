@@ -37,8 +37,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot --measure
 
 Per-skill, per-agent, and per-MCP-tool attribution stays with `/context`, which the person runs
 (the Boundary section below). This skill covers what our measurements see `/context` report only
-as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. Together they
-are typically the largest single contributor to the fixed startup payload. This skill measures
+as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. This skill measures
 that attribution on the consumer's own machine by A/B differencing: a baseline session versus one
 session per candidate tool with that tool denied by bare name. The two attributed buckets compose differently, so price a basket
 per bucket rather than as one number: deferred-side deltas add, and a basket's deferred saving is
@@ -334,9 +333,10 @@ Each of these produces a confidently wrong number unless the engine's guard is h
 - **`System tools` moves with the skill listing.** The signature check catches a run whose
   listing differed (why: [`reference/engine.md`](reference/engine.md) "Comparability rules");
   never hand-compare two snapshots the engine marked incomparable.
-- **Unredirected stdin prepends a warning line** to headless output, which breaks naive parsing.
-  The engine redirects and strips; if you capture `/context` by hand for `parse-context`, redirect
-  stdin or expect the leading line.
+- **A hand capture of `/context` with stdin left unredirected can open with a line that is not
+  `/context` output.** When you capture it for `parse-context`, redirect stdin as the engine does,
+  or expect that leading line (why: the known parse traps under
+  [`reference/engine.md`](reference/engine.md) "Degradation ladder").
 - **Two CLI installs on one machine answer differently.** Category lists differ across versions.
   The stamp is the guard; when the operator's interactive `claude` is not the binary on PATH, ask
   which to pin with `--binary`.
