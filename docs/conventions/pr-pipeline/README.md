@@ -3686,7 +3686,8 @@ only when the selected activity sets `applied-by.patch`.
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `merge-risk` for
 the [Merge-Risk line](#the-merge-risk-line)'s rating, `review-code` and
-`review-security` for the code and security review lanes, `triage-issue` for intake triage, and
+`review-security` for `pr-review-main.yml`'s code and security reviews (the hosted review callers
+run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triage, and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed

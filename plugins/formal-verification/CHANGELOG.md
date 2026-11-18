@@ -3,6 +3,16 @@
 All notable changes to the `formal-verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-11-18
+
+### Fixed
+
+- `/formal-verification:specify refresh` can be followed as written: it reads the tip's SHA right after the fetch instead of relying on `FETCH_HEAD`, unlocks a scratch worktree this session locked before removing it, treats a missing runtime the tool needs like a missing tool (the check is `blocked`, its reading and classification still go in the report), says how to run a `## Run` slash command and resolve `<plugin-root>` when the plugin is not installed, says how a ticket-branch pass treats a folder the ticket does not touch, commits the refreshed verification with a subject that passes the repository's commit convention, reuses the recorded seeded break when the changes added no new behavior, and says the stale-coverage warning stays until the follow-up moves the sync commit.
+- A seeded break's `change` in `sync.yaml` also names the model edit that carried it, where the check reads a model.
+
+- `/formal-verification:specify` says what `"$PWD"` stands for when the shell's working directory does not carry between calls, and what `check --default-ref` accepts; `create` says a version or usage command that prints and exits non-zero still shows the tool runs; `refresh` says how to run `check` when the slash command cannot be invoked, where the verify skill lists the names to search a diff for, that step 6's edits are made where the commit goes, that an unchanged `## Run` input lets the earlier run stand, what `<folder>` is in the upkeep branch name, to remove the upkeep worktree after pushing, and that the upkeep commit's subject passes the repository's commit convention.
+- The formal-area contract's `## Updating` also lists the names in the code the model reads.
+
 ## [0.3.0] - 2026-11-17
 
 ### Added

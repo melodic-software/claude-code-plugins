@@ -1,4 +1,10 @@
 {
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/python-format/git-hooks/lefthook-remote.yml",
+    "aggregate": "lefthook-remote.yml"
+  },
   "earlierNames": ["ruff-format"],
   "earlierEntries": [{ "from": "ruff-check", "to": ["format", "lint"] }],
   "ecosystems": ["python"],

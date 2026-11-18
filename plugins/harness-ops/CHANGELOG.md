@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.2.0] - 2026-11-18
+
+### Added
+
+- `observability`: `otel/lane-runs.sql` adds the DuckDB views `lane_runs` and `lane_outcomes` over the CI lane transcript sink, joined on `trace_id`, with the cache tokens, the CLI cost estimate and the failure class per lane leg; the read-routing, data-sources and query catalog rows point at them.
+
 ## [10.1.3] - 2026-11-17
 
 ### Changed
