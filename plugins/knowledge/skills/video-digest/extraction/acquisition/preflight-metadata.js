@@ -42,7 +42,11 @@ import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js
 /** ASCII Unit Separator — never appears in a YouTube title, so it is a safe field delimiter. */
 export const PREFLIGHT_FIELD_SEP = String.fromCharCode(0x1f);
 
-/** yt-dlp `--print` template: id, title, channel display name, channel @handle. */
+/**
+ * yt-dlp `--print` template, nine fields: id, title, channel display name, channel @handle,
+ * description, repost count, comment count, like count, live status. `isEmptyPostShell` and
+ * `LIVE_STATUS_FIELD` read the fields by position, so a new field is appended at the end.
+ */
 export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(id)s",
   "%(title)s",

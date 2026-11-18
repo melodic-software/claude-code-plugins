@@ -149,6 +149,10 @@ export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
 }
 
 /**
+ * Whether a quality-audit note is too short to be substantive: under 20 characters once trimmed.
+ * The length floor is the only check because every known stub token is shorter than 20
+ * characters, so a separate stub-token list would reject nothing more.
+ *
  * @param {string} note
  * @returns {boolean}
  */
