@@ -34,6 +34,7 @@ import {
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
+import { parseGroups, relockPatch, relockTarget, runRelock } from "./dependency-relock.mjs";
 import { movePin, PACKAGE, unifiedDiff } from "./install-script-pin.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
@@ -221,7 +222,20 @@ export async function pinMove(api, files, headSha) {
   return moved && { from: moved.from, to: moved.to, patch: unifiedDiff("package.json", manifest, moved.text) };
 }
 
-export async function select({ api, pr, headSha, appId, dependabotId, config = null, policy, repository = "", maxRounds = DEFAULT_MAX_ROUNDS, provenance }) {
+export async function select({
+  api,
+  pr,
+  headSha,
+  appId,
+  dependabotId,
+  config = null,
+  groups = [],
+  policy,
+  repository = "",
+  maxRounds = DEFAULT_MAX_ROUNDS,
+  provenance,
+  relock = runRelock,
+}) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
@@ -258,6 +272,15 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   } catch (error) {
     pinError = error.message;
   }
+  let relockError = "";
+  try {
+    const target = await relockTarget({ files, groups, readText: (path) => api.getText(path, headSha) });
+    if (target) {
+      return { decision: "relock", relock: await relockPatch(target, { readText: (path) => api.getText(path, headSha), run: relock }), classification };
+    }
+  } catch (error) {
+    relockError = error.message;
+  }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
   const checkRuns = [];
@@ -269,7 +292,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   const shas = whole ? commits.map((commit) => commit.sha) : null;
   const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
-    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError };
+    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError };
   }
 
   return {
@@ -277,6 +300,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     rounds: done,
     classification,
     pinError,
+    relockError,
     file: {
       version: 1,
       repository,
@@ -363,7 +387,7 @@ export function contextRun({ pr, headSha, classification, file, config, startedA
 // `date -u +%Y-%m-%dT%H:%M:%SZ`'s shape, which the verdict job requires.
 const utcSeconds = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export async function main(argv, env, { api, log = (line) => console.log(line), provenance, now = () => new Date() } = {}) {
+export async function main(argv, env, { api, log = (line) => console.log(line), provenance, now = () => new Date(), relock = (files) => runRelock(files, env) } = {}) {
   if (argv[0] !== "select") {
     throw new Error("usage: review-dependency.mjs select");
   }
@@ -406,8 +430,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config,
+    groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
     policy: readPolicy(env.DEPENDABOT_POLICY, log),
     provenance,
+    relock,
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
@@ -415,22 +441,36 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     writeFileSync(env.CONTEXT_RUN_FILE, `${JSON.stringify(run)}\n`);
   }
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
-  if (result.pin) {
+  const patch = result.pin
+    ? {
+        patch: result.pin.patch,
+        row: "install-script-pin",
+        line: `${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`,
+      }
+    : result.relock && {
+        patch: result.relock.patch,
+        row: "dependency-relock",
+        line: `${result.relock.directory} relocked to ${result.relock.name}==${result.relock.to} from ${result.relock.from}, pushed by apply-dependency-pin with no model turn`,
+      };
+  if (patch) {
     need(env, ["PIN_PATCH_FILE"]);
-    writeFileSync(env.PIN_PATCH_FILE, result.pin.patch);
+    writeFileSync(env.PIN_PATCH_FILE, patch.patch);
     output("pin-state", "written");
-    output("pin-sha256", createHash("sha256").update(result.pin.patch).digest("hex"));
-    const line = `${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`;
-    log(line);
+    output("pin-sha256", createHash("sha256").update(patch.patch).digest("hex"));
+    output("pin-prepare", patch.row);
+    log(patch.line);
     if (env.GITHUB_STEP_SUMMARY) {
-      appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `${patch.line}\n`);
     }
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);
   }
+  if (result.relockError) {
+    log(`::warning::the dependency group's lagging directory was not relocked (${result.relockError}); the model reviews the pull request as it stands`);
+  }
   output("proceed", String(result.decision === "proceed"));
-  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn" }[result.decision] ?? "");
+  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn" }[result.decision] ?? "");
   output("escalation-reason", result.escalationReason ?? "");
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {

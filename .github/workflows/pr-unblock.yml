@@ -3182,6 +3182,7 @@ jobs:
       pin-state: ${{ steps.upload-pin.outcome == 'success' && 'written' || '' }}
       pin-sha256: ${{ steps.upload-pin.outcome == 'success' && steps.select.outputs.pin-sha256 || '' }}
       pin-attempt: ${{ steps.upload-pin.outcome == 'success' && github.run_attempt || '' }}
+      pin-prepare: ${{ steps.upload-pin.outcome == 'success' && steps.select.outputs.pin-prepare || '' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -3263,6 +3264,12 @@ jobs:
           head-sha: ${{ steps.head.outputs.sha }}
           prepare-supported: "true"
           applied-by-supported: patch dependency-verdict
+
+      - name: Set up Python
+        if: steps.slot.outputs.applies == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
 
       - name: Select the dependency pull request
         id: select
@@ -3701,17 +3708,6 @@ jobs:
       patch-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
       reply-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
 
-  # The pin push job: apply-patch.mjs under patch-rules.json's
-  # install-script-pin row, with apply-dependency-patch's grant, a script with
-  # no model that runs no head code. It takes the select job's patch, made
-  # from the head's package.json and package-lock.json read as data, admits
-  # only the root package.json with the @anthropic-ai/claude-code allowScripts
-  # pin moved to the exact version the manifest pins, skips a head that moved
-  # since the select job read it, and pushes one commit with [dependabot
-  # skip] without force. No round marker is posted and no round counted: the
-  # new head goes through review-dependency like any other. A refused push
-  # stops as dependency-pin-invalid, -not-applied or -protected-path, which
-  # report-escalation and report-stop-status hand to the session queue.
   apply-dependency-pin:
     name: Apply Dependency Pin
     needs: review-dependency-select
@@ -3739,7 +3735,7 @@ jobs:
       patch-sha256: ${{ needs.review-dependency-select.outputs.pin-sha256 }}
       patch-attempt: ${{ needs.review-dependency-select.outputs.pin-attempt }}
       patch-activity: review-dependency
-      patch-prepare: install-script-pin
+      patch-prepare: ${{ needs.review-dependency-select.outputs.pin-prepare }}
       patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
 
   # The verdict job, a script with no model: it holds pull-requests and

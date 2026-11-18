@@ -3698,8 +3698,7 @@ jobs:
             [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           done
           # explainer-video carries lib/media-render, so both must pin the same playwright.
-          pins=$(grep -hoE '^playwright==[^ ]+' lib/media-render/requirements.in plugins/explainer-video/requirements.in | sort -u)
-          [ "$(wc -l <<<"$pins")" -eq 1 ] || { echo "::error::lib/media-render and plugins/explainer-video pin different playwright versions: $(paste -sd ' ' <<<"$pins")"; exit 1; }
+          node .github/scripts/pr-unblock/dependency-relock.mjs check
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"

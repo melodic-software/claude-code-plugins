@@ -565,6 +565,15 @@ it, not the lockfile; it posts no round marker, and the new head is reviewed as 
 of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
 the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
 marker at the new head.
+A `.github/dependabot.yml` entry whose `group-by: dependency-name` group spans several pip
+directories keeps each group package at one version in all of them. When Dependabot's group pull
+request bumps one directory and leaves another (its pip-compile could not relock it),
+`review-dependency-select` relocks the lagging directory to the bumped pin with the uv
+`.github/requirements-relock.txt` pins, by the command its lock's header names, instead of a model
+turn ([`dependency-relock.mjs`](../../../.github/scripts/pr-unblock/dependency-relock.mjs)), and
+`apply-dependency-pin` pushes it under the `dependency-relock` row, which holds it to
+`dependency-version-change`; a relock that fails goes to the model. `dependency-relock.mjs check`
+fails `test-bash` while a group's directories pin different versions.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -1006,7 +1015,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
-`review-dependency-select` writes with no model, `docs` for a push job that passes
+and `dependency-relock` for the group relock patch `review-dependency-select` writes with no
+model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.

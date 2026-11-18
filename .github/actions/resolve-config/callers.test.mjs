@@ -9560,7 +9560,7 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
 // code with no model turn, and apply-dependency-pin pushes it with
 // apply-dependency-patch's grant under the install-script-pin row, which needs
 // no verdict. No model job, verdict job or round marker follows.
-test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded pin patch, under the install-script-pin row", () => {
+test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded pin patch, under the row the select step names", () => {
   const { jobs } = workflow("pr-unblock.yml");
   const select = jobs["review-dependency-select"];
   const upload = select.steps.find((step) => step.id === "upload-pin");
@@ -9569,13 +9569,15 @@ test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded
   assert.equal(evaluate(upload.if, { "steps.select.outputs.pin-state": "written", "steps.scan-pin.outputs.clean": "false" }), false, "an unscanned patch is not uploaded");
   const state = (outcome) => evaluate(select.outputs["pin-state"], { "steps.upload-pin.outcome": outcome });
   assert.deepEqual([state("success"), state("skipped"), state("failure")], ["written", "", ""]);
+  const prepare = (outcome) => evaluate(select.outputs["pin-prepare"], { "steps.upload-pin.outcome": outcome, "steps.select.outputs.pin-prepare": "dependency-relock" });
+  assert.deepEqual([prepare("success"), prepare("skipped")], ["dependency-relock", ""], "the row of an uploaded patch only");
   const push = jobs["apply-dependency-pin"];
   assert.deepEqual(push.needs, "review-dependency-select");
   assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "written" }), true);
   assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "" }), false);
   assert.equal(push.uses, "./.github/workflows/pr-run-activity-write.yml");
   assert.equal(push.with.activity, "apply-dependency-patch", "the existing mutate-branch grant, no new activity");
-  assert.equal(push.with["patch-prepare"], "install-script-pin");
+  assert.equal(push.with["patch-prepare"], "${{ needs.review-dependency-select.outputs.pin-prepare }}");
   assert.equal(push.with["patch-activity"], "review-dependency");
   assert.equal(push.with["patch-head-sha"], "${{ needs.review-dependency-select.outputs.head-sha }}");
   assert.equal(push.with["patch-verdict-attempt"], undefined, "the row requires no verdict");
@@ -9583,6 +9585,10 @@ test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded
   assert.deepEqual(PATCH_RULES["install-script-pin"].requires, []);
   assert.equal(PATCH_RULES["install-script-pin"]["content-rule"], "install-script-pin");
   assert.equal(PATCH_RULES["install-script-pin"]["max-files"], 1);
+  assert.deepEqual(PATCH_RULES["dependency-relock"].requires, []);
+  assert.equal(PATCH_RULES["dependency-relock"]["content-rule"], "dependency-version-change", "the fix rule the pr-merge lane's provenance check mirrors");
+  assert.equal(PATCH_RULES["dependency-relock"]["max-files"], 2, "one directory's requirements.in and requirements.txt");
+  assert.deepEqual(PATCH_RULES["dependency-relock"].escalations, PATCH_RULES["install-script-pin"].escalations, "the pin's stop reasons, which report-escalation already routes");
   assert.ok(!["review-dependency", "apply-dependency-patch", "apply-dependency-verdict"].some((name) => (jobs[name].needs ?? []).includes("apply-dependency-pin")), "no model or verdict job waits on the pin");
 });
 
