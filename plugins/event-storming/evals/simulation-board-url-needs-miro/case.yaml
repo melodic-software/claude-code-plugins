@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: simulation-board-url-needs-miro
-description: "Legacy simulation existing-board-mode-requires-miro. --discover-bcs with a board URL and, as in every run, no Miro tool. simulation SKILL.md 'Board backend': a Miro board URL chooses the Miro backend; when its check_available fails the run stops, says what is missing and offers making Miro available, and never switches backends on its own; for an existing board it offers installing and enabling the miro plugin, or reading a markdown export the person supplies. Slash-invoked, so no Skill grader. needs-miro (llm, legacy line quoted) needs the reply to say reading the board requires Miro, in any wording; offers-install-miro needs installing, enabling or connecting Miro; no-markdown-degrade (llm) fails an offer to run a new workshop on the markdown backend instead, while asking for a board export or markdown board file the user supplies passes ('Bounded Context Discovery Protocol', and legacy simulation 8's last expectation); no-agent-dispatch fails any Agent call."
+description: "Legacy simulation existing-board-mode-requires-miro. --discover-bcs with a board URL and, as in every run, no Miro tool. simulation SKILL.md 'Board backend': a Miro board URL chooses the Miro backend; when its check_available fails the run stops, says what is missing and offers making Miro available, and never switches backends on its own; for an existing board it offers installing and enabling the miro plugin, or reading a markdown export the person supplies. Slash-invoked, so no Skill grader. needs-miro (llm, legacy line quoted) needs the reply to say reading the board requires Miro, in any wording; offers-miro-route needs installing, enabling or connecting Miro, or making it available; no-markdown-degrade (llm) fails an offer to run a new workshop on the markdown backend instead, while asking for a board export or markdown board file the user supplies passes ('Bounded Context Discovery Protocol', and legacy simulation 8's last expectation); no-agent-dispatch fails any Agent call."
 tags: [event-storming, simulation, outcome, degradation, no-network]
 expected_outcome: "The reply says reading the board needs Miro, points the user at installing or enabling the miro plugin, and does not fall back to structured-markdown mode."
 execution:
@@ -13,9 +13,9 @@ graders:
     type: llm
     criteria: 'Legacy simulation 3: "Output states that this board-reading mode requires a Miro server because there is an existing board to read". PASS when the reply says that reading the board at the given URL, or running --discover-bcs on it, needs Miro (the miro plugin or its tools), in any wording, including that without Miro the board cannot be read. FAIL when the reply never ties reading the board to Miro, says Miro is not needed to read it, or only mentions the miro.com URL.'
     focus: 'last_message'
-  - name: offers-install-miro
+  - name: offers-miro-route
     type: regex
-    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure|turn on|turning on|switch on|switching on)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)|\bmake\s+(?:the\s+)?miro\b[^\n.]{0,20}\bavailable\b'
+    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )(?:\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)|\bmak(?:e|es|ing)\s+(?:the\s+)?`?miro`?(?:\s+plugin)?\s+available\b)'
     flags: 'i'
     target: 'last_message'
   - name: no-markdown-degrade

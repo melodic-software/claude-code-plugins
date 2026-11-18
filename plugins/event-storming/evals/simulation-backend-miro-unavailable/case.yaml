@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: simulation-backend-miro-unavailable
-description: "--simulate with --backend miro in a session with no Miro tools. simulation SKILL.md 'Board backend': the --backend argument wins; when the chosen backend's check_available fails, 'stop before any workshop phase: say what is missing and offer the two routes, making it available or rerunning with --backend set to the other one. Never switch backends on your own.' Slash-invoked, so no Skill grader. names-miro-unavailable needs Miro named as not available; offers-install-miro needs installing, enabling or connecting Miro; offers-markdown-rerun needs a rerun on the markdown backend offered; no-silent-switch (llm) fails a reply that goes ahead on markdown without being asked; no-write fails any Write and no-agent-dispatch any Agent call. Needs --allow-tools Write so no-write can fail."
+description: "--simulate with --backend miro in a session with no Miro tools. simulation SKILL.md 'Board backend': the --backend argument wins; when the chosen backend's check_available fails, 'stop before any workshop phase: say what is missing and offer the two routes, making it available or rerunning with --backend set to the other one. Never switch backends on your own.' Slash-invoked, so no Skill grader. names-miro-unavailable needs Miro named as not available; offers-miro-route needs installing, enabling or connecting Miro, or making it available; offers-markdown-rerun needs a rerun on the markdown backend offered; no-silent-switch (llm) fails a reply that goes ahead on markdown without being asked; no-write fails any Write and no-agent-dispatch any Agent call. Needs --allow-tools Write so no-write can fail."
 tags: [event-storming, simulation, outcome, backend, degradation, no-network]
 expected_outcome: "The reply says the Miro backend is not available, offers enabling the miro plugin or rerunning with --backend markdown, and starts nothing: no workshop phase, no board file, no agent."
 execution:
@@ -14,9 +14,9 @@ graders:
     pattern: '\bmiro\b[^\n]{0,80}\b(?:not|isn''t|is not|no|absent|unavailable|missing|disabled)\b|\b(?:no|not|without|absent|unavailable|missing)\b[^\n]{0,80}\bmiro\b'
     flags: 'i'
     target: 'last_message'
-  - name: offers-install-miro
+  - name: offers-miro-route
     type: regex
-    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure|turn on|turning on|switch on|switching on)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)|\bmake\s+(?:the\s+)?miro\b[^\n.]{0,20}\bavailable\b'
+    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )(?:\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)|\bmak(?:e|es|ing)\s+(?:the\s+)?`?miro`?(?:\s+plugin)?\s+available\b)'
     flags: 'i'
     target: 'last_message'
   - name: offers-markdown-rerun

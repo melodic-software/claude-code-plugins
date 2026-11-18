@@ -19,14 +19,6 @@
     {
       "answer": "backend: markdown (default)",
       "why": "the backend line the skill states"
-    },
-    {
-      "answer": "**Backend:** markdown. You didn't pass `--backend`, so the default applies.",
-      "why": "the backend line, default in the next sentence"
-    },
-    {
-      "answer": "No `board_backend` option is set, so the skill falls back to markdown.",
-      "why": "falls back to markdown"
     }
   ],
   "fail": [
@@ -61,6 +53,26 @@
     {
       "answer": "Markdown boards need Node, which I could not check.",
       "why": "markdown named, never chosen as the backend"
+    },
+    {
+      "answer": "**Backend:** markdown. You didn't pass `--backend`, so the default applies.",
+      "why": "never calls markdown the default in the sentence that names it"
+    },
+    {
+      "answer": "No `board_backend` option is set, so the skill falls back to markdown.",
+      "why": "never calls markdown the default in the sentence that names it"
+    },
+    {
+      "answer": "Backend: markdown",
+      "why": "names the backend, never calls it the default"
+    },
+    {
+      "answer": "Backend: markdown, because you passed `--backend markdown`.",
+      "why": "chosen by the argument, not the default"
+    },
+    {
+      "answer": "Miro isn't connected, so the run falls back to markdown.",
+      "why": "a fallback from Miro, not the default"
     }
   ]
 }

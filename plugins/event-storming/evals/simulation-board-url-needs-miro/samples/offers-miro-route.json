@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "Install + enable the `miro` plugin, then retry.",
+      "why": "path 2"
+    },
+    {
+      "answer": "Connect the Miro MCP server and run this again.",
+      "why": "connect"
+    },
+    {
+      "answer": "1. **Make Miro available, then rerun the same command.**",
+      "why": "the skill's own route wording"
+    },
+    {
+      "answer": "Making Miro available is the first route; the second is a rerun with `--backend markdown`.",
+      "why": "the skill's route wording, naming Miro"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Miro isn't available, so I can't read the board.",
+      "why": "no install or connect path"
+    },
+    {
+      "answer": "Then connect to https://miro.com/app/board/abc123 in your browser.",
+      "why": "only the URL names miro"
+    },
+    {
+      "answer": "Miro is not available in this session.",
+      "why": "names the gap, offers no route"
+    },
+    {
+      "answer": "1. **Turn on the `miro` plugin**, then rerun the same command.",
+      "why": "turn on is wording the skill does not state"
+    },
+    {
+      "answer": "You don't need to make Miro available.",
+      "why": "negated: the route is declined"
+    },
+    {
+      "answer": "You do not need to make Miro available.",
+      "why": "negated, spelled out"
+    },
+    {
+      "answer": "There is no need to make Miro available.",
+      "why": "negated with no need to"
+    },
+    {
+      "answer": "Don't make Miro available for this run.",
+      "why": "negated imperative"
+    },
+    {
+      "answer": "This will make Miro unavailable.",
+      "why": "the opposite of a route"
+    }
+  ]
+}
