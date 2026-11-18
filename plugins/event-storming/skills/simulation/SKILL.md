@@ -64,9 +64,10 @@ the repository root. Resolve it once per run, each command alone in its own Bash
 
 1. `git rev-parse --show-toplevel` gives the root.
 2. `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` gives the convention home. Exit 1
-   or 4: use `docs/conventions`. Exit 5 (no repository, or the home directory): ask the person
-   where boards should go and write nothing until they answer. Any other non-zero exit: report its
-   message and use `docs/conventions`.
+   or 4: use `docs/conventions`. Exit 5 (no repository, or the home directory): skip step 3, tell
+   the person that markdown boards need a git repository other than the home directory, write no
+   file, and render the model in the reply instead; this replaces the stop under "Board backend".
+   Any other non-zero exit: report its message and use `docs/conventions`.
 3. `bash "${CLAUDE_PLUGIN_ROOT}/lib/parse-concern-value.sh" "<root>/<home>/event-storming.yaml" board_dir docs/event-storming`
    gives the directory. A value that is absolute, starts with `~`, or holds a `..` segment is
    invalid: say so and use `docs/event-storming`.

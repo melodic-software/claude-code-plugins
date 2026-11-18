@@ -117,7 +117,7 @@ A level-1 title follows the frontmatter, then the format's level-2 sections in t
 
 | Operation | How |
 |---|---|
-| `check_available` | `node --version` succeeds and the board directory resolves. No node: say so and render the model in the reply instead of a file |
+| `check_available` | `node --version` succeeds and the board directory resolves. No node, no git repository, or a root that is the home directory: say so and render the model in the reply instead of a file |
 | `list_boards` | Glob `<board_dir>/*/*.md` and read each file's frontmatter |
 | `create_board` | `board-md.mjs new` |
 | `read_board` | Read the whole file with the Read tool, or `board-md.mjs parse` for JSON |
