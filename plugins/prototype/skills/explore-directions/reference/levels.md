@@ -30,7 +30,9 @@ node "<plugin-root>/lib/prototype-settings.mjs" resolve --option '<option>' [--a
   level and nothing else.
 
 It prints one JSON line, the report line (`level: <name> (<layer>)`), then one `notice:` line per
-value it ignored. Print the report line and every notice as they stand, just above the plan line.
+value it ignored. Once the level is resolved, type the last run's report line and every notice as
+they stand, as your next message and before any other tool call, as SKILL.md step 1 says: also when
+no plan is shown or the request says to build without asking.
 Exit 2 is a usage error: say so in one line and run it again without the flag it names.
 
 When the resolver cannot run (`node` is missing or not runnable, or it fails another way), print

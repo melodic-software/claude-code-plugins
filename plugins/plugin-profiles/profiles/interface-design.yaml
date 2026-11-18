@@ -1,26 +1,26 @@
 description: "Planning for work with screens, flows or interface output: everything in planning plus UX and UI design."
 plugins:
-  - planning@melodic-software
-  - discovery@melodic-software
-  - context7@melodic-software
-  - firecrawl@melodic-software
-  - x@melodic-software
   - architecture@melodic-software
-  - work-items@melodic-software
   - bugs@melodic-software
+  - context7@melodic-software
+  - discovery@melodic-software
   - domain-driven-design@melodic-software
   - event-storming@melodic-software
-  - naming@melodic-software
-  - prototype@melodic-software
+  - firecrawl@melodic-software
   - implementation@melodic-software
-  - testing@melodic-software
-  - tdd@melodic-software
-  - verification@melodic-software
+  - naming@melodic-software
   - performance@melodic-software
-  - visualization@melodic-software
-  - writing@melodic-software
-  - wizard@melodic-software
-  - user-experience@melodic-software
-  - user-interface@melodic-software
+  - planning@melodic-software
   - playgrounds@melodic-software
   - playwright@melodic-software
+  - prototype@melodic-software
+  - tdd@melodic-software
+  - testing@melodic-software
+  - user-experience@melodic-software
+  - user-interface@melodic-software
+  - verification@melodic-software
+  - visualization@melodic-software
+  - wizard@melodic-software
+  - work-items@melodic-software
+  - writing@melodic-software
+  - x@melodic-software

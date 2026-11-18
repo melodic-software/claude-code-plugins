@@ -59,8 +59,6 @@ export const defaults = {
   manifestTimeoutMs: 15000,
 };
 
-// Required adapter methods
-
 /**
  * Extract transcript from Hotmart HLS subtitle stream.
  * Delegates to hotmart.getTranscript().
@@ -138,8 +136,6 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
   if (platformCfg.landingUrl) return platformCfg.landingUrl;
   return courseUrl.replace("/enrolled/", "/");
 }
-
-// Optional lifecycle hooks
 
 /**
  * Install page.on("response") interceptors for HLS and subtitle data.

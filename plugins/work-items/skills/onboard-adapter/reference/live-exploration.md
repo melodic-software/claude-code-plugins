@@ -64,9 +64,9 @@ Fetch one item that is **blocked by another**, then close the blocker and fetch 
 
 Fetch a child item, and list items from its container.
 
-- Does the **list** surface carry parent linkage, or only the single-item fetch? GitHub's
-  does not, which is why the contract lets bulk rows carry `parent_id: null` and makes
-  `get-item` authoritative.
+- Does the **list** surface carry parent linkage, or only the single-item fetch? The
+  contract lets bulk rows carry `parent_id: null` and makes `get-item` authoritative, so a
+  list surface without it still conforms.
 - Is there a native parent/child link at all, or only a label or naming convention? A
   convention is not a native link, and that means `sub_items: false`.
 

@@ -72,6 +72,7 @@ from babysit_gh import (
     is_owner_repo_pair,
     pull_request_commits_once,
     record_pull_request_total,
+    single_attempt,
 )
 from babysit_risk import (
     FLOOR_ROW_CLASSES,
@@ -2082,11 +2083,13 @@ class _GreenMain:
         self.local: Any = None
 
     def _read(self, endpoint: str) -> Any:
-        """One retry for no answer (a timeout included) or a 5xx; 403 and 429
+        """One retry for no answer (a timeout included) or a 5xx, each read a
+        single attempt so babysit_gh's retry does not multiply it; 403 and 429
         belong to babysit_gh's rate guard and are never retried."""
-        status, answer = _get(endpoint)
-        if status is None or status >= 500:
+        with single_attempt():
             status, answer = _get(endpoint)
+            if status is None or status >= 500:
+                status, answer = _get(endpoint)
         if status != 200:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer

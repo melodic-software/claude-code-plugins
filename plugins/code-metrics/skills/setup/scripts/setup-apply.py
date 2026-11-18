@@ -218,7 +218,6 @@ def known_keys() -> set[str]:
                 walk(value, dotted)
 
     walk({k: v for k, v in defaults.items() if k != "thresholds"}, "")
-    # Per-lane collector overrides are declared by shape, not enumerated.
     for lane in defaults.get("lanes") or {}:
         keys.add(f"lanes.{lane}.collectors")
     return keys
@@ -333,9 +332,6 @@ def main(argv: list[str]) -> int:
         root = top or os.getcwd()
         target = os.path.join(root, TEAM_FILE)
     real_root = os.path.realpath(root) if root is not None else ""
-    # The docs/ chain and the under-root check apply to the team file; an
-    # explicit --file elsewhere is the operator's own path and gets the file
-    # checks only.
     team = root is not None and os.path.abspath(target) == os.path.abspath(
         os.path.join(root, TEAM_FILE)
     )
@@ -390,8 +386,6 @@ def main(argv: list[str]) -> int:
             print(f"setup-apply.py: {exc}", file=sys.stderr)
             return 2
     body = "\n".join(dump(doc)) + "\n"
-    # Idempotence is judged on the parsed content, so comments the operator
-    # added by hand never force a rewrite by themselves.
     if existing_text and yaml_subset.parse(existing_text) == doc:
         print(f"already configured: {target}")
         return 0

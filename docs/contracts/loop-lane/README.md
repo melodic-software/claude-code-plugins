@@ -541,10 +541,10 @@ real-time deadline. A hold that lands after the merge is not a hold.
   loss ([skills and agents](../../review/skills-and-agents.md)) uses `reason=eval`, and the session
   that posts the paired result adds a line
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
-  and shows no loss. pr-merge's scheduled run then removes `do-not-merge`, after a comment naming
-  the record and the head, when that record is the newest since the label went on and names the
-  current head, both lines are by a listed human, on a line of their own outside a quote or fence,
-  and no other reason, body hold or member veto stands
+  and shows no loss. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
+  removes `do-not-merge`, after a comment naming the record and the head, when that record is the
+  newest since the label went on and names the current head, both lines are by a listed human, on a
+  line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
   merge" and `do-not-merge` out of the record comment: they read as a veto.
 
@@ -570,7 +570,7 @@ the record back, and the tracker item stays the escalation of record.
 
 **Ignoring the record directory is the lane's own preflight, not a consumer obligation.** Because
 the write is unconditional, an unignored directory strands an untracked file in the working tree a
-lane runs its gates against, and escalation detail sits one careless stage from being committed.
+lane runs its gates against, and a careless `git add` could commit the escalation detail.
 Nothing delivers a tracked ignore rule into a consuming repo, since this marketplace's root rule
 covers only its own dogfooding checkout and a plugin ships no consumer-side `.gitignore`, so a lane that
 depended on the consumer having added one would break for every existing consumer that upgrades
@@ -1084,7 +1084,7 @@ otherwise escalate a lane for obeying the guard exactly. Only cycles the lane wa
 counted, so the detector measures a lane failing to move a queue it could have moved.
 When an increment
 brings the counter to the stall threshold, default **3** consecutive no-progress cycles (a lane
-may expose the threshold as its own config key), the lane **escalates and keeps looping**: a
+may expose the threshold as its own config key), the lane **escalates and keeps looping**, because a
 stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
 rides §2's contract unchanged (role label + machine-marked comment), a loop-health signal on the
 one channel, not a second channel and not a new guardrail event class. At most one stall escalation
@@ -1314,6 +1314,22 @@ hook `ask` in a lane. This subsection holds which mode each lane runs in.
 - **As of:** 2026-11-01.
 - **Recheck trigger:** that page's `--permission-prompts` row changes.
 
+**A `/loop` lane in an interactive session is attended-only.** Someone must be watching the
+session and able to stop it. Such a lane runs unattended only under the owner exemption below
+while it holds; after that, an unattended local lane needs an `L2` launch or runs as a CI lane.
+
+**Owner exemption below `L2`.** Local unattended runs need the `L2` isolation floor
+([isolation ladder, "Local lanes"](../../../plugins/autonomy/reference/guardrails/isolation-ladder.md#local-lanes)).
+The owner granted this exemption from that floor on 2026-11-18:
+
+- **Paths:** `/loop` lanes in an interactive session; the `claude-oom-notify` job in the
+  provisioning repository; and the `lanes` launcher's `--bg` launches, its `run-once` pass and its
+  restart consumer.
+- **Ends:** when this repository has no open issues and no open pull requests. The `L2` floor then
+  applies to these paths again.
+- **Still required:** no path uses bypass mode or `--dangerously-skip-permissions`. The lane
+  launches keep the permission modes this section records.
+
 **Launch options.** An unattended Claude Code launch passes this set, drawn from what the lanes
 launcher builds. Other headless launchers adopt it when next touched. A flag whose effect no probe
 has shown stays out of the table. The lanes launcher also passes `--permission-prompts none` on
@@ -1378,7 +1394,7 @@ dropping `either` from the pause threshold or weakening `must` to `may` is not. 
 runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
 `scripts/check-loop-lane-floor-drift.test.sh`.
 
-**The registry does not decide what gets checked; the corpus does.** Before comparing anything, the
+**What gets checked comes from the tracked files, not from the registry.** Before comparing anything, the
 check scans every tracked file for the floor's opening bullet and fails on any carrier its registry
 does not name. That is what keeps registration from being optional: a new lane that inlines the
 floor and forgets the entry turns the lane red on the pull request that adds it, rather than passing
@@ -1390,7 +1406,7 @@ registered consumer, compared on every run, or a member of the check's own `DATA
 which is what a file holding the marker as test data or illustration goes on. Both lists live in the
 check, both are printed on every run including `--check`, and both fail on an entry that has gone
 stale. So the checked set equals the carried set minus a finite, enumerated, reviewed exception
-list. It is deliberately not phrased as an equality: an exception list exists, and a claim of
+list. It is deliberately not phrased as an equality, because an exception list exists and a claim of
 "provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
 
 **A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**

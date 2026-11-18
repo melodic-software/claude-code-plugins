@@ -71,8 +71,16 @@ built-in `update-config` skill when it resolves in this session, and directly wh
 explicit approval of a fix is the consent for it. When the classifier refuses an operation, such as
 writing the team suppression record or re-running `scripts/audit-engine.sh` for the after-fix
 summary, the fallback is the operator applying the edit or running the re-run and pasting the output
-back; never retry around the refusal. The probe record of which operations were refused is in
-[SKILL.md](../SKILL.md) "Refusals in auto mode".
+back; never retry around the refusal.
+
+Probe record of the two refusals: a `harness-config:audit@0.48.2` `--fix` run in auto mode on Claude
+Code 2.1.283, while the team record still lived under `.claude/`, saw the suppression-record write
+refused as `[Instruction Poisoning]` and the engine re-run as `[Self-Modification]`.
+
+- **Probe**: [melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153).
+- **As of**: 2026-09-27
+- **Recheck trigger**: a release changes the auto-mode classifier's refusal categories, either
+  refusal stops firing, or an auto-mode run first writes `harness-config.yaml`.
 
 - **Pointer**: when deciding what the classifier blocks, fetch
   [permission modes: what the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default)

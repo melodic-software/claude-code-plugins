@@ -99,8 +99,6 @@ CONTROL = re.compile(r"[\n\r\t]")
 # A listed lane id names a file under `.claude/ecosystems/`, so anything else
 # (a slash, `..`) is refused rather than joined into a path.
 LANE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-# Lists whose items the schema types as strings; a number or a nested value
-# in one is a wrong shape, not a rule id.
 STRING_LISTS = {"suppressions.correctness_rules"}
 
 
@@ -153,8 +151,6 @@ def _invalid(
         return "a reference must be a number or null"
     if parts[0] == "lanes" and len(parts) > 1 and not LANE_ID.fullmatch(parts[1]):
         return "a lane id must be lowercase kebab-case"
-    # A listed lane has no bundled default to say it is a mapping, and the
-    # readers below call `.get` on it and on its `collectors`.
     lane_node = parts[0] == "lanes" and (
         len(parts) == 2 or (len(parts) == 3 and parts[2] == "collectors")
     )
@@ -412,10 +408,6 @@ def _field(config: dict[str, Any], key: str, value: Any, tabs: bool = False) -> 
 
 def dispatch_args(config: dict[str, Any]) -> list[str]:
     lines: list[str] = []
-    # A configured `all` default and a configured base travel to the dispatcher,
-    # which lets an explicit command-line --all, path, or --base win over them.
-    # `change` is the bundled default and the dispatcher's own, so it emits
-    # nothing: a no-op line would only be noise on the dispatcher's command line.
     scope = config.get("scope") or {}
     default = scope.get("default")
     if default == "all":
@@ -523,8 +515,6 @@ def emit_or_fail(config: dict[str, Any], fmt: str) -> int:
     return 0
 
 
-# The line-oriented formats, each a builder of the lines it prints; every other
-# format is the resolved document itself.
 LINE_FORMATS = {
     "dispatch-args": dispatch_args,
     "ladder-overrides": ladder_overrides,

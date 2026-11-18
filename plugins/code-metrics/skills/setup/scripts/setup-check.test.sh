@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for setup-check.sh: the layer rows, the tracked-file guard,
-# the resolved references, and one row per collector adapter.
 # test-scope: plugins/code-metrics/scripts/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -32,8 +30,6 @@ assert_contains() {
   *) fail "$1" "contains: $3" "$(printf '%s' "$2" | head -c 600)" ;;
   esac
 }
-# The table pads its subject column, so row assertions match a regex whose
-# `+` absorbs the padding.
 assert_row() {
   if grep -Eq -- "$3" <<<"$2"; then
     pass "$1"
@@ -46,8 +42,6 @@ home="$(mktemp -d)"
 repo="$(mktemp -d)"
 trap 'rm -rf "$home" "$repo"' EXIT
 
-# 1. No config anywhere: every layer INFO absent, references from the bundled
-#    defaults, one row per adapter, exit 0.
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?
 assert_eq "no config exits 0" 0 "$rc"
@@ -62,9 +56,6 @@ assert_eq "no row for the adapter_paths helper" 0 "$rows_helper"
 assert_row "the bundled counter measures a fixture" "$out" "PASS  collector line-counter +bundled; measured file_lines on cm-sample.ts"
 assert_contains "python row" "$out" "PASS  python"
 
-# 2. A team file written by setup-apply.py in a git repo: parses, untracked
-#    until committed (WARN), tracked after the commit (PASS); the resolved
-#    reference names the team layer.
 (cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t)
 python3 "$SCRIPT_DIR/setup-apply.py" --dir "$repo" size.file_lines=500 >/dev/null
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
@@ -75,9 +66,6 @@ assert_row "reference from the team layer" "$out" "reference file_lines +500 \(l
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 assert_row "committed team file passes" "$out" "PASS  layer team tracked +committed"
 
-# 2b. A repository with only the retired .claude file: the team layer is
-#     absent, the reference is the bundled default, and a WARN row names the
-#     move.
 retired_repo="$(mktemp -d)"
 mkdir -p "$retired_repo/.claude"
 printf 'size:\n  file_lines: 420\n' >"$retired_repo/.claude/code-metrics.yaml"
@@ -86,8 +74,6 @@ rm -rf "$retired_repo"
 assert_row "a retired team file alone leaves the team layer absent" "$out" "INFO  layer team +absent"
 assert_row "the retired team file location warns" "$out" "WARN  layer team location +.*is not read; .*setup apply moves its keys"
 assert_row "the retired team file supplies no reference" "$out" "reference file_lines +1000 \(layer: bundled default\)"
-# 2c. With the repository at the home directory, that path is the user-global
-#     layer: it is read, and no row calls it retired.
 home_repo="$(mktemp -d)"
 mkdir -p "$home_repo/.claude"
 printf 'size:\n  file_lines: 430\n' >"$home_repo/.claude/code-metrics.yaml"
@@ -115,7 +101,6 @@ assert_contains "ignored team file fails" "$out" "FAIL  layer team tracked"
 assert_contains "unignored personal override warns with the gitignore line" "$out" ".claude/**/*.local.*"
 rm -f "$repo/.gitignore"
 
-# 4. A layer outside the subset is a FAIL naming the construct and line.
 mkdir -p "$home/.claude"
 printf 'lanes:\n  typescript: { enabled: true }\n' >"$home/.claude/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
@@ -124,9 +109,6 @@ assert_eq "bad layer exits 1" 1 "$rc"
 assert_contains "bad layer names the construct" "$out" "FAIL  layer user-global"
 assert_contains "bad layer names the line" "$out" "line 2"
 
-# 5. A collector whose probe passes but whose measure does not run is FAIL, not
-#    PASS: once with a non-zero exit and its stderr, once with no rows; exit 4
-#    (resolved, cannot run here) is a WARN.
 fake="$(mktemp -d)"
 trap 'rm -rf "$home" "$repo" "$fake"' EXIT
 cp -R "$PLUGIN_ROOT/scripts" "$fake/scripts"
@@ -149,8 +131,6 @@ rc=$?
 assert_eq "a tool that cannot run here exits 0" 0 "$rc"
 assert_row "exit 4 is WARN probe only" "$out" "WARN  collector line-counter +bundled; probe only: no config"
 
-# 5b. A tool installed only in the project's ./node_modules/.bin still resolves
-#     when the measure runs from the fixture directory.
 mkdir -p "$repo/node_modules/.bin"
 printf '#!/bin/sh\n' >"$repo/node_modules/.bin/projtool"
 chmod +x "$repo/node_modules/.bin/projtool"
@@ -158,8 +138,6 @@ stub_counter 'import shutil; ok = shutil.which("projtool"); print("{}") if ok el
 out="$(cd "$repo" && CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 assert_row "a project-local tool resolves from the fixture directory" "$out" "PASS  collector line-counter"
 
-# 6. A collector whose probe fails is an INFO missing row with its install
-#    hint, and it does not fail the run.
 printf '%s\n' 'import sys' \
   'if sys.argv[1] == "probe":' '    sys.exit(1)' \
   'elif sys.argv[1] == "install_hint":' '    print("install the stub tool")' >"$fake/scripts/collectors/line-counter.py"
@@ -168,9 +146,6 @@ rc=$?
 assert_eq "a missing collector exits 0" 0 "$rc"
 assert_row "a missing probe is an INFO missing row with its hint" "$out" "INFO  collector line-counter +missing; install the stub tool"
 
-# 7. An ecosystem record counts only for a lane in the resolved `lanes`
-#    mapping: a bundled lane's record is PASS, a record no layer lists is WARN
-#    naming the missing entry, and listing the lane in a layer makes it PASS.
 eco_repo="$(mktemp -d)"
 trap 'rm -rf "$home" "$repo" "$fake" "$eco_repo"' EXIT
 mkdir -p "$eco_repo/.claude/ecosystems"
@@ -185,8 +160,6 @@ mkdir -p "$eco_repo/docs/conventions"
 printf 'lanes:\n  rust:\n    enabled: true\n' >"$eco_repo/docs/conventions/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
 assert_row "a lane a layer lists honors its record" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
-# A file name that is no lane id the resolver accepts gets a rename row, never
-# advice to add a lanes entry the resolver would refuse.
 printf 'globs:\n  - "**/*.zig"\n' >"$eco_repo/.claude/ecosystems/Zig.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
 assert_row "an invalid lane id asks for a rename" "$out" "WARN  ecosystem Zig.yaml +parses, but its file name gives lane id Zig, which is not lowercase kebab-case, so no lane can read it; rename the file"

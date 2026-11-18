@@ -108,9 +108,6 @@ class ReplicaCollapseTests(unittest.TestCase):
         self.assertTrue(all("replicas" not in r for r in out))
 
     def test_a_cluster_line_is_left_to_the_clone_group_reader(self) -> None:
-        # `<canonical> -> <member>...` names a root canonical for the
-        # duplication audit; it is never a path-within-plugin, so this pass
-        # skips it and the plain line beside it still collapses.
         registry = Path(self.tmp.name) / "clusters.txt"
         registry.write_text(
             "lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh\nhooks/hook-utils.sh\n",

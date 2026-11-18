@@ -10,12 +10,14 @@ import io
 import json
 import math
 import os
+import random
 import re
 import subprocess
 import sys
 import time
 import zipfile
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, cast, overload
@@ -30,6 +32,7 @@ from babysit_util import (
     is_json_object,
     json_array,
     json_object,
+    read_seconds_left,
     run_command,
 )
 
@@ -279,6 +282,73 @@ def _run_pages(
         endpoint = _API_ORIGIN.sub("", following[1])
 
 
+READ_ATTEMPTS = 3
+READ_RETRY_ALLOWANCE = 10
+RETRY_BASE_SECONDS = 4.0
+RETRY_CAP_SECONDS = 8.0
+_GRAPHQL_WRITE = re.compile(r"\b(?:mutation|subscription)\b")
+_single_attempt: ContextVar[bool] = ContextVar("single_attempt", default=False)
+_read_retries_sent = 0
+
+
+@contextlib.contextmanager
+def single_attempt() -> Iterator[None]:
+    """Reads inside send one attempt each, for a caller that reads again
+    itself, so the two retries never multiply."""
+    token = _single_attempt.set(True)
+    try:
+        yield
+    finally:
+        _single_attempt.reset(token)
+
+
+def _retry_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _retry_clock() -> float:
+    return time.monotonic()
+
+
+def _retryable_read(args: list[str]) -> bool:
+    """Whether a call only reads, proven from its arguments. `_is_write` calls
+    a GraphQL document it cannot see a read, so here one sent from a file or
+    `--input`, or naming a mutation anywhere, is not."""
+    if not args or args[0] in _LOCAL_SUBCOMMANDS or _is_write(args):
+        return False
+    if _call_pool(args) != "graphql":
+        return True
+    documents = [a.partition("=")[2] for a in args if a.startswith("query=")]
+    return (
+        bool(documents)
+        and not any(a.partition("=")[0] == "--input" for a in args)
+        and not any(d.startswith("@") or _GRAPHQL_WRITE.search(d) for d in documents)
+    )
+
+
+def _transient_status(
+    args: list[str],
+    proc: subprocess.CompletedProcess[Any],
+    status: int | None,
+    headers: Mapping[str, str],
+    *,
+    binary: bool,
+) -> int | None:
+    """The 5xx that lets this failed read be sent again, or None. Only an answer
+    whose header block was read and holds no Retry-After qualifies, and only
+    while the process has retries left of `READ_RETRY_ALLOWANCE`."""
+    if (
+        proc.returncode == 0
+        or _single_attempt.get()
+        or _read_retries_sent >= READ_RETRY_ALLOWANCE
+        or not (not binary and _includes_headers(args))
+        or "retry-after" in headers
+        or not _retryable_read(args)
+    ):
+        return None
+    return status if status is not None and 500 <= status <= 599 else None
+
+
 def _send(
     args: list[str],
     *,
@@ -286,8 +356,59 @@ def _send(
     env_overrides: Mapping[str, str] | None,
     binary: bool,
 ) -> tuple[subprocess.CompletedProcess[Any], dict[str, str]]:
-    """One guarded gh invocation and its response headers (empty unless the
-    call ran with -i)."""
+    """`_send_once`, sent again while a read answers a transient 5xx, under the
+    outage posture's element 1 (docs/conventions/pr-pipeline/README.md): at most
+    `READ_ATTEMPTS`, each wait a full-jitter share of a capped doubling. The
+    attempts share the one timeout a call gets, and a retry that would not fit
+    in it or in the read phase (`read_deadline`) is not sent: the last answer
+    stands, as a single failed read does. An answer with no header block is
+    never sent again, since a Retry-After on it cannot be seen, and neither is
+    one whose headers hold a Retry-After: `_guard_response` stops the process on
+    a value in seconds, and any other form returns as the failed read."""
+    global _read_retries_sent
+    left = _default_timeout_seconds if timeout_seconds is None else timeout_seconds
+    deadline = _retry_clock() + left
+    for attempt in range(1, READ_ATTEMPTS):
+        began = _retry_clock()
+        proc, headers, status = _send_once(
+            args, timeout_seconds=left, env_overrides=env_overrides, binary=binary
+        )
+        status = _transient_status(args, proc, status, headers, binary=binary)
+        if status is None:
+            return proc, headers
+        wait = random.uniform(
+            0, min(RETRY_CAP_SECONDS, RETRY_BASE_SECONDS * 2 ** (attempt - 1))
+        )
+        now = _retry_clock()
+        if min(deadline - now, read_seconds_left()) - wait < now - began:
+            return proc, headers
+        print(
+            f"babysit-gh retry: {gh_call_kind(args, env_overrides)} answered HTTP "
+            f"{status} on attempt {attempt} of {READ_ATTEMPTS}; "
+            f"sending again in {wait:.1f}s",
+            file=sys.stderr,
+            flush=True,
+        )
+        _retry_sleep(wait)
+        left = deadline - _retry_clock()
+        if min(left, read_seconds_left()) <= 0:
+            return proc, headers
+        _read_retries_sent += 1
+    proc, headers, _ = _send_once(
+        args, timeout_seconds=left, env_overrides=env_overrides, binary=binary
+    )
+    return proc, headers
+
+
+def _send_once(
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    env_overrides: Mapping[str, str] | None,
+    binary: bool,
+) -> tuple[subprocess.CompletedProcess[Any], dict[str, str], int | None]:
+    """One guarded gh invocation, its response headers (empty unless the call
+    ran with -i) and the status those headers carry."""
     guarded = bool(args) and args[0] not in _LOCAL_SUBCOMMANDS
     pool = _call_pool(args)
     limits_pool = _limits_pool(args, env_overrides)
@@ -335,11 +456,11 @@ def _send(
         proc.stderr = _api_budget_trace(token, proc.stderr)
     if guarded:
         _guard_response(limits_pool, args, proc, status, headers, binary=binary)
-    return proc, headers
+    return proc, headers, status
 
 
-# The rate-limit guard. GitHub: "Continuing to make requests while you are rate
-# limited may result in the banning of your integration." Once a response
+# The GitHub API rate guard. GitHub: "Continuing to make requests while you are
+# rate limited may result in the banning of your integration." Once a response
 # shows a pool exhausted, this process sends nothing more to that pool until
 # its reset: every later call raises `RateLimitExhausted` before it runs, and
 # the process exits red naming the reset, with no retry and no wait. The
@@ -496,8 +617,9 @@ _job_causes: list[tuple[str, int, str]] = []
 
 
 def reset_rate_guard() -> None:
-    """Forget every trip, reading, loaded share and job stop (tests)."""
-    global _trip_reported, _job_stops, _job_stops_error
+    """Forget every trip, reading, loaded share, job stop and sent retry (tests)."""
+    global _trip_reported, _job_stops, _job_stops_error, _read_retries_sent
+    _read_retries_sent = 0
     _tripped.clear()
     _headroom.clear()
     _limits.clear()

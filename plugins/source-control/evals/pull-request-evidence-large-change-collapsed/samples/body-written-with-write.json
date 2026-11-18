@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/evidence-412.md",
+            "content": "<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\n"
+          }
+        }
+      ],
+      "why": "the body file written with the Write tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no body file written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > /tmp/evidence-412.md <<'EOF'\n<!-- evidence-verification -->\n### Verification evidence for 58acec248c73c4308349647924aaa337a9d02fb6\n\n- cart page: passed\n- checkout page: passed\n- receipt page: passed\n\n<details>\n<summary>The cart page shows the total in currency</summary>\n\npassed\n\n![head-cart.png](/tmp/w/evidence/head/head-cart.png)\n\n</details>\n\n<details>\n<summary>The checkout page shows the total in currency</summary>\n\npassed\n\n![head-checkout.png](/tmp/w/evidence/head/head-checkout.png)\n\n</details>\n\n<details>\n<summary>The receipt page shows the total in currency</summary>\n\npassed\n\n![head-receipt.png](/tmp/w/evidence/head/head-receipt.png)\n\n</details>\n\n<sub>One comment per pull request, updated in place for each new head.</sub>\nEOF"
+          }
+        }
+      ],
+      "why": "the same body written with a Bash heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/notes.md",
+            "content": "Evidence comment to post for PR 412.\n"
+          }
+        }
+      ],
+      "why": "a Write that holds no evidence body"
+    }
+  ]
+}

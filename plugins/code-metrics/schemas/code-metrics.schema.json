@@ -84,7 +84,11 @@
       "properties": {
         "mode": { "enum": ["file-lines", "iso-8.2.115"] },
         "file_lines": { "$ref": "#/$defs/reference" },
-        "function_lines_pct": { "$ref": "#/$defs/reference" }
+        "function_lines_pct": { "$ref": "#/$defs/reference" },
+        "check": {
+          "enum": ["report", "crossing", "crossing-or-growth"],
+          "description": "What audit-size.sh --check fails: report fails nothing; crossing fails a changed file that went from below size.file_lines at the base to at or above it; crossing-or-growth also fails a file already at or above it that grew."
+        }
       }
     },
     "duplication": {

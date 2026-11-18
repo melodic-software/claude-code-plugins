@@ -3,6 +3,44 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.1] - 2026-11-18
+
+### Changed
+
+- The conventions lens shows the boundary-rule line it appends as a placeholder template
+  (`<rule>. Evidence: <path:line>[, <path:line>...]. Accepted <YYYY-MM-DD>.`) instead of a .NET
+  project example.
+
+## [5.5.0] - 2026-11-18
+
+### Added
+
+- The deepening and conventions lenses of `/architecture:improve` run across several repositories when `--repo` or another target form of the shared target-scope contract (`reference/target-scope.md`) names them: `reference/improvement-steps.md` "Scope and fan-out" resolves the repositories, scans each with its root anchored, and ranks candidates together. The default stays this repository.
+
+## [5.4.0] - 2026-11-18
+
+### Added
+
+- `/architecture:improve deepening --unattended` asks nothing, renders no page, and writes a candidate file under `<memory_dir>/architecture/improve/<branch-slug>/` whose header records the mode, verification level, threshold, producer and source commit. A security defect appears there only as a `security-defect: withheld` line.
+- An `improve` settings object in `architecture.yaml`: `unattended_min_badge` (default `Speculative`, every band), `history_commits` (default 100) and `exclude_authors` (default `["[bot]"]`).
+
+### Changed
+
+- **`reference/vocabulary.md`, the sources list.** Leverage and locality as what depth produces,
+  the deletion test and the two-adapter check now credit Matt Pocock's `codebase-design` in
+  mattpocock/skills, with a link to the marketplace's upstream record, in place of calling them
+  our own.
+
+- The deepening and conventions lenses read their history window and excluded authors from those settings. The defaults match the values they used before.
+
+## [5.3.0] - 2026-11-18
+
+### Added
+
+- **`reference/vocabulary.md`, the deletion test.** The check names three fixes for a module that
+  only forwards calls: delete it, move work between it and the module it wraps so each has a
+  distinct job, or merge the two into one deeper module.
+
 ## [5.2.9] - 2026-11-18
 
 ### Changed

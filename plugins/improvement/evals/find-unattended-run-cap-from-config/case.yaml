@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: find-unattended-run-cap-from-config
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: reads-team-layer
+    type: tool_used
+    tool: 'Read'
+    input_match: '\.claude[\\/]+improvement\.md'
+    min: 1
+  - name: files-one-item-from-config
+    type: llm
+    criteria: 'PASS only if the reply plans to file exactly one work item this run, under the source: improvement-find label, and says the per-run cap of 1 comes from the find_run_item_cap value in the team config. FAIL if it would file two or more items, files none, uses the default cap of 3, or never says where the cap came from.'

@@ -152,7 +152,10 @@ that dimension stands alone. Reuse-or-replace: never re-implement what an owned 
 
 In unattended mode, consult only lanes that run without interaction; a lane whose flow is
 interview- or confirmation-driven is skipped with a `gap:` line naming it, and Tier 0 stands
-alone for that dimension, never simulate a user to drive an interactive lane.
+alone for that dimension, never simulate a user to drive an interactive lane. `architecture:improve`
+has a declared unattended mode, so this skill invokes it inline as
+`/architecture:improve deepening --unattended` and reads the candidate file it writes
+(`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Architecture candidates").
 
 ## Candidate output shape
 
@@ -194,8 +197,8 @@ Entered only when the **caller declares it** in the invocation prompt (a routine
 scheduled job, an orchestrating skill), never sniffed from the environment, per the fleet's
 declared-by-the-caller convention. In unattended mode:
 
-- **No questions.** No interview, no picks, no confirmation prompts. Decisions resolve by the
-  defaults below or by the invocation prompt's overrides.
+- **No questions.** No interview, no picks, no confirmation prompts. Each soft default resolves
+  in the order invocation prompt, then config, then bundled default.
 - **The report is persisted**, the full ranked list plus evidence-gap lines, under
   `${CLAUDE_PLUGIN_DATA}`, keyed per project per the plugin-data-report-keying convention (report
   shape and keying: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md`, one Read of that file, never a Glob or Grep of the plugin directory).
@@ -203,21 +206,26 @@ declared-by-the-caller convention. In unattended mode:
   only, noted in the report). Filing behavior:
   - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
     dismissed are suppressed before ranking, so they never consume a cap slot or a tracker query.
-    A soft default the invocation prompt can override.
-  - *Source label*. Every filed item carries `source: improvement-find`. A missing label means
-    nothing is filed this run; the skill never creates it.
-  - *Open cap, a hard stop*. When the open items carrying the source label number at or above
-    `find_open_item_cap` (default 5, set in the config cascade), the run files nothing and says
-    so. The invocation prompt cannot raise it.
+    A soft default (`find_suppress_dismissed`).
+  - *Source label*. Every filed item carries exactly one source label: `source: architecture-improve`
+    for a candidate from the architecture candidate file, `source: improvement-find` for every
+    other. A missing label means nothing is filed under it this run; the skill never creates it.
+  - *Verified Strong architecture candidates only*. An architecture candidate is filed only when
+    its entry says `recommendation: Strong` and `signal-verified: true`; the others stay in the
+    report.
+  - *Open cap, a hard stop per label*. When the open items carrying a source label number at or
+    above `find_open_item_cap` (default 5, set in the config cascade), the run files nothing under
+    that label and says so. The invocation prompt cannot raise it, and personal config can only
+    lower it.
   - *Dedupe against open work items, at filing time*. Search before creating each item. Baseline
     behavior, not a tuning knob. The search is a pre-filter that skips an obvious repeat, never
     the duplicate decision: intake triage owns that for every item filed.
-  - *Adaptive filing cap*, a soft default bounding how many items one run files (following
-    `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
+  - *Adaptive filing cap*, a soft default bounding how many items one run files across both
+    labels (`find_run_item_cap`, following `work-items:work-loop`'s adaptive-cap precedent).
 
   Consultation order and its rationale: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`.
 - **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report,
-  the filed items, and, when code-metrics is enabled, the kept duplication report and the
+  the filed items, the candidate file `architecture:improve` writes (with its memory-root `.gitignore`) when it is available, and, when code-metrics is enabled, the kept duplication report and the
   clone-growth findings file (with its memory-root `.gitignore`) that the verb contract below names; it never picks a candidate, never prioritizes the queue, never starts
   implementation. Prioritization of filed items is human-gated always, the autonomy catalog's
   `tech-debt-sweep` C1 contract.
@@ -256,9 +264,11 @@ mode:
 - **Interactive** (bare invocation): it reports and stops, apart from the code-metrics writes
   below.
 - **Unattended**: the caller's declaration is the explicit mutation override, the same shape as
-  the `audit` verb's autofix override, and it authorizes exactly two more things: the report
+  the `audit` verb's autofix override, and it authorizes exactly three more things: the report
   persisted under `${CLAUDE_PLUGIN_DATA}/find/<state-key>/` (with the dismissed-candidate memory
-  beside it) and presence-gated work-item filing.
+  beside it), presence-gated work-item filing, and the git-ignored candidate file
+  `architecture:improve` writes under `<memory_dir>/architecture/improve/<branch-slug>/`, with the
+  `<memory_dir>/.gitignore` it creates when that file is absent.
 - **Either mode, only when code-metrics is enabled**:
   - `/code-metrics:audit-duplication --json --keep`, which this skill runs, keeps its report in
     code-metrics' own data directory, `reports/<state-key>/audit-duplication-<UTC stamp>.json`
@@ -275,12 +285,16 @@ the target's tracked files.
 
 Every `context/` recipe this skill uses is named above by its full path,
 `${CLAUDE_PLUGIN_ROOT}/skills/find/context/<file>.md`: open it with one Read of that path, and
-never Glob or Grep the plugin directory to find it. The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+never Glob or Grep the plugin directory to find it. The path is already known, and in our eval
+runs a sandbox denied those searches and invalidated the runs
+([#13768](https://github.com/melodic-software/claude-code-plugins/issues/13768)). The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
+
+- **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
+  carries, fetch
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
 
 ## Next
 
@@ -295,8 +309,8 @@ Known traps:
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the pointer
-  for that, and for the documented result cap behind the windowing rule, is in
+- **Never call the Actions `/timing` endpoint**. Durations come from run timestamps; the pointer
+  for the endpoint's status, and for the documented result cap behind the windowing rule, is in
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe

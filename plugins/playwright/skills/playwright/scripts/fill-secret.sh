@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# Fill a secret into a playwright-cli session without the secret reaching output.
-#
-# Usage: fill-secret.sh <session> <target> <ENV_VAR> [--submit]
-#
 # Reads the value from the named environment variable, so the secret is never
 # on the command line an agent prints. playwright-cli echoes the code it ran,
 # fill text included, so its stdout and stderr are discarded; a failure is
 # reported by exit status alone.
-#
-# Exit codes:
-#   0  filled
-#   2  usage error, or ENV_VAR is unset or empty
-#   *  playwright-cli's own non-zero exit status
 set -uo pipefail
 set +x
 

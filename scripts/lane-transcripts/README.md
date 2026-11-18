@@ -3,7 +3,7 @@
 The transcript puller. CI keeps each lane leg's transcript for 7 days as a sealed artifact
 ([`upload-lane-transcript`](../../.github/actions/upload-lane-transcript/README.md)); this copies
 them to a private sink outside CI, opens them with the private key, and keeps the sink's retention.
-It runs daily on the laptop. Needs Node 22 or later, `gh` signed in, and `unzip`.
+It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in, and `unzip`.
 
 ```bash
 vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node scripts/lane-transcripts/pull.mjs pull
@@ -171,7 +171,16 @@ same line; transcripts sealed under the old key count as `sealed_mismatch` until
 
 ## Daily task
 
-A systemd user timer on the laptop, kept in dotfiles beside `worktree-reap.timer`, runs `pull`
-daily with `Persistent=true`, so a day the laptop was off runs at the next boot. A non-zero exit
-leaves the unit failed, which `systemctl --user --failed` shows. A timer that never fires raises
-nothing; `status` is the check for that. `pull-outcomes` runs after `pull` in the same unit, never beside it: both rewrite `metrics.jsonl`.
+A systemd user timer on the laptop, owned by `melodic-software/provisioning`
+(`templates/wsl-user-jobs/lane-transcript-pull/`), starts the job at 00:00, 02:00, 04:00 and 06:00
+with `Persistent=true`, so a run missed while the WSL distribution was down runs when it next
+starts. Each run uses the puller from `origin/main`, not the clone's working tree.
+
+`pull-outcomes` runs after `pull` in the same unit, never beside it: both rewrite `metrics.jsonl`.
+It runs whether `pull` succeeded, failed or was skipped, and without the private key. Either step
+is skipped when fewer than 2,000 REST calls remain on the `gh` login.
+
+A failed `pull` leaves the unit failed, which `systemctl --user --failed` shows, and raises a
+desktop toast. A failed `pull-outcomes` or a skipped step is only logged and leaves the unit
+successful. A timer that never fires raises nothing. `status` is the check for a failed
+`pull-outcomes`, a skipped step and a timer that never fires.

@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-11-18
+
+### Added
+
+- fence the implement and orchestrate paste regions in the Desktop app
+
 ## [0.46.0] - 2026-11-18
 
 ### Added

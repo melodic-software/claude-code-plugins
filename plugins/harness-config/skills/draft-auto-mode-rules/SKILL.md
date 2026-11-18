@@ -181,5 +181,4 @@ Two things to say while handing it over:
   recoverable from the settings file alone. Read what it removes from
   [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
 - **Prose provenance does not belong in an entry.** Dates, issue numbers, and prior-draft archaeology
-  cost classifier attention and buy nothing; the critique names stripping them explicitly. Version
-  control owns that history.
+  cost classifier attention and buy nothing. Version control owns that history.

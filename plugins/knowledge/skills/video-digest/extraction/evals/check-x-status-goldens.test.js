@@ -100,7 +100,6 @@ describe("x status golden eval fixture", () => {
         const envelope = result.data;
         const expected = goldenCase.expected;
 
-        // 0..N result shape: arity is a property of the result.
         expect(envelope.entries.length, goldenCase.name).toBe(expected.entryCount);
         for (const entry of envelope.entries) {
           expect(typeof entry.mediaPath, goldenCase.name).toBe("string");

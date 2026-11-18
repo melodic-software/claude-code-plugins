@@ -1,6 +1,6 @@
 ---
 description: "Iteratively reduce coupling at any altitude (documents, code modules, applications, repositories): scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped; after a value changes, find and classify every site stating it. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos', 'I changed this value everywhere'. Skip when: reviewing a diff before merge (review tools), designing one chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise or dedup pass (docs-hygiene)."
-argument-hint: "[<scope>|dry-run [<scope>]|change [apply] <old> <new> [<scope>]|status|help]"
+argument-hint: "[<scope>|dry-run [<scope>]|change [apply] <old> <new> [<scope>]|status|help] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -32,8 +32,11 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Answer one question, repeatedly: **which dependency in this repository transmits the most
-unnecessary change, and what is the smallest mechanism that stops the transmission?** Each
+Answer one question, repeatedly: **which dependency in the target transmits the most
+unnecessary change, and what is the smallest mechanism that stops the transmission?** The target
+is this repository unless the arguments or the request name several; then it is those
+repositories and the dependencies between them, per
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md). Each
 invocation is one pass. Scan, verify, reduce what is safely reducible within a scope budget,
 surface what is not, and record everything in a durable ledger so the next invocation resumes
 instead of restarting. Coupling goes down monotonically across runs; no single run tries to
@@ -63,6 +66,7 @@ pass. See "What this skill does not do".
 | `change <old> <new> [<scope>]` | Change mode, read-only: find every site that states `<old>`, classify each, and propose what happens to it. No edits |
 | `change apply <old> <new> [<scope>]` | Change mode with edits: the same inventory, then, once the human confirms the site list, change the setup sites and convert them to a reference form |
 | `status` | Read the ledger and report open candidates, applied reductions, and what the next run should take |
+| `--repo <repo>` (and the other target forms) | Any action above, over several repositories: one pass per repository plus the cross-repository scan in phase B |
 | `help` | Print this table with one worked example per action |
 
 ## The model
@@ -80,13 +84,20 @@ Hub-and-spoke; read the spoke before the phase that needs it:
 - [`reference/change-mode.md`](reference/change-mode.md). The `change` action: how the inventory
   finds every form of a value, the site classes and what happens to each, reference forms, the
   apply sequence, and its pitfalls. Read before any `change` run.
+- [`reference/cross-repo-copies.md`](reference/cross-repo-copies.md). Files copied between the
+  repositories in scope: what to exclude, how to measure, and how to route. Read before phase B
+  of a run over two or more repositories.
 
 ## Workflow
 
 Phases run in order; each gate is hard. `dry-run` stops after D (ledger write included).
 
-**A. Orient.** Resolve scope from the argument, else infer from the conversation, else pick
-the hottest area by commit frequency. The ledger path is the memory tier's constant slug `coupling`, default
+**A. Orient.** Resolve the repositories first: this one, unless a target form or the request
+names several, which resolve, count and list as `target-scope.md` "Resolving repositories" says.
+Over several repositories, every phase below runs once per repository with its root anchored
+(`git -C <root>`), one subagent per repository ("Fan-out" there), and the report merges them
+("Merging findings" there). Then resolve the scope within each from the argument, else infer from
+the conversation, else pick the hottest area by commit frequency. The ledger path is the memory tier's constant slug `coupling`, default
 `.work/coupling/coupling-ledger.md` (`.work/` unless the repo's instructions declare another working-docs root),
 never committed, one ledger per repo regardless of scope. The slug is constant because coupling
 reduction is repo-scoped and spans many scopes and short-lived branches; a scope- or
@@ -153,6 +164,11 @@ Design-It-Twice comparison in [`reference/remediations.md`](reference/remediatio
 lists". A second list is always a route-lane ledger entry, report-only, never part of the apply
 batch.
 
+Over two or more repositories, also list what they copy from each other, per
+[`reference/cross-repo-copies.md`](reference/cross-repo-copies.md), whose measuring step is
+`python3 "${CLAUDE_SKILL_DIR}/scripts/cross-repo-dups.py" --managed <file> <root>...`. Each copy
+it finds is a phase C candidate and, once confirmed, a route-lane entry.
+
 Brief the scan agents to list duplicate writers too: one durable key, path or table that more
 than one owner writes (the model's common-coupling entry). Use `value-sites.py find` for a literal
 key. A confirmed duplicate writer always goes to the route lane as a structural ledger entry and
@@ -168,10 +184,13 @@ that the ledger reflects verified state, not raw scan output.
 **D. Partition and rank.** Every verified finding gets a lane. Apply lane requires all of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
 cross-file in remediation or architectural in judgment is route lane, and so is any finding not shown to meet all four.
-Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot
+Rank by `strength × degree × distance × volatility`, on one scale across every repository in scope; a weak-but-everywhere coupling on a hot
 path outranks a strong-but-local one in cold code. Write the full ranked set to the ledger.
 
-**E. Apply (apply lane only, scope-budgeted).** Work on a short-lived branch created from
+**E. Apply (apply lane only, scope-budgeted).** Over several repositories, apply, verify and ship
+each repository's batch on its own, in a worktree of that repository made by its convention, as
+`target-scope.md` "Writes stay per repository" says; the budget and every rule below hold per
+repository. Work on a short-lived branch created from
 the repository's default branch. Resolve that branch (remote HEAD or the repo's own
 convention), never assume its name, and never base the batch on whatever feature branch the
 session happens to be on: inherited unrelated commits would break the structure-only
@@ -200,7 +219,8 @@ One coupling pass per PR; structure-only, no behavioral riders. A human merges. 
 never auto-merges.
 
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
-`rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
+`rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). A cross-repository finding
+goes in the ledger, and is filed in the tracker, of the repository that owns the source. For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is enabled), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool
 when that plugin is enabled, else the repo's own tracker, else present the list to the user. For each confirmed

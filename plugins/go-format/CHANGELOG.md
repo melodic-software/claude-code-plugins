@@ -3,6 +3,18 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-18
+
+### Changed
+
+- The shared `resolve-tool.sh` adds `rt_git`, the git that format and lint adapters run: `hook::git_untrusted` inside a Claude Code hook, plain git otherwise. This plugin's adapter runs no git.
+
+## [2.1.3] - 2026-11-18
+
+### Security
+
+- `hook-utils.sh`'s repository-root lookups (`hook::in_git_working_tree`, `hook::repo_root_to`) pass the overrides `hook::git_untrusted` uses, so those git calls run with the repository's `core.fsmonitor`, git hooks and pager turned off, as its ignore check already does.
+
 ## [2.1.2] - 2026-11-18
 
 ### Changed

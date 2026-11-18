@@ -1,32 +1,4 @@
 # shellcheck shell=bash
-# Sourced by the dispatcher and by every audit entry point: the seven pieces
-# each of them would otherwise repeat verbatim.
-#
-#   cm_usage_banner <file> <last line>    print <file>'s leading comment block,
-#                                         lines 2..<last line>, with the comment
-#                                         marker stripped, on stderr
-#   cm_entry_args <file> <last line> <argument>...
-#                                         parse the `--json`, `--help` and pass-
-#                                         through options into JSON and ARGS; on
-#                                         `--help` print the banner and exit 0
-#   cm_require_python <script name>       resolve the interpreter into PY, or
-#                                         print the prerequisite message and
-#                                         exit 2
-#   cm_split_config <argument>...         split `--config <path>` out of the
-#                                         arguments into CM_CONFIG and leave the
-#                                         rest, in order, in CM_PASS_ARGS
-#   cm_resolve_config <destination> [<ladder>]
-#                                         resolve the configuration cascade into
-#                                         <destination>; return the resolver's
-#                                         own status
-#   cm_anchor_document <document>        record the report's root and make its
-#                                         measured paths relative to it, in
-#                                         place; a document already anchored is
-#                                         left unchanged
-#   cm_emit_document <skill> <json flag> <document> [<render argument>...]
-#                                         print <document> when the flag is 1,
-#                                         else persist it and render the markdown
-#
 # The banner's last line is the caller's own rather than the end of its comment
 # block: each script's `--help` output is its published contract, and several of
 # them stop short of that end.
@@ -69,7 +41,6 @@ cm_entry_args() {
   done
 }
 
-# The caller sources python-resolve.sh, which defines cm_resolve_python.
 cm_require_python() {
   if ! cm_resolve_python; then
     echo "$1: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite" >&2
@@ -128,8 +99,6 @@ cm_emit_document() {
   local render_args=("$@")
   # shellcheck source=persist-report.sh
   source "$CM_ENTRY_LIB_DIR/persist-report.sh"
-  # A report directory that cannot be written leaves the renderer without a
-  # path, and the cap line then says to re-run with --json instead.
   if persisted="$(cm_persist_report "$skill" "$document")"; then
     render_args+=(--document "$persisted")
   fi

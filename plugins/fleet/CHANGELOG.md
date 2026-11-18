@@ -3,6 +3,21 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3] - 2026-11-18
+
+### Changed
+
+- `reach` no longer paraphrases the Login expired and workspace-not-trusted error entries, how
+  `-p` reads stdin, or the inbound-message controls: each passage now states our rule, with its
+  reason or the probe behind it, and a pointer that says when to fetch the upstream section live.
+  The Agent view limitations line is now a pointer of that form.
+
+## [0.4.2] - 2026-11-18
+
+### Changed
+
+- The reach skill's relay reference states its verified behavior as our probe observations, with a pointer to the probe evidence in [#5337](https://github.com/melodic-software/claude-code-plugins/pull/5337), in place of a dated Claim/Basis block, and the hub no longer calls the Cost row a dated measurement. No behavior change.
+
 ## [0.4.1] - 2026-11-17
 
 ### Fixed

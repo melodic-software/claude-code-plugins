@@ -11,9 +11,21 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Level resolved.\\n\\nlevel: standard (default)\\n\\nPlan: three directions.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"mktemp -d\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"I built three directions as one page.\"}]}}",
       "why": "the report line comes with the plan, before the build and the final reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: standard (default)\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/run/index.html\",\"content\":\"<p>level: standard (default)</p>\"}}]}}",
+      "why": "the report line is typed before the first Write"
     }
   ],
   "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Building the page now.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/run/index.html\",\"content\":\"<p>page</p>\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: standard (default). The mockup is built.\"}]}}",
+      "why": "the report line comes only after the first Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/tmp/run/index.html\",\"old_string\":\"a\",\"new_string\":\"b\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: standard (default)\"}]}}",
+      "why": "the report line comes only after the first Edit"
+    },
     {
       "answer": "",
       "why": "empty"

@@ -65,8 +65,9 @@
 //          profile (always-on plus the profile applied --for initial) includes it. It never
 //          updates or uninstalls.
 // save     Writes a profile file at the user or repository level: the lists given are added to
-//          the file's own lists, --description replaces its description. It prints the whole file
-//          first and writes on --yes or a yes typed at the prompt; ids are comma-separated.
+//          the file's own lists, --description replaces its description, and every list is
+//          written in alphabetical order. It prints the whole file first and writes on --yes or a
+//          yes typed at the prompt; ids are comma-separated.
 // check    Checks the profile files at every level (lib/check.mjs says what fails and what is
 //          only reported). --catalog defaults to the marketplace.json of the marketplace this
 //          plugin was installed from (plugins/known_marketplaces.json), or of the repository a
