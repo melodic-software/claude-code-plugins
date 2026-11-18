@@ -59,21 +59,19 @@ that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
 key, and screenshots that first screen.
 
-A drive that must show the plugin beside the person's own setup (their settings files, installed
-plugins, hooks, MCP servers, status line and Bash) adds `--real-setup` to `launch`, `ready` and
-`log`, which drops `--restricted` and `--strict-mcp-config` and changes nothing else: the same
-variables are cleared and Ready still requires `none`. It runs only attended, at the person's
-request: the driver refuses it with `--unattended`, with `--in-sandbox`, with any kept credential,
-and through the launch broker. With it, `--launcher <word>`, once per word, runs that command in
-place of the bare `claude`, with only `--plugin-dir <plugin-dir>` (and, for `ready` and `log`, the
-print-mode flags and prompt) after it; it never passes through a shell, and it runs with the person's own permissions, so name
-only a launcher the person named. To start in a plugin profile:
+To drive the plugin beside the person's own setup (settings, installed plugins, hooks, MCP
+servers, status line, Bash), add `--real-setup` to `launch`, `ready` and `log`: it drops
+`--restricted` and `--strict-mcp-config` and nothing else, so Ready still requires `none`. It runs
+only attended, at the person's request; the driver refuses it with `--unattended`, `--in-sandbox`,
+a kept credential, or through the launch broker. With it, `--launcher <word>` once per word
+(`--launcher=<word>` for one starting with `-`) runs that command in place of `claude`, followed
+only by `--plugin-dir <plugin-dir>` and, for `ready` and `log`, the print-mode flags and prompt. No
+shell runs it, and it runs with the person's own permissions, so use only a launcher the person
+named, such as the plugin-profiles plugin's `profiles.mjs`:
 
-`node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session> --real-setup --launcher node --launcher <profiles.mjs> --launcher start --launcher <profile>`
+`node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session> --real-setup --launcher node --launcher <profiles.mjs path> --launcher start --launcher <profile>`
 
-where `<profiles.mjs>` is the plugin-profiles plugin's `scripts/profiles.mjs`. A word starting with
-`-` is written `--launcher=<word>`. Ready takes the same flags, so its turn runs what the session
-runs. The first screen of such a session can open with dialogs a restricted launch never shows
+Give `ready` the same flags. The first screen can show dialogs a restricted launch never does
 (Gotchas).
 
 Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
