@@ -309,6 +309,7 @@ from babysit_gh import (
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    single_attempt,
     split_created_window,
 )
 from babysit_util import is_json_array, is_json_object, json_array, json_object
@@ -2237,11 +2238,12 @@ class Reader:
                 return None
             self._page_transient = False
             try:
-                proc, headers = gh_api_with_headers(
-                    ["api", *conditional, path],
-                    timeout_seconds=left,
-                    env_overrides=self._env(),
-                )
+                with single_attempt():
+                    proc, headers = gh_api_with_headers(
+                        ["api", *conditional, path],
+                        timeout_seconds=left,
+                        env_overrides=self._env(),
+                    )
             except (RuntimeError, ValueError, OSError):
                 return None
             if proc.returncode == 0:
@@ -2356,7 +2358,7 @@ class Reader:
         left = timeout
         for wait in (*LISTING_WAITS, None):
             try:
-                page = self._actions(args, label, left)
+                page = self._actions_once(args, label, left)
                 break
             except _Transient:
                 if wait is None or (
@@ -2395,7 +2397,7 @@ class Reader:
         self._read_deadline = deadline
         for wait in LISTING_WAITS:
             try:
-                return self._actions(args, "repository artifacts", timeout)
+                return self._actions_once(args, "repository artifacts", timeout)
             except _Transient:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
@@ -2404,10 +2406,17 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
-        return self._actions(args, "repository artifacts", timeout)
+        return self._actions_once(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
         return {"GH_TOKEN": self.actions_token} if self.actions_token else None
+
+    def _actions_once(
+        self, args: list[str], label: str, timeout_seconds: float | None = None
+    ) -> Any:
+        """`_actions` for a caller that reads again after `LISTING_WAITS`."""
+        with single_attempt():
+            return self._actions(args, label, timeout_seconds)
 
     def _actions(
         self, args: list[str], label: str, timeout_seconds: float | None = None
