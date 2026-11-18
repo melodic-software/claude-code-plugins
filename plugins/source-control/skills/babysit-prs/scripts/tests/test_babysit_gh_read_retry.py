@@ -26,6 +26,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
+import babysit_merge_policy as merge_policy
 import babysit_verify_evidence as verify_evidence
 from babysit_util import deadline_after, read_deadline
 
@@ -487,6 +488,26 @@ class AnOuterRetryDoesNotMultiply(RetryCase):
             )
         self.assertIsNone(read)
         self.assertEqual(len(self.sent), self.outer_reads())
+        self.assertEqual(self.waits, [])
+
+    def test_the_green_main_read_sends_twice_on_a_lasting_5xx(self) -> None:
+        for stderr in (BAD_GATEWAY, "gh: HTTP 502\n"):
+            with self.subTest(stderr):
+                self.sent.clear()
+                self.answers.clear()
+                for _ in range(6):
+                    self.answer(1, head(502) + "{}", stderr)
+                with self.assertRaises(merge_policy.PolicyReadError):
+                    merge_policy._GreenMain("o", "r")._read("repos/o/r/commits/main")
+                self.assertEqual(len(self.sent), 2)
+        self.assertEqual(self.waits, [])
+
+    def test_the_green_main_read_recovers_on_its_second_send(self) -> None:
+        self.bad_gateway()
+        self.answer(0, head(200) + '{"sha":"abc"}')
+        answer = merge_policy._GreenMain("o", "r")._read("repos/o/r/commits/main")
+        self.assertEqual(answer, {"sha": "abc"})
+        self.assertEqual(len(self.sent), 2)
         self.assertEqual(self.waits, [])
 
     def test_a_read_outside_those_loops_keeps_its_retry(self) -> None:
