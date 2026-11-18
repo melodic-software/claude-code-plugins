@@ -70,7 +70,8 @@ read as before.
   newest usable entries.
 
 Bump `ATTEMPT_JOBS_VERSION` when `failing_checks`, `_failed_gates`,
-`_failed_steps`, `_attempt_settled` or the constants they read change what an
+`_failed_steps`, `_attempt_settled` or the constants they read, among them
+`policy.GATE_CHECK`, `policy.GATE_ALIAS` and `policy.GATE_NAMES`, change what an
 answer means: every `jobs` entry kept under another version is read again.
 
 The file travels in an artifact on every run, so `jobs` is bounded by
@@ -2155,7 +2156,8 @@ class _Context:
             self.attempt_jobs_new[carry_key] = entry
 
     def failing_checks(self, run: Run, attempt: int) -> frozenset[str]:
-        """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
+        """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS).
+        A change to what this returns requires bumping ATTEMPT_JOBS_VERSION."""
         key = (run.id, attempt)
         if key not in self.checks_cache and not self._restore_attempt(run, attempt):
             listed = _paginated(

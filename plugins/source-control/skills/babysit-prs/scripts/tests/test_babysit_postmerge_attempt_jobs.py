@@ -349,7 +349,6 @@ class AnUnusableCarryFallsBackToTheLiveRead(AttemptJobsCase):
         "a head SHA of no shape": {"head_sha": "main"},
         "another version": {"version": pm.ATTEMPT_JOBS_VERSION + 1},
         "a version of no value": {"version": None},
-        "a version that is a boolean": {"version": True},
         "a version that is a float": {"version": float(pm.ATTEMPT_JOBS_VERSION)},
         "no date": {"at": None},
         "a date with no zone": {"at": "2026-10-12T10:00:00"},
@@ -379,6 +378,11 @@ class AnUnusableCarryFallsBackToTheLiveRead(AttemptJobsCase):
         del unversioned["version"]
         self.seed({KEY: unversioned})
         self.assert_read_live()
+
+    def test_a_boolean_version_reads_live_though_true_equals_1(self) -> None:
+        with mock.patch.object(pm, "ATTEMPT_JOBS_VERSION", 1):
+            self.seed({KEY: entry(version=True)})
+            self.assert_read_live()
 
     def test_a_corrupt_file_reads_live(self) -> None:
         self.path.write_text("{not json", encoding="utf-8")
