@@ -36,7 +36,7 @@ with its pull request where one is open. `none` means no change to this reposito
 ## Attribution table
 
 Disposition is `take`, `adapt`, `already have`, `reject`, `deferred` (decided to wait, listed under
-[Deferred](#deferred)) or `no change` (nothing to decide), with the reason; `deferred` and
+[Deferred](#deferred)) or `no change` (nothing to decide, or decided to leave this repository as it is), with the reason; `deferred` and
 `no change` are additions to the usual four. A row with two parts leads with the disposition of its
 main idea. The upstream-problem cells are **Inference** throughout: the lesson pages that state them
 are paid and not linked.
@@ -50,8 +50,8 @@ are paid and not linked.
 | The tracker is where people talk to agents | Sets the minimum a tracker must offer an agent | Inference: agents need a shared queue that people already read | Same | **already have**: the [`work-items`](../../plugins/work-items/skills/setup/SKILL.md) tracker providers, with the trusted-actor gate of ADR 0049 on what reaches a lane | none |
 | The git host holds branches, reviews and merges | Lists self-hosted alternatives for code that cannot leave a network | Inference: some teams cannot use a public host | GitHub is fixed for us | **already have**: GitHub, plus a `gitea` tracker provider | none |
 | A runner is a disposable sandbox | Keeps no state on the machine, so every result returns to the tracker or git host | Inference: a throwaway machine limits what a bad run can damage | Same | **adapt**, names only: a fresh runner per job is already ADR 0049; our course notes map his run to one GitHub job | none |
-| The orchestrator starts runners on events and schedules | Compares CI, an own server and a hosted agent platform for that job | Inference: something must turn events into runs and handle their errors | Same | **already have**: Actions triggers lanes, with the org kill switch of ADR 0049. A hosted agent platform is rejected because it ties work to one account | none |
-| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer. The launcher can join a leg's traces to its run and keep them through a sealed receiver that is off by default. This repository's lanes still pin the release before that change and none turns the receiver on, so no lane produces telemetry yet | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046), [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075), [provisioning#1052](https://github.com/melodic-software/provisioning/pull/1052), [ci-workflows#1136](https://github.com/melodic-software/ci-workflows/pull/1136) |
+| The orchestrator starts runners on events and schedules | Compares CI, an own server and a hosted agent platform for that job | Inference: something must turn events into runs and handle their errors | Same | **already have**: Actions triggers lanes, with the org kill switch of ADR 0049. A hosted agent platform is rejected because public repositories stay on Actions, which already does this job at no charge; a private-repository runner is [deferred](#deferred) for its cost. Account rotation is not the reason: ADR 0062 already funds Managed Agents from linked Console orgs | none |
+| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer. The launcher can join a leg's traces to its run and keep them through a sealed receiver that is off by default. This repository's lanes still pin the release before that change and none turns the receiver on, so no lane produces telemetry yet; the re-pin and a first lane's opt-in are tracked in [#17261](https://github.com/melodic-software/claude-code-plugins/issues/17261) | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046), [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075), [provisioning#1052](https://github.com/melodic-software/provisioning/pull/1052), [ci-workflows#1136](https://github.com/melodic-software/ci-workflows/pull/1136) |
 | Decide the slots in order | Fixes tracker and git host first, then prices the rest against real usage | Inference: the early choices constrain the later ones | Same | **already have**: numbered interview rounds, and skill bodies that point at live vendor pages | none |
 
 ### Lesson 2: Choosing Your Infrastructure
@@ -113,7 +113,7 @@ are paid and not linked.
 | A merge starts the next run | Lets merge speed set the pace | Inference: the factory should run as fast as work is accepted | Merges here are already unattended, so the loop would close with no person | **deferred**: a strong accelerator that adapts the pace to how fast the developer wants to move that day, so it stays open until the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) settles its brakes | none |
 | Two lint grades, with graduation | Moves a rule from a full set to a strict set once it reaches zero | Inference: a rule needs a path from advisory to enforced | A baseline does this with one rule set | **reject**: `/toolchain:ratchet` holds one rule set at error with a baseline | none |
 | Automatic review on ratchet pull requests | Adds a review step to the merge | Inference: small fixes should not wait for a person | Same | **already have**: the verifier verdict and both AI review lanes | none |
-| Failure text written for an agent | Words a check's failure as instructions | Inference: the agent reads the failure first | Same | **already have**: [ADR 0072](../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md) | none |
+| Failure text written for an agent | Words a check's failure as instructions | Inference: the agent reads the failure first | No rule sets how failure text is worded | **no change**: no wording rule is adopted. [ADR 0072](../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md) decides where checks run and what output reaches the model, not how failure text reads; its only related rule is that an agent commit with a missing tool fails with the install command | none |
 
 ### Lesson 6: The Morning Rebase
 
@@ -196,8 +196,10 @@ are paid and not linked.
 | System design support | n/a (raised while absorbing) | n/a | No file-backed diagram target, no system-design steps, and event storming depended on Miro | **adapt** inside existing plugins, with no new plugin: an Excalidraw file target, then quality-scenario, capacity and risk steps in `/planning:design`, then event storming backends with Miro as one of them | [#17052](https://github.com/melodic-software/claude-code-plugins/pull/17052), [#17062](https://github.com/melodic-software/claude-code-plugins/pull/17062), [#17087](https://github.com/melodic-software/claude-code-plugins/pull/17087) |
 | Improvement skills as factory tasks | n/a (raised while absorbing) | n/a | Simplify and similar passes run only by hand | **adapt**: a map of factory tasks from ideation to merge ([#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133)) decides where each runs, including a simplify pass on every pull request that never slows it | pending |
 | A parent issue for agent-filed work | n/a (raised while absorbing) | n/a | Agent filings of one kind have no grouping | **no change**: the source label comes first, and a parent only if needed | none |
-| Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
-| Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **no change** here: folded into the map of factory tasks | none |
+| Lesson 1: a factory spec handed to an agent to build | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **deferred**: carried into the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133), since the spec describes what the map settles | none |
+| Lesson 2: a plugin that builds and maintains a factory | n/a (raised while absorbing) | n/a | The note needs a place in the factory's design | **deferred**: carried into the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133), since the skills it ships follow from the tasks on the map | none |
+| Lesson 2: research every runner, storage and hosting vendor raised, with modern alternatives | n/a (raised while absorbing) | n/a | Nothing is being bought, and public repositories stay on Actions | **deferred**: to the infrastructure design run as a [`/planning:wayfind`](../../plugins/planning/skills/wayfind/SKILL.md) effort, carried in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) | none |
+| Lesson 2: compare and take from the author's newest `software-factory` skill | n/a (raised while absorbing) | n/a | Whether the newest copy holds anything to take | **no change**: the newest copy differs from the audited pin by two one-line edits, and the `software-factory` row of [mattpocock-skills.md](mattpocock-skills.md) takes nothing | none |
 | Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's direction needs a design | **deferred**: carried into the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) as direction to design there | none |
 | Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **deferred**: a separate item after the Excalidraw file target, tracked in [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128) | none |
 
@@ -210,8 +212,15 @@ These were decided to wait, each for the condition or in the issue named:
   alongside the page, never instead of it, and a person reviews any alert-started fix before it
   merges;
 - a private-repository runner, until that work starts, because of its cost;
-- a different runner per task, held for a later pass over the automation's shape; no condition is
-  recorded;
+- a different runner per task, carried into the map of factory tasks in
+  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133), which decides
+  where each task runs first;
+- a factory spec handed to an agent, and a plugin that builds and maintains a factory, both carried
+  into the map of factory tasks in
+  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133);
+- research of the runner, storage and hosting vendors raised, with modern alternatives, until the
+  infrastructure design runs as a `/planning:wayfind` effort, carried in
+  [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133);
 - a merge that starts the next run, a strong accelerator that adapts the pace to how fast the
   developer wants to move that day, until the map of factory tasks in
   [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) settles its brakes;
