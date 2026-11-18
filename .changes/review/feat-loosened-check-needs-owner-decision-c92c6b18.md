@@ -8,7 +8,8 @@ bump: minor
   `docs/conventions/review.yaml`, read from the default branch, with no user option. Set, a
   loosening, a removed check and a quarantined flaky test also need the spec to cite the owner's
   decision: a line link under that prefix and the owner's words after `verbatim:`. Unset, no citation
-  is needed. When the default branch cannot be read, the citation counts as unmet.
+  is needed. When the default branch cannot be read or the committed value is invalid, the citation
+  counts as unmet.
 
 ### Changed
 

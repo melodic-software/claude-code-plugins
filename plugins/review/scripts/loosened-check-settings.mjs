@@ -191,6 +191,9 @@ function repositoryLayer(opts, notes) {
   if (!/^PASS /m.test(out)) {
     notes.push(`WARN ${read[1]} at ${read[2]} could not be parsed: ${RECORD_KEY} resolves unreadable, so ${UNREADABLE_CITATION}`);
     layer.record = { value: "unreadable", from: `${read[1]} could not be parsed` };
+  } else if (!new RegExp(`^PASS ${RECORD_KEY}: `, "m").test(out)) {
+    notes.push(`WARN ${read[1]} at ${read[2]}: ${RECORD_KEY} is invalid; it resolves unreadable, so ${UNREADABLE_CITATION}`);
+    layer.record = { value: "unreadable", from: `invalid value in ${read[1]}` };
   } else if (passed(RECORD_KEY)) {
     const value = committed(RECORD_KEY);
     if (typeof value === "string" && RECORD_PATTERN.test(value)) layer.record = { value, from: read[1] };

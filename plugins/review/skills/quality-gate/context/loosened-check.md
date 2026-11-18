@@ -66,7 +66,7 @@ cite the owner's decision:
   gives no reason, whoever wrote it.
 - **`unset`:** it does not. No citation is asked for, and a missing one is no finding.
 - **`unreadable`:** the citation counts as unmet, so no spec allows the loosening on this run. Say
-  that the default branch's setting could not be read.
+  that the default branch's setting could not be read or is invalid.
 
 The spec allows only what it names: a value or scope past what the spec gives is a loosening of its
 own, with no reason. A loosening the spec allows gets no finding at any tier under this criterion:

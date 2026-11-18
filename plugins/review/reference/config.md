@@ -82,11 +82,12 @@ as `downstream_probe` does, so a pull request that edits `docs/conventions/revie
 can neither relax the verdict nor drop a pattern to narrow its own detection. Unlike
 `downstream_probe`, when the default branch cannot be read the verdict resolves `fail`, the user's
 patterns still apply, and a WARN line says why. `loosened_check_decision_record` has only the
-repository layer, read the same way. It prints `unset` when the default branch's copy has no value,
-and also when its value is invalid, which the "Resolution" rule above drops with a WARN. It prints
-`unreadable`, with a WARN, when the value could not be known: no `--ref`, a default branch that
-cannot be read, or a committed file that does not parse. The criterion then treats the citation as
-unmet, so no spec can allow the loosening on that run.
+repository layer, read the same way. It prints `unset` only when the default branch's copy does not
+have the key. It prints `unreadable`, with a WARN, when the value could not be known or is invalid:
+no `--ref`, a default branch that cannot be read, a committed file that does not parse, or a key
+present with an invalid value, an exception to the "Resolution" rule above, so a merged typo cannot
+switch the citation off. The criterion then treats the citation as unmet, so no spec can allow the
+loosening on that run.
 `scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves all three, with
 `--verdict-option` and `--patterns-file` (a file holding the patterns option, never a shell
 argument, written to `<memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json`) for the

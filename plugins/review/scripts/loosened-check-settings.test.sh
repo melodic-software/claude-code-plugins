@@ -271,13 +271,22 @@ out="$(node "$RESOLVE" --root "$R10A" --ref origin/main)"
 assert_eq "case 10: a default branch with no settings file leaves the record unset" \
   "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
 for bad in "http://records.example.com/decisions/" "https://records.example.com/decisions" \
-  "https://records.example.com/a/../b/" "records.example.com/decisions/"; do
+  "https://records.example.com/a/../b/" "records.example.com/decisions/" "" '""' "42" "true" "null" \
+  "[https://records.example.com/decisions/]"; do
   R10="$(new_repo "c10-$((CASE_NUM))" "loosened_check_decision_record: $bad"$'\n')"
   out="$(node "$RESOLVE" --root "$R10" --ref origin/main)"
-  assert_eq "case 10: the invalid value $bad leaves the record unset" \
-    "loosened_check_decision_record: unset (default)" "$(line_of "$out" loosened_check_decision_record)"
-  assert_contains "case 10: the invalid value $bad is named in a WARN line" "$out" "WARN docs/conventions/review.yaml"
+  assert_eq "case 10: the invalid value '$bad' resolves unreadable, never unset" \
+    "loosened_check_decision_record: unreadable (invalid value in docs/conventions/review.yaml)" "$(line_of "$out" loosened_check_decision_record)"
+  assert_contains "case 10: the invalid value '$bad' is named in a WARN line" "$out" "loosened_check_decision_record is invalid"
 done
+R10M="$(new_repo c10m $'loosened_check_decision_record: {url: https://records.example.com/decisions/}\n')"
+out="$(node "$RESOLVE" --root "$R10M" --ref origin/main)"
+assert_eq "case 10: a flow map, which the reader cannot parse, resolves unreadable, never unset" \
+  "loosened_check_decision_record: unreadable (docs/conventions/review.yaml could not be parsed)" "$(line_of "$out" loosened_check_decision_record)"
+R10L="$(new_repo c10l $'loosened_check_decision_record:\n  - https://records.example.com/decisions/\n')"
+out="$(node "$RESOLVE" --root "$R10L" --ref origin/main)"
+assert_eq "case 10: a block list resolves unreadable, never unset" \
+  "loosened_check_decision_record: unreadable (invalid value in docs/conventions/review.yaml)" "$(line_of "$out" loosened_check_decision_record)"
 out="$(node "$RESOLVE" --root "$R1" --ref origin/nope)"
 assert_eq "case 10: an unreadable ref prints the distinct value" \
   "loosened_check_decision_record: unreadable (unreadable default branch)" "$(line_of "$out" loosened_check_decision_record)"
