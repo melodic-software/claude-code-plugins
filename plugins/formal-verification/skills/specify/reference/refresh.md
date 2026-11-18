@@ -106,8 +106,9 @@ a check that ends `in sync` or `updated` with its seeded break caught. A propose
    function that is renamed, split, or moved to another file is still covered code. Also look for new
    code that touches the state that a check guards, such as a new function that writes the same
    fields: search the whole diff since the sync commit for the names the model reads, as the verify
-   skill's `## Updating` lists them. For each
-   change, decide which of these it is:
+   skill's `## Updating` lists them; where it lists none, take them from the verification's own
+   citations of the covered code, and add the list in step 6. For each change, decide which of
+   these it is:
    - **No effect.** The change does not alter anything the verification describes, such as
      formatting, comments, or code paths that the verification does not cover. Check this against
      the model or harness, not against the commit message.
