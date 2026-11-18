@@ -9,31 +9,27 @@ inventory**: where a snapshot can come from, and what to expect where none can.
 
 ## Verdict
 
-**The module is the capture path.** A mod reads the running session's context-window figures in
-process (`$.session.usage()`), with the window size, the percentage and the last API response's
-token breakdown, in every kind of session that loads the plugin: interactive, `-p`, the SDK and
-`--bg` alike. It writes the snapshot through `lib/write-snapshot.mjs`. Before the module, the only
+**The module is the capture path.** It reads the running session's context-window figures in
+process through `$.session.usage()`, in every kind of session where a mod runs, and writes the
+snapshot through `lib/write-snapshot.mjs`. The snapshot's window size and percentage come from
+that method, so the plugin depends on it reporting both. Before the module, the only
 writer was a statusline tee, which wrote nothing in a session that runs no status line; the
 measurements and channel checks below record that state, dated, because they are why no other
 channel was adopted.
 
-- **Pointer**: `$.session.usage()` in
+- **Pointer**: what `$.session.usage()` reports is in
   [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods);
-  where hooks run in
+  which kinds of session run a mod is in
   [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: the method stops reporting the window size or the percentage, or the table
-  removes a kind of session.
 
 A structural `unknown` remains only where the module does not run: a WSL session of the Desktop
-app, where plugins are not available; a session where mods are off; and a session the plugin is
+app (pointer below); a session where mods are off; and a session the plugin is
 not enabled in. There no snapshot is written, so `context-zone.sh` answers `unknown` and every
 zone consumer takes its conservative path. **That `unknown` is structural, not a defect and not a
 broken install.**
 
-- **Pointer**: the WSL clause rests on
-  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
-  which lists connectors and plugins among the features not available there.
+- **Pointer**: for whether plugins load in a WSL session of the Desktop app, see
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session).
 
 **As of 2026-08-21, no documented Claude Code channel other than the status line delivered
 per-session context-window occupancy to a local writer outside a mod.** Two other channels do carry
@@ -250,10 +246,9 @@ A configured `statusLine` decides neither branch: the module needs none.
 Nothing, for the sessions mods reach. The remaining gaps are where the module does not run, and
 each would close by a change to Claude Code, not to this plugin:
 
-- **Plugins in Desktop WSL sessions.** The Desktop WSL page lists plugins as unavailable there
-  ([What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session)),
-  and the mods overview's
-  "Where mods run" table repeats it.
+- **Plugins in Desktop WSL sessions.** Pointers:
+  [What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session)
+  and [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
 - **A context field on hook stdin**, so a settings hook could write the snapshot where mods are off
   and settings hooks still run (an organization's `allowManagedModsOnly`, for example): add the
   `context_window` object (or its `used_percentage` alone) to the documented common input fields.

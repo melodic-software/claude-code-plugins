@@ -445,11 +445,11 @@ with a declared margin: the heavy band leads the default trigger that table give
 use. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
-Two adjacent decisions. We read the statusline percentage as of the last API response, not the
-next request, so it can trail `/context`. With auto-compact turned off, the heavy band is the
-*only* tripwire, so it matters strictly more, never less.
+Two adjacent decisions. A gap between the statusline percentage and `/context` is never read as a
+fault in either one. With auto-compact turned off, the heavy band is the *only* tripwire, so it
+matters strictly more, never less.
 
-- **Pointer**: for how the statusline percentage relates to `/context`, see
+- **Pointer**: for how the statusline percentage's timing compares with `/context`, see
   <https://code.claude.com/docs/en/statusline#troubleshooting>; for turning auto-compact off, see
   <https://code.claude.com/docs/en/settings-reference#autocompactenabled>.
 
@@ -692,10 +692,10 @@ far above the staleness window, so idle sessions' files are never deleted out fr
 
 The single capture channel is the module, so **a session where the module does not run has no
 instrument at all**. No snapshot is written for it, and this contract resolves `unknown` for that
-session permanently. The module runs in interactive, `-p`, SDK and `--bg` sessions alike; it does
+session permanently. The module runs wherever a mod runs (the mods pointer below); it does
 not run:
 
-- **In a WSL session of the Desktop app**, where plugins are not available.
+- **In a WSL session of the Desktop app** (the WSL pointer below).
 - **Where mods are off**: on a build too old for mods, or wherever a setting, flag, policy or Claude Code itself turned mods off (the pointer below). The
   PostCompact marker, a settings hook, still runs there wherever settings hooks do.
 - **Where the plugin is not enabled** for the session, for example a project that disables it in
@@ -707,9 +707,8 @@ not run:
   and [turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
 - **Recheck trigger**: that table changes a row, or that section changes what stops a mod.
-- **Pointer** (WSL sessions): the first bullet's "plugins are not available" rests on
-  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
-  which lists connectors and plugins among the features not yet available there.
+- **Pointer** (WSL sessions): for whether plugins load in a WSL session of the Desktop app, see
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session).
 
 This is not a degraded install and not a missing dependency. Before the module, the only writer
 was a statusline tee, and `reference/cloud-headless-capture.md` records the channel inventory made
