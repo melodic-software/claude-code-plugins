@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/intake-triage/admit.mjs .github/actions/resolve-config/admission-rules.json .github/scripts/work-unblock/label-unblocked.mjs
+# test-scope: .github/scripts/intake-triage/admit.mjs .github/actions/resolve-config/admission-rules.json .github/actions/resolve-config/resolve-config.mjs .github/scripts/work-unblock/label-unblocked.mjs
 """The gate's own-agent trust rule (`babysit_verify_evidence._trusted_spec`)
 takes the filings intake admission admits (ADR 0111): an issue an identity in
 `own-agents.identities` wrote, no other account edited, carrying exactly one
@@ -29,6 +29,7 @@ ADMIT = (
     pathlib.Path(__file__).resolve().parents[6]
     / ".github/scripts/intake-triage/admit.mjs"
 )
+RESOLVE_CONFIG = ADMIT.parents[2] / "actions/resolve-config/resolve-config.mjs"
 REPO = "example-org/example-repo"
 ISSUE = 7
 MAIN_TIP = "a" * 40
@@ -530,6 +531,71 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
                 self.assertEqual(js, expected, "admission")
                 got = ve.own_agent_ids({"identities": identities}, APP_ID)
                 self.assertEqual(sorted(got), expected, "the gate")
+
+    def test_both_take_the_same_newest_setter_of_the_size_field(self) -> None:
+        tables = {
+            "the App set it": ([field_event(APP)], True),
+            "a listed human set it": ([field_event(HUMAN)], True),
+            "an outsider set it": ([field_event(OUTSIDER)], False),
+            "another bot set it": ([field_event(OTHER_BOT)], False),
+            "an outsider changed the App's value": (
+                [field_event(APP), field_event(OUTSIDER, "IssueFieldChangedEvent")],
+                False,
+            ),
+            "a human changed an outsider's value": (
+                [field_event(OUTSIDER), field_event(HUMAN, "IssueFieldChangedEvent")],
+                True,
+            ),
+            "the newest event removed it": (
+                [field_event(APP), field_event(HUMAN, "IssueFieldRemovedEvent")],
+                False,
+            ),
+            "the setter has no id": ([field_event(None)], False),
+            "another field's setter": ([field_event(APP, field=OTHER_FIELD)], False),
+            "another field set after it": (
+                [field_event(OUTSIDER), field_event(APP, field=OTHER_FIELD)],
+                False,
+            ),
+            "no events": ([], False),
+        }
+        source = RESOLVE_CONFIG.read_text(encoding="utf-8")
+        fold = source[
+            source.index("function eventsFrom(nodes) {") : source.index(
+                "// Open issues per issuesByStatus page."
+            )
+        ].replace("export async function", "async function")
+        script = (
+            f"{fold}\n"
+            " const { tables, field, humans, app } = JSON.parse(process.argv[1]);"
+            " const out = tables.map((nodes) => {"
+            "   const setter = settersOf(eventsFrom(nodes))[String(field)];"
+            "   return humans.includes(setter) || setter === app;"
+            " });"
+            " console.log(JSON.stringify(out));"
+        )
+        payload = {
+            "tables": [events for events, _ in tables.values()],
+            "field": SIZE_FIELD,
+            "humans": [HUMAN_ID],
+            "app": APP_ID,
+        }
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        size = {"id": SIZE_FIELD, "options": {str(SMALL): "small"}}
+        values = [{"issue_field_id": SIZE_FIELD, "single_select_option": {"id": SMALL}}]
+        for (why, (events, expected)), js in zip(
+            tables.items(), json.loads(proc.stdout), strict=True
+        ):
+            with self.subTest(why):
+                self.assertEqual(js, expected, "admission")
+                counted = ve.counted_size(
+                    values, events, size, lambda a: a in {HUMAN_ID, APP_ID}
+                )
+                self.assertEqual(counted == "small", expected, "the gate")
 
     def test_the_gate_folds_the_whitespace_javascript_does(self) -> None:
         script = (
