@@ -121,6 +121,33 @@ out=$(write "$r" $'feat: y\r\n\r\nWhy.\r\n\r\nBREAKING-CHANGE: old flag removed\
 assert_eq "CRLF, BREAKING-CHANGE among trailers: other trailers dropped" \
   $'---\nbump: major\n---\n\n### Added\n\n- y\n\n  Why.\n\n  **Breaking:** old flag removed' "$(frag "$r" "$out")"
 
+at() { printf '{"name": "%s", "version": "%s"}\n' "$2" "$3" >"$1/plugins/$2/.claude-plugin/plugin.json"; }
+r=$(mkrepo) && at "$r" alpha 0.4.2
+out=$(write "$r" "feat!: drop the old flag")
+assert_eq "0.x, ! subject: minor, Breaking leads" \
+  $'---\nbump: minor\n---\n\n### Added\n\n- **Breaking:** drop the old flag' "$(frag "$r" "$out")"
+valid "0.x breaking fragment validates" "$r" "$out"
+r=$(mkrepo) && at "$r" alpha 0.4.2
+out=$(write "$r" $'fix: x\n\nBREAKING CHANGE: the flag is gone')
+assert_eq "0.x, BREAKING CHANGE footer: minor, Breaking leads, footer kept" \
+  $'---\nbump: minor\n---\n\n### Fixed\n\n- **Breaking:** x\n\n  **Breaking:** the flag is gone' "$(frag "$r" "$out")"
+r=$(mkrepo) && at "$r" alpha 0.4.2
+out=$(write "$r" "feat!: reach 1.0" --level major)
+assert_eq "0.x, --level major: major, entry as written" \
+  $'---\nbump: major\n---\n\n### Added\n\n- reach 1.0' "$(frag "$r" "$out")"
+for row in 'feat: x|minor|- x' 'fix: x|patch|- x'; do
+  IFS='|' read -r subject bump text <<<"$row"
+  r=$(mkrepo) && at "$r" alpha 0.4.2
+  out=$(write "$r" "$subject")
+  assert_contains "0.x, $subject: bump" "$(frag "$r" "$out")" "bump: $bump"
+  assert_not_contains "0.x, $subject: no Breaking" "$(frag "$r" "$out")" "Breaking"
+done
+r=$(mkrepo) && at "$r" alpha 0.4.2
+printf 'alpha\nbeta\n' >"$r/scripts/fragment-plugins.txt" && git -C "$r" add -A
+out=$(write "$r" "refactor!: rename the option")
+assert_contains "one commit, 0.x alpha: minor" "$(cat "$r/.changes/alpha/"*.md)" $'bump: minor\n---\n\n### Changed\n\n- **Breaking:** rename the option'
+assert_contains "one commit, 1.x beta: major" "$(cat "$r/.changes/beta/"*.md)" $'bump: major\n---\n\n### Changed\n\n- rename the option'
+
 # A second commit on the branch appends to the branch's fragment and raises
 # the bump only upward; a none commit leaves it alone.
 r=$(mkrepo)
@@ -235,6 +262,13 @@ for home in conventions contracts; do
   } >/dev/null 2>&1
   out=$(write "$r" "fix(demo): y")
   assert_eq "convention ($home): one fragment, for demo" ".changes/demo/feat-x-00000001.md" "$out"
+  rm -rf "$r/.changes"
+  out=$(write "$r" "fix(demo)!: y")
+  assert_contains "convention ($home) at 1.x, breaking: major" "$(frag "$r" "$out")" "bump: major"
+  rm -rf "$r/.changes"
+  printf '# Changelog\n\n## [0.3.0] - 2026-01-01\n\nFirst.\n' >"$r/docs/$home/demo/CHANGELOG.md"
+  out=$(write "$r" "fix(demo)!: y")
+  assert_contains "convention ($home) at 0.x, breaking: minor" "$(frag "$r" "$out")" $'bump: minor\n---\n\n### Fixed\n\n- **Breaking:** y'
 done
 
 # Two releasing commits of the same type share one heading, and a later

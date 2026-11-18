@@ -1,6 +1,6 @@
 ---
-description: "Measure code for the changed files (the default), explicit paths, or the whole tree (`--all`), each number beside a configurable reference with its provenance. Reports, never gates. Actions: size (lines per file, every text file), complexity (per-function cyclomatic, cognitive and Halstead from collectors already installed), type-debt (typed-code percentage from type-coverage and mypy). Use when: 'how long are these files', 'lines per file', 'which files are too big', 'is this file over 1000 lines', 'how complex is this code', 'cyclomatic complexity', 'cognitive complexity', 'Halstead difficulty', 'how much of this is typed', 'type coverage', 'how many anys are in this', 'type debt'. Coverage and CRAP: /code-metrics:audit-coverage."
-argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [<path>...]"
+description: "Measure code for the changed files (the default), explicit paths, or the whole tree (`--all`), each number beside a configurable reference with its provenance. Reports; only size has an opt-in check mode (`--check` with `size.check` set) that fails a changed file crossing the reference. Actions: size (lines per file, every text file), complexity (per-function cyclomatic, cognitive and Halstead from collectors already installed), type-debt (typed-code percentage from type-coverage and mypy). Use when: 'how long are these files', 'lines per file', 'which files are too big', 'is this file over 1000 lines', 'how complex is this code', 'cyclomatic complexity', 'cognitive complexity', 'Halstead difficulty', 'how much of this is typed', 'type coverage', 'how many anys are in this', 'type debt'. Coverage and CRAP: /code-metrics:audit-coverage."
+argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [--check] [<path>...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-size.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh:*)", "Bash(git branch --show-current:*)"]
@@ -35,8 +35,11 @@ action per invocation.
 
 ## Standing rules
 
-- Every action reports and never gates: each number sits beside a reference with its provenance,
-  and nothing here is a pass, a fail, a finding or a severity.
+- Every action reports: each number sits beside a reference with its provenance, and nothing
+  here is a pass, a fail, a finding or a severity. The one exception is `size --check` in a
+  repository whose config sets `size.check` (off by default): it fails a changed file that crossed
+  the reference, for a pre-commit hook or CI step the repository wires itself (`actions/size.md`,
+  "Check mode").
 - Run the action's bundled script; never count, estimate or grep the measure by hand.
 - Scope is the change by default (the merge-base diff plus uncommitted files); explicit paths or
   `--all` widen it, and `--json` prints the `code-metrics/v2` document instead of markdown.
@@ -59,7 +62,8 @@ each plugin variable resolves, and where it is exported: the plugins reference,
 ## What this skill does not do
 
 - It does not run tests, edit files, or install a collector.
-- It does not judge: no reference is a bar, and no `check` gate exists in this version.
+- It does not judge: no reference is a bar, and only `size` has a `check` mode, opt-in through
+  `size.check`.
 - It does not measure duplication, coverage or suppressions; those are the sibling `audit-*`
   skills in this plugin, and `/code-metrics:principles` explains what each number can and cannot
   tell you.

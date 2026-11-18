@@ -155,10 +155,8 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    Source conflict: the Claude Code 2.1.271 changelog entry and the Monitor tool section disagree on which inputs a command watch accepts. We follow the live tool schema: no `persistent`, an explicit `timeout_ms`.
 
    - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://code.claude.com/docs/en/changelog) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
-   - **As of**: 2026-10-10
-   - **Recheck trigger**: the Monitor tool section documents `timeout_ms` for command watches or mentions `persistent`.
 
-   The step-2 check rests on this session's own arming record, not on a task-list lookup, because the task-tracking tools are not offered on every model.
+   The step-2 check rests on this session's own arming record, not on a task-list lookup, so it holds in a session that has no task-tracking tools.
 
    - **Pointer**: when you need which models and sessions get `TaskList` and how to opt in, fetch [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
 
@@ -567,7 +565,7 @@ Session A: feat/feature-x → create PR → /source-control:pull-request monitor
 Session B: feat/feature-y → different branch, different worktree → code the next thing
 ```
 
-Watch notifications arrive between turns; mid-response, a notification queues until your turn completes.
+When a watch notification reaches the session: [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool).
 
 **For read-only status checks from any session:** use `/source-control:pull-request status`, which only calls `gh` commands and needs no branch checkout.
 
@@ -576,7 +574,7 @@ Watch notifications arrive between turns; mid-response, a notification queues un
 - **Self-termination on merge/close/readiness-pass:** the poll script exits on MERGED/CLOSED; `TaskStop` also fires from monitoring logic
 - **Zero cost during idle periods:** Monitor fires only when the filter emits
 - **Full monitoring on state changes:** when a check run completes or a new comment lands, the emitted line wakes the model and the full 3.1-3.4 logic runs
-- **Session-scoped:** the watch terminates when the session exits; no orphaned background processes. It does not restore on `--resume`. §3.0.1's idempotency check re-arms it
+- **Session-scoped:** we treat the watch as ending with the session. After a `--resume`, §3.0.1's idempotency check re-arms it when no watch is running
 - **Manual cancel:** "stop the PR monitor" or `TaskStop <id>`
 
 - **Pointer**: when deciding whether a watch survives `--resume`, fetch

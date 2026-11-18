@@ -54,6 +54,30 @@ artifact, so a settled merge no longer depends on that artifact's retention.
 Only the lane's floor anchor reads a settled merge's runs again, and only to
 pass it (`advance_anchor`); that read never changes the verdict.
 
+A completed attempt never changes, so pr-merge.yml's dispatch-post-merge-runs
+names a file in `ATTEMPTS_ENV`, carried in its kept report, with two sections
+keyed `<run id>:<attempt>`. Any other file is no file, and every attempt is
+read as before.
+
+- `attempts` holds the earlier attempts of re-run full runs that the last check
+  read (`_Context._attempt`). An entry answers with no read only for the same
+  run, attempt and head SHA, completed; the check writes back the completed
+  attempts it used.
+- `jobs` holds what `failing_checks` concluded about a completed attempt
+  (`_Context._keep_attempt`). An entry answers with no jobs or annotation read
+  only for the same run, attempt and head SHA, kept under
+  `ATTEMPT_JOBS_VERSION` and inside the bounds below; the check writes back the
+  newest usable entries.
+
+Bump `ATTEMPT_JOBS_VERSION` when `failing_checks`, `_failed_gates`,
+`_failed_steps`, `_attempt_settled` or the constants they read, among them
+`policy.GATE_CHECK`, `policy.GATE_ALIAS` and `policy.GATE_NAMES`, change what an
+answer means: every `jobs` entry kept under another version is read again.
+
+The file travels in an artifact on every run, so `jobs` is bounded by
+`ATTEMPT_JOBS_MAX_AGE`, `ATTEMPT_JOBS_MAX` and `ATTEMPT_JOBS_BYTES`, about 13 MB
+at most. An answer a bound drops is read again. The three values are judgment.
+
 Exit codes: 0 no failure and every auto-merge verified, 1 a failure, 2 usage
 or a refused identity (not a dedicated App login, or `--remediate` under
 another acting login), 3 unreadable, 4 a write failed, 5 no failure but an
@@ -136,18 +160,16 @@ LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
     r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
 )
-# A completed attempt never changes, so pr-merge.yml's dispatch-post-merge-runs
-# names a file here holding the earlier attempts of re-run full runs that the
-# last check read (`_Context._attempt`), carried in its kept report. An entry
-# answers with no read only for the same run, attempt and head SHA, completed;
-# the check writes back the completed attempts it used. Any other file is no
-# file, and every attempt is read as before.
 ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
 ATTEMPTS_VERSION = 1
+ATTEMPT_JOBS_VERSION = 1
 # The run cache section holding compare answers between two full SHAs
 # (`_Context._compare`). A branch tip is never kept there: it moves.
 COMPARE_SECTION = "postmerge-compare"
 _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
+ATTEMPT_JOBS_MAX_AGE = timedelta(days=30)
+ATTEMPT_JOBS_MAX = 400
+ATTEMPT_JOBS_BYTES = 32_768
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -1081,6 +1103,104 @@ def load_attempts(path: str, repo: str) -> dict[str, dict[str, Any]]:
     return attempts
 
 
+def _is_job_id(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _failed_steps(job: Mapping[str, Any]) -> list[dict[str, str]]:
+    return [
+        {"name": str(s.get("name") or ""), "conclusion": str(s.get("conclusion"))}
+        for s in map(json_object, json_array(job.get("steps")))
+        if s.get("conclusion") in FAILED_CONCLUSIONS
+    ]
+
+
+def _attempt_settled(
+    listed: list[dict[str, Any]], failed: list[dict[str, Any]]
+) -> bool:
+    """Whether a listing can answer for its attempt from now on: every job
+    finished, and every failed job shows its id and a failed step. The jobs
+    API can list a completed job's steps empty or cut short, and a later read
+    may show them."""
+    return (
+        bool(listed)
+        and all(j.get("status") == "completed" for j in listed)
+        and all(_is_job_id(j.get("id")) and _failed_steps(j) for j in failed)
+    )
+
+
+def _attempt_answer_valid(value: Any, head_sha: str) -> bool:
+    """Whether a saved attempt answer has the exact shape `_keep_attempt`
+    writes, for this head SHA. Any other value is read from GitHub."""
+    if not is_json_object(value) or value.get("head_sha") != head_sha:
+        return False
+    checks, passed, jobs = (value.get(k) for k in ("checks", "passed", "jobs"))
+    return (
+        isinstance(checks, list)
+        and bool(checks)
+        and all(isinstance(c, str) for c in checks)
+        and isinstance(passed, list)
+        and all(isinstance(p, str) for p in passed)
+        and is_json_object(jobs)
+        and all(
+            is_json_object(job)
+            and _is_job_id(job.get("id"))
+            and isinstance(job.get("steps"), list)
+            and bool(job["steps"])
+            and all(
+                is_json_object(step)
+                and isinstance(step.get("name"), str)
+                and step.get("conclusion") in FAILED_CONCLUSIONS
+                for step in job["steps"]
+            )
+            for job in jobs.values()
+        )
+    )
+
+
+def _attempt_jobs_entry_usable(key: str, entry: Any, now: datetime) -> bool:
+    """Whether a carried attempt answer can be used at `now`: its key and shape
+    are the ones `_keep_attempt` writes, it was kept under ATTEMPT_JOBS_VERSION,
+    and it is inside the age and size bounds."""
+    if not _ATTEMPT_KEY.fullmatch(key) or not is_json_object(entry):
+        return False
+    head_sha = entry.get("head_sha")
+    if not isinstance(head_sha, str) or not _FULL_SHA.fullmatch(head_sha):
+        return False
+    version = entry.get("version")
+    if type(version) is not int or version != ATTEMPT_JOBS_VERSION:
+        return False
+    try:
+        at = datetime.fromisoformat(entry["at"])
+        age = now - at
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        timedelta(0) <= age <= ATTEMPT_JOBS_MAX_AGE
+        and len(json.dumps(entry)) <= ATTEMPT_JOBS_BYTES
+        and _attempt_answer_valid(entry, head_sha)
+    )
+
+
+def load_attempt_jobs(path: str, repo: str, now: datetime) -> dict[str, dict[str, Any]]:
+    """The usable attempt answers in the attempts file at `path`, by
+    `<run id>:<attempt>`. An unusable entry is left out, so only its attempt
+    is read from GitHub."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    entries = data.get("jobs")
+    if (
+        data.get("version") != ATTEMPTS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(entries)
+    ):
+        return {}
+    return {
+        key: entry
+        for key, entry in entries.items()
+        if _attempt_jobs_entry_usable(key, entry, now)
+    }
+
+
 # --- Judging runs -------------------------------------------------------------------
 
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -1420,6 +1540,8 @@ class _Context:
     )
     attempts_carried: dict[str, dict[str, Any]] | None = None
     attempts_used: dict[str, dict[str, Any]] = field(default_factory=dict)
+    attempt_jobs_carried: dict[str, dict[str, Any]] | None = None
+    attempt_jobs_new: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -1493,7 +1615,7 @@ class _Context:
         baseline for good. With no such run, every failing check counts, as
         before the baseline existed."""
         attempt = 2 if run.id in self.red_on_rerun else 1
-        failing = self.failing_checks(run.id, attempt)
+        failing = self.failing_checks(run, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
         before = {check_key(c) for c in baseline or ()}
         new = (
@@ -1513,7 +1635,7 @@ class _Context:
         named = {
             c: suites
             for c in checks
-            if (suites := self.failing_suites(run.id, attempt, c))
+            if (suites := self.failing_suites(run, attempt, c))
         }
         if not named:
             return frozenset()
@@ -1545,7 +1667,7 @@ class _Context:
         key = (run.id, attempt, checks)
         if key in self.demoting_cache:
             return self.demoting_cache[key]
-        named = {c: self.failing_suites(run.id, attempt, c) for c in checks}
+        named = {c: self.failing_suites(run, attempt, c) for c in checks}
         demote = {c for c, suites in named.items() if suites is None}
         judged = {c: suites for c, suites in named.items() if suites is not None}
         sighting = f"{run.url}/attempts/{attempt}"
@@ -1587,17 +1709,17 @@ class _Context:
         last green commit failed it on some attempt, so the merges did not
         cause it. An attempt whose suites cannot be named shows neither."""
         for earlier in range(1, attempt):
-            names = self.failing_suites(run.id, earlier, check)
+            names = self.failing_suites(run, earlier, check)
             if check in self.passed_jobs[(run.id, earlier)] or (
                 names is not None and suite not in names
             ):
                 return True
         green = self._last_green(run)
         return green is not None and any(
-            suite in (self.failing_suites(r.id, n, failing) or ())
+            suite in (self.failing_suites(r, n, failing) or ())
             for r in self._full_runs_at(green.head_sha)
             for n in range(1, r.attempt + (r.conclusion != "success"))
-            for failing in self.failing_checks(r.id, n)
+            for failing in self.failing_checks(r, n)
         )
 
     def _full_runs_at(self, commit: str) -> list[Run]:
@@ -1624,15 +1746,15 @@ class _Context:
             self.excuses_expire_at = ends
 
     def failing_suites(
-        self, run_id: int, attempt: int, check: str
+        self, run: Run, attempt: int, check: str
     ) -> frozenset[str] | None:
         """The suites failing check `check` names, or None: the check is not
         a test leg whose one failed step is its suite step, or its log cannot
         be read or name them (`suite_failures`). A job listing no failed step
         (the jobs API can list steps empty or cut short) is None too: a log
         cannot show that the suite step was the only one that failed."""
-        self.failing_checks(run_id, attempt)
-        job = self.check_jobs.get((run_id, attempt), {}).get(check)
+        self.failing_checks(run, attempt)
+        job = self.check_jobs.get((run.id, attempt), {}).get(check)
         if job is None:
             return None
         failed = {
@@ -1965,19 +2087,83 @@ class _Context:
                 if newest is None
                 else frozenset()
                 if newest.conclusion == "success"
-                else self.failing_checks(newest.id, newest.attempt)
+                else self.failing_checks(newest, newest.attempt)
                 - self.unknown_checks[(newest.id, newest.attempt)]
             )
         return self.baseline_cache[key]
 
-    def failing_checks(self, run_id: int, attempt: int) -> frozenset[str]:
-        """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
-        key = (run_id, attempt)
-        if key not in self.checks_cache:
+    def _attempt_carry_key(self, run: Run, attempt: int) -> str | None:
+        """The attempts file's key for `attempt` of `run`, or None while that
+        attempt must be read live: no file is named, or its run has not
+        completed."""
+        key = f"{run.id}:{attempt}"
+        if (
+            not self.attempts_path
+            or run.status != "completed"
+            or not 1 <= attempt <= run.attempt
+            or not _ATTEMPT_KEY.fullmatch(key)
+        ):
+            return None
+        return key
+
+    def _carried_attempt_jobs(self) -> dict[str, dict[str, Any]]:
+        if self.attempt_jobs_carried is None:
+            self.attempt_jobs_carried = {}
+            path = self.attempts_path
+            if path and Path(path).exists():
+                try:
+                    self.attempt_jobs_carried = load_attempt_jobs(
+                        path, f"{self.owner}/{self.name}", datetime.now(UTC)
+                    )
+                except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+                    text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")
+                    print(f"attempt jobs not used: {text[:300]}", file=sys.stderr)
+        return self.attempt_jobs_carried
+
+    def _restore_attempt(self, run: Run, attempt: int) -> bool:
+        """Answer `failing_checks` from a carried answer. An answer is kept
+        only with no unknown steps, so none is restored."""
+        carry_key = self._attempt_carry_key(run, attempt)
+        if carry_key is None:
+            return False
+        value = self._carried_attempt_jobs().get(carry_key)
+        if not _attempt_answer_valid(value, run.head_sha):
+            return False
+        key = (run.id, attempt)
+        self.checks_cache[key] = frozenset(value["checks"])
+        self.unknown_checks[key] = frozenset()
+        self.passed_jobs[key] = frozenset(value["passed"])
+        self.check_jobs[key] = value["jobs"]
+        return True
+
+    def _keep_attempt(self, run: Run, attempt: int) -> None:
+        carry_key = self._attempt_carry_key(run, attempt)
+        if carry_key is None:
+            return
+        key = (run.id, attempt)
+        entry = {
+            "at": datetime.now(UTC).isoformat(),
+            "version": ATTEMPT_JOBS_VERSION,
+            "head_sha": run.head_sha,
+            "checks": sorted(self.checks_cache[key]),
+            "passed": sorted(self.passed_jobs[key]),
+            "jobs": {
+                name: {"id": job.get("id"), "steps": _failed_steps(job)}
+                for name, job in self.check_jobs[key].items()
+            },
+        }
+        if len(json.dumps(entry)) <= ATTEMPT_JOBS_BYTES:
+            self.attempt_jobs_new[carry_key] = entry
+
+    def failing_checks(self, run: Run, attempt: int) -> frozenset[str]:
+        """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS).
+        A change to what this returns requires bumping ATTEMPT_JOBS_VERSION."""
+        key = (run.id, attempt)
+        if key not in self.checks_cache and not self._restore_attempt(run, attempt):
             listed = _paginated(
-                f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
+                f"repos/{self.owner}/{self.name}/actions/runs/{run.id}"
                 f"/attempts/{attempt}/jobs?per_page=100",
-                f"run {run_id} attempt {attempt} jobs",
+                f"run {run.id} attempt {attempt} jobs",
                 "jobs",
             )
             jobs = [j for j in listed if j.get("conclusion") in FAILED_CONCLUSIONS]
@@ -1997,12 +2183,15 @@ class _Context:
             )
             by_name: dict[str, dict[str, Any]] = {}
             unknown: set[str] = set()
+            gates_read = True
             for job in jobs:
                 name = str(job.get("name") or "")
                 if name in policy.GATE_NAMES and len(jobs) > 1:
                     continue
                 by_name[name] = job
-                gates = self._failed_gates(job.get("id"))
+                read_gates = self._failed_gates(job.get("id"))
+                gates_read = gates_read and read_gates is not None
+                gates = read_gates or frozenset()
                 steps = {
                     str(s.get("name") or "")
                     for s in map(json_object, json_array(job.get("steps")))
@@ -2019,12 +2208,15 @@ class _Context:
             self.check_jobs[key] = by_name
             self.unknown_checks[key] = frozenset(unknown - checks)
             self.checks_cache[key] = frozenset(checks | unknown)
+            if gates_read and self.checks_cache[key] and _attempt_settled(listed, jobs):
+                self._keep_attempt(run, attempt)
         return self.checks_cache[key]
 
-    def _failed_gates(self, job_id: Any) -> frozenset[str]:
+    def _failed_gates(self, job_id: Any) -> frozenset[str] | None:
         """The titles of a job's failure annotations. A job id is its check
-        run id; an annotation read the token may not make (403, 404) yields
-        none, so the whole job stays one check and nothing is excused."""
+        run id; an annotation read the token may not make (403, 404) is None,
+        so the whole job stays one check, nothing is excused, and the answer
+        is not kept for a token that may read them."""
         args = [
             "api",
             f"repos/{self.owner}/{self.name}/check-runs/{job_id}/annotations?per_page=100",
@@ -2035,7 +2227,7 @@ class _Context:
             raise PostMergeReadError(f"job {job_id} annotations: {exc}") from exc
         if proc.returncode != 0:
             if gh_http_status(proc.stderr or "") in (403, 404):
-                return frozenset()
+                return None
             raise PostMergeReadError(
                 f"job {job_id} annotations: {(proc.stderr or '').strip()}"
             )
@@ -2470,16 +2662,21 @@ class _Context:
         return self.attempts_carried
 
     def save_attempts(self) -> None:
-        """Write the attempts file: the completed attempts this check used.
-        Untouched when the check looked up no attempt. Best effort: a
+        """Write the attempts file: the completed attempts this check used,
+        and the newest usable attempt answers, carried or new. Untouched when
+        the check looked up no attempt and computed no answer. Best effort: a
         failure is logged, and the file is left as it was."""
         path = self.attempts_path
-        if not path or self.attempts_carried is None:
+        looked_up = self.attempts_carried is not None
+        if not path or not (looked_up or self.attempt_jobs_new):
             return
+        answers = {**self._carried_attempt_jobs(), **self.attempt_jobs_new}
+        newest = sorted(answers, key=lambda k: answers[k]["at"], reverse=True)
         payload = {
             "version": ATTEMPTS_VERSION,
             "repo": f"{self.owner}/{self.name}",
-            "attempts": self.attempts_used,
+            "attempts": self.attempts_used if looked_up else self._carried_attempts(),
+            "jobs": {k: answers[k] for k in newest[:ATTEMPT_JOBS_MAX]},
         }
         _write_carried(path, payload, "attempts")
 

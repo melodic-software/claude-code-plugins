@@ -1985,7 +1985,10 @@ outdated with none of its flagged lines left at the head; an unresolved thread s
 
 Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull request passes every other gate
 and its only risk reasons are open findings a clean whole review of the head would close (no review
-of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
+of that head reported a finding or was whole, and no lane thread is unresolved), `review-path:` holds
+that such findings on the security lane keep standing, or `evidence-unbound:<lane>` with the unbound
+reason `rerun-not-allowed` (the new run's first attempt binds where the re-run did not; no other unbound
+reason requests one), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-platforms.yml` and pr-merge itself. The
