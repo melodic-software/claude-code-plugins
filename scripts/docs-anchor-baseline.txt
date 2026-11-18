@@ -82,7 +82,6 @@ plugins/instruction-placement/skills/migrate/reference/sources.md 3
 plugins/knowledge/skills/docpage-digest/SKILL.md 1
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
-plugins/machine-health/skills/audit/reference/windows/check-catalog.md 1
 plugins/mcp-tools/skills/audit-posture/reference/checklist.md 2
 plugins/mcp-tools/skills/audit/SKILL.md 1
 plugins/mcp-tools/skills/audit/reference/checklist.md 1
