@@ -1,0 +1,20 @@
+{
+  "session_id": "__SESSION__",
+  "transcript_path": "__TRANSCRIPT__",
+  "cwd": "__CWD__",
+  "permission_mode": "auto",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git -C repo branch askme-main",
+    "description": "Create a branch"
+  },
+  "permission_suggestions": [
+    {
+      "type": "addRules",
+      "rules": [{ "toolName": "Bash", "ruleContent": "git -C repo branch askme-main" }],
+      "behavior": "allow",
+      "destination": "localSettings"
+    }
+  ]
+}
