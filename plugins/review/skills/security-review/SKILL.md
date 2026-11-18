@@ -14,8 +14,7 @@ Org-owned security review logic for the `claude-security-review` reusable
 workflow. We treat built-in `/security-review` as unusable in CI. Pointer: when judging whether it
 can run under a CI checkout, fetch
 [errors: /security-review fails without origin/HEAD](https://code.claude.com/docs/en/errors#security-review-fails-without-origin-head)
-live. Recheck trigger: that entry stops naming CI checkouts, the command gains
-a diff base a CI checkout provides, or the command gains a way to post to a PR. This org-authored skill is
+live. This org-authored skill is
 the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.

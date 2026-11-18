@@ -175,7 +175,7 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 ## Sources
 
 - [Diátaxis](https://diataxis.fr), the four documentation modes; the fact-ownership factor leans on its separation of derivable reference material from explanation, which owns the non-derivable *why*.
-- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup). Recheck trigger: the Recheck triggers table below.
+- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
 
 ## Recheck triggers
 
@@ -183,5 +183,4 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 |---|---|
 | The rubric is proven over real audits | Route it upstream to `melodic-software/standards` as shared doc-value policy (deferred; ledger E-a) |
 | Demand surfaces for applying verdicts, not just classifying | Revisit the deferred remediation/apply action (deferred; ledger E-b) |
-| The sub-agents page's "What loads at startup" lists a different set of subagents that skip `CLAUDE.md` or project rules | Re-read the page by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs) (rung 1, fresh bytes), re-derive the `Explore`/`Plan` requirement in the spot-test protocol and the Sources record |
 | A native "regenerate this doc from source" mechanism ships | Strengthen the `keep-as-derivation-cache` drift-control test to prefer regeneration over a recorded recheck trigger |
