@@ -3,6 +3,15 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.35] - 2026-11-18
+
+### Changed
+
+- `clean`'s invocation-forms reference states its own rule (keep a body command and its grant
+  written alike) and points at the string-substitution section instead of restating it. `setup`
+  words the guard toggle's scope as its own reporting rule, kept inline so it answers without a
+  fetch.
+
 ## [0.21.34] - 2026-11-17
 
 ### Changed

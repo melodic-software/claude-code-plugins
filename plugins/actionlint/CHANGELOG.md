@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-18
+
+### Changed
+
+- The `setup` skill's gotcha on undeclared option keys is now our rule: it names only the two options the manifest declares, and points at the `plugin install` reference's `--config` row in place of restating what that row says ([#16844](https://github.com/melodic-software/claude-code-plugins/issues/16844)).
+
 ## [2.1.0] - 2026-11-18
 
 ### Added

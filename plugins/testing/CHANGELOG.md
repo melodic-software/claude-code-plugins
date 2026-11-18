@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.1] - 2026-11-18
+
+### Changed
+
+- `audit` no longer restates upstream behavior in its type-test exemption or in its `test.describe.configure`, `forbidOnly` and Vitest/Jest guard notes: each passage states the scan's own rule and its reason, with an anchored pointer to fetch live (#16833). `run-e2e`'s evidence pointers drop their summaries of each linked page and name the step each one backs.
+
 ## [5.7.0] - 2026-11-18
 
 ### Added

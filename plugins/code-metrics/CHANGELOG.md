@@ -3,6 +3,13 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.7] - 2026-11-18
+
+### Changed
+
+- `principles` now states its own rule for `shellmetrics` figures, comparing them only between
+  runs on one machine, and points at the shellmetrics README instead of restating it.
+
 ## [1.3.6] - 2026-11-18
 
 ### Changed

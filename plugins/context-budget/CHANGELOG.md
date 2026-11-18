@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.0.3] - 2026-11-18
+
+### Changed
+
+- `/context-budget:audit fix` no longer says who decides a protected-path write in auto mode. It gives its own reason for printing a user-global edit: a protected-path prompt never counts as a person confirming the write. The permission-modes pointer says who decides. The `au-fix-user-global-print-only` eval now grades that reason.
+
 ## [2.0.2] - 2026-11-17
 
 ### Changed

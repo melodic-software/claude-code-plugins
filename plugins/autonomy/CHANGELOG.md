@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.3] - 2026-11-18
+
+### Changed
+
+- `reference/routines.md`, the `setup` skill and its trigger-adapters template no longer restate upstream behavior: what a cloud session loads from a repository's settings, which skills reach a cloud run, which settings scopes supply plugin options, and how a repository role maps to the permission value the label kick checks. Each passage now states this plugin's rule with its reason and points at the upstream section; the dated cloud-session record in `routines.md` is replaced by that pointer (#16844).
+
 ## [5.2.2] - 2026-11-17
 
 ### Added
