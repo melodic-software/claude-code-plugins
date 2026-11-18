@@ -17,8 +17,10 @@
 //          --json it prints the preview lines and what a caller branches on as one object. A plugin
 //          it would switch on whose required prerequisites are missing stops the write unless a
 //          person types yes to the stated consequence; --yes alone never covers that. --for folder
-//          writes .claude/settings.local.json, initial writes user settings.json, session writes a
-//          file for `claude --settings` and changes no settings file. --defer-off writes the
+//          writes the .claude/settings.local.json Claude Code reads, at the repository root in git
+//          (lib/folder-file.mjs; https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository); initial writes user settings.json; session writes a file for
+//          `claude --settings` and changes no settings file. The record of a folder in git goes
+//          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
 //          pending, for an in-session switch; the next apply writes them. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
@@ -557,7 +559,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 /** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
 function profileGate(name, opts, where, env, verb) {
   const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => recordsFromCli());
@@ -573,6 +574,7 @@ function profileGate(name, opts, where, env, verb) {
   return { p, gate, lines };
 }
 
+/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };

@@ -1,5 +1,8 @@
 // The applied-profile record: what this tool changed in one settings file, so status can compare
-// and clear can put every entry back. One JSON file per settings file, in the plugin data folder:
+// and clear can put every entry back. One JSON file per settings file, under a record home: the
+// repository's .git/plugin-profiles for a folder in git, ~/.claude/plugin-profiles-state for user
+// settings, else the plugin data folder (scripts/profiles.mjs homesOf; scenario row 5 of
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md):
 //
 //   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
 //   readRecord(path) / saveRecord(path, record) / deleteRecord(path)
@@ -63,7 +66,7 @@ export const holdsEveryEntry = (record, doc) => {
   return written.length > 0 && written.every(([key, name, after]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after);
 };
 
-export const saveRecord =(path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);
+export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);
 export const deleteRecord = (path) => removeFile(path);
 
 export function baseline(doc, record) {
