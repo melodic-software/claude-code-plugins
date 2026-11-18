@@ -37,6 +37,6 @@ explicit recheck trigger; no implementation issues emitted (zero accepted).
   subagent panel row with no functional capability, so it does not clear the default-REJECT bar; its
   richest inputs (per-row model + context-window size for a context percentage) additionally require a
   recent Claude Code minimum. Candidate home was harness-ops. **Recheck trigger:** a concrete operational
-  need for custom subagent-row data during orchestration, not a presentation preference. Upstream:
-  <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
+  need for custom subagent-row data during orchestration, not a presentation preference. Upstream
+  removed the setting in [2.1.323](https://code.claude.com/docs/en/changelog#2-1-323). Upstream:
   <https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout>.
