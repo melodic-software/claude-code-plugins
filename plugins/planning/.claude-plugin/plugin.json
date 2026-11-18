@@ -15,11 +15,12 @@
     "question_pacing": {
       "type": "string",
       "title": "Interview question pacing",
-      "description": "How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value.",
+      "description": "How /planning:interview asks a frontier: round (default, every ready question in one message), single (one per message, largest blast radius first), or auto (single for a broad, open-ended topic, else round, chosen before the first round and stated in one line). Asking for another pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value.",
       "default": "round",
       "options": [
         "round",
-        "single"
+        "single",
+        "auto"
       ]
     },
     "use_ask_user_question": {
