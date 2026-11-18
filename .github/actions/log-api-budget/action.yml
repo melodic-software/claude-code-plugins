@@ -2,7 +2,10 @@ name: Log API Budget
 description: >
   At the end of a job, write the hub collector's notices for each named
   token, from the rate-limit readings the job's own API responses left in
-  $RUNNER_TEMP/api-budget (api-budget.bash). First an `api-calls` notice per
+  $RUNNER_TEMP/api-budget (api-budget.bash). When the rate guard stopped a
+  pool in this job, first one `api-stop` notice,
+  `<pool> <reset epoch> <cause>[ guessed][; ...]`, an entry per stopped pool:
+  what a reader that recovers the run acts on. Then an `api-calls` notice per
   token, `<name>=N not-modified=M graphql=K`: N is this job's own requests,
   which cost (the rise in a counter every concurrent job shares) is not, M
   its 304 answers, which GitHub does not count, and K the GraphQL requests
@@ -69,6 +72,9 @@ runs:
           printf '%s\n' "$1"
           sed "s/^::notice title=$2::/$3/" <<<"$1" >>"$GITHUB_STEP_SUMMARY"
         }
+        # One line, ahead of the counting lines: a reader that recovers the
+        # run needs it whatever else the cap drops.
+        emit "$(api_budget_emit_stops)" api-stop 'api-stop '
         costs=() counts=() names=() budget=()
         for name in $TOKENS; do
           [[ $name =~ ^[a-z][a-z0-9-]{0,39}$ ]] || { echo "::warning::api-budget: skipped a token name that is not lower-case kebab case"; continue; }

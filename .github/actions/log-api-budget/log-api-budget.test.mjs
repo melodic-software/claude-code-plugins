@@ -424,6 +424,88 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
+const STOP = "::notice title=api-stop::";
+const stopFiles = (dir, files) => {
+  mkdirSync(join(dir, "api-budget"), { recursive: true });
+  for (const [name, text] of Object.entries(files)) {
+    writeFileSync(join(dir, "api-budget", name), text);
+  }
+};
+
+test("api_budget_emit_stops names each stopped pool's latest reset and its cause in one notice, by pool name", () =>
+  withDir((dir) => {
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, "", "no stop file writes no notice");
+    stopFiles(dir, { stop: "core 1795041000\ncore 1795045611\ngraphql 1795045000\n", cause: "core 1795045611 limit\ngraphql 1795045000 limit\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit; graphql 1795045000 limit\n`);
+    stopFiles(dir, { stop: "core 1000000000\n", cause: "core 1000000000 limit\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1000000000 limit\n`, "a stop past its reset is still named");
+  }));
+
+test("api_budget_emit_stops calls a stop a server error hold only when every cause of it is one, and a rate limit otherwise", () =>
+  withDir((dir) => {
+    stopFiles(dir, { stop: "* 1795045611\n", cause: "* 1795045611 server-503\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}* 1795045611 server-503\n`);
+    stopFiles(dir, { stop: "* 1795045611\n", cause: "* 1795045611 server-503\n* 1795045611 limit\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}* 1795045611 limit\n`, "a limit beside the hold is a rate limit");
+    stopFiles(dir, { stop: "* 1795045611\n", cause: "* 1795040000 server-503\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}* 1795045611 limit\n`, "a stop no cause line names is a rate limit");
+    stopFiles(dir, { stop: "core 1795045611\n", cause: "" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit\n`);
+  }));
+
+test("api_budget_emit_stops marks a time no header gave as guessed, from the shell's guessed file or Node's fallback file", () =>
+  withDir((dir) => {
+    stopFiles(dir, { stop: "* 1795045611\ncore 1795045000\n", guessed: "* 1795045611\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}* 1795045611 limit guessed; core 1795045000 limit\n`);
+    rmSync(join(dir, "api-budget", "guessed"));
+    stopFiles(dir, { stop: "core 1795045611\n", fallback: "core 1795045611\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit guessed\n`);
+    stopFiles(dir, { stop: "core 1795045611\n", fallback: "core 1795040000\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit\n`, "a guess for another reset marks nothing");
+  }));
+
+test("api_budget_emit_stops takes only whole stop lines, as the guard reads the stop file", () =>
+  withDir((dir) => {
+    stopFiles(dir, { stop: "core 1795045611\ncore soon\nCORE 1795049999\ncore 1795049999999\ngraphql 17950" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit\n`);
+  }));
+
+test("a stop the gh wrapper records for a refused call is the stop api_budget_emit_stops names", () =>
+  withDir((dir) => {
+    const reset = Math.floor(Date.now() / 1000) + 600;
+    const refused = `HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: ${reset}\r\nX-Ratelimit-Resource: core\r\n\r\n{"message":"API rate limit exceeded for installation."}`;
+    writeFileSync(join(dir, "refused"), refused);
+    const out = bash(dir, 'api_budget_observe "$RUNNER_TEMP/refused" core "gh api x" 2>/dev/null; api_budget_emit_stops');
+    assert.equal(out.stdout, `${STOP}core ${reset} limit\n`);
+  }));
+
+test("the action writes the api-stop notice first, and to the summary", () =>
+  withDir((dir) => {
+    readEach(dir, "github-token", head({ used: 13 }));
+    stopFiles(dir, { stop: "core 1795045611\n", cause: "core 1795045611 limit\n" });
+    const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
+    writeFileSync(join(dir, "summary"), "");
+    writeFileSync(join(dir, "output"), "");
+    const out = execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
+    });
+    assert.equal(out.split("\n")[0], `${STOP}core 1795045611 limit`);
+    assert.equal(readFileSync(join(dir, "summary"), "utf8").split("\n")[0], "api-stop core 1795045611 limit");
+  }));
+
+test("ci-status's log step and mark-lanes' exit trap write the api-stop notice first", () =>
+  withDir((dir) => {
+    stopFiles(dir, { stop: "core 1795045611\n", cause: "core 1795045611 limit\n" });
+    const env = { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") };
+    const log = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*\})\n/.exec(CI.slice(CI.indexOf("\n  ci-status:\n")));
+    assert.ok(log, "ci-status's log step emits in one block");
+    assert.equal(execFileSync("bash", ["-c", log[1]], { encoding: "utf8", env }).split("\n")[0], `${STOP}core 1795045611 limit`);
+    const trap = /\n {10}trap '([^'\n]*api_budget_emit_routes github-token)' EXIT\n/.exec(CI);
+    assert.ok(trap, "mark-lanes emits from its exit trap");
+    assert.equal(execFileSync("bash", ["-c", `eval "$API_BUDGET_SH"\n${trap[1]}`], { encoding: "utf8", env }).split("\n")[0], `${STOP}core 1795045611 limit`);
+  }));
+
 test("outside names the job-token steps no counted client sees in an api-uncounted notice after api-calls, skipping a bad name", () =>
   withDir((dir) => {
     const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
