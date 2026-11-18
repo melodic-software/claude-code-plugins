@@ -3,10 +3,7 @@
 Managed Code Review gives every review agent this file's contents as the
 repository's review instructions. Its citations, the
 `standards/review/<file>.md#<heading>` paths in parentheses, are not include
-lines, so Managed Code Review does not read the cited files and sees only the
-words printed below (see "Depth"). A self-hosted or local review running the
-`review` plugin also follows each citation into the `standards` repository
-for the full criterion behind the line.
+lines; "Depth" says which reviews follow them.
 
 Review in this organization splits into two mutually exclusive scopes, so a
 finding belongs to exactly one and is never reported twice. The **code-review lane**
@@ -30,7 +27,7 @@ surface's three markers:
 | Important | 🔴 Important |
 | Suggestion | 🟡 Nit |
 
-🟣 Pre-existing is not an SSOT severity: it is this surface's own <!-- ai-slop-ignore: severity-marker vocabulary, load-bearing -->
+The 🟣 Pre-existing marker is not an SSOT severity: it is this surface's own
 detection-time judgment of whether a finding predates the diff, orthogonal
 to the three severities above, and no criterion assigns it.
 

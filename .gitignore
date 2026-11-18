@@ -1,58 +1,38 @@
-# Dependencies
 node_modules/
 __pycache__/
 .pytest_cache/
 .venv/
 venv/
 
-# OS / editor cruft
 .DS_Store
 Thumbs.db
 *.swp
 
-# Local-only Claude Code state
 .claude/observability/
 .observability/
 .claude/worktrees/
-# loop-lane escalation records (docs/contracts/loop-lane/README.md §2 — signal, not storage)
 .claude/lane-escalations/
-# source-control convention personal override (docs/contracts/config-cascade/README.md
-# "Personal override naming" — the recursive form covers a flat .claude/source-control.local.md and any
-# future folder-form personal override in one line; the plugin's own docs still show the narrower
-# .claude/*.local.* form, tracked separately as "personal override spelling drift")
 .claude/**/*.local.*
 CLAUDE.local.md
-# personal overrides in the convention home (docs/contracts/config-cascade/README.md
-# "Personal override naming and the consumer .gitignore")
 docs/conventions/**/*.local.*
 
-# Test-result artifacts (Pester runner output)
 artifacts/
 
-# claude plugin eval run output (aggregate-result.json, report.html per timestamped run)
 plugins/*/evals/results/
-# the session a history_file case resumes, written beside the fixture: a raw transcript
 plugins/*/evals/*/????????-????-????-????-????????????.jsonl
 plugins/*/evals/*/????????-????-????-????-????????????/
 
-# coverage.py output of the plugin suite run documented in
-# plugins/code-metrics/README.md "Testing the plugin"
 .coverage
 .coverage.*
 plugins/code-metrics/coverage.json
 
-# Local working directory, never committed
 .work/
 
-# measure-invocation emit-plugin-eval cases; --eval-dir refuses a dot-led segment, so not under .work/
 probe-evals/
 
-# playwright-cli artifact folder (snapshots, screenshots, console and network logs)
 .playwright-cli/
 
-# test_hygiene.py builds same-volume hard-link fixtures beside the engine; a killed run leaves them
 plugins/disk-hygiene/skills/clean/scripts/tmp*/
 
-# .NET build output of fixture projects; an editor's C# extension restores them in place
 plugins/*/scripts/fixtures/**/bin/
 plugins/*/scripts/fixtures/**/obj/

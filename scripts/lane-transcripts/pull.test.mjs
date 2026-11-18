@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -839,6 +840,16 @@ test("pull-outcomes copies each validated record from a lane run's job annotatio
   assert.equal(run(["pull-outcomes", "--sink", sink], { deps: again }).code, 0);
   assert.ok(!again.calls.some((c) => c.includes("check-runs/9001/")), "a job already held is not read again");
   assert.equal(readOutcomes(sink).length, 1);
+});
+
+test("the puller starts from an export of only its own directory and the two lane-output actions", () => {
+  const root = tempDir("lane-transcripts-export-");
+  const repoRoot = path.join(import.meta.dirname, "..", "..");
+  for (const dir of ["scripts/lane-transcripts", ".github/actions/open-lane-output", ".github/actions/seal-lane-output"]) {
+    cpSync(path.join(repoRoot, dir), path.join(root, dir), { recursive: true });
+  }
+  const out = execFileSync(process.execPath, [path.join(root, "scripts/lane-transcripts/pull.mjs"), "query", "--sink", path.join(root, "sink")], { encoding: "utf8" });
+  assert.equal(out, "");
 });
 
 test("a job an interrupted pull left half written is read again whole, so its records can still disagree", () => {
