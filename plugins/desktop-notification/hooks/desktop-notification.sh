@@ -182,7 +182,8 @@ OSA
 \$n=\$x.GetElementsByTagName('text')
 \$n.Item(0).InnerText=(& \$d '$T64')
 \$n.Item(1).InnerText=(& \$d '$B64')
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new(\$x))"
+\$app=('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}','WindowsPowerShell','v1.0','powershell.exe') -join [char]92
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(\$app).Show([Windows.UI.Notifications.ToastNotification]::new(\$x))"
       ENC=$(printf '%s' "$PS" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
       powershell.exe -NoProfile -NonInteractive -EncodedCommand "$ENC" </dev/null >/dev/null 2>&1 &
       CHANNELS+=("os_toast")
