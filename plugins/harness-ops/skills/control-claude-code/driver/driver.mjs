@@ -933,7 +933,7 @@ async function serve(opts) {
   // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
   // still shows the environment the holder started with, which #8651's isolation probe covers.
   for (const name of CI_NAMES) delete process.env[name];
-  if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
+  if (await childExited(terminal)) throw new Error(`${launch.argv[0]} exited as soon as it started`);
   if (stale) rmSync(sock, { force: true });
   const closeTerminal = async () => {
     await ctx.recording?.mirror.closeQuiet().catch(() => {});
@@ -1189,7 +1189,7 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
     };
     child.on('error', (err) => {
       settle();
-      fail(err.code === 'ENOENT' ? new Error('claude is not on PATH') : err);
+      fail(err.code === 'ENOENT' ? new Error(`${argv[0]} is not on PATH`) : err);
     });
     child.on('close', (code, signal) => {
       settle();
