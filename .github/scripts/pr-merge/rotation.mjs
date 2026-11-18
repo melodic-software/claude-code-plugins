@@ -18,7 +18,7 @@
 // leaves the listing order (ascending PR number) and warns.
 //
 // Environment:
-//   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read)
+//   ACTIONS_TOKEN        a token with Actions read (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps)
 //   GITHUB_REPOSITORY    owner/repo
 //   GITHUB_RUN_ID        this run, which has no cursor yet
 //   CANDIDATES_PATH      candidates.json, rewritten in rotated order

@@ -22,6 +22,7 @@ import babysit_risk as risk
 import babysit_whole_review as wr
 
 HEAD = "a" * 40
+VERIFY_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 MED = risk.Reason("findings:claude-review", risk.Risk.MED, "1 open")
 HIGH = risk.Reason("security-finding", risk.Risk.HIGH, "1 open")
 CLEARS = risk.LaneEvidence("claude-security-review", True, None, 1, True)
@@ -356,7 +357,7 @@ class Limits(unittest.TestCase):
 
     def limits(self, env: dict[str, str] | None = None) -> str | None:
         env = (
-            {wr.SPENT_ENV: self.spent, wr.JOB_TOKEN_ENV: "job"} if env is None else env
+            {wr.SPENT_ENV: self.spent, VERIFY_TOKEN_ENV: "job"} if env is None else env
         )
         with (
             mock.patch.dict(os.environ, env, clear=False),
@@ -407,9 +408,27 @@ class Limits(unittest.TestCase):
 
     def test_no_job_token(self) -> None:
         self.assertEqual(
-            self.limits({wr.SPENT_ENV: self.spent, wr.JOB_TOKEN_ENV: ""}),
+            self.limits({wr.SPENT_ENV: self.spent, VERIFY_TOKEN_ENV: ""}),
             "job-token-missing",
         )
+
+    def test_the_job_token_reads_the_job_bucket_over_the_verdict_readers(
+        self,
+    ) -> None:
+        tokens: list[Any] = []
+
+        def capture(args: list[str], env_overrides: Any = None) -> Any:
+            tokens.append((env_overrides or {}).get("GH_TOKEN"))
+            return self._capture(args, env_overrides)
+
+        env = {wr.SPENT_ENV: self.spent, VERIFY_TOKEN_ENV: "lane", "BABYSIT_JOB_GH_TOKEN": "job"}
+        with (
+            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch.object(wr, "gh_capture", side_effect=capture),
+        ):
+            self.assertIsNone(wr.limits("o/r"))
+        self.assertEqual(tokens[:2], [None, "job"])
+        self.assertTrue(all(token == "job" for token in tokens[1:]))
 
     def test_a_zero_limit_refuses(self) -> None:
         self.job_limit, self.job_left = 0, 0
@@ -418,7 +437,7 @@ class Limits(unittest.TestCase):
     def test_an_unreadable_limit_refuses(self) -> None:
         with (
             mock.patch.dict(
-                os.environ, {wr.SPENT_ENV: self.spent, wr.JOB_TOKEN_ENV: "j"}
+                os.environ, {wr.SPENT_ENV: self.spent, VERIFY_TOKEN_ENV: "j"}
             ),
             mock.patch.object(wr, "gh_capture", return_value=done(code=1)),
         ):

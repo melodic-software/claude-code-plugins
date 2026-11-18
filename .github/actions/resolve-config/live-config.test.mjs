@@ -860,16 +860,22 @@ test("live config: the shipped patch rules pass against the live activities", ()
   assert.equal(checkPatchRules(rules, json("./patch-rules.schema.json"), parse(FILES.config).activities), rules);
 });
 
-test("live config: no live slot resolves an actions permission", () => {
+test("live config: only pr-merge's merge-pr grant carries actions, and only read", () => {
   const doc = parse(FILES.config);
+  const holders = [];
   for (const lane of Object.keys(doc.lanes)) {
     const { lane: resolved } = resolve(FILES, { lane, configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
     for (const slot of resolved.slots) {
-      assert.equal(slot.grant.actions, undefined, `${lane}/${slot.name}`);
+      if (slot.grant.actions !== undefined) holders.push(`${lane}/${slot.name}`);
     }
   }
+  assert.ok(holders.every((holder) => holder.startsWith("pr-merge/")), JSON.stringify(holders));
+  assert.deepEqual(resolveGrant(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH }), {
+    effect: "merge",
+    grant: { contents: "write", "pull-requests": "write", issues: "write", actions: "read" },
+  });
   assert.equal(
-    resolveGrant(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH }).grant.actions,
+    resolveGrant(FILES, { lane: "pr-merge", activity: "enable-auto-merge", configPath: CONFIG_PATH }).grant.actions,
     undefined,
   );
 });

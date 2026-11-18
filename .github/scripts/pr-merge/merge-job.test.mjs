@@ -26,6 +26,8 @@ const stepsOf = (block) =>
     .map((b) => ({ name: /^      - name: (.*)$/m.exec(b)[1], block: b }));
 const job = jobBlock("merge");
 const steps = stepsOf(job);
+const LANE_ACTIONS_READ = "ACTIONS_TOKEN: ${{ steps.lane-token.outputs.token }}\n";
+const JOB_ACTIONS_READ = "ACTIONS_TOKEN: ${{ github.token }}\n";
 const step = (name, list = steps) => {
   const found = list.find((s) => s.name === name);
   assert.ok(found, `step ${name}`);
@@ -497,7 +499,13 @@ test("a held listing files no failed lane merge; a run that listed goes by its o
 });
 
 test("a held listing writes a sweep summary with no read, and a monitor can tell it held", () => {
-  const skipped = { gate: { outcome: "skipped" }, candidates: { outputs: {} }, "scan-upload-5": { outputs: { clean: "true" } } };
+  const skipped = {
+    gate: { outcome: "skipped" },
+    candidates: { outputs: {} },
+    "scan-upload-5": { outputs: { clean: "true" } },
+    "lane-token": { outputs: { token: "t" } },
+  };
+  assert.equal(runsOn("Count the sweep's refusals", { ...skipped, candidates: { outputs: { held: "true" } }, "lane-token": { outputs: { token: "" } } }), false);
   for (const name of ["Count the sweep's refusals", "Upload the sweep's verdicts", "Write the sweep cost"]) {
     assert.equal(runsOn(name, { ...skipped, candidates: { outputs: { held: "true" } } }), true, name);
     assert.equal(runsOn(name, skipped), false, name);
@@ -670,12 +678,15 @@ test("both token-holding jobs read the carried reads from the last trusted run's
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
   const read = "Read the verdict reads the last run kept";
-  for (const list of [steps, stepsOf(jobBlock("enable-auto-merge"))]) {
+  for (const [list, token] of [
+    [steps, LANE_ACTIONS_READ],
+    [stepsOf(jobBlock("enable-auto-merge")), JOB_ACTIONS_READ],
+  ]) {
     const names = list.map((s) => s.name);
     assert.ok(names.indexOf(read) >= 0 && names.indexOf(read) < names.indexOf("Start the run cache from them"));
     const block = step(read, list);
     assert.match(block, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs read\n/);
-    assert.ok(block.includes(`CARRY_TO: ${carried}\n`) && block.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.ok(block.includes(`CARRY_TO: ${carried}\n`) && block.includes(token), block);
     assert.match(block, /\n {8}timeout-minutes: 2\n/);
     const start = step("Start the run cache from them", list);
     assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
@@ -759,7 +770,7 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
   const mapOut = "${{ runner.temp }}/head-refs/head-refs.json";
   const read = step("Read the head refs the last run kept");
   assert.match(read, /run: node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
-  assert.ok(read.includes(`HEAD_REFS_PATH: ${mapIn}\n`) && read.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+  assert.ok(read.includes(`HEAD_REFS_PATH: ${mapIn}\n`) && read.includes(LANE_ACTIONS_READ));
   const gate = step("Run the merge gate on each candidate");
   assert.ok(gate.includes(`BABYSIT_VERIFY_HEAD_REFS: ${mapIn}\n`));
   const keep = step("Keep the head refs the gate read");
@@ -796,12 +807,15 @@ test("every post-merge check reads the lane records, and only the merge job uplo
   const file = "${{ runner.temp }}/lane-records.json";
   const out = "${{ runner.temp }}/lane-records/lane-records.json";
   const early = stepsOf(jobBlock("dispatch-post-merge-runs"));
-  for (const list of [steps, early]) {
+  for (const [list, token] of [
+    [steps, LANE_ACTIONS_READ],
+    [early, JOB_ACTIONS_READ],
+  ]) {
     const names = list.map((s) => s.name);
     const read = step("Read the lane records the last run kept", list);
     assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Check earlier lane merges"));
     assert.match(read, /run: node \.base\/\.github\/scripts\/pr-merge\/lane-records\.mjs read\n/);
-    assert.ok(read.includes(`LANE_RECORDS_PATH: ${file}\n`) && read.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.ok(read.includes(`LANE_RECORDS_PATH: ${file}\n`) && read.includes(token), read);
     assert.match(read, /\n {8}continue-on-error: true\n/);
     assert.ok(step("Check earlier lane merges", list).includes(`BABYSIT_POSTMERGE_LANE_RECORDS: ${file}\n`));
   }
@@ -1282,16 +1296,32 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
 
-// Only --remediate writes, so it alone takes the lane token. The read-only
-// check and the gate's evidence reads spend the job's own token, which this
-// job grants no write.
-test("the read-only post-merge check and the gate's reads use the job's read-only token", () => {
-  assert.match(step("Check earlier lane merges"), /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+test("the post-merge check and the gate read with the lane token, checks with the job's", () => {
+  for (const name of ["Check earlier lane merges", "Skip refusals whose inputs have not changed", "Run the merge gate on each candidate"]) {
+    const block = step(name);
+    assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/, name);
+    assert.match(block, /\n {10}API_BUDGET_TOKEN: lanes-app\n/, name);
+    assert.match(block, /\n {10}BABYSIT_JOB_GH_TOKEN: \$\{\{ github\.token \}\}\n/, name);
+    assert.match(block, /\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/, name);
+    assert.doesNotMatch(block, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/, name);
+  }
   assert.doesNotMatch(runScript("Check earlier lane merges"), /--remediate/);
   assert.match(step("Record a failed lane merge"), /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   const gate = step("Run the merge gate on each candidate");
-  assert.match(gate, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
-  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  const listing = step("List the candidate PRs");
+  assert.match(listing, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(listing, /\n {10}API_BUDGET_TOKEN: lanes-app\n/);
+  assert.match(runScript("List the candidate PRs"), /^api_budget_wrap_gh lanes-app$/m);
+  for (const name of [
+    "Start after the candidate the last run reached",
+    "Read the head refs the last run kept",
+    "Read the verdict reads the last run kept",
+    "Read the lane records the last run kept",
+  ]) {
+    assert.ok(step(name).includes(LANE_ACTIONS_READ), name);
+    assert.match(step(name), /\n {10}API_BUDGET_TOKEN: lanes-app\n/, name);
+  }
   const permissions = /\n    permissions:\n([\s\S]*?)\n    [a-z-]+:/.exec(job)[1];
   const grants = [...permissions.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`);
   assert.deepEqual(grants.filter((g) => g.endsWith(": write")), ["id-token: write"]);
@@ -1636,7 +1666,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.match(filter, /\n {8}continue-on-error: true\n/);
   assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outputs\.listed == 'true'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
-  assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.
   const listing = "BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json\n";
   assert.ok(filter.includes(listing) && step("Run the merge gate on each candidate").includes(listing));

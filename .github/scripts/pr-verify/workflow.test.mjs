@@ -269,15 +269,16 @@ test("the resolver runs before the trigger gate, and the agree step only after t
   }
 });
 
-test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
-  // babysit_verify_evidence.py reads BABYSIT_VERIFY_GH_TOKEN; the lane token
-  // the gate runs gh with holds no Actions permission.
+test("pr-merge.yml's gate reads its verdicts with the lane token and checks with the job's", () => {
   const merge = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
   const job = /\n  merge:\n([\s\S]*?)\n  [a-z-]+:\n/.exec(merge)[1];
-  assert.match(job, /\n {6}actions: read\n/);
+  assert.match(job, /\n {6}checks: read\n/);
   const gate = /- name: Run the merge gate on each candidate\n([\s\S]*?)\n {6}- name: /.exec(job)[1];
   assert.match(gate, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
-  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(gate, /\n {10}BABYSIT_JOB_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(gate, /\n {10}API_BUDGET_TOKEN: lanes-app\n/);
+  assert.match(gate, /\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
 });
 
 test("the concurrency group is per PR and head and never cancels a running judgment", () => {

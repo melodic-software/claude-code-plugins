@@ -34,7 +34,7 @@
 // check then reads every record, which costs requests, never a decision.
 //
 // Environment:
-//   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
+//   ACTIONS_TOKEN             read: a token with Actions read (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps)
 //   GITHUB_REPOSITORY         owner/repo
 //   GITHUB_RUN_ID             read: this run, which has no file yet
 //   RUNNER_TEMP               read: where the artifact is downloaded

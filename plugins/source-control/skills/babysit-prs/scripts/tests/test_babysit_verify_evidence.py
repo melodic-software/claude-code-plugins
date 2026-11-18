@@ -3356,11 +3356,9 @@ class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
 
 
 class ActionsReadsUseTheActionsToken(unittest.TestCase):
-    """The lane token holds no Actions permission, so the artifact listing,
-    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`, as
-    do the run heads' compares to the branch (a contents read the job token
-    serves, kept off the lane App's quota); every other read keeps the
-    process token."""
+    """The artifact listing, the run records and the download run under
+    `BABYSIT_VERIFY_GH_TOKEN` when one is set, as do the run heads' compares
+    to the branch; every other read keeps the process token."""
 
     ACTIONS = ("actions/artifacts?", "actions/runs/", "/zip", "/compare/")
 

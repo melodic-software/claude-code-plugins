@@ -3229,10 +3229,9 @@ def _lane_evidence(
     more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
 
     The timeline, the comments and the lane runs are read under the verdict
-    reader's token when one is set, keeping them off the lane App's quota;
-    every read here is a GET. A refused read, a rate limit included, raises
-    and is never made again with the lane token: GitHub's Terms of Service
-    bar sharing tokens to exceed its rate limits, so the candidate holds."""
+    reader's token when one is set; every read here is a GET. A refused
+    read, a rate limit included, raises and is never made again with
+    another token, so the candidate holds."""
     head = json_object(pr.get("head"))
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     read_env = {"GH_TOKEN": token} if token else None

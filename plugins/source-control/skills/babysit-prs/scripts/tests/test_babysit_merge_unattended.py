@@ -5086,8 +5086,8 @@ class HeadPushers(unittest.TestCase):
 
 class LaneEvidenceReadToken(unittest.TestCase):
     """The gate's review-evidence reads (timeline, comments, lane runs and
-    their attempts, jobs and annotations) run under the job's read-only token
-    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
+    their attempts, jobs and annotations) run under the verdict reader's
+    token (`BABYSIT_VERIFY_GH_TOKEN`) when one is set; each is a GET."""
 
     RUN = 11
     JOB = 21

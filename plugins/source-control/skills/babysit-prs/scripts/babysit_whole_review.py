@@ -39,6 +39,7 @@ from pathlib import Path
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import babysit_gh
 import babysit_risk
 from babysit_gh import fetch_paginated_api, gh_capture
 
@@ -57,7 +58,7 @@ CONVERT_WINDOW = timedelta(minutes=10)
 CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
 # The job's own token (GITHUB_TOKEN), which also reads the runs.
-JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
+JOB_TOKEN_ENVS = (babysit_gh.JOB_TOKEN_ENV, "BABYSIT_VERIFY_GH_TOKEN")
 MAX_RUNNING_JOBS = 35
 # The share of each rate-limit bucket that must be left: 1,500 of 5,000, 300
 # of GITHUB_TOKEN's 1,000 outside GitHub Enterprise Cloud.
@@ -254,7 +255,7 @@ def limits(repo: str) -> str | None:
         return "sweep-limit"
     except OSError as exc:
         return f"sweep-claim: {exc}"
-    token = os.environ.get(JOB_TOKEN_ENV)
+    token = next((t for name in JOB_TOKEN_ENVS if (t := os.environ.get(name))), None)
     if not token:
         return "job-token-missing"
     job = {"GH_TOKEN": token}

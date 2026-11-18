@@ -43,6 +43,7 @@ class ApiBudgetTests(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.addCleanup(lambda: subprocess.run(["rm", "-rf", self.dir], check=False))
         self.calls: list[list[str]] = []
+        self.tokens: list[str | None] = []
 
     def run_gh(
         self,
@@ -55,8 +56,9 @@ class ApiBudgetTests(unittest.TestCase):
         check: bool = False,
         overrides: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[Any]:
-        def fake(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        def fake(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             self.calls.append(argv)
+            self.tokens.append((kwargs.get("env_overrides") or {}).get("GH_TOKEN"))
             return subprocess.CompletedProcess(argv, code, stdout, stderr)
 
         with (
@@ -154,6 +156,66 @@ class ApiBudgetTests(unittest.TestCase):
             self.readings("github-token"), "200 5000 3 7 1792748042 core {x}\n"
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "lanes-app").exists())
+
+    def test_a_call_carrying_the_process_token_reads_into_the_token_name(
+        self,
+    ) -> None:
+        env = {
+            "RUNNER_TEMP": self.dir,
+            "GH_TOKEN": "lane",
+            "API_BUDGET_TOKEN": "lanes-app",
+            "API_BUDGET_OVERRIDE_TOKEN": "github-token",
+        }
+        self.run_gh(
+            HEAD.format(status=200, remaining=4100, used=900) + "{}",
+            ["api", "repos/o/r/actions/artifacts"],
+            env=env,
+            overrides={"GH_TOKEN": "lane"},
+        )
+        self.assertEqual(
+            self.readings("lanes-app"),
+            "200 5000 4100 900 1792748042 core repos/{repo}/actions/artifacts\n",
+        )
+        self.assertFalse(pathlib.Path(self.dir, "api-budget", "github-token").exists())
+
+    def test_with_a_job_token_only_check_and_status_reads_go_under_it(self) -> None:
+        env = {
+            "RUNNER_TEMP": self.dir,
+            "GH_TOKEN": "lane",
+            gh.JOB_TOKEN_ENV: "job",
+            "API_BUDGET_TOKEN": "lanes-app",
+            "API_BUDGET_OVERRIDE_TOKEN": "github-token",
+        }
+        cases = [
+            (["api", "repos/o/r/check-runs/5/annotations?per_page=100"], "job"),
+            (["api", "/repos/o/r/commits/abc/check-runs?filter=all"], "job"),
+            (["api", "repos/o/r/commits/abc/check-suites?app_id=15368"], "job"),
+            (["api", "repos/o/r/commits/abc/statuses?per_page=100"], "job"),
+            (["api", "repos/o/r/commits/abc/status"], "job"),
+            (["api", "repos/o/r/actions/runs/7/jobs"], None),
+            (["api", "repos/o/r/issues/3/timeline"], None),
+            (["api", "repos/o/r/commits/abc"], None),
+            (["api", "repos/o/r/check-runs", "-X", "POST", "-f", "name=x"], None),
+            (["api", "repos/o/r/statuses/abc", "-f", "state=success"], None),
+        ]
+        for args, token in cases:
+            self.run_gh(
+                HEAD.format(status=200, remaining=4100, used=900) + "{}",
+                args,
+                env=env,
+            )
+        self.assertEqual(self.tokens, [token for _, token in cases])
+        self.assertEqual(len(self.readings("github-token").splitlines()), 5)
+        self.assertEqual(len(self.readings("lanes-app").splitlines()), 5)
+
+    def test_without_a_job_token_a_check_read_keeps_its_token(self) -> None:
+        self.run_gh(
+            "{}",
+            ["api", "repos/o/r/check-runs/5/annotations"],
+            env={"RUNNER_TEMP": self.dir, gh.JOB_TOKEN_ENV: ""},
+            overrides={"GH_TOKEN": "verify"},
+        )
+        self.assertEqual(self.tokens, ["verify"])
 
     def test_without_a_token_name_or_for_a_non_api_call_no_reading_is_written(
         self,

@@ -366,6 +366,7 @@ def _send(
     one whose headers hold a Retry-After: `_guard_response` stops the process on
     a value in seconds, and any other form returns as the failed read."""
     global _read_retries_sent
+    env_overrides = job_token_env(args, env_overrides)
     left = _default_timeout_seconds if timeout_seconds is None else timeout_seconds
     deadline = _retry_clock() + left
     for attempt in range(1, READ_ATTEMPTS):
@@ -398,6 +399,32 @@ def _send(
         args, timeout_seconds=left, env_overrides=env_overrides, binary=binary
     )
     return proc, headers
+
+
+# The job's own token (GITHUB_TOKEN), for the reads an App token granted no
+# Checks or Commit statuses permission cannot make: https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps
+JOB_TOKEN_ENV = "BABYSIT_JOB_GH_TOKEN"
+_JOB_TOKEN_ROUTE = re.compile(
+    r"^/?repos/[^/?]+/[^/?]+/(?:check-runs|check-suites"
+    r"|commits/[^/?]+/(?:check-runs|check-suites|statuses|status))(?:[/?]|$)"
+)
+
+
+def job_token_env(
+    args: list[str], env_overrides: Mapping[str, str] | None
+) -> Mapping[str, str] | None:
+    """`env_overrides` with GH_TOKEN set to JOB_TOKEN_ENV's token for a REST
+    read of check runs, check suites or commit statuses, when the job sets
+    one; unchanged for every other call."""
+    token = os.environ.get(JOB_TOKEN_ENV)
+    if (
+        not token
+        or args[:1] != ["api"]
+        or _is_write(args)
+        or not _JOB_TOKEN_ROUTE.match(_endpoint(args))
+    ):
+        return env_overrides
+    return {**(env_overrides or {}), "GH_TOKEN": token}
 
 
 def _send_once(
@@ -901,8 +928,13 @@ def _limits_pool(args: list[str], env_overrides: Mapping[str, str] | None) -> st
 
 def _budget_token_name(env_overrides: Mapping[str, str] | None) -> str:
     """The token name the job gives for a call: API_BUDGET_OVERRIDE_TOKEN for a
-    call carrying its own GH_TOKEN, else API_BUDGET_TOKEN; empty when unset."""
-    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
+    call carrying a GH_TOKEN other than the process's, else API_BUDGET_TOKEN;
+    empty when unset."""
+    own = bool(
+        env_overrides
+        and "GH_TOKEN" in env_overrides
+        and env_overrides["GH_TOKEN"] != os.environ.get("GH_TOKEN")
+    )
     return os.environ.get(
         "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
     )

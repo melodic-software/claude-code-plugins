@@ -3199,18 +3199,26 @@ one whole listing an over-count takes starts paging, a later reader in the job w
 over-count refuses without another, even when that listing failed transiently or on a caller's
 limit (then with the caller-limit prefix). A refusal before paging leaves that listing to the next
 reader.
-The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+The merge job's lane token carries `actions: read` (`lane-rules.json` gives the `merge-pr` grant
+alone that scope, and the broker refuses it to any other activity), and pr-merge.yml passes it as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
-review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. All of these reads stay on `GITHUB_TOKEN`: none switches to the lane token,
-whatever `GITHUB_TOKEN`'s budget, since GitHub's Terms of Service bar sharing tokens to exceed its
-rate limits ([owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9297#issuecomment-6368281689)).
-A read refused for a rate limit is not retried: the candidate's lanes read `evidence-missing`, it
-holds, and the next run reads again. An untied FAIL whose record cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
-download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
-included, keeps the lane token. That job checks out only main and runs no pull request code.
+review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts
+and jobs. Every read that needs the Checks or Commit statuses permission, which the lane grant
+lacks (check runs, check suites, annotations, commit statuses), goes under the job's own
+`GITHUB_TOKEN`, passed as `BABYSIT_JOB_GH_TOKEN` (`babysit_gh.py` `job_token_env`), as do the
+whole-review request's job-bucket and running-job reads. Each read has one designed token, named to
+the rate guard as `lanes-app` or `github-token`, and none moves to the other token when its own pool
+runs low. Owner decision D398 (2026-11-18) moved these reads to the lanes App's allowance,
+replacing the [earlier decision](https://github.com/melodic-software/claude-code-plugins/issues/9297#issuecomment-6368281689)
+that kept them on `GITHUB_TOKEN`. A read refused for a rate
+limit is not retried: the candidate's lanes read `evidence-missing`, it holds, and the next run
+reads again. An untied FAIL whose record cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
+download; the next run reads it again. The candidate listing, the carried artifacts and the
+post-merge check read with the lane token too; the who and superseded reads before the mint, the
+re-fire and escalation-clear steps' run and check reads, and every write the lane token cannot make
+stay on `GITHUB_TOKEN`. That job checks out only main and runs no pull request code.
 
 The post-merge check's lane records (`pr-merge-dispatched-<id>`, `pr-merge-rerun-<id>-attempt-2`)
 carry from run to run as the `pr-merge-lane-records` artifact

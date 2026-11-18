@@ -1271,7 +1271,7 @@ test("every createGitHub step that calls GitHub with the job token names the buc
 
 // The sweep-count step's one read, the run's start, goes through the wrapped
 // gh, so the job-end notice counts it; sweep-summary.mjs calls nothing.
-test("the merge job's sweep-count read leaves one github-token reading", () => {
+test("the merge job's sweep-count read leaves one lanes-app reading", () => {
   const step = /- name: Count the sweep's refusals\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))[1];
   const run = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step)[1].replace(/^ {10}/gm, "");
   const dir = tempDir("pr-merge-sweep-count-");
@@ -1296,7 +1296,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.equal(readFileSync(join(dir, "started"), "utf8"), "2026-10-28T00:00:00Z\n");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/runs/{n}\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/runs/{n}\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
