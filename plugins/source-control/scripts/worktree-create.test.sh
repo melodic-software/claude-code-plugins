@@ -1260,12 +1260,12 @@ errfile="$TEST_TMPDIR/err-deps-slow.txt"
 child_pid_file="$TEST_TMPDIR/npm-slow-child.pid"
 start=$SECONDS
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=30 FAKE_NPM_CHILD_PID="$child_pid_file" \
-  WORKTREE_CREATE_DEPS_CAP_SECONDS=1 bash "$HELPER" --name feat/deps-slow --base-ref head \
+  WORKTREE_CREATE_DEPS_CAP_SECONDS=3 bash "$HELPER" --name feat/deps-slow --base-ref head \
   --root "$TEST_TMPDIR/wtroot-deps-slow" --repo-dir "$deps_repo" 2>"$errfile")
 rc=$?
 elapsed=$((SECONDS - start))
 assert_exit "capped install: creation still exits 0" 0 "$rc"
-assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 1s"
+assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 3s"
 assert_contains "capped install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
 child_pid=$(cat "$child_pid_file" 2>/dev/null)
 for _ in 1 2 3 4 5 6 7 8 9 10; do
