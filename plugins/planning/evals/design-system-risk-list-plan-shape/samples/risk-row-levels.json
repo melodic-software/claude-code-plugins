@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Risk | Likelihood | Impact | Mitigation |\n|---|---|---|---|\n| Mailgun outage outlasts the queue retention | Low | High | Durable queue with 24 h retention (thread Delivery) |\n",
+      "why": "a row with Low and High"
+    },
+    {
+      "answer": "| Duplicate email on worker retry | Medium | Med | Idempotency key per order, checked in phase 2 |",
+      "why": "Medium and Med both accepted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "| Risk | Likelihood | Impact | Mitigation |\n|---|---|---|---|\n",
+      "why": "header and separator, no row"
+    },
+    {
+      "answer": "| Mailgun outage | 3 | 5 | durable queue |",
+      "why": "numeric scores, not Low/Med/High"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Quality scenarios\n\nQuality scenarios: deferred (prototype) [RESEARCH: write the scenarios if it heads for production]\n",
+      "why": "the spoke's line under its heading"
+    },
+    {
+      "answer": "| Quality scenarios | deferred (prototype) | Brief defers quality requirements |",
+      "why": "a status table row"
+    },
+    {
+      "answer": "### Thread: Quality scenarios\n\nStatus: **deferred (prototype)**, revisit if it heads for production.\n",
+      "why": "status line right under the heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "## Quality scenarios\n\n| Requirement | Source | Stimulus | Artifact | Environment | Response | Measure |\n",
+      "why": "scenarios written, nothing deferred"
+    },
+    {
+      "answer": "## Principles\n\nPrinciples: deferred (prototype)\n",
+      "why": "a different thread deferred"
+    }
+  ]
+}

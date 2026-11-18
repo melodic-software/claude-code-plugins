@@ -198,6 +198,15 @@ A variation-intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 
+### System-scope steps
+
+`system` scope only, and suggested, not required: three more threads in `design-threads.md`,
+named `Quality scenarios`, `Capacity estimates` and `Risks`. Scenarios come from the Brief's
+quality requirements, never re-asked, and a prototype Brief defers them in one line; an unknown
+capacity input becomes a `target assumed ... revisit if ...` line; risk rows take
+`/planning:plan`'s risk-table columns. How:
+[`reference/system-scope.md`](reference/system-scope.md).
+
 ### Phase 3: Type Modeling
 
 The phase ends with a `type-inventory.md` in which every type traces to a call site that needs it,
