@@ -168,9 +168,11 @@ Three official constraints mean the operative allow-rule cannot be shipped by th
   these spans re-derives this bullet). Even so, auto mode still drops the broad/interpreter
   shapes.
 - **A plugin cannot ship permission rules.** In a plugin's `settings.json`, "Only `agent` and
-  `subagentStatusLine` take effect", per
-  [`settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings). A
-  `permissions` block placed there is inert.
+  `subagentStatusLine` take effect", per the `settings` section of the
+  [manifest reference, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md)
+  (an archive: the live page dropped the section when
+  [2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) removed `subagentStatusLine` and
+  deprecated a plugin's `agent`). A `permissions` block placed there is inert.
 - **An agent editing its own settings to self-grant is blocked.** `defaultMode: "auto"` and
   `defaultMode: "bypassPermissions"` are ignored from project and local settings, so a repository
   cannot grant itself auto mode or bypass permissions. `acceptEdits`, `plan`, and `dontAsk` still
@@ -325,4 +327,4 @@ case fails, or `/harness-ops:changelog apply` lists it for a release range.
   rules past an assignment: [permissions](https://code.claude.com/docs/en/permissions#process-wrappers),
   as of 2026-10-07; recheck when that section's env-assignment paragraph changes
 - `allowed-tools` scope and `${CLAUDE_PROJECT_DIR}` substitution: [skills](https://code.claude.com/docs/en/skills)
-- Plugin `bin/` on PATH and the `agent`/`subagentStatusLine`-only `settings.json`: [Executables](https://code.claude.com/docs/en/plugins/components#executables), [`settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
+- Plugin `bin/` on PATH and the `agent`/`subagentStatusLine`-only `settings.json`: [Executables](https://code.claude.com/docs/en/plugins/components#executables), [`settings`, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md), [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323)

@@ -177,8 +177,8 @@ command runs first through `--after`, and your other `statusLine` keys stay. It 
   checking where the `statusLine` edit goes, fetch
   [Manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
   live; when checking which settings a plugin may set, fetch
-  [manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
-  live; when checking what cache state a mod can read, fetch
+  [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, the release that
+  removed the docs section on plugin settings; when checking what cache state a mod can read, fetch
   [mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) live.
 
 The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never

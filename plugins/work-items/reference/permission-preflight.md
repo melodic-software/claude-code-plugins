@@ -28,8 +28,10 @@ the script never runs, so there is no exit code to read.
   live; when checking when the classifier reviews a call, fetch
   [§ How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
   live; when checking which plugin `settings.json` keys take effect, fetch
-  [plugins manifest reference § Settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
-  live.
+  [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, and the `settings`
+  section of the
+  [manifest reference, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md)
+  for the keys listed before that release.
 
 So the operative grants live **operator-side**, and the loop-start step only **detects and reports**
 the gap once, up front. It never edits settings, and never retries a permission/classifier denial

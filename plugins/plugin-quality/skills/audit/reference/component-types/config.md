@@ -31,10 +31,13 @@ convention/config files the plugin reads.
 - **Machine-readable format**: for data other tools must read, prefer flat-scalar YAML (shell-grep
   friendly) over frontmatter-in-markdown or a value trapped in a tool-specific language.
 - **Silent no-op keys (`settings.json`)**: flag any key in a plugin-root `settings.json` that the
-  Default settings section below does not list as taking effect.
+  sources below do not list as taking effect.
   - **Pointer**: when checking which keys take effect, what happens to the rest, and which of the
     file and the manifest key wins, fetch
-    [Default settings](https://code.claude.com/docs/en/plugins/components#default-settings) live.
+    [changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, and read the
+    `settings` section of the
+    [manifest reference, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md)
+    for the keys listed before that release.
 - **Silent-skip LSP entries (`.lsp.json`)**: check every entry is valid against the
   [`lspServers`](https://code.claude.com/docs/en/plugins/manifest-reference#lspservers) field
   table, and check the server binary is documented for installers as a user-machine prerequisite.
