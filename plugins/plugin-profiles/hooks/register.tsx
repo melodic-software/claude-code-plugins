@@ -18,6 +18,7 @@ const CANCEL = 'Cancel'
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
 const NOT_CHOSEN = 'No profile chosen; nothing changed.'
+const PICK_OPEN = `A profile pick is already open in its pane; pick there, or press Cancel and run /${COMMAND} again.`
 
 type Profile = { name: string; description: string | null }
 type Preview = {
@@ -33,13 +34,16 @@ type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: s
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
 const focused = atom({ plugin: 'plugin-profiles', key: 'focused' } as const, null as string | null)
-let picking = false
+let settling = false
 
 const cli = async ($: EngineInterface, args: readonly string[]) =>
   $.process.run(['node', `${$.plugin.root}/${CLI}`, ...args], {
     timeoutMs: 60_000,
     env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
   })
+
+/** Whether the picker pane is up, from the engine's record, which outlives a reload of this module. */
+const pickerOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PICKER)
 
 const failure = (r: { stdout: string; stderr: string }) => (r.stderr || r.stdout).trim()
 const list = (ids: readonly string[]) => ids.join(', ')
@@ -71,10 +75,14 @@ const outcome = async (run: () => Promise<string>) => {
 }
 
 async function picked($: EngineInterface, name: string | undefined) {
-  if (!picking) return
-  picking = false
-  await $.ui.close({ id: PICKER }).catch(() => undefined)
-  show($, [name ? await outcome(() => switchTo($, name)) : NOT_CHOSEN])
+  if (settling || !(await pickerOpen($))) return
+  settling = true
+  try {
+    await $.ui.close({ id: PICKER }).catch(() => undefined)
+    show($, [name ? await outcome(async () => (await waitingLine($)) ?? switchTo($, name)) : NOT_CHOSEN])
+  } finally {
+    settling = false
+  }
 }
 
 async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]): Promise<string | undefined> {
@@ -127,19 +135,23 @@ async function clearProfile($: EngineInterface): Promise<string> {
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
+/** The line refusing a new switch while an earlier one waits for its reload, or undefined. */
+const waitingLine = async ($: EngineInterface) =>
+  (await read($, pending)) ? `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.` : undefined
+
 async function switchProfile($: EngineInterface, args: string): Promise<string> {
-  const waiting = await read($, pending)
-  if (waiting) return `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.`
+  if (await pickerOpen($)) return PICK_OPEN
+  const waiting = await waitingLine($)
+  if (waiting) return waiting
   if (args) return switchTo($, args)
   const listed = await cli($, ['list', '--json'])
   if (listed.exitCode !== 0) return failure(listed)
   const entries = entriesOf(JSON.parse(listed.stdout) as Profile[])
   await update($, picker, () => entries)
   await update($, focused, () => null)
-  picking = true
   const opened = await $.ui.open({ id: PICKER, title: 'Which profile should this folder use?', focus: true, closeOnEscape: true })
   if (opened.isPlaced) return 'Pick a profile in the pane; the next step shows what it changes and asks before writing.'
-  picking = false
+  await $.ui.close({ id: PICKER }).catch(() => undefined)
   const name = await pickByPages($, entries).catch(() => undefined)
   return name ? switchTo($, name) : NOT_CHOSEN
 }
@@ -259,10 +271,7 @@ export const register: Register = on => {
 
   on('ui.close', { id: PICKER }, async ($, e, next) => {
     const result = await next(e)
-    if (picking) {
-      picking = false
-      $.ui.log(NOT_CHOSEN)
-    }
+    if (e.origin.kind === 'person') $.ui.log(NOT_CHOSEN)
     return result
   }).catch(($, e, next) => next(e))
 
