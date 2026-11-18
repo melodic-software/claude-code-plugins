@@ -81,7 +81,11 @@ Tuning — edit these lines as you observe real runs:
 ```
 
 The prompt is the tuning surface for cap, scope/size band, and dismissed-candidate handling: every unattended control is a soft default the invocation prompt overrides (see
-[skills/find/context/unattended.md](skills/find/context/unattended.md)). Iterate on the wording
+[skills/find/context/unattended.md](skills/find/context/unattended.md)), except the open cap.
+Every item find files carries the `source: improvement-find` label, which the repository must
+already have; while the open items carrying it number at or above `find_open_item_cap` (default
+5, set in `.claude/improvement.md`, see [reference/config.md](reference/config.md)), an
+unattended run files nothing. Iterate on the wording
 after observing real runs; never fork the skill to tune a run.
 
 ### Improve-one-thing prompt (daily or hourly)

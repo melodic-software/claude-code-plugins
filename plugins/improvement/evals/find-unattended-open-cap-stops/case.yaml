@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: find-unattended-open-cap-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-open-cap
+    type: regex
+    pattern: '\bopen[- ](?:item )?cap\b|find_open_item_cap'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: files-nothing-at-open-cap
+    type: llm
+    criteria: 'PASS only if the reply plans to file no work item this run and gives as the reason that the five open items already carrying the source: improvement-find label meet the open cap of 5. FAIL if the reply would file any item (including up to the prompt''s cap of 3), or if it stops filing for another reason only, such as duplicates, a missing label or the adaptive cap.'
