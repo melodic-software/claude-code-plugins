@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Sourced by code-metrics shell suites: build a PATH directory that keeps
-# every collector the ladder names unreachable, so a machine with those
-# tools installed still exercises the no-collector path.
-#
-# The excluded names come from scripts/collector-ladder.tsv (column 3,
-# skipping the reserved rungs `none`, `n/a`, and `deferred`) plus the PATH
-# binaries those collectors' adapters look up with shutil.which, so a new
-# ladder rung stays off the tool-free PATH with no suite edit. A bundled
-# adapter that never looks up a binary (line-counter) is not a PATH tool
-# and is not treated as a leak.
-#
-#   source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
-#   cm_fill_tool_free_path "$EMPTY_PATH"
-#   leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH")"
-#
 # shellcheck shell=bash
 
 _CM_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,8 +9,6 @@ _cm_python() {
   if command -v python3 >/dev/null 2>&1; then echo python3; else echo python; fi
 }
 
-# Unique non-reserved tool names from the ladder, same column and skip rules
-# dispatch.sh uses when it walks a lane/measure.
 cm_ladder_tools() {
   awk -F'\t' '
     !/^#/ && NF >= 3 && $3 != "none" && $3 != "n/a" && $3 != "deferred" && !seen[$3]++ {
@@ -34,9 +17,6 @@ cm_ladder_tools() {
   ' "$_CM_LADDER"
 }
 
-# PATH basenames to keep off the tool-free directory: each ladder tool plus
-# every shutil.which argument in that tool's adapter (a string literal, or a
-# module-level NAME/TOOL constant).
 cm_ladder_path_bins() {
   # The CR strip keeps a native Windows Python's CRLF out of the names (#6794).
   "$(_cm_python)" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY' | sed $'s/\r$//'
@@ -88,8 +68,6 @@ for name in sorted(bins):
 PY
 }
 
-# Fill dest with symlinks to every PATH executable except the ladder's
-# collectors, so git, the coreutils, and the interpreter stay reachable.
 # Python interpreters are resolved to a non-mutating executable: a pyenv
 # (or similar) shim that prepends its version bin would put skipped
 # collectors back on PATH when the adapter probe runs.
@@ -135,10 +113,6 @@ cm_fill_tool_free_path() {
   done
 }
 
-# Print ladder collectors that still resolve on dest: a PATH lookup of the
-# derived bins, or an adapter probe that succeeds. A bundled adapter with no
-# shutil.which is skipped. Non-empty output means the environment is not
-# tool-free.
 cm_resolvable_ladder_collectors() {
   local dest="$1"
   local py

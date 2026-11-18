@@ -1,12 +1,3 @@
-// Stage 1 of the demo-video pipeline: replay a written flow once and write CAPTURE/timeline.json,
-// every page frame (lossless PNG at device pixels, with its time) plus an event log of each step's
-// actions, target boxes and times. No cursor is drawn in the browser; produce.py draws it.
-//
-// usage: node record.mjs [--playwright-core DIR] [--headed] REPLAY.mjs CAPTURE_DIR
-//   REPLAY.mjs default-exports `async (demo) => { ... }`; see reference/replay-script.md for the API.
-// exit: 0 recorded, 1 the replay failed (nothing written; an earlier capture is kept), 2 playwright-core or
-// its Chromium is missing (remedy printed).
-//
 // Capture: Chromium's screencast delivers frames at CSS-pixel size whatever the deviceScaleFactor, so
 // frames come from CDP Page.captureScreenshot with clip.scale = DSF (3840x2160 at DSF 2). That is slow
 // (about 4 fps), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
@@ -60,7 +51,6 @@ if (existing.length && !earlierCapture) {
   process.exit(1);
 }
 const launcher = chromium(pwDir);
-// Record into a sibling staging directory: the earlier capture is replaced only once this one succeeds.
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const stage = fs.mkdtempSync(path.join(path.dirname(out), `.${path.basename(out)}.recording-`));
 let committed = false;
@@ -159,7 +149,6 @@ const demo = {
       await page.waitForTimeout(1200);
     }
   },
-  // Move the real mouse along an eased path (hover states render); log it for the drawn cursor.
   async moveTo(step, target, ms = 700 * SLOW) {
     const p = Array.isArray(target) || typeof target !== 'object' || target.x === undefined ? centerOf(await boxOf(target)) : target;
     const from = { ...mouse }, t0 = now(), steps = Math.max(1, Math.round(ms / 25));
@@ -171,8 +160,6 @@ const demo = {
     events.push({ name: 'move', step, t: t0, t1: now(), from, to: p });
     mouse = { ...p };
   },
-  // Click a target. `block` is the semantic block the shot frames (defaults to the target plus padding);
-  // a click that changes the URL is a navigation: the settled event records it and the camera cuts at 1.0x.
   async click(step, target, { block = null } = {}) {
     const box = await boxOf(target);
     const at = centerOf(box);
@@ -185,7 +172,6 @@ const demo = {
     await page.waitForTimeout(60);
     await page.mouse.up();
   },
-  // Type into a focused field one key at a time; `modal` is the panel the shot frames while typing.
   async type(step, target, text, { modal = null } = {}) {
     const box = await boxOf(target);
     mark('type', { step, box, modal: modal ? await boxOf(modal) : null, text });
@@ -197,13 +183,11 @@ const demo = {
     }
     mark('typed', { step });
   },
-  // Wait until the page is still; extra fields (box, modal) are logged with the settled event.
   async settle(step, extra = {}) {
     const resolved = {};
     for (const [k, v] of Object.entries(extra)) resolved[k] = v && (typeof v === 'string' || Array.isArray(v) || v.boundingBox) ? await boxOf(v) : v;
     await settle(step, resolved);
   },
-  // Inject CSS for the rest of the recording (hide a flashing partial state); returns a remover.
   async style(css) {
     const h = await page.addStyleTag({ content: css });
     return async () => h.evaluate((el) => el.remove());

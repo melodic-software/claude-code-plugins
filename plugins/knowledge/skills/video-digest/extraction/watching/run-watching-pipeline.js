@@ -27,7 +27,6 @@ export async function runWatchingPipelineCli(argv) {
     return 1;
   }
 
-  // Temp dirs are retained for the skill's vision reads — the caller cleans them up after absorption.
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-frames-"));
   const contactSheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
   const cues = normalizeVttCues(await fs.readFile(vttPath, "utf8"));

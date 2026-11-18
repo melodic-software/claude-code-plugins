@@ -34,16 +34,12 @@ trap 'rm -rf "$WORK"' EXIT
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
 cm_require_python audit-size.sh
 
-# Resolve the configuration once (or take the caller's --config), so the
-# size mode is read from the same document the dispatcher measures against.
 cm_split_config "${ARGS[@]}"
 if [[ -z "$CM_CONFIG" ]]; then
   CM_CONFIG="$WORK/config.json"
   cm_resolve_config "$CM_CONFIG" || exit 2
 fi
 
-# Take `--file-lines <n>` out of the pass-through arguments and write it into a
-# copy of the resolved document, so a caller's --config file is left as it was.
 FILE_LINES=""
 COMMITS_SINCE=""
 CHECK=0

@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.5] - 2026-11-18
+
+### Fixed
+
+- **`reference/evidence.md`, step 4.** The instruction to write the comment body with the Write
+  tool now comes once, after the placeholder list, with a literal target
+  (`<dir>/evidence-comment.md`, the scratchpad or the path `mktemp -d` prints), every path and
+  value filled in literally, and its reason: the Write tool's content reaches no shell, so a
+  `$(...)` or backtick in the criterion or summary text stays text. Steps 5 and 8 read that file.
+
 ## [11.21.4] - 2026-11-18
 
 ### Fixed

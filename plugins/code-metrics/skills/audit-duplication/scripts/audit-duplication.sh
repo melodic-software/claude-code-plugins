@@ -80,18 +80,11 @@ cm_require_python audit-duplication.sh
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [[ -n "$ROOT" ]] || ROOT="$PWD"
 
-# Resolve the configuration once (or take the caller's --config), so the
-# tunables the adapters read and the registries this script applies come from
-# the same document the dispatcher measures against.
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
   cm_resolve_config "$CONFIG" || exit 2
 fi
 
-# Six tunables (a cap of null or 0 is exported empty, which the adapter reads
-# as "no cap"), then the registries from the resolver's own format
-# (`scope.registries`, or `duplication.registries` as its older name), so this
-# script and the dispatcher read the same list the same way.
 if ! "${PY[@]}" -I -c '
 import json, sys
 
@@ -153,7 +146,6 @@ mapfile -t CONFIGURED_REGISTRIES <"$WORK/registries"
 
 FILTER_ARGS=(--root "$ROOT")
 resolve_registry() {
-  # A registry path as given, else the same path under the repository root.
   if [[ -f "$1" ]]; then
     printf '%s\n' "$1"
   elif [[ -f "$ROOT/$1" ]]; then
@@ -171,15 +163,10 @@ for registry in "${REGISTRY_ARGS[@]:-}" "${CONFIGURED_REGISTRIES[@]:-}"; do
   FILTER_ARGS+=(--registry "$resolved")
 done
 
-# The clone pairs come cwd-relative: the merge and the registry filter rebase
-# them onto `--root` themselves. The final document is anchored once, below.
 bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" --no-anchor ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 
-# Merge the pairs the detector reports into clone classes, exclude the declared
-# replication, recompute the totals from what survived, then state the zero the
-# recomputation drops when every group was excluded.
 "${PY[@]}" "$CLUSTER" --root "$ROOT" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
 "${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/clustered.json" >"$WORK/filtered.json" || exit 2
 "${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
@@ -187,12 +174,6 @@ rc=$?
 
 cm_anchor_document "$WORK/final.json" || exit 2
 
-# The clone trend: this run's clone-class count beside the newest earlier
-# persisted document of the same project (the persisted-report directory is
-# per project) and the same scope mode, read before this run's own document is
-# persisted. A document that measured nothing has no count and is passed over;
-# with no earlier document the run carries no `trend` and prints no trend line.
-# A failure here leaves the document as it was.
 # shellcheck source=../../../scripts/persist-report.sh
 source "$PLUGIN_ROOT/scripts/persist-report.sh"
 if REPORT_DIR="$(cm_report_dir 2>/dev/null)" && [[ -d "$REPORT_DIR" ]]; then
@@ -340,8 +321,6 @@ raise SystemExit(1)
 fi
 
 if [[ "$JSON" -eq 1 && "$KEEP" -eq 1 ]]; then
-  # stdout carries only the document; a directory that cannot be written says
-  # so on stderr and the run goes on.
   cm_persist_report audit-duplication "$WORK/final.json" >/dev/null || true
 fi
 cm_emit_document audit-duplication "$JSON" "$WORK/final.json" --rollup-depth "$ROLLUP_DEPTH" || exit 2

@@ -347,7 +347,6 @@ export async function acquireYouTubeMedia(
   let artifacts;
   /** @type {object | undefined} */
   let acquireMetrics;
-  // yt-dlp failure detail of the caption download the selection comes from.
   let captionError = "";
 
   if (mode === "full") {
@@ -386,7 +385,6 @@ export async function acquireYouTubeMedia(
 
   const retryCaptions = (mode === "full" && artifacts.videoPath) || mode === "transcript";
   if (!captionResult.success && retryCaptions) {
-    // No English landed, so the ladder needs the translated tracks the first pass skipped.
     const retrySource = { ...source, extractorArgs: allowTranslatedSubs(source.extractorArgs) };
     const captionRetry = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(retrySource)),
@@ -404,8 +402,6 @@ export async function acquireYouTubeMedia(
     }
   }
 
-  // Full mode holds the downloaded video, so an exhausted ladder proceeds caption-less and the
-  // transcript strategy picks ASR or records a degradation. Transcript mode has no media and stops.
   const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
 
   // A live-derived video's captions can still be in post-stream processing: hold it while
@@ -473,7 +469,6 @@ export async function acquireYouTubeMedia(
 
   let caption = finalCaption.success ? finalCaption.selection : null;
   if (caption && captionError) {
-    // A failed track beside the chosen one is recorded, not dropped.
     const errorLine = captionErrorLine(captionError);
     caption = {
       ...caption,

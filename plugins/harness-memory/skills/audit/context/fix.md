@@ -113,6 +113,23 @@ For stale references:
 2. If renamed: update the reference
 3. If deleted: remove the reference or note it's planned
 
+### C8 (Enforcement Hierarchy) fixes
+
+For each WARN that an instruction could move up the hierarchy (C8 item 2):
+
+1. When `/corrections:codify` is among the available skills, hand it the choice of mechanism; it
+   picks the strongest rung of the enforcement ladder that can decide the rule and proves the
+   check. Hand it the file with `/corrections:codify rules <the file>`, which decides every rule
+   in that file, and propose no mechanism yourself. For one rule, offer the user
+   `/corrections:codify "<the rule>"` to type: codify's recurrence count lets a rule with no
+   history through only on a person's invocation.
+2. Otherwise, propose the strongest mechanism that can decide the rule: a change that makes the
+   mistake impossible first, then a check that blocks it, then a test, and an instruction only
+   when nothing a machine runs can decide it. Say that `/corrections:codify` was not available, so
+   the proposal is unproven.
+3. Keep the prose until the check exists, then delete it in the change that adds the check
+   (C8 item 4), unless C8 item 5 holds it.
+
 ### M2 (Stale Memory) fixes
 
 For stale memory entries:

@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.42] - 2026-11-18
+
+### Changed
+
+- `/disk-hygiene:clean`'s scan-flag reference no longer says what `ctime` means on POSIX. It keeps the rule to read a `ctime` age window as whatever the running interpreter's `st_ctime_ns` reports. For what that field holds on each platform, it points at Python's `os.stat_result` entry.
+
 ## [1.0.41] - 2026-11-18
 
 ### Changed

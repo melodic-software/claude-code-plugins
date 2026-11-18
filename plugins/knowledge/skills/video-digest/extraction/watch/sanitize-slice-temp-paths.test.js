@@ -76,11 +76,9 @@ describe("sanitizeSliceTempPaths", () => {
       ]),
     );
 
-    // Leak 1 — watch.json tempSession
     const watch = JSON.parse(readFileSync(join(sliceDir, "run-state", "watch.json"), "utf8"));
     expect(watch.tempSession.framesDir).toBe("{tmp}/video-frames-xyz");
 
-    // Leak 2 — selection.json interleaved + selected frame paths stripped
     const selection = JSON.parse(
       readFileSync(join(sliceDir, "key-frames", "selection.json"), "utf8"),
     );
@@ -88,13 +86,11 @@ describe("sanitizeSliceTempPaths", () => {
     expect(selection.selectedFrames[0].path).toBeUndefined();
     expect(selection.interleavedTimeline[0].frame.path).toBeUndefined();
 
-    // Leak 3 — snapshot-meta.json sourceDir
     const meta = JSON.parse(
       readFileSync(join(sliceDir, "key-frames", "contact-sheets", "snapshot-meta.json"), "utf8"),
     );
     expect(meta.sourceDir).toBe("{tmp}/video-sheets-xyz");
 
-    // Leak 4 — continuation-prompt.md temp block, non-temp backtick lines untouched
     const prompt = readFileSync(join(sliceDir, "run-state", "continuation-prompt.md"), "utf8");
     expect(prompt).toContain("- Frames temp: `{tmp}/video-frames-xyz`");
     expect(prompt).toContain("- Contact sheets temp: `{tmp}/video-sheets-xyz`");

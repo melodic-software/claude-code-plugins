@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## [10.12.0] - 2026-11-18
+
+### Changed
+
+- **pr-verify, Safety step.** A spec asks for a weakened check only when a `closes` or `refs` entry
+  names it and holds both the line link to the owner's decision and the owner's `verbatim:` words.
+
 ## [10.11.0] - 2026-11-18
 
 ### Changed

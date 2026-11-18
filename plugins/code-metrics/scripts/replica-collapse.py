@@ -52,10 +52,6 @@ def read_registry(path: str) -> list[tuple[int, str]]:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            # A cluster line (`<canonical> -> <member>...`) names a root
-            # canonical outside any plugin and the globs that carry it; it is
-            # the clone-group reader's (registry-filter.py) and never a
-            # path-within-plugin, so this pass leaves it alone.
             if " -> " in line:
                 continue
             entries.append((number, line.replace("\\", "/").lstrip("/")))
