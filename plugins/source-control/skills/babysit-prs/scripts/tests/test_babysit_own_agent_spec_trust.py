@@ -805,7 +805,7 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
         )
         self.assertEqual(sorted(map(ord, ve.JS_SPACE)), json.loads(proc.stdout))
 
-    def test_the_repositorys_own_list_never_names_github_actions(self) -> None:
+    def test_the_repository_own_list_never_names_github_actions(self) -> None:
         rules = json.loads(
             (
                 ADMIT.parents[2] / "actions/resolve-config/admission-rules.json"
