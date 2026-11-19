@@ -1,4 +1,4 @@
-# test-scope: .github/actions/resolve-config/issue-status.mjs .github/actions/resolve-config/dimensions.mjs docs/conventions/pr-pipeline.yaml plugins/source-control/lib/yaml-subset.awk
+# test-scope: .github/actions/resolve-config/issue-status.mjs .github/actions/resolve-config/dimensions.mjs docs/conventions/pr-pipeline.yaml plugins/source-control/lib/yaml-subset.awk .github/actions/resolve-config/package.json
 """The Work status field (`models.issue-status`) as a hold source for the
 pr-merge lane, the capped-close park and the post-merge demotion record.
 
