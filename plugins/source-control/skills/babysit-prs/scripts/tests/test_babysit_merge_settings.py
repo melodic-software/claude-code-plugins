@@ -246,7 +246,7 @@ class EveryConsumerFailsClosedWhenUnset(unittest.TestCase):
 
 
 class ConfiguredValues(unittest.TestCase):
-    def test_this_repositorys_values_parse_whole(self) -> None:
+    def test_this_repository_values_parse_whole(self) -> None:
         self.assertEqual(REPO_SETTINGS.notes, ())
         self.assertEqual(REPO_SETTINGS.unattended_merge_owners, ("melodic-software",))
         self.assertEqual(
