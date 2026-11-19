@@ -140,7 +140,7 @@ marked unverified.
 
 An existing check is held to the enforcement ladder's guardrail criterion: read
 [the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md#guardrail-criterion)
-live. **Recheck trigger**: the ladder's major version changes.
+live.
 
 Protected items are audited in full: §7 caps the recommendation, not the scrutiny, and uncertain
 protection status counts as protected. A threshold that fires is cited with its source and its
