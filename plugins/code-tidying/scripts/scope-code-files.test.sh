@@ -4,11 +4,11 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
-export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 # The cloud proxy injects url.*.insteadOf rewrites through GIT_CONFIG_*; they
 # are irrelevant to local fixtures, but a stray GIT_CONFIG_COUNT with missing
 # pairs makes git refuse to run at all.
 for v in $(env | sed -n 's/^\(GIT_CONFIG_[A-Z_0-9]*\)=.*/\1/p'); do unset "$v"; done
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/scope-code-files.sh"

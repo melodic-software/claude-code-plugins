@@ -33,6 +33,7 @@ for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG", "GIT_INDEX_FIL
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+ENV.update(GIT_CONFIG_GLOBAL=os.environ["GIT_CONFIG_GLOBAL"], GIT_CONFIG_NOSYSTEM="1")
 
 
 class WidenTest(unittest.TestCase):
