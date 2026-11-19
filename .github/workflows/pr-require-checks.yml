@@ -5330,6 +5330,7 @@ jobs:
           # linkage check and their pull requests draw no advisory label or
           # comment. Exact-login matches, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot],melodic-release[bot]'
+          rate-limit-wait-seconds: '60'
       # A RESOLVE-CONFIG DEPENDENCY CHANGE NAMES ITS BROKER DEPLOY PULL REQUEST.
       # The lanes token broker in melodic-software/azure-iac loads resolve-config's
       # modules from main's tip, but imports ajv and yaml from its own deployed
@@ -7384,6 +7385,7 @@ jobs:
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
+          rate-limit-wait-seconds: '60'
           token: ${{ github.token }}
       # After the aggregate, so a contract-only run that holds for a full run
       # reaches this check once that run has finished; before it, a review
