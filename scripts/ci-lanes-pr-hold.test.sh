@@ -936,6 +936,8 @@ else
   fail "in FAIL index mode the pass names took $(lookups) reads"
 fi
 STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
+STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" \
+  expect "in the merge queue in FAIL index mode, a refusal's notice names index mode, not a refusal before listing" 1 3 "::notice::the verdict reader refused #7 in FAIL index mode, which saves no listing"
 rm -f "$TMP_ROOT/verify-legacy-fails.json"
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
