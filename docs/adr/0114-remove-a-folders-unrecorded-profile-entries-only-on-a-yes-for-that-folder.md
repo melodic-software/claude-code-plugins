@@ -53,7 +53,8 @@ gave for the recorded files.
 - The preview grows by one row per such folder, and each defaults to keep.
 - Every caller that runs reset for a person asks the single question and each per-folder question
   in the tool's own text, which the `--json` preview carries. The single question says it covers
-  only the files with a record, and a per-folder question names the count and the first few
+  only the files a profile record covers (a worktree copy adopted from its root file's record
+  included), and a per-folder question names the count and the first few
   entries, the full list staying in the preview.
 
 ## Revisit triggers

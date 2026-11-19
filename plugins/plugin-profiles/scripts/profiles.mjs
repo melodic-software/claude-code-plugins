@@ -1184,7 +1184,7 @@ const localTime = (iso) => {
 function resetQuestion(rows) {
   const n = rows.filter((r) => RESTORES.includes(r.action)).length;
   if (!n) return null;
-  const covers = `Reset the ${counted(n, "file")} above that ${n === 1 ? "has" : "have"} a record?`;
+  const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   return rows.some((r) => r.ask) ? `${covers} Folders without a record are not covered: each gets its own question.` : covers;
 }
 

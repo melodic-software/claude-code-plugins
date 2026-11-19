@@ -2497,13 +2497,13 @@ test("#17354: the reset preview's questions say what each yes covers, and stay s
   writeFileSync(w.localFile, `${JSON.stringify({ enabledPlugins: many }, null, 2)}\n`);
   knowFolders(w, w.project, p2.dir);
   const preview = resetJson(w);
-  assert.equal(preview.question, "Reset the 1 file above that has a record? Folders without a record are not covered: each gets its own question.");
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record are not covered: each gets its own question.");
   const loose = preview.folders.find((f) => f.file === w.localFile);
   assert.equal(loose.ask.question, `${w.localFile} has no profile record. Remove its 10 plugin and skill entries (p0@${M}, p1@${M}, p2@${M} and 7 more, listed above)?`);
   assert.equal(loose.lines[0], `${w.localFile}: no profile record, and its 10 plugin and skill entries may be your own: ${Object.keys(many).join(", ")}. Reset removes them only after a yes for this folder.`);
   assert.match(preview.lines[0], /this folder, 1 data folder, 0 repository pointers, 2 folders Claude Code has opened, 0 one-session records and 0 live sessions\.$/);
   knowFolders(w, p2.dir);
-  assert.equal(resetJson(w).question, "Reset the 1 file above that has a record?");
+  assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?");
 });
 
 test("#17354: the reset preview gives each apply's time in the machine's time zone", () => {
@@ -2793,4 +2793,15 @@ test("#17354: with nobody to answer and no --yes, a folder without a record make
   const kept = reset(w, ["--keep-unrecorded", w.localFile]);
   assert.equal(kept.status, 0, "a folder already answered no leaves nothing to confirm");
   assert.deepEqual(resultLines(kept.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is.`]);
+});
+
+test("#17354: the one question counts a worktree copy adopted from the root's record in words true for it", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w, JSON.parse(w.read()));
+  knowFolders(w, t.wt);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.recorded, f.adopted]).sort(), [[false, true], [true, false]]);
+  assert.equal(preview.question, "Reset the 2 files above that a profile record covers?");
 });

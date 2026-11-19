@@ -201,7 +201,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" reset
 worktree's or subdirectory's own file, and user settings for the initial profile. One preview
 names each file, what it goes back to, and each entry edited since the apply that it would
 overwrite; one yes, typed or `--yes`, restores them, and reset prints one line per file. That yes
-covers only the files with a record. A folder whose `.claude/settings.local.json` holds plugin or
+covers only the files a profile record covers, a worktree copy adopted from its root file's record
+included. A folder whose `.claude/settings.local.json` holds plugin or
 skill entries but no record is listed with those entries, which may be the person's own; they go
 only after a yes for that folder. In a terminal reset asks each such folder, `--yes` or not, and
 the default is no; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
