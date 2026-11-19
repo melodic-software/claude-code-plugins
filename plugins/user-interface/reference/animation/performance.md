@@ -85,8 +85,8 @@ accordion animating `height` outside the measured-height exception.
 
 ## No `transition: all`: `transition-all`
 
-**Transition only what changes: never `transition: all`.** With `transition: all` (or Tailwind's
-bare `transition` class, which compiles to a broad property list in disguise), every style change
+**Transition only what changes: never `transition: all`.** With `transition: all` (or a utility
+class that compiles to a broad property list in disguise), every style change
 becomes a candidate animation: the browser must track the entire style object, properties you never
 meant to tween (padding, shadow, colors) start tweening whenever they change, and the engine loses
 the optimizations a narrow, known property list allows. `transition: all 0.3s` causes bugs: it
@@ -110,25 +110,12 @@ Illustration (CSS):
 }
 ```
 
-Illustration (Tailwind):
+In a utility-class system, read in its own documentation which properties each transition class
+covers in the project's version, and use one whose list names only the properties that move, or the
+system's arbitrary-value form where none does.
 
-```tsx
-// Do: the property list is explicit
-<a className="transition-[translate,opacity] duration-100 ease-out">
-
-// Don't: bare `transition` is a broad property list in disguise
-<a className="transition duration-100 ease-out">
-```
-
-Tailwind note: reach for `transition-transform` when only transforms move, after checking in the
-pointer below which properties it covers in the project's version. Mixing in non-transform
-properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale]`.
-
-- **Pointer**: Tailwind CSS, "transition-property", "Quick reference" (what `transition`,
-  `transition-transform` and `transition-all` compile to),
-  <https://tailwindcss.com/docs/transition-property#quick-reference>.
-
-**Audit: Important.** `transition: all`, `transition-all`, or Tailwind's bare `transition` class.
+**Audit: Important.** `transition: all`, or a utility class that compiles to it or to a broad
+property list in disguise.
 
 ## Where it runs: `where-it-runs`
 
@@ -153,9 +140,6 @@ properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale
 - Keep percent-based translates for elements of unknown size even where an engine declines to
   accelerate them: correctness beats a best-effort optimization.
 
-- **Pointer**: Motion, "Performance", "Hardware acceleration", "Independent transforms",
-  <https://motion.dev/docs/performance#independent-transforms>.
-
 **Audit: Important.** Motion that plays while the page is busy and is driven frame by frame from
 script: a navigation element (an active tab indicator, a page transition) animated by a library on
 the main thread, or an animation started in the same tick as a fetch or a route change.
@@ -164,33 +148,11 @@ the main thread, or an animation started in the same tick as a fetch or a route 
 
 A hand-rolled animation that updates component state every frame makes a component framework
 re-render every frame, and the render alone can exceed the budget. State updates per frame are a
-re-render storm. Never drive per-frame animation through React state: a re-render per frame drops
-frames. Animate outside the render cycle: refs + direct style writes, WAAPI, or a library's
-animation loop. The same holds in any component framework, and a library's own animated-value
-mechanism counts as its loop. Look for state updates inside frame callbacks and pointer, scroll or
-drag handlers.
-
-Illustration (React):
-
-```jsx
-// Bad: causes re-render on every frame
-const [position, setPosition] = useState(0);
-
-// Good: refs + direct DOM manipulation
-const elementRef = useRef(null);
-const offset = useRef(0);
-
-useEffect(() => {
-  let frame;
-  function animate() {
-    offset.current += 2;
-    elementRef.current.style.transform = `translateX(${offset.current}px)`;
-    frame = requestAnimationFrame(animate);
-  }
-  frame = requestAnimationFrame(animate);
-  return () => cancelAnimationFrame(frame);
-}, []);
-```
+re-render storm. Never drive per-frame animation through component state: a re-render per frame
+drops frames. Animate outside the render cycle: a reference to the element and direct style writes
+from a `requestAnimationFrame` loop, WAAPI, or a library's animation loop. A library's own
+animated-value mechanism counts as its loop. Look for state updates inside frame callbacks and
+pointer, scroll or drag handlers.
 
 ## Inherited values: `inherited-values`
 
@@ -200,8 +162,8 @@ content grows. An animated CSS variable on a parent recalculates styles for ever
 every frame. A drag that gets slower as the list grows is this. Set the transform on the moving
 element directly. Suspect this whenever a transform animation degrades as a list gets longer.
 
-**Audit: Important.** `style.setProperty("--…")` or `style={{ "--x": … }}` updated per frame on a
-container whose children read the variable in `transform`.
+**Audit: Important.** `style.setProperty("--…")`, or a framework's inline style binding of a custom
+property, updated per frame on a container whose children read the variable in `transform`.
 
 ## Blur: `blur`
 
