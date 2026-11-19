@@ -34,6 +34,7 @@ HEADINGS = ("Needs you", "Decided while you were away", "Waiting on me", "Done",
 
 sys.path.insert(0, str(SCRIPTS))
 import away  # noqa: E402
+import away_launch  # noqa: E402
 
 DEFAULTS = {
     "away_night_start": "21:00",
@@ -625,15 +626,15 @@ def test_managed_dropin_turns_auto_continue_off(tmp_path):
     base.write_text('{"autoContinueAtUsageLimit": true}', encoding="utf-8")
     (base.parent / "managed-settings.d" / "20-team.json").write_text('{"autoContinueAtUsageLimit": false}', encoding="utf-8")
     (base.parent / "managed-settings.d" / ".hidden.json").write_text('{"sandbox": {"enabled": true}}', encoding="utf-8")
-    warnings = away.launch_warnings(tmp_path / "config", tmp_path / "project", managed=base)
+    warnings = away_launch.launch_warnings(tmp_path / "config", tmp_path / "project", managed=base)
     assert any("autoContinueAtUsageLimit" in w and "20-team.json" in w for w in warnings), warnings
     assert not any("sandbox" in w for w in warnings), "a hidden drop-in is ignored"
 
 
 def test_managed_base_follows_program_files(monkeypatch):
-    monkeypatch.setattr(away.sys, "platform", "win32")
+    monkeypatch.setattr(away_launch.sys, "platform", "win32")
     monkeypatch.setenv("PROGRAMFILES", "D:\\Apps")
-    assert away.managed_base() == Path("D:\\Apps") / "ClaudeCode" / "managed-settings.json"
+    assert away_launch.managed_base() == Path("D:\\Apps") / "ClaudeCode" / "managed-settings.json"
 
 
 def test_parallel_refusals(ctx):
