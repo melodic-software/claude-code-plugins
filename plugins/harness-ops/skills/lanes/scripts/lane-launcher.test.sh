@@ -21,6 +21,8 @@
 # and `git` so no real CLI or network is touched.
 
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/lane-launcher.sh"
@@ -1266,8 +1268,6 @@ assert_eq "a refused ultracode lane below its floor prints no mods line" 0 "$out
 # path holds a literal `$(...)`, and every case runs under BASH_COMPAT=51, where
 # bash expands some array subscripts twice: a launcher that evaluated a path,
 # a value from the file or a telemetry body would create the PWNED file.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
-export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 ET_BIN="$TMP/et-bin"
 mkdir -p "$ET_BIN"
 ln -s "$STUB_BIN/claude" "$ET_BIN/claude"
