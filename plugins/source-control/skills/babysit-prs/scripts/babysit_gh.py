@@ -1366,6 +1366,7 @@ _ROUTE_URL = re.compile(r"([a-z][a-z0-9+.-]*://)([^/?#]*)([^?#]*)", re.IGNORECAS
 _ROUTE_API_HOST = re.compile(r"(api|uploads)\.github\.com", re.IGNORECASE)
 _ROUTE_NUMBER = re.compile(r"[0-9]+")
 _ROUTE_SHA = re.compile(r"[0-9a-fA-F]{7,}")
+_ROUTE_WORKFLOW_FILE = re.compile(r"[a-z0-9][a-z0-9_-]*\.ya?ml")
 
 
 def api_route(url: str) -> str:
@@ -1386,10 +1387,20 @@ def api_route(url: str) -> str:
     segments = path.split("/")
     out: list[str] = []
     tail = name = False
+    file = -1
     index = 0
     while index < len(segments):
         seg = segments[index]
-        if tail or name:
+        if (
+            name
+            and not tail
+            and segments[index - 1] == "workflows"
+            and _ROUTE_WORKFLOW_FILE.fullmatch(seg)
+        ):
+            file = len(out)
+            out.append(seg)
+            name = False
+        elif tail or name:
             out.append(
                 "{n}"
                 if _ROUTE_NUMBER.fullmatch(seg)
@@ -1412,6 +1423,8 @@ def api_route(url: str) -> str:
         else:
             out.append("{x}")
         index += 1
+    if file >= 0 and len("/".join(out)) > 80:
+        out[file] = "{x}"
     route = "/".join(out)
     return "other" if len(route) > 80 else route
 
