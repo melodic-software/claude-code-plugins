@@ -1724,7 +1724,7 @@ def _check_retired_entries(
                 )
             else:
                 report(
-                    f"{title}: predecessor entry left this file without a retirement; keep it here, or list it verbatim in {rel} under '## {heading}' followed by 'Retired: <why it no longer binds>': {unit[0][:60]!r}"
+                    f"{title}: predecessor entry left this file without a retirement; keep it here, or retire it through the 'retire' list of fill or amend, which lists it in {rel} under '## {heading}' with its reason: {unit[0][:60]!r}"
                 )
     rules = {rid for rid, _, _ in _id_entries(doc, RULES) if rid is not None}
     for reason in _retire_reasons(text):
@@ -2192,7 +2192,7 @@ def _check_carry_3(
                 ).startswith(_squash(retired[n])):
                     # A verbatim copy with no `Retired:` line is not a reason.
                     report(
-                        f"{title}: predecessor entry {ref} left this file without a retirement; keep it here, or list it in {rel} under '## {spec.retired_heading}' (the entry verbatim, then 'Retired: <why it no longer binds>'). An entry never leaves to meet the size cap"
+                        f"{title}: predecessor entry {ref} left this file without a retirement; keep it here, or retire it through the 'retire' list of fill or amend as {{'ref': '{ref}', 'reason': ...}}, which lists it in {rel} under '## {spec.retired_heading}'. An entry never leaves to meet the size cap"
                     )
         return
     if first_split:

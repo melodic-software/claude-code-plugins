@@ -3402,6 +3402,8 @@ def test_retire_consecutive_units_split_at_each_marker(tmp_path):
     assert merged.returncode == 1, out(merged)
     assert "left this file without a retirement" in out(merged), out(merged)
     assert repr(UNIT_BULLET[:60]) in out(merged), out(merged)
+    assert "the 'retire' list of fill or amend" in out(merged), out(merged)
+    assert "list it verbatim" not in out(merged), out(merged)
 
 
 def test_retire_a_unit_inline_before_the_opening_ask_stops_at_it(tmp_path):
@@ -3697,6 +3699,8 @@ def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, hea
     assert dropped.returncode == 1, out(dropped)
     assert f"{ref} left this file without a retirement" in out(dropped), out(dropped)
     assert f"'## {heading}'" in out(dropped), out(dropped)
+    assert f"{{'ref': '{ref}', 'reason': ...}}" in out(dropped), out(dropped)
+    assert "the entry verbatim, then" not in out(dropped), out(dropped)
     edit(
         hop2,
         "## Review before you continue\n\n",

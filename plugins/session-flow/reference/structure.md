@@ -111,8 +111,8 @@ shape-3 hop (`archive_from`).
 
 A shape-4 file (`handoff_shape: 4`) has the same frontmatter, hop files and id rules as shape 3,
 with its sections in another order: binding sections stay whole in the hot file, and movable ones
-may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes the shape
-`HANDOFF_SHAPE` names in `save_point.py`, and continues a shape-4 chain as shape 4. Its stderr
+may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes shape 4, the
+default, and continues a shape-4 chain as shape 4. Its stderr
 `budget:` line gives the bytes left for the written slots and each size-classed slot's budget:
 write the slots to it. `fill` does the rest (fit, moves with pointers, the slot-size refusal) and
 prints the verdict and the rails.
@@ -673,9 +673,9 @@ exempt.
 ## Full-path write procedure
 
 Write the file into the handoff location (`save-point.md` "Where save-points live"). The
-procedure is: resolve the memory root, run the existing guards, run `new`, write the slots JSON
-to the `budget:` line `new` printed, run `fill`, which on shape 4 prints the verdict and the
-rails (on shape 3, run `validate`, then `emit`). Every step that needs no judgment is the
+procedure, for the shape `new` writes by default, shape 4, is: resolve the memory root, run the
+existing guards, run `new`, write the slots JSON to the `budget:` line `new` printed, and run
+`fill`, which validates the file and prints the verdict and the rails. Every step that needs no judgment is the
 script's; the model supplies only the values for the `<!-- FILL: … -->` slots, and `fill` applies
 all of them in one write, so an interrupt mid-batch cannot leave a partly filled skeleton. The
 Edit tool is the repair path after a FAIL line, not a step of the procedure.
@@ -766,10 +766,9 @@ SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem
 #    Write $SLOTS with the Write tool, then apply every slot in a single write:
 "$PY" -X utf8 "$SAVE_POINT" fill "$FILE" --slots "$SLOTS"
 #    A refusal names what to change; change it and re-run the same fill.
-# 7. Shape 4: fill printed the verdict and the rails. Shape 3: validate, then emit
-#    (save-point.md "Emit the copy/paste resume prompt"). Paste the rails verbatim.
-"$PY" -X utf8 "$SAVE_POINT" validate "$FILE"
-"$PY" -X utf8 "$SAVE_POINT" emit "$FILE"
+# 7. fill printed the verdict, then the rails. PASS or WARN: paste those rails
+#    verbatim. FAIL: fix what its lines name with the Edit tool, then re-run
+#    validate and paste emit's output (save-point.md "Full path only").
 ```
 
 `new` exits 0 and prints the path it wrote; 1 when it refuses (memory root at or above the repo
@@ -806,13 +805,36 @@ JSON and a re-run of the same `fill`, never a hand-edit; nothing is half-applied
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 17 headings in order) and
-its hop file holding the predecessor's sections other than Original goal and Resume prompt,
-copied with the Read and Write tools, never retyped; otherwise a shape-2 file (the 17 headings in
-order). Both end in the `## Resume prompt` section in the engine doc's full-path form. Mark the checklist box `validate: SKIPPED (no interpreter)`, and
-still emit the rails from the file's `## Resume prompt` section. Never a shape-1 file, never a
-silent skip. This path is unchanged by `fill`: with no interpreter there is no `fill` either, so
-the hand-written file needs no slots JSON.
+after a shape-3 or shape-4 predecessor, a shape-4 hot file (the frontmatter below with
+`handoff_shape: 4` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
+in the table below, in order) and its hop file holding the predecessor's sections other than
+Original goal and Resume prompt, copied with the Read and Write tools, never retyped; otherwise a
+shape-2 file (the 17 headings of [Body sections (shape 2)](#body-sections-shape-2), in order).
+Both end in the `## Resume prompt` section in the engine doc's full-path form. Nothing moves on
+this path: every section stays in the hot file. Mark the checklist box
+`validate: SKIPPED (no interpreter)`, and still emit the rails from the file's `## Resume prompt`
+section. Never a shape-1 file, never a silent skip. This path is unchanged by `fill`: with no
+interpreter there is no `fill` either, so the hand-written file needs no slots JSON.
+
+| # | Section | Holds |
+|---|---|---|
+| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim, copied from the predecessor with any new amendment below |
+| 2 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>` |
+| 3 | Remaining actions, in order | every action still to take |
+| 4 | Completion criteria | observable goal-states with met/unmet marks |
+| 5 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks |
+| 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
+| 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
+| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on |
+| 9 | Pending commands | every command waiting on the user, verbatim |
+| 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
+| 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
+| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
+| 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT` |
+| 14 | Observations | session-wide observations, summarized |
+| 15 | Suggested skills | which skills to invoke for the remaining work |
+| 16 | Prior sessions | the predecessor's last rows, then one row describing the predecessor |
+| 17 | Resume prompt | the rails block; always last |
 
 ### Frontmatter shape 3
 

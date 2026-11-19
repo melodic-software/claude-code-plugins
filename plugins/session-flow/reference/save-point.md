@@ -213,7 +213,8 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md).
 Walk it while writing the file; never write the section list from memory.
 
-**The file is a hot file plus its hop file, and a script owns its deterministic tier.**
+**The file is a hot file plus its hop file, and a script owns its deterministic tier.** This
+flow describes the shape `new` writes by default, shape 4.
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
@@ -226,7 +227,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   position keys, the headings in order, what it carries off the predecessor, the last
   `## Prior sessions` rows, and the whole `## Resume prompt` block except its `Next:` headlines),
   writes this hop's archive file with the predecessor's other sections verbatim, and prints the
-  hot file's absolute forward-slash path. On shape 4 it also prints a `budget:` line on stderr:
+  hot file's absolute forward-slash path. It also prints a `budget:` line on stderr:
   write the slot values to it. Only the `<!-- FILL: <name> — <instruction> -->` slots are the
   model's, and `fill` is what applies them. It never overwrites an existing handoff; it rewrites a hop file only when a retry
   of the same session writes it again. `--shape 2` writes the shape-2 single file instead (the eval and
@@ -237,8 +238,8 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   is one JSON string with escaped newlines and lands as those lines in place, each taking the
   file's own line terminator; an optional slot (`goal-first`, `goal-after`, `below-rail`,
   `<section>-new`) left out of the object has its line deleted. Every refusal names the slot or key
-  and what to change, and leaves the file byte-identical, so nothing is ever half-applied. On
-  shape 4 it fits the hot file to the cap itself and prints the verdict and the `emit` output. The
+  and what to change, and leaves the file byte-identical, so nothing is ever half-applied. It
+  fits the hot file to the cap itself and prints the verdict and the `emit` output. The
   slots JSON lives beside the handoff as `<same stem>.slots.json` and is left in place. `fill`
   never judges a value against its slot's instruction; `validate` is the gate.
 - `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one
@@ -622,13 +623,15 @@ Or reopen the producing session in place: `claude --resume <UUID>`.
 Everything in this sub-section applies to the full path. The prompt-only rules above and below
 are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
 
-- **A passing verdict gates the rails.** On shape 4 `fill` prints the verdict before the rails;
-  on shape 3 run `save_point.py validate <file>` before anything is printed. On a FAIL, fix what
-  its lines name with the Edit tool and re-run `validate`, at most three attempts; the file is not
-  the resume prompt until it passes. Size is `fill`'s to settle: a `slot_size` FAIL after its
-  second call is quoted, never edited around, and an `OVER-CAP` line never withholds the rails;
-  act on it only as it says, never by cutting binding text. Quote the outcome in the
-  citing skill's checklist (`validate: exit 0`, WARN lines listed).
+- **The verdict decides which rails are pasted.** `fill` writes the file, then prints its
+  verdict and the rails, whatever the verdict. On a PASS or WARN verdict those rails are the
+  block to paste. On a FAIL, the rails `fill` printed are not the resume prompt yet: fix what the
+  FAIL lines name with the Edit tool and re-run `validate`, at most three attempts, then paste
+  the `emit` output. Size is the exception, settled by `fill`: an over-budget slot is rewritten
+  once, in the second `fill` call its refusal asks for, and a `slot_size` FAIL that `validate`
+  reports after that is final and quoted, never edited around; an `OVER-CAP` line never withholds
+  the rails, and is acted on only as it says, never by cutting binding text. Quote the outcome in
+  the citing skill's checklist (`validate: exit 0`, WARN lines listed).
 - **Three failed attempts do not withhold the rails.** The observed failure class is an operator
   left with nothing to paste, and "A resume prompt is always emitted" wins: print an
   `UNVALIDATED: <validator output>` banner above the copy instruction (outside the copy region, so

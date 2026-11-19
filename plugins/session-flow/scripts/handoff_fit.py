@@ -78,8 +78,9 @@ def written_slot_bytes(
 def overrun_text(name: str, held: int, budget: int) -> str:
     return (
         f"slot_size: {SLOT_LABELS[name]} (slot '{name}') holds {held} bytes, "
-        f"{held - budget} bytes over its {budget}-byte budget; rewrite it within the "
-        "budget, leaving detail in the sections that own it or in this hop's file"
+        f"{held - budget} bytes over its {budget}-byte budget; fill refuses an "
+        "over-budget slot once and writes the second call anyway, so this FAIL is "
+        "final: quote it, never edit around it"
     )
 
 

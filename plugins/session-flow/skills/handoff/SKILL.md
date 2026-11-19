@@ -233,13 +233,13 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
-On the full path the file is a hot file plus its hop file, and a script owns every
+On the full path the file is the shape `new` writes by default, shape 4: a hot file plus its hop file, and a script owns every
 deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`;
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots, sized to the `budget:` line `new` prints,
 apply them with one `save_point.py fill <file> --slots <json>`, and paste the rails it prints
-(shape 3: `validate`, then `emit`). Edit is the repair path after a FAIL line, never the fill. The screen and the file's `## Resume prompt`
+after a PASS or WARN verdict. Edit is the repair path after a FAIL line, never the fill. The screen and the file's `## Resume prompt`
 section are the same bytes by construction. Two refusals route elsewhere and are stated, never
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
@@ -375,10 +375,10 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   rules, the Resumption brief leads with it, Suggested skills are selected for it, Remaining
   actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
   goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
-- [ ] The verdict (`fill`'s, or `save_point.py validate <file>` on shape 3) quoted here as
-  `validate: exit 0` (WARN lines listed and ruled on, secret-shape hits included). A FAIL → fix
-  what its lines name and re-run `validate`, at most three attempts, size excepted (engine doc,
-  "Full path only"); still failing → this box reads `validate: FAILED`, an
+- [ ] `fill`'s verdict quoted here as `validate: exit 0` (WARN lines listed and ruled on,
+  secret-shape hits included). A FAIL → fix what its lines name and re-run `validate`, at most
+  three attempts, except a `slot_size` FAIL, which is final after `fill`'s second call, and an
+  `OVER-CAP` line (engine doc, "Full path only"); still failing → this box reads `validate: FAILED`, an
   `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt

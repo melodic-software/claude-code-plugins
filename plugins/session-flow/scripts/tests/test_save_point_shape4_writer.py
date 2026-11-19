@@ -267,6 +267,8 @@ def test_shape4_two_call_slot_path_refuses_once_then_writes_with_a_slot_fail(
     assert len(slot) == 1 and slot[0].startswith("FAIL: "), out(result)
     assert "Resumption brief" in slot[0]
     assert f"{1_500 - BRIEF_BUDGET} bytes over" in slot[0]
+    assert "this FAIL is final: quote it" in slot[0], slot[0]
+    assert "rewrite it within" not in slot[0], slot[0]
     assert not list(path.parent.glob(".*over-budget*"))
 
 
