@@ -164,7 +164,7 @@ on:
       head-sha:
         description: >-
           The PR head the caller gated in a job that ran no head code
-          (pr-unblock's fix-ci-context, fix-docs-head, address-feedback-select,
+          (pr-unblock's fix-ci-context, pr-refine's select-passes, address-feedback-select,
           review-dependency-select or resolve-conflicts-select). The run job fails
           before the head checkout when the head its trigger gate read is another.
           The report job posts the check on it or the event's PR head; a run job
