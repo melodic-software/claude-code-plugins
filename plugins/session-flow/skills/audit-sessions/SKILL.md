@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|pr|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|excerpts-only|now|ticket|pr|correction|trends] [--unattended] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions pr --number 123 --repo 'owner/repo', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions excerpts-only --scope machine --since 2026-09-01, /audit-sessions correction --since 2026-09-01, /audit-sessions trends
+**Arguments.** `[sweep|pr|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|excerpts-only|now|ticket|pr|correction|trends|resumed] [--unattended] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions pr --number 123 --repo 'owner/repo', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions excerpts-only --scope machine --since 2026-09-01, /audit-sessions correction --since 2026-09-01, /audit-sessions trends, /audit-sessions resumed --cwd-prefix '/path/to/repo' --baseline '9.4.1' --candidate '9.4.2'
 
 ## Purpose
 
@@ -18,7 +18,7 @@ change what causes it. The sweep measures no correction count and no trend over 
 reports them apart from the measured findings, unranked. To see
 whether you are getting faster, run it twice with different `--since`/`--until` windows and compare
 the two reports by hand. The `trends` action does show a trend over time, from a different
-source: the session health scores `/session-flow:retro` records, with delivery metrics beside them. Two bundled stdlib scripts do the counting; this skill runs them,
+source: the session health scores `/session-flow:retro` records, with delivery metrics beside them. The `resumed` action measures what a session resumed from a handoff costs, release against release. Bundled stdlib scripts do the counting; this skill runs them,
 presents the report, and routes each finding to the skill that would act on it. It never applies a
 finding itself.
 
@@ -28,18 +28,20 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 ## Arguments
 
 Read `$ARGUMENTS` whole. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present
-(see "Boundary" below); take it out before reading the rest. Eight actions: `sweep`, which is also what a bare invocation does,
+(see "Boundary" below); take it out before reading the rest. Nine actions: `sweep`, which is also what a bare invocation does,
 `sweep-only` and `excerpts-only`, the consumer modes below, `now` ("Current session" below), `ticket`
-("Ticket rollup" below), `pr` ("Pull request scope" below), `correction` ("Correction lens" below) and `trends`
-("Score trends" below). `--scope`,
+("Ticket rollup" below), `pr` ("Pull request scope" below), `correction` ("Correction lens" below), `trends`
+("Score trends" below) and `resumed` ("Resumed context" below). `--scope`,
 `--since`, `--until` and `--write-report` pass through to `sweep.py` unchanged (dates are
 `YYYY-MM-DD`, UTC); `sweep-only` and `correction` refuse `--write-report`, `excerpts-only` requires
 `--scope`, takes `--state-key` and `--since` beside it and refuses everything else, `--write-report`
 included, and `now` and `trends` take no option. `ticket` requires `--pattern '<regex>'`, takes
 `--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`; stop when
 `ticket` has no pattern. `pr` requires `--number <n>` and `--repo '<owner/repo>'`, takes
-`--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`. Stop and name
-this accepted set on any other token; never guess.
+`--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`. `resumed`
+takes `--cwd-prefix '<prefix>'` (repeatable), `--since`, `--until`, `--baseline '<version>'` with
+`--candidate '<version>'`, and `--min-per-side <n>`, and refuses `--scope` and `--write-report`. Stop
+and name this accepted set on any other token; never guess.
 
 ## Consumer mode: `sweep-only`
 
@@ -310,6 +312,33 @@ delivery metrics beside them. It takes no option, runs neither Step 1 nor Step 2
 store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` when
 that skill is available, so the first-collect disclosure under "Paths" does not apply. Read
 [actions/trends.md](actions/trends.md) and follow its process.
+
+## Resumed context: `resumed`
+
+`resumed` measures, for each session resumed from a handoff, its context at the 10th assistant
+message after the resume, and groups the sessions by the session-flow plugin version their
+transcript names. A change to handoff or resume is judged by comparing the release before it with
+the release that carries it, so two changes merged close together stay apart. It runs neither Step
+1 nor Step 2 and writes nothing: the store keeps no per-message context, so the script reads the
+transcripts itself, through the plugin's shared transcript reader. What counts as a resume, a
+message's context and a session's version is in the script's docstring.
+
+```bash
+"$PY" "$S/resumed_context.py" --format md [--cwd-prefix '<prefix>' ...] [--since <day>] [--until <day>] \
+  [--baseline '<version>' --candidate '<version>'] [--min-per-side <n>]
+```
+
+- **One repository.** Pass its root and the path prefix its worktrees share, each as its own
+  `--cwd-prefix`; read the worktree location from the repository's AGENTS.md or the worktree
+  skill's convention. A merged worktree may be gone, so a session is matched by the path it ran in,
+  not by asking git. Without `--cwd-prefix` every project on the machine is read.
+- **Comparison.** `--baseline` is the release before the change and `--candidate` the release with
+  it. `rise` stays null, and the exit is 1, until both sides hold `--min-per-side` sessions (default
+  10); widen the sample with an earlier `--since`. `miss_count` is null: a retro or the owner counts
+  the binding rules, decisions and open questions a resumed session missed.
+- **Run time.** It opens every transcript in scope and stops each one early, but a large projects
+  root still takes minutes: give it a Bash timeout of 600000 ms or run it in the background.
+- Show the report as it came back. Step 3's rule covers every id, path and version it prints.
 
 ## Boundary, the built-in `/insights` command
 
