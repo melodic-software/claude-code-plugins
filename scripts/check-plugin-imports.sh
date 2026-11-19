@@ -269,13 +269,35 @@ while IFS= read -r p; do
   [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p") && shebang["$p"]=1
 done < <(git ls-files plugins)
 
-grep_hits() {
-  local rc=0
-  hits="$(git grep -n -I -E "$@")" || rc=$?
+spec_budget="${CHECK_PLUGIN_IMPORTS_SPEC_BYTES:-16000}"
+grep_batch() {
+  local rc=0 chunk
+  chunk="$(git grep -n -I -E "${patterns[@]}" -- "${batch[@]}")" || rc=$?
   if ((rc > 1)); then
     echo "check-plugin-imports: git grep failed (exit $rc)" >&2
     exit 2
   fi
+  [[ -n "$chunk" ]] && hits+="${hits:+$'\n'}$chunk"
+  batch=()
+  size=0
+  batches=$((batches + 1))
+}
+grep_hits() {
+  patterns=() batch=() size=0 batches=0 hits=""
+  while [[ "$1" != -- ]]; do
+    patterns+=("$1")
+    shift
+  done
+  shift
+  local spec
+  for spec in "$@"; do
+    ((${#batch[@]} && size + ${#spec} + 1 > spec_budget)) && grep_batch
+    batch+=("$spec")
+    size=$((size + ${#spec} + 1))
+  done
+  ((${#batch[@]})) && grep_batch
+  ((batches > 1)) && hits="$(LC_ALL=C sort -s -t: -k1,1 <<<"$hits")"
+  return 0
 }
 grep_hits -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -e '/plugins/' -- "${pathspecs[@]}"
 uses="$hits"

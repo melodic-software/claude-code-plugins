@@ -6,6 +6,7 @@
 set -uo pipefail
 # The fixtures build repositories; an inherited GIT_DIR would point them at the caller's.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 _T_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_T_DIR" == "${BASH_SOURCE[0]}" ]] && _T_DIR=.

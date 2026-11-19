@@ -20,6 +20,7 @@
 # lead median 3, fail rate 4/8, recovery median 107.5, rework 3/8.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/delivery-metrics.sh"
 TMP="$(mktemp -d)"

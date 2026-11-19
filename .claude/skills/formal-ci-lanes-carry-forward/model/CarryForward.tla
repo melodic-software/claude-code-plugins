@@ -4,9 +4,13 @@
 \* body edit) whose `CI Status` job carries the recorded verdict forward.
 \*
 \* Line numbers: WF is .github/workflows/pr-require-checks.yml in this
-\* repository; RUN is .github/actions/pr-require-checks/aggregate-results/run.sh
-\* and ACTION its action.yml, in melodic-software/ci-workflows at
-\* 24067add42f5fa04743c587c6a22aa7d4059e7b8, the commit WF:7327 pins.
+\* repository; REPORT is .github/actions/pr-require-checks/report-ci-status/action.yml,
+\* RUN is .github/actions/pr-require-checks/aggregate-results/run.sh and ACTION
+\* its action.yml, in melodic-software/ci-workflows at
+\* 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8, the commit WF:7018 pins. REPORT
+\* calls aggregate-results through `$/`, so at that same commit (REPORT:119-123).
+\* Its contract and draft steps are continue-on-error (REPORT:94-105), so the
+\* step WF:7015-7049 concludes on the lanes alone, as the model's gate does.
 
 EXTENDS Naturals, FiniteSets
 
@@ -14,9 +18,9 @@ CONSTANTS
     FullRuns,       \* the full runs that may start on the SHA
     MaxAttempts,    \* attempts per full run (a re-run is attempt 2)
     Rerunnable,     \* the full runs a person may re-run
-    Yield,          \* WF:7348 yield-to-full-run
-    Hold,           \* WF:7349 yield-wait-seconds above 0
-    MarkMayFail     \* mark-lanes may fail after its three tries (WF:948-959)
+    Yield,          \* REPORT:128 yield-to-full-run
+    Hold,           \* WF:7045 yield-wait-seconds above 0 (REPORT:134-140)
+    MarkMayFail     \* mark-lanes may fail after its three tries (WF:761-772)
 
 NoRun == "none"
 States == {"pending", "success", "failure"}
@@ -57,7 +61,7 @@ cvars == <<cpc, snap, entry, carried, wRunning, held, heldStarts, waiting,
            holdEntry, timedOut, liveAtPass, listClock>>
 rvars == <<att, live, start, mark, gate, newest, clock>>
 
-\* Readers take the newest entry by id (RUN:381-400), so the model keeps only
+\* Readers take the newest entry by id (RUN:367-386), so the model keeps only
 \* that one.
 Write(s, r) == /\ newest' = [state |-> s, run |-> r, att |-> att[r], t |-> clock + 1]
                /\ clock' = clock + 1
@@ -104,25 +108,25 @@ Start(r) ==
     /\ clock' = clock + 1
     /\ UNCHANGED <<mark, gate, newest>> /\ UNCHANGED cvars
 
-\* mark-lanes POSTs ci-lanes=pending on the head (WF:948-954). It runs beside
-\* the lanes; ci-status needs it (WF:4239-4240), so it lands before the verdict.
+\* mark-lanes POSTs ci-lanes=pending on the head (WF:761-767). It runs beside
+\* the lanes; ci-status needs it (WF:4109-4110), so it lands before the verdict.
 Mark(r) ==
     /\ Moving /\ live[r] /\ mark[r] = "todo"
     /\ Write("pending", r)
     /\ mark' = [mark EXCEPT ![r] = "done"]
     /\ UNCHANGED <<att, live, start, gate>> /\ UNCHANGED cvars
 
-\* Three failed POSTs fail the job (WF:956-959); ci-status still runs on
-\* !cancelled() (WF:4262) and aggregates that failure.
+\* Three failed POSTs fail the job (WF:769-772); ci-status still runs on
+\* !cancelled() (WF:4132) and aggregates that failure.
 MarkFails(r) ==
     /\ Moving /\ MarkMayFail /\ live[r] /\ mark[r] = "todo"
     /\ mark' = [mark EXCEPT ![r] = "failed"]
     /\ UNCHANGED <<att, live, start, gate, newest, clock>> /\ UNCHANGED cvars
 
-\* ci-status's Aggregate lane results step (WF:7322-7355) records the lanes
-\* verdict (RUN:1561-1566, write_status at RUN:250-271). A failure exits 1
-\* (RUN:1568-1570); a success keeps the step running while it re-runs failed
-\* contract-only siblings (RUN:1710-1713).
+\* ci-status's Aggregate lane results step (WF:7015-7049) records the lanes
+\* verdict (RUN:1554-1559, write_status at RUN:236-257). A failure exits 1
+\* (RUN:1561-1563); a success keeps the step running while it re-runs failed
+\* contract-only siblings (RUN:1702-1705).
 Aggregate(r) ==
     /\ Moving /\ live[r] /\ mark[r] # "todo" /\ gate[r] = "none"
     /\ \E v \in (IF mark[r] = "failed" THEN {"failure"} ELSE {"success", "failure"}) :
@@ -130,7 +134,7 @@ Aggregate(r) ==
           /\ gate' = [gate EXCEPT ![r] = IF v = "success" THEN "running" ELSE "failure"]
     /\ UNCHANGED <<att, live, start, mark>> /\ UNCHANGED cvars
 
-\* The aggregate step ends; the sibling re-run cannot fail it (RUN:1607-1608).
+\* The aggregate step ends; the sibling re-run cannot fail it (RUN:1600-1601).
 StepEnds(r) ==
     /\ Moving /\ live[r] /\ gate[r] = "running"
     /\ gate' = [gate EXCEPT ![r] = "success"]
@@ -144,7 +148,7 @@ Complete(r) ==
 
 \* A newer event on the pull request cancels it (WF:106-115), or a person
 \* does. A step that was running ends cancelled; ci-status never starts in a
-\* cancelled run (WF:4262).
+\* cancelled run (WF:4132).
 Cancel(r) ==
     /\ Moving /\ live[r]
     /\ live' = [live EXCEPT ![r] = FALSE]
@@ -167,7 +171,7 @@ Rerun(r) ==
 
 \* ------------------------------------------------------------------------
 \* The contract-only run's CI Status job, Aggregate lane results step. It may
-\* start at any point; a re-run of it (RUN:1609-1713) is a later start.
+\* start at any point; a re-run of it (RUN:1602-1705) is a later start.
 
 CStart ==
     /\ cpc = "idle"
@@ -176,7 +180,7 @@ CStart ==
                    holdEntry, timedOut, liveAtPass, listClock>> /\ UNCHANGED rvars
 
 \* Yield, step 1: list this workflow's runs on the SHA (list_in_flight_full_runs,
-\* RUN:1209-1239, called at RUN:1408). Every full run reads full by its jobs:
+\* RUN:1216-1245, called at RUN:1413). Every full run reads full by its jobs:
 \* mark-lanes runs in every full run (WF:234).
 CList ==
     /\ cpc = "list"
@@ -187,7 +191,7 @@ CList ==
                    holdEntry, timedOut, liveAtPass>> /\ UNCHANGED rvars
 
 \* Yield, step 2: read the newest bot-written ci-lanes status
-\* (read_newest_entry RUN:367-401, from read_carried_state at RUN:1413).
+\* (read_newest_entry RUN:353-387, from read_carried_state at RUN:1418).
 CRead ==
     /\ cpc = "read"
     /\ entry' = newest
@@ -197,10 +201,10 @@ CRead ==
     /\ UNCHANGED <<snap, held, heldStarts, waiting, holdEntry, timedOut,
                    liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* The writer check of a success (verify_carried_writer RUN:415-486,
-\* verify_writer_step RUN:709-747, gate_step_outcome RUN:763-772,
-\* verify_no_newer_verdict RUN:839-880). The writer's row comes from the
-\* listing, else from a live read (RUN:460-471); its gate step and each rival's
+\* The writer check of a success (verify_carried_writer RUN:401-472,
+\* verify_writer_step RUN:695-733, gate_step_outcome RUN:749-758,
+\* verify_no_newer_verdict RUN:825-866). The writer's row comes from the
+\* listing, else from a live read (RUN:446-457); its gate step and each rival's
 \* are read live, as one step.
 WriterStart == IF snap[entry.run].created THEN snap[entry.run].start
                ELSE start[entry.run]
@@ -224,19 +228,19 @@ CVerify ==
     /\ UNCHANGED <<snap, entry, held, heldStarts, waiting, holdEntry, timedOut,
                    liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* writer_attempt_wrote (RUN:1374-1379): the run is the writer and its attempt
+\* writer_attempt_wrote (RUN:1381-1386): the run is the writer and its attempt
 \* in the listing started at or before the status was created.
 Wrote(r) == r = entry.run /\ snap[r].created /\ snap[r].start <= entry.t
-\* RUN:1418-1426: a run whose attempt wrote the carried success (or, under a
+\* RUN:1423-1431: a run whose attempt wrote the carried success (or, under a
 \* hold, failure) does not supersede.
 Skips(r) == (carried = "success" \/ (Hold /\ carried = "failure")) /\ Wrote(r)
 Superseding == {r \in InFlightSnap : ~Skips(r)}
-\* carried_postdates (RUN:1328-1334) over the held runs, held_success_carries
-\* (RUN:1339-1353): each held run in the listing started at or before the success.
+\* carried_postdates (RUN:1335-1341) over the held runs, held_success_carries
+\* (RUN:1346-1360): each held run in the listing started at or before the success.
 Postdates == \A r \in held : snap[r].created /\ snap[r].start <= entry.t
 
-\* Yield, steps 3-6 (RUN:1417-1467). The single read passes a success once its
-\* writer is verified (RUN:1484-1495).
+\* Yield, steps 3-6 (RUN:1422-1468). The single read passes a success once its
+\* writer is verified (RUN:1481-1488).
 CDecide ==
     /\ cpc = "decide"
     /\ IF ~Yield
@@ -248,18 +252,18 @@ CDecide ==
                      /\ UNCHANGED <<held, heldStarts, waiting, holdEntry>>
                 [] wRunning /\ Superseding = {entry.run} /\ Wrote(entry.run)
                      /\ ~timedOut ->
-                     \* The writer's step is finishing (RUN:1431-1449): list again.
+                     \* The writer's step is finishing (RUN:1436-1454): list again.
                      /\ cpc' = "list"
                      /\ UNCHANGED <<held, heldStarts, waiting, holdEntry>>
                 [] Hold /\ ~timedOut ->
-                     \* yield_hold (RUN:1452-1454, RUN:1287-1324).
+                     \* yield_hold (RUN:1457-1459, RUN:1294-1331).
                      /\ cpc' = "hold"
                      /\ waiting' = Superseding
                      /\ held' = held \cup Superseding
                      /\ heldStarts' = heldStarts \cup {snap[r].start : r \in Superseding}
                      /\ holdEntry' = entry
                 [] OTHER ->
-                     \* fail_superseded (RUN:1357-1369).
+                     \* fail_superseded (RUN:1364-1376).
                      /\ cpc' = "fail"
                      /\ UNCHANGED <<held, heldStarts, waiting, holdEntry>>
     /\ UNCHANGED <<snap, entry, carried, wRunning, timedOut, listClock>>
@@ -269,7 +273,7 @@ CDecide ==
     /\ UNCHANGED rvars
 
 \* The hold ends when the runs it waits on complete, the newest status changes,
-\* or the ceiling passes (RUN:1294-1323); the loop then lists again (RUN:1454).
+\* or the ceiling passes (RUN:1301-1330); the loop then lists again (RUN:1459).
 CHoldEnds ==
     /\ cpc = "hold"
     /\ \/ \A r \in waiting : ~live[r]
@@ -280,16 +284,16 @@ CHoldEnds ==
     /\ UNCHANGED <<snap, entry, carried, wRunning, held, heldStarts, holdEntry,
                    timedOut, liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* yield-wait-seconds (600 at WF:7349) or the writer wait's 30 s passes.
+\* yield-wait-seconds (600 at WF:7045) or the writer wait's 30 s passes.
 CTimeout ==
     /\ Yield /\ cpc \in {"list", "read", "verify", "decide", "hold"} /\ ~timedOut
     /\ timedOut' = TRUE
     /\ UNCHANGED <<cpc, snap, entry, carried, wRunning, held, heldStarts,
                    waiting, holdEntry, liveAtPass, listClock>> /\ UNCHANGED rvars
 
-\* Single read (carry-forward-wait-seconds '0', WF:7351, without yield): read
-\* the status (RUN:1484-1490), then verify_carried_writer lists the runs
-\* (RUN:438-443) and reads the status again (RUN:450-454).
+\* Single read (carry-forward-wait-seconds '0', REPORT:129, without yield): read
+\* the status (RUN:1481-1487), then verify_carried_writer lists the runs
+\* (RUN:424-429) and reads the status again (RUN:436-440).
 SRead ==
     /\ cpc = "sRead"
     /\ entry' = newest

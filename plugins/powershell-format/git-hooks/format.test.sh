@@ -17,46 +17,14 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=powershell-format-test-helpers.sh
+source "$HERE/powershell-format-test-helpers.sh"
 
 # Settings that enable a formatter-applied rule (PSUseCorrectCasing) and a
 SETTINGS_BODY="@{
     IncludeRules = @('PSUseCorrectCasing', 'PSAvoidGlobalVars')
     Rules = @{ PSUseCorrectCasing = @{ Enable = \$true } }
 }"
-
-n=0
-new_repo() { # [NONE for no settings file]
-  n=$((n + 1))
-  REPO="$WORK/r$n"
-  git init -q -b main "$REPO"
-  git -C "$REPO" config user.name t
-  git -C "$REPO" config user.email t@example.invalid
-  if [[ "${1:-}" != NONE ]]; then
-    printf '%s\n' "$SETTINGS_BODY" >"$REPO/PSScriptAnalyzerSettings.psd1"
-  fi
-  printf 'Get-ChildItem .\n' >"$REPO/seed.ps1"
-  git -C "$REPO" add -A
-  git -C "$REPO" commit -q -m seed --no-verify
-}
-
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
-  local repo="$1" out rc
-  shift
-  out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
-  rc=$?
-  printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
-}
 
 new_repo
 printf 'get-childitem .\n' >"$REPO/a.ps1"
@@ -323,6 +291,12 @@ new_repo
 git -C "$REPO" config checks.powershell-format.powershell-check.declined true
 expect "a powershell-check decline carries to format and lint" "declined,declined" \
   "$(node "$INSTALL" verify --repo "$REPO" | cut -f1 | paste -sd, -)"
+
+printf 'C:\\134 %s 9p rw 0 0\n/dev/sdc / ext4 rw 0 0\n' "$WORK/win" >"$WORK/mounts"
+pwshdir="$(dirname "$(command -v pwsh)")"
+expect "pwsh runs without PATH entries on a 9p mount" "$WORK/ext:$WORK/winx:$pwshdir|$(command -v pwsh)" \
+  "$(PATH="$WORK/win/bin:$WORK/ext:$WORK/win:$WORK/winx:$pwshdir" PSF_MOUNTS="$WORK/mounts" RT_BIN=pwsh "$BASH" -c \
+    '. "$1/adapters.sh"; psf__path_without_9p; printf "%s|%s" "$PSF_PATH" "$PSF_BIN"' _ "$HERE")"
 
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))

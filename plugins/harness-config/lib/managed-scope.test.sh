@@ -8,28 +8,11 @@
 # terminate — an unrelated script.
 set -uo pipefail
 
-LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/managed-scope.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB="$SCRIPT_DIR/managed-scope.sh"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 # --- Side-effect freedom -----------------------------------------------------
 rc=0
@@ -96,9 +79,4 @@ assert_eq "remote cache strips a trailing slash" \
 assert_eq "remote cache without a root is empty" "" \
   "$(bash -c "source '$LIB'; mscope::remote_cache_file")"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

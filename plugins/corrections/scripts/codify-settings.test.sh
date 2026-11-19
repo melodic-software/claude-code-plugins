@@ -3,29 +3,13 @@
 # invalid values falling back with a note on stderr, and the per-layer cap on those notes.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 READER="$SCRIPT_DIR/codify-settings.mjs"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'ok %d - %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'not ok %d - %s\n' "$CASE_NUM" "$1"
-  if [[ -n "${2:-}" ]]; then printf '  %s\n' "$2"; fi
-}
-# check <name> <command...>: passes when the command exits 0.
-check() {
-  local name="$1"
-  shift
-  if "$@"; then pass "$name"; else fail "$name" "${DETAIL:-}"; fi
-  DETAIL=""
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 for tool in git node jq; do
   if ! command -v "$tool" >/dev/null 2>&1; then

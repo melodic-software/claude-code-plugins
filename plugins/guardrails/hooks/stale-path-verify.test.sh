@@ -206,15 +206,6 @@ RC=$?
 assert_exit "self-overlapping anchor → exit 0" 0 "$RC"
 assert_silent "self-overlapping anchor is ambiguous, not unique" "$OUT"
 
-# `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
-# every occurrence is a place this call edited, so uniqueness must not be required
-# or the guard goes silent on a genuine multi-site staleness. Built inline rather
-# than through edit_json: that helper is shared across every guard suite in this
-# plugin, so this suite's payload variant stays local to it.
-replall_json() {
-  MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
-    '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
-}
 REPLALL="$REPO/replall.md"
 printf 'First `docs/gone.md` here.\nSecond `docs/gone.md` there.\n' >"$REPLALL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'gone')" 2>&1)

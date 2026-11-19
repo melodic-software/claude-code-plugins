@@ -4,29 +4,14 @@
 # substrings, so no JSON tool is needed.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=1
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-assert_lacks() {
-  case "$2" in
-  *"$3"*) fail "$1" "does not contain: $3" "$2" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 # ---- list-targets.sh ----
 R="$T/repo"

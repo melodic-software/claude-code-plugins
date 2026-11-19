@@ -34,6 +34,8 @@ import pytest
 # (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_git_var
 
 SCRIPT = Path(__file__).resolve().parents[1] / "save_point.py"
@@ -1457,11 +1459,9 @@ def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
 
 
 def _install_in_cache(version_dir):
-    # save_point.py and io_streams.py, the one module it imports, under the
-    # plugin cache layout.
     scripts = version_dir / "scripts"
     scripts.mkdir(parents=True)
-    for name in ("save_point.py", "io_streams.py"):
+    for name in ("save_point.py", "io_streams.py", "plugin_paths.py"):
         shutil.copy2(SCRIPT.parent / name, scripts / name)
 
 

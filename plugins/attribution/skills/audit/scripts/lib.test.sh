@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib.sh's config reader. Fixtures are built inline in a
-# tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
-#
 # The load-bearing cases are the layer list: the user-global JSON (read with jq),
 # then the YAML team layer and personal override, never the repository's old JSON
 # files under .claude/, with every value naming the layer that supplied it.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
@@ -28,21 +26,8 @@ mkdir -p "$HOME/.claude"
 # shellcheck source=lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 # --- Fixtures --------------------------------------------------------------------
 

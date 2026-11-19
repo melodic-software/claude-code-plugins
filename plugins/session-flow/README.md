@@ -441,7 +441,7 @@ an exposed secret stops the affected work and leads the report. The report exist
 is refreshed after each finished piece of work, and lists every external action and every stray
 file written in the watched folders. A message that reads as you being back (never a subagent
 report, a scheduled prompt or another session's message) shows the report once and marks it
-delivered. Bare, started inside the night window, the report is due at the next report-by time;
+delivered, which removes the absence's state and keeps the report. Bare, started inside the night window, the report is due at the next report-by time;
 started outside it, the absence lasts until you return. Launch words override the settings, and an unclear absence
 is asked about at launch. Launch warns when the context is heavy or auto mode is off, and
 proposes a `/goal` line; the Stop hook holds the same condition without one. Asked for a fresh

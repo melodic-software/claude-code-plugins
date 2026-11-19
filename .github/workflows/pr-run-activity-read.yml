@@ -560,6 +560,7 @@ jobs:
           # A first call that starts new work also stops on a low GITHUB_TOKEN
           # budget; a handed-off or fallback leg checks the switches only.
           budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
+          project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
 
       # work-unblock's sweep reads this step's name and conclusion from the
       # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
@@ -569,7 +570,7 @@ jobs:
         if: steps.kill.outputs.cause == 'budget'
         env:
           RESET: ${{ steps.kill.outputs.reset }}
-        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget until $RESET (epoch seconds)"
+        run: echo "::notice::the start gate stopped this run on a low or projected-short GITHUB_TOKEN budget until $RESET (epoch seconds); the Check the kill switch step's start-gate notice names which"
 
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.
@@ -599,7 +600,7 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: ${{ inputs.key-credit-job }}
@@ -630,7 +631,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -1468,7 +1469,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1759,7 +1760,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: ${{ inputs.role }}
@@ -1771,7 +1772,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: ${{ inputs.role }}
@@ -1783,7 +1784,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: ${{ inputs.role }}
@@ -1811,7 +1812,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1876,7 +1877,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1927,7 +1928,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2103,7 +2104,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -3644,8 +3645,8 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  transcript:
-    name: Transcript
+  upload-transcript:
+    name: Upload Transcript
     needs: run
     if: >-
       !cancelled() && needs.run.outputs.transcript-sealed-length != ''
@@ -3872,7 +3873,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         id: isolate
@@ -3892,7 +3893,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3918,7 +3919,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3944,7 +3945,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3981,7 +3982,7 @@ jobs:
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
