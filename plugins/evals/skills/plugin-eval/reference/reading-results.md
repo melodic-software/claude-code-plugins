@@ -60,7 +60,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   with `-n`, with no opening assignment, names only its absolute file operands, so a
   quoted grep pattern or `-e` value is no path (`grep -E "a|b" /x | head`); a `-f` pattern file
   is a path.
-- Up to six kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to seven kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
   aimed only there while every other absolute path it names was named by an allowed Bash call of
@@ -114,7 +114,13 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   and `**` names the plugin. A term matches once its `*`, `.`, `^`, `$` and `/` ends are stripped,
   case ignored. Any other command, flag, redirect into a file, unquoted glob or `$`, term, tool,
   a with-arm run, or a run that did not finish keeps the rules below.
-- The sixth is a denied named call other than Skill that a `tool_used` grader of its case forbids
+- The sixth is a denied `Grep` or `Glob`, in a without-arm run that finished, whose `path` is that
+  run's own eval root (the sandbox holding its `out/trace.jsonl`): the arm lacks the plugin and
+  looks for it in its own folder. The verdict line, which is all CI keeps in `validity.txt`, names
+  each such call with its tool, root and pattern. A `Glob` pattern that is rooted or holds `..`,
+  a path under or above the root, another run's root, any other tool, a with-arm run, or a run
+  that did not finish keeps the rules below.
+- The seventh is a denied named call other than Skill that a `tool_used` grader of its case forbids
   with `max: 0` and no `input_match`, when that grader failed in the run: the grader already
   scored the call as the run's failure, and the denial only kept it from landing, as with a
   `Write` to a protected `.claude/` path in a case asserting the skill writes nothing yet. A

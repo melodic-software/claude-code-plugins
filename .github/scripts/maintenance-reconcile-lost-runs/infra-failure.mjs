@@ -68,11 +68,8 @@ export const firstFailure = (run, jobs, now) =>
 
 // Run statuses that mean a run, or a re-run of it, is queued or going.
 const IN_FLIGHT = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
-// Minutes after an infra-only run's first attempt ended that fix-ci waits for
-// the reconciler's one re-run: its backoff plus two of its half-hourly ticks,
-// since a scheduled run starts late and can defer a head at MAX_IN_FLIGHT
-// (judgment). Past it, fix-ci takes the head instead of waiting in silence.
-export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * 30;
+const RECONCILER_TICK_MINUTES = 60;
+export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * RECONCILER_TICK_MINUTES;
 
 // Why fix-ci waits on a tested run ({ run, jobs } from testedRun), or "" when
 // it may take the head: a re-run of the run is queued or going, or a lost or

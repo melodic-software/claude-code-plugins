@@ -31,9 +31,16 @@ DIFF_PARTSCHUNK_NOTE
   `<!-- intake-triage refinement -->`) posted before the pull request opened. An issue the recurring
   filer opened carries `source` `recurring-schedule`: its `body` is the title and body built from its
   `.github/recurring-schedule.json` row on main, never the issue's own text. An issue the
-  upstream-drift workflow opened carries `source` `upstream-drift`: its `body` names only the
-  upstream and the docs/upstream pages on main pinned to it, never the issue's own text, and it is
-  present only when the pull request closes it and changes nothing but those pages. An issue the
+  upstream-drift workflow opened carries `source` `upstream-drift`, its `body` built from the
+  upstream id, never the issue's own text, and it is present only when the pull request closes it.
+  For a re-audit of pinned pages the `body` names the upstream and the docs/upstream pages on main
+  pinned to it, and the pull request changes nothing but those pages. For a vendored-copy sync the
+  `body` names the upstream and the vendored skill's update steps and no page, and every file the
+  pull request changes is a markdown file under that plugin's `skills/`, a `.md`, `.jsonc` or
+  `LICENSE` file in a `vendor/` baseline there, or a changelog fragment directly under
+  `.changes/<plugin>/`; scripts, hooks, libraries, the plugin manifest, MCP config, eval suites and
+  the skill's update procedure are outside it, and a skill's `SKILL.md` changes only its sync
+  stamps and prose. A changed file inside that scope is not out of scope for this spec. An issue the
   monitoring lane opened for a red main carries `source` `main-red-incident`: its `body` is one
   fixed text, the same for every such issue, never the issue's own text. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
