@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.3] - 2026-11-19
+
+### Changed
+
+- **The babysit loop's instance-collision check is a generated copy of the shared `lib/lane-instance-collision-check.md`.** The work loop carries the same copy, so the two lanes stop drifting apart; no change to the check itself.
+
 ## [11.22.2] - 2026-11-19
 
 ### Fixed

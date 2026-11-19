@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.3] - 2026-11-19
+
+### Changed
+
+- `/bugs:scan`'s Lenses 1, 2 and 5 no longer give language-specific empty values (`null`/`None`, `undefined`, not-a-number) as examples. Lens 1 drops its declared-non-null example, Lens 2 drops the value from its edge list, and Lens 5 drops its raw-empty-value example; each lens's objective and other examples are unchanged.
+
 ## [0.24.2] - 2026-11-18
 
 ### Changed

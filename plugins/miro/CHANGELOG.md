@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.58] - 2026-11-19
+
+### Changed
+
+- **chore(deps-dev): Bump @biomejs/biome from 2.6.7 to 2.6.8 in /plugins/miro/server in the npm-minor-patch group** (#17338).
+  - `@biomejs/biome` 2.6.7→2.6.8
+
 ## [0.6.57] - 2026-11-18
 
 ### Changed
