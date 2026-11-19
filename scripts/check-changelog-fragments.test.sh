@@ -572,6 +572,36 @@ GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
+# A base merge a person's update-branch made stays unexempt, and the gate names
+# it and points at @dependabot recreate instead of a hand-added fragment
+# (https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb dependabot/npm
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+dependabot_commit "$f" "build(deps): bump zod"
+git_test_config "$f" checkout -q main
+printf 'v1\n' >"$f/plugins/beta/skills/b.md"
+commit "$f" "an unrelated change on main"
+git_test_config "$f" checkout -q dependabot/npm
+GIT_AUTHOR_NAME='Kyle Sexton' GIT_AUTHOR_EMAIL='153232337+kyle-sexton@users.noreply.github.com' \
+  GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com \
+  git_test_config "$f" merge -q --no-ff --no-edit main
+merge_sha="$(git -C "$f" rev-parse --short=12 HEAD)"
+out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+rc=$?
+if ((rc == 1)) && [[ "$out" == *"MISSING FRAGMENT"* && "$out" == *"commit $merge_sha by Kyle Sexton"* &&
+  "$out" == *"@dependabot recreate"* && "$out" != *"new-changelog-fragment.sh"* ]]; then
+  ok "--check-required names a base merge on a Dependabot pull request and points at @dependabot recreate"
+else
+  fail "base merge on a Dependabot head: want rc=1, the merge named and @dependabot recreate, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
 # On a runner the signature lookup goes through the api-budget gh wrapper: it
 # adds -i, reads the header block into the token's file and passes only the
 # body on. The stub answers -i with a header block and logs a request when the

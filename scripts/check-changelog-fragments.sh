@@ -201,8 +201,13 @@ if [[ "$mode" == --check-required ]]; then
       continue
     fi
     echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
-    echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
     findings=$((findings + 1))
+    if [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' ]]; then
+      echo "  Dependabot opened this pull request, but it is not Dependabot's alone (${CF_DEPENDABOT_BLOCKER:-its commits could not be checked})." >&2
+      echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
+      continue
+    fi
+    echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
   done
   if ((findings > 0)); then
     gate_entry::finish 1
