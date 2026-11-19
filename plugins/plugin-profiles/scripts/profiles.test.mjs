@@ -2823,6 +2823,37 @@ test("#17354: a moved repository with a profile applied at its new place, given 
   }
 });
 
+test("#17354: a moved repository whose newer record the one yes cannot restore lists that file on its own, folds nothing, and offers nothing from the older record until it is put back", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const movedFile = rootLocal(moved);
+  const buildLeft = readFileSync(movedFile, "utf8");
+  assert.equal(runIn(w, moved, ["apply", "native", "--for", "folder", "--yes"]).status, 0);
+  const records = join(moved, ".git", "plugin-profiles", "records");
+  const newerPath = join(records, `${sha(movedFile)}.json`);
+  const rec = JSON.parse(readFileSync(newerPath, "utf8"));
+  assert.ok(Object.keys(rec.entries).length > 1, "an entry is left at the newer profile's value after the edit");
+  writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(buildLeft), fromHash: sha("not the file") }, null, 2)}\n`);
+  const [name] = Object.keys(rec.entries);
+  const doc = JSON.parse(readFileSync(movedFile, "utf8"));
+  doc.enabledPlugins[name] = "edited by hand";
+  writeFileSync(movedFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const edited = readFileSync(movedFile, "utf8");
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]).sort(), [[movedFile, "finish-cut-off", null], [old, "skip", null]].sort());
+  assert.match(rows.find((f) => f.file === old).lines[0], /once that record is put back, a later reset offers the file from this one\.$/);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout).sort(), [CUT_OFF_SKIP(movedFile), `Skipped ${old}: folder not found; record kept.`].sort());
+  assert.equal(readFileSync(movedFile, "utf8"), edited);
+  assert.equal(readdirSync(records).length, 2);
+});
+
 test("#17354: a repository moved twice, with a profile applied at each place, is one row folding every record oldest first, and its yes puts back the file before the first apply", () => {
   const w = world();
   gitInit(w);
@@ -3111,4 +3142,266 @@ test("#17354: the one question counts a worktree copy adopted from the root's re
   const preview = resetJson(w);
   assert.deepEqual(preview.folders.map((f) => [f.recorded, f.adopted]).sort(), [[false, true], [true, false]]);
   assert.equal(preview.question, "Reset the 2 files above that a profile record covers?");
+});
+
+/**
+ * Each reset row kind on one machine: its files by key, named states a cell's content refers to, the file its own question
+ * is about (or the main file, whose own flag reset refuses), and the files a result line has to name.
+ */
+const KINDS = {
+  restore: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  removeFile: () => {
+    const w = world({ local: null });
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  finishRestore: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    cutOff(w, w.localFile, { written: true });
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  adopted: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const t = linkedWorktree(w, JSON.parse(w.read()));
+    knowFolders(w, t.wt);
+    return { w, files: { R: rootLocal(w.project), W: t.file }, own: t.file };
+  },
+  noRecord: () => {
+    const w = world();
+    knowFolders(w, w.project);
+    return { w, files: { F: w.localFile }, own: w.localFile, flags: ASK_FLAGS.unrecorded };
+  },
+  missing: () => {
+    const w = world();
+    const gone = join(w.root, "gone", ".claude", "settings.local.json");
+    writeTree(dataRecordsDir(w), { "gone.json": handRecord(gone) });
+    return { w, files: { G: gone }, own: gone };
+  },
+  movedNoNewer: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const old = rootLocal(w.project);
+    const now = join(w.root, "repo-now");
+    renameSync(w.project, now);
+    knowFolders(w, now);
+    return { w, files: { O: old, M: rootLocal(now) }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+  },
+  movedNewer: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const old = rootLocal(w.project);
+    const now = join(w.root, "repo-now");
+    renameSync(w.project, now);
+    knowFolders(w, now);
+    const left = readFileSync(rootLocal(now), "utf8");
+    assert.equal(runIn(w, now, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { O: old, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+  },
+  movedTwice: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const first = rootLocal(w.project);
+    const between = join(w.root, "repo-between");
+    renameSync(w.project, between);
+    assert.equal(runIn(w, between, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const second = rootLocal(between);
+    const now = join(w.root, "repo-now");
+    renameSync(between, now);
+    knowFolders(w, now);
+    const left = readFileSync(rootLocal(now), "utf8");
+    assert.equal(runIn(w, now, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { O: first, S: second, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+  },
+  cutOffChanged: () => {
+    const w = world();
+    cutOffThenPutBack(w);
+    const n = Object.keys(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).entries).length - 1;
+    return { w, files: { F: w.localFile }, vars: { N: String(n) }, own: w.localFile, flags: ASK_FLAGS.cutOff };
+  },
+  ignored: () => {
+    const w = world();
+    const folder = join(w.root, "project2");
+    writeTree(folder, { ".claude/settings.local.json": LOCAL_BEFORE });
+    const file = join(folder, ".claude", "settings.local.json");
+    const planted = join(w.home, ".claude", "plugin-profiles-state", "records", "folder.json");
+    writeTree(dirname(planted), { "folder.json": handRecord(file) });
+    return { w, files: { U: file }, vars: { P: planted }, own: file };
+  },
+  unchanged: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    knowFolders(w, w.project);
+    assert.equal(reset(w, ["--yes"]).status, 0);
+    return { w, files: {}, unnamed: { F: w.localFile }, own: w.localFile };
+  },
+};
+const ASK_FLAGS = { unrecorded: ["--remove-unrecorded", "--keep-unrecorded"], cutOff: ["--finish-cut-off", "--keep-cut-off"] };
+
+/** How a cell answers: at a terminal (y or n to the one question, then to each file's own), by flags, or with nobody there. */
+const MODES = {
+  "t:yy": { terminal: ["y", "y"] },
+  "t:yn": { terminal: ["y", "n"] },
+  "t:ny": { terminal: ["n", "y"] },
+  "t:nn": { terminal: ["n", "n"] },
+  "--yes": { args: () => ["--yes"] },
+  "--yes own-yes": { args: (k) => ["--yes", (k.flags ?? ASK_FLAGS.unrecorded)[0], k.own] },
+  "--yes own-no": { args: (k) => ["--yes", (k.flags ?? ASK_FLAGS.unrecorded)[1], k.own] },
+  nobody: { args: () => [] },
+};
+
+/** Every file of a test machine that is an applied-profile record. */
+const allRecords = (w) => readdirSync(w.root, { recursive: true }).filter((rel) => /(^|[\\/])records[\\/][^\\/]+\.json$/.test(rel));
+const CELL_RESULT = /^(Restored|Removed|Skipped|Finished|Already restored|Ignored) /;
+const fill = (text, vars) => text.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+const RESTORED = "Restored {F} (profile build).";
+const NOTHING = [];
+const ANSWERED_NO = "Skipped {F}: you answered no, so it is left as it is, and its record is kept.";
+
+/**
+ * One row per cell: row kind, way of answering, each file's content after the run (same: as before the run; before: as before
+ * any profile; gone; noEntries: no plugin or skill entries left; left: what the older profiles left), records left on the
+ * machine, the result lines, and the exit status. A cell with exit 1 wrote nothing and prints no result line.
+ */
+const CELLS = [
+  ["restore", "t:yy", "F=before", 0, [RESTORED], 0],
+  ["restore", "t:yn", "F=before", 0, [RESTORED], 0],
+  ["restore", "t:ny", "F=same", 1, NOTHING, 1],
+  ["restore", "t:nn", "F=same", 1, NOTHING, 1],
+  ["restore", "--yes", "F=before", 0, [RESTORED], 0],
+  ["restore", "--yes own-yes", "F=same", 1, NOTHING, 1],
+  ["restore", "--yes own-no", "F=same", 1, NOTHING, 1],
+  ["restore", "nobody", "F=same", 1, NOTHING, 1],
+  ["removeFile", "t:yy", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "t:yn", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "t:ny", "F=same", 1, NOTHING, 1],
+  ["removeFile", "t:nn", "F=same", 1, NOTHING, 1],
+  ["removeFile", "--yes", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "--yes own-yes", "F=same", 1, NOTHING, 1],
+  ["removeFile", "--yes own-no", "F=same", 1, NOTHING, 1],
+  ["removeFile", "nobody", "F=same", 1, NOTHING, 1],
+  ["finishRestore", "t:yy", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "t:yn", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "t:ny", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "t:nn", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "--yes", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "--yes own-yes", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "--yes own-no", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "nobody", "F=before", 1, NOTHING, 1],
+  ["adopted", "t:yy", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "t:yn", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "t:ny", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "t:nn", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "--yes", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "--yes own-yes", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "--yes own-no", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "nobody", "R=same W=same", 1, NOTHING, 1],
+  ["noRecord", "t:yy", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "t:yn", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "t:ny", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "t:nn", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "--yes", "F=same", 0, ["Skipped {F}: no record; reset removes its entries only after a yes for this folder."], 0],
+  ["noRecord", "--yes own-yes", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "--yes own-no", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "nobody", "F=same", 0, NOTHING, 1],
+  ["missing", "t:yy", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:yn", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:ny", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:nn", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "--yes", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "--yes own-yes", "G=gone", 1, NOTHING, 1],
+  ["missing", "--yes own-no", "G=gone", 1, NOTHING, 1],
+  ["missing", "nobody", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["movedNoNewer", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "t:yn", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "t:nn", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "--yes", "M=same", 1, ["Skipped {O}: folder not found; record kept."], 0, "M"],
+  ["movedNoNewer", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "--yes own-no", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "nobody", "M=same", 1, NOTHING, 1],
+  ["movedNewer", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
+  ["movedNewer", "t:yn", "M=same", 2, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {M} (profile review) are kept."], 0],
+  ["movedNewer", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
+  ["movedNewer", "t:nn", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "--yes", "M=left", 1, ["Restored {M} (profile review). The record of {O} (profile build) is kept, so a later reset offers to put {M} back to before the first apply."], 0],
+  ["movedNewer", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
+  ["movedNewer", "--yes own-no", "M=same", 2, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {M} (profile review) are kept."], 0],
+  ["movedNewer", "nobody", "M=same", 2, NOTHING, 1],
+  ["movedTwice", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
+  ["movedTwice", "t:yn", "M=same", 3, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {S} (profile review), {M} (profile build) are kept."], 0],
+  ["movedTwice", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
+  ["movedTwice", "t:nn", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "--yes", "M=left", 2, ["Restored {M} (profile build). The records of {O} (profile build), {S} (profile review) are kept, so a later reset offers to put {M} back to before the first apply."], 0],
+  ["movedTwice", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
+  ["movedTwice", "--yes own-no", "M=same", 3, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {S} (profile review), {M} (profile build) are kept."], 0],
+  ["movedTwice", "nobody", "M=same", 3, NOTHING, 1],
+  ["cutOffChanged", "t:yy", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "t:yn", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "t:ny", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "t:nn", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "--yes", "F=same", 1, ["Skipped {F}: an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept."], 0],
+  ["cutOffChanged", "--yes own-yes", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "--yes own-no", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "nobody", "F=same", 1, NOTHING, 1],
+  ["ignored", "t:yy", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:yn", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:ny", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:nn", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "--yes", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "--yes own-yes", "U=same", 1, NOTHING, 1],
+  ["ignored", "--yes own-no", "U=same", 1, NOTHING, 1],
+  ["ignored", "nobody", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["unchanged", "t:yy", "", 0, NOTHING, 0],
+  ["unchanged", "t:yn", "", 0, NOTHING, 0],
+  ["unchanged", "t:ny", "", 0, NOTHING, 0],
+  ["unchanged", "t:nn", "", 0, NOTHING, 0],
+  ["unchanged", "--yes", "", 0, NOTHING, 0],
+  ["unchanged", "--yes own-yes", "", 0, NOTHING, 1],
+  ["unchanged", "--yes own-no", "", 0, NOTHING, 1],
+  ["unchanged", "nobody", "", 0, NOTHING, 0],
+];
+
+test("#17354: every reset row kind crossed with every way of answering writes, keeps records, names each file once and exits as the table says", async () => {
+  assert.deepEqual([...new Set(CELLS.map(([kind]) => kind))], Object.keys(KINDS), "every kind has its cells");
+  for (const kind of Object.keys(KINDS)) assert.deepEqual(CELLS.filter(([k]) => k === kind).map(([, mode]) => mode), Object.keys(MODES), `${kind} has one cell per way of answering`);
+  for (const [kind, mode, content, records, lines, exit, unnamed] of CELLS) {
+    const cell = `${kind} x ${mode}`;
+    const k = KINDS[kind]();
+    const same = Object.fromEntries(Object.entries({ ...k.files, ...k.unnamed }).map(([key, file]) => [key, existsSync(file) ? readFileSync(file, "utf8") : null]));
+    const shown = new Set(resetJson(k.w).lines);
+    const how = MODES[mode];
+    const r = how.terminal
+      ? await resetAtTerminal(k.w, (prompt) => (FIRST.test(prompt) ? how.terminal[0] : how.terminal[1]))
+      : reset(k.w, how.args(k));
+    const vars = { ...k.files, ...k.vars };
+    assert.equal(r.status, exit, `${cell}: ${r.stdout}\n${r.stderr}`);
+    const got = r.stdout.split("\n").filter((line) => CELL_RESULT.test(line) && !shown.has(line));
+    assert.deepEqual(got.sort(), lines.map((line) => fill(line, vars)).sort(), cell);
+    if (exit !== 1) {
+      for (const [key, file] of Object.entries(k.files)) {
+        if (key === unnamed) continue;
+        assert.equal(got.filter((line) => line.includes(file)).length, 1, `${cell}: one result line names ${file}`);
+      }
+    }
+    for (const spec of content.split(" ").filter(Boolean)) {
+      const [key, state] = spec.split("=");
+      const file = k.files[key];
+      const now = existsSync(file) ? readFileSync(file, "utf8") : null;
+      const want = { same: same[key], before: LOCAL_BEFORE, gone: null, left: k.left?.[key] }[state];
+      if (state === "noEntries") assert.deepEqual(JSON.parse(now), withoutProfileKeys(LOCAL_BEFORE), `${cell}: ${key}`);
+      else assert.equal(now, want, `${cell}: ${key} ${state}`);
+    }
+    for (const [key, file] of Object.entries(k.unnamed ?? {})) assert.equal(readFileSync(file, "utf8"), same[key], `${cell}: ${key} same`);
+    assert.equal(allRecords(k.w).length, records, `${cell}: records ${allRecords(k.w).join(", ")}`);
+  }
 });
