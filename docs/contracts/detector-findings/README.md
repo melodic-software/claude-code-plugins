@@ -35,7 +35,7 @@ What this doc owns is everything the shape alone does not settle: which fields a
 must compute for itself, what coexistence between producers means, and where the boundary sits.
 
 This owner doc follows `plugin-philosophy.md`
-[Convention registry](../../plugin-philosophy.md#convention-registry): "A new cross-plugin
+[Convention registry](../../../docs/plugin-philosophy.md#convention-registry): "A new cross-plugin
 convention lands in an owner doc **before a second plugin adopts it**". The crosswalk admits only a
 rule whose tier can be argued from `severity.md`'s test, which is a bar no table of thresholds can
 clear on its own.
@@ -141,7 +141,7 @@ the emitted file alone, without re-reading the detector:
   restated. `depth 7, limit 5` is auditable; `over the limit` is not.
 
 **The id shares its shape with, without being identical to,
-[`finding-suppression`](../finding-suppression/README.md)'s `check:` constituent**, which that
+[`finding-suppression`](../../../docs/contracts/finding-suppression/README.md)'s `check:` constituent**, which that
 contract hashes into a `finding_id`. The two compose because they are built the same way, and a
 consumer may legitimately qualify checks at a **finer** granularity than the rule: the first adopter
 keys a suppression `check:` to the mutation operator, because a suppression retires per mutant while
@@ -558,7 +558,7 @@ failure to avoid:
 | Outcome | Determined by | Home |
 |---|---|---|
 | The rule examined a candidate and its own stated evidence shows there is nothing to fix | the producer, per run | a **declined-candidate count** in `## Surfaces` |
-| A real finding an operator has judged and decided to keep | the operator | [`finding-suppression`](../finding-suppression/README.md) |
+| A real finding an operator has judged and decided to keep | the operator | [`finding-suppression`](../../../docs/contracts/finding-suppression/README.md) |
 | Not-a-defect claimed without the rule's stated evidence | nothing, the claim is unsupported | **a row**, under the rule the crosswalk names for that case |
 
 - **A declined candidate is coverage, not a suppression.** Suppression is operator-authored,
@@ -624,7 +624,7 @@ consumer weighing findings against a moving tree needs it.
 ## Liveness
 
 A detector that persists findings still owes the
-[liveness-assertion contract](../liveness-assertion/README.md) "Core contract": fail loud, or publish
+[liveness-assertion contract](../../../docs/contracts/liveness-assertion/README.md) "Core contract": fail loud, or publish
 to an agent-readable channel. Writing a conforming findings file satisfies the second limb:
 the file *is* the agent-readable channel, and the `fix` action is the agent that reads it. A detector
 that writes nothing, reports green, and had findings satisfies neither.
@@ -773,7 +773,7 @@ which is the moment its remedies reach a relay and the Boundary stops holding th
 
 ## Versioning
 
-This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). Changing a producer-owned field's rule,
+This contract is versioned in [`CHANGELOG.md`](../../../docs/contracts/detector-findings/CHANGELOG.md). Changing a producer-owned field's rule,
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
@@ -783,9 +783,9 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - `/review:fanout fix`: the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
-- [`docs/contracts/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
+- [`docs/contracts/finding-suppression/`](../../../docs/contracts/finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
 - [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its recheck trigger fires at.
 - `melodic-software/standards` `standards/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.
-- [`liveness-assertion`](../liveness-assertion/README.md): the fail-loud-or-agent-readable contract a detector satisfies by persisting.
-- [`plugin-philosophy` Convention registry](../../plugin-philosophy.md#convention-registry): one owner doc per shared concern, and the before-a-second-adopter deadline this doc answers.
+- [`liveness-assertion`](../../../docs/contracts/liveness-assertion/README.md): the fail-loud-or-agent-readable contract a detector satisfies by persisting.
+- [`plugin-philosophy` Convention registry](../../../docs/plugin-philosophy.md#convention-registry): one owner doc per shared concern, and the before-a-second-adopter deadline this doc answers.

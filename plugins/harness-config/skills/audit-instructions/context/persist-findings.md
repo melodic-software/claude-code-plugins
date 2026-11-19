@@ -1,13 +1,13 @@
 # Persisting findings: this skill's read of the detector-findings contract
 
 **Read the producer contract before the first write**:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
+[`${CLAUDE_PLUGIN_ROOT}/reference/detector-findings.md`](../../../reference/detector-findings.md).
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 an `audit-instructions` run decides for itself and cites the contract for the rest. Where the two
 disagree, the contract wins and this file is the defect.
 
-**If the contract cannot be fetched, do not write.** Report that the destination and the guard
+**If the contract cannot be read, do not write.** Report that the destination and the guard
 could not be resolved from their owner, and stop. Inventing a destination reports success while
 the consumer never scans that path.
 
@@ -50,7 +50,7 @@ report**. It is routed there, never to the relay.
 
 ## Compose by script, not by hand
 
-Once the destination is resolved and the contract fetch succeeded, run
+Once the destination is resolved and the contract read succeeded, run
 `bash "<skill dir>/scripts/emit-findings.sh" --from <scan output file> --from-lane <lane rows file> --out <resolved path>`,
 `<skill dir>` being the resolved `skills/audit-instructions` path SKILL.md names,
 omitting whichever input the run has nothing for. The script owns the mechanical half: the fence
@@ -58,7 +58,7 @@ recomputation, cell assembly and escaping, tier lookup (a mirror of the crosswal
 crosswalk row is authoritative), each row's finding identity (through `scripts/finding-ids.sh`,
 per [reference/finding-identity.md](../reference/finding-identity.md)), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
-the script (destination resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
+the script (destination resolution, the read-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
 the consuming project defines its own). For that mapping, edit the written file's `Tier` cells per
 the contract's consumer-precedence rule.
