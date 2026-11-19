@@ -114,10 +114,9 @@ def test_same_spec_same_bytes(tmp_path):
 def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path):
     spec, chain, _ = built[name]
     projects = chain[0].parents[1] / "predecessor-transcripts"
-    stated = {
-        int(item["hop"]): item["fail"]
-        for item in spec["seed"]["predecessor"].get("expected_fail", [])
-    }
+    stated = resume_cases._expected_fail(
+        spec["seed"]["predecessor"], spec["name"], len(chain), None
+    )
     for hop, path in enumerate(chain, 1):
         done = subprocess.run(
             [
@@ -136,7 +135,7 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
         if hop in stated:
             fails = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL:")]
             assert done.returncode == 1 and fails, done.stdout
-            assert all(re.search(stated[hop], ln) for ln in fails), done.stdout
+            assert all(stated[hop].search(ln) for ln in fails), done.stdout
         else:
             assert done.returncode == 0, done.stdout
         assert "secret-shaped" not in done.stdout

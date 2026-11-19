@@ -27,6 +27,7 @@
       "lane": "ledger-sync",
       "hops": 5,
       "target_bytes": 18000,
+      "expected_fail": [{"hop": 4, "fail": "id_reuse", "arms": ["after"]}, {"hop": 5, "fail": "id_reuse", "arms": ["after"]}],
       "start": "2026-10-12T09:00:00Z",
       "hop_minutes": 300,
       "goal": "Ship ledger-sync 1.8.0 with the retry back-off and the currency export.",
