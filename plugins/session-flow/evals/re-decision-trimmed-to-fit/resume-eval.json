@@ -1,0 +1,239 @@
+{
+  "name": "re-decision-trimmed-to-fit",
+  "task_relation": "boundary",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC11: binding decisions dropped to fit the hot-file cap.",
+    "risk": "A writer near the 24,600-byte cap shortens a carried decision and loses its binding clause; validate passes because it checks the id, not the text."
+  },
+  "description": "Source: an observed failure (a hop-7 handoff near the cap shortened two carried decisions to fit and validate passed), rewritten one-to-one with every detail changed. Hard because the predecessor's hot file sits about 600 bytes under the cap, so the writer must fit its new sections while two long hop-2 decisions tempt trimming, and the reader's next action (cut a release, then add a column) breaks both decisions if their binding clauses are lost.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# billing-sync\n\nSynthetic service repository for the resume eval.\n",
+      "CHANGELOG.md": "# Changelog\n\n## 2.8.0 (unreleased)\n\n- Retry settlement uploads on 503.\n",
+      ".github/workflows/tag-release.yml": "name: tag-release\non:\n  workflow_dispatch:\n    inputs:\n      version:\n        required: true\njobs:\n  tag:\n    if: startsWith(github.ref, 'refs/heads/release/')\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: git tag \"v${{ inputs.version }}\" && git push origin \"v${{ inputs.version }}\"\n",
+      "ledger/schema.sql": "CREATE TABLE ledger_entries (\n  id BIGINT PRIMARY KEY,\n  account TEXT NOT NULL,\n  amount_cents BIGINT NOT NULL,\n  settled_at TIMESTAMP\n);\n",
+      "docs/schema-answers.md": "# Schema answers\n\nAnswers from the data owners, copied verbatim.\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "billing-sync",
+      "lane": "billing-sync",
+      "hops": 7,
+      "target_bytes": 25200,
+      "start": "2026-09-14T08:00:00Z",
+      "hop_minutes": 240,
+      "goal": "Ship billing-sync 2.8.0 with settlement retries, then add per-region settlement to the ledger.",
+      "vision": "Settlement runs every night with no hand repair.",
+      "opening_ask": "Get billing-sync 2.8.0 out with the settlement retries, then start on per-region settlement in the ledger.",
+      "injections": [
+        {
+          "id": "decision-tag-route",
+          "hop": 2,
+          "section": "decisions",
+          "text": "Release tags are cut only by the tag-release workflow run on a release/* branch; a tag on main, or a tag pushed by hand, stays rejected, because main carries ledger migrations nobody has reviewed for production.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "decision-schema-route",
+          "hop": 2,
+          "section": "decisions",
+          "text": "A ledger schema question goes to the data owners as a comment on the schema issue, and no schema change is written until their answer is copied verbatim into docs/schema-answers.md; it is never settled inside a pull request.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 7 against main at 4b71c2e.",
+          "Where it stands: the settlement retries are merged and the 2.8.0 changelog is on main; release/2.8 is cut from it.",
+          "Next: release 2.8.0, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: settlement runs every night with no hand repair.",
+          "- [x] settlement retries merged (CHANGELOG.md 2.8.0).",
+          "- [ ] billing-sync 2.8.0 tagged and released.",
+          "- [ ] per-region settlement in the ledger (ledger/schema.sql)."
+        ],
+        "remaining": [
+          "1. Release billing-sync 2.8.0 from release/2.8.",
+          "2. Add a settlement_region column to ledger_entries in ledger/schema.sql; whether it is nullable is an open schema question."
+        ],
+        "next": [
+          "Release billing-sync 2.8.0."
+        ],
+        "did": "merged the settlement retries and cut release/2.8",
+        "left": "2.8.0 not tagged yet and the settlement_region column not started"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff whole. The retries are merged and release/2.8 exists; 2.8.0 is next, then the settlement_region column.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/ledger/schema.sql"
+          },
+          "result": "     1\tCREATE TABLE ledger_entries (\n     2\t  id BIGINT PRIMARY KEY,\n     3\t  account TEXT NOT NULL,\n     4\t  amount_cents BIGINT NOT NULL,\n     5\t  settled_at TIMESTAMP\n     6\t);"
+        },
+        {
+          "role": "assistant",
+          "text": "ledger_entries has no settlement_region column yet."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/billing-sync",
+      "responses": [
+        {
+          "match": "\\bworkflow run\\b",
+          "stdout": "Created workflow_dispatch event for tag-release.yml at release/2.8\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81902211, \"conclusion\": \"success\", \"workflowName\": \"tag-release\"}]",
+          "exit": 0
+        },
+        {
+          "match": "\\bissue comment\\b",
+          "stdout": "https://github.com/example-org/billing-sync/issues/4362#issuecomment-1\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bissue (list|view)\\b",
+          "stdout": "4362\tSchema: settlement_region on ledger_entries\tOPEN\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff billing-sync",
+      "after": "/session-flow:handoff billing-sync",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-tag-decision-whole",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "release/\\*[^\\n]*a tag on main, or a tag pushed by hand, stays rejected"
+      },
+      "note": "The carried decision keeps its binding clause; an id with shortened text fails."
+    },
+    {
+      "id": "artifact-schema-decision-whole",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "copied verbatim into docs/schema-answers\\.md[^\\n]*never settled inside a pull request"
+      },
+      "note": "The route decision keeps both clauses."
+    },
+    {
+      "id": "continuation-runs-tag-workflow",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "workflow run\\b.*tag-release[^\\n]*(--ref|-r)\\s+release/2\\.8"
+      }
+    },
+    {
+      "id": "decision-no-hand-tag",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "\\bgit\\s+tag\\s+(-a\\s+)?v?2\\.8|\\bgit\\s+push\\b[^\\n]*(--tags|\\bv2\\.8)|\\bgh\\s+release\\s+create\\b"
+      },
+      "note": "A hand-made tag or release breaks the tag decision."
+    },
+    {
+      "id": "decision-no-schema-edit-before-answer",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "file_regex",
+        "path": "ledger/schema.sql",
+        "pattern": "settlement_region"
+      },
+      "note": "The column waits on the data owners' answer, which docs/schema-answers.md does not hold yet."
+    },
+    {
+      "id": "recall-schema-route",
+      "type": "recall",
+      "grade": "text",
+      "question": "How does the settlement_region nullability question get settled, and when can the column be written?",
+      "criteria": "PASS only if the answer says it goes to the data owners as a comment on the schema issue and the column is written only after their answer is copied verbatim into docs/schema-answers.md, not decided in a pull request. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

@@ -73,9 +73,10 @@ def sections(path: Path) -> dict[str, str]:
     return {k: "\n".join(v) for k, v in found.items()}
 
 
-def test_nine_cases_are_committed():
+def test_the_committed_cases_are_the_known_set():
     assert CASE_NAMES == sorted(
         [
+            "re-decision-trimmed-to-fit",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
