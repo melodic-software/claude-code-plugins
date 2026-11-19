@@ -1195,11 +1195,12 @@ PRECOMPUTE_FENCE_RE = re.compile(r"(?:`{3,}|~{3,})\s*!")
 
 def skill_file(name: Any) -> bool:
     """resolve-pr.mjs skillFile: a SKILL.md under a plugin's skills/ and
-    outside a vendor/ baseline. Pure."""
+    outside a vendor/ baseline below the skill directory, whatever the
+    skill is named. Pure."""
     return (
         isinstance(name, str)
         and SKILL_FILE_RE.fullmatch(name) is not None
-        and "vendor" not in name.split("/")
+        and "vendor" not in name.split("/")[4:-1]
     )
 
 

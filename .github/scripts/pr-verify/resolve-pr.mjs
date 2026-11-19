@@ -830,7 +830,7 @@ export function vendoredPath(plugin, name) {
 
 // A SKILL.md Claude Code loads, whose frontmatter, `` !` `` lines and ```!
 // blocks run or grant on a user's machine (https://code.claude.com/docs/en/skills).
-export const skillFile = (name) => typeof name === "string" && /^plugins\/[^/]+\/skills\/(?:[^/]+\/)+SKILL\.md$/.test(name) && !name.split("/").includes("vendor");
+export const skillFile = (name) => typeof name === "string" && /^plugins\/[^/]+\/skills\/(?:[^/]+\/)+SKILL\.md$/.test(name) && !name.split("/").slice(4, -1).includes("vendor");
 
 const SYNC_STAMP = /^ {2}(upstream-version|upstream-sha|synced): ("?)[\w.\/@:+-]+\2$/;
 const PRECOMPUTE_FENCE = /(?:`{3,}|~{3,})\s*!/;
