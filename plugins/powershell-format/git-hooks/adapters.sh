@@ -94,16 +94,19 @@ psf_init() {
 }
 
 psf__path_without_9p() {
-  local t d parts=() keep=() drop=$'\n'
+  local mnt type m d parts=() mounts=() keep=() tab="${PSF_MOUNTS:-/proc/self/mounts}"
   PSF_PATH="$PATH" PSF_BIN="${RT_BIN:-pwsh}"
-  [[ "${OSTYPE:-}" == linux* ]] || return 0
+  [[ -r "$tab" ]] || return 0
+  while read -r _ mnt type _; do
+    [[ "$type" == 9p ]] && mounts+=("$mnt")
+  done <"$tab"
+  ((${#mounts[@]})) || return 0
   IFS=: read -ra parts <<<"$PATH"
-  while IFS=$'\t' read -r t d; do
-    [[ "$t" == v9fs || "$t" == 9p ]] && drop+="$d"$'\n'
-  done < <(stat -f --printf '%T\t%n\n' -- "${parts[@]}" 2>/dev/null)
-  [[ "$drop" == $'\n' ]] && return 0
   for d in "${parts[@]}"; do
-    [[ "$drop" == *$'\n'"$d"$'\n'* ]] || keep+=("$d")
+    for m in "${mounts[@]}"; do
+      [[ "$d" == "$m" || "$d" == "$m"/* ]] && continue 2
+    done
+    keep+=("$d")
   done
   PSF_BIN="$(command -v "$PSF_BIN" 2>/dev/null || printf "%s" "$PSF_BIN")"
   PSF_PATH="$(IFS=:; printf '%s' "${keep[*]}")"
