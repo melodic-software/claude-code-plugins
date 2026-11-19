@@ -3,6 +3,20 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-11-19
+
+### Fixed
+
+- `setup apply` no longer writes `.claude/improvement.md` before asking: it drafts values from the invocation and the repository, then asks the first interview question with its recommendation before any write, even when every value looks unambiguous ([#17223](https://github.com/melodic-software/claude-code-plugins/issues/17223)).
+
+## [0.8.2] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's Adopters table moved to
+  `docs/contracts/target-scope/adopters.md` in the repository, so a new adopter no longer changes
+  this copy. The target forms and every other section are unchanged.
+
 ## [0.8.1] - 2026-11-19
 
 ### Changed

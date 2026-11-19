@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "## Rule candidates\n\n- [ ] **Validate request bodies at the boundary** — Hand to `/corrections:codify \"Validate request bodies at the boundary\"`.\n  Rationale from course: CLAUDE.md names no validation rule today.", "why": "the new shape, CLAUDE.md named only as evidence"},
+    {"answer": "## Rule candidates\n\n1. `/corrections:codify \"parse req.body with a schema per route\"`\n\n## Testing practice improvements\n\n- Add a malformed-body test to test/orders.test.ts.", "why": "add to a test file, not an instruction file"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "## CLAUDE.md / .claude/rules/ candidates\n\nRules or conventions worth codifying:\n\n- [ ] **Validate request bodies at the boundary** — Add to `CLAUDE.md`.", "why": "the pre-change template output"},
+    {"answer": "## Rule candidates\n\n- [ ] **Validate request bodies at the boundary** — Add to `.claude/rules/api.md`.", "why": "new heading, old target"},
+    {"answer": "## Rule candidates\n\n- [ ] **Validate request bodies** — Hand to `/corrections:codify \"validate request bodies\"`, then add it to AGENTS.md.", "why": "codify plus an instruction-file line"}
+  ]
+}

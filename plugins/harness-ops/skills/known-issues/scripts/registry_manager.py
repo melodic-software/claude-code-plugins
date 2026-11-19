@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from collections import Counter
@@ -650,12 +651,33 @@ def output_result(
     sys.exit(exit_code)
 
 
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+
+
+def plugin_data_id(plugin_root: str | Path) -> str:
+    """This plugin's data directory name, as Claude Code names it.
+
+    The plugin id `<name>@<marketplace>` with every character outside
+    A-Za-z0-9_- replaced by `-`. The marketplace comes from an install at
+    <config>/plugins/cache/<marketplace>/<name>/<version>, the layout
+    lib/plugin-options.mjs resolveInstall reads; anywhere else is a
+    --plugin-dir session, whose plugin id ends in @inline.
+    """
+    parts = str(plugin_root).replace("\\", "/").split("/")
+    tail = parts[-4:]
+    cached = (
+        len(parts) > 4 and parts[-5] == "plugins" and tail[0] == "cache" and all(tail)
+    )
+    marketplace = tail[1] if cached else "inline"
+    return re.sub(r"[^A-Za-z0-9_-]", "-", f"harness-ops@{marketplace}")
+
+
 def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     """Resolve the registry directory.
 
     Precedence: --data-dir flag, then an inherited CLAUDE_PLUGIN_DATA whose
     last path segment names this plugin, then its conventional location under
-    ~/.claude/plugins/data/. The Bash tool does not carry this plugin's
+    ~/.claude/plugins/data/ (plugin_data_id). The Bash tool does not carry this plugin's
     CLAUDE_PLUGIN_DATA, and another plugin's SessionStart hook can export its
     own data directory under that name, so any other inherited value is
     ignored. Never the plugin's own install directory: that is replaced on
@@ -669,7 +691,7 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     segment = Path(env_dir.rstrip("/\\")).name if env_dir else ""
     if segment == "harness-ops" or segment.startswith("harness-ops-"):
         return Path(env_dir).resolve()
-    return Path.home() / ".claude" / "plugins" / "data" / "harness-ops-melodic-software"
+    return Path.home() / ".claude" / "plugins" / "data" / plugin_data_id(PLUGIN_ROOT)
 
 
 def main() -> None:

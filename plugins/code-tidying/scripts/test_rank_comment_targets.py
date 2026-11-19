@@ -21,6 +21,8 @@ from pathlib import Path
 # writes at the caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_git_var
 
 SCRIPT = Path(__file__).with_name("rank-comment-targets.py")
@@ -48,6 +50,8 @@ def git(repo: Path, *args: str, env: dict | None = None) -> str:
     e = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")}
     e.update(
         {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_AUTHOR_NAME": "dev",
             "GIT_AUTHOR_EMAIL": "d@x",
             "GIT_COMMITTER_NAME": "dev",
@@ -238,7 +242,11 @@ class Ranking(unittest.TestCase):
             ["git", "clone", "-q", "--depth", "1", f"file://{self.repo}", str(shallow)],
             check=True,
             capture_output=True,
-            env={k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")},
+            env={
+                **{k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")},
+                "GIT_CONFIG_GLOBAL": os.devnull,
+                "GIT_CONFIG_NOSYSTEM": "1",
+            },
         )
         p = self.run_rank(cwd=shallow)
         self.assertEqual(p.returncode, 0, p.stderr)

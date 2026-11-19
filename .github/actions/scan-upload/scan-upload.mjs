@@ -97,11 +97,11 @@ export function main(env = process.env) {
   if (withheld) {
     if (withheld.fingerprint && env.GITHUB_STEP_SUMMARY) {
       try {
-        appendFileSync(env.GITHUB_STEP_SUMMARY, `### scan-upload withheld the upload\n\n${withheld.fingerprint}\n`);
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `### scan-upload ${env.SCAN_WITHHOLDS ? `hit: ${env.SCAN_WITHHOLDS}` : "withheld the upload"}\n\n${withheld.fingerprint}\n`);
       } catch {}
     }
     process.stdout.write(
-      `::error::scan-upload: ${withheld.label}; nothing is uploaded${withheld.credential ? ". Rotate this credential" : ""}\n`,
+      `::error::scan-upload: ${withheld.label}; ${env.SCAN_WITHHOLDS || "nothing is uploaded"}${withheld.credential ? ". Rotate this credential" : ""}\n`,
     );
     return 1;
   }

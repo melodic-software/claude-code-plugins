@@ -1000,23 +1000,6 @@ run_bounded() {
   fi
 }
 
-# alias_chain <hops> <terminal> [diverge] — an N-hop chain where every hop
-# defines both `alias.aN` and `alias.aN.command`. They expand identically by
-# default (equivalent states, collapsed by memoization); `diverge` gives each
-# spelling its own trailing word so no two analysis paths share a state and only
-# the traversal budget can stop the walk.
-alias_chain() {
-  local n="$1" terminal="$2" mode="${3:-same}" cmd="git" i
-  for ((i = 1; i < n; i++)); do
-    if [[ "$mode" == diverge ]]; then
-      cmd+=" -c alias.a$i='a$((i + 1)) --x$i' -c alias.a$i.command='a$((i + 1)) --y$i'"
-    else
-      cmd+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"
-    fi
-  done
-  printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
-}
-
 # The SAFE terminal is the timing case: it exhausts the whole tree, so before the
 # bounds it ran past this ceiling (verified — 20 hops did not finish in 30s).
 run_bounded "traversal: 20-hop dual-spelling chain to a safe op (allowed, bounded)" \
@@ -2521,14 +2504,6 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
 # and which executor behavior applies has not been traced.
-#
-# A NUL cannot live in a shell variable, so the payload is assembled inside jq:
-# `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
-# escape on the wire — the form the harness would deliver.
-nul_payload() {
-  jq -n --arg h "$1" --arg t "$2" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}'
-}
 run_nul() {
   local label="$1" head="$2" tail="$3" expected="$4"
   expect "$label" "$expected" --payload "$(nul_payload "$head" "$tail")" --chdir "$REPO_SHA1"
@@ -2546,11 +2521,6 @@ run_nul "NUL in an otherwise harmless command (blocked)" "git status" "; echo by
 # point: both guards emit the same three lines by design, so a message edited in
 # one and not the other is exactly the drift neither file would otherwise catch.
 # Exit-code-only coverage cannot see it — the verdict is identical either way.
-nul_stderr() {
-  guard_invoke --payload "$(nul_payload "$1" "$2")"
-  printf '%s' "$GUARD_ERR"
-  return "$GUARD_RC"
-}
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
   "Reissue the call without it"

@@ -2,19 +2,19 @@ checks:
   - id: carry-forward-yield
     covers:
       - .github/workflows/pr-require-checks.yml
-    commit: c4fe439dfb47955c34b07dc40af22b9a6b879ccb
+    commit: 726f82db25b4e98cc90dd1454f9bd82bcf6efbdd
     command: /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/Yield.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
     seeded_break:
-      change: ci-status's Aggregate lane results step passes yield-to-full-run 'false', so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 5,056 distinct states
+      change: the report-ci-status composite passes yield-to-full-run 'false' to aggregate-results, so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 5,056 distinct states
       caught: true
-      commit: c4fe439dfb47955c34b07dc40af22b9a6b879ccb
+      commit: 726f82db25b4e98cc90dd1454f9bd82bcf6efbdd
   - id: carry-forward-yield-no-hold
     covers:
       - .github/workflows/pr-require-checks.yml
-    commit: c4fe439dfb47955c34b07dc40af22b9a6b879ccb
+    commit: 726f82db25b4e98cc90dd1454f9bd82bcf6efbdd
     command: /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/YieldNoHold.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
     seeded_break:
-      change: ci-status's Aggregate lane results step passes yield-to-full-run 'false', so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 7,972 distinct states
+      change: the report-ci-status composite passes yield-to-full-run 'false' to aggregate-results, so a contract-only run reads ci-lanes once and never yields to a full run in flight (Yield = FALSE in the cfg); NoStaleCarry breaks after 7,972 distinct states
       caught: true
-      commit: c4fe439dfb47955c34b07dc40af22b9a6b879ccb
+      commit: 726f82db25b4e98cc90dd1454f9bd82bcf6efbdd
 outside_model: []

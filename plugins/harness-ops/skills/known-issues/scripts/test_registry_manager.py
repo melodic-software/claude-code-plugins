@@ -97,14 +97,19 @@ class TestDataDirResolution(unittest.TestCase):
     """Another plugin's SessionStart hook can export its own data dir into every
     Bash call as CLAUDE_PLUGIN_DATA; the registry must never resolve there."""
 
+    CACHED_ROOT = Path("/h/.claude/plugins/cache/acme/harness-ops/1.2.0")
+
     def resolve(self, env_value: str, home: Path) -> Path:
         with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": env_value}):
-            with mock.patch.object(Path, "home", return_value=home):
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(rm, "PLUGIN_ROOT", self.CACHED_ROOT),
+            ):
                 return rm.resolve_data_dir(None)
 
     def test_inherited_value_naming_this_plugin_is_used(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            own = Path(tmp) / "harness-ops-melodic-software"
+            own = Path(tmp) / "harness-ops-acme"
             self.assertEqual(self.resolve(str(own), Path(tmp) / "home"), own.resolve())
 
     def test_inherited_value_naming_another_plugin_is_ignored(self) -> None:
@@ -112,9 +117,31 @@ class TestDataDirResolution(unittest.TestCase):
             home = Path(tmp) / "home"
             got = self.resolve(str(Path(tmp) / "codex-openai-codex"), home)
             self.assertEqual(
-                got,
-                home / ".claude" / "plugins" / "data" / "harness-ops-melodic-software",
+                got, home / ".claude" / "plugins" / "data" / "harness-ops-acme"
             )
+
+    def test_outside_the_plugin_cache_the_fallback_is_the_inline_data_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            with (
+                mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": ""}),
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(rm, "PLUGIN_ROOT", Path("/src/plugins/harness-ops")),
+            ):
+                got = rm.resolve_data_dir(None)
+            self.assertEqual(
+                got, home / ".claude" / "plugins" / "data" / "harness-ops-inline"
+            )
+
+    def test_the_data_id_is_named_for_the_cached_marketplace(self) -> None:
+        cases = {
+            "/h/.claude/plugins/cache/acme/harness-ops/1.2.0": "harness-ops-acme",
+            "/h/.claude/plugins/cache/my.market/harness-ops/1.0": "harness-ops-my-market",
+            "/h/.claude/plugins/cache/acme/harness-ops": "harness-ops-inline",
+            "/repo/plugins/harness-ops": "harness-ops-inline",
+        }
+        for root, want in cases.items():
+            self.assertEqual(rm.plugin_data_id(root), want, root)
 
     def test_explicit_flag_wins_over_any_inherited_value(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -135,11 +162,13 @@ class TestDataDirResolution(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
             with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": ""}):
-                with mock.patch.object(Path, "home", return_value=home):
+                with (
+                    mock.patch.object(Path, "home", return_value=home),
+                    mock.patch.object(rm, "PLUGIN_ROOT", self.CACHED_ROOT),
+                ):
                     got = rm.resolve_data_dir(args.data_dir)
             self.assertEqual(
-                got,
-                home / ".claude" / "plugins" / "data" / "harness-ops-melodic-software",
+                got, home / ".claude" / "plugins" / "data" / "harness-ops-acme"
             )
 
 

@@ -26,6 +26,8 @@ import inventory as inv
 # A git fixture must not write into the caller's repository under an inherited GIT_DIR.
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 
 class TestBraceMap(unittest.TestCase):

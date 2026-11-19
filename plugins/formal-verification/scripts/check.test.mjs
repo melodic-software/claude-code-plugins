@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { globMatch } from "./check.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const script = join(fileURLToPath(new URL(".", import.meta.url)), "check.mjs");
 const temps = [];

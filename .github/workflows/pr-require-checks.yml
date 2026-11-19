@@ -6808,9 +6808,9 @@ jobs:
             # /rate_limit (which "does not count against your REST API rate
             # limit", https://docs.github.com/en/rest/rate-limit/rate-limit), is
             # at least that cost plus the read floor the job env inlines from
-            # pr-pipeline.yaml limits.api (API_BUDGET_READ_FLOOR of
-            # min(limit, API_BUDGET_LIMIT_CAP)), so cold reads never take the
-            # pool under the floor. A rate limit that does not read, or a
+            # pr-pipeline.yaml limits.api (API_BUDGET_READ_FLOOR of the
+            # header's limit), so cold reads never take the pool under the
+            # floor. A rate limit that does not read, or a
             # stop in the job's stop file (gh_read's rate guard refuses the
             # pool), holds. The reader's own babysit_gh.py guard shares that
             # stop file.
@@ -6825,6 +6825,11 @@ jobs:
             # gate runs and the unfiltered listing it priced is not read. Past
             # INDEX_NAMES_CAP names the reader reads the whole listing, under
             # the same per-read stop.
+            #   The reader's floor here is a share of GITHUB_TOKEN's live
+            # header limit, not github-token's limit-cap: a refusal here
+            # ejects the queue entry (owner decision D418; run 44463304120
+            # refused with 2,766 of 5,000 left).
+            export BABYSIT_READ_FLOOR_HEADER_LIMIT=1
             index_mode=false
             [ ! -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ] || index_mode=true
             if [ "$index_mode" = false ] && ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
@@ -6854,8 +6859,8 @@ jobs:
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
-                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" -v cost="$cold_cost" \
-                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", cost * entries + int(floor * cap + 0.999999) }'); then
+                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v limit="$limit" -v entries="$entries" -v cost="$cold_cost" \
+                  'BEGIN { if (floor !~ /^[0-9.]+$/) exit 1; printf "%d\n", cost * entries + int(floor * limit + 0.999999) }'); then
                 echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to $cold_cost requests) is not started. Re-queue it."
                 exit 1
               fi
