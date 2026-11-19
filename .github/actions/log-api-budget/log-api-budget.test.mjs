@@ -1303,7 +1303,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       const gate = file === "pr-run-activity-read.yml" && job === "check-issue-fields" ? " && steps\\.base\\.outcome == 'success'" : "";
       assert.match(last, new RegExp(`^Log the API budget[^\\n]*\\n {8}if: always\\(\\)${gate}\\n`), `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
+      const outside = file === "pr-verify.yml" ? "\\n {10}outside: \\$\\{\\{ steps\\.download-capture\\.outcome != 'skipped' && 'download-capture:actions/runs/artifacts' \\|\\| '' \\}\\}" : "";
+      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}${outside}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
     }
   }
 });

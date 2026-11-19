@@ -1763,6 +1763,10 @@ jobs:
             fi
           fi
           echo "globs=$globs" >>"$GITHUB_OUTPUT"
+      - name: Put the pinned Node in the tool cache so setup-node reads no manifest
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .node-version
       - name: Lint markdown
         id: markdown
         continue-on-error: true
