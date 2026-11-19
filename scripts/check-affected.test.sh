@@ -35,6 +35,10 @@ done
 # The changed-skills stub also echoes whether the skills' script tests are skipped.
 printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset} deadline=${PLUGIN_TEST_DEADLINE-unset}" >&2\n[[ -z "${STUB_SKILL_SKIP_LINE:-}" ]] || echo "$STUB_SKILL_SKIP_LINE"\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
   >"$repo/scripts/check-changed-skills.sh"
+size_entry=plugins/code-metrics/skills/audit/scripts/audit-size.sh
+mkdir -p "$repo/${size_entry%/*}"
+printf '#!/usr/bin/env bash\necho "audit-size ran: $* in $PWD root=${CLAUDE_PLUGIN_ROOT-unset}" >&2\nexit "${STUB_AUDIT_SIZE:-0}"\n' \
+  >"$repo/$size_entry"
 # The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
 # as the real one lists the selected suites it did not run.
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
@@ -257,6 +261,18 @@ check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAI
 run STUB_CHECK_PLUGIN_IMPORTS=1 -- --base base
 check "plugin-imports runs on a diff with no plugin file, and its finding fails the check" \
   '[[ $RC == 1 && $ERR == *"check-plugin-imports ran"* && $ERR == *"FAIL plugin-imports"* ]]'
+
+run -- --base base
+check "a size check that passes passes size-check, which is not named CI only" \
+  '[[ $RC == 0 && $ERR != *"FAIL size-check"* && $ERR != *"SKIP size-check"* && $ERR != *"CI only: size-check "* ]]'
+run STUB_AUDIT_SIZE=1 CLAUDE_PLUGIN_ROOT=/installed/code-metrics -- --base base
+check "a file crossing the size reference fails size-check, naming how to reproduce it" \
+  '[[ $RC == 1 && $ERR == *"FAIL size-check"* && $ERR == *"Reproduce: bash $size_entry --check --base $base_sha"* ]]'
+check "size-check runs the tree's own audit-size in the checked tree, never an installed plugin's" \
+  '[[ $ERR == *"audit-size ran: --check --base $base_sha in "*"$repo root=unset"* ]]'
+run STUB_AUDIT_SIZE=2 -- --base base
+check "a size check that cannot decide is a skip, not a failure" \
+  '[[ $RC == 0 && $ERR == *"SKIP size-check (could not run, exit 2"* ]]'
 
 # cross-plugin-source-drift runs only when a plugin file or its registry changed.
 run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
@@ -645,6 +661,8 @@ done
 printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(int(os.environ.get("COPY_STUB_RC", "1")))\n' \
   >"$tools/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$tools/scripts/"
+mkdir -p "$tools/${size_entry%/*}"
+printf '#!/usr/bin/env bash\necho "copy of audit-size read $PWD" >&2\nexit "${COPY_STUB_RC:-1}"\n' >"$tools/$size_entry"
 chmod +x "$tools"/scripts/*.sh
 RC=0
 ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base --tests 2>&1)" || RC=$?
@@ -656,6 +674,8 @@ check "a copy run elsewhere runs its own comment-hygiene against the checked tre
   '[[ $ERR == *"copy of check-comment-hygiene read $repo"* && $ERR != *"check-comment-hygiene ran"* ]]'
 check "a copy run elsewhere points plugin-imports at the checked tree" \
   '[[ $ERR == *"copy of check-plugin-imports read $repo"* && $ERR != *"check-plugin-imports ran"* ]]'
+check "a copy run elsewhere runs its own size check in the checked tree" \
+  '[[ $ERR == *"copy of audit-size read "*"$repo"* && $ERR != *"audit-size ran"* ]]'
 check "a copy run elsewhere skips the checked tree's tests" \
   '[[ $ERR == *"SKIP tests"* && $ERR != *"copy of affected-tests"* ]]'
 

@@ -47,7 +47,7 @@ convention/config files the plugin reads.
     checking an entry's fields, fetch the `lspServers` section linked above live.
 - **Monitor noise & portability (`monitors/monitors.json`)**: inspect each monitor's `when`
   trigger before assessing runtime volume, since the trigger decides when the monitor starts and
-  so how long it runs. Every stdout line from `command` reaches Claude as a notification; check
+  so how long it runs. Treat each stdout line from `command` as output Claude receives; check
   volume for the trigger's actual lifetime and that the command runs on the consumer's platform.
   - **Pointer**: when reading a monitor's trigger values, its default, and when each starts it,
     fetch [Monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors) live;

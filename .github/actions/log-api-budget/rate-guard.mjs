@@ -52,9 +52,23 @@ export const SIGNALS = Object.freeze({
 
 const MAX_RESET = 999_999_999_999;
 
-// The 60 s wait budget: a client's 5xx retries (retryServerErrors) and,
-// counted apart, a latch's rate-limit waits.
-export const SERVER_RETRY_BUDGET_MS = 60_000;
+/**
+ * The one copy of how long a job may wait out a rate limit before it stops and
+ * leaves the run to the lost-run reconciler, in seconds (outage posture
+ * element 1, docs/conventions/pr-pipeline/README.md). A workflow cannot import
+ * this module, so each literal below is pinned to it by rate-guard.test.mjs:
+ * - `step`: one process's waits, summed. The latch's budget for rate-limit
+ *   waits and, counted apart, a client's 5xx retries (retryServerErrors), and
+ *   the `rate-limit-wait-seconds` ci-status passes each pinned ci-workflows
+ *   composite.
+ * - `ciStatusReads`: ci-status's reads, from the job's start: its
+ *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
+ * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
+ *   its POLL_LIMIT_SECONDS.
+ */
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 825, rerunCiStatus: 600 });
+
+export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 

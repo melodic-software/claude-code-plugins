@@ -59,13 +59,37 @@ def write(path: Path, text: str) -> None:
 
 
 def handoff(path: Path, body: str = "") -> None:
-    """A handoff as the writer produces it: no issue or PR keys in the frontmatter."""
+    """A handoff as the writer produces it: no issue or PR keys in the frontmatter,
+    and a closing Resume prompt unless the body brings its own."""
     write(
         path,
         "---\ntype: handoff\nhandoff_shape: 2\ndate: 2026-01-01T10:00:00Z\n"
         "topic: x\nsession_id: 00000000-0000-4000-8000-000000000000\n"
-        f"transcript: /t.jsonl\nchain:\n  - {path.name}\n---\n\n{body}\n",
+        f"transcript: /t.jsonl\nchain:\n  - {path.name}\n---\n\n{closing(body)}",
     )
+
+
+RAIL = "─" * 58
+CLOSED_NEXT = "Next: none (closed)"
+
+
+def resume_prompt(next_lines: str) -> str:
+    """A Resume prompt section laid out as save_point.py writes it."""
+    return (
+        f"## Resume prompt\n\nRun `/clear`, then paste this:\n\n{RAIL}\n"
+        "Read @.work/handoffs/x.md, then invoke /session-flow:handoff via the Skill tool.\n"
+        "Prior session: 00000000-0000-4000-8000-000000000000.\n"
+        "Handoff origin: a b\n"
+        f"{next_lines}\n{RAIL}\n\n"
+        "Or reopen the producing session in place: `claude --resume 0000`.\n"
+    )
+
+
+def closing(body: str) -> str:
+    """The body, then a `Next: none (closed)` Resume prompt unless it has one."""
+    if "## Resume prompt" in body:
+        return body
+    return f"{body}\n\n{resume_prompt(CLOSED_NEXT)}"
 
 
 def slice_dir(path: Path, status: str | None) -> None:
@@ -1034,13 +1058,15 @@ HOP3_2 = "20260102T100000Z-handoff-three.md"
 
 
 def hot_file(path: Path, chain_root: str, body: str = "") -> None:
-    """A shape-3 hot file as the writer produces it: `chain_root` names its chain."""
+    """A shape-3 hot file as the writer produces it: `chain_root` names its chain,
+    and a closing Resume prompt unless the body brings its own."""
     write(
         path,
         "---\ntype: handoff\nhandoff_shape: 3\ndate: 2026-01-01T10:00:00Z\n"
         "topic: three\nsession_id: 00000000-0000-4000-8000-000000000000\n"
         f"transcript: /t.jsonl\nchain_root: {chain_root}\nhop: 1\n"
-        f"archive: archive/{chain_root[:-3]}/\narchive_from: 1\nrepo: r\n---\n\n{body}\n",
+        f"archive: archive/{chain_root[:-3]}/\narchive_from: 1\nrepo: r\n---\n\n"
+        f"{closing(body)}",
     )
 
 

@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict CONFIRMED --row 'A customer can attach a note to an order | src/orders/notes/attach.py | tests/orders/test_notes.py::test_attach_note | COMPLETE' --row 'The order page shows the note | src/orders/notes/view.py | tests/orders/test_notes.py::test_note_shown | COMPLETE' --row 'A note can be edited until the order ships | src/orders/notes/edit.py | tests/orders/test_notes.py::test_edit_before_ship | COMPLETE' --row 'The order-notes endpoint rejects a note over 500 characters | src/orders/notes/api.py | tests/orders/test_note_limits.py::test_rejects_501_chars | COMPLETE'"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/verification/scripts/confirm-verdict.sh\" record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict 'CONFIRMED' --row \"AC1 | src/orders/notes/attach.py | test_attach_note | COMPLETE\" --row \"AC2 | src/orders/notes/view.py | test_note_shown | COMPLETE\" --row \"AC3 | src/orders/notes/edit.py | test_edit_before_ship | COMPLETE\" --row \"AC4 | src/orders/notes/api.py | test_rejects_501_chars | COMPLETE\""
+          }
+        }
+      ],
+      "why": "double-quoted rows with short criterion names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "records nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict CONFIRMED"
+          }
+        }
+      ],
+      "why": "records the verdict with no rows"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict CONFIRMED --row 'The order-notes endpoint rejects a note over 500 characters | src/orders/notes/api.py | tests/orders/test_note_limits.py::test_rejects_501_chars | COMPLETE'"
+          }
+        }
+      ],
+      "why": "one row for four criteria: COMPLETE criteria left out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict 'NEEDS WORK' --row 'AC1 | src/orders/notes/attach.py | test_attach_note | COMPLETE' --row 'AC2 | src/orders/notes/view.py | test_note_shown | COMPLETE' --row 'AC3 | src/orders/notes/edit.py | test_edit_before_ship | COMPLETE' --row 'AC4 | src/orders/notes/api.py | test_rejects_501_chars | PARTIAL'"
+          }
+        }
+      ],
+      "why": "rows on the superseded verdict"
+    }
+  ]
+}
