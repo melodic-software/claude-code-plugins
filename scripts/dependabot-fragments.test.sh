@@ -124,7 +124,13 @@ wf="$SELF_DIR/../.github/workflows/release-generate-dependabot-changelog-fragmen
 patterns=()
 mapfile -t patterns < <(awk '/^  push:/{p=1; next} p && /^  [a-z_]+:/{p=0} p && /^      - /{sub(/^      - /, ""); gsub(/\x27/, ""); print}' "$wf")
 dirs=()
-mapfile -t dirs < <(awk '/package-ecosystem:/{e=$3} /^    directory: \/plugins\//{print e " " $2}' "$SELF_DIR/../.github/dependabot.yml")
+mapfile -t dirs < <(awk '
+  /package-ecosystem:/{e=$3; in_dirs=0}
+  /^    [a-z_-]+:/{in_dirs=0}
+  /^    directories:/{in_dirs=1; next}
+  /^    directory: \/plugins\//{print e " " $2}
+  in_dirs && /^      - \/plugins\//{print e " " $2}
+' "$SELF_DIR/../.github/dependabot.yml")
 missed="" checked=0
 for entry in "${dirs[@]}"; do
   eco="${entry%% *}" dir="${entry#* /}"
