@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
 # Runs the shell of two read-lane check-broker steps, lifted from their YAML,
 # against the cases the contract states
