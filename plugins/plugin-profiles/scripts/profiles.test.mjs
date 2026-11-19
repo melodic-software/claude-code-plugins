@@ -3157,7 +3157,25 @@ test("#17354: a record kept in a folder that cannot hold it is listed as ignored
 
 /** Where reset notes a file of a folder outside git that it restored: the data folder's restored/, keyed as records are. */
 const noteOf = (w, file, home = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline")) => join(home, "restored", `${sha(realpathSync(file))}.json`);
-const UNCHANGED_LINE = (n) => new RegExp(`^${n} ${n === 1 ? "file that reset restored earlier is" : "files that reset restored earlier are"} unchanged since; reset leaves ${n === 1 ? "it" : "them"}\\.$`, "m");
+/** The preview line counting the files reset left unchanged since, naming the first three and how many more. */
+const UNCHANGED_LINE = (files) =>
+  `${files.length} ${files.length === 1 ? "file that reset restored earlier is" : "files that reset restored earlier are"} unchanged since; reset leaves ${files.length === 1 ? "it" : "them"}: ${files.length > 3 ? `${files.slice(0, 3).join(", ")} and ${files.length - 3} more` : files.join(", ")}.`;
+
+test("#17354: the preview line counting files unchanged since reset names the first three and how many more", () => {
+  const w = world();
+  const dirs = ["p1", "p2", "p3", "p4"].map((name) => {
+    const dir = join(w.root, name);
+    writeTree(dir, { ".claude/settings.local.json": LOCAL_BEFORE });
+    assert.equal(runIn(w, dir, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return dir;
+  });
+  knowFolders(w, ...dirs);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  const preview = resetJson(w);
+  assert.equal(preview.unchangedSinceReset.length, 4);
+  assert.ok(preview.lines.includes(UNCHANGED_LINE(preview.unchangedSinceReset)), preview.lines.join("\n"));
+  assert.match(preview.lines.at(-1), / and 1 more\.$/);
+});
 
 test("#17354: after a reset, the files it restored that hold hand-written entries are not listed again and no question is asked", () => {
   const w = world();
@@ -3170,7 +3188,7 @@ test("#17354: after a reset, the files it restored that hold hand-written entrie
   assert.deepEqual(preview.folders, []);
   assert.equal(preview.question, null);
   assert.deepEqual([...preview.unchangedSinceReset].sort(), [w.localFile, p2.file].sort());
-  assert.match(preview.lines.join("\n"), UNCHANGED_LINE(2));
+  assert.ok(preview.lines.includes(UNCHANGED_LINE(preview.unchangedSinceReset)), preview.lines.join("\n"));
   assert.doesNotMatch(preview.lines.join("\n"), /may be your own/);
   const again = reset(w);
   assert.equal(again.status, 0, again.stderr);

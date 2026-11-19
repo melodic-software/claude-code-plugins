@@ -212,8 +212,8 @@ that asked already; with nobody at a terminal, `--yes` alone leaves each such fo
 and with neither a terminal nor `--yes` reset writes nothing and exits 1, as it does for recorded
 files.
 A file reset put back is not listed that way again while it holds the bytes reset left: reset notes
-their hash beside where that file's record is saved, and the preview counts such files in one
-line. An edit to the file, or an apply, ends that, and a record always wins over the note.
+their hash beside where that file's record is saved, and the preview names such files in one
+line, the first three and how many more. An edit to the file, or an apply, ends that, and a record always wins over the note.
 Inside a session, `/plugin-profile` and **Reset** do the same and reload the session; the profile
 skill's reset action previews and asks the same way. Both pass the preview's `previewId` with
 `--preview-id`, and the write refuses, writing nothing, when what it would write no longer matches

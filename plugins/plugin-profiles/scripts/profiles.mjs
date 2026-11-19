@@ -1525,7 +1525,7 @@ async function reset(opts, where, env, io) {
     `Reset looked for profile records in user settings, this folder, ${counted(counts.dataDirs, "data folder")}, ${counted(counts.pointers, "repository pointer")}, ${counted(counts.projects, "folder")} Claude Code has opened, ${counted(counts.sessions, "one-session record")} and ${counted(counts.live, "live session")}.`,
     rows.length ? `It found ${counted(rows.length, "settings file")}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
     ...rows.flatMap((r) => r.lines),
-    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}.`] : []),
+    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}: ${fewOf(unchanged)}.`] : []),
     ...(keeps ? [keeps] : []),
   ];
   const covering = resetQuestion(rows);
