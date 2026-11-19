@@ -130,6 +130,7 @@ function readJson(path) {
 export const CLASSIFIER_FILES = [
   ".github/actions/run-claude-cli/lane.cjs",
   ".github/actions/run-claude-cli/managed-settings.cjs",
+  ".github/actions/run-claude-cli/otlp-receiver.cjs",
   ".github/actions/report-lane-outcome/classify.cjs",
   ".github/scripts/resolve-npm-tool-version.cjs",
 ];
