@@ -133,6 +133,7 @@ docs/contracts/target-scope/README.md plugins/docs-hygiene/reference/target-scop
 docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/repo-hygiene/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/testing/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/work-items/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
