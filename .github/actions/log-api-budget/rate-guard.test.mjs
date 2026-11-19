@@ -888,9 +888,6 @@ const UNGUARDED = {
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
   // pr-merge's own guard is its owner's change.
   ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
-  // A test helper no lane runs: the credential-legs tests' read of ci-workflows
-  // files at a pinned SHA from raw.githubusercontent.com, not the API.
-  ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
   // Its API calls go through lib/github-rest.mjs, which imports the guard; the
   // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
@@ -1011,13 +1008,13 @@ const jobOf = (text, id) => {
 };
 const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
 
-test("ci-status's read deadline and both pinned composites' waits are WAIT_BUDGET_SECONDS'", () => {
+test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps the step waits' default", () => {
   const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
   const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
   const [margin] = setting(job, "GH_READ_MARGIN_SECONDS");
   assert.equal(jobSeconds - margin, WAIT_BUDGET_SECONDS.ciStatusReads);
-  assert.deepEqual(setting(job, "rate-limit-wait-seconds"), [WAIT_BUDGET_SECONDS.step, WAIT_BUDGET_SECONDS.step], "check-contract, then aggregate-results");
-  assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/(check-contract|aggregate-results)@/g)?.length, 2, "ci-status calls two composites that take the input");
+  assert.deepEqual(setting(job, "rate-limit-wait-seconds"), [], "report-ci-status takes no wait input");
+  assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@/g)?.length, 1, "ci-status calls the report-ci-status composite once");
 });
 
 test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {

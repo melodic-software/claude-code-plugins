@@ -3,6 +3,13 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/docs-naming:audit-file-names` and
+  `/docs-naming:realign-file-names` as adopters.
+
 ## [0.8.0] - 2026-11-19
 
 ### Added
