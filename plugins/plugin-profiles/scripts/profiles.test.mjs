@@ -2690,6 +2690,31 @@ test("#17354: a moved repository with a profile applied at its new place is one 
   assert.deepEqual(readdirSync(records), []);
 });
 
+test("#17354: a repository moved twice, with a profile applied at each place, is one row folding every record oldest first, and its yes puts back the file before the first apply", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const first = rootLocal(w.project);
+  const between = join(w.root, "repo-between");
+  renameSync(w.project, between);
+  assert.equal(runIn(w, between, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const second = rootLocal(between);
+  const now = join(w.root, "repo-now");
+  renameSync(between, now);
+  knowFolders(w, now);
+  const movedFile = rootLocal(now);
+  assert.equal(runIn(w, now, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const records = join(now, ".git", "plugin-profiles", "records");
+  assert.equal(readdirSync(records).length, 3);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[first, "skip", movedFile]], "one row for the one file, from the oldest record");
+  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${first} (profile build), folding in the records of ${second} (profile review), ${movedFile} (profile build).`]);
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(readdirSync(records), []);
+});
+
 test("#17354: a folded reset of a moved repository cut off after its write, with both records or only the older left, is finished by the next reset", () => {
   for (const newerRemoved of [false, true]) {
     const w = world();
