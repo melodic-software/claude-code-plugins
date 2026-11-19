@@ -996,49 +996,61 @@ function removeEmptyFolder(dir) {
   } catch {}
 }
 
-async function clear(opts, where, env, io) {
-  if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
-  const file = targetFile(where, opts.target);
-  const { found: recPath, record: rec } = recordOf(where, file);
-  const keeps = keepsSessionProfile(env);
-  const preview = (recorded, lines) => {
-    if (opts.json) io.out(JSON.stringify({ recorded, sessionProfile: sessionProfile(env), lines: keeps ? [...lines, keeps] : lines }, null, 2));
-    else for (const line of keeps ? [...lines, keeps] : lines) io.out(line);
-  };
-  if (!rec) {
-    const doc = readSettings(file).doc;
-    const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(doc[key] ?? {}).length);
-    preview(false, [plugins + skills
-      ? `No record of a profile apply was found for ${file}, so clear cannot tell which of its ${plugins} plugin entries and ${skills} skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${file}.`
-      : `No profile is recorded for ${file}; nothing to clear.`]);
-    return 0;
-  }
+/** What clearing one settings file does: its record, the text or removal that puts it back, and the preview lines. */
+function clearPlan(file, found) {
+  const { found: recPath, record: rec } = found;
   const settings = readSettings(file);
+  if (!rec) {
+    const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(settings.doc[key] ?? {}).length);
+    return {
+      file, settings, rec: null, recPath, plugins, skills,
+      lines: [plugins + skills
+        ? `No record of a profile apply was found for ${file}, so clear cannot tell which of its ${plugins} plugin entries and ${skills} skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${file}.`
+        : `No profile is recorded for ${file}; nothing to clear.`],
+    };
+  }
   const { edits, dropEmpty } = restoreEdits(rec);
   const text = editText(settings, edits, { dropEmpty });
   const removes = rec.createdFile && Object.keys(JSON.parse(text)).length === 0;
-  preview(true, [
-    `Clears profile ${rec.profile} from ${file}.`,
-    removes
-      ? `Removes the file${rec.createdFolder ? ", and its folder when nothing else is in it," : ""} which the first apply created.`
-      : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
-    ...overwrittenEdits(rec, settings.doc).map(
-      (e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`,
-    ),
-  ]);
-  if (opts.dryRun) return 0;
+  const overwrites = overwrittenEdits(rec, settings.doc);
+  return {
+    file, settings, rec, recPath, edits, text, removes, overwrites,
+    lines: [
+      `Clears profile ${rec.profile} from ${file}.`,
+      removes
+        ? `Removes the file${rec.createdFolder ? ", and its folder when nothing else is in it," : ""} which the first apply created.`
+        : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
+      ...overwrites.map((e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`),
+    ],
+  };
+}
+
+/** Writes or removes the planned file under the hash guard, removes a folder the apply created once empty, then drops the record. */
+function clearWrite(plan, dropRecord = () => plan.recPath && deleteRecord(plan.recPath)) {
+  if (plan.removes) {
+    deleteSettings(plan.file, plan.settings.hash);
+    if (plan.rec.createdFolder) removeEmptyFolder(dirname(plan.file));
+  } else writeSettings(plan.file, plan.settings.hash, plan.text);
+  dropRecord();
+}
+
+async function clear(opts, where, env, io) {
+  if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
+  const file = targetFile(where, opts.target);
+  const plan = clearPlan(file, recordOf(where, file));
+  const keeps = keepsSessionProfile(env);
+  const lines = keeps ? [...plan.lines, keeps] : plan.lines;
+  if (opts.json) io.out(JSON.stringify({ recorded: Boolean(plan.rec), sessionProfile: sessionProfile(env), lines }, null, 2));
+  else for (const line of lines) io.out(line);
+  if (!plan.rec || opts.dryRun) return 0;
   await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
   try {
-    if (removes) {
-      deleteSettings(file, settings.hash);
-      if (rec.createdFolder) removeEmptyFolder(dirname(file));
-    } else writeSettings(file, settings.hash, text);
+    clearWrite(plan);
   } catch (error) {
     if (error instanceof SettingsConflict) throw new NotApplied(`not cleared: ${file} changed while clearing; run clear again`);
     throw error;
   }
-  if (recPath) deleteRecord(recPath);
-  io.out(`Cleared profile ${rec.profile} from ${file}.`);
+  io.out(`Cleared profile ${plan.rec.profile} from ${file}.`);
   return 0;
 }
 
