@@ -62,7 +62,9 @@ gate still decides whether there is a request at all.
 
 - **Brief**: the `/goal` payload that skill's completion condition gate produced, verbatim, the
   same text a `claude --bg` agent would receive, plus the lines under "The brief is the rails
-  prompt".
+  prompt". Those lines become part of the `/goal` argument, so count the whole brief as that skill
+  counts its payload (`wc -m`, less the 6 characters of `/goal` and its space) against the limit
+  [save-point.md](save-point.md) states; over it, start nothing and take the fallback below.
 - **Where**: this checkout, as for a full-path handoff. The session edits it in place, so the
   `claude --bg` dirty-tree gate does not apply; say in the report that the started session and
   the user may touch the same files.

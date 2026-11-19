@@ -272,9 +272,12 @@ fallback), then:
 When this session has a tool that starts another session (the Claude desktop app's Code tab) and
 `--cloud` was not given, read
 [`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md),
-"Background continuation", and deliver there instead of steps 1 to 3 above: the started session
-shows in the app's sidebar and can report back, which a `claude --bg` agent there does not. A
-start that is refused or fails takes steps 1 to 5 above. Without such a tool, skip that file.
+"Background continuation", and deliver there instead of steps 1 to 3 above: our decision is to
+prefer the app's own session there. A start that is refused or fails takes steps 1 to 5 above.
+Without such a tool, skip that file.
+
+- **Pointer**: what a started session can do there,
+  <https://code.claude.com/docs/en/desktop#work-across-sessions>.
 
 ## Delivery variant: `--cloud`
 
