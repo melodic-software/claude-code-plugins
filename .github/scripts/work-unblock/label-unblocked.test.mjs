@@ -8226,6 +8226,18 @@ test("a run whose first failed job is the credential scan, in the shape of run 4
   floorFired(apart.calls);
 });
 
+test("a handoff read that names the rate limit holding it, as handoff-evidence.sh writes it, is the same floor stop", async () => {
+  const named = (reset) =>
+    handoffErrors(reset).replace(
+      "after 6 reads: the jobs read failed\n",
+      `after 1 reads: the jobs read failed: GitHub's core API rate limit holds until ${reset}\n`,
+    );
+  assert.match(named(FLOOR_RESET), /the jobs read failed: GitHub's core API rate limit holds until /);
+  const { github, actions, calls } = floorRun({ jobs: scanStopped, logs: { [SCAN_JOB]: SCAN_ERRORS, [HANDOFF_JOB]: named(FLOOR_RESET), [REPORT_JOB]: reportErrors(FLOOR_RESET) } });
+  assert.equal(await sweep({ github, actions }), 0);
+  floorFired(calls);
+});
+
 const retryingHandoff = (first, retry) => [`2026-11-18T04:15:22.5006458Z ##[error]${first}`, `2026-11-18T04:15:31.5565299Z ##[error]${retry}`, `2026-11-18T04:15:32.5714058Z ##[error]${retry}`, "2026-11-18T04:18:13.6197383Z ##[error]handoff evidence for resolve-issue-subscription still missing after 6 reads: the jobs read failed", "2026-11-18T04:18:13.6204727Z ##[error]Process completed with exit code 1.", ""].join("\n");
 const JOBS_READ = `'gh api -i repos/${REPO}/actions/runs/5030/jobs?filter=latest&per_page=100'`;
 const FALLBACK = "fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes";

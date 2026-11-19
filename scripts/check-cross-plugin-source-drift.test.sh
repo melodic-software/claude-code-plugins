@@ -238,6 +238,53 @@ else
 fi
 rm -rf "$f"
 
+fake_sha256sum() {
+  mkdir -p "$1/bin"
+  printf '#!/usr/bin/env bash\n%s\n' "$2" >"$1/bin/sha256sum"
+  chmod +x "$1/bin/sha256sum"
+}
+real_sha256sum="$(command -v sha256sum)"
+
+new_fixture f
+plugin_file "$f" alpha hooks/shared.sh "version one"
+plugin_file "$f" beta hooks/shared.sh "version two -- drifted"
+registry "$f" "hooks/shared.sh"
+fake_sha256sum "$f" "exec '$real_sha256sum' --binary \"\$@\""
+if out="$(PATH="$f/bin:$PATH" run_check "$f" 2>&1)"; then
+  fail "a drifted cluster hashed in binary mode should fail --check, got success: $out"
+elif grep -q "DRIFTED" <<<"$out"; then
+  ok "binary-mode sha256sum output still reports a drifted cluster as DRIFTED"
+else
+  fail "expected DRIFTED with binary-mode sha256sum output, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/new-shared.sh "same content"
+plugin_file "$f" beta hooks/new-shared.sh "same content"
+fake_sha256sum "$f" "echo 'sha256sum: boom' >&2; exit 1"
+out="$(PATH="$f/bin:$PATH" run_check "$f" 2>&1)"
+rc=$?
+if ((rc == 2)) && grep -q "sha256sum failed" <<<"$out" && ! grep -q "UNREGISTERED" <<<"$out"; then
+  ok "a failing sha256sum exits 2 with a hashing-failure message, not UNREGISTERED"
+else
+  fail "expected exit 2 and 'sha256sum failed' without UNREGISTERED, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/new-shared.sh "same content"
+plugin_file "$f" beta hooks/new-shared.sh "same content"
+fake_sha256sum "$f" "exit 0"
+out="$(PATH="$f/bin:$PATH" run_check "$f" 2>&1)"
+rc=$?
+if ((rc == 2)) && grep -q "no hash for" <<<"$out" && ! grep -q "UNREGISTERED" <<<"$out"; then
+  ok "a path with no hash exits 2 instead of comparing equal to another"
+else
+  fail "expected exit 2 and 'no hash for' without UNREGISTERED, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
 # --- production registry: every cluster documents its enforcement path (#2404) -
 REGISTRY="$SELF_DIR/cross-plugin-source-registry.txt"
 if [[ ! -f "$REGISTRY" ]]; then

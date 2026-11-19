@@ -5,10 +5,8 @@
 // semantics, so a job's `if:` and an input's `${{ }}` evaluate as GitHub
 // evaluates them.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { dirname, join, posix } from "node:path";
+
+import { contractAtPin } from "./ci-workflows-at-pin.mjs";
 
 // The one pin every select-model-credential step in the given workflows names.
 export function selectPin(...workflowTexts) {
@@ -17,35 +15,9 @@ export function selectPin(...workflowTexts) {
   return [...pins][0];
 }
 
-// Fetches `entry` and every relative file it requires, at `pin`, into a
-// fresh directory, and requires it from there.
-async function fetchModule(pin, entry) {
-  const root = mkdtempSync(join(tmpdir(), "ci-workflows-"));
-  const seen = new Set();
-  const queue = [entry];
-  while (queue.length) {
-    const path = queue.shift();
-    if (seen.has(path)) continue;
-    seen.add(path);
-    const url = `https://raw.githubusercontent.com/melodic-software/ci-workflows/${pin}/${path}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    assert.ok(response.ok, `${url} answered ${response.status}`);
-    const text = await response.text();
-    mkdirSync(join(root, dirname(path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-    for (const [, spec] of text.matchAll(/require\(\s*"(\.{1,2}\/[^"]+)"\s*\)/g)) {
-      queue.push(posix.normalize(posix.join(posix.dirname(path), spec)));
-    }
-  }
-  return createRequire(join(root, "package.json"))(`./${entry}`);
-}
-
-// The action's start/leg/next and the launcher's handoffReason, at `pin`.
 export async function loadSelect(pin) {
-  const select = await fetchModule(pin, ".github/actions/select-model-credential/select.cjs");
-  const { handoffReason } = await fetchModule(pin, ".github/actions/run-claude-cli/lane.cjs");
-  assert.equal(typeof handoffReason, "function", "lane.cjs exports handoffReason at the pin");
-  return { ...select, handoffReason };
+  const { HANDOFF_REASONS, handoffReason, leg, next, start } = await contractAtPin(pin);
+  return { HANDOFF_REASONS, handoffReason, leg, next, start };
 }
 
 // One expression, `${{ }}` or bare, over `context` (a flat map of

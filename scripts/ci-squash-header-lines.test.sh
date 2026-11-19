@@ -15,30 +15,21 @@
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/ci-step.sh
+. "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 NAME='Fail a body line that would break the squash signature'
-step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
-  on && /^      - / { exit }
-  on { print }' "$WORKFLOW")"
-awk '/^        run: \|$/ { on = 1; next }
-  on && /^          / { print substr($0, 11); next }
-  on && /^[[:blank:]]*$/ { print ""; next }
-  on { exit }' <<<"$step" >"$TMP_ROOT/body.sh"
-
-if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
-  fail "no '$NAME' step with a run: | body in $WORKFLOW"
-  test_harness::report
-  exit 1
-fi
+step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 # shellcheck disable=SC2016 # workflow literals to match, not shell expansions
 for line in "if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}" \
   'TEXT: ${{ github.event.merge_group.head_commit.message || github.event.pull_request.body }}' \

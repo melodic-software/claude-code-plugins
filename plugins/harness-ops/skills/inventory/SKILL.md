@@ -74,7 +74,7 @@ Both spellings reach the same place. Treat a flag and its sentence as identical 
 | `--bundled` | "bundled skills", "Anthropic's skills", "bundled workflows", "built-in plugins", "what `cc-plugin-*` ships" | `bundled_skills`, `bundled_workflows`, `builtin_plugins` |
 | `--docs` | "is /foo documented", "what's undocumented", "was /foo removed" | `docs_crosscheck` |
 | `--plugins` | "only the plugin ones", "what did my plugins add" | `disk.marketplaces` |
-| `--marketplace <name>` | "what does melodic-software give me" | that marketplace only |
+| `--marketplace <name>` | "what does marketplace X give me" | that marketplace only |
 | `--agents` | "what agents do I have", "what subagent types ship built-in" | `builtin_agents`, then agents across every other source |
 | `--tools` | "what tools does Claude Code have", "is Monitor a real tool" | `builtin_tools` |
 | `--hooks` | "what hooks are wired", "what's hooked" | hooks across every source |

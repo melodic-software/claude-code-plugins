@@ -3,6 +3,7 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 export AWS_SECRET_ACCESS_KEY="SuperSecretFromEnv"
 export LEAK="SuperSecretFromEnv"
 

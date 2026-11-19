@@ -83,7 +83,7 @@ book, using the Bourgau and Vernon sources marked in Notes.
 
 Run these checks before starting any simulation:
 
-- [ ] **Backend preflight:** `check_available` on the chosen backend (SKILL.md "Board backend"). If it fails, stop and offer the routes there; never switch backends unasked, and never reach a board through a raw REST, token or curl call
+- [ ] **Backend preflight:** `check_available` on the chosen backend (SKILL.md "Board backend"); markdown runs it just before the first board write, per SKILL.md "Where markdown boards go", never before the first reply. If it fails, stop and offer the routes there; never switch backends unasked, and never reach a board through a raw REST, token or curl call
 - [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, create the extract directory with the temp primitive and echo its path in the same call (`mktemp -d "${TMPDIR:-/tmp}/eventstorming-epub-XXXXXX"`), then extract into that literal path: `unzip -d "<echoed path>" /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts

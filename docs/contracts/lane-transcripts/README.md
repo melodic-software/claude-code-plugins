@@ -16,6 +16,7 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 <sink>/metrics.jsonl                                  one JSON row per leg, no transcript text
 <sink>/outcomes.jsonl                                 one JSON row per lane-outcome record
 <sink>/transcripts/<YYYY-MM-DD>/<lane>/<file>.json.gz  one leg's transcript
+<sink>/transcripts/<YYYY-MM-DD>/<lane>/<file>.jsonl.gz one leg's telemetry, when the leg kept it
 <sink>/state.json                                     the writer's own state; readers ignore it
 ```
 
@@ -37,8 +38,13 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
   less of GitHub's 1 MB per job (counted at two bytes a character); one over its cap, or one the
   credential scan blocks, arrives as a marker, never cut short. When the other outputs leave no
   room even for a marker, nothing is carried.
-- The file name under a lane's date directory is the writer's; readers take a transcript's path
-  from its row, never by building it.
+- A leg's telemetry is gzipped JSONL, one OTLP/JSON export request per line, traces and logs
+  together; a line's top-level `resourceSpans` or `resourceLogs` key says which. The writer
+  (ci-workflows run-claude-cli's `otel-receiver`) leaves the CLI's redaction of prompt and tool
+  content on.
+  - **Pointer**: for the line shapes, read the [OTLP specification](https://opentelemetry.io/docs/specs/otlp/).
+- The file name under a lane's date directory is the writer's; readers take a transcript's or
+  telemetry's path from its row, never by building it.
 
 ## Row fields
 
@@ -66,6 +72,9 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 | `failure_class_source` | Which case set `failure_class`: `lane-outcome` (the records agree), `disagree` (they differ) or `none` (no record held) | yes |
 | `transcript` | The transcript's path relative to the sink, or null once retention removed it | yes |
 | `pruned` | Why `transcript` is null (`age`, `cap`, `missing`), absent while it is set | yes |
+| `telemetry` | The leg's telemetry path relative to the sink, or null when the leg kept none, it did not open, or retention removed it | yes |
+| `telemetry_outcome` | `stored`, `none` (the leg kept no telemetry), `sealed_mismatch` (it did not open) or `unreadable` (it could not be extracted from the zip, or it opened but did not decompress within its cap); absent on a row written before the field existed | yes |
+| `telemetry_spans`, `telemetry_joined_spans` | How many spans the telemetry holds, and how many carry the row's `trace_id`; null unless `telemetry_outcome` is `stored` | yes |
 
 A reader asking for `--outcome error` reads `is_error`, not `outcome`: a row stored as `success`
 with `is_error: true` is an error, and is not a `success`.
@@ -80,7 +89,7 @@ neither field below. A writer whose keys follow another scheme writes `leg_kind`
 ### GitHub only
 
 `artifact_id`, `run_id` (the integer behind `run_ref`), `job_id` (the same value as `leg_key`),
-`workflow`, `event`, `head_branch`, `run_conclusion`, `transcript_bytes` and `pulled_at`. A row
+`workflow`, `event`, `head_branch`, `run_conclusion`, `transcript_bytes`, `telemetry_bytes` and `pulled_at`. A row
 written before the provider-neutral fields existed has only these: a reader takes `run_ref` from
 `run_id`, `leg_key` from `job_id`, `provider` as `github` and `run_url` as null.
 

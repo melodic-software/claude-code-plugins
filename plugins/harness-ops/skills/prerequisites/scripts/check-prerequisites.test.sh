@@ -2,6 +2,7 @@
 # The fleet table reports a declared dependency present or missing and never installs.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG SESSION_SETTINGS_FILE
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-prerequisites.mjs"

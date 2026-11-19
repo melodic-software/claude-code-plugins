@@ -12,6 +12,7 @@
 # test-scope: plugins/planning/evals/st-*/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP="$PLUGIN_DIR/skills/setup/scripts/setup-apply.mjs"
@@ -22,16 +23,8 @@ trap 'chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"' EXIT
 FAKE_HOME="$WORKROOT/home"
 mkdir -p "$FAKE_HOME"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=../lib/test-ok-fail.sh
+source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
 # check_file <label> <expected exit> <yaml text>: setup-apply --check on a repository holding it.
 check_file() {

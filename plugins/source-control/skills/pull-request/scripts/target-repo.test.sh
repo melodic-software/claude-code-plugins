@@ -10,6 +10,7 @@
 # Non-zero exit on any FAIL.
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/target-repo.sh"

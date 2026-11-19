@@ -17,17 +17,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() {
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=bash-format-test-helpers.sh
+source "$HERE/bash-format-test-helpers.sh"
 
 EC=$'[*.sh]\nindent_style = space\nindent_size = 2'
 n=0
@@ -44,14 +35,6 @@ new_repo() {
   printf '#!/usr/bin/env bash\necho seed\n' >"$REPO/seed.sh"
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
-}
-
-check() {
-  local repo="$1" out rc
-  shift
-  out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
-  rc=$?
-  printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
 SHEBANG='#!/usr/bin/env bash'
@@ -410,18 +393,6 @@ $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/a.sh"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-merge_repo() {
-  new_repo
-  git -C "$REPO" checkout -q -b side
-  printf '%s\nif true; then\n\tcd /tmp\nfi\n' "$SHEBANG" >"$REPO/x.sh"
-  git -C "$REPO" add x.sh
-  git -C "$REPO" commit -q -m side --no-verify
-  git -C "$REPO" checkout -q main
-  printf '%s\necho main\n' "$SHEBANG" >"$REPO/main.sh"
-  git -C "$REPO" add main.sh
-  git -C "$REPO" commit -q -m main --no-verify
-  git -C "$REPO" merge -q --no-commit side >/dev/null 2>&1
-}
 merge_repo
 expect "merge: the merge is in progress" yes "$([[ -f "$REPO/.git/MERGE_HEAD" ]] && echo yes)"
 expect "merge: an inherited script with a finding passes" "0||" "$(check "$REPO")"

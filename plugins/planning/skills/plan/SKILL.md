@@ -376,7 +376,7 @@ Write the plan even for small changes; only the one-sentence skip (Purpose) writ
 
 **Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; re-render any derived copy ("Reader depth") and refresh the pull request body or linked issue paste so the published copy carries them (under `plan_store: tracker`, rerun `publish-plan`, which edits its comment in place). Do not silently rewrite history.
 
-**After writing, recommend:** clear context and begin implementation. The implementing session reads PLAN.md for the execution roadmap.
+**After writing, recommend:** begin implementation in a fresh session. The implementing session reads PLAN.md for the execution roadmap. When the `session-flow` plugin is enabled, `/session-flow:workflow` names how that session starts (`/clear`, or on the desktop app a new session the user starts from the handoff); otherwise clear context.
 
 ## What This Skill Does Not Do
 

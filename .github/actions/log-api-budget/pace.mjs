@@ -25,28 +25,19 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { projectedLeft } from "../check-kill-switch/projection.mjs";
 import { apiLimitsOrBuiltIn, countRequests } from "./rate-guard.mjs";
-
-// GitHub's primary rate-limit window.
-const WINDOW_SECONDS = 3600;
-// Before this much of the window has passed, the burn rate is too short to project.
-const MIN_ELAPSED_SECONDS = 60;
 
 const round = (value) => Math.round(value * 100) / 100;
 
-// { paced, projected } for one reading at `now` (epoch seconds): projected is
-// the share of the header's limit left at the reset, at the window's burn
-// rate so far, clamped to 0..1.
-export function paceDecision({ limit, remaining, reset } = {}, share, now) {
-  const left = reset - now;
-  if (![limit, remaining, reset].every(Number.isFinite) || limit <= 0 || remaining < 0 || remaining > limit || left < 0 || !(share > 0)) {
-    return { paced: false, projected: null };
-  }
-  const elapsed = WINDOW_SECONDS - Math.min(left, WINDOW_SECONDS);
-  const used = limit - remaining;
-  const atReset = elapsed < MIN_ELAPSED_SECONDS ? remaining : remaining - (used * left) / elapsed;
-  const projected = Math.max(0, atReset) / limit;
-  return { paced: projected < share, projected: round(projected) };
+export function paceDecision(reading, share, now) {
+  const projected = share > 0 ? projectedLeft(reading, now) : null;
+  return projected === null ? { paced: false, projected: null } : { paced: projected < share, projected: round(projected) };
+}
+
+export function paceShare(limits, file) {
+  const own = limits?.[`pace-${String(file ?? "").replace(/\.ya?ml$/, "")}`];
+  return limits?.pace > 0 && typeof own === "number" ? own : limits?.pace;
 }
 
 // The scheduled run before `runId`: the highest run id below it. Ids grow
@@ -74,9 +65,9 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
   let paced = false;
   if (env.EVENT_NAME === "schedule") {
     try {
-      const share = apiLimitsOrBuiltIn({ resolvedPath: env.RESOLVED_CONFIG })["github-token"].pace;
       const file = /\/\.github\/workflows\/([^/@]+)@/.exec(env.GITHUB_WORKFLOW_REF ?? "")?.[1];
       if (!file) throw new Error("GITHUB_WORKFLOW_REF names no workflow file");
+      const share = paceShare(apiLimitsOrBuiltIn({ resolvedPath: env.RESOLVED_CONFIG })["github-token"], file);
       const api = env.GITHUB_API_URL ?? "https://api.github.com";
       // Counted for the job-end api-calls notice like any guarded call.
       const get = (path) =>
