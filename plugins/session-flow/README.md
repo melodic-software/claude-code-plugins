@@ -445,8 +445,10 @@ delivered. Bare, started inside the night window, the report is due at the next 
 started outside it, the absence lasts until you return. Launch words override the settings, and an unclear absence
 is asked about at launch. Launch warns when the context is heavy or auto mode is off, and
 proposes a `/goal` line; the Stop hook holds the same condition without one. Asked for a fresh
-session, it offers to stay in this session armed or hand off to a background session unarmed. Opt-in only:
-nothing runs unless invoked. The settings are the five `away_*` options in "Options reference";
+session, it offers to stay in this session armed or hand off to a background session unarmed. Opt-in
+only: the plugin's PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks run in every
+session but do nothing until an absence is started, and exit before Python starts while none
+exists. The settings are the five `away_*` options in "Options reference";
 `/session-flow:setup` reports each and checks that every watched folder exists.
 
 ```shell
