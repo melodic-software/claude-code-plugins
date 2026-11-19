@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node /p/scripts/work-root.mjs --library-dir '.'", "description": "run"}}], "why": "work-root resolution"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /p/scripts/repo-visibility.mjs /w", "description": "run"}}], "why": "visibility check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "jq '.phases' courses/teachable/robust-http-apis-hale/course.json", "description": "run"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d extract-course.js --course-dir courses/teachable/robust-http-apis-hale", "description": "run"}}], "why": "re-runs extraction"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d generate-manifests.js --course-dir courses/teachable/robust-http-apis-hale", "description": "run"}}], "why": "re-runs frame processing"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx playwright open https://courses.example.invalid/p/robust-http-apis", "description": "run"}}], "why": "browser"}
+  ]
+}
