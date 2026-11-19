@@ -20,11 +20,11 @@ Check-only per the uniform setup contract's carve-out for a plugin with no optio
 (default and only action) verifies and reports. The server keeps its credential outside this
 skill, so it never manages it.
 
-**Mechanism note (why this skill does not read `/mcp`):** `/mcp` is a human-run interactive
-command. No tool exposes its output to a model turn. The one model-visible signal for a failed
-remote server is the connection error Claude Code itself reports to Claude, which this skill reads
-when it is present and never assumes when it is absent. This skill is built around that
-constraint, not around reading `/mcp` connection status directly.
+**Mechanism note (why this skill does not read `/mcp`):** `/mcp` is the user's command, and this
+skill reports only from what reaches its own turn: the tool inventory, and a connection error
+Claude Code reports for a failed remote server, read when it is present and never assumed when it
+is absent. It never reads or claims `/mcp` connection status, so a report never rests on output
+the skill did not see.
 
 - **Pointer**: when deciding what a missing Dometrain tool can tell this skill, fetch
   [How Claude learns that a server failed](https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed)
@@ -132,4 +132,4 @@ collision warning instead.
   marketplace repository).
 - Do not call a Dometrain tool during setup. Resolution via tool inventory / `ToolSearch` is
   sufficient and spends no quota.
-- Do not claim to have read `/mcp` connection status. No tool exposes it to a model turn.
+- Do not claim to have read `/mcp` connection status (the mechanism note in Purpose says why).
