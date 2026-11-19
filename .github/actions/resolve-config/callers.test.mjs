@@ -25,7 +25,7 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { contractAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
@@ -2807,6 +2807,39 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
             assert.ok(at >= 0 && args[at + 1] === "none", `${pin} cliArgs (${permissionMode}, sandbox ${sandbox}, effort "${effort}", ${list.length} tools): ${args.join(" ")}`);
           }
   }
+});
+
+const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const [pin] = job.steps.map((step) => String(step.uses ?? "").match(new RegExp(`^melodic-software/ci-workflows/${composite}@([0-9a-f]{40})$`))?.[1]).filter(Boolean);
+  assert.ok(pin, "ci-status pins report-ci-status to a full SHA");
+  const action = async (path) => parse(await fetchAtPin(pin, `${path}/action.yml`));
+  const waits = {};
+  let rerun = 0;
+  for (const step of (await action(composite)).runs.steps) {
+    if (!step.uses?.startsWith("$/")) continue;
+    const path = step.uses.slice(2);
+    const { inputs } = await action(path);
+    const value = (key) => Number(step.with?.[key] ?? inputs[key]?.default ?? 0);
+    if (inputs["rate-limit-wait-seconds"]) waits[path.split("/").pop()] = value("rate-limit-wait-seconds");
+    rerun += value("rerun-wait-seconds");
+  }
+  for (const name of ["check-contract", "aggregate-results"]) assert.ok(name in waits, `report-ci-status at ${pin} runs ${name} with a rate-limit-wait-seconds input`);
+  for (const [name, seconds] of Object.entries(waits)) {
+    assert.ok(seconds <= WAIT_BUDGET_SECONDS.step, `${name}'s rate-limit-wait-seconds at ${pin} is ${seconds}, over WAIT_BUDGET_SECONDS.step ${WAIT_BUDGET_SECONDS.step}`);
+  }
+  const delays = (await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/run.sh")).match(/^OWN_GATE_RETRY_DELAYS='([0-9 ]+)'$/m)?.[1];
+  assert.ok(delays, `aggregate-results/run.sh at ${pin} sets OWN_GATE_RETRY_DELAYS`);
+  const ownGate = delays.split(" ").reduce((sum, seconds) => sum + Number(seconds), 0);
+  const margin = job.env.GH_READ_MARGIN_SECONDS;
+  const total = Object.values(waits).reduce((sum, seconds) => sum + seconds, rerun + ownGate + STATUS_WRITE_RETRY_SECONDS);
+  assert.ok(
+    total <= margin,
+    `report-ci-status's rate-limit waits ${JSON.stringify(waits)}, ${rerun} s rerun wait, ${ownGate} s own-gate retries and ${STATUS_WRITE_RETRY_SECONDS} s status writes at ${pin} total ${total} s, over GH_READ_MARGIN_SECONDS ${margin}`,
+  );
 });
 
 // Each launcher leg is followed by a check that the CLI's init message
