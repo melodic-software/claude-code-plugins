@@ -993,3 +993,23 @@ def test_file_walk_budget(ctx, monkeypatch):
     assert "- Scan stopped after 0 s; the list is incomplete." in block(ctx.report().read_text(encoding="utf-8"), "files")
     monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 120.0)
     assert away.scan_files([str(ctx.home)], 0.0, set()).complete is True
+
+
+def test_file_scan_cut_short_leaves_an_honest_line(ctx, monkeypatch):
+    """A caller's timeout can kill the walk; the report then says the list is incomplete, not None."""
+    ctx.start()
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
+    monkeypatch.setenv("HOME", str(ctx.home))
+
+    def killed(*_args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(away, "scan_files", killed)
+    with pytest.raises(KeyboardInterrupt):
+        away.main(["refresh", "--session", SESSION, "--files"])
+    files = block(ctx.report().read_text(encoding="utf-8"), "files")
+    assert "Scan in progress" in files and "None." not in files
+
+
+def test_scan_budget_stays_under_the_bash_default_timeout():
+    assert away.SCAN_BUDGET_SECONDS <= 60, "the walk plus transcript and git reads must finish inside two minutes"

@@ -20,8 +20,10 @@ whenever a hook note names it.
 
 The away script is `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py"`, called `away.py` below;
 every call carries `--session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`, the data
-root passed as a literal argument in double quotes, since the Bash tool's environment does not
-carry it and the hooks read state from there. Its `--help` lists the commands.
+root always passed as a literal argument in double quotes, so the script writes where the hooks
+read. Pointer: when checking which variables a Bash command gets, fetch
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. Its `--help`
+lists the commands.
 
 ## Launch, while the person is still here
 
@@ -57,8 +59,11 @@ state has silent hooks: prompts would wait all night and no report would exist.
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" start --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --kind <kind> [--until <ISO>] [--scope "<scope words>"] --task-file <task file> --setting 'away_night_start=${user_config.away_night_start}' --setting 'away_report_by_workday=${user_config.away_report_by_workday}' --setting 'away_report_by_day_off=${user_config.away_report_by_day_off}' --setting 'away_days_off=${user_config.away_days_off}' --setting 'away_watched_folders=${user_config.away_watched_folders}'
    ```
 
-   Keep the settings in single quotes: an unset option arrives as a literal `${user_config.…}`,
-   which bash would reject inside double quotes, and the script treats it as unset.
+   Keep the settings in single quotes; the script treats an unexpanded `${user_config.…}` token as
+   unset. Before running it, check each filled-in value: one that holds a single quote is an
+   invalid setting, so stop the launch and name the option instead of running the command.
+   Pointer: when checking how plugin options are substituted, fetch
+   <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
    A non-zero exit stops the launch: tell the person it failed, quote the error, and say the
    session is not armed. Do not start the work. After every `start` that exits 0, run

@@ -70,7 +70,7 @@ DETAIL_LIMIT = 300
 FIELD_LIMIT = 200
 FILES_LIMIT = 200
 LIST_LIMIT = 10
-SCAN_BUDGET_SECONDS = 120.0
+SCAN_BUDGET_SECONDS = 60.0
 
 NEEDS_YOU, FOUND, NOTES = "Needs you", "Found", "Additional notes"
 HEADINGS = (NEEDS_YOU, "Decided while you were away", "Waiting on me", "Done", FOUND, NOTES)
@@ -891,6 +891,7 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
         return
     clock = time.monotonic()
     watched = state.get("watched") or [str(Path.home())]
+    write_blocks(state, {"files": ["- Scan in progress; if this line stays, the scan was cut short and the list is incomplete."]})
     scan = scan_files(watched, started.timestamp(), run_roots(state, cwds))
     seconds = time.monotonic() - clock
     file_lines = [

@@ -88,7 +88,8 @@ names the parked item), and keep working. Other merges follow the repository's o
 These leave a run waiting with no one to answer:
 
 - interactive commands: editors, `-i` flags, credential or passphrase prompts, pagers;
-- network calls inside a sandboxed command (their prompt reaches no hook);
+- network calls inside a sandboxed command: avoid them (pointer, for which prompts reach the
+  hook: <https://code.claude.com/docs/en/hooks#permissionrequest>);
 - polling CI or a review in the foreground: wait with Monitor or a background command, so the
   Stop check passes while it runs;
 - MCP tools that ask the person a question;
