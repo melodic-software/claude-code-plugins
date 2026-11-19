@@ -1482,6 +1482,17 @@ test('a masked frame that never redraws fails the screenshot with no capture and
   }
 });
 
+test('the data directory is named for the marketplace the install sits under, as Claude Code names it', () => {
+  assert.equal(driver.pluginDataId('/cfg/plugins/cache/acme/harness-ops/1.2.0'), 'harness-ops-acme');
+  assert.equal(driver.pluginDataId('D:\\cfg\\plugins\\cache\\my.market\\harness-ops\\1.2.0'), 'harness-ops-my-market');
+});
+
+test('outside the plugin cache the data directory is a --plugin-dir session\'s, harness-ops-inline', () => {
+  for (const root of ['/repo/plugins/harness-ops', '/opt/ccd', '/x/plugins/cache/acme/harness-ops', '/x/plugins/cache/acme/harness-ops/1.0/extra']) {
+    assert.equal(driver.pluginDataId(root), 'harness-ops-inline', root);
+  }
+});
+
 // ---- changed plugins ----
 
 test('plugins names each changed plugin once, in order, and nothing for a file outside a plugin', () => {

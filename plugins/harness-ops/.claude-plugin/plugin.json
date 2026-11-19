@@ -71,6 +71,26 @@
       "type": "string",
       "title": "Lane GitHub app slug",
       "description": "Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^[a-z0-9][a-z0-9-]*$."
+    },
+    "probe_state_issue": {
+      "type": "string",
+      "title": "Cloud-routine probe issue",
+      "description": "Issue, as owner/repo#number, the cloud-routine behavior probe creates its routine on and posts two state comments to. Unset: that case is skipped. A repository's probe_state_issue in harness-ops.yaml beats this option."
+    },
+    "otel_store_reset_doc": {
+      "type": "string",
+      "title": "OTEL store reset doc",
+      "description": "URL or path of your machine provisioning's documented full reset of the OTEL store, which observability names when asked to wipe it. Unset: it names the step without a link."
+    },
+    "otel_collector_config_ref": {
+      "type": "string",
+      "title": "OTEL collector config reference",
+      "description": "URL or path of the Collector configuration your machine provisioning installs, which observability names as the pipeline's source. Unset: it describes the configuration without a link."
+    },
+    "otel_dashboards_compose_ref": {
+      "type": "string",
+      "title": "OTEL dashboard stack reference",
+      "description": "URL or path of the compose file your machine provisioning declares the Aspire dashboard containers in. Unset: observability describes the stack without a link."
     }
   }
 }

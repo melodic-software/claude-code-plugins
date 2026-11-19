@@ -183,14 +183,42 @@ export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   appendFileSync(outputPath, text);
 }
 
-export async function main(env = process.env, { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS } = {}) {
+async function waitBudget(value, log) {
+  if (!value) return 0;
+  try {
+    const { SERVER_RETRY_BUDGET_MS, waitBudgetMs } = await import("../log-api-budget/rate-guard.mjs");
+    const ms = waitBudgetMs(value);
+    return ms > SERVER_RETRY_BUDGET_MS ? ms : 0;
+  } catch (error) {
+    log(`::warning title=start-gate::the wait budget could not be read (${clean(error?.code ?? error?.message)}); a budget stop does not wait`);
+    return 0;
+  }
+}
+
+export async function main(
+  env = process.env,
+  { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {},
+) {
   let result = { ...checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE), reset: "" };
   if (result.proceed === "true" && env.BUDGET_CHECK === "true") {
     const share = startGateShare(rateLimits, log);
     if (share) {
       const projection = env.PROJECT_CHECK === "true" ? projectionGate(rateLimits, log) : null;
-      const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, projection, now: now() / 1000, fetchImpl });
+      const read = () => checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, projection, now: now() / 1000, fetchImpl });
+      const stoppedAt = Math.floor(now() / 1000);
+      let budget = await read();
       log(budget.line);
+      const waitMs = budget.stop ? Math.max(0, budget.reset * 1000 - now()) + 1000 : 0;
+      if (budget.stop && waitMs <= (await waitBudget(env.WAIT_SECONDS, log))) {
+        const seconds = Math.ceil(waitMs / 1000);
+        log(`::notice title=start-gate::the GITHUB_TOKEN budget stops this start until ${budget.reset}; it waits ${seconds}s for the reset, then reads the budget once more`);
+        await sleep(waitMs);
+        budget = await read();
+        log(budget.line);
+        if (!budget.stop) {
+          log(`::notice title=start-gate::started after the reset: the start the budget stopped at ${stoppedAt} goes ahead after a ${seconds}s wait`);
+        }
+      }
       if (budget.stop) {
         result = { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(budget.reset) };
       }

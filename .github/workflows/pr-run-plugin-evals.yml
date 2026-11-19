@@ -505,10 +505,6 @@ jobs:
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
-      # Proof that the managed policy holds before any pull request case runs,
-      # for each of the three tools a case can use to read a file: one Claude
-      # Code run is told to Read /proc/self/environ and the runner's .runner
-      # file, Grep /proc/self/environ, and Glob for environ under /proc/self.
       # The job stops unless permission_denials (code.claude.com/docs/en/
       # agent-sdk/typescript, "SDKResultMessage", as of 2026-10-28) in the
       # result records each of the four calls as denied, or if the result holds
@@ -546,7 +542,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
@@ -1232,7 +1228,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
@@ -1811,7 +1807,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"

@@ -39,24 +39,8 @@ export IP_MECHANICS_RECORD="$MECHANICS_FIXTURE"
 IP_CLAUDE_BIN="$(fake_claude 2.1.278)"
 export IP_CLAUDE_BIN
 
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-assert_contains() {
-  if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # A repository whose rules live in three places the root-only `find` cannot see
 # as one set: the root tree, a nested package tree, and a symlinked shared set.
