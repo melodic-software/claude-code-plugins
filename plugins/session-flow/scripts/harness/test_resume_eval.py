@@ -13,6 +13,8 @@ del _leaked_git_var
 
 import resume_eval  # noqa: E402
 
+PLUGIN = resume_eval.HERE.parents[1]
+
 
 def test_history_renders_a_parent_chained_transcript():
     turns = [
@@ -663,8 +665,6 @@ def test_run_jobs_starts_no_more_than_the_writer_run_budget(tmp_path):
 
 
 def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, capsys):
-    import argparse
-
     def row(index, error):
         return {
             "case": "re-a",
@@ -689,10 +689,11 @@ def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, 
         ),
         encoding="utf-8",
     )
-    resume_eval.cmd_report(
-        argparse.Namespace(graded=str(graded), out=str(tmp_path / "rep"))
+    code = resume_eval.main(
+        ["report", "--graded", str(graded), "--out", str(tmp_path / "rep")]
     )
     assert "before.codex: 2 kept, 1 excluded" in capsys.readouterr().out
+    assert code == 0
 
 
 def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
@@ -809,10 +810,11 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
         ]
         return 0, "\n".join(json.dumps(e) for e in events), ""
 
+    case["seed"]["predecessor"]["shape"] = 2
     cfg = resume_eval.RunConfig(
         root=tmp_path / "root",
         tmpdir=str(tmp_path),
-        copies={"before": "/c/before"},
+        copies={"before": str(PLUGIN)},
         codex_model="m",
         call=fake,
         python=sys.executable,
@@ -835,6 +837,8 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
         p["id"] for p in case["probes"] if "before" in p.get("arms", resume_eval.ARMS)
     }
     assert graded["m1"] == 11 + 11
+    assert graded["reader_m1"] == 11 and graded["reader_whole_m1"] == 11
+    assert len(graded["seed_hash"]) == 64
     kept = tmp_path / "out" / case["name"] / "before" / "0" / "claude-code"
     assert (
         (kept / "gh-calls.log").read_text(encoding="utf-8").startswith("pr view 4318")
@@ -843,6 +847,7 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     assert not any((home / ".claude" / "projects").iterdir())
     codex = both[1]
     assert codex["reader"] == "codex" and codex["error"] is None, codex
+    assert codex["reader_m1"] == 7 and codex["seed_hash"] == graded["seed_hash"]
     assert codex["m1"] == 11 + 7
     assert sum(1 for c in calls if c == case["writer"]["prompts"]["before"]) == 1
     kept_codex = tmp_path / "out" / case["name"] / "before" / "0" / "codex"
@@ -960,10 +965,11 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
                 )
         return 0, "\n".join(json.dumps(e) for e in events), ""
 
+    case["seed"]["predecessor"]["shape"] = 2
     cfg = resume_eval.RunConfig(
         root=tmp_path / "root",
         tmpdir=str(tmp_path),
-        copies={"before": "/c/before"},
+        copies={"before": str(PLUGIN)},
         codex_model="m",
         call=fake,
         python=sys.executable,
@@ -972,7 +978,7 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(home)
     try:
-        run = resume_eval.seed_run(case, cfg.root / "r", origin, cfg)
+        run = resume_eval.seed_run(case, cfg.root / "r", origin, cfg, "before")
         written = resume_eval.write_stage(case, "before", run, cfg)
     finally:
         os.environ["HOME"] = old_home or ""
@@ -1372,3 +1378,407 @@ def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
             assert not (repo / ".work" / "handoffs").exists(), overrides
         else:
             raise AssertionError(f"accepted {overrides}")
+
+
+def _result(**fields):
+    event = {"type": "result", "result": "ok", "num_turns": 1, "is_error": False}
+    event.update(fields)
+    return [event]
+
+
+def test_a_behavior_failure_scores_0_and_an_infrastructure_one_is_re_run():
+    S, C = resume_eval.Source, resume_eval.Cause
+    cases = [
+        (S.WRITER, 0, "", _result(num_turns=0), C.BEHAVIOR),
+        (
+            S.READER,
+            0,
+            "",
+            _result(permission_denials=[{"tool_name": "Bash"}]),
+            C.BEHAVIOR,
+        ),
+        (S.FOLLOW_UP, 0, "", _result(is_error=True, result="boom"), C.BEHAVIOR),
+        (
+            S.READER,
+            1,
+            "You've hit your session limit · resets 4pm",
+            [],
+            C.INFRASTRUCTURE,
+        ),
+        (
+            S.WRITER,
+            1,
+            "Sandbox is required but failed to initialize",
+            [],
+            C.INFRASTRUCTURE,
+        ),
+        (S.READER, 7, "segfault", [], C.INFRASTRUCTURE),
+        (S.JUDGE, 0, "", _result(num_turns=0), C.INFRASTRUCTURE),
+    ]
+    for source, code, err, events, cause in cases:
+        out = "\n".join(json.dumps(e) for e in events)
+        got = resume_eval.exclusion(source, code, out, err, events)
+        assert got is not None and got.cause is cause, (source, err, events, got)
+    assert resume_eval.exclusion(S.READER, 0, "", "", _result()) is None
+    assert resume_eval.Exclusion(S.WRITER, resume_eval.Kind.NO_HANDOFF, "x").cause is (
+        C.BEHAVIOR
+    )
+
+
+def test_codex_whole_run_tokens_count_turns_past_the_first_state_change():
+    events = [
+        {"type": "item.completed", "item": {"type": "file_change", "changes": []}},
+        {"type": "turn.completed", "usage": {"input_tokens": 100, "output_tokens": 7}},
+        {"type": "turn.completed", "usage": {"input_tokens": 40, "output_tokens": 3}},
+    ]
+    assert resume_eval.codex_tokens(events)["m1"] == 107
+    whole = resume_eval.codex_tokens(events, whole=True)
+    assert whole["m1"] == 150 and whole["turns"] == 2
+    assert whole["state_change"] == "file_change"
+
+
+def test_each_arm_seeds_with_its_own_copy_and_the_skill_less_arms_with_before():
+    from pathlib import Path
+
+    copies = {"before": "/c/before", "after": "/c/after", "compact": None}
+    want = {
+        "before": "/c/before",
+        "after": "/c/after",
+        "after-promoted": "/c/after",
+        "compact": "/c/before",
+        "free-hand": "/c/before",
+    }
+    for arm, root in want.items():
+        got = resume_eval.seed_save_point(copies, arm)
+        assert got == Path(root) / "scripts" / "save_point.py", arm
+    try:
+        resume_eval.seed_save_point({"after": "/c/after"}, "compact")
+    except ValueError as exc:
+        assert "before" in str(exc)
+    else:
+        raise AssertionError("seeded the compact arm with no before copy")
+
+
+def test_run_jobs_counts_a_behavior_failure_done_and_re_runs_infrastructure(
+    tmp_path, capsys
+):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["claude-code"], i) for i in range(3)]
+    errors = {
+        0: "writer produced no resume prompt or no new handoff file",
+        1: "reader: marker: Sandbox is required but failed to initialize",
+    }
+    code = resume_eval.run_jobs(jobs, _job_runner(errors, []), tmp_path, 1)
+    assert code == 6
+    assert "1 run excluded for infrastructure" in capsys.readouterr().out
+    ran = []
+    assert resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 1) == 0
+    assert ran == [1]
+
+
+def test_a_seed_that_differs_between_runs_fails_the_batch(tmp_path, capsys):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["claude-code"], i) for i in range(4)]
+    hashes = {0: "aa", 1: "aa", 2: "bb", 3: "aa"}
+
+    def runner(case, arm, readers, index, out_dir):
+        rows = _job_runner({}, [])(case, arm, readers, index, out_dir)
+        for row in rows:
+            row["seed_hash"] = hashes[index]
+        return rows
+
+    assert resume_eval.run_jobs(jobs, runner, tmp_path, 1) == 5
+    assert "seed mismatch: case re-a arm before run 2" in capsys.readouterr().out
+    lines = (tmp_path / "graded.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 3
+
+
+def test_run_refuses_an_arm_with_no_save_point_to_seed_from(tmp_path):
+    assert (
+        resume_eval.seed_problems({"before": str(PLUGIN)}, ["before", "compact"]) == []
+    )
+    problems = resume_eval.seed_problems(
+        {"before": str(tmp_path)}, ["before", "free-hand"]
+    )
+    assert len(problems) == 2 and all("save_point.py" in p for p in problems)
+    assert resume_eval.seed_problems({}, ["compact"])[0].startswith("no plugin copy")
+
+
+CASE_PROBES = {
+    "probes": [
+        {"id": "acts", "grade": "must-act"},
+        {"id": "handoff-only", "grade": "must-act", "arms": ["after"]},
+        {"id": "after-acts", "grade": "must-act", "requires": "acts"},
+        {"id": "answers", "grade": "text"},
+    ]
+}
+
+
+def test_a_behavior_exclusion_scores_every_probe_of_the_run_0():
+    S, K = resume_eval.Source, resume_eval.Kind
+    row = {"probes": {}, "error": None}
+    resume_eval.mark_excluded(
+        row,
+        resume_eval.Exclusion(S.WRITER, K.NO_HANDOFF, "writer: none"),
+        CASE_PROBES,
+        "before",
+    )
+    assert row["error"] is None and row["nondelivery"] == "writer: none"
+    assert row["probes"] == {"acts": False, "answers": False}
+    assert row["exclusion"] == {
+        "source": "writer",
+        "kind": "no-handoff",
+        "cause": "behavior",
+    }
+    infra = {"probes": {}, "error": None}
+    resume_eval.mark_excluded(
+        infra,
+        resume_eval.Exclusion(S.JUDGE, K.NO_VERDICT, "judge: x"),
+        CASE_PROBES,
+        "before",
+    )
+    assert infra["error"] == "judge: x" and infra["probes"] == {}
+    assert "nondelivery" not in infra
+
+
+def _row(case, arm, index, probes, reader="claude-code", **extra):
+    return {
+        "case": case,
+        "arm": arm,
+        "reader": reader,
+        "index": index,
+        "probes": probes,
+        "error": None,
+        **extra,
+    }
+
+
+def _graded_file(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return path
+
+
+def _report(tmp_path, capsys, graded, *extra):
+    args = ["report", "--out", str(tmp_path / "rep")]
+    for path in graded:
+        args += ["--graded", str(path)]
+    code = resume_eval.main([*args, *extra])
+    return code, capsys.readouterr().out
+
+
+def _evals(tmp_path, specs):
+    root = tmp_path / "evals"
+    for spec in specs:
+        (root / spec["name"]).mkdir(parents=True)
+        (root / spec["name"] / "resume-eval.json").write_text(
+            json.dumps(spec), encoding="utf-8"
+        )
+    return root
+
+
+SINGLE_ARM = [
+    _row(
+        "re-a",
+        "before",
+        0,
+        {"p1": True, "p2": True},
+        reader_m1=100,
+        reader_whole_m1=150,
+    ),
+    _row(
+        "re-a",
+        "before",
+        1,
+        {"p1": True, "p2": False},
+        reader_m1=300,
+        reader_whole_m1=350,
+    ),
+    {
+        **_row("re-b", "before", 0, {}),
+        "error": "writer produced no resume prompt or no new handoff file",
+    },
+    _row("re-b", "before", 1, {"p1": True}, reader_tokens={"m1": 50}),
+]
+
+
+def test_report_prints_accuracy_tokens_and_pass_counts_per_case(tmp_path, capsys):
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", SINGLE_ARM)
+    code, out = _report(tmp_path, capsys, [graded], "--threshold", "0.7")
+    assert code == 0, out
+    assert "before.claude-code: 4 kept, 0 excluded, 1 scored 0 for non-delivery" in out
+    assert (
+        "re-a: accuracy 0.75 over 2 runs; reader m1 200; whole-run m1 250; pass" in out
+    )
+    assert (
+        "re-b: accuracy 0.50 over 2 runs; reader m1 50; whole-run m1 n/a; fail" in out
+    )
+    assert "pass count 1/2 at T=0.70" in out
+    assert "left out" not in out
+    doc = json.loads((tmp_path / "rep" / "before.claude-code.json").read_text())
+    scores = {c["name"]: [r["score"] for r in c["arms"]["with"]] for c in doc["cases"]}
+    assert scores == {"re-a": [1.0, 0.5], "re-b": [0.0, 1.0]}
+
+
+def test_report_fails_on_an_excluded_or_missing_run(tmp_path, capsys):
+    rows = [
+        *SINGLE_ARM,
+        {**_row("re-a", "before", 2, {}), "error": "reader: CLI exited 1: boom"},
+    ]
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    code, out = _report(tmp_path, capsys, [graded])
+    assert code == 1
+    assert (
+        "left out: case re-a in before.claude-code: run 2 excluded (reader: CLI exited 1: boom)"
+        in out
+    )
+    assert "left out: case re-b in before.claude-code: run 2 has no row" in out
+
+
+PAIR_SPECS = [
+    {
+        "name": name,
+        "probes": [{"id": "p1"}, {"id": "p2", "arms": ["after"]}],
+    }
+    for name in ("re-a", "re-b", "re-c")
+]
+
+
+def _pair_rows():
+    before = {"re-a": (True, True), "re-b": (True, False), "re-c": (True, True)}
+    after = {"re-a": (True, True), "re-b": (True, True), "re-c": (False, True)}
+    m1_before = {"re-a": 100, "re-b": 200, "re-c": 300}
+    m1_after = {"re-a": 50, "re-b": 100, "re-c": 300}
+    rows = []
+    for case in before:
+        for i in range(2):
+            rows.append(
+                _row(
+                    case,
+                    "before",
+                    i,
+                    {"p1": before[case][i]},
+                    reader_m1=m1_before[case],
+                )
+            )
+            rows.append(
+                _row(
+                    case,
+                    "after",
+                    i,
+                    {"p1": after[case][i], "p2": False},
+                    reader_m1=m1_after[case],
+                )
+            )
+    return rows
+
+
+def test_a_pair_scores_shared_probes_and_reports_drops_and_token_change(
+    tmp_path, capsys
+):
+    import subprocess
+    import sys
+
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", _pair_rows())
+    evals = _evals(tmp_path, PAIR_SPECS)
+    code, out = _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--threshold",
+        "0.9",
+        "--evals-dir",
+        str(evals),
+    )
+    assert code == 1, out
+    pair = "after.claude-code vs before.claude-code"
+    assert f"pair {pair}: accuracy change +0.00" in out
+    assert (
+        f"pair {pair}: reader m1 to first action change -50 (-25.0% of baseline)" in out
+    )
+    assert "case drop: case re-c in after.claude-code fell from 1.00 to 0.50" in out
+    assert (
+        "pass-to-fail: case re-c passes in before.claude-code (1.00) and fails in after.claude-code (0.50) at T=0.90"
+        in out
+    )
+    assert "re-a" not in [
+        line.split()[2] for line in out.splitlines() if line.startswith("case drop")
+    ]
+    folder = tmp_path / "rep" / "pairs" / "after.claude-code--vs--before.claude-code"
+    after = json.loads((folder / "after.claude-code.json").read_text())
+    re_a = next(c for c in after["cases"] if c["name"] == "re-a")
+    assert [g["name"] for g in re_a["arms"]["with"][0]["graders"]] == ["p1"]
+    script = PLUGIN.parents[0] / "evals/skills/plugin-eval/scripts/noise-report.py"
+    compared = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            str(folder / "after.claude-code.json"),
+            "--baseline",
+            str(folder / "before.claude-code.json"),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "not comparable" not in compared and "case drop: case re-c" in compared
+
+
+def test_two_graded_files_of_one_arm_stay_apart_for_an_a_a_pair(tmp_path, capsys):
+    rows = [
+        _row(c, "before", i, {"p1": True}) for c in ("re-a", "re-b") for i in range(2)
+    ]
+    first = _graded_file(tmp_path / "aa1" / "graded.jsonl", rows)
+    second = _graded_file(tmp_path / "aa2" / "graded.jsonl", rows)
+    evals = _evals(tmp_path, PAIR_SPECS)
+    code, out = _report(
+        tmp_path,
+        capsys,
+        [first, second],
+        "--baseline",
+        "before.claude-code@1",
+        "--evals-dir",
+        str(evals),
+    )
+    assert code == 0, out
+    assert (
+        "before.claude-code@1: 4 kept" in out and "before.claude-code@2: 4 kept" in out
+    )
+    assert (
+        "pair before.claude-code@2 vs before.claude-code@1: accuracy change +0.00"
+        in out
+    )
+
+
+def test_a_subset_keeps_its_tagged_cases_and_fails_on_an_untagged_one(tmp_path, capsys):
+    rows = [_row(c, "before", 0, {"p1": True}) for c in ("re-a", "re-b", "re-c")]
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    specs = [
+        {"name": "re-a", "task_relation": "same", "probes": []},
+        {"name": "re-b", "task_relation": "boundary", "probes": []},
+        {"name": "re-c", "probes": []},
+    ]
+    code, out = _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--subset",
+        "same",
+        "--evals-dir",
+        str(_evals(tmp_path, specs)),
+    )
+    assert code == 1
+    assert "re-a: accuracy" in out and "re-b: accuracy" not in out
+    assert "untagged: case re-c has no task_relation" in out
+
+
+def test_report_fails_when_a_case_was_seeded_differently(tmp_path, capsys):
+    rows = [
+        _row("re-a", "before", 0, {"p1": True}, seed_hash="a" * 64),
+        _row("re-a", "before", 1, {"p1": True}, seed_hash="b" * 64),
+    ]
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    code, out = _report(tmp_path, capsys, [graded])
+    assert code == 1 and "seed mismatch: case re-a arm before" in out

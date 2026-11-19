@@ -14,6 +14,7 @@ Stdlib only; Python 3.10+.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -315,8 +317,8 @@ def reader_tokens(events: list[dict], *, whole: bool = False) -> dict:
     }
 
 
-def codex_tokens(events: list[dict]) -> dict:
-    """Token metrics of a `codex exec --json` run.
+def codex_tokens(events: list[dict], *, whole: bool = False) -> dict:
+    """Token metrics of a `codex exec --json` run (with `whole`, of every turn).
 
     Codex reports usage per turn only (probes.md P5), so every turn up to and including
     the one holding the first state change counts whole. `input_tokens` already includes
@@ -344,7 +346,7 @@ def codex_tokens(events: list[dict]) -> dict:
             turns += 1
             m1 += used
             m3 += used - int(usage.get("cached_input_tokens") or 0)
-            if state_change:
+            if state_change and not whole:
                 break
     return {"turns": turns, "state_change": state_change, "m1": m1, "m3": m3}
 
@@ -354,7 +356,8 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
 
     `noise-report.py --baseline` compares two such files case by case, so each arm gets
     its own file with the same case names. A graded run is
-    `{"case": <name>, "probes": {<probe id>: <passed>}, "error": <str|None>}`.
+    `{"case": <name>, "probes": {<probe id>: <passed>}, "error": <str|None>}`; one with
+    `nondelivery` scores 0 whatever its probes hold.
     """
     cases: dict[str, list[dict]] = {}
     for run in graded_runs:
@@ -363,6 +366,8 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
             for probe, passed in run["probes"].items()
         ]
         score = sum(g["passed"] for g in graders) / len(graders) if graders else None
+        if run.get("nondelivery"):
+            score = 0.0
         cases.setdefault(run["case"], []).append(
             {
                 "score": score,
@@ -734,12 +739,128 @@ def model_usage_total(events: list[dict]) -> dict:
     return totals
 
 
+class Cause(Enum):
+    """A behavior failure is the arm's own and scores 0; an infrastructure one is re-run."""
+
+    BEHAVIOR = "behavior"
+    INFRASTRUCTURE = "infrastructure"
+
+
+class Source(Enum):
+    WRITER = "writer"
+    READER = "reader"
+    FOLLOW_UP = "follow-up"
+    JUDGE = "judge"
+
+
+class Kind(Enum):
+    CLI_NO_OUTPUT = "cli-no-output"
+    SANDBOX = "sandbox"
+    USAGE_LIMIT = "usage-limit"
+    RESULT_ERROR = "result-error"
+    ZERO_TURNS = "zero-turns"
+    DENIED = "denied"
+    NO_HANDOFF = "no-handoff"
+    NO_VERDICT = "no-verdict"
+
+
+_RUN_BEHAVIOR = frozenset({Kind.RESULT_ERROR, Kind.ZERO_TURNS, Kind.DENIED})
+BEHAVIOR_KINDS: dict[Source, frozenset[Kind]] = {
+    Source.WRITER: _RUN_BEHAVIOR | {Kind.NO_HANDOFF},
+    Source.READER: _RUN_BEHAVIOR,
+    Source.FOLLOW_UP: _RUN_BEHAVIOR,
+    Source.JUDGE: frozenset(),
+}
+
+
+@dataclass(frozen=True)
+class Exclusion:
+    source: Source
+    kind: Kind
+    text: str
+
+    @property
+    def cause(self) -> Cause:
+        if self.kind in BEHAVIOR_KINDS[self.source]:
+            return Cause.BEHAVIOR
+        return Cause.INFRASTRUCTURE
+
+    def record(self) -> dict:
+        return {
+            "source": self.source.value,
+            "kind": self.kind.value,
+            "cause": self.cause.value,
+        }
+
+
+def exclusion(
+    source: Source,
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    events: list[dict],
+    allowed_denials=(),
+    label: str | None = None,
+) -> Exclusion | None:
+    """Why a call's run cannot be graded as delivered, classed by its source, or None.
+    `label` prefixes the text (default: the source)."""
+    found = exclusion_reason(returncode, stdout, stderr, events, allowed_denials)
+    if found is None:
+        return None
+    kind, detail = found
+    return Exclusion(source, kind, f"{label or source.value}: {detail}")
+
+
+def mark_excluded(graded: dict, excluded: Exclusion, case: dict, arm: str) -> None:
+    """Record why a run did not deliver. A behavior failure scores 0 on every probe the
+    run would have graded (a `requires` probe is never graded once its gate fails); an
+    infrastructure one stays an `error`, which `run` re-runs and `report` leaves out."""
+    graded["exclusion"] = excluded.record()
+    if excluded.cause is Cause.INFRASTRUCTURE:
+        graded["error"] = excluded.text
+        return
+    graded["nondelivery"] = excluded.text
+    graded["probes"] = {
+        probe["id"]: False
+        for probe in case["probes"]
+        if applies(probe, arm) and not probe.get("requires")
+    }
+
+
+LEGACY_BEHAVIOR_RE = re.compile(
+    r"result error: |: 0 turns$|denied tool calls: |writer produced no resume prompt"
+)
+
+
+def row_cause(row: dict) -> Cause | None:
+    """Why a graded row did not deliver, or None for a graded run. An older row names
+    its failure only in `error`, so the error text decides its cause."""
+    if row.get("exclusion"):
+        return Cause(row["exclusion"]["cause"])
+    if row.get("nondelivery"):
+        return Cause.BEHAVIOR
+    error = str(row.get("error") or "")
+    if not error:
+        return None
+    if not error.startswith("judge:") and LEGACY_BEHAVIOR_RE.search(error):
+        return Cause.BEHAVIOR
+    return Cause.INFRASTRUCTURE
+
+
+def _read_rows(path: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def exclusion_reason(
     returncode: int, stdout: str, stderr: str, events: list[dict], allowed_denials=()
-) -> str | None:
-    """Why a run cannot count (PLAN.md run rule d), or None."""
+) -> tuple[Kind, str] | None:
+    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why."""
     if returncode != 0 and not events:
-        return f"CLI exited {returncode}: {stderr.strip()[:200]}"
+        return Kind.CLI_NO_OUTPUT, f"CLI exited {returncode}: {stderr.strip()[:200]}"
     result = _result_event(events)
     # Only the CLI's own words count: stderr, an error result, or a tool error. Conversation
     # text (a seeded lane history, a case prompt) may mention limits without hitting one.
@@ -755,21 +876,21 @@ def exclusion_reason(
                     and block.get("is_error")
                 ):
                     own.append(str(block.get("content") or ""))
-    for marker in EXCLUDE_MARKERS:
+    for kind, marker in zip((Kind.SANDBOX, Kind.USAGE_LIMIT), EXCLUDE_MARKERS):
         if any(marker.search(text) for text in own):
-            return f"marker: {marker.pattern[:40]}"
+            return kind, f"marker: {marker.pattern[:40]}"
     if result is not None:
         if result.get("is_error"):
-            return f"result error: {str(result.get('result'))[:200]}"
+            return Kind.RESULT_ERROR, f"result error: {str(result.get('result'))[:200]}"
         if (
             int(result.get("num_turns") or 0) == 0
             and result.get("local_command") is None
         ):
-            return "0 turns"
+            return Kind.ZERO_TURNS, "0 turns"
         denied = [d.get("tool_name") for d in result.get("permission_denials") or []]
         extra = [name for name in denied if name not in allowed_denials]
         if extra:
-            return f"denied tool calls: {extra}"
+            return Kind.DENIED, f"denied tool calls: {extra}"
     return None
 
 
@@ -779,10 +900,38 @@ def _git(call, repo: Path, env: dict, *args: str) -> None:
         raise RuntimeError(f"git {' '.join(args)} failed: {err or out}")
 
 
-def seed_run(case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig) -> dict:
-    """One run's workspace: a clone of the base repo with the case seeded and committed,
-    a local bare `origin`, the stub `gh`, settings, an empty MCP config, and the seeded
-    writer session written into this repo's project key."""
+def seed_save_point(copies: dict, arm: str) -> Path:
+    """The `save_point.py` that seeds `arm`: its own plugin copy's, else the `before`
+    copy's for an arm that runs without one (`compact`, `free-hand`)."""
+    copy = copies.get(arm) or copies.get(arm_base(arm)) or copies.get("before")
+    if not copy:
+        raise ValueError(
+            f"no plugin copy seeds arm {arm!r}: pass --copy before=<plugin-copy>"
+        )
+    return Path(copy) / "scripts" / "save_point.py"
+
+
+def seed_problems(copies: dict, arms: list[str]) -> list[str]:
+    """Why an arm cannot be seeded, one line per arm; empty means every arm can."""
+    problems = []
+    for arm in arms:
+        try:
+            script = seed_save_point(copies, arm)
+        except ValueError as exc:
+            problems.append(str(exc))
+            continue
+        if not script.is_file():
+            problems.append(f"arm {arm!r}: {script} is not a file")
+    return problems
+
+
+def seed_run(
+    case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig, arm: str
+) -> dict:
+    """One run's workspace: a clone of the base repo with the case seeded and committed
+    by `arm`'s copy of `save_point.py`, a local bare `origin`, the stub `gh`, settings,
+    an empty MCP config, and the seeded writer session written into this repo's
+    project key."""
     import resume_cases  # sibling module; imported here so grading works without it
 
     call = cfg.call or default_call
@@ -802,7 +951,10 @@ def seed_run(case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig) -> dict
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         seeded[rel] = content.encode("utf-8")
-    chain = resume_cases.build_predecessor_chain(case, repo)
+    chain = resume_cases.build_predecessor_chain(
+        case, repo, save_point=seed_save_point(cfg.copies, arm)
+    )
+    seed_hash = resume_cases.seed_hash(repo)
     _git(call, repo, env, "add", "-A")
     _git(call, repo, env, "commit", "-q", "-m", "chore: seed resume-eval case")
     _git(call, run_dir, env, "init", "-q", "--bare", str(bare))
@@ -840,6 +992,7 @@ def seed_run(case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig) -> dict
         "seeded": seeded,
         "chain": chain,
         "keydir": keydir,
+        "seed_hash": seed_hash,
     }
 
 
@@ -876,8 +1029,8 @@ def _write_hop(
     code, out, err, events = _claude(
         cfg, run, interrupt, arm=arm, resume=session, extra=extra
     )
-    if reason := exclusion_reason(code, out, err, events):
-        return {"excluded": f"interrupt: {reason}"}
+    if excluded := exclusion(Source.WRITER, code, out, err, events, label="interrupt"):
+        return {"excluded": excluded}
     prompt = case["writer"]["prompts"][arm_base(arm)]
     if arm == "compact":
         before_usage = model_usage_total(events)
@@ -890,8 +1043,8 @@ def _write_hop(
             fork=True,
             extra=extra,
         )
-        if reason := exclusion_reason(code, out, err, events):
-            return {"excluded": f"focus: {reason}"}
+        if excluded := exclusion(Source.WRITER, code, out, err, events, label="focus"):
+            return {"excluded": excluded}
         focus = final_text(events).strip()
         focus_tokens = writer_tokens(events)
         code, out, err, events = _claude(
@@ -902,8 +1055,10 @@ def _write_hop(
             resume=session,
             extra=extra,
         )
-        if reason := exclusion_reason(code, out, err, events):
-            return {"excluded": f"compact: {reason}"}
+        if excluded := exclusion(
+            Source.WRITER, code, out, err, events, label="compact"
+        ):
+            return {"excluded": excluded}
         after_usage = model_usage_total(events)
         delta = {key: after_usage[key] - before_usage[key] for key in after_usage}
         return {
@@ -921,8 +1076,8 @@ def _write_hop(
     code, out, err, events = _claude(
         cfg, run, prompt, arm=arm, resume=session, extra=extra
     )
-    if reason := exclusion_reason(code, out, err, events):
-        return {"excluded": f"writer: {reason}"}
+    if excluded := exclusion(Source.WRITER, code, out, err, events):
+        return {"excluded": excluded}
     measured = writer_tokens(events)
     tokens = {"m1": measured["m1"], "m3": measured["m3"]}
     reply = final_text(events)
@@ -942,7 +1097,11 @@ def _write_hop(
     )
     if region is None or out_path is None:
         return {
-            "excluded": "writer produced no resume prompt or no new handoff file",
+            "excluded": Exclusion(
+                Source.WRITER,
+                Kind.NO_HANDOFF,
+                "writer produced no resume prompt or no new handoff file",
+            ),
             "writer_events": events,
         }
     return {
@@ -998,15 +1157,29 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
             if not session:
                 first = _lead_prompt(case, arm, written["delivery"])
                 code, out, err, events = _claude(cfg, run, first, arm=arm, extra=extra)
-                if reason := exclusion_reason(code, out, err, events):
-                    return {"excluded": f"hop {hop['hop']} resume: {reason}"}
+                if excluded := exclusion(
+                    Source.WRITER,
+                    code,
+                    out,
+                    err,
+                    events,
+                    label=f"hop {hop['hop']} resume",
+                ):
+                    return {"excluded": excluded}
                 session = session_of(events)
             for turn in hop.get("owner_turns", []):
                 code, out, err, events = _claude(
                     cfg, run, turn, arm=arm, resume=session, extra=extra
                 )
-                if reason := exclusion_reason(code, out, err, events):
-                    return {"excluded": f"hop {hop['hop']} owner turn: {reason}"}
+                if excluded := exclusion(
+                    Source.WRITER,
+                    code,
+                    out,
+                    err,
+                    events,
+                    label=f"hop {hop['hop']} owner turn",
+                ):
+                    return {"excluded": excluded}
                 session = session_of(events) or session
             if hop.get("scripted_agent_turns"):
                 append_turns(
@@ -1075,9 +1248,13 @@ def read_stage(
         )
         code, out, err = call(cmd, str(workdir), run["env"])
         events = stream_events(out)
-        main = {"events": events, "tokens": codex_tokens(events)}
-        if reason := exclusion_reason(code, out, err, events):
-            return {"excluded": f"reader: {reason}"}
+        main = {
+            "events": events,
+            "tokens": codex_tokens(events),
+            "whole_m1": codex_tokens(events, whole=True)["m1"],
+        }
+        if excluded := exclusion(Source.READER, code, out, err, events):
+            return {"excluded": excluded}
         thread = session_of(events)
         run.setdefault("codex_threads", []).append(thread)
         follow_cmd = [
@@ -1098,14 +1275,18 @@ def read_stage(
         code, out, err, events = _claude(
             cfg, run, prompt, arm=arm, resume=resume, extra=extra
         )
-        if reason := exclusion_reason(code, out, err, events):
-            return {"excluded": f"reader: {reason}"}
-        main = {"events": events, "tokens": reader_tokens(events)}
+        if excluded := exclusion(Source.READER, code, out, err, events):
+            return {"excluded": excluded}
+        main = {
+            "events": events,
+            "tokens": reader_tokens(events),
+            "whole_m1": reader_tokens(events, whole=True)["m1"],
+        }
         code, out, err, follow_events = _claude(
             cfg, run, followup, arm=arm, resume=session_of(events), extra=extra
         )
-    if reason := exclusion_reason(code, out, err, follow_events):
-        return {"excluded": f"follow-up: {reason}"}
+    if excluded := exclusion(Source.FOLLOW_UP, code, out, err, follow_events):
+        return {"excluded": excluded, "main": main}
     return {
         "main": main,
         "followup_events": follow_events,
@@ -1202,9 +1383,15 @@ def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
             except json.JSONDecodeError:
                 reply = {}
             verdict = str(reply.get("result", "")).strip().upper()
-            if code != 0 or reply.get("is_error") or not verdict.startswith(("PASS", "FAIL")):
+            if (
+                code != 0
+                or reply.get("is_error")
+                or not verdict.startswith(("PASS", "FAIL"))
+            ):
                 said = (err.strip() or str(reply.get("result") or out).strip())[:200]
-                raise JudgeError(f"judge: CLI exited {code}, no PASS/FAIL verdict: {said}")
+                raise JudgeError(
+                    f"judge: CLI exited {code}, no PASS/FAIL verdict: {said}"
+                )
             passes += verdict.startswith("PASS")
         return passes * 2 > votes
 
@@ -1273,7 +1460,7 @@ def run_once(
     keep_root = out_dir / case["name"] / arm / str(index)
     keep_root.mkdir(parents=True, exist_ok=True)
     try:
-        run = seed_run(case, run_dir, base_repo, cfg)
+        run = seed_run(case, run_dir, base_repo, cfg, arm)
         written = write_stage(case, arm, run, cfg)
         if case["writer"].get("hops"):
             # File checks grade the final reader, so they compare against the workspace the
@@ -1302,10 +1489,11 @@ def run_once(
                 "index": index,
                 "probes": {},
                 "error": None,
+                "seed_hash": run["seed_hash"],
             }
             results.append(graded)
             if written.get("excluded"):
-                graded["error"] = written["excluded"]
+                mark_excluded(graded, written["excluded"], case, arm)
                 continue
             space = workspaces[reader]
             mine = dict(written)
@@ -1316,8 +1504,13 @@ def run_once(
                     str(run_dir), str(space["repo"].parent)
                 )
             read = read_stage(case, arm, reader, space, mine, cfg)
+            graded["writer_tokens"] = written["writer_tokens"]
+            if main := read.get("main"):
+                graded["reader_tokens"] = main["tokens"]
+                graded["reader_m1"] = main["tokens"]["m1"]
+                graded["reader_whole_m1"] = main["whole_m1"]
             if read.get("excluded"):
-                graded["error"] = read["excluded"]
+                mark_excluded(graded, read["excluded"], case, arm)
                 continue
             try:
                 graded["probes"] = grade_run(
@@ -1330,13 +1523,16 @@ def run_once(
                     make_judge(cfg, space["repo"].parent),
                 )
             except JudgeError as exc:
-                graded["error"] = str(exc)
+                mark_excluded(
+                    graded,
+                    Exclusion(Source.JUDGE, Kind.NO_VERDICT, str(exc)),
+                    case,
+                    arm,
+                )
                 continue
-            graded["writer_tokens"] = written["writer_tokens"]
             if written.get("hop_bytes"):
                 graded["hop_bytes"] = written["hop_bytes"]
-            graded["reader_tokens"] = read["main"]["tokens"]
-            graded["m1"] = written["writer_tokens"]["m1"] + read["main"]["tokens"]["m1"]
+            graded["m1"] = written["writer_tokens"]["m1"] + graded["reader_m1"]
             keep = keep_root / reader
             keep.mkdir(parents=True, exist_ok=True)
             (keep / "reader-events.jsonl").write_text(
@@ -1450,6 +1646,9 @@ def cmd_run(args) -> int:
     )
     for arm in args.arm:
         cfg.copies.setdefault(arm, cfg.copies.get(arm_base(arm)))
+    if problems := seed_problems(cfg.copies, args.arm):
+        print("refused: " + "; ".join(problems), file=sys.stderr)
+        return 2
     if stops := resource_stops(resource_reading()):
         print("resource guard STOP: " + "; ".join(stops), file=sys.stderr)
         return 3
@@ -1486,9 +1685,11 @@ def cmd_run(args) -> int:
 def run_jobs(
     jobs: list, runner, out_dir: Path, workers: int, max_new: int | None = None
 ) -> int:
-    """Run each job not already graded without error, appending its rows to graded.jsonl as it
-    finishes; start at most `max_new` writer runs; after the first usage-limit exclusion submit
-    nothing more and return 4."""
+    """Run each job with no row graded or scored 0, appending its rows to graded.jsonl as it
+    finishes; start at most `max_new` writer runs. After the first usage-limit exclusion
+    submit nothing more and return 4; after a seed that differs from an earlier run of its
+    case and arm, return 5; with runs excluded for infrastructure, return 6 so the same
+    command re-runs them."""
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     def done_before(job) -> bool:
@@ -1497,7 +1698,15 @@ def run_jobs(
             rows = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return False
-        return bool(rows) and not any(row.get("error") for row in rows)
+        return bool(rows) and not any(
+            row_cause(row) is Cause.INFRASTRUCTURE for row in rows
+        )
+
+    seeds: dict[tuple, str] = {}
+    graded_file = out_dir / "graded.jsonl"
+    for row in _read_rows(graded_file) if graded_file.is_file() else []:
+        if row.get("seed_hash"):
+            seeds.setdefault((row["case"], row["arm"]), row["seed_hash"])
 
     pending = [job for job in jobs if not done_before(job)]
     if skipped := len(jobs) - len(pending):
@@ -1510,11 +1719,12 @@ def run_jobs(
             flush=True,
         )
         pending = pending[:max_new]
-    limit_hit = False
+    limit_hit = mismatch = False
+    infrastructure = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         running = set()
         while pending or running:
-            while pending and not limit_hit and len(running) < workers:
+            while pending and not (limit_hit or mismatch) and len(running) < workers:
                 running.add(pool.submit(runner, *pending.pop(0), out_dir))
             if not running:
                 break
@@ -1536,6 +1746,7 @@ def run_jobs(
                                     "reader",
                                     "index",
                                     "error",
+                                    "nondelivery",
                                     "m1",
                                     "seconds",
                                 )
@@ -1546,37 +1757,343 @@ def run_jobs(
                     limit_hit |= bool(
                         EXCLUDE_MARKERS[1].search(str(graded.get("error") or ""))
                     )
+                    first = seeds.setdefault(
+                        (graded["case"], graded["arm"]), graded.get("seed_hash")
+                    )
+                    if graded.get("seed_hash") and first != graded["seed_hash"]:
+                        mismatch = True
+                        print(
+                            f"seed mismatch: case {graded['case']} arm {graded['arm']} run {graded['index']} seeded {graded['seed_hash'][:12]}, an earlier run {str(first)[:12]}",
+                            flush=True,
+                        )
+                infrastructure += any(
+                    row_cause(row) is Cause.INFRASTRUCTURE for row in rows
+                )
     if limit_hit:
         print(
             f"usage limit hit: stopped with {len(pending)} writer runs not started; re-run the same command after the reset",
             flush=True,
         )
         return 4
+    if mismatch:
+        print(
+            f"stopped: a seed differs between runs, so the batch is not comparable; {len(pending)} writer runs not started",
+            flush=True,
+        )
+        return 5
+    if infrastructure:
+        print(
+            f"{infrastructure} run{'s' if infrastructure != 1 else ''} excluded for infrastructure; re-run the same command to re-run them",
+            flush=True,
+        )
+        return 6
     return 0
+
+
+def _noise_report():
+    """plugin-eval's noise-report.py, whose normal interval and case-drop share the gate uses."""
+    import importlib.util
+
+    path = HERE.parents[2] / "evals/skills/plugin-eval/scripts/noise-report.py"
+    spec = importlib.util.spec_from_file_location("noise_report", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _mean(values) -> float | None:
+    values = list(values)
+    return sum(values) / len(values) if values else None
+
+
+def row_score(row: dict, probes: frozenset[str] | None = None) -> float | None:
+    """A kept run's score over `probes` (all it graded when None); 0 when it did not deliver."""
+    if row.get("nondelivery"):
+        return 0.0
+    graded = [v for k, v in row["probes"].items() if probes is None or k in probes]
+    return _mean(map(bool, graded))
+
+
+def row_reader_m1(row: dict) -> int | None:
+    """Reader tokens to the first state change; older rows hold them in `reader_tokens`."""
+    if row.get("reader_m1") is not None:
+        return row["reader_m1"]
+    return (row.get("reader_tokens") or {}).get("m1")
+
+
+@dataclass(frozen=True)
+class Cell:
+    """One case in one compared group: its kept runs (last row of each, in index order)."""
+
+    label: str
+    arm: str
+    case: str
+    runs: tuple[dict, ...]
+
+    def scores(self, probes: frozenset[str] | None = None) -> list[float]:
+        return [s for s in (row_score(r, probes) for r in self.runs) if s is not None]
+
+    def accuracy(self, probes: frozenset[str] | None = None) -> float | None:
+        return _mean(self.scores(probes))
+
+    def reader_m1(self) -> float | None:
+        return _mean(v for v in map(row_reader_m1, self.runs) if v is not None)
+
+    def whole_m1(self) -> float | None:
+        return _mean(
+            r["reader_whole_m1"]
+            for r in self.runs
+            if r.get("reader_whole_m1") is not None
+        )
+
+
+@dataclass
+class Group:
+    """One `<arm>.<reader>` of the input: `last` maps (case, index) to the run's last
+    row; `excluded` counts every infrastructure row, re-run ones included."""
+
+    label: str
+    arm: str
+    reader: str
+    last: dict
+    excluded: int = 0
+
+
+def load_groups(paths: list[str]) -> dict[str, Group]:
+    """Rows grouped by `<arm>.<reader>`, suffixed `@<n>` per file when several are read,
+    so an A/A pair of one arm stays two groups."""
+    groups: dict[str, Group] = {}
+    for number, path in enumerate(paths, 1):
+        for row in _read_rows(Path(path)):
+            label = f"{row['arm']}.{row['reader']}"
+            if len(paths) > 1:
+                label += f"@{number}"
+            group = groups.setdefault(
+                label, Group(label, row["arm"], row["reader"], {})
+            )
+            if row_cause(row) is Cause.BEHAVIOR and not row.get("nondelivery"):
+                row = {**row, "nondelivery": row["error"], "error": None}
+            group.last[(row["case"], row["index"])] = row
+            group.excluded += row_cause(row) is Cause.INFRASTRUCTURE
+    return groups
+
+
+def _tokens(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0f}"
+
+
+class Lines:
+    """Report lines; a failing line makes `report` exit 1."""
+
+    def __init__(self) -> None:
+        self.failed = 0
+
+    def say(self, line: str, fail: bool = False) -> None:
+        self.failed += fail
+        print(line, flush=True)
+
+
+def _shared_probes(spec: dict | None, a: Cell, b: Cell) -> frozenset[str]:
+    """Probes that apply to both arms: from the case when it is known, else the probe ids
+    both cells graded."""
+    if spec is not None:
+        return frozenset(
+            p["id"] for p in spec["probes"] if applies(p, a.arm) and applies(p, b.arm)
+        )
+    seen = [{k for r in cell.runs for k in r["probes"]} for cell in (a, b)]
+    return frozenset(seen[0] & seen[1])
+
+
+def _paired(nr, deltas: list[float], low: float, high: float) -> str:
+    if len(deltas) < 2:
+        return (
+            f"{_mean(deltas) or 0:+.2f} over {len(deltas)} case (an interval needs 2)"
+        )
+    m, lo, hi = nr.normal_interval(deltas, low, high)
+    return f"{m:+.2f}, 95% interval {lo:+.2f} to {hi:+.2f}, paired over {len(deltas)} cases"
+
+
+def _token_change(nr, pairs: list[tuple[float, float]]) -> str:
+    if not pairs:
+        return "n/a (a side holds no tokens)"
+    deltas = [after - before for before, after in pairs]
+    base = _mean(before for before, _ in pairs)
+    rel = f" ({_mean(deltas) / base:+.1%} of baseline)" if base else ""
+    text = f"{_mean(deltas):+.0f}{rel}"
+    if len(deltas) >= 2:
+        _, lo, hi = nr.normal_interval(deltas, -math.inf, math.inf)
+        text += f", 95% interval {lo:+.0f} to {hi:+.0f}"
+    return text + f" over {len(deltas)} cases"
+
+
+def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
+    """One compared pair: shared-probe result files, accuracy and token changes, and
+    each case that drops or goes from passing to failing."""
+    (b_label, b_cells), (o_label, o_cells) = base, other
+    pair = f"{o_label} vs {b_label}"
+    for name in sorted(set(b_cells) ^ set(o_cells)):
+        missing = o_label if name in b_cells else b_label
+        lines.say(f"left out: case {name} absent from {missing} ({pair})", fail=True)
+    names = sorted(set(b_cells) & set(o_cells))
+    folder = out / "pairs" / f"{o_label}--vs--{b_label}"
+    folder.mkdir(parents=True, exist_ok=True)
+    scored: dict[str, tuple[float, float]] = {}
+    for label, cells in ((b_label, b_cells), (o_label, o_cells)):
+        rows = []
+        for name in names:
+            probes = _shared_probes(specs.get(name), b_cells[name], o_cells[name])
+            rows += [
+                {**r, "probes": {k: v for k, v in r["probes"].items() if k in probes}}
+                for r in cells[name].runs
+            ]
+        write_report(rows, folder / f"{label}.json", label)
+    for name in names:
+        probes = _shared_probes(specs.get(name), b_cells[name], o_cells[name])
+        b, o = b_cells[name].accuracy(probes), o_cells[name].accuracy(probes)
+        if b is not None and o is not None:
+            scored[name] = (b, o)
+    deltas = [o - b for b, o in scored.values()]
+    lines.say(f"pair {pair}: accuracy change {_paired(nr, deltas, -1.0, 1.0)}")
+    for metric, read in (
+        ("reader m1 to first action", Cell.reader_m1),
+        ("whole-run reader m1", Cell.whole_m1),
+    ):
+        pairs = [
+            (read(b_cells[n]), read(o_cells[n]))
+            for n in names
+            if read(b_cells[n]) is not None and read(o_cells[n]) is not None
+        ]
+        lines.say(f"pair {pair}: {metric} change {_token_change(nr, pairs)}")
+    for name, (b, o) in scored.items():
+        if b - o >= nr.DROP - 1e-9:
+            lines.say(
+                f"case drop: case {name} in {o_label} fell from {b:.2f} to {o:.2f}, a third or more",
+                fail=True,
+            )
+        if args.threshold is not None and b >= args.threshold > o:
+            lines.say(
+                f"pass-to-fail: case {name} passes in {b_label} ({b:.2f}) and fails in {o_label} ({o:.2f}) at T={args.threshold:.2f}",
+                fail=True,
+            )
 
 
 def cmd_report(args) -> int:
-    """One plugin-eval result file per (arm, reader) from graded.jsonl: the last row of each
-    run counts unless it errored; every error row is reported as an exclusion."""
-    runs = [
-        json.loads(line)
-        for line in Path(args.graded).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    """Per (arm, reader): a plugin-eval result file and accuracy, reader tokens and pass
+    counts on every case; with `--baseline`, one shared-probe result pair per compared
+    group. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `untagged:` or
+    `seed mismatch:` line, 2 on an unknown baseline."""
+    nr = _noise_report()
+    groups = load_groups(args.graded)
+    if args.baseline and args.baseline not in groups:
+        print(
+            f"report: no group {args.baseline!r}; groups: {', '.join(sorted(groups))}",
+            file=sys.stderr,
+        )
+        return 2
+    specs = (
+        {c["name"]: c for c in load_cases(Path(args.evals_dir), [])}
+        if args.subset or args.baseline
+        else {}
+    )
+    lines = Lines()
+    names = sorted({case for g in groups.values() for case, _ in g.last})
+    if args.subset:
+        for name in names:
+            if (specs.get(name) or {}).get("task_relation") is None:
+                lines.say(
+                    f"untagged: case {name} has no task_relation, so --subset {args.subset} cannot place it",
+                    fail=True,
+                )
+        names = [
+            n for n in names if (specs.get(n) or {}).get("task_relation") == args.subset
+        ]
+    seeds: dict[tuple, set] = {}
+    for group in groups.values():
+        for (case, _), row in group.last.items():
+            if row.get("seed_hash") and case in names:
+                seeds.setdefault((case, group.arm), set()).add(row["seed_hash"])
+    for (case, arm), found in sorted(seeds.items()):
+        if len(found) > 1:
+            lines.say(
+                f"seed mismatch: case {case} arm {arm} was seeded {len(found)} ways",
+                fail=True,
+            )
+    threshold = 1.0 if args.threshold is None else args.threshold
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    groups: dict[tuple, dict] = {}
-    for run in runs:
-        group = groups.setdefault(
-            (run["arm"], run["reader"]), {"last": {}, "excluded": 0}
+    cells: dict[str, dict[str, Cell]] = {}
+    for label, group in sorted(groups.items()):
+        runs_of = max(index for _, index in group.last) + 1
+        mine: dict[str, Cell] = {}
+        for name in names:
+            rows = {i: group.last.get((name, i)) for i in range(runs_of)}
+            if not any(rows.values()):
+                continue
+            for index, row in rows.items():
+                if row is None:
+                    lines.say(
+                        f"left out: case {name} in {label}: run {index} has no row",
+                        fail=True,
+                    )
+                elif row_cause(row) is Cause.INFRASTRUCTURE:
+                    lines.say(
+                        f"left out: case {name} in {label}: run {index} excluded ({row['error']})",
+                        fail=True,
+                    )
+            kept = tuple(
+                r
+                for r in rows.values()
+                if r and row_cause(r) is not Cause.INFRASTRUCTURE
+            )
+            mine[name] = Cell(label, group.arm, name, kept)
+        cells[label] = mine
+        kept = [r for cell in mine.values() for r in cell.runs]
+        write_report(kept, out / f"{label}.json", label.replace(".", "-"))
+        means = {n: c.accuracy() for n, c in mine.items() if c.accuracy() is not None}
+        passing = sum(m >= threshold for m in means.values())
+        zero = sum(bool(r.get("nondelivery")) for r in kept)
+        accuracy = _mean(means.values())
+        lines.say(
+            f"{label}: {len(kept)} kept, {group.excluded} excluded, {zero} scored 0 for non-delivery;"
+            f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {len(means)} cases;"
+            f" reader m1 {_tokens(_mean(v for c in mine.values() if (v := c.reader_m1()) is not None))};"
+            f" whole-run m1 {_tokens(_mean(v for c in mine.values() if (v := c.whole_m1()) is not None))};"
+            f" pass count {passing}/{len(means)} at T={threshold:.2f}"
         )
-        group["last"][(run["case"], run["index"])] = run
-        group["excluded"] += bool(run.get("error"))
-    for (arm, reader), group in sorted(groups.items()):
-        kept = [run for run in group["last"].values() if not run.get("error")]
-        write_report(kept, out / f"{arm}.{reader}.json", f"{arm}-{reader}")
-        print(f"{arm}.{reader}: {len(kept)} kept, {group['excluded']} excluded")
-    return 0
+        for name, cell in mine.items():
+            score = means.get(name)
+            if score is None:
+                lines.say(f"  {name}: no run to score")
+                continue
+            lines.say(
+                f"  {name}: accuracy {score:.2f} over {len(cell.runs)} runs;"
+                f" reader m1 {_tokens(cell.reader_m1())}; whole-run m1 {_tokens(cell.whole_m1())};"
+                f" {'pass' if score >= threshold else 'fail'} at T={threshold:.2f}"
+            )
+    if args.baseline:
+        if args.threshold is None:
+            lines.say("threshold: none given, so no pass-to-fail check ran")
+        base = groups[args.baseline]
+        others = [
+            g.label
+            for g in groups.values()
+            if g.reader == base.reader and g.label != base.label
+        ]
+        if not others:
+            lines.say(
+                f"pair: no other {base.reader} group to compare with {base.label}"
+            )
+        for label in sorted(others):
+            _compare(
+                nr,
+                lines,
+                out,
+                (base.label, cells[base.label]),
+                (label, cells[label]),
+                specs,
+                args,
+            )
+    return 1 if lines.failed else 0
 
 
 def cmd_calibrate(args) -> int:
@@ -1651,8 +2168,23 @@ def main(argv=None) -> int:
     )
     run.add_argument("--out", required=True)
     report = sub.add_parser("report")
-    report.add_argument("--graded", required=True)
+    report.add_argument(
+        "--graded",
+        action="append",
+        required=True,
+        help="a run's graded.jsonl; repeat for an A/A pair, whose groups get @1, @2",
+    )
     report.add_argument("--out", required=True)
+    report.add_argument(
+        "--baseline", help="the group compared against, e.g. before.claude-code"
+    )
+    report.add_argument(
+        "--threshold",
+        type=float,
+        help="T: a case passes at a mean score at or above it (default 1.0; pass-to-fail runs only when given)",
+    )
+    report.add_argument("--subset", choices=("same", "boundary"))
+    report.add_argument("--evals-dir", default=str(HERE.parents[1] / "evals"))
     args = parser.parse_args(argv)
     return {"run": cmd_run, "calibrate": cmd_calibrate, "report": cmd_report}[args.cmd](
         args
