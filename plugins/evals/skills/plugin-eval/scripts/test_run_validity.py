@@ -752,6 +752,22 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_an_unnamed_interpreter_a_script_needed_later_in_the_run_still_fails(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("typed-then-script.jsonl", [
+            (True, "Exit code 127\nbash: line 1: node: command not found", "node -v"),
+            (True, "Exit code 127\n/tmp/p/lib/go.sh: line 2: node: command not found",
+             "bash /tmp/p/lib/go.sh"),
+        ])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: node command not found,"
+            " first in `node -v` (%s)" % trace,
+            proc.stdout,
+        )
+
     def test_an_interpreter_the_skill_names_still_fails(self):
         for skill, case_yaml in (
             ("Run `node scripts/resolve.mjs` first.\n", None),

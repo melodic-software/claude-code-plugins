@@ -2732,7 +2732,9 @@ def check_programs(runs, root=None):
                 and text is not None
                 and not re.search(r"(?<![\w.-])%s(?![\w-])" % re.escape(program), text)
             )
-            firsts.setdefault((program, failure), (fatal and not unnamed, unnamed, call))
+            pair = (program, failure)
+            was_fatal, was_unnamed, call = firsts.get(pair, (False, True, call))
+            firsts[pair] = (was_fatal or (fatal and not unnamed), was_unnamed and unnamed, call)
         fatal = any(f[0] for f in firsts.values())
         detail = "%s: %s (%s)" % (
             r.where,
