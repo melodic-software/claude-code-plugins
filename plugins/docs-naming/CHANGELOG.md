@@ -3,6 +3,15 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
 ## [0.8.1] - 2026-11-19
 
 ### Changed

@@ -1,5 +1,14 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
 ## [4.2.0] - 2026-11-19
 
 ### Changed
