@@ -53,6 +53,11 @@
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
 #     .github/requirements-ci*.txt, plugins/animation/requirements.txt, which
 #     test-python installs): every Python suite.
+#   - a lock test-bash's toolchain step installs (.github/requirements-ci.txt and
+#     the animation, demo-video and lib/media-render requirements.txt): leg 0 of
+#     test-bash needs animation, demovideo and mediarender, so it installs every
+#     lock in the one pip call the whole tree may put them in, and two locks
+#     pinning one package apart fail here, not on main.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
 #     every Node package.
 #   - a Node package also runs when a file under its directory, its trigger (a test
@@ -133,6 +138,7 @@ whole=0
 whole_windows=0
 python_pin=0
 node_pin=0
+coinstall=0
 if [[ -n "$base" ]]; then
   changed_files::verify_base "$base" || die "base ref '$base' does not resolve to a commit"
   mb="$(git merge-base "$base" HEAD)" || die "'$base' and HEAD have no merge base"
@@ -161,6 +167,10 @@ for f in ${changed[@]+"${changed[@]}"}; do
     ;;
   pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt | plugins/animation/requirements.txt) python_pin=1 ;;
   .node-version | package.json | package-lock.json) node_pin=1 ;;
+  *) ;;
+  esac
+  case "$f" in
+  .github/requirements-ci.txt | plugins/animation/requirements.txt | plugins/playwright/skills/demo-video/requirements.txt | lib/media-render/requirements.txt) coinstall=1 ;;
   *) ;;
   esac
 done
@@ -389,7 +399,7 @@ pack() {
     }' \
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
-    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" '
+    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" -v coinstall="$coinstall" '
       function est(l) { return load[l] + top[l] * (workers - 1) / workers }
       function need(p,   s) {
         s = ""
@@ -429,6 +439,7 @@ pack() {
           split(need(path[i]), w, " ")
           for (k in w) if (w[k] != "") has[best, w[k]] = 1
         }
+        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
         legsj = ""; planj = ""; needsj = ""; loads = ""
         nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         for (l = 0; l < legs; l++) {
