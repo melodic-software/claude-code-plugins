@@ -544,7 +544,10 @@ After a failed write the other upstreams still run, and the run then exits nonze
   removes no `SKILL.md` there, and in one it changes no frontmatter line but the
   `upstream-version`, `upstream-sha` and `synced` values and adds or changes no `` !` `` line or
   fenced block; pr-verify and the merge gate read the file at the merge base and the head to check
-  it (`skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`). The issue lane's run and pr-verify read that same
+  it (`skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`). The sync reads the skill's
+  update procedure but never edits it: no skill's `actions/update.md` and no file of the plugin's
+  `update` skill outside its `vendor/` baseline, since a change to how a skill updates itself comes
+  from a person's pull request (owner decision of 2026-11-19 on #17294). The issue lane's run and pr-verify read that same
   template in place of the body, and pr-verify and the merge gate count it only for a pull request
   inside that scope. Every author gate on the way (the sweep, intake's verdict write, admission,
   the issue lane's blocker check and its `issue.json` writer) asks the same rule. A trusted drift

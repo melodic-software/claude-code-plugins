@@ -804,7 +804,9 @@ const VENDOR_INERT = /(?:\.md|\.jsonc|^LICENSE)$/;
 // Whether `name` is a path a vendored sync of `plugin` may write: a
 // changelog fragment directly under `.changes/<plugin>/`, or, under
 // `plugins/<plugin>/skills/`, a markdown file, or in a `vendor/` baseline a
-// markdown, `.jsonc` or `LICENSE` file, with no segment of VENDORED_UNSAFE
+// markdown, `.jsonc` or `LICENSE` file, with no segment of VENDORED_UNSAFE,
+// and never the update procedure the vendored spec names: a skill's
+// `actions/update.md` or, outside `vendor/`, the plugin's `update` skill
 // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Pure.
 export function vendoredPath(plugin, name) {
   if (typeof plugin !== "string" || typeof name !== "string") {
@@ -815,11 +817,14 @@ export function vendoredPath(plugin, name) {
     return /^[^/]+\.md$/.test(name.slice(fragment.length));
   }
   const parts = name.split("/");
+  const vendored = parts.slice(4, -1).includes("vendor");
+  const procedure = (parts[3] === "update" && !vendored) || (parts.at(-2) === "actions" && parts.at(-1) === "update.md");
   return (
     name.startsWith(`plugins/${plugin}/skills/`) &&
     parts.length > 4 &&
     parts.every((part) => part !== "" && !VENDORED_UNSAFE.has(part)) &&
-    (parts.slice(4, -1).includes("vendor") ? VENDOR_INERT.test(parts.at(-1)) : name.endsWith(".md"))
+    !procedure &&
+    (vendored ? VENDOR_INERT.test(parts.at(-1)) : name.endsWith(".md"))
   );
 }
 

@@ -18,7 +18,7 @@ adds a changelog fragment and changes only markdown under the plugin's `skills/`
 `.jsonc` and `LICENSE` files in its `vendor/` baselines, plus that fragment, never a script, hook,
 library, manifest, MCP config or eval suite. In a `SKILL.md` outside `vendor/` it changes no
 frontmatter line but the sync stamps and no `` !` `` line or fenced block, and it adds, renames and
-removes none. It is trusted only for an id whose
+removes none, and it never edits the update procedure it follows (a skill's `actions/update.md`, or the plugin's `update` skill outside `vendor/`). It is trusted only for an id whose
 every vendored row carries the new `files-only` mark (an apply mode that installs no package), so a
 row whose update runs `npm install` stays with a person. The workflow runs daily instead of
 weekly, so the section is now "Daily drift issues". The "Admission with no owner step" bullet says

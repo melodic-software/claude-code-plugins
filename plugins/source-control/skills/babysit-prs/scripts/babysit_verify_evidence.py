@@ -1164,22 +1164,25 @@ def vendored_path(plugin: Any, name: Any) -> bool:
     """resolve-pr.mjs vendoredPath: a changelog fragment directly under
     `.changes/<plugin>/`, or, under `plugins/<plugin>/skills/`, a markdown
     file, or in a `vendor/` baseline a markdown, `.jsonc` or `LICENSE` file,
-    with no VENDORED_UNSAFE segment. Pure."""
+    with no VENDORED_UNSAFE segment, and never a skill's `actions/update.md`
+    or, outside `vendor/`, the plugin's `update` skill. Pure."""
     if not isinstance(plugin, str) or not isinstance(name, str):
         return False
     fragment = f".changes/{plugin}/"
     if name.startswith(fragment):
         return re.fullmatch(r"[^/]+\.md", name[len(fragment) :]) is not None
     parts = name.split("/")
+    vendored = "vendor" in parts[4:-1]
+    procedure = (len(parts) > 3 and parts[3] == "update" and not vendored) or parts[-2:] == [
+        "actions",
+        "update.md",
+    ]
     return (
         name.startswith(f"plugins/{plugin}/skills/")
         and len(parts) > 4
         and all(part and part not in VENDORED_UNSAFE for part in parts)
-        and (
-            VENDOR_INERT_RE.fullmatch(parts[-1]) is not None
-            if "vendor" in parts[4:-1]
-            else name.endswith(".md")
-        )
+        and not procedure
+        and (VENDOR_INERT_RE.fullmatch(parts[-1]) is not None if vendored else name.endswith(".md"))
     )
 
 

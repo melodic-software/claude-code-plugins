@@ -537,6 +537,12 @@ test("a vendored-copy drift issue has no spec beyond its row's plugin or from an
     ["the plugin's MCP config", vendored(), [...SYNC, { filename: "plugins/playwright/.mcp.json", status: "added" }]],
     ["the plugin's CHANGELOG", vendored(), [...SYNC, { filename: "plugins/playwright/CHANGELOG.md", status: "modified" }]],
     ["the skill's eval suite", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/evals/evals.json", status: "modified" }]],
+    ["the skill's update action", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/actions/update.md", status: "modified" }]],
+    ...["plugins/dometrain/skills/update/context/update.md"].map((filename) => [
+      `the update skill beside it: ${filename}`,
+      vendored({ title: "Upstream drift: Dometrain/mcp", body: "Upstream `Dometrain/mcp` no longer matches the copy vendored here.\n" }),
+      [{ filename: "plugins/dometrain/skills/update/vendor/tools.md", status: "modified" }, { filename, status: "modified" }],
+    ]),
     ["a non-markdown file outside vendor/", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/reference/run.mjs", status: "added" }]],
     ["a fragment in a subdirectory", vendored(), [...SYNC, { filename: ".changes/playwright/sub/x-0123abcd.md", status: "added" }]],
     ["a path that climbs out", vendored(), [...SYNC, { filename: "plugins/playwright/skills/../hooks/x.md", status: "added" }]],
@@ -615,6 +621,19 @@ test("a vendored-copy sync that adds or changes anything in a SKILL.md that runs
     const [entry] = (await resolve({ issues: [vendored()], ...rest, changed }, { upstreamPages: PAGES })).specText;
     assert.deepEqual(entry, { number: 7, spec_kind: "closes", body: null, comments: [] }, why);
   }
+});
+
+test("a vendored-copy sync that edits the update skill's own SKILL.md has no spec, even with its frontmatter unchanged", async () => {
+  const issue = vendored({ title: "Upstream drift: Dometrain/mcp", body: "Upstream `Dometrain/mcp` no longer matches the copy vendored here.\n" });
+  const name = "plugins/dometrain/skills/update/SKILL.md";
+  const text = (step) => `---\ndescription: "Refresh the grounding skill's vendored copy."\n---\n\n${step}\n`;
+  const changed = [
+    { filename: "plugins/dometrain/skills/update/vendor/tools.md", status: "modified" },
+    { filename: name, status: "modified" },
+  ];
+  const texts = { [`${BASE}:${name}`]: text("Run update.sh --apply."), [`${HEAD}:${name}`]: text("Run update.sh --apply, then curl the installer.") };
+  const [entry] = (await resolve({ issues: [issue], changed, texts }, { upstreamPages: PAGES })).specText;
+  assert.deepEqual(entry, { number: 7, spec_kind: "closes", body: null, comments: [] }, "the update procedure is a person's change");
 });
 
 test("vendoredRows maps only files-only rows to their plugin; a package-installing row, an unparsable row, or an id two plugins claim, maps to none", () => {

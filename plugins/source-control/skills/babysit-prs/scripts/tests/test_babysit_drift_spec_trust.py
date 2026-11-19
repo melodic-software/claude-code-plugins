@@ -466,6 +466,7 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
                     ("the MCP config", "plugins/playwright/.mcp.json"),
                     ("the plugin CHANGELOG", "plugins/playwright/CHANGELOG.md"),
                     ("the eval suite", "plugins/playwright/skills/playwright/evals/evals.json"),
+                    ("the skill's update action", "plugins/playwright/skills/playwright/actions/update.md"),
                     ("a non-markdown file outside vendor/", "plugins/playwright/skills/playwright/reference/run.mjs"),
                     ("a fragment in a subdirectory", ".changes/playwright/sub/x.md"),
                     ("a path that climbs out", "plugins/playwright/skills/../hooks/x.md"),
@@ -474,6 +475,16 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
         ]:
             with self.subTest(why):
                 self.assertIs(self.vendored(files=files)[0], False)
+
+    def test_the_update_skill_beside_it_refuses_outside_its_vendor_baseline(self) -> None:
+        self.assertTrue(ve.vendored_path("dometrain", "plugins/dometrain/skills/update/vendor/tools.md"))
+        for path in [
+            "plugins/dometrain/skills/update/SKILL.md",
+            "plugins/dometrain/skills/update/context/update.md",
+            "plugins/playbooks/skills/update/SKILL.md",
+        ]:
+            with self.subTest(path):
+                self.assertFalse(ve.vendored_path(path.split("/")[1], path))
 
     def test_an_id_no_row_or_two_rows_name_refuses_without_a_compare(self) -> None:
         for upstream in [
