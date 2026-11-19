@@ -78,10 +78,19 @@ if [[ -n ${EXPECT_STATE:-} ]]; then
   fi
 fi
 
+paths=""
+if [[ -s $OUT/unmerged-paths ]]; then
+  paths=$(jq -Rsc 'split("\u0000") | map(select(. != ""))' <"$OUT/unmerged-paths")
+fi
+if ((${#paths} > 16384)) || [[ $paths == *$'\xef\xbf\xbd'* ]]; then
+  paths=""
+fi
+
 {
   echo "merge-state=$state"
   echo "escalation-reason=$reason"
   echo "conflict-tree=$tree"
   echo "skip-reason=$skip"
+  echo "conflict-paths=$paths"
 } >>"$GITHUB_OUTPUT"
 echo "merge-state=$state escalation-reason=$reason conflict-tree=$tree"

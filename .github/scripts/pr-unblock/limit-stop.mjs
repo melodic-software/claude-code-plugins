@@ -206,7 +206,7 @@ const startOf = (run) => Date.parse(run?.started_at ?? "");
 export function stopRelease(stopRuns, cap) {
   const stops = stopRuns.filter(releasesHead).length;
   const newest = stopRuns.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), stopRuns[0]);
-  return { cut: releasesHead(newest) && stops < cap ? startOf(newest) : null, stops };
+  return { cut: releasesHead(newest) && stops < cap ? startOf(newest) : null, stops, newest };
 }
 
 // `runs` without those started before `cut`, a limit stop kept.
