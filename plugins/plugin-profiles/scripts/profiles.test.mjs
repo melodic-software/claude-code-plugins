@@ -7,7 +7,7 @@ import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
-import { pickProfile } from "./profiles.mjs";
+import { main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -2020,4 +2020,311 @@ test("#17354: a submodule's record is found through its pointer", () => {
   assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(sub)]);
   assert.equal(reset(w, ["--yes"]).status, 0);
   assert.equal(readFileSync(join(sub, ".claude", "settings.local.json"), "utf8"), LOCAL_BEFORE);
+});
+
+/** A plain folder beside w.project holding LOCAL_BEFORE, with the profile applied there. */
+function secondFolder(w, profile = "build") {
+  const dir = join(w.root, "project2");
+  writeTree(dir, { ".claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, dir, ["apply", profile, "--for", "folder", "--yes"]).status, 0);
+  return { dir, file: join(dir, ".claude", "settings.local.json") };
+}
+const sha = (text) => createHash("sha256").update(text).digest("hex");
+const dataRecordOf = (w, file) => join(dataRecordsDir(w), `${sha(realpathSync(file))}.json`);
+const RESULT = /^(Restored|Removed|Skipped|Finished|Already restored) /;
+const resultLines = (stdout) => stdout.split("\n").filter((line) => RESULT.test(line));
+/** The state a reset killed part way leaves for file: its record saved as restoring, the file as given. */
+function cutOff(w, file, { written }) {
+  const path = dataRecordOf(w, file);
+  const applied = readFileSync(file, "utf8");
+  const rec = JSON.parse(readFileSync(path, "utf8"));
+  writeFileSync(path, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(LOCAL_BEFORE), fromHash: sha(applied) }, null, 2)}\n`);
+  if (written) writeFileSync(file, LOCAL_BEFORE);
+}
+/** Runs reset in this process, so a test can act when reset prints one file's result, as another terminal would between two files. */
+async function resetDuring(w, args, onResult) {
+  assert.ok(w.env.HOME.startsWith(w.root) && w.env.PATH.startsWith(STUB_BIN), "an in-process reset runs only against the test's HOME and stub claude");
+  const out = [];
+  const err = [];
+  let acted = false;
+  const io = {
+    out: (line) => {
+      out.push(line);
+      if (!acted && RESULT.test(line)) {
+        acted = true;
+        onResult(line);
+      }
+    },
+    err: (line) => err.push(line),
+    stdin: () => "",
+  };
+  const status = await main(["reset", ...args], { ...w.env }, elsewhere(w), io);
+  return { status, stdout: out.join("\n"), stderr: err.join("\n") };
+}
+
+test("#17354: reset with nothing recorded says so and writes nothing", () => {
+  const w = world();
+  const r = reset(w, ["--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^No profile is recorded anywhere reset can find; nothing to reset\.$/m);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: reset previews two folders and the initial profile, and after one yes each folder file is back byte for byte, a file the apply created is gone, and user settings hold their earlier entries", () => {
+  const w = world();
+  const userFile = join(w.home, ".claude", "settings.json");
+  const userBefore = readFileSync(userFile, "utf8");
+  const p2 = join(w.root, "project2");
+  mkdirSync(p2);
+  const p2File = join(p2, ".claude", "settings.local.json");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, p2, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, elsewhere(w), ["apply", "build", "--for", "initial", "--yes"]).status, 0, "from a folder with no file of its own, which would pin the plugins");
+  assert.notEqual(readFileSync(userFile, "utf8"), userBefore);
+  const preview = resetJson(w);
+  assert.deepEqual(recordedFiles(preview), [w.localFile, p2File, userFile].sort());
+  for (const f of preview.folders) assert.ok(f.lines.some((line) => line.includes(f.file)), JSON.stringify(f));
+  assert.match(preview.lines.join("\n"), new RegExp(`${esc(p2File)}: profile review .*removes the file, which the first apply created`));
+  assert.match(preview.lines.join("\n"), new RegExp(`${esc(userFile)}: profile build \\(the initial profile\\)`));
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(existsSync(p2File), false);
+  assert.equal(existsSync(dirname(p2File)), false, "the .claude folder the apply created goes once empty");
+  assert.equal(readFileSync(userFile, "utf8"), userBefore);
+  assert.deepEqual(w.records(), []);
+  assert.deepEqual(readdirSync(join(w.home, ".claude", "plugin-profiles-state", "records")), []);
+});
+
+test("#17354: with neither a typed yes nor --yes, reset writes nothing and says so", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  const r = reset(w);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, new RegExp(esc(w.localFile)));
+  assert.match(r.stderr, /^not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt$/m);
+  assert.equal(w.read(), applied);
+  assert.equal(w.records().length, 1);
+});
+
+test("#17354: reset prints one line per folder: restored, or skipped with its reason", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = w.records();
+  const rec = JSON.parse(readFileSync(join(dataRecordsDir(w), name), "utf8"));
+  const gone = join(w.root, "gone", ".claude", "settings.local.json");
+  writeTree(dataRecordsDir(w), { "gone.json": { ...rec, settingsFile: gone } });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [
+    `Skipped ${gone}: folder not found; record kept.`,
+    `Restored ${w.localFile} (profile build).`,
+  ]);
+  assert.deepEqual(w.records(), ["gone.json"]);
+});
+
+test("#17354: reset never writes a committed .claude/settings.json, even when a record names it", () => {
+  const w = world();
+  const committed = join(w.project, ".claude", "settings.json");
+  const before = readFileSync(committed, "utf8");
+  writeTree(dataRecordsDir(w), {
+    "committed.json": {
+      schema: 1, profile: "build", target: "folder", settingsFile: committed, appliedAt: "2026-11-01T00:00:00.000Z", pluginVersion: "0.6.1",
+      phase: "applied", pending: {}, createdFile: false, createdFolder: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+      entries: { [`toolchain@${M}`]: { before: false, after: true } }, skillOverrides: {},
+    },
+  });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${committed}: reset writes only .claude/settings.local.json files and user settings; record kept.`]);
+  assert.equal(readFileSync(committed, "utf8"), before);
+  assert.deepEqual(w.records(), ["committed.json"]);
+});
+
+test("#17354: the reset preview names each entry edited since the apply, and the yes puts it back at its earlier value", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const [row] = resetJson(w).folders;
+  assert.deepEqual(row.overwrites, [{ name: `implementation@${M}`, current: false, before: "absent" }]);
+  assert.ok(row.lines.includes(`  Overwrites a change made since the apply: implementation@${M} is false, the profile wrote true; reset puts back absent.`), row.lines.join("\n"));
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: the reset preview names a folder whose switch is unfinished in another session, and after reset that session's finish write leaves the folder restored", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.unfinished, true);
+  assert.ok(row.lines.some((line) => /switch to build is unfinished in another session/.test(line)), row.lines.join("\n"));
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.match(w.run(["apply", "build", "--for", "folder", "--finish-pending"]).stdout, /^Nothing to finish/m);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: a worktree's own file and a subdirectory's own file with their own records are listed and restored", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w, LOCAL_BEFORE);
+  const sub = join(w.project, "src");
+  writeTree(sub, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const subFile = join(sub, ".claude", "settings.local.json");
+  for (const file of [t.file, subFile]) {
+    const after = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { [`songwriting@${M}`]: false, [`review@${M}`]: false } };
+    writeFileSync(file, `${JSON.stringify(after, null, 2)}\n`);
+    writeTree(dataRecordsDir(w), {
+      [`${sha(realpathSync(file))}.json`]: {
+        schema: 1, profile: "songs", target: "folder", settingsFile: file, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+        phase: "applied", pending: {}, createdFile: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+        entries: { [`songwriting@${M}`]: { before: true, after: false } }, skillOverrides: {},
+      },
+    });
+  }
+  assert.deepEqual(recordedFiles(resetJson(w)), [t.file, subFile].sort());
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(t.file, "utf8"), LOCAL_BEFORE);
+  assert.equal(readFileSync(subFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a worktree copy adopted from the root's record is restored by reset before the root's record is removed", () => {
+  const w = world();
+  gitInit(w);
+  const before = w.read();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w, JSON.parse(w.read()));
+  knowFolders(w, t.wt);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.filter((f) => f.adopted).map((f) => f.file), [t.file]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(t.file, "utf8"), before);
+  assert.equal(w.read(), before);
+  assert.deepEqual(gitRecords(w), []);
+});
+
+test("#17354: a reset cut off after one file's write leaves it restored and the rest untouched, and the next reset finishes the rest", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  const untouched = readFileSync(p2.file, "utf8");
+  cutOff(w, w.localFile, { written: true });
+  assert.notEqual(untouched, LOCAL_BEFORE);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action]), [[w.localFile, "finish-restore"], [p2.file, "restore"]]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(resultLines(r.stdout).includes(`Finished an earlier reset of ${w.localFile}: its record is removed.`), r.stdout);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a reset cut off before a file's write leaves its record restoring, and the next reset restores the file", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  assert.equal(resetJson(w).folders[0].action, "restore");
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a file edited after a reset was cut off is reported as edited, not reverted, and its restoring record is removed", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: true });
+  const edited = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { ...JSON.parse(LOCAL_BEFORE).enabledPlugins, [`songwriting@${M}`]: false } };
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const kept = w.read();
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${w.localFile}: edited since an earlier reset restored it; left as it is, and its record is removed.`]);
+  assert.equal(w.read(), kept);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a stray temp file beside an untouched file is ignored", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  writeTree(w.project, { ".claude/.settings.local.json.4242.1.tmp": "{\"enabledPlugins\": {" });
+  writeTree(dataRecordsDir(w), { [`.${w.records()[0]}.4242.1.tmp`]: "{" });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: with records in two homes, reset restores the file once and removes both records", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = gitRecords(w);
+  mkdirSync(dataRecordsDir(w), { recursive: true });
+  cpSync(join(w.project, ".git", "plugin-profiles", "records", name), join(dataRecordsDir(w), name));
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${rootLocal(w.project)} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual([gitRecords(w), w.records()], [[], []]);
+});
+
+test("#17354: a file another writer changes during reset is skipped as changed, left as written, and the next reset restores it", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let other = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    other = [w.localFile, p2.file].find((f) => !line.includes(f));
+    const doc = JSON.parse(readFileSync(other, "utf8"));
+    doc.permissions.allow.push("Bash(other-writer)");
+    writeFileSync(other, `${JSON.stringify(doc, null, 2)}\n`);
+  });
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(resultLines(r.stdout).includes(`Skipped ${other}: it changed during the reset and is left as the other writer left it; run reset again.`), r.stdout);
+  const left = JSON.parse(readFileSync(other, "utf8"));
+  assert.equal(left.enabledPlugins[`songwriting@${M}`], false, "the profile's entries are still there");
+  const again = reset(w, ["--yes"]);
+  assert.equal(again.status, 0, again.stderr);
+  const restored = JSON.parse(readFileSync(other, "utf8"));
+  assert.deepEqual(restored.enabledPlugins, JSON.parse(LOCAL_BEFORE).enabledPlugins);
+  assert.deepEqual(restored.permissions.allow, ["Bash(npm test)", "Bash(other-writer)"]);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a record an apply re-saves during reset is reported and reset exits 1", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let reapplied = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    const done = [w.project, p2.dir].find((d) => line.includes(join(d, ".claude")));
+    reapplied = join(done, ".claude", "settings.local.json");
+    assert.equal(runIn(w, done, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  });
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, new RegExp(`^Another terminal applied a profile to ${esc(reapplied)} during the reset; run reset again\\.$`, "m"));
+  assert.equal(recordedFiles(resetJson(w)).includes(reapplied), true, "the re-saved record is still there for the next reset");
+});
+
+test("#17354: a file another reset already restored is reported as already restored", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let other = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    other = [w.project, p2.dir].find((d) => !line.includes(join(d, ".claude")));
+    assert.equal(runIn(w, other, ["clear", "--yes"]).status, 0);
+  });
+  assert.equal(r.status, 0, r.stdout);
+  assert.ok(resultLines(r.stdout).includes(`Already restored by another reset: ${join(other, ".claude", "settings.local.json")}.`), r.stdout);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
 });

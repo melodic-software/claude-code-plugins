@@ -66,7 +66,9 @@ export const holdsEveryEntry = (record, doc) => {
   return written.length > 0 && written.every(([key, name, after]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after);
 };
 
-export const saveRecord = (path, record) => replaceFile(path, `${JSON.stringify(record, null, 2)}\n`);
+export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
+export const saveRecord = (path, record) => replaceFile(path, recordText(record));
+export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });
 export const deleteRecord = (path) => removeFile(path);
 
 export function baseline(doc, record) {
