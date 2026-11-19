@@ -114,10 +114,6 @@
 #                               the N above by route, most first (ties by
 #                               route), at most 15 routes and 1000 bytes, the
 #                               rest summed; `other` for a line with no route
-#
-# pr-require-checks.yml's ci-status job and mark-lanes step carry this file
-# verbatim in their API_BUDGET_SH env (neither has a checkout of this
-# directory); log-api-budget.test.mjs keeps the three the same.
 
 api_budget_read() {
   local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines

@@ -1625,7 +1625,7 @@ test("every path list naming rate-guard.mjs also names rate-limits.json", () => 
   assert.ok(lists >= 4, `found ${lists} lists naming rate-guard.mjs`);
 });
 
-test("ci-status and mark-lanes carry api-budget.bash verbatim in their API_BUDGET_SH env", () => {
+test("ci-status and mark-lanes carry api-budget.bash less its full-line comments in their API_BUDGET_SH env", () => {
   const blocks = [...CI.matchAll(/\n( +)API_BUDGET_SH: \|\n((?:\1 {2}[^\n]*\n|\n)+)/g)];
   assert.deepEqual(
     blocks.map(([, pad]) => pad.length),
@@ -1634,7 +1634,7 @@ test("ci-status and mark-lanes carry api-budget.bash verbatim in their API_BUDGE
   );
   for (const [, pad, body] of blocks) {
     const carried = body.replace(new RegExp(`^${pad} {2}`, "gm"), "").replace(/\n+$/, "\n");
-    assert.equal(carried, readFileSync(LIB, "utf8"));
+    assert.equal(carried, readFileSync(LIB, "utf8").replace(/^[ \t]*#.*\n/gm, ""));
   }
 });
 
