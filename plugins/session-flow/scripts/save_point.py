@@ -1169,7 +1169,7 @@ def validate_doc(
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
     if (_fm_int(doc, "checks") or 0) >= UNVERIFIED_SETTLE_FROM:
-        unread = shallow and previous is not None
+        unread = shallow and previous is not None and gone is None
         _check_unverified(doc, f, SHAPES[shape].carried, pred, unread)
 
     for i, line in enumerate(doc.lines, 1):
@@ -1376,7 +1376,7 @@ def _check_unverified(
     whose whole text the predecessor holds. With no predecessor read nothing
     was carried, except under `unread` (a shallow check that skipped reading
     it), where the tag alone decides."""
-    hop = _fm_int(doc, "hop") or len(doc.chain)
+    hop = (_fm_int(doc, "hop") or 0) if doc.shape in HOP_FILE_SHAPES else len(doc.chain)
     for title, start, end in doc.sections:
         if title in carried:
             continue

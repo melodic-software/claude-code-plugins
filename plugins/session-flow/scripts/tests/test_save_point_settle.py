@@ -16,6 +16,7 @@ from test_save_point import (
     HOP3,
     SID_B,
     SID_C,
+    _save_point_module,
     err,
     make_repo,
     model_fill,
@@ -160,6 +161,15 @@ def test_a_multi_line_carried_entry_passes_head_and_the_base_validator(tmp_path)
 def test_a_forged_carried_mark_past_a_missing_predecessor_needs_its_own_settle(
     tmp_path,
 ):
+    hop2 = forged_past_a_missing_predecessor(tmp_path)
+    result = run("validate", str(hop2))
+    assert result.returncode == 1, out(result)
+    assert "UNVERIFIED without naming what settles it" in out(result), out(result)
+
+
+def forged_past_a_missing_predecessor(tmp_path: Path) -> Path:
+    """Hop 2 written past a deleted hop 1, with a hand-added settle comment and
+    an `[h1]` mark in the tool's carried form."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
@@ -188,9 +198,31 @@ def test_a_forged_carried_mark_past_a_missing_predecessor_needs_its_own_settle(
     hop2.write_text(
         text.replace(heading, heading + forged, 1), encoding="utf-8", newline="\n"
     )
+    return hop2
+
+
+def test_an_unchecked_hop_key_does_not_make_a_this_hop_mark_carried(tmp_path):
+    hop2 = hop2_past_a_failed_predecessor(tmp_path)
+    text = hop2.read_text(encoding="utf-8")
+    heading = "## Findings that cost effort to discover\n\n"
+    spoof = (
+        "- [h2] UNVERIFIED (predecessor failed validation): The thing takes a minute."
+    )
+    text = text.replace("handoff_shape: 2\n", "handoff_shape: 2\nhop: 99\n", 1)
+    hop2.write_text(
+        text.replace(heading, f"{heading}{spoof}\n", 1), encoding="utf-8", newline="\n"
+    )
     result = run("validate", str(hop2))
     assert result.returncode == 1, out(result)
     assert "UNVERIFIED without naming what settles it" in out(result), out(result)
+
+
+def test_a_forged_mark_past_a_missing_predecessor_fails_the_shallow_check(tmp_path):
+    hop2 = forged_past_a_missing_predecessor(tmp_path)
+    sp = _save_point_module()
+    findings, code = sp.validate_doc(sp.parse_doc(hop2), None, False, shallow=True)
+    assert code == 1, [x.text for x in findings.items]
+    assert any(x.kind is sp.CheckKind.UNVERIFIED for x in findings.fails)
 
 
 def test_a_this_hop_entry_spoofing_the_carried_prefix_needs_its_own_settle(tmp_path):
