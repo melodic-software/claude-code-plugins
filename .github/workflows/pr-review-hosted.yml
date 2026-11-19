@@ -313,6 +313,7 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py
+        plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py
@@ -335,6 +336,7 @@ jobs:
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
+        .github/source-control-settings.json
         .github/actions/log-api-budget/rate-guard.mjs
         .github/actions/log-api-budget/api-budget.bash
         .github/actions/log-api-budget/rate-limits.json

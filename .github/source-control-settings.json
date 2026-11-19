@@ -1,0 +1,73 @@
+{
+  "pluginConfigs": {
+    "source-control@melodic-software": {
+      "options": {
+        "unattended_merge_owners": ["melodic-software"],
+        "review_lane_workflows": [
+          "code-review=melodic-software/ci-workflows/.github/workflows/pr-review.yml",
+          "security-review=melodic-software/ci-workflows/.github/workflows/pr-review-security.yml",
+          "either=melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml"
+        ],
+        "review_lane_checks": [
+          "claude-review:caller=.github/workflows/pr-review-hosted.yml",
+          "claude-review:status=PR Review / review-status",
+          "claude-review:status=pr-review / review-status",
+          "claude-review:status=PR Review / claude-review-status",
+          "claude-review:status=pr-review / claude-review-status",
+          "claude-review:status=PR Review / Status",
+          "claude-review:status=pr-review / Status",
+          "claude-review:status=PR Review / Claude",
+          "claude-review:status=pr-review / Claude",
+          "claude-review:status=PR Review / Publish Review",
+          "claude-review:status=pr-review / Publish Review",
+          "claude-review:merge=claude-review-status",
+          "claude-review:merge=PR Review / review-status",
+          "claude-review:merge=pr-review / review-status",
+          "claude-review:merge=PR Review / Status",
+          "claude-review:merge=pr-review / Status",
+          "claude-review:merge=PR Review / Claude",
+          "claude-review:merge=pr-review / Claude",
+          "claude-review:merge=pr-review-no-bots / Claude",
+          "claude-review:merge=PR Review / Publish Review",
+          "claude-review:merge=pr-review / Publish Review",
+          "claude-security-review:caller=.github/workflows/pr-review-security-hosted.yml",
+          "claude-security-review:status=PR Review Security / review-status",
+          "claude-security-review:status=pr-review-security / review-status",
+          "claude-security-review:status=PR Review Security / security-review",
+          "claude-security-review:status=pr-review-security / security-review",
+          "claude-security-review:status=PR Review Security / Status",
+          "claude-security-review:status=pr-review-security / Status",
+          "claude-security-review:status=PR Review Security / Claude",
+          "claude-security-review:status=pr-review-security / Claude",
+          "claude-security-review:status=PR Review Security / Publish Review",
+          "claude-security-review:status=pr-review-security / Publish Review",
+          "claude-security-review:merge=claude-security-review-status",
+          "claude-security-review:merge=security-review / security-review",
+          "claude-security-review:merge=pr-review-security / security-review",
+          "claude-security-review:merge=PR Review Security / security-review",
+          "claude-security-review:merge=PR Review Security / review-status",
+          "claude-security-review:merge=pr-review-security / review-status",
+          "claude-security-review:merge=PR Review Security / Status",
+          "claude-security-review:merge=pr-review-security / Status",
+          "claude-security-review:merge=PR Review Security / Claude",
+          "claude-security-review:merge=pr-review-security / Claude",
+          "claude-security-review:merge=PR Review Security / Publish Review",
+          "claude-security-review:merge=pr-review-security / Publish Review"
+        ],
+        "owner_decisions_record": "melodic-software/architecture/docs/owner-decisions.md",
+        "free_runner_labels": [
+          "melodic-ubuntu-24.04-x64",
+          "melodic-ubuntu-24.04-x64-*",
+          "melodic-*-ubuntu-24.04-x64",
+          "melodic-*-ubuntu-24.04-x64-*",
+          "kyle-ubuntu-24.04-x64",
+          "kyle-ubuntu-24.04-x64-*",
+          "kyle-*-ubuntu-24.04-x64",
+          "kyle-*-ubuntu-24.04-x64-*"
+        ],
+        "model_leg_actions": ["run-claude-cli"],
+        "issue_status_app_login": "melodic-automation-lanes[bot]"
+      }
+    }
+  }
+}

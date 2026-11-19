@@ -266,6 +266,46 @@
       "title": "Lane GitHub app slug",
       "description": "Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>[bot]. Absent: the identity comes from the token's user. Must match ^[a-z0-9][a-z0-9-]*$."
     },
+    "unattended_merge_owners": {
+      "type": "string",
+      "title": "Unattended merge owners",
+      "description": "GitHub owners whose repositories /source-control:pull-request may merge after AI review without asking (merge phase 4.2.1). User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: nothing merges without the user.",
+      "multiple": true
+    },
+    "review_lane_workflows": {
+      "type": "string",
+      "title": "Review lane workflows",
+      "description": "Reusable workflows whose pull_request runs count as a CI review lane for review_venue auto, one per entry as code-review=, security-review= or either= then <owner>/<repo>/.github/workflows/<file>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no run counts, so every lane reads local.",
+      "multiple": true
+    },
+    "review_lane_checks": {
+      "type": "string",
+      "title": "Review lane checks",
+      "description": "The AI review lanes' caller and check names the merge gate accepts, one per entry as claude-review: or claude-security-review: then caller=<.github/workflows/file>, status=<check name> or merge=<check name>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no check is AI review, so the merge gate holds.",
+      "multiple": true
+    },
+    "owner_decisions_record": {
+      "type": "string",
+      "title": "Owner decisions record",
+      "description": "The record whose line links clear a cost hold, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no decision clears a cost hold."
+    },
+    "free_runner_labels": {
+      "type": "string",
+      "title": "Free runner labels",
+      "description": "Runner label globs the merge gate treats as free besides GitHub's standard labels; * stands for letters, digits and -. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only GitHub's standard labels are free.",
+      "multiple": true
+    },
+    "model_leg_actions": {
+      "type": "string",
+      "title": "Model leg actions",
+      "description": "Action names besides claude-code* that start a model leg, for the merge gate's cost check; adds only. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: the built-in names only.",
+      "multiple": true
+    },
+    "issue_status_app_login": {
+      "type": "string",
+      "title": "Issue status App login",
+      "description": "The one GitHub App login (<slug>[bot]) whose Work status field values the merge gate counts like a person's, when the repository's trusted-actors list also lists it. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only a person's values count."
+    },
     "promotion_evidence_binding": {
       "type": "file",
       "title": "Promotion-evidence security binding",

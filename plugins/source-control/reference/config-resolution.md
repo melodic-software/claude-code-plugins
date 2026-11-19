@@ -7,6 +7,7 @@
 - [Review-bot triage rubric (`docs/conventions/source-control.md`)](#review-bot-triage-rubric-docsconventionssource-controlmd)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
 - [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys)
+- [Trust and cost settings](#trust-and-cost-settings)
 - [The three layers](#the-three-layers)
 - [Merge semantics: per-key override](#merge-semantics-per-key-override)
 - [Drafting vs enforcement](#drafting-vs-enforcement)
@@ -669,6 +670,23 @@ with a CHANGELOG `Removed` entry, no earlier than 90 days after the release that
 resolver. Until then an operator with several identity domains on one machine can leave those
 fallback flags unset and declare the keys in each repository. The `userConfig` values of the review
 pair, the trigger phrase and `babysit_skip_downgrade_logins` are not deprecated and raise no note.
+
+## Trust and cost settings
+
+Seven `userConfig` keys decide what the merge path trusts or treats as free:
+`unattended_merge_owners`, `review_lane_workflows`, `review_lane_checks`, `owner_decisions_record`,
+`free_runner_labels`, `model_leg_actions` and `issue_status_app_login`. None has a layer here: no
+`docs/conventions/source-control.yaml` key, no markdown H2 and no invocation argument, since a
+pull request can edit any file in a repository and a model can type any argument.
+`skills/babysit-prs/scripts/babysit_merge_settings.py` reads them the way
+[hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-config-delivery/README.md)
+channel F reads a value: the plugin's `pluginConfigs` entry in the user `settings.json` it finds
+from its own install path, then the managed settings files, which win. It reads no environment
+variable and no file in a checkout. A copy run from a checkout instead of the plugin cache reads
+managed settings only. Every key fails closed when unset, unreadable or malformed; the plugin
+README's configuration table gives each key's unset behavior, and its `userConfig` description its
+value grammar. A CI lane passes its values at install with `claude plugin install --config`, which
+writes user settings.
 
 ## The three layers
 
