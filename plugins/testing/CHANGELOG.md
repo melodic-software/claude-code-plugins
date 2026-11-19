@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.7] - 2026-11-19
+
+### Fixed
+
+- `/testing:audit --persist-findings` reads the detector-findings contract from the copy bundled at
+  `reference/detector-findings.md` instead of fetching it from the publisher's repository, so
+  persisting works offline.
+
 ## [5.7.6] - 2026-11-19
 
 ### Changed
