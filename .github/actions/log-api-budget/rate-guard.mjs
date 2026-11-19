@@ -244,20 +244,9 @@ export const REST_PATH_WORDS = new Set(
 );
 export const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
 const WORKFLOW_FILE = /^[a-z0-9][a-z0-9_-]*\.ya?ml$/;
-// Whether a route has only path words and placeholders: what each writer and
-// the job-end notice keep.
 export const routeOk = (route) =>
   typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg, i, all) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg) || (all[i - 1] === "workflows" && WORKFLOW_FILE.test(seg))));
 
-// A request's URL as a route that holds no query, name or token, for the
-// job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
-// A URL on a host other than api.github.com and uploads.github.com is other,
-// unless its path starts with /api/ (GHES); scheme, host, /api/v3,
-// query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
-// repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
-// segment after one that names a thing (labels/<name>) and every segment after
-// one that starts a path or ref (contents/<path>) is {x} unless a number; a
-// REST path word stays; any other segment is {x}.
 const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|trees)$/;
 const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/;
 export function routeOf(url) {

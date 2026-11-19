@@ -1332,16 +1332,6 @@ def _api_budget_trace(token: str, stderr: str) -> str:
     return text + "\n" if text and stderr.endswith("\n") else text
 
 
-# A reading's route, for the job-end api-routes notice: rate-guard.mjs's
-# routeOf, whose REST_PATH_WORDS this list is (test_babysit_gh_api_budget.py
-# checks both against rate-guard.vectors.json's routes). A URL on a host other
-# than api.github.com and uploads.github.com is other, unless its path starts
-# with /api/ (GHES); scheme, host, /api/v3, query and fragment go; a GraphQL
-# path is graphql; repos/<owner>/<repo> is repos/{repo}; a number is {n}; hex
-# of 7 or more characters {sha}; the segment after one that names a thing
-# (labels/<name>) and every segment after one that starts a path or ref
-# (contents/<path>) is {x} unless a number; a REST path word stays; any other
-# segment is {x}; a route over 80 characters is other.
 REST_PATH_WORDS = frozenset(
     "api v3 repos orgs users user installation app graphql pulls issues comments"
     " reviews requested_reviewers git refs ref heads tags trees blobs commits"
