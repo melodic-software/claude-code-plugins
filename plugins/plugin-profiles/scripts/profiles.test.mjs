@@ -2934,6 +2934,23 @@ test("#17354: a moved repository with a profile applied at its new place is put 
   assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
 });
 
+test("#17354: apply's preview in a moved repository with a record from before the move says in one line that reset puts the file back one layer per run, newest first", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const plainLines = JSON.parse(w.run(["apply", "review", "--for", "folder", "--dry-run", "--json"]).stdout).lines;
+  assert.ok(!plainLines.some((l) => l.includes("before this repository moved")), "a repository that did not move gets no such line");
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  const line = `Reset keeps the record of ${old} (profile build) from before this repository moved; after this apply, reset puts this file back one layer per run, newest first.`;
+  const dry = runIn(w, moved, ["apply", "review", "--for", "folder", "--dry-run"]);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.split("\n").filter((l) => l === line).length, 1, dry.stdout);
+  const json = JSON.parse(runIn(w, moved, ["apply", "review", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.equal(json.lines.filter((l) => l === line).length, 1, json.lines.join("\n"));
+});
+
 test("#17354: the newest layer's row says it puts entries back to before that layer's profile while an older record waits, and to before the first apply only when none waits", () => {
   const w = world();
   const m = movedRepository(w);

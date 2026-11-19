@@ -250,7 +250,8 @@ left at the profile's value is left as it is and its record removed. One reset w
 from one record only. When a profile was applied at a moved repository's new place, reset first
 puts back that newest record, to the values from before that profile was applied, and keeps the
 older one waiting, saying so; it exits 3 and says to run reset again, and the next run offers the
-file from the older record. A repository moved more than
+file from the older record. An apply at the new place says so in its preview, naming each older
+record and its profile. A repository moved more than
 once goes back the same way, one layer per run, newest first, until the file holds what it held
 before the first apply; a no at any layer leaves the file and every record. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's

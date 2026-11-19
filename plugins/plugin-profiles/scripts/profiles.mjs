@@ -425,7 +425,8 @@ function prepare(opts, where, catalog, records) {
   }
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
-  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded };
+  const moved = opts.target === "folder" ? movedRecordsOf(where, file) : [];
+  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
 }
 
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
@@ -472,6 +473,10 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
   }
   const writes = `${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries`;
   lines.push(left.length ? `Writes ${writes} now, and ${left.length} off ${left.length === 1 ? "entry" : "entries"} in the second write.` : `Writes ${writes}.`);
+  if (p.moved.length) {
+    const kept = list(p.moved.map((f) => `${f.settingsFile} (profile ${f.record.profile})`));
+    lines.push(`Reset keeps the ${p.moved.length === 1 ? "record" : "records"} of ${kept} from before this repository moved; after this apply, reset puts this file back one layer per run, newest first.`);
+  }
   if (r.repositorySkills.length) lines.push(`Hides skills a repository profile names: ${list(r.repositorySkills)}`);
   if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
@@ -1202,6 +1207,27 @@ async function clear(opts, where, env, io) {
 const resetWrites = (where, file) =>
   realPath(file) === realPath(where.paths.user) || (basename(file) === "settings.local.json" && basename(dirname(file)) === ".claude");
 
+/** The settings files the records in homes name, as reset reads them; a file whose records cannot be read has none. */
+function settingsFilesIn(where, homes, knownFiles = []) {
+  const quietly = (read, none) => (file) => {
+    try {
+      return read(where, file);
+    } catch {
+      return none;
+    }
+  };
+  return machineSettingsFiles({ homes, homesOf: quietly(homesOf, []), recordOf: quietly(recordOf, null), knownFiles });
+}
+
+/** The records of a repository's root file from before the repository moved, oldest first, found as reset finds them. */
+function movedRecordsOf(where, file) {
+  const home = repositoryHome(dirname(dirname(file)), { home: where.home });
+  if (!home) return [];
+  return settingsFilesIn(where, [home])
+    .filter((f) => f.record && f.movedTo && realPath(f.movedTo) === realPath(file))
+    .sort((a, b) => String(a.record.appliedAt).localeCompare(String(b.record.appliedAt)));
+}
+
 /** Every settings file reset can reach, the record homes it read, and how many folders each source named. */
 function machineFiles(where, env) {
   const dataDirs = [where.dataDir, ...otherDataDirs(where)];
@@ -1218,21 +1244,7 @@ function machineFiles(where, env) {
       return [];
     }
   });
-  const lookup = (file) => {
-    try {
-      return recordOf(where, file);
-    } catch {
-      return null;
-    }
-  };
-  const holding = (file) => {
-    try {
-      return homesOf(where, file);
-    } catch {
-      return [];
-    }
-  };
-  const files = machineSettingsFiles({ homes, homesOf: holding, recordOf: lookup, knownFiles });
+  const files = settingsFilesIn(where, homes, knownFiles);
   return { files, homes, counts: { dataDirs: dataDirs.length, pointers: pointerHomes.length, ...Object.fromEntries(Object.entries(named).map(([k, v]) => [k, v.length])) } };
 }
 
