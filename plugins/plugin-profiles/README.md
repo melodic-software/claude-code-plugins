@@ -205,7 +205,9 @@ covers only the files with a record. A folder whose `.claude/settings.local.json
 skill entries but no record is listed with those entries, which may be the person's own; they go
 only after a yes for that folder. In a terminal reset asks each such folder, `--yes` or not, and
 the default is no; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
-that asked already; with nobody at a terminal, `--yes` alone leaves each such folder as it is.
+that asked already; with nobody at a terminal, `--yes` alone leaves each such folder as it is,
+and with neither a terminal nor `--yes` reset writes nothing and exits 1, as it does for recorded
+files.
 A file reset put back is not listed that way again while it holds the bytes reset left: reset notes
 their hash beside where that file's record is saved, and the preview counts such files in one
 line. An edit to the file, or an apply, ends that, and a record always wins over the note.

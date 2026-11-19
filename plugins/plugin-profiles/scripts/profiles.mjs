@@ -1402,8 +1402,15 @@ async function reset(opts, where, env, io) {
     }
   }
   const answers = { chosen: new Set(opts.removeUnrecorded.map((named) => realPath(resolve(named)))), kept: new Set(opts.keepUnrecorded.map((named) => realPath(resolve(named)))) };
-  if ((question || answers.chosen.size) && !opts.yes) {
-    if (!interactive()) throw new NotApplied("not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt");
+  const unanswered = [...askable].some((file) => !answers.chosen.has(file) && !answers.kept.has(file));
+  if ((question || answers.chosen.size || unanswered) && !opts.yes) {
+    if (!interactive()) {
+      throw new NotApplied(
+        question || answers.chosen.size
+          ? "not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt"
+          : "not reset: nobody to confirm, so nothing was written; a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change",
+      );
+    }
     if (question && !["y", "yes"].includes(await ask(`${question} [y/N] `))) throw new NotApplied("not reset: nothing was written");
   }
   if (!opts.removeUnrecorded.length && !opts.keepUnrecorded.length && !opts.json && askable.size && interactive()) {

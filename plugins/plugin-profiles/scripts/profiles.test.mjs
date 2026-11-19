@@ -2781,3 +2781,16 @@ test("#17354: a folder with entries and no record that reset never restored is s
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(resultLines(r.stdout), [`Removed the 2 plugin and skill entries of ${w.localFile}, which had no record.`]);
 });
+
+test("#17354: with nobody to answer and no --yes, a folder without a record makes reset write nothing and exit 1, saying so", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const r = reset(w);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: nobody to confirm, so nothing was written; a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change$/m);
+  assert.deepEqual(resultLines(r.stdout), []);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const kept = reset(w, ["--keep-unrecorded", w.localFile]);
+  assert.equal(kept.status, 0, "a folder already answered no leaves nothing to confirm");
+  assert.deepEqual(resultLines(kept.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is.`]);
+});
