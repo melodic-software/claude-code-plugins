@@ -1,6 +1,6 @@
 ---
 description: "Compress markdown by dropping flavor, filler, and hedging while keeping every directive, qualifier, threshold, and example, behind a semantic-diff subagent that reverts any meaning loss. Articles (a, an, the) are kept by default; the compress_articles setting can allow cutting them. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', 'did this skill rewrite lose meaning'. Actions: default, audit (read-only dry run), and compare (read-only before/after labeling of a rewritten skill directory). Not session compaction (/compact), markdown noise (/docs-hygiene:audit-noise), or SSOT consolidation (/docs-hygiene:extract-ssot)."
-argument-hint: "[audit [target]|compare <ORIG_DIR> <NEW_DIR> [REASONS]|target] [--force] [--keep-snapshot]"
+argument-hint: "[audit [target]|compare <ORIG_DIR> <NEW_DIR> [REASONS]|target] [--force] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -55,6 +55,8 @@ Report the result once per run, as the last line of the summary: `compress_artic
 
 **Revert threshold, `compress_revert_below_pct`** (`N` below; a whole number 0-100, default `3`): the same layers, from `${user_config.compress_revert_below_pct}` and, at the repository root `git rev-parse --show-toplevel` prints (skipped as for `compress_articles`), `bash "${CLAUDE_PLUGIN_ROOT}/lib/parse-concern-value.sh" --strict <root>/docs/conventions/docs-hygiene.yaml compress_revert_below_pct` (empty means unset; exit 3 or any other value is invalid and dropped as above). `0` turns the auto-revert off. Report it beside the articles line: `compress_revert_below_pct: 3 (default)`.
 
+**Over several repositories** (a target form, below), resolve both settings once per repository, the repository layer from the tree that pass reads (`articles-setting.sh <that tree>`, and `<root>` above set to it), and report the two lines per repository. One repository's `cut` never applies to another.
+
 ## Backend selection
 
 Under `compress_articles: keep`, skip Step A and Step B's caveman path: the backend is the in-session Edit fallback, held to the `keep` row above. Under `cut`, default-action Step B picks the backend: the `caveman` plugin (marketplace `caveman`, invoked as `/caveman:caveman-compress` via the Skill tool) when present, otherwise the in-session Edit fallback, which also substitutes whenever caveman is unwanted. Caveman performs the mechanical flavor cuts; it is not the verification gate. `/caveman:caveman`, the same plugin's session-wide response formatter, is unrelated to this skill.
@@ -106,6 +108,7 @@ Flags (apply to the default and `audit` actions):
 
 - `--force`. Proceed even when the `<N% AND 0 semantic-loss → REVERT` rule would trip; beats every `compress_revert_below_pct` layer. User owns the sub-N% diff
 - `--keep-snapshot`. Persist the original to `${CLAUDE_PLUGIN_DATA}/snapshots/<ISO-basic>Z-<basename>.orig.md` (the plugin data directory survives plugin updates)
+- `--repo <repo>` and the other target forms. Run the action once per repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories", with one difference from its "Fan-out": the main session runs each repository's pass itself, one repository at a time, because this skill's compressor and semantic-diff dispatches stay in the main session (`context/fan-out-orchestration.md`). With no path, the repositories go through the repo-wide interview fallback's steps 2-4 below, minus the step 1 offer. Step 2 writes one audit table per repository, at `${CLAUDE_PLUGIN_DATA}/audit/<owner>/<name>/<branch-or-scope>-audit.md`. Step 3's scope ranks the COMPRESS rows of every repository on one scale, so the default top-10 is ten files in total. One merged step 4 confirmation gates every Edit, with or without a path. The default action edits each repository in its own worktree and ships one pull request per repository ("Writes stay per repository" there); `audit` stays read-only. A non-interactive context may run only `audit` with a target form, never the default action
 
 ## Compare
 

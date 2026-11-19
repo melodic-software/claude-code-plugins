@@ -23,6 +23,7 @@
 // max and demote are recomputed from its rows, never taken from it.
 // write-rating.mjs runs the same checks on the skill's result before upload.
 
+import { isMergeRiskTitle, mergeRiskTitle } from "../lib/run-title.mjs";
 import { ofOrigin } from "../pr-verify/resolve-pr.mjs";
 
 export const RATING_WORKFLOW_PATH = ".github/workflows/pr-rate-merge-risk.yml";
@@ -33,7 +34,7 @@ export const CHECKS = Object.freeze(["agreed", "disputed", "added", "unchecked"]
 export const REASONS = Object.freeze(["pending", "no-run", "no-rating", "invalid", "unreadable", "over-budget"]);
 // The run-name pr-rate-merge-risk.yml gives each run, so a run still going
 // can be told apart for its pull request and head.
-export const runTitle = (pr, head) => `merge-risk #${pr} ${head}`;
+export const runTitle = mergeRiskTitle;
 export const artifactName = (pr, head) => `${ARTIFACT_PREFIX}-${pr}-${head}`;
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -176,7 +177,7 @@ export async function readRating({ actions, download, repository, pr, head, base
     }
     if (found === undefined) {
       const runs = (await actions("GET", `/repos/${repository}/actions/workflows/${RATING_WORKFLOW_PATH.split("/").at(-1)}/runs?event=workflow_run&branch=${base}&per_page=100`))?.workflow_runs ?? [];
-      const mine = runs.filter((run) => run?.display_title === runTitle(pr, head) && ofOrigin(run, { path: RATING_WORKFLOW_PATH, repository, base }));
+      const mine = runs.filter((run) => isMergeRiskTitle(run?.display_title, pr, head) && ofOrigin(run, { path: RATING_WORKFLOW_PATH, repository, base }));
       return unrated(mine.length === 0 ? "no-run" : mine.some((run) => run.status !== "completed") ? "pending" : "no-rating");
     }
     text = await download(found.id);

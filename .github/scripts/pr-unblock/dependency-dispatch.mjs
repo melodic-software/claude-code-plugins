@@ -24,7 +24,7 @@
 // can release it.
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
+import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
@@ -181,7 +181,7 @@ export async function dispatchDependencyReviews({
       log(`::warning::#${node.number}: ${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); skipped, a later run retries`);
       continue;
     }
-    const inFlight = active.find((run) => run.display_title === runTitle("review-dependency", node.number));
+    const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, "review-dependency", node.number));
     if (inFlight) {
       log(`skip #${node.number}: ${workflow} run ${inFlight.id} for review-dependency is not done yet`);
       continue;
