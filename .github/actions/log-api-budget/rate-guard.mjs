@@ -235,10 +235,6 @@ export function readingLine(status, headers, route = "other") {
   return `${status} ${values.join(" ")} ${routeOk(route) ? route : "other"}\n`;
 }
 
-// The GitHub REST path words a route, or a lane run report's failure row
-// (lane-run-report/post.mjs), may show; any other segment could be a name, a
-// path or planted text. api-budget.bash's API_BUDGET_ROUTE carries the same
-// list (log-api-budget.test.mjs checks).
 export const REST_PATH_WORDS = new Set(
   "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
 );

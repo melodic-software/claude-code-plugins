@@ -1361,7 +1361,9 @@ _ROUTE_WORKFLOW_FILE = re.compile(r"[a-z0-9][a-z0-9_-]*\.ya?ml")
 
 def api_route(url: str) -> str:
     """A request's URL or `gh api` path as a route that holds no query, name
-    or token (the rules above)."""
+    or token. Twin of rate-guard.mjs `routeOf` and api-budget.bash
+    `API_BUDGET_ROUTE`: change all of them together; rate-guard.vectors.json
+    holds the rules, and test_babysit_gh_api_budget.py checks this against it."""
     url = str(url)
     host = _ROUTE_URL.match(url)
     if host:
