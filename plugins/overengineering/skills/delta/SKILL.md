@@ -1,6 +1,6 @@
 ---
 description: "Re-runs overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
-argument-hint: "[--unattended] [layer ...]"
+argument-hint: "[--unattended] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-**Arguments.** `[--unattended] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
+**Arguments.** `[--unattended] [layer ...] [--repo <repo> ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 
@@ -81,8 +81,35 @@ Parse `$ARGUMENTS` with `overengineering:audit`'s vocabulary and **pass it throu
   default**, never inferred. Under `--unattended`, ask nothing, offer nothing, take the
   non-interactive defaults. The bare word `unattended` is not this flag and not a hint: stop and
   name `--unattended`.
+- **A target form** (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request
+  in words) with its value: selects several repositories ("Over several repositories"). It is not
+  forwarded as received: each repository's audit gets `--repo <root>` alone.
 - Anything else is a free-text hint. **Do not forward it**: it would make this cycle's walk
   incomparable with the baseline's. Report it as declined, with the reason.
+
+## Over several repositories
+
+With no target form, the cycle covers this checkout, as it always has. A target form selects
+several repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the
+whole of "The run", steps 1 to 7, with its root anchored. What differs here:
+
+- **One baseline per repository.** Each repository keeps its own `spine-baseline.md` beside its
+  own findings artifact, at the home `overengineering:audit` "Over several repositories" resolves
+  for it. For a repository other than this checkout, step 1 takes the branch identity the audit
+  derives from `origin/HEAD`, never that repository's `symbolic-ref HEAD` or an
+  environment-supplied ref. A cycle never compares one repository's spine against another's
+  baseline, and a repository's run state (bootstrap, no baseline, branch mismatch, no branch
+  identity) is its own.
+- **The composed audit runs once per repository**, invoked for that repository alone (`--repo
+  <root>`) with the layer scope and `--unattended` forwarded as received.
+- **One merged delta view.** Every listed row and queued row carries its repository; the counts
+  table, the volume cap and the quiet-cycle line cover all repositories together, the cap's last
+  tie-break is the repository's `owner/name`, since one path in two repositories derives one id,
+  and the coverage
+  and evidence-availability lines are given per repository. A repository whose cycle stopped short
+  of step 5 is reported with the reason.
 
 ## The run
 
