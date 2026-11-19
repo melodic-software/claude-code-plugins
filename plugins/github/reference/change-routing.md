@@ -26,7 +26,7 @@ org.acme:
   handoff:
     target: "IaC repository acme/github-config"
     instructions: |
-      Open a PR against the terraform/ directory; the platform team reviews weekly.
+      Open a PR; the platform team reviews weekly.
   areas:
     billing: propose
 
