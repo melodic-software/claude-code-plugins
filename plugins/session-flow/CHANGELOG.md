@@ -1,5 +1,19 @@
 # Changelog: session-flow plugin
 
+## [9.10.0] - 2026-11-19
+
+### Added
+
+- `/session-flow:audit-sessions resumed`: context at the tenth message of sessions resumed from a
+  handoff, as a median and sample size per session-flow plugin version, with a rise check
+  between two versions.
+
+### Fixed
+
+- `tidy_work.py clean` keeps every file of a handoff chain whose newest hot file is not closed
+  (`Next: none (closed)`), whatever its age or the state of the pull requests it names, and
+  prints one `kept open chain:` line per such chain.
+
 ## [9.9.2] - 2026-11-19
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.1] - 2026-11-19
+
+### Added
+
+- **An eval case for `ready`'s evidence step.** `pull-request-ready-posts-evidence-after-flip` runs `ready --evidence` on an offline draft whose head is verified and confirmed, and checks that the evidence comment goes up after the flip, with the publishable capture attached, and that the report names it. The forge now serves `gh run list` for the head (one run on a draft, a new one after the flip), so `ready`'s check for a run after the flip passes as the skill prescribes, and its tests cover that and its `gh repo set-default` answers.
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+- `babysit_verify_evidence.py` reads the trusted-actor list, admission rules and pipeline config at a commit from a checkout whose HEAD is that commit, before the contents API. `BABYSIT_CONFIG_CHECKOUT` now takes several checkouts separated by `os.pathsep`, and the first one whose HEAD is the commit answers.
+
 ## [11.22.0] - 2026-11-19
 
 ### Changed
