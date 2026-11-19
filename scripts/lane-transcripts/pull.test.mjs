@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -8,8 +8,8 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
-import { ENTRY, LANE_WORKFLOWS, main, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
-import { CAP_BYTES, parseArtifactName, paths, prune, query, readOutcomes, readRows, traceIdOf, transcriptMetrics, writeRows } from "./store.mjs";
+import { ENTRY, LANE_WORKFLOWS, main, PAYLOAD, REPO, TELEMETRY_ENTRY, TELEMETRY_PAYLOAD, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
+import { CAP_BYTES, parseArtifactName, paths, prune, query, readOutcomes, readRows, telemetrySpans, traceIdOf, transcriptMetrics, writeRows } from "./store.mjs";
 
 const MARKER = "plaintext-marker-5d21";
 const NOW = Date.parse("2026-11-02T12:00:00Z");
@@ -766,6 +766,93 @@ test("a zip holding a second sealed file beside the transcript is pulled; a thir
   assert.equal(result.code, 0, result.err);
   assert.match(result.out, /"pulled":1,.*"bad_zip":3/);
   assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [91]);
+  assert.deepEqual(pickTelemetry(readRows(sink)[0]), { telemetry: null, telemetry_bytes: null, telemetry_spans: null, telemetry_joined_spans: null, telemetry_outcome: "sealed_mismatch" }, "telemetry that does not open keeps the transcript");
+});
+
+const pickTelemetry = ({ telemetry, telemetry_bytes, telemetry_spans, telemetry_joined_spans, telemetry_outcome }) => ({ telemetry, telemetry_bytes, telemetry_spans, telemetry_joined_spans, telemetry_outcome });
+
+function telemetryLines(traceIds) {
+  const spans = traceIds.map((traceId, i) => ({ traceId, spanId: `${i}`.padStart(16, "0"), name: MARKER }));
+  return `${JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans }] }] })}\n${JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [{ body: { stringValue: MARKER } }] }] }] })}\n`;
+}
+
+const sealedTelemetry = (publicLine, text, { runId = 42, jobId = "check-intent", payload = TELEMETRY_PAYLOAD } = {}) => sealRecord(parsePublicKey(publicLine), payload, gzipSync(Buffer.from(text)), String(runId), jobId);
+
+test("a pull opens the sealed telemetry beside the transcript into the sink and counts the spans that join the row's trace id", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const trace = traceIdOf(42, 1);
+  const text = telemetryLines([trace, trace.toUpperCase(), "0".repeat(32)]);
+  const deps = fakeDeps([artifact(95, { entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: sealedTelemetry(publicLine, text) } })]);
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 0, result.err);
+  for (const out of [result.out, result.err]) assert.ok(!out.includes(MARKER));
+  const [row] = readRows(sink);
+  assert.equal(row.trace_id, trace);
+  const { telemetry, telemetry_bytes: bytes, ...counts } = pickTelemetry(row);
+  assert.deepEqual(counts, { telemetry_spans: 3, telemetry_joined_spans: 2, telemetry_outcome: "stored" });
+  assert.equal(telemetry, row.transcript.replace(/\.json\.gz$/, ".otel.jsonl.gz"));
+  const file = path.join(sink, telemetry);
+  assert.equal(gunzipSync(readFileSync(file)).toString("utf8"), text);
+  assert.equal(bytes, statSync(file).size);
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.ok(!JSON.stringify(row).includes(MARKER), "the metrics row holds no telemetry text");
+});
+
+test("telemetry bound to another job or payload name is not stored, and a transcript alone records none", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const text = telemetryLines([traceIdOf(42, 1)]);
+  const page = [
+    artifact(96, { entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: sealedTelemetry(publicLine, text, { jobId: "other" }) } }),
+    artifact(97, { attempt: 2, entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: sealedTelemetry(publicLine, text, { payload: PAYLOAD }) } }),
+    artifact(98, { attempt: 3, record: sealed(publicLine) }),
+  ];
+  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps(page) }).code, 0);
+  const byId = Object.fromEntries(readRows(sink).map((r) => [r.artifact_id, r.telemetry_outcome]));
+  assert.deepEqual(byId, { 96: "sealed_mismatch", 97: "sealed_mismatch", 98: "none" });
+  assert.ok(readRows(sink).every((r) => r.telemetry === null && r.transcript));
+});
+
+test("telemetry that cannot be extracted or is over its size cap is unreadable, and the transcript is kept", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const page = [
+    artifact(81, { entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: sealedTelemetry(publicLine, "\n".repeat(64 * 1024 * 1024 + 1)) } }),
+    artifact(82, { attempt: 2, entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: "z" } }),
+  ];
+  const deps = fakeDeps(page);
+  const unzip = deps.unzip;
+  deps.unzip = (args) => {
+    if (args[2] === TELEMETRY_ENTRY && JSON.parse(readFileSync(args[1], "utf8"))[TELEMETRY_ENTRY] === Buffer.from("z").toString("base64")) throw Object.assign(new Error("maxBuffer"), { status: 9 });
+    return unzip(args);
+  };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 0, result.err);
+  const byId = Object.fromEntries(readRows(sink).map((r) => [r.artifact_id, [r.telemetry_outcome, r.telemetry, Boolean(r.transcript)]]));
+  assert.deepEqual(byId, { 81: ["unreadable", null, true], 82: ["unreadable", null, true] });
+});
+
+test("telemetrySpans counts spans across lines and skips a line that is not JSON", () => {
+  const trace = "a".repeat(32);
+  assert.deepEqual(telemetrySpans(`not json\n${telemetryLines([trace, "b".repeat(32)])}`, trace), { telemetry_spans: 2, telemetry_joined_spans: 1 });
+  assert.deepEqual(telemetrySpans("", trace), { telemetry_spans: 0, telemetry_joined_spans: 0 });
+});
+
+test("prune drops a row's telemetry with its transcript, and a telemetry file gone missing clears its path", () => {
+  const sink = sinkDir();
+  const rows = seedStore(sink, [1, 31]);
+  for (const row of rows) {
+    row.telemetry = row.transcript.replace(/\.json\.gz$/, ".otel.jsonl.gz");
+    writeFileSync(path.join(sink, row.telemetry), "t");
+  }
+  writeRows(sink, rows);
+  rmSync(path.join(sink, rows[0].telemetry));
+  prune(sink, NOW);
+  const after = readRows(sink);
+  assert.deepEqual(after.map((r) => [r.telemetry, r.pruned ?? null]), [[null, null], [null, "age"]]);
+  assert.ok(existsSync(path.join(sink, after[0].transcript)), "the fresh transcript stays");
+  assert.ok(!existsSync(path.join(sink, rows[1].telemetry)), "the aged telemetry goes with its transcript");
 });
 
 test("a pulled row carries its run attempt's trace id, and no failure class while no lane-outcome record is held", () => {
