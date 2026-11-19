@@ -35,13 +35,13 @@ For `fresh`, the helper resolves the effective default **remote** first (the cur
 
 **The caller owns this choice.** `worktree.baseRef` is a Claude Code **settings.json** key (`{"worktree": {"baseRef": "head"}}`, governing native `EnterWorktree`/`--worktree`), **not** a git config key, so the helper cannot read it. Since this skill bypasses native creation, it must honor the setting itself: resolve the effective `worktree.baseRef` by Claude Code's settings precedence, local `.claude/settings.local.json` over project `.claude/settings.json` over user `~/.claude/settings.json`. If it is `head`, pass `--base-ref head` to the helper; otherwise omit it (the helper defaults to `fresh`). Skipping this read, or reading only project/user and missing a local override, silently forces `fresh` for a user who configured `head`.
 
-Read each layer in its own call, never one command that names several settings files: one refused path refuses the whole command, and the readable layers are lost with it. In order:
+Read each layer in its own call, never one command that names several settings files, so a deny on one file costs only that layer. In order:
 
 1. Read the project `.claude/settings.json`.
 2. If its `permissions.deny` holds a `Read` rule that covers `.claude/settings.local.json` (such as `Read(./.claude/settings.local.json)`), skip the local layer without attempting it. Otherwise read `.claude/settings.local.json`.
 3. When the local or project layer sets the key, that value wins (local over project) and the user layer cannot change it, so stop. Otherwise read `~/.claude/settings.json`.
 
-Pointer: for every settings layer and its rank, read [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live.
+Pointer: for every settings layer and its rank, read [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live; for which tools and shell commands a `Read` deny rule reaches, read [permissions: what Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover) live.
 
 When step 2 skips a layer, or a read is refused (a permission rule in another layer denies a settings file), do not read that file another way: the deny is deliberate, whichever settings layer set it. Name the layer you could not read, resolve from the layers you could, and treat an unknown value as `fresh`. With a user present, ask whether that layer sets `head` before creating. With no user present, create with `fresh` and state in the result that the base assumes `fresh` because that layer was unreadable.
 
