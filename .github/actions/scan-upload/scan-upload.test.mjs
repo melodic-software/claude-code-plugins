@@ -118,6 +118,49 @@ test("a zero-width match writes the rule, path and line and none of the line", (
   assert.ok(!result.summary.includes("aaaaaa") && !result.summary.includes("bbbbbb"), "no character of the match");
 });
 
+const HEX32 = "c".repeat(32);
+const HEX64 = "d".repeat(64);
+const spanLine = (extra = "") => `${JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans: [{ traceId: HEX32, spanId: "e".repeat(16), attributes: [{ key: "digest", value: { stringValue: HEX64 } }] }] }] }] })}${extra}\n`;
+const TELEMETRY = { SCAN_TELEMETRY: "true" };
+
+test("the telemetry scan does not read a trace id as the R2 key pair's 32-hex half", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "otel.jsonl");
+  const logLine = JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [{ trace_id: HEX32.toUpperCase(), body: HEX64 }] }] }] });
+  writeFileSync(file, `${spanLine()}${logLine}\n${JSON.stringify({ body: spanLine() })}\n`);
+  const result = run(dir, file, TELEMETRY);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.outputs, "clean=true\n");
+  assert.equal(result.summary, "");
+});
+
+test("the telemetry scan still withholds a 32-hex word that is no trace id beside a 64-hex word", (t) => {
+  const dir = workDir(t);
+  const bare = path.join(dir, "bare.jsonl");
+  writeFileSync(bare, `{"a": 1}\n${HEX32} ${HEX64}\n`);
+  const result = run(dir, bare, TELEMETRY);
+  withheld(result, "R2 key pair");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `R2 key pair`, path `bare.jsonl`, line 2\n\n");
+  const beside = path.join(dir, "beside.jsonl");
+  writeFileSync(beside, spanLine(` ${"f".repeat(32)}`));
+  withheld(run(dir, beside, TELEMETRY), "R2 key pair");
+});
+
+test("the telemetry scan withholds every other rule beside a trace id", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "otel.jsonl");
+  writeFileSync(file, `${spanLine()}{"body":"${PLANTED}"}\n`);
+  withheld(run(dir, file, TELEMETRY), "GitHub token");
+});
+
+test("without SCAN_TELEMETRY a trace id beside a 64-hex word still withholds", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "execution.json");
+  writeFileSync(file, spanLine());
+  withheld(run(dir, file), "R2 key pair");
+  withheld(run(dir, file, { SCAN_TELEMETRY: "1" }), "R2 key pair");
+});
+
 test("a hit found only after escaped breaks decode names the file's own line", (t) => {
   const dir = workDir(t);
   // One physical line: the token follows a `\n` escape, so only the decoded view separates it.
@@ -179,6 +222,7 @@ test("the lane transcript is scanned as plaintext before it is sealed", () => {
   const scanOtel = action.indexOf("id: scan-otel\n");
   const sealOtel = action.indexOf("id: seal-otel\n");
   assert.ok(seal < scanOtel && scanOtel < sealOtel, "the telemetry is scanned after the transcript is sealed and before its own seal");
-  assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.otel-file \}\}\n.*\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
+  assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.otel-file \}\}\n\s+SCAN_TELEMETRY: "true"\n.*\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
+  assert.equal(action.match(/SCAN_TELEMETRY/g)?.length, 1, "only the telemetry scan reads trace ids");
   assert.match(action, /id: seal-otel\n\s+if: steps\.scan-otel\.outputs\.clean == 'true'\n/);
 });

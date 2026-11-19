@@ -22,11 +22,6 @@
 # a repo that appeared is not in the plan so it is never touched. The plan is the
 # fleet-level analogue of the child's per-repo manifest staleness guard.
 #
-# Usage:
-#   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-#                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
-#                  [--skip ENTRY]... [--skip-from FILE]...
-#                  [--batch-plan FILE] [--data-dir DIR] [--list-paths-max N] [--help]
 # --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
 # durable per-repo-set dir under the plugin data dir, resolved by plugin_data_dir).
 # Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
@@ -53,7 +48,7 @@ clean-batch.sh — run the selective clean tiers across many repos behind one ga
 Usage:
   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
-                 [--skip ENTRY]... [--skip-from FILE]...
+                 [--owner OWNER]... [--skip ENTRY]... [--skip-from FILE]...
                  [--batch-plan FILE] [--data-dir DIR] [--list-paths-max N] [--help]
 
 Default: --dry-run (inventory only; writes a batch plan, no mutations).
@@ -69,10 +64,10 @@ git-tree-reset-batch.sh):
   git     prune/gc each unique shared object store once (git-prune.sh)
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
 
-Repo sources (combine freely; deduped by canonical toplevel. With --fleet, also
-by origin URL: the first clone that is not skip-listed is kept, each other is
-`skipped duplicate of <path>`. Without --fleet, two clones of one origin are both
-kept):
+Repo sources (combine freely; deduped by canonical toplevel. With --fleet or
+--owner, also by origin URL: the first clone that is not skip-listed is kept,
+each other is `skipped duplicate of <path>`. Without either, two clones of one
+origin are both kept):
   --repo DIR...      one or more repositories (repeatable). Consumes every
                      consecutive non-flag path, so a shell glob (--repo
                      ~/repos/*) is ingested whole.
@@ -82,6 +77,9 @@ kept):
   --fleet            every `ghq list -p` repo (when ghq resolves) plus the chezmoi
                      source repo (when chezmoi resolves and its source is a git repo),
                      and it dedupes clones of one origin URL across the whole set.
+  --owner OWNER      the --fleet repos whose origin is <host>/OWNER/<name> (owner
+                     case-insensitive on github.com); dedupes clones like --fleet.
+                     Repeatable.
 
 Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
   --skip ENTRY       skip a repo (repeatable).
@@ -167,9 +165,6 @@ DATA_DIR_ARG=""
 LIST_MAX=20
 PLAN_RETAIN_DAYS=14
 REPO_INPUTS=()
-# Clone dedupe by origin URL is part of --fleet only: --repo and --repos-from are an
-# explicit selection, and two clones of one origin each hold their own working-tree
-# caches, build output and object store.
 FLEET=0
 
 while [[ $# -gt 0 ]]; do
@@ -218,6 +213,12 @@ while [[ $# -gt 0 ]]; do
   --fleet)
     FLEET=1
     batch_discover_fleet REPO_INPUTS
+    ;;
+  --owner)
+    [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || fail_usage "--owner requires an owner"
+    FLEET=1
+    batch_discover_owner REPO_INPUTS "$2"
+    shift
     ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
@@ -320,7 +321,7 @@ summary_field() {
 # SCAN: read-only inventory per repo; no plan, nothing to gate.
 # ---------------------------------------------------------------------------
 if [[ "$TIER" == scan ]]; then
-  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
+  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from, --owner and/or --fleet)"
   batch_resolve_repos "${REPO_INPUTS[@]}"
   if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
   batch_reset_skip_hits
@@ -523,7 +524,7 @@ fi
 # ---------------------------------------------------------------------------
 # DRY-RUN: enumerate, plan, write the gated plan.
 # ---------------------------------------------------------------------------
-[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
+[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from, --owner and/or --fleet)"
 
 batch_resolve_repos "${REPO_INPUTS[@]}"
 if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi

@@ -15,7 +15,7 @@ import { fakeGhArchive, fakeGhDownload } from "./gh-download.fixture.mjs";
 import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
-import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads } from "./rotation.mjs";
+import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads, trustedRun } from "./rotation.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -132,6 +132,13 @@ test("a PR-scoped dispatch's files are never read, and a hand-started sweep's ar
   assert.deepEqual(result.downloads, [7]);
   assert.ok(!result.calls.some((path) => /\/runs\/[89]\/artifacts/.test(path)));
   assert.deepEqual(result.order, [30, 10, 20]);
+});
+
+test("a PR-scoped dispatch under either run-name prefix is not a sweep, and the workflow's own name is", () => {
+  const dispatch = (title) => ({ ...wf(1, "workflow_dispatch"), display_title: title });
+  assert.equal(trustedRun(dispatch("pr-merge: arm #42")), false);
+  assert.equal(trustedRun(dispatch("PR Merge: arm #42")), false);
+  assert.equal(trustedRun(dispatch("PR Merge")), true, "a sweep's default title");
 });
 
 test("the lookup pages through main's runs, then stops at its bounds", async () => {

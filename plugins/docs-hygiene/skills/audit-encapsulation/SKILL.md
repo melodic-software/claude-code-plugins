@@ -1,6 +1,6 @@
 ---
 description: "Audit skill-encapsulation violations; remediation runs only behind an explicit `fix FILE:LINE`. External citations reaching into private surfaces inside `.claude/skills/X/` or `plugins/*/skills/X/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into SKILL', 'check skill boundaries', 'public API drift', or before refactoring a skill."
-argument-hint: "[detect|sweep|fix <file>:<line>|file-issues]"
+argument-hint: "[detect|sweep|fix <file>:<line>|file-issues] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -39,6 +39,7 @@ The choice is per-cite. The bundled `detect.sh` is a **candidate enumerator**: e
 | `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation, for when the user already said "whole repo" |
 | `fix <file>:<line>` | Targeted remediation | Interactive Path A (promote-out) vs Path B (route-via-`/<skill>`) for one hit |
 | `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`), after reading the house style (`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`) and applying it; emit a checklist if no tracker is available |
+| `--repo <repo>` (and the other target forms) | Several repositories | `detect`/`sweep` once per repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories"; `detect.sh` runs from inside each root and scans only that repository. The per-repository subagents run in waves of 2–3, the pacing cap below. `fix <file>:<line>` with `--repo <repo>` beside it edits that repository's hit in its own worktree and pull request ("Writes stay per repository" there); `file-issues` files each hit in its own repository's tracker |
 
 One action per response.
 

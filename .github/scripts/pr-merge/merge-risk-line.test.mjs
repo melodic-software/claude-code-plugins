@@ -186,6 +186,10 @@ test("readRating: no artifact reads the runs for pending, no-rating or no-run", 
   assert.equal((await readRating({ actions: done.actions, download: () => "", repository: REPO, pr: 7, head: HEAD })).token, "unrated:no-rating");
   const other = fake({ listing: [runOf(5, { display_title: `merge-risk #7 ${OTHER}` })] });
   assert.equal((await readRating({ actions: other.actions, download: () => "", repository: REPO, pr: 7, head: HEAD })).token, "unrated:no-run");
+  const titled = fake({ listing: [runOf(5, { status: "in_progress", conclusion: null, display_title: `PR Rate Merge Risk #7 ${HEAD}` })] });
+  assert.equal((await readRating({ actions: titled.actions, download: () => "", repository: REPO, pr: 7, head: HEAD })).token, "unrated:pending", "the Title Case run-name");
+  const near = fake({ listing: [runOf(5, { status: "in_progress", conclusion: null, display_title: `pr rate merge risk #7 ${HEAD}` })] });
+  assert.equal((await readRating({ actions: near.actions, download: () => "", repository: REPO, pr: 7, head: HEAD })).token, "unrated:no-run", "the wrong case");
 });
 
 test("readRating: a bad artifact is invalid, an unreadable one unreadable", async () => {
