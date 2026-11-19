@@ -267,6 +267,30 @@ test("a patient latch leaves a GET whose caller marks its resend to that caller,
   }
 });
 
+test("a retry-after 1 answered at the end of a second still waits and is resent", async () => {
+  const gh = fakeGitHub([[403, { "retry-after": "1" }, { message: "You have exceeded a secondary rate limit." }], [200]]);
+  let clock = NOW + 980;
+  let failed = 0;
+  const latch = createRateLimitLatch({
+    now: () => (clock += 5),
+    log: () => {},
+    fail: () => {
+      failed += 1;
+    },
+    limits: () => apiLimits({ resolvedPath: "" }),
+    stopFile: null,
+    sleep: async (ms) => {
+      clock += ms;
+    },
+  });
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A, { [RESEND]: true })).status, 403);
+  assert.equal(failed, 0, "a refusal the caller resends fails nothing");
+  assert.ok(latch.waits(URL_A), "the stop is still ahead when the caller decides to resend");
+  assert.equal((await fetch(URL_A)).status, 200);
+  assert.equal(failed, 0);
+});
+
 test("a patient latch never resends a refused write, and refuses a reset past its budget", async () => {
   const write = fakeGitHub([refused(896), [201]]);
   const one = latchFor({ budgetMs: BUDGET_1200 });

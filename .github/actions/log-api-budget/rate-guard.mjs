@@ -506,7 +506,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   }
   const nowSeconds = Math.floor(now / 1000);
   const candidates = [
-    retryAfter !== null ? [nowSeconds + retryAfter, "retry-after"] : null,
+    retryAfter !== null ? [Math.ceil(now / 1000) + retryAfter, "retry-after"] : null,
     (remaining === 0 || floored) && reset !== null ? [reset, "x-ratelimit-reset"] : null,
   ].filter(Boolean);
   const best = candidates.length ? candidates.reduce((top, next) => (next[0] > top[0] ? next : top)) : null;
