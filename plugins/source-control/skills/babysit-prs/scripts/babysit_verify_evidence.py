@@ -1157,11 +1157,14 @@ VENDORED_UNSAFE = frozenset(
 )
 
 
+VENDOR_INERT_RE = re.compile(r".*\.(?:md|jsonc)|LICENSE")
+
+
 def vendored_path(plugin: Any, name: Any) -> bool:
     """resolve-pr.mjs vendoredPath: a changelog fragment directly under
     `.changes/<plugin>/`, or, under `plugins/<plugin>/skills/`, a markdown
-    file or a file in a `vendor/` baseline, with no VENDORED_UNSAFE
-    segment. Pure."""
+    file, or in a `vendor/` baseline a markdown, `.jsonc` or `LICENSE` file,
+    with no VENDORED_UNSAFE segment. Pure."""
     if not isinstance(plugin, str) or not isinstance(name, str):
         return False
     fragment = f".changes/{plugin}/"
@@ -1172,15 +1175,77 @@ def vendored_path(plugin: Any, name: Any) -> bool:
         name.startswith(f"plugins/{plugin}/skills/")
         and len(parts) > 4
         and all(part and part not in VENDORED_UNSAFE for part in parts)
-        and (name.endswith(".md") or "vendor" in parts[4:-1])
+        and (
+            VENDOR_INERT_RE.fullmatch(parts[-1]) is not None
+            if "vendor" in parts[4:-1]
+            else name.endswith(".md")
+        )
     )
 
 
-def vendored_scope(files: Any, plugin: str) -> bool:
+SKILL_FILE_RE = re.compile(r"plugins/[^/]+/skills/(?:[^/]+/)+SKILL\.md")
+SKILL_READS_MAX = 10
+SYNC_STAMP_RE = re.compile(
+    r' {2}(upstream-version|upstream-sha|synced): ("?)[\w./@:+-]+\2', re.ASCII
+)
+PRECOMPUTE_FENCE_RE = re.compile(r"(?:`{3,}|~{3,})\s*!")
+
+
+def skill_file(name: Any) -> bool:
+    """resolve-pr.mjs skillFile: a SKILL.md under a plugin's skills/ and
+    outside a vendor/ baseline. Pure."""
+    return (
+        isinstance(name, str)
+        and SKILL_FILE_RE.fullmatch(name) is not None
+        and "vendor" not in name.split("/")
+    )
+
+
+def _skill_surface(text: Any) -> tuple[list[str], list[str]] | None:
+    """resolve-pr.mjs skillSurface: the frontmatter with each sync stamp's
+    value dropped, and every body line holding `` !` ``; None with no closed
+    frontmatter or a fenced precompute. Pure."""
+    lines = text.split("\n") if isinstance(text, str) else []
+    if not lines or lines[0] != "---" or "---" not in lines[1:]:
+        return None
+    end = lines.index("---", 1)
+    if any(PRECOMPUTE_FENCE_RE.search(line) for line in lines):
+        return None
+    front = [
+        line[: line.index(":") + 1] if SYNC_STAMP_RE.fullmatch(line) else line
+        for line in lines[1:end]
+    ]
+    return front, [line for line in lines[end + 1 :] if "!`" in line]
+
+
+def skill_text_safe(base: Any, head: Any) -> bool:
+    """resolve-pr.mjs skillTextSafe: the SKILL.md change from `base` to
+    `head` leaves its frontmatter but for sync stamp values, and its inline
+    precompute lines, as they were, with no fenced precompute. Pure."""
+    before = _skill_surface(base)
+    return before is not None and before == _skill_surface(head)
+
+
+def _vendored_skill_safe(file: dict[str, Any], texts: dict[str, tuple[str, str]]) -> bool:
+    """resolve-pr.mjs vendoredSkillSafe, with `texts` the base and head
+    texts read per modified skill_file. Pure."""
+    if skill_file(file.get("previous_filename")):
+        return False
+    name = file.get("filename")
+    if not skill_file(name):
+        return True
+    pair = texts.get(name)
+    return file.get("status") == "modified" and pair is not None and skill_text_safe(*pair)
+
+
+def vendored_scope(
+    files: Any, plugin: str, texts: dict[str, tuple[str, str]] | None = None
+) -> bool:
     """resolve-pr.mjs driftSpec's changed-file half for a vendored-copy
     issue: `files` (GET compare's `files`) is non-empty, under GitHub's cap,
-    and every path, and a rename's previous path, is a vendored_path of
-    `plugin`. Pure."""
+    every path, and a rename's previous path, is a vendored_path of
+    `plugin`, and a skill_file among them passes _vendored_skill_safe on
+    `texts`. Pure."""
     if not is_json_array(files) or not 0 < len(files) < COMPARE_FILES_CAP:
         return False
 
@@ -1190,6 +1255,7 @@ def vendored_scope(files: Any, plugin: str) -> bool:
     return all(
         inside(file.get("filename"))
         and ("previous_filename" not in file or inside(file["previous_filename"]))
+        and _vendored_skill_safe(file, texts or {})
         for file in map(json_object, files)
     )
 
@@ -3344,8 +3410,42 @@ class Reader:
         )
         files = json_object(compared).get("files")
         if plugin is not None:
-            return vendored_scope(files, plugin)
+            return vendored_scope(files, plugin, self._skill_texts(compared, head))
         return drift_scope(files, upstream, self._page_pin)
+
+    def _skill_texts(self, compared: Any, head: str) -> dict[str, tuple[str, str]]:
+        """resolve-pr.mjs compareFiles's reads: each modified skill_file of
+        GET compare answer `compared` as text at its merge base and at `head`,
+        none past SKILL_READS_MAX. A failed read raises `_Unreadable`."""
+        answer = json_object(compared)
+        files = answer.get("files")
+        merge_base = json_object(answer.get("merge_base_commit")).get("sha")
+        names = [
+            file.get("filename")
+            for file in map(json_object, files if is_json_array(files) else [])
+            if file.get("status") == "modified" and skill_file(file.get("filename"))
+        ]
+        if not names or len(names) > SKILL_READS_MAX or not isinstance(merge_base, str):
+            return {}
+        return {
+            name: (self._text_at(name, merge_base), self._text_at(name, head)) for name in names
+        }
+
+    def _text_at(self, path: str, ref: str) -> str:
+        """File `path` as text at commit `ref`. A failed read raises
+        `_Unreadable`."""
+        file = json_object(
+            _read(
+                ["api", f"repos/{self.repo}/contents/{urllib.parse.quote(path)}?ref={ref}"],
+                "skill text",
+            )
+        )
+        if file.get("encoding") != "base64" or not isinstance(file.get("content"), str):
+            raise _Unreadable(f"{path}: no content at {ref}")
+        try:
+            return base64.b64decode(file["content"]).decode("utf-8")
+        except ValueError as exc:
+            raise _Unreadable(f"{path}: {exc}") from exc
 
     def _page_pin(self, path: str) -> str | None:
         """The upstream id docs/upstream page `path` pins at the default

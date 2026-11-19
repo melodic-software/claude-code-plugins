@@ -536,8 +536,15 @@ After a failed write the other upstreams still run, and the run then exits nonze
   pages and changes only them. The vendored-copy template finds the skill's update script from
   the id's row in `scripts/upstream-drift-vendored-report.sh`, runs the mode the skill's own update
   procedure names, folds the upstream changes into the skill's distilled files, adds a changelog
-  fragment, and changes only markdown and `vendor/` files under the plugin's `skills/` plus that
-  fragment, never a script, hook, library, manifest, MCP config or eval suite. The issue lane's run and pr-verify read that same
+  fragment, and changes only markdown files under the plugin's `skills/`, markdown, `.jsonc` and
+  `LICENSE` files in its `vendor/` baselines, plus that fragment, never a script, hook, library,
+  manifest, MCP config or eval suite. A `SKILL.md` outside `vendor/` is the one such file Claude
+  Code runs from: its frontmatter declares hooks and grants tools, and a `` !` `` line or a
+  ```` ```! ```` block runs a shell command when the skill loads. So a sync adds, renames and
+  removes no `SKILL.md` there, and in one it changes no frontmatter line but the
+  `upstream-version`, `upstream-sha` and `synced` values and adds or changes no `` !` `` line or
+  fenced block; pr-verify and the merge gate read the file at the merge base and the head to check
+  it (`skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`). The issue lane's run and pr-verify read that same
   template in place of the body, and pr-verify and the merge gate count it only for a pull request
   inside that scope. Every author gate on the way (the sweep, intake's verdict write, admission,
   the issue lane's blocker check and its `issue.json` writer) asks the same rule. A trusted drift
