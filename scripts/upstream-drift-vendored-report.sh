@@ -6,9 +6,12 @@
 #       [--row-timeout <seconds>] [--table <file>]
 #   scripts/upstream-drift-vendored-report.sh --list | --help
 #
-# Each row is `<id>|<check script>|<argument>`: the id is the upstream's
-# `<owner>/<repo>`, else `<plugin>/<skill>`; the script path is relative to the
-# repository root. ROWS below is the shipped table; --table reads one from a
+# Each row is `<id>|<check script>|<argument>`, optionally `|files-only`: the
+# id is the upstream's `<owner>/<repo>`, else `<plugin>/<skill>`; the script
+# path is relative to the repository root. `files-only` marks a row whose
+# apply mode only rewrites vendored files and installs no package; intake
+# trusts a vendored drift issue only for such a row (admit.mjs vendoredRows,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). ROWS below is the shipped table; --table reads one from a
 # file instead (blank and `#` lines skipped). --list prints `<id> <path>` per
 # shipped row.
 #
@@ -37,11 +40,11 @@ REPO_ROOT="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd)" || exit 2
 CAP=60000
 
 ROWS=(
-  "playwright/playwright|plugins/playwright/skills/playwright/scripts/update.sh|--check"
+  "playwright/playwright|plugins/playwright/skills/playwright/scripts/update.sh|--check|files-only"
   "firecrawl/update|plugins/firecrawl/skills/update/scripts/update.sh|--check"
-  "playbooks/boris|plugins/playbooks/skills/boris/scripts/update.sh|--check"
-  "playbooks/skill-authoring|plugins/playbooks/skills/skill-authoring/scripts/update.sh|--check"
-  "Dometrain/mcp|plugins/dometrain/skills/update/scripts/update.sh|--check"
+  "playbooks/boris|plugins/playbooks/skills/boris/scripts/update.sh|--check|files-only"
+  "playbooks/skill-authoring|plugins/playbooks/skills/skill-authoring/scripts/update.sh|--check|files-only"
+  "Dometrain/mcp|plugins/dometrain/skills/update/scripts/update.sh|--check|files-only"
   "upstash/context7|plugins/context7/skills/lookup/scripts/update.sh|"
   "vojtaholik/good-css|plugins/user-interface/scripts/check-good-css-drift.sh|--check"
 )
@@ -124,7 +127,7 @@ trap 'rm -rf "$TMPDIR_RUN"' EXIT
 report="" broken=""
 
 for row in "${ROWS[@]}"; do
-  IFS='|' read -r id path arg <<<"$row"
+  IFS='|' read -r id path arg _ <<<"$row"
   read -ra args <<<"$arg"
   capture="$TMPDIR_RUN/capture"
   start=$SECONDS

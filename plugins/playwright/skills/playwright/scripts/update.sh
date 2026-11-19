@@ -154,8 +154,10 @@ run_apply() {
   log "     git diff HEAD -- \"$VENDOR_DIR\""
   log "2. Integrate genuine changes into the distilled reference/*.md files"
   log "   (mapping table: actions/update.md). Never copy verbatim."
-  log "3. Optionally upgrade the local CLI: npm install -g ${UPSTREAM_PACKAGE}@latest"
-  log "4. Bump the plugin version in .claude-plugin/plugin.json so consumers update."
+  log "3. A person may upgrade their local CLI: npm install -g ${UPSTREAM_PACKAGE}@latest"
+  log "   (person-only; the upstream-drift issue lane never runs it)"
+  log "4. Add a changelog fragment so consumers update:"
+  log "     scripts/new-changelog-fragment.sh playwright patch"
   log "5. Commit: chore(playwright): sync to upstream v${upstream_ver}"
   return 0
 }

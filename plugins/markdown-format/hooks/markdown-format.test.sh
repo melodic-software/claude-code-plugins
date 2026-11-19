@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/markdown-format/git-hooks/format.sh
 # Black-box contract test for the markdown-format PostToolBatch row, launched exactly
 # as hooks.json registers it (node exec-bash.mjs with the row's args).
 #

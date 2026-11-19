@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .claude-plugin/marketplace.json # check-plugin-profiles.sh reads the catalog
 # Contract test for check-plugin-profiles.sh: green on this checkout, red on a copy whose
 # build.yaml names a plugin the catalog lacks. The check's rule cases are the plugin's own suite
 # (plugins/plugin-profiles/lib/check.test.mjs); this proves the wrapper passes the exit through.

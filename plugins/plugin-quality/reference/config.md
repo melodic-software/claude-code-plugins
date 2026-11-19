@@ -64,10 +64,17 @@ repo_map:
 | `zone_behavior` | `default` \| `always-conservative` | `always-conservative` forces the unknown/heavy row regardless of a fresh light snapshot (for operators who never want inline handling). It can only tighten, never loosen: zones and criteria route *dispatch*, and no value here can skip the fresh-subagent steps or the emit confirm gate. |
 | `repo_map` | mapping `plugin-name: owner/repo` | Overrides sink-ladder rung 2's registration inference for named plugins (e.g. a plugin whose marketplace registration points at a monorepo mirror). |
 
-## Verification level
+## Keys in plugin-quality.yaml
 
-The one key outside the topic doc. It lives in `<home>/plugin-quality.yaml`, checked against
-[`schemas/plugin-quality.schema.json`](../schemas/plugin-quality.schema.json), and
+Two keys live outside the topic doc, in `<home>/plugin-quality.yaml`, checked against
+[`schemas/plugin-quality.schema.json`](../schemas/plugin-quality.schema.json).
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `standards_repo` | `owner/repo` | unset | The shared standards repository the auditor checks a component against, when a local checkout of it holds a relevant `components/*/policy.json` or convention doc. Unset, the Standards alignment section states that no standards repository resolved. |
+
+### Verification level
+
 `lib/read-verification.sh` reads it from the default branch only.
 
 | Key | Values | Default | Meaning |

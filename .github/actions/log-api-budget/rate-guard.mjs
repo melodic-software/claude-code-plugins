@@ -66,6 +66,10 @@ const MAX_RESET = 999_999_999_999;
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
  *   its POLL_LIMIT_SECONDS.
+ * - `rerunCiStatusRate`: that step's rate-limit waits, counted with the
+ *   poll's, its RATE_WAIT_SECONDS. The job's timeout-minutes holds it, and
+ *   the reconciler's PENDING_BACKOFF_MINUTES holds the timeout, so no
+ *   recovery waits longer.
  * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
  *   failure drops finished work: the `rate-limit-wait-seconds` it passes
  *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
@@ -87,7 +91,7 @@ const MAX_RESET = 999_999_999_999;
  *   wait, the job's other work and ci-status after it, so it stays at 15
  *   minutes.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, rerunCiStatusRate: 720, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
@@ -235,28 +239,14 @@ export function readingLine(status, headers, route = "other") {
   return `${status} ${values.join(" ")} ${routeOk(route) ? route : "other"}\n`;
 }
 
-// The GitHub REST path words a route, or a lane run report's failure row
-// (lane-run-report/post.mjs), may show; any other segment could be a name, a
-// path or planted text. api-budget.bash's API_BUDGET_ROUTE carries the same
-// list (log-api-budget.test.mjs checks).
 export const REST_PATH_WORDS = new Set(
   "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
 );
 export const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
-// Whether a route has only path words and placeholders: what each writer and
-// the job-end notice keep.
+const WORKFLOW_FILE = /^[a-z0-9][a-z0-9_-]*\.ya?ml$/;
 export const routeOk = (route) =>
-  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg)));
+  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg, i, all) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg) || (all[i - 1] === "workflows" && WORKFLOW_FILE.test(seg))));
 
-// A request's URL as a route that holds no query, name or token, for the
-// job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
-// A URL on a host other than api.github.com and uploads.github.com is other,
-// unless its path starts with /api/ (GHES); scheme, host, /api/v3,
-// query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
-// repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
-// segment after one that names a thing (labels/<name>) and every segment after
-// one that starts a path or ref (contents/<path>) is {x} unless a number; a
-// REST path word stays; any other segment is {x}.
 const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|trees)$/;
 const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/;
 export function routeOf(url) {
@@ -281,10 +271,14 @@ export function routeOf(url) {
   const out = [];
   let tail = false;
   let name = false;
+  let file = -1;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const placeholder = /^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : null;
-    if (tail || name) {
+    if (name && !tail && segments[i - 1] === "workflows" && WORKFLOW_FILE.test(seg)) {
+      file = out.push(seg) - 1;
+      name = false;
+    } else if (tail || name) {
       out.push(placeholder ?? "{x}");
       name = false;
     } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
@@ -299,6 +293,9 @@ export function routeOf(url) {
     } else {
       out.push("{x}");
     }
+  }
+  if (file >= 0 && out.join("/").length > 80) {
+    out[file] = "{x}";
   }
   const route = out.join("/");
   return route.length > 80 ? "other" : route;

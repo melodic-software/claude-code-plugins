@@ -128,11 +128,11 @@ test("the reconciler workflow gates its plan and act steps on the check, after t
   assert.match(check, /\n {8}id: recent\n/);
   assert.match(check, /\n {8}continue-on-error: true\n/);
   assert.doesNotMatch(check, /\n {8}if: /, "the check runs on every event");
-  assert.match(check, /\n {10}MIN_GAP_MINUTES: "30"\n/, "the gap is the cron's 30-minute cadence");
+  assert.match(check, /\n {10}MIN_GAP_MINUTES: "60"\n/, "the gap is the cron's hourly cadence");
   assert.match(check, /\n {10}FORCE: \$\{\{ inputs\.force \}\}\n/);
   assert.match(check, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/);
   assert.match(check, /\n {8}run: node \.base\/\.github\/scripts\/maintenance-reconcile-lost-runs\/recent-pass\.mjs$/);
-  assert.match(text, /\n {4}- cron: "4,34 \* \* \* \*"\n/, "the cron the gap matches");
+  assert.match(text, /\n {4}- cron: "4 \* \* \* \*"\n/, "the cron the gap matches");
   for (const name of ["Find lost runs", "Re-run lost runs"]) {
     assert.ok(at(name) > at("Skip a dispatch right after a full pass"), `${name} follows the check`);
     assert.match(steps[at(name)].s, /\n {8}if: steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/, name);

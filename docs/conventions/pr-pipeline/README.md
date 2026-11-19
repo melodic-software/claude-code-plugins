@@ -197,8 +197,8 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly five minutes after each lost-run reconciler tick, and on
-a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
+reconciler tick), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -2227,7 +2227,7 @@ the `enable-auto-merge` job arms them in both modes.
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
-Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (hourly) re-runs the
 failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
 its first attempt, at most three per run, merge-critical first; while the switch is on it reads
 nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `kill-switch`, which no
@@ -2929,15 +2929,26 @@ human opens an issue that restates it, and the pull request links that one.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
-body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
-only for a pull request that closes it and only modifies the `docs/upstream` pages whose
-`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
-and those page paths, never from the issue's body, so an upstream path or name in its rows never
-reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
-still needs a listed human's issue. The same rule (`driftIssueId` in
+body line is one of the two leads `scripts/upstream-drift-issues.sh` writes for that id. With the
+hex-pin lead it counts only for a pull request that closes it and only modifies the
+`docs/upstream` pages whose `**Last audited upstream state:**` marker on main pins that id; with
+the vendored-copy lead (owner decision of 2026-11-19, #17518), only for one that closes it and
+whose every changed file, a rename's old path included, is inside the vendored scope of the plugin
+that id's row in main's `scripts/upstream-drift-vendored-report.sh` names: a markdown file under
+`plugins/<plugin>/skills/`, a `.md`, `.jsonc` or `LICENSE` file in a `vendor/` baseline there, or a
+fragment directly under `.changes/<plugin>/`. A path with a `scripts`, `hooks`, `lib`,
+`.claude-plugin`, `.mcp.json` or `evals` segment is outside it, and so are a skill's
+`actions/update.md` and the plugin's `update` skill outside `vendor/`. A `SKILL.md` outside
+`vendor/` may not be added, renamed or removed, and a modified one may change no frontmatter line
+but its `upstream-version`, `upstream-sha` and `synced` values and no `` !` `` line, with no
+```` ```! ```` block (`vendoredPath` and `skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`).
+Its spec text is built from the id (and the page
+paths, for the hex-pin lead), never from the issue's body, so an upstream path or name in its rows
+never reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other
+file still needs a listed human's issue. The same rule (`driftIssue` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
-and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
-the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+and admission accept it as its author, and the same template for its lead (`trustedDriftSpec`) is
+its done-when and the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md):
 an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
 no `size-split child` marker) reaches the verifier with its body as spec while no other account
@@ -3354,7 +3365,7 @@ them on every `pull_request` run, contract-only runs included:
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
-  reconciler re-runs that review run, one lane per head per half-hourly pass, and its completion
+  reconciler re-runs that review run, one lane per head per hourly pass, and its completion
   re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
   switch stops no merge of its own: a head with no review is red here, the merge gate holds it
   (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
@@ -3639,7 +3650,7 @@ Its scripts and tests are in
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a `pr-merge` hold still unbroken at the monitoring run has a reason that starts `rate limited` (a hold a later listing followed is not seen); or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | the merge queue removed pull requests for failed checks more than 2 times in the last 24 hours, read from the timelines of the pull requests whose merge groups failed (one GraphQL query per 25, at most 50 pull requests; more, over 100 failed merge-group runs, or a pull request with over 100 merge-queue and label items in the window, leaves the signal unread), each removal listed with its PR and the failing steps of its newest failed group. A failed group the queue rebuilt with no removal is not counted, nor is a removal a hold caused after the enqueue: a label `ci-status` holds on (`do-not-merge`, the human-gated label, `pr-verify-failed`, `security: outside-actor`) added while queued, or a failed group of that enqueue whose queue-hold step names the lanes kill switch, read for the newest 10 failed groups | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
-| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the weekly drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
+| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the daily drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
@@ -3948,6 +3959,7 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `refire-queue-per-slot` | 2 | Kill-switch re-fires' queue target per issue-lane slot (`SLOTS`, the effective lane level `lane-level-value.mjs` reads): a sweep re-fires breaker-stranded issues, oldest first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, within `restarts-per-run`. At most 10. |
+| `refire-budget-per-slot` | 1 | Budget-stop re-fires' queue target per issue-lane slot: a sweep re-fires issues whose run the start gate stopped on a low GITHUB_TOKEN budget, oldest run end first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, so each can start inside the 20-minute window after the reset. They also count toward `refire-queue-per-slot`'s room; other re-fires keep that target. At most 10. |
 | `stale-queued-minutes` | 60 | Minutes after it was created past which a work-resolve-issue run still at status `queued` is left out of the unfinished runs `refire-queue-per-slot` counts: its first job never got a runner, so GitHub lost it and it never starts. The sweep logs how many it left out. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it. At most 1440. |
 | `sweep-gap-minutes` | 15 | Minutes after a full work-unblock sweep (a run that uploaded `work-unblock-verdicts`) finished during which the sweep a finished work-resolve-issue run starts skips its work and requests no lane token. A scheduled sweep or an issue close never skips; a read that fails runs the sweep. 0 turns it off; at most 60. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue (outside its once-a-day check while no admission decided it), a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |

@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-11-19
+
+### Added
+
+- `converge_docs_url` names your own documentation for `fleet-converge`, which `reach` points at when converging a lane comes up. Unset, `reach` names the command with no link; it no longer links one person's dotfiles repository.
+
 ## [0.4.3] - 2026-11-18
 
 ### Changed
