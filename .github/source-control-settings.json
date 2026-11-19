@@ -28,6 +28,7 @@
           "claude-review:merge=PR Review / Claude",
           "claude-review:merge=pr-review / Claude",
           "claude-review:merge=pr-review-no-bots / Claude",
+          "claude-review:merge=pr-review-no-bots / claude-review-status",
           "claude-review:merge=PR Review / Publish Review",
           "claude-review:merge=pr-review / Publish Review",
           "claude-security-review:caller=.github/workflows/pr-review-security-hosted.yml",
