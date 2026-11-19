@@ -426,6 +426,7 @@ pack() {
           split(need(path[i]), w, " ")
           for (k in w) if (w[k] != "") has[best, w[k]] = 1
         }
+        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
         return L
       }
       # critical(L): the longest leg as the runner runs it: its suites over the
@@ -471,7 +472,6 @@ pack() {
         assign(legs); limit = critical(legs)
         for (l = 1; l < legs; l++) if (critical(assign(l)) <= limit) { legs = l; break }
         assign(legs)
-        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
         legsj = ""; planj = ""; needsj = ""; loads = ""
         for (l = 0; l < legs; l++) {
           s = ""
