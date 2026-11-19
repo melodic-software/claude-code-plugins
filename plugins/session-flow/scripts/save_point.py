@@ -2221,7 +2221,9 @@ def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None
         for title in spec.sections:
             base = doc.section_start(title) + 1
             for entry in parse_entries(doc.section(title) or []):
-                if not entry.exempt and id_of(spec.prefix, entry.text)[0] == int(m["n"]):
+                if not entry.exempt and id_of(spec.prefix, entry.text)[0] == int(
+                    m["n"]
+                ):
                     at = base + entry.first_index
                     return spec.retired_heading, at, at + len(entry.lines)
         return None
@@ -2247,7 +2249,11 @@ def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None
     if not 1 <= k <= len(spans):
         return None
     base = doc.section_start(title) + 1
-    return S3.retired_entry_sections[title], base + spans[k - 1][0], base + spans[k - 1][1]
+    return (
+        S3.retired_entry_sections[title],
+        base + spans[k - 1][0],
+        base + spans[k - 1][1],
+    )
 
 
 def _content_doc(raw: list[str]) -> Doc:
