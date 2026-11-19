@@ -59,7 +59,7 @@ gave for the recorded files.
    for a reset, naming what goes back and that applying a profile again undoes it; no otherwise.
    The skill marks that answer `(Recommended)` wherever it sits and gives the reason, never one of
    its own; the picker, which has no agent, shows it as a line before the question. Owner, same
-   try: "if you could have the agent (AI) provide recomendations".
+   try: "if you could have the agent (AI) provide recommendations" (spelling corrected).
 
 ## Considered options
 
