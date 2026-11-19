@@ -12,8 +12,8 @@ CLI, every command keyed by `--session <id>`:
     hook PermissionRequest|Elicitation|Stop|UserPromptSubmit   (hook input on stdin)
 
 Settings come from `--setting key=value`, else `CLAUDE_PLUGIN_OPTION_<KEY>`, else the defaults
-below. The data root is `CLAUDE_PLUGIN_DATA`, else derived from `--plugin-root` for a
-marketplace install. `hook` always exits 0 and prints nothing unless the session is away; every
+below. The plugin root is the directory above this script, and the data root follows
+`plugin_paths.data_root`. `hook` always exits 0 and prints nothing unless the session is away; every
 hook decision refuses, declines, records or holds the run, and none grants a permission.
 Exit codes elsewhere: 0 done, 1 refused move or failed check, 2 usage or no data root.
 Stdlib only; Python 3.10+.
@@ -27,10 +27,7 @@ import hashlib
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Iterator, Mapping
 from datetime import date, datetime, timedelta, timezone
@@ -60,16 +57,22 @@ except ImportError:
 
 
 SCRIPT = Path(__file__).resolve()
+sys.path.insert(0, str(SCRIPT.parent))
+import plugin_paths  # noqa: E402
+
 DEFAULT_PLUGIN_ROOT = SCRIPT.parent.parent
 RULES = Path("skills") / "step-away" / "reference" / "rules.md"
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 LOCK_WAIT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 10
 DETAIL_LIMIT = 300
+FIELD_LIMIT = 200
 FILES_LIMIT = 200
 LIST_LIMIT = 10
+SCAN_BUDGET_SECONDS = 120.0
 
-HEADINGS = ("Needs you", "Decided while you were away", "Waiting on me", "Done", "Found", "Additional notes")
+NEEDS_YOU, FOUND, NOTES = "Needs you", "Found", "Additional notes"
+HEADINGS = (NEEDS_YOU, "Decided while you were away", "Waiting on me", "Done", FOUND, NOTES)
 BLOCKS = {"refused": "Refused actions", "externals": "External actions", "files": "Files written"}
 KINDS = ("bed", "break", "trip", "until")
 EVENT_LABELS = {"PermissionRequest": "permission prompt", "Elicitation": "MCP question", "AutoModeDenial": "auto mode denial"}
@@ -97,12 +100,6 @@ SETTING_DEFAULTS = {
 }
 DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 CLOCK_RE = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
-
-MANAGED_SETTINGS = (
-    Path("/Library/Application Support/ClaudeCode/managed-settings.json"),
-    Path("C:/Program Files/ClaudeCode/managed-settings.json"),
-    Path("/etc/claude-code/managed-settings.json"),
-)
 
 GH_WRITE_RE = re.compile(
     r"\bgh\s+(?:pr|issue|release|repo|label|workflow|run|secret|variable|gist|project|ruleset|cache)\s+"
@@ -207,24 +204,7 @@ def parse_instant(value: str) -> datetime:
 
 
 
-def data_root(env: Mapping[str, str], plugin_root: str | None) -> Path | None:
-    """`CLAUDE_PLUGIN_DATA`, else `<plugins>/data/<name@marketplace>` from a cache install root.
-
-    A skill-frontmatter hook gets only `${CLAUDE_PLUGIN_ROOT}` substituted, and a Bash-tool
-    command gets neither variable, so the root is rebuilt from the install layout
-    `<plugins>/cache/<marketplace>/<name>/<version>`. Any other layout yields None.
-    """
-    configured = env.get("CLAUDE_PLUGIN_DATA", "")
-    if _given(configured):
-        return Path(configured)
-    if not plugin_root:
-        return None
-    parts = Path(plugin_root).parts
-    for index in range(1, len(parts) - 2):
-        if parts[index].casefold() == "cache" and parts[index - 1].casefold() == "plugins":
-            plugin_id = re.sub(r"[^A-Za-z0-9_-]", "-", f"{parts[index + 2]}@{parts[index + 1]}")
-            return Path(*parts[:index]) / "data" / plugin_id
-    return None
+data_root = plugin_paths.data_root
 
 
 class Paths(NamedTuple):
@@ -270,19 +250,12 @@ def locked(path: Path) -> Iterator[None]:
 
 
 def write_atomic(path: Path, text: str) -> None:
-    handle = tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
-    )
-    try:
-        with handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(handle.name, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(handle.name)
-        raise
+    if not plugin_paths.write_atomic(path, text):
+        raise OSError(f"{path} stayed held by another reader through every replace retry")
+
+
+def write_state(paths: Paths, state: Mapping) -> None:
+    write_atomic(paths.state, json.dumps(state, indent=2) + "\n")
 
 
 def read_state(paths: Paths) -> dict | None:
@@ -299,7 +272,7 @@ def update_state(paths: Paths, change: Callable[[dict], T]) -> T:
         if state is None:
             raise AwayError("no away state for this session")
         result = change(state)
-        write_atomic(paths.state, json.dumps(state, indent=2) + "\n")
+        write_state(paths, state)
         return result
 
 
@@ -355,6 +328,8 @@ def append_refusals(paths: Paths, entries: list[dict], unless_seen: str | None =
             ids.append(record["id"])
             lines.append(json.dumps(record) + "\n")
         if lines:
+            if not paths.refused.exists():
+                write_atomic(paths.refused, "")
             with paths.refused.open("a", encoding="utf-8") as handle:
                 handle.write("".join(lines))
                 handle.flush()
@@ -365,21 +340,46 @@ def append_refusals(paths: Paths, entries: list[dict], unless_seen: str | None =
 _REDACTOR = None
 
 
-def redact(text: str) -> str:
+WITHHELD = "(withheld: the redaction rules did not load)"
+
+
+def _redactor():
     global _REDACTOR
     if _REDACTOR is None:
-        sys.path.insert(0, str(SCRIPT.parent))
         import redact as redact_module
 
         _REDACTOR = redact_module.load_redactor()
-    excerpt = _REDACTOR.excerpt(" ".join(text.split()), DETAIL_LIMIT)
-    return excerpt if excerpt is not None else "(withheld: the redaction rules did not load)"
+    return _REDACTOR
+
+
+def redact(text: str, limit: int = DETAIL_LIMIT) -> str:
+    excerpt = _redactor().excerpt(" ".join(text.split()), limit)
+    return excerpt if excerpt is not None else WITHHELD
+
+
+def clean(value: object, limit: int = FIELD_LIMIT) -> str | None:
+    """A caller-supplied name or reason, redacted and capped before it is stored or shown."""
+    return None if value is None else redact(str(value), limit)
+
+
+def _redact_leaves(value: object) -> object:
+    if isinstance(value, str):
+        return _redactor().redact(value) if not _redactor().fail_closed else WITHHELD
+    if isinstance(value, dict):
+        return {key: _redact_leaves(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_leaves(item) for item in value]
+    return value
 
 
 def describe_tool(name: object, tool_input: object) -> str:
+    """The tool call as one line: a file tool's name and path, a command, or redacted input JSON."""
+    tool = clean(name)
+    if isinstance(tool_input, dict) and isinstance(tool_input.get("file_path"), str):
+        return f"{tool} {redact(tool_input['file_path'])}"
     if isinstance(tool_input, dict) and isinstance(tool_input.get("command"), str):
         return redact(tool_input["command"])
-    return redact(f"{name} {json.dumps(tool_input, sort_keys=True)}")
+    return redact(f"{tool} {json.dumps(_redact_leaves(tool_input), sort_keys=True)}")
 
 
 
@@ -388,7 +388,8 @@ def marker(name: str, edge: str) -> str:
 
 
 def render_block(name: str, lines: list[str]) -> str:
-    body = "\n".join(lines) if lines else "None."
+    """The block between its markers; `<!--` in a line is escaped so listed text cannot end it."""
+    body = "\n".join(line.replace("<!--", "&lt;!--") for line in lines) if lines else "None."
     return f"{marker(name, 'begin')}\n### {BLOCKS[name]}\n\n{body}\n{marker(name, 'end')}"
 
 
@@ -403,7 +404,7 @@ def skeleton(state: Mapping) -> str:
     )
     sections = []
     for heading in HEADINGS:
-        if heading == "Found":
+        if heading == FOUND:
             body = "\n\n".join(render_block(name, []) for name in BLOCKS)
         else:
             body = "None."
@@ -417,7 +418,7 @@ def replace_block(text: str, name: str, rendered: str) -> str:
     stop = text.find(end, start + 1) if start >= 0 else -1
     if start >= 0 and stop >= 0:
         return text[:start] + rendered + text[stop + len(end) :]
-    anchor = text.find("\n## Additional notes")
+    anchor = text.find(f"\n## {NOTES}")
     if anchor >= 0:
         return text[: anchor + 1] + rendered + "\n\n" + text[anchor + 1 :]
     return text.rstrip("\n") + "\n\n" + rendered + "\n"
@@ -430,17 +431,12 @@ def digest(path: Path) -> str:
         return ""
 
 
-def _git(*args: str) -> subprocess.CompletedProcess | None:
-    try:
-        return subprocess.run(
-            ["git", *args], capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS, check=False
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+def _git(directory: str | Path, *args: str):
+    return plugin_paths.run_git(directory, *args, timeout=GIT_TIMEOUT_SECONDS)
 
 
 def git_toplevel(cwd: Path) -> Path | None:
-    result = _git("-C", str(cwd), "rev-parse", "--show-toplevel")
+    result = _git(cwd, "rev-parse", "--show-toplevel")
     if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
     return Path(result.stdout.strip())
@@ -450,7 +446,7 @@ def choose_report_path(launch_root: Path | None, state_dir: Path, session: str) 
     if launch_root is not None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         relative = f".work/away/{stamp}-{session[:8]}.md"
-        ignored = _git("-C", str(launch_root), "check-ignore", "-q", "--", relative)
+        ignored = _git(launch_root, "check-ignore", "-q", "--", relative)
         if ignored is not None and ignored.returncode == 0:
             return launch_root / relative
     return state_dir / "report.md"
@@ -469,33 +465,65 @@ def _setting(path: Path, *keys: str) -> object:
     return value
 
 
-def launch_warnings(config_dir: Path, project: Path) -> list[str]:
+def managed_base() -> Path:
+    """The managed-settings.json this platform reads, as lib/managed-scope.sh locates it."""
+    if sys.platform == "darwin":
+        return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
+    if sys.platform == "win32":
+        return Path(os.environ.get("PROGRAMFILES") or "C:\\Program Files") / "ClaudeCode" / "managed-settings.json"
+    return Path("/etc/claude-code/managed-settings.json")
+
+
+def managed_files(base: Path) -> list[Path]:
+    """The base file, then its managed-settings.d drop-ins in name order, hidden and non-JSON skipped."""
+    try:
+        dropins = sorted(
+            p for p in (base.parent / "managed-settings.d").iterdir() if p.suffix == ".json" and not p.name.startswith(".")
+        )
+    except OSError:
+        dropins = []
+    return [base, *dropins]
+
+
+def _managed_setting(files: list[Path], *keys: str) -> tuple[Path | None, object]:
+    """The last managed file that sets the key, and its value: a later drop-in replaces a single value."""
+    found: tuple[Path | None, object] = (None, None)
+    for path in files:
+        value = _setting(path, *keys)
+        if value is not None:
+            found = (path, value)
+    return found
+
+
+def launch_warnings(config_dir: Path, project: Path, managed: Path | None = None) -> list[str]:
+    """One line per launch warning; `managed` replaces this platform's managed-settings.json."""
     user = config_dir / "settings.json"
     local, shared = project / ".claude" / "settings.local.json", project / ".claude" / "settings.json"
+    managed_set = managed_files(managed or managed_base())
     warnings = []
     # A project or local file that sets the key turns the feature off when managed and user leave it
     # unset: https://code.claude.com/docs/en/settings-reference#autocontinueatusagelimit
-    off = None
-    for path in (*MANAGED_SETTINGS, user):
-        value = _setting(path, "autoContinueAtUsageLimit")
-        if value is not None:
-            off = path if value is False else None
-            break
+    path, value = _managed_setting(managed_set, "autoContinueAtUsageLimit")
+    if value is None:
+        path, value = user, _setting(user, "autoContinueAtUsageLimit")
+    if value is not None:
+        off = path if value is False else None
     else:
         off = next((p for p in (local, shared) if _setting(p, "autoContinueAtUsageLimit") is not None), None)
     if off is not None:
         warnings.append(
             f"autoContinueAtUsageLimit is off ({off}): a usage limit ends the run instead of waiting for the reset."
         )
-    for path in (*MANAGED_SETTINGS, local, shared, user):
-        value = _setting(path, "sandbox", "enabled")
+    path, value = _managed_setting(managed_set, "sandbox", "enabled")
+    for candidate in (local, shared, user):
         if value is not None:
-            if value is True:
-                warnings.append(
-                    f"sandboxing is on ({path}): a sandboxed command's network prompt cannot be refused by a "
-                    "hook and will wait for the person."
-                )
             break
+        path, value = candidate, _setting(candidate, "sandbox", "enabled")
+    if value is True:
+        warnings.append(
+            f"sandboxing is on ({path}): a sandboxed command's network prompt cannot be refused by a "
+            "hook and will wait for the person."
+        )
     warnings.append("keep the machine awake: after a long sleep the usage-limit resume waits for Enter.")
     return warnings
 
@@ -524,7 +552,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         report_by = due.astimezone() if due else None
     cwd = Path.cwd()
     task_file = str((cwd / args.task_file).resolve()) if args.task_file else None
-    paths.dir.mkdir(parents=True, exist_ok=True)
+    paths.dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     def change(state: dict) -> dict:
         move(state or None, Status.ACTIVE)
@@ -557,7 +585,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         report.parent.mkdir(parents=True, exist_ok=True)
         if not report.exists():
             write_atomic(report, skeleton(state))
-        write_atomic(paths.state, json.dumps(state, indent=2) + "\n")
+        write_state(paths, state)
     print(f"status={state['status']}")
     print(f"report={state['report_path']}")
     print(f"report_by={state['report_by'] or 'none'}")
@@ -601,7 +629,7 @@ def _section(lines: list[str], heading: str) -> list[str] | None:
 
 
 def _needs_you_ok(lines: list[str]) -> bool:
-    section = _section(lines, "Needs you")
+    section = _section(lines, NEEDS_YOU)
     if section is None:
         return False
     items: list[list[str]] = []
@@ -727,9 +755,9 @@ def scan_transcripts(transcript: Path, since: datetime) -> Scan:
                     {
                         "event": "AutoModeDenial",
                         "tool_use_id": event["tool_use_id"],
-                        "tool_name": use.name if use else None,
+                        "tool_name": clean(use.name) if use else None,
                         "detail": describe_tool(use.name, use.input) if use else "(tool call not found)",
-                        "reason": event.get("reason"),
+                        "reason": clean(event.get("reason")),
                         "agent": agent,
                     }
                 )
@@ -756,7 +784,7 @@ def run_roots(state: Mapping, cwds: set[str]) -> set[str]:
     launch = state.get("launch_root")
     if launch:
         roots.add(os.path.realpath(launch))
-        listed = _git("-C", launch, "worktree", "list", "--porcelain")
+        listed = _git(launch, "worktree", "list", "--porcelain")
         if listed is not None and listed.returncode == 0:
             for line in listed.stdout.splitlines():
                 if line.startswith("worktree "):
@@ -764,16 +792,29 @@ def run_roots(state: Mapping, cwds: set[str]) -> set[str]:
     return roots
 
 
-def scan_files(watched: list[str], since: float, prune: set[str]) -> list[str]:
+class FileScan(NamedTuple):
+    files: list[str]
+    complete: bool
+
+
+def _pruned(dirpath: str, name: str, prune: set[str]) -> bool:
+    path = os.path.join(dirpath, name)
+    return name.startswith(".") or path in prune or os.path.lexists(os.path.join(path, ".git"))
+
+
+def scan_files(watched: list[str], since: float, prune: set[str]) -> FileScan:
+    """Files modified since `since` under the watched folders, skipping dot entries, the run's roots
+    and every git repository or worktree; stops once SCAN_BUDGET_SECONDS have passed."""
+    deadline = time.monotonic() + SCAN_BUDGET_SECONDS
     found = []
     for folder in watched:
         top = os.path.realpath(folder)
         if not os.path.isdir(top):
             continue
         for dirpath, dirnames, filenames in os.walk(top):
-            dirnames[:] = sorted(
-                d for d in dirnames if not d.startswith(".") and os.path.join(dirpath, d) not in prune
-            )
+            if time.monotonic() > deadline:
+                return FileScan(found, False)
+            dirnames[:] = sorted(d for d in dirnames if not _pruned(dirpath, d, prune))
             for name in sorted(filenames):
                 if name.startswith("."):
                     continue
@@ -781,14 +822,15 @@ def scan_files(watched: list[str], since: float, prune: set[str]) -> list[str]:
                 with contextlib.suppress(OSError):
                     if os.lstat(path).st_mtime >= since and os.path.isfile(path):
                         found.append(path)
-    return found
+    return FileScan(found, True)
 
 
 def _limited(lines: list[str], limit: int) -> list[str]:
     return lines if len(lines) <= limit else [*lines[:limit], f"- … and {len(lines) - limit} more"]
 
 
-def refresh(state: dict, paths: Paths) -> None:
+def refresh(state: dict, paths: Paths, files: bool) -> None:
+    """Regenerate the refused and external-action blocks, and with `files` the files block too."""
     started = parse_instant(state["started"])
     transcript = Path(state["transcript_path"]) if state.get("transcript_path") else None
     externals: list[str]
@@ -814,12 +856,20 @@ def refresh(state: dict, paths: Paths) -> None:
         refused.append(f"- {entry['id']} {label}{reason}{where}, {entry.get('tool_name')}: {entry.get('detail')}")
     write_blocks(state, {"refused": refused, "externals": _limited(externals, FILES_LIMIT)})
 
+    if not files:
+        return
     clock = time.monotonic()
     watched = state.get("watched") or [str(Path.home())]
-    files = scan_files(watched, started.timestamp(), run_roots(state, cwds))
+    scan = scan_files(watched, started.timestamp(), run_roots(state, cwds))
     seconds = time.monotonic() - clock
-    file_lines = [f"Watched: {', '.join(watched)}; scanned in {seconds:.1f} s.", ""]
-    file_lines += _limited([f"- {path}" for path in files], FILES_LIMIT) or ["None."]
+    file_lines = [
+        "The list can include files other sessions wrote in the same folders during the absence.",
+        f"Watched: {', '.join(watched)}, without dot folders or git repositories; scanned in {seconds:.1f} s.",
+        "",
+    ]
+    file_lines += _limited([f"- {path}" for path in scan.files], FILES_LIMIT) or ["None."]
+    if not scan.complete:
+        file_lines.append(f"- Scan stopped after {SCAN_BUDGET_SECONDS:g} s; the list is incomplete.")
     write_blocks(state, {"files": file_lines})
 
 
@@ -833,8 +883,18 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     write_atomic(report, text)
 
 
+def files_due(state: Mapping, now: datetime) -> bool:
+    """True for the first refresh after report_by has passed."""
+    due = _instant_or_none(state.get("report_by"))
+    return due is not None and now >= due and not state.get("files_after_due")
+
+
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:
-    refresh(require_state(paths), paths)
+    state = require_state(paths)
+    due = files_due(state, datetime.now().astimezone())
+    refresh(state, paths, files=args.files or due)
+    if due:
+        update_state(paths, lambda current: current.update(files_after_due=True))
     return 0
 
 
@@ -850,10 +910,10 @@ def cmd_end(args: argparse.Namespace, paths: Paths) -> int:
         current["ended"] = datetime.now().astimezone().isoformat()
 
     update_state(paths, change)
-    refresh(state, paths)
+    refresh(state, paths, files=True)
     report, beside = Path(state["report_path"]), paths.dir / "report.md"
     if report.exists() and os.path.realpath(report) != os.path.realpath(beside):
-        shutil.copyfile(report, beside)
+        write_atomic(beside, report.read_text(encoding="utf-8"))
     print(f"status=ended\nreport={report}")
     return 0
 
@@ -900,22 +960,25 @@ class Hook(NamedTuple):
         return self.payload["session_id"]
 
 
+def _record_refusal(hook: Hook, event: str, tool_name: object, detail: str) -> str | None:
+    """Append one refusal with the hook's agent id; None when it could not be recorded."""
+    entry = {"event": event, "tool_name": clean(tool_name), "detail": detail}
+    if isinstance(hook.payload.get("agent_id"), str):
+        entry["agent_id"] = clean(hook.payload["agent_id"])
+    try:
+        [rid] = append_refusals(hook.paths, [entry])
+    except OSError as exc:
+        _log(f"{event} refusal not recorded", exc)
+        return None
+    return rid
+
+
 def on_permission_request(hook: Hook) -> dict | None:
     if hook.status is not Status.ACTIVE:
         return None
-    entry = {
-        "event": "PermissionRequest",
-        "tool_name": hook.payload.get("tool_name"),
-        "detail": describe_tool(hook.payload.get("tool_name"), hook.payload.get("tool_input")),
-    }
-    if isinstance(hook.payload.get("agent_id"), str):
-        entry["agent_id"] = hook.payload["agent_id"]
-    try:
-        [rid] = append_refusals(hook.paths, [entry])
-        label = f"{rid}: refused"
-    except OSError as exc:
-        _log("PermissionRequest refusal not recorded", exc)
-        label = "Refused (not recorded)"
+    tool = hook.payload.get("tool_name")
+    rid = _record_refusal(hook, "PermissionRequest", tool, describe_tool(tool, hook.payload.get("tool_input")))
+    label = f"{rid}: refused" if rid else "Refused (not recorded)"
     message = (
         f"{label} because the person is away and nothing that prompts may run until they are back. "
         "Do not retry this action another way; it waits in the away report. Continue with other work."
@@ -926,18 +989,9 @@ def on_permission_request(hook: Hook) -> dict | None:
 def on_elicitation(hook: Hook) -> dict | None:
     if hook.status is not Status.ACTIVE:
         return None
-    server = hook.payload.get("mcp_server_name")
-    entry = {
-        "event": "Elicitation",
-        "tool_name": f"MCP server {server}",
-        "detail": redact(f"{server}: {hook.payload.get('message', '')} (mode {hook.payload.get('mode', 'form')})"),
-    }
-    if isinstance(hook.payload.get("agent_id"), str):
-        entry["agent_id"] = hook.payload["agent_id"]
-    try:
-        append_refusals(hook.paths, [entry])
-    except OSError as exc:
-        _log("Elicitation decline not recorded", exc)
+    server = clean(hook.payload.get("mcp_server_name"))
+    detail = redact(f"{server}: {hook.payload.get('message', '')} (mode {clean(hook.payload.get('mode', 'form'))})")
+    _record_refusal(hook, "Elicitation", f"MCP server {server}", detail)
     return {"hookSpecificOutput": {"hookEventName": "Elicitation", "action": "decline"}}
 
 
@@ -1033,7 +1087,6 @@ def run_hook(argv: list[str]) -> int:
     try:
         parser = argparse.ArgumentParser(prog="away.py hook", add_help=False)
         parser.add_argument("event")
-        parser.add_argument("--plugin-root")
         args, _ = parser.parse_known_args(argv)
         handler = HANDLERS.get(args.event)
         if handler is None:
@@ -1041,11 +1094,10 @@ def run_hook(argv: list[str]) -> int:
         payload = json.loads(sys.stdin.read() or "null")
         if not isinstance(payload, dict) or not valid_session(payload.get("session_id")):
             return 0
-        plugin_root = Path(args.plugin_root) if args.plugin_root else DEFAULT_PLUGIN_ROOT
-        root = data_root(os.environ, str(plugin_root))
+        root = data_root(os.environ, DEFAULT_PLUGIN_ROOT)
         if root is None:
             return 0
-        paths = session_paths(root, payload["session_id"], plugin_root)
+        paths = session_paths(root, payload["session_id"], DEFAULT_PLUGIN_ROOT)
         state = read_state(paths)
         if state is None:
             return 0
@@ -1067,7 +1119,6 @@ def _session_arg(value: str) -> str:
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--session", required=True, type=_session_arg)
-    common.add_argument("--plugin-root", help="the plugin root, to find the data root without CLAUDE_PLUGIN_DATA")
     common.add_argument("--setting", action="append", default=[], metavar="KEY=VALUE")
     parser = argparse.ArgumentParser(prog="away.py", description=__doc__.split("\n\n", 1)[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -1076,7 +1127,9 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--until")
     start.add_argument("--scope")
     start.add_argument("--task-file")
-    for name in ("status", "refresh", "check", "end", "deliver"):
+    refresh_parser = commands.add_parser("refresh", parents=[common])
+    refresh_parser.add_argument("--files", action="store_true", help="also rescan the watched folders now")
+    for name in ("status", "check", "end", "deliver"):
         commands.add_parser(name, parents=[common])
     return parser
 
@@ -1086,15 +1139,15 @@ def main(argv: list[str] | None = None) -> int:
     if argv[:1] == ["hook"]:
         return run_hook(argv[1:])
     args = build_parser().parse_args(argv)
-    plugin_root = Path(args.plugin_root) if args.plugin_root else DEFAULT_PLUGIN_ROOT
-    root = data_root(os.environ, str(plugin_root))
+    root = data_root(os.environ, DEFAULT_PLUGIN_ROOT)
     if root is None:
         print(
-            "away.py: no data root: CLAUDE_PLUGIN_DATA is unset and --plugin-root is not a marketplace install",
+            "away.py: no data root: CLAUDE_PLUGIN_DATA does not name session-flow and this script is not in an "
+            "installed plugin cache",
             file=sys.stderr,
         )
         return 2
-    paths = session_paths(root, args.session, plugin_root)
+    paths = session_paths(root, args.session, DEFAULT_PLUGIN_ROOT)
     try:
         return COMMANDS[args.command](args, paths)
     except AwayError as exc:

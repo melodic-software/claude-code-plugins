@@ -23,9 +23,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh",
-              "PermissionRequest",
-              "--plugin-root",
-              "${CLAUDE_PLUGIN_ROOT}"
+              "PermissionRequest"
             ],
             "timeout": 30
           }
@@ -42,9 +40,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh",
-              "Elicitation",
-              "--plugin-root",
-              "${CLAUDE_PLUGIN_ROOT}"
+              "Elicitation"
             ],
             "timeout": 30
           }

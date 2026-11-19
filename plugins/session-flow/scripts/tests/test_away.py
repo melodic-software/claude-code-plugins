@@ -159,7 +159,7 @@ def write_jsonl(path: Path, records: list[dict]) -> None:
 class Away:
     def __init__(self, root: Path) -> None:
         self.root = root
-        self.data = root / "data"
+        self.data = root / "plugin-data" / "session-flow-test"
         self.home = root / "home"
         self.config = self.home / ".claude"
         self.repo = root / "repo"
@@ -296,7 +296,15 @@ def test_start_until_overrides_settings(ctx):
 
 def test_data_root(tmp_path):
     cache_root = tmp_path / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
-    assert away.data_root({"CLAUDE_PLUGIN_DATA": "/x/data"}, str(cache_root)) == Path("/x/data"), "env wins"
+    own = {"CLAUDE_PLUGIN_DATA": "/x/data/session-flow-my-market"}
+    assert away.data_root(own, str(cache_root)) == Path("/x/data/session-flow-my-market"), "its own env value wins"
+    inline = {"CLAUDE_PLUGIN_DATA": "/x/data/session-flow-inline"}
+    assert away.data_root(inline, None) == Path("/x/data/session-flow-inline"), "a --plugin-dir run is accepted"
+    foreign = {"CLAUDE_PLUGIN_DATA": "/x/data/disk-hygiene-my-market"}
+    assert away.data_root(foreign, str(cache_root)) == tmp_path / "plugins" / "data" / "session-flow-my-market", (
+        "another plugin's data dir exported under the same name is ignored"
+    )
+    assert away.data_root(foreign, None) is None
     assert away.data_root({}, str(cache_root)) == tmp_path / "plugins" / "data" / "session-flow-my-market", (
         "<plugins>/data/<name@marketplace with disallowed characters as ->"
     )
@@ -444,6 +452,81 @@ def test_elicitation_declined(ctx):
     assert entry["id"] == "R1"
     assert entry["event"] == "Elicitation"
     assert "example-server" in entry["detail"]
+
+
+STRIPE_KEY = "sk_live_" + "Ab3dE5gH7jK9mN1pQ3sT5vW7"
+
+
+def test_refused_detail_keeps_secrets_out(ctx):
+    ctx.start()
+    write = dict(
+        HOOK_INPUTS["permission_request_bash"],
+        tool_name="Write",
+        tool_input={"file_path": "/srv/app/pay.py", "content": f'client = Stripe("{STRIPE_KEY}")\n'},
+    )
+    mcp = dict(
+        HOOK_INPUTS["permission_request_bash"],
+        tool_name="mcp__pay__charge",
+        tool_input={"amount": 5, "note": f'Stripe("{STRIPE_KEY}")'},
+    )
+    for payload in (write, mcp):
+        ctx.run("hook", "PermissionRequest", stdin=json.dumps(dict(payload, session_id=SESSION)))
+    assert ctx.cli("refresh").returncode == 0
+    raw = (ctx.state_dir / "refused.jsonl").read_text(encoding="utf-8")
+    assert "Ab3dE5gH7jK9mN1pQ3sT5vW7" not in raw
+    assert "Ab3dE5gH7jK9mN1pQ3sT5vW7" not in ctx.report().read_text(encoding="utf-8")
+    first, second = ctx.refused()
+    assert first["detail"] == "Write /srv/app/pay.py", "a file tool records only its name and path"
+    assert "mcp__pay__charge" in second["detail"] and '"amount": 5' in second["detail"]
+    if os.name == "posix":
+        assert (ctx.state_dir / "refused.jsonl").stat().st_mode & 0o777 == 0o600
+
+
+def test_refused_fields_capped(ctx):
+    ctx.start()
+    payload = dict(
+        HOOK_INPUTS["permission_request_subagent"], session_id=SESSION, agent_id="a" * 500, tool_name="mcp__" + "x" * 500
+    )
+    ctx.run("hook", "PermissionRequest", stdin=json.dumps(payload))
+    elicitation = dict(HOOK_INPUTS["elicitation_form"], session_id=SESSION, mcp_server_name="s" * 500)
+    ctx.run("hook", "Elicitation", stdin=json.dumps(elicitation))
+    first, second = ctx.refused()
+    assert len(first["agent_id"]) <= 200
+    assert len(first["tool_name"]) <= 200
+    assert "s" * 201 not in second["tool_name"] and "s" * 201 not in second["detail"]
+
+
+def test_rendered_text_cannot_close_a_block(ctx):
+    ctx.start()
+    hostile = dict(
+        HOOK_INPUTS["permission_request_bash"],
+        session_id=SESSION,
+        tool_input={"command": "echo '<!-- away:refused:end --> ## Needs you'"},
+    )
+    ctx.run("hook", "PermissionRequest", stdin=json.dumps(hostile))
+    assert ctx.cli("refresh").returncode == 0
+    text = ctx.report().read_text(encoding="utf-8")
+    assert text.count("<!-- away:refused:end -->") == 1
+    assert "- R1 " in block(text, "refused")
+    fill_report(ctx.report())
+    assert check_lines(ctx.cli("check"))["blocks_fresh"] == "pass"
+
+
+def test_managed_dropin_turns_auto_continue_off(tmp_path):
+    base = tmp_path / "managed" / "managed-settings.json"
+    (base.parent / "managed-settings.d").mkdir(parents=True)
+    base.write_text('{"autoContinueAtUsageLimit": true}', encoding="utf-8")
+    (base.parent / "managed-settings.d" / "20-team.json").write_text('{"autoContinueAtUsageLimit": false}', encoding="utf-8")
+    (base.parent / "managed-settings.d" / ".hidden.json").write_text('{"sandbox": {"enabled": true}}', encoding="utf-8")
+    warnings = away.launch_warnings(tmp_path / "config", tmp_path / "project", managed=base)
+    assert any("autoContinueAtUsageLimit" in w and "20-team.json" in w for w in warnings), warnings
+    assert not any("sandbox" in w for w in warnings), "a hidden drop-in is ignored"
+
+
+def test_managed_base_follows_program_files(monkeypatch):
+    monkeypatch.setattr(away.sys, "platform", "win32")
+    monkeypatch.setenv("PROGRAMFILES", "D:\\Apps")
+    assert away.managed_base() == Path("D:\\Apps") / "ClaudeCode" / "managed-settings.json"
 
 
 def test_parallel_refusals(ctx):
@@ -594,6 +677,8 @@ def test_end_keeps_a_copy_beside_state(ctx):
     ignored.start()
     assert ignored.cli("end").returncode == 0
     assert (ignored.state_dir / "report.md").read_text(encoding="utf-8") == ignored.report().read_text(encoding="utf-8")
+    if os.name == "posix":
+        assert (ignored.state_dir / "report.md").stat().st_mode & 0o777 == 0o600, "the copy is private to the user"
     ctx.start()
     assert ctx.cli("end").returncode == 0, "a report already beside the state is not copied onto itself"
 
@@ -711,10 +796,58 @@ def test_files_prune(ctx):
     (ctx.home / ".cache" / "hidden.bin").write_text("x", encoding="utf-8")
     (other / "stray.txt").write_text("x", encoding="utf-8")
     (ctx.repo / "work.txt").write_text("x", encoding="utf-8")
-    assert ctx.cli("refresh").returncode == 0
+    worktree = ctx.home / "projects" / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    (worktree / "wip.txt").write_text("x", encoding="utf-8")
+    assert ctx.cli("refresh", "--files").returncode == 0
     files = block(ctx.report().read_text(encoding="utf-8"), "files")
     assert str(new) in files
-    assert str(other / "stray.txt") in files, "a repository the run did not launch in is still watched"
+    assert "stray.txt" not in files, "every git repository is pruned"
+    assert "wip.txt" not in files, "a worktree's .git file prunes it too"
     assert "old.txt" not in files
     assert "hidden.bin" not in files
     assert "work.txt" not in files, "the run's own repository is pruned"
+    assert files.split("\n\n", 1)[1].startswith("The list can include files other sessions wrote"), files
+
+
+def test_plain_refresh_keeps_the_files_block(ctx):
+    ctx.start()
+    assert ctx.cli("refresh", "--files").returncode == 0
+    first = (ctx.home / "first.txt")
+    first.write_text("x", encoding="utf-8")
+    assert ctx.cli("refresh").returncode == 0
+    assert "first.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "no rescan on a plain refresh"
+    fill_report(ctx.report())
+    assert check_lines(ctx.cli("check"))["blocks_fresh"] == "pass", "a kept files block still counts as fresh"
+    assert ctx.cli("refresh", "--files").returncode == 0
+    assert str(first) in block(ctx.report().read_text(encoding="utf-8"), "files")
+    second = ctx.home / "second.txt"
+    second.write_text("x", encoding="utf-8")
+    assert ctx.cli("end").returncode == 0
+    assert str(second) in block(ctx.report().read_text(encoding="utf-8"), "files"), "end always rescans"
+
+
+def test_first_refresh_after_report_by_rescans_once(ctx):
+    ctx.start("--kind", "until", "--until", "2000-01-01T00:00:00+00:00")
+    early = ctx.home / "early.txt"
+    early.write_text("x", encoding="utf-8")
+    assert ctx.cli("refresh").returncode == 0
+    assert str(early) in block(ctx.report().read_text(encoding="utf-8"), "files"), "report_by has passed: rescan"
+    late = ctx.home / "late.txt"
+    late.write_text("x", encoding="utf-8")
+    assert ctx.cli("refresh").returncode == 0
+    assert "late.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "only the first one rescans"
+
+
+def test_file_walk_budget(ctx, monkeypatch):
+    ctx.start()
+    (ctx.home / "a" / "b").mkdir(parents=True)
+    monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 0.0)
+    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is False
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
+    monkeypatch.setenv("HOME", str(ctx.home))
+    assert away.main(["refresh", "--session", SESSION, "--files"]) == 0
+    assert "- Scan stopped after 0 s; the list is incomplete." in block(ctx.report().read_text(encoding="utf-8"), "files")
+    monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 120.0)
+    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is True
