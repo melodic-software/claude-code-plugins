@@ -55,7 +55,7 @@ audit's "Fixing" section says.
 3. **Never invent a value.** A `theme-color`, a page description, an OG image, the sticky header's
    height, real copy for a lorem-ipsum block: read it from the code. If it isn't there, it goes on
    the human list. Invented content shipped to production is worse than a flagged gap.
-4. **Never delete what you can't prove is dead.** A `/lab` route, a Leva panel, or a prototype
+4. **Never delete what you can't prove is dead.** A `/lab` route, a control panel, or a prototype
    picker is a finding. Gating it out of the production build is a fix. Deleting it is the user's
    call.
 5. **Don't re-litigate settled decisions.** If a comment or design doc records a deliberate
@@ -69,9 +69,9 @@ audit's "Fixing" section says.
 
 Map the surface before judging it. Ten minutes here saves an hour of false findings.
 
-- **Stack**: framework (Next.js, Remix, Vite, plain), styling (Tailwind version, CSS Modules,
-  CSS-in-JS), motion library, component primitives (Base UI, Radix, shadcn/ui), theme mechanism
-  (`next-themes`, class toggle, OS-only, none).
+- **Stack**: the framework, the styling approach and its version, the motion library, the component
+  primitives and the theme mechanism (a theme library, a class toggle, OS-only, none), each read
+  from the project's manifests, config and code.
 - **Entry points**: root layout, `_document` / `<head>`, global CSS, the viewport and `theme-color`
   meta tags, font loading, the manifest if it's a PWA, `robots` and `sitemap`.
 - **Surfaces**: which routes are product UI and which are marketing. The bar differs. Product UI
@@ -85,8 +85,9 @@ Map the surface before judging it. Ten minutes here saves an hour of false findi
   empty, error, full) and the dev machine only ever showed the last.
 - **Conventions**: easing and duration tokens, z-index scale, color scale, spacing scale, existing
   `prefers-reduced-motion` and `(hover: hover)` handling.
-- **Dev tooling**: animation inspectors, Leva, React Query devtools, debug overlays, feature-flag
-  panels. Find where each is mounted and whether the mount is gated.
+- **Dev tooling**: animation inspectors, control panels, data-layer devtools, debug overlays,
+  feature-flag panels, each found in the project's manifests and imports. Find where each is
+  mounted and whether the mount is gated.
 
 ## Sweep
 
@@ -107,21 +108,22 @@ variable name, never its value.
 Greps that pay off across lanes:
 
 ```text
-transition: all          transition-all           ease-in
-scale(0)                 width:|height:           will-change
-filter: blur(            prefers-reduced-motion   (hover: hover)
-aria-label               outline: none            outline-none
-onClick                  role="button"            <label
-autoFocus                placeholder=             disabled=
-100vh                    h-screen                 safe-area-inset
-user-scalable            maximum-scale            theme-color
-font-size: 1[0-5]px      text-sm                  z-index: 9
-<img                     <video                   preload
-localStorage             useEffect                dark:
+transition: all          ease-in                  scale(0)
+width:|height:           will-change              filter: blur(
+prefers-reduced-motion   (hover: hover)           aria-label
+outline: none            role="button"            <label
+autofocus                placeholder=             disabled
+100vh                    safe-area-inset          user-scalable
+maximum-scale            theme-color              font-size: 1[0-5]px
+z-index: 9               <img                     <video
+preload                  localStorage             prefers-color-scheme
 console.log              debugger                 TODO|FIXME|XXX
 lorem                    example.com              localhost
-metadata                 og:image                 force-dynamic
+og:image                 onclick
 ```
+
+Add the project's own spelling of each, from recon: its styling system's utility class for a
+property, its framework's form of an attribute or event handler, its own head and metadata API.
 
 Search tracked source and the production build's output. Leave gitignored files unread: local env
 files hold real secret values, and a value that is read can reach the report.
@@ -146,28 +148,20 @@ keeps only what a launch must not ship.
 An animation inspector, a control panel, or a devtools drawer visible to every visitor. It also ships
 its bytes to every visitor.
 
-**Hunt for:** an animation inspector's component or mount call (`<AnimationInspector`); `leva` /
-`<Leva` / `useControls`; `ReactQueryDevtools`; `tweakpane`, `dat.gui`, `stats.js`; `react-scan`,
-`why-did-you-render`; `eruda` / `vConsole`; debug overlays and grid overlays toggled by a constant;
-feature-flag panels. For each, find the mount and check it's gated.
-
-```jsx
-{process.env.NODE_ENV === "development" && <AnimationInspector />}
-```
+**Hunt for:** the mount of each dev tool recon found: an animation inspector, a control panel, a
+data-layer devtools drawer, a performance or render-tracing overlay, an in-page console, debug and
+grid overlays toggled by a constant, feature-flag panels. For each, find the mount and check it's
+gated: it renders only when the project's own build-mode check says the build is a development
+build.
 
 Every inspector, control panel, and devtools drawer found in recon sits behind this gate. A dynamic
 import behind the gate keeps the package out of the production bundle; a static import with a gated
-render still ships the bytes. A Leva panel hidden with its `hidden` prop still gets the defaults
-check, because the shipped page renders with its `useControls` values: confirm the shipped
-defaults are the approved ones. When a control panel was used to dial something in
+render still ships the bytes. A control panel that is hidden rather than gated still gets the
+defaults check, because the shipped page renders with the panel's control values: confirm the
+shipped defaults are the approved ones. When a control panel was used to dial something in
 (`/prototype:explore-directions controls`, `/prototype:build-generator`), the
 approved values live in a saved config file that production imports, never in a panel default. With
 no such file to compare against, put the defaults check on the human list.
-
-- **Pointer**: when a Leva panel is hidden rather than gated, fetch the Leva docs, "Configuration",
-  "Panel Props",
-  <https://github.com/pmndrs/leva/blob/main/docs/getting-started/configuration.md#panel-props>,
-  live.
 
 **Audit: Blocking.** A dev tool, inspector, control panel or debug overlay rendered in the
 production build, or imported statically so its package ships behind a render-only gate.
@@ -181,19 +175,12 @@ added to dodge auth. They're indexed, they often bypass auth, and they show unfi
 a `sitemap` that lists them. The sitemap itself is the `marketing-pages` concern's.
 
 Finding them is the job; deleting them is not. Prototype directories are throwaway by design and the
-user usually wants them gone. Gate them out of production and let the user decide:
-
-```ts
-// in the route
-if (process.env.NODE_ENV === "production") notFound();
-```
+user usually wants them gone. Gate them out of production and let the user decide: in the
+production build, the route answers with the framework's own not-found response.
 
 A `/prototype:build-generator` tool may stay in the project while the person still tunes it. A
 `robots` disallow line for these routes is the `marketing-pages` concern's, in its "4. Crawlers
 find the real pages, and the icons are the product's"; it never stands in for the gate.
-
-- **Pointer**: when gating a Next.js route with `notFound()`, fetch the Next.js `notFound` function
-  reference, <https://nextjs.org/docs/app/api-reference/functions/not-found>, live.
 
 **Audit: Blocking.** A scaffolding, prototype or debug route reachable in the production build.
 
@@ -375,8 +362,8 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   action used more than `animation.skip_frequency` times a day (`catalog.md` "Should it animate:
   `should-it-animate`"); animating `width`,
   `height`, `margin`, `padding`, `top` or `left` (`performance.md` "Swap down a tier:
-  `swap-down-a-tier`"); `transition: all`, or Tailwind's bare `transition` (`performance.md` "No
-  `transition: all`: `transition-all`").
+  `swap-down-a-tier`"); `transition: all`, or a utility class that compiles to it or to a broad property list (`performance.md`
+  "No `transition: all`: `transition-all`").
 - `web-performance`: `setState` per frame in a scroll, drag, or rAF handler ("9. Nothing re-renders
   per frame"); 1,000+ row list rendered directly ("3. Virtualize long lists"); blog, docs, or
   changelog fetched at request time ("6. Content routes are static").
@@ -389,10 +376,11 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   rules after it for the OG image).
 - `generic-defaults`: lorem ipsum ("8. No placeholder content"); fabricated stats or testimonials
   ("9. No fabricated proof").
-- This file's leftovers: dev tools, an inspector, Leva or a prototype picker mounted in production
-  ("Dev tools aren't mounted in production"); `/proto`, `/lab`, or `/test` routes publicly reachable
-  ("Scaffolding routes aren't publicly reachable"); `console.log` and `debugger` ("No debug
-  output"); secrets and dev URLs in client code ("No secrets or dev URLs in client code").
+- This file's leftovers: dev tools, an inspector, a control panel or a prototype picker mounted in
+  production ("Dev tools aren't mounted in production"); `/proto`, `/lab`, or `/test` routes
+  publicly reachable ("Scaffolding routes aren't publicly reachable"); `console.log` and `debugger`
+  ("No debug output"); secrets and dev URLs in client code ("No secrets or dev URLs in client
+  code").
 - Declaring it ready from device emulation: this file's "Posture", its first failure mode.
 
 **2. Findings tables.** One markdown table per lane that has findings, in `audit.order`, the
@@ -404,7 +392,7 @@ The example is a `--fix` run, so most rows read "Fixed":
 | Severity | Before | After | Why | Status |
 | --- | --- | --- | --- | --- |
 | Blocking | `<button><CloseIcon /></button>` at `Dialog.tsx:41` | `<button aria-label="Close dialog">` | Screen readers announce "button" with no name | Fixed |
-| Blocking | `<AnimationInspector />` mounted unconditionally at `layout.tsx:18` | Mounted only when `process.env.NODE_ENV === "development"` | The animation inspector ships to every visitor | Fixed |
+| Blocking | `<AnimationInspector />` mounted unconditionally at `layout.tsx:18` | Mounted only in a development build, behind the project's build-mode check | The animation inspector ships to every visitor | Fixed |
 | Blocking | `projects.length === 0` renders `null` at `Projects.tsx:33` | (none) | Every new account opens to a blank page | Open (needs copy) |
 | Important | `height: 100vh` on `.app` at `layout.css:8` | `height: 100dvh` | `100vh` overflows behind the mobile URL bar | Fixed |
 | Important | `transition: all 300ms` at `Button.tsx:20` | `transition: background-color 150ms, transform 150ms var(--ease-out)` | `all` animates unintended properties off the GPU | Fixed |

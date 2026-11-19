@@ -1373,6 +1373,55 @@ test("the install-script-pin row refuses any other change before any API call", 
   }
 });
 
+const RELOCK_IN = (version) => `manim[typst]==0.21.0\nplaywright==${version}\n`;
+const RELOCK_TXT = (version, hash) => `playwright==${version} \\\n    --hash=sha256:${hash.repeat(64)} \\\n    --hash=sha256:${"c".repeat(64)}\n    # via -r requirements.in\n`;
+const RELOCK_PAIRS = [["pip", "/plugins/explainer-video"], ["pip", "/lib/media-render"]];
+function relockFixture(t, edit) {
+  return repoWithPatch(t, (repo) => edit(join(repo, "plugins/explainer-video")), {
+    head: (repo) => {
+      mkdirSync(join(repo, "plugins/explainer-video"), { recursive: true });
+      writeFileSync(join(repo, "plugins/explainer-video/requirements.in"), RELOCK_IN("1.65.1"));
+      writeFileSync(join(repo, "plugins/explainer-video/requirements.txt"), RELOCK_TXT("1.65.1", "a"));
+    },
+  });
+}
+const relock = (dir) => {
+  writeFileSync(join(dir, "requirements.in"), RELOCK_IN("1.65.2"));
+  writeFileSync(join(dir, "requirements.txt"), RELOCK_TXT("1.65.2", "b"));
+};
+const relockPush = (fix, api) => pushWith(fix, api, { row: row("dependency-relock"), context: { dependencyVerdict: "", dependabotConfig: RELOCK_PAIRS } });
+
+test("the dependency-relock row pushes a relock of pins and hashes with no verdict", async (t) => {
+  const fix = relockFixture(t, relock);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await relockPush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Relock the dependency group's lagging directory on feat/x [dependabot skip]\n\nLane-Activity: some-lane/some-activity\n");
+});
+
+test("the dependency-relock row refuses a relock that carries any other change, before any API call", async (t) => {
+  for (const [why, edit, reason = "dependency-pin-protected-path"] of [
+    ["an index URL in the lock", (dir) => {
+      relock(dir);
+      writeFileSync(join(dir, "requirements.txt"), `--index-url https://evil.example/simple\n${RELOCK_TXT("1.65.2", "b")}`);
+    }],
+    ["a package the lock did not hold", (dir) => {
+      relock(dir);
+      writeFileSync(join(dir, "requirements.txt"), `${RELOCK_TXT("1.65.2", "b")}evil-pkg==1.0.0 \\\n    --hash=sha256:${"d".repeat(64)}\n`);
+    }],
+    ["a script beside the relock", (dir) => {
+      relock(dir);
+      writeFileSync(join(dir, "setup.py"), "import os\n");
+    }, "dependency-pin-invalid"],
+    ["a new requirements file", (dir) => writeFileSync(join(dir, "requirements-dev.txt"), RELOCK_TXT("1.65.2", "b"))],
+  ]) {
+    const fix = relockFixture(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await relockPush(fix, api), { outcome: "escalate", escalationReason: reason }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+});
+
 test("checkRow names an unknown content rule", () => {
   assert.throws(() => checkRow(row("dependency-review", { "content-rule": "anything" })), /unknown content rule: anything/);
   assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");
