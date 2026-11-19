@@ -759,7 +759,7 @@ check-the-hook signal, never as proof of health.
 
 Model selection is expressed as **capability tiers defined by order, never by family name**.
 Capability does not track family across generations (a current mid-tier model can equal a prior
-top-tier one), so a tier named for a family silently rots. Three ordered tiers, each bound to a
+top-tier one), so a tier named for a family goes wrong without anyone editing it. Three ordered tiers, each bound to a
 Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
@@ -1206,7 +1206,7 @@ bot cannot hold a drain open indefinitely.
 **Autonomous-pipeline reminder.** An autonomous lane carries standing clauses of its own against the
 two stopping failures a pipeline cannot recover from: a turn ending on unexecuted intent, and a turn
 stopping to ask permission nobody is there to give. In this repository those clauses are
-hand-authored inline in each autonomous lane's launch prompt, and **deliberately so**: a launch
+hand-authored inline in each autonomous lane's launch prompt, **deliberately**, because a launch
 prompt is pasted into a terminal that may have no plugin installed, so it stays self-contained.
 **Pointer-not-copy does not reach them**, the one place in this doc where that holds, because
 the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
@@ -1395,7 +1395,7 @@ and reports the window, its percentage and reset time, and the operator's option
 opt-in variable in the lane session's environment, for example through an `env` entry in
 `--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
 only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
-unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+unchanged, since there the API is refusing and no lane is choosing to stop. A default pause stopped every
 lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
 quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
 
