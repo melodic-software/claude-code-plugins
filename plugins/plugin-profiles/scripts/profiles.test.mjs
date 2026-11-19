@@ -2389,19 +2389,31 @@ test("#17354: the preview id changes when a cut-off reset's changed file changes
   assert.equal(w.read(), changed);
 });
 
-test("#17354: a reset cut off before a file's write, then a hand edit of one profile entry, keeps the record and restores the file, naming the edit it overwrites", () => {
+test("#17354: a reset cut off before a file's write, then a hand edit of one profile entry to a third value, keeps the record and asks; the yes puts back the other entries and leaves the edit", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   cutOff(w, w.localFile, { written: false });
   const doc = JSON.parse(w.read());
   doc.enabledPlugins[`implementation@${M}`] = false;
   writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const edited = w.read();
+  const record = readFileSync(dataRecordOf(w, w.localFile), "utf8");
   const [row] = resetJson(w).folders;
-  assert.equal(row.action, "restore");
-  assert.deepEqual(row.overwrites, [{ name: `implementation@${M}`, current: false, before: "absent" }]);
-  const r = reset(w, ["--yes"]);
+  assert.equal(row.action, "finish-cut-off");
+  assert.equal(row.ask.file, w.localFile);
+  assert.deepEqual(row.ask.yes, { label: "Put back", flag: "--finish-cut-off" });
+  assert.deepEqual(row.overwrites, [], "the hand edit is never overwritten, so none is named");
+  assert.ok(!row.entries.includes(`implementation@${M}`) && row.entries.length > 0, JSON.stringify(row.entries));
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  assert.equal(w.read(), edited);
+  assert.equal(readFileSync(dataRecordOf(w, w.localFile), "utf8"), record);
+  assert.equal(JSON.parse(record).phase, "restoring");
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(w.read(), LOCAL_BEFORE);
+  const before = JSON.parse(LOCAL_BEFORE);
+  assert.deepEqual(JSON.parse(w.read()), { ...before, enabledPlugins: { ...before.enabledPlugins, [`implementation@${M}`]: false } });
   assert.deepEqual(w.records(), []);
 });
 
