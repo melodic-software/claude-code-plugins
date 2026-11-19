@@ -1265,11 +1265,11 @@ _IF_VALUE = re.compile(
 _IF_BLOCK = re.compile(
     r"(\s*(?:-\s+)?['\"]?if['\"]?\s*:)\s*[|>][-+0-9]*\s*(?:#.*)?", re.IGNORECASE
 )
-# A model leg: a claude-code-* action or image, a `model_leg_actions` name, or
+# A model leg: a run-claude-cli or claude-code-* action or image, a `model_leg_actions` name, or
 # the Claude Code npm package on a run line: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 _MODEL_NAMES = "".join(
     f"{re.escape(name)}|" for name in merge_settings.load().model_leg_actions
-) + r"claude-code[\w-]*"
+) + r"run-claude-cli|claude-code[\w-]*"
 _MODEL_ACTION_NAME = re.compile(
     rf"{_MODEL_NAMES}|@anthropic-ai/claude-code", re.IGNORECASE
 )

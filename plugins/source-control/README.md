@@ -414,7 +414,7 @@ repo's owner.
 | `review_lane_checks` | string (multiple) | none: no check counts as AI review, so the merge gate holds |
 | `owner_decisions_record` | string | none: no decision clears a cost hold |
 | `free_runner_labels` | string (multiple) | GitHub's standard hosted labels only |
-| `model_leg_actions` | string (multiple) | the built-in `claude-code*` names only |
+| `model_leg_actions` | string (multiple) | the built-in `run-claude-cli` and `claude-code*` names only |
 | `issue_status_app_login` | string | none: only a person's Work status values count |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
@@ -617,7 +617,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `review_lane_checks` | string (multiple) | *(none)* | AI review lane callers and check names the merge gate accepts, each as claude-review: or claude-security-review: then caller=<workflow path>, status=<check> or merge=<check>. User or managed settings only, never a repository. Absent: no check is AI review, so the gate holds. |
 | `owner_decisions_record` | string | *(none)* | The record whose line links clear a cost hold, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no decision clears a cost hold. |
 | `free_runner_labels` | string (multiple) | *(none)* | Runner label globs the merge gate treats as free besides GitHub's standard labels; * stands for letters, digits and -. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only GitHub's standard labels are free. |
-| `model_leg_actions` | string (multiple) | *(none)* | Action names besides claude-code* that start a model leg, for the merge gate's cost check; adds only. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: the built-in names only. |
+| `model_leg_actions` | string (multiple) | *(none)* | Action names besides run-claude-cli and claude-code* that start a model leg, for the merge gate's cost check; adds only. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: the built-in names only. |
 | `issue_status_app_login` | string | *(none)* | The one GitHub App login (<slug>\[bot\]) whose Work status field values the merge gate counts like a person's, when the trusted-actors list also lists it. User or managed settings only, never a repository. Absent: only a person's values count. |
 | `promotion_evidence_binding` | file | *(none)* | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_root` | directory | *(none)* | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |

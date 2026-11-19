@@ -8,7 +8,7 @@ bump: major
 
 ### Changed
 
-- **Breaking:** the merge phase's unattended merge, `review-venue.sh`, the merge gate's AI review checks and review lanes, the cost-decision row link, the free runner labels, the model-leg actions and the trusted Work status App come from those settings instead of one organization's values fixed in the plugin. Every one fails closed when unset: nothing merges without the user, no CI run or check counts as AI review, no decision clears a cost hold, only GitHub's standard runner labels are free, only the built-in `claude-code*` names start a model leg, and only a person's Work status values count. An operator who relied on the old values sets them in `userConfig`.
+- **Breaking:** the merge phase's unattended merge, `review-venue.sh`, the merge gate's AI review checks and review lanes, the cost-decision row link, the free runner labels and the trusted Work status App come from those settings instead of one organization's values fixed in the plugin. Every one fails closed when unset: nothing merges without the user, no CI run or check counts as AI review, no decision clears a cost hold, only GitHub's standard runner labels are free, and only a person's Work status values count. An operator who relied on the old values sets them in `userConfig`.
 
 ### Removed
 

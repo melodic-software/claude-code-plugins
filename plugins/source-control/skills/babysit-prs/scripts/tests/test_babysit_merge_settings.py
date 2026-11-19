@@ -318,7 +318,7 @@ class EveryConsumerFailsClosedWhenUnset(unittest.TestCase):
         self.assertEqual(got["app"], "")
         self.assertFalse(got["row"])
         self.assertEqual(got["free"], [True, False])
-        self.assertEqual(got["model"], [True, False])
+        self.assertEqual(got["model"], [True, True])
         self.assertIn("no owner-decisions record is set", got["hint"])
 
     def test_a_lane_with_no_names_matches_no_check(self) -> None:
