@@ -163,8 +163,14 @@ Good: The summary says what changed and why, and nothing else. Name each test co
 Strict means precise, not loud. State each rule in plain words with its scope and reason, and
 write no all-caps and no marker words (`IMPORTANT`, `MUST`, `NEVER`, `ALWAYS`, `CRITICAL`) to make
 it stick. A plain firm word (never, always) stays when the sentence gives the rule's scope and
-reason. A rule that must hold every time belongs in a hook, deny rule or CI check; a line that
-keeps getting missed means the file needs to be shorter. Bold is structure only: a list-item label
+reason. For a rule that must hold every time, name the call `/corrections:codify "<the rule>"`
+for the user; this skill does not build the mechanism. When `/corrections:codify` is among the
+available skills, hand it the choice of mechanism; it picks the strongest rung of the enforcement
+ladder that can decide the rule and proves the check. Otherwise, propose the strongest mechanism
+that can decide the rule: a change that makes the mistake impossible first, then a check that
+blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say
+that `/corrections:codify` was not available, so the proposal is unproven. A line that keeps
+getting missed means the file needs to be shorter. Bold is structure only: a list-item label
 or a defined term at its first use, never a whole sentence or a rule
 ([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
 
