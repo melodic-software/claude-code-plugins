@@ -21,6 +21,39 @@ skill:
 5. An **explicit opt-in** keyword (`sweep`, `audit` with an explicit corpus
    flag, or a user-stated "whole repo") skips the confirmation and runs.
 
+All of the above is the single-repository default. Naming several repositories
+is a separate path, below.
+
+## Several repositories
+
+A target form from
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../reference/target-scope.md)
+(`--repo <repo>` and the others its "Target forms" lists) runs the skill over
+those repositories; "Target forms",
+"Resolving repositories", "Fan-out", "Merging findings" and "Writes stay per
+repository" there own how. With no target form, nothing on this page changes.
+What every docs-hygiene skill adds:
+
+- **Naming repositories is the explicit opt-in** (step 5): with no path, each
+  repository's run covers that repository's skill-default corpus, with no
+  clean-tree confirmation. A path given beside a target form is read relative
+  to each repository root.
+- **Bundled scripts read a working tree**, and most resolve their root from
+  the working directory's git top level, so run each one with the tree it
+  reads as the working directory. For the session's own checkout that is the
+  checkout. For any other repository it is that clone only when the clone has
+  no uncommitted change and its `HEAD` is `origin/HEAD` after the fetch.
+  Otherwise add a detached worktree of `origin/HEAD` under the session
+  scratchpad (`git -C <root> worktree add --detach <scratch path> origin/HEAD`),
+  run the scripts there, and remove it after the pass. It adds no tracked file
+  and leaves the clone's checkout as it was.
+- **Settings and state stay per repository**: each repository's
+  `docs/conventions/docs-hygiene.yaml` and verification level are read at its
+  own root, and each findings file, ledger, roster or report is written per
+  repository, never merged into one file. None is written inside a scratch
+  worktree, which is removed after the pass: a findings file goes in the
+  memory slice under that repository's clone root (`git -C <clone root>`).
+
 ## Who participates
 
 | Skill | Trigger | Explicit opt-in that skips confirm | Notes |
@@ -31,7 +64,7 @@ skill:
 | `audit-encapsulation` | bare detect with no inherited scope | `sweep` | Domain is already repo-wide; confirm is about intent, not discovery |
 | `compress` (default + `audit`) | empty arg + clean tree, interactive | user-stated whole-repo / confirmed offer | Mutating default takes its prescribed defaults after a free audit pass and stays confirmation-gated before the run; bare `compress audit` on a clean tree offers the same free audit corpus (report-only) instead of no-opping |
 | `extract-ssot` | bare invocation with no scope | path/glob-scoped survey after confirm | Already documented as "Bare invocation: confirm scope first"; cites this shape |
-| `rename-references` | *(out of scope)* | n/a | Always needs an old/new token pair; no clean-tree corpus offer |
+| `rename-references` | *(out of scope)* | n/a | Always needs an old/new token pair; no clean-tree corpus offer. Accepts the target forms all the same, to sweep a rename in each repository |
 
 ## Deliberate divergences (do not "fix" these away)
 
