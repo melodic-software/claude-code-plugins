@@ -118,7 +118,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           leg: start
           key-job: pass
@@ -131,7 +131,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           outcome: skipped
           lane: eval-hill-climb-pass
@@ -196,7 +196,7 @@ jobs:
       # check-key-credit did not name the subscription leg.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           leg: key
           role: maintenance
@@ -310,7 +310,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -519,7 +519,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -540,7 +540,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -606,7 +606,7 @@ jobs:
       # `present` is whether this leg runs the pass.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           leg: subscription
           role: maintenance
@@ -720,7 +720,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -872,7 +872,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -888,7 +888,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -947,7 +947,7 @@ jobs:
       # the subscription leg saw the fallback token set.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           leg: fallback
           role: maintenance
@@ -1052,7 +1052,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -1204,7 +1204,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}

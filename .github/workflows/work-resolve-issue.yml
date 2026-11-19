@@ -321,7 +321,7 @@ jobs:
         if: steps.wip.outputs.capped == 'false'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c1634435f2b44fb8688999ecf03b0e59f947565e # v0.76.1
         with:
           leg: start
           key-job: resolve-issue
