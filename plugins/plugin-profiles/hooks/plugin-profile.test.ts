@@ -162,7 +162,7 @@ test('#16818: a pick in the pane previews, asks, writes the on entries, and logs
   const w = world(on, ['Apply'])
   const last = await runPicking($, w, 'review')
   expect(w.closed).toEqual(['plugin-profile-picker'])
-  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] }])
   expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
   expect(last).toBe(`Switched this folder to profile review. ${NEXT_STEP} The plugin it switches off stays loaded in this session until a later /reload-plugins or the next session start.`)
 })
@@ -250,7 +250,7 @@ test('#16816: two row presses before the first settles run one switch', async ($
   await Promise.all([ui.press({ key: 'profile:review' }), ui.press({ key: 'profile:planning' })])
   await settle()
   await ui.unmount()
-  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] }])
   expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
 })
 
@@ -270,7 +270,7 @@ test('AC6: where the pane cannot be placed, the picker pages through every profi
   const { text } = await run($)
   expect(w.asks[0].options).toEqual(['build', 'discovery', 'harness-upkeep', MORE])
   expect(w.asks[1].options).toEqual(['interface-design', 'planning', 'review', MORE])
-  expect(w.asks[2]).toEqual({ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] })
+  expect(w.asks[2]).toEqual({ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] })
   expect(w.logs).toContain('Profile review for folder: /p/.claude/settings.local.json')
   expect(w.runs).toEqual([
     ['list', '--json'],
@@ -490,7 +490,7 @@ test('#16747: the picker offers No profile, which previews the clear, asks, clea
   const w = world(on, ['Apply'])
   const text = await runPicking($, w, 'No profile')
   expect(w.logs).toContain('Puts back 3 plugin entries and 0 skill entries to their values before the first apply.')
-  expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Cancel', 'Apply'] }])
   expect(w.runs.slice(1)).toEqual([
     ['clear', '--for', 'folder', '--dry-run', '--json'],
     ['clear', '--for', 'folder', '--yes'],
@@ -538,7 +538,7 @@ test('#17354: the picker shows Reset under No profile, previews the reset, asks,
   const text = await runPicking($, w, 'Reset')
   expect(w.logs).toContain('Reset looked for profile records in the places the tool owns.')
   expect(w.logs).toContain('/p/.claude/settings.local.json: a line the tool owns.')
-  expect(w.asks).toEqual([{ question: QUESTION, options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: QUESTION, options: ['Cancel', 'Apply'] }])
   expect(w.runs.slice(1)).toEqual([
     ['reset', '--dry-run', '--json'],
     ['reset', '--yes', '--json', '--preview-id', 'preview-1'],
@@ -567,9 +567,9 @@ test('#17354: each folder without a record gets its own question, and only Remov
   const w = world(on, ['Apply', 'Keep', 'Remove'], { resetDry })
   await runPicking($, w, 'Reset')
   expect(w.asks).toEqual([
-    { question: QUESTION, options: ['Apply', 'Cancel'] },
-    { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
-    { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
+    { question: QUESTION, options: ['Cancel', 'Apply'] },
+    { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Keep', 'Remove'] },
+    { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Keep', 'Remove'] },
   ])
   expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json', '--keep-unrecorded', '/a/.claude/settings.local.json']])
 })
@@ -603,10 +603,18 @@ test('#17354: a file whose earlier reset was cut off gets its own question with 
   const w = world(on, ['Put back', 'Keep'], { resetDry })
   expect(await runPicking($, w, 'Reset')).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
   expect(w.asks).toEqual([
-    { question: 'An earlier reset of /a/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Put back', 'Keep'] },
-    { question: 'An earlier reset of /b/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Put back', 'Keep'] },
+    { question: 'An earlier reset of /a/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Keep', 'Put back'] },
+    { question: 'An earlier reset of /b/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Keep', 'Put back'] },
   ])
   expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--finish-cut-off', '/a/.claude/settings.local.json', '--keep-cut-off', '/b/.claude/settings.local.json']])
+})
+
+test('#17354: a file question dismissed with Esc is its answer that changes nothing, listed first', async ($, on) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED }
+  const w = world(on, ['Apply'], { resetDry: resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]) })
+  expect(await runPicking($, w, 'Reset')).toBe(ALL_RESET)
+  expect(w.asks.map(a => a.options)).toEqual([['Cancel', 'Apply'], ['Keep', 'Remove']])
+  expect(resets(w)).toEqual([[...PICK_ARGS, '--keep-unrecorded', PICKED]])
 })
 
 test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {

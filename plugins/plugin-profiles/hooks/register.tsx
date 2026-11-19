@@ -104,9 +104,15 @@ async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]):
   }
 }
 
-/** Asks Apply or Cancel; true only on the person's Apply, false when dismissed. */
-const confirmed = async ($: EngineInterface, question: string) =>
-  (await $.ui.ask(question, { options: [APPLY, CANCEL], header: 'Profile' }).catch(() => CANCEL)) === APPLY
+/**
+ * Every question this module asks: the answer that changes nothing is listed first, so it is the pre-selected one, and
+ * Esc or a failed prompt is that answer. True only when the person picks the answer that writes.
+ */
+const chose = async ($: EngineInterface, question: string, safe: string, writes: string, header = 'Profile') =>
+  (await $.ui.ask(question, { options: [safe, writes], header }).catch(() => safe)) === writes
+
+/** Asks Cancel or Apply; true only on the person's Apply. */
+const confirmed = ($: EngineInterface, question: string) => chose($, question, CANCEL, APPLY)
 
 /** Shows the preview and asks; true only on the person's Apply. */
 async function confirm($: EngineInterface, name: string, preview: Preview): Promise<boolean> {
@@ -160,8 +166,7 @@ async function resetAll($: EngineInterface): Promise<string> {
   const yes: string[] = []
   const no: string[] = []
   for (const ask of askable) {
-    const answer = await $.ui.ask(ask.question, { options: [ask.yes.label, ask.no.label], header: 'Reset' }).catch(() => ask.no.label)
-    if (answer === ask.yes.label) yes.push(ask.yes.flag, ask.file)
+    if (await chose($, ask.question, ask.no.label, ask.yes.label, 'Reset')) yes.push(ask.yes.flag, ask.file)
     else no.push(ask.no.flag, ask.file)
   }
   if ((!preview.question || keepRecorded) && !yes.length) return 'Not reset; nothing changed.'

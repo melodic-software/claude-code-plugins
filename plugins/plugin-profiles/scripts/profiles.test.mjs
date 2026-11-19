@@ -3496,3 +3496,20 @@ test("#17354: every reset row kind crossed with every way of answering writes, k
     assert.equal(allRecords(k.w).length, records, `${cell}: records ${allRecords(k.w).join(", ")}`);
   }
 });
+
+test("#17354: at a terminal, an empty answer or any answer but y or yes writes nothing, for every kind of question reset asks", async () => {
+  for (const kind of ["restore", "noRecord", "cutOffChanged", "movedNoNewer"]) {
+    for (const typed of ["", "maybe", "n", "yess"]) {
+      const k = KINDS[kind]();
+      const files = Object.values(k.files);
+      const before = files.map((file) => (existsSync(file) ? readFileSync(file, "utf8") : null));
+      const records = allRecords(k.w).length;
+      const r = await resetAtTerminal(k.w, () => typed);
+      const cell = `${kind} answered ${JSON.stringify(typed)}`;
+      assert.ok(r.prompts.length > 0, `${cell}: asked`);
+      assert.deepEqual(files.map((file) => (existsSync(file) ? readFileSync(file, "utf8") : null)), before, cell);
+      assert.equal(allRecords(k.w).length, records, cell);
+      assert.ok(!resultLines(r.stdout).some((line) => /^(Restored|Removed|Finished) /.test(line)), `${cell}: ${r.stdout}`);
+    }
+  }
+});
