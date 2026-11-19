@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Glob", "input": { "pattern": "**/CLAUDE.md" } }],
+      "why": "looked for files and edited nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Edit", "input": { "file_path": "/work/textkit/__init__.py", "old_string": "", "new_string": "x" } }],
+      "why": "an edit with no rules to apply"
+    }
+  ]
+}
