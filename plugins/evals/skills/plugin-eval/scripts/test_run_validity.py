@@ -1865,14 +1865,18 @@ class RunValidityTest(unittest.TestCase):
                       proc.stdout)
 
     def test_a_mixed_run_fails_counting_only_its_other_tool_results_denials(self):
+        settings = str(self.dir / "claude-eval-ab" / "config" / "settings.json")
         proc = self.denied_in_sandbox([
             ("Read", {"file_path": self.own_results("tool-results", "a.txt")}),
-            ("Read", {"file_path": str(self.dir / "claude-eval-ab" / "config" / "settings.json")}),
+            ("Read", {"file_path": settings}),
         ])
         self.assertDenials(proc, "FAIL")
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
         self.assertIn(
             "verdict: INVALID (1 permission denial in the traces: Read `%s`)"
-            % (self.dir / "claude-eval-ab" / "config" / "settings.json"),
+            % module.load_redactor().redact(settings),
             proc.stdout,
         )
 
