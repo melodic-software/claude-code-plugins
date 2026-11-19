@@ -12,6 +12,8 @@ import { test } from "node:test";
 
 import { netRawDiff } from "../upstream-apply-changelog/upstream-apply-changelog.mjs";
 import { BRANCH_PREFIX, bodyOf, branchOf, diffRefusal, existingHead, fragmentOf, frontmatterOf, frontmatterRefusal, openDraft, SPEC_ISSUE, titleOf } from "./hill-climb-publish.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);

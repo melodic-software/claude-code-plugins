@@ -3,6 +3,28 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's Adopters table moved to
+  `docs/contracts/target-scope/adopters.md` in the repository, so a new adopter no longer changes
+  this copy. The target forms and every other section are unchanged.
+
+## [0.5.2] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/docs-naming:audit-file-names` and
+  `/docs-naming:realign-file-names` as adopters.
+
+## [0.5.1] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/improvement:find` and
+  `/improvement:improve` as adopters.
+
 ## [0.5.0] - 2026-11-18
 
 ### Added

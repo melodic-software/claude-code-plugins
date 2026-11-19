@@ -54,6 +54,9 @@ Resolve at runtime, never hardcode machine-specific paths:
   `<SESSION_DATA_DIR>/<session-id>/subagents/`
 - **Auto-memory** (feedback regression check): `<SESSION_DATA_DIR>/memory/`. Present only when the
   consumer uses Claude Code auto-memory; degrade gracefully when absent
+- **Pointer**: when the computed transcript or auto-memory path misses, fetch
+  [Where transcripts are stored](https://code.claude.com/docs/en/sessions#where-transcripts-are-stored)
+  and [auto memory's Storage location](https://code.claude.com/docs/en/memory#storage-location) live.
 - **Score history** (plugin state): `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md`. Survives
   plugin updates, never lands in the consumer's repo
 - Parser: `${CLAUDE_PLUGIN_ROOT}/scripts/parse_transcript.py`, run per
@@ -160,9 +163,8 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 ## Verification record: `/export`
 
 - **Decision.** Suggest `/export` to the person and never run it: it is a built-in interactive command the Skill tool does not list and headless runs refuse. A command that is not available to the person is left out of the menu.
-- **Pointer.** The `/export [filename]` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands). Probe: `claude --bare -p "/export <path>"` refused on Claude Code 2.1.241 (2026-08-24); invocation mode local-jsx on 2.1.263 (2026-09-11).
-- **As of.** 2026-09-29.
-- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+- **Probe record.** The `export` → `session-flow:retro` entry of `docs/native-surfaces.md` in this plugin's marketplace repository holds the headless refusal, the invocation mode, and the trigger that reopens this decision.
+- **Pointer.** When deciding whether `/export` can run headless or take a format or redaction flag, fetch the `/export` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) live.
 
 ## Boundary, the built-in `/insights` command
 

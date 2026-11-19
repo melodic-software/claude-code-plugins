@@ -14,6 +14,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as driver from './driver.mjs';
 import { buildLaunch, ensureInstalled, installDir, main } from './driver.mjs';
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLEARED = [
@@ -1195,6 +1197,9 @@ test('log reports a claude missing from PATH', posixOnly, async () => {
     await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl')]), {
       message: 'claude is not on PATH',
     });
+    await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl'), '--real-setup', '--launcher', 'profiles-typo']), {
+      message: 'profiles-typo is not on PATH',
+    });
   } finally {
     process.env.PATH = saved;
     rmSync(box.root, { recursive: true, force: true });
@@ -1476,6 +1481,17 @@ test('a masked frame that never redraws fails the screenshot with no capture and
   } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('the data directory is named for the marketplace the install sits under, as Claude Code names it', () => {
+  assert.equal(driver.pluginDataId('/cfg/plugins/cache/acme/harness-ops/1.2.0'), 'harness-ops-acme');
+  assert.equal(driver.pluginDataId('D:\\cfg\\plugins\\cache\\my.market\\harness-ops\\1.2.0'), 'harness-ops-my-market');
+});
+
+test('outside the plugin cache the data directory is a --plugin-dir session\'s, harness-ops-inline', () => {
+  for (const root of ['/repo/plugins/harness-ops', '/opt/ccd', '/x/plugins/cache/acme/harness-ops', '/x/plugins/cache/acme/harness-ops/1.0/extra']) {
+    assert.equal(driver.pluginDataId(root), 'harness-ops-inline', root);
   }
 });
 

@@ -13,49 +13,17 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 skill=$(cd "$here/.." && pwd)
 bridge=$(cd "$skill/../../notes-bridge" && pwd)
-for tool in playwright-cli python3 curl; do # prereq-ok: test-only
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "SKIP: $tool not installed"
-    exit 0
-  fi
-done
-
-if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/ed-notes-panel.XXXXXX") || [[ ! -d "$tmp" ]]; then
-  echo "FAIL: mktemp gave no scratch dir"
-  exit 1
-fi
-d="$tmp/run"
-mkdir -m 700 "$d" "$tmp/b"
-session="edp-$$"
-pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only
-finish() {
-  # shellcheck disable=SC2310  # cleanup on exit: a browser that is already gone is fine
-  pw close >/dev/null 2>&1 || true
-  bash "$bridge/notes-bridge.sh" --dir "$d" stop >/dev/null 2>&1 || true
-  case "$tmp" in
-    */ed-notes-panel.*) rm -rf -- "$tmp" ;;
-    *) ;;
-  esac
-}
-trap finish EXIT
-
-fails=0
-ok() { echo "PASS: $1"; }
-bad() { echo "FAIL: $1"; fails=$((fails + 1)); }
+# shellcheck source=../../../lib/browser-test-helpers.sh
+source "$here/../../../lib/browser-test-helpers.sh"
+browser_setup ed-notes-panel edp playwright-cli python3 curl
 
 marker='<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->'
 while IFS= read -r line; do
   if [[ "$line" == "$marker" ]]; then cat "$skill/assets/variant-switcher.html"; else printf '%s\n' "$line"; fi
 done <"$skill/evals/fixtures/shipments-mockup.html" >"$d/explore-directions.html"
 
-started=$(bash "$bridge/notes-bridge.sh" --dir "$d" ensure-running --page explore-directions.html)
-port=$(printf '%s' "$started" | sed -n 's/.*"url": "http:\/\/127\.0\.0\.1:\([0-9]*\)\/".*/\1/p')
-[[ -n "$port" ]] || {
-  echo "FAIL: ensure-running printed no url: $started"
-  exit 1
-}
+browser_serve
 
-native() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 # Run one page script (placeholders replaced from name=value pairs) and grade each line it returns.
 run() { # script label [NAME=value ...]
   local src=$1 label=$2 out line path n=0

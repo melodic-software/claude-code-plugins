@@ -9,6 +9,7 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/confirm-verdict.sh"
 TMP="$(mktemp -d)"
@@ -68,6 +69,27 @@ assert_exit "recording a verdict with no items succeeds" 0 "$?"
 out=$(bash "$SCRIPT" show --head "$HEAD_A" 2>&1)
 assert_eq "a later record for the same head replaces the earlier one" \
   "confirm: CONFIRMED for head $HEAD_A" "$out"
+
+row1='AC1: the report names the verdict | lib/report.sh | report.test.sh: names verdict | COMPLETE'
+row2='AC2: a cell keeps a\|pipe | lib/a.sh, lib/b.sh | none ran | MISSING'
+bash "$SCRIPT" record --head "$HEAD_A" --verdict 'NEEDS WORK' --row "$row1" --missing 'AC2: a cell keeps a pipe' --row "$row2"
+assert_exit "recording rows beside a missing item succeeds" 0 "$?"
+assert_eq "the record stores each row as a ROW line, in the order given" \
+  "verdict: NEEDS WORK
+ROW: $row1
+MISSING: AC2: a cell keeps a pipe
+ROW: $row2" "$(cat "$CONFIRM_VERDICT_DIR/$HEAD_A")"
+out=$(bash "$SCRIPT" show --head "$HEAD_A" 2>&1)
+assert_eq "show prints each row, an escaped pipe included, as recorded" \
+  "confirm: NEEDS WORK for head $HEAD_A
+  ROW: $row1
+  MISSING: AC2: a cell keeps a pipe
+  ROW: $row2" "$out"
+bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED --row '' >/dev/null 2>&1
+assert_exit "an empty row is a usage error" 1 "$?"
+bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED --row $'a | b\n| c | d' >/dev/null 2>&1
+assert_exit "a multi-line row is a usage error" 1 "$?"
+bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED
 
 bash "$SCRIPT" record --head "$HEAD_B" --verdict 'NOT VERIFIED'
 assert_eq "NOT VERIFIED is stored as given" "verdict: NOT VERIFIED" "$(cat "$CONFIRM_VERDICT_DIR/$HEAD_B")"
@@ -138,6 +160,8 @@ bash "$SCRIPT" record --head "$HEAD_D" --verdict 'CANNOT QUANTIFY' >/dev/null 2>
 assert_exit "a measure-only verdict word is a confirm usage error" 1 "$?"
 bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict MIXED --missing 'AC1' >/dev/null 2>&1
 assert_exit "a plan item on a measure record is a usage error" 1 "$?"
+bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict MIXED --row 'a | b | c | d' >/dev/null 2>&1
+assert_exit "a row on a measure record is a usage error" 1 "$?"
 bash "$SCRIPT" record --head "$HEAD_D" --verdict CONFIRMED --claim 'faster' >/dev/null 2>&1
 assert_exit "a claim on a confirm record is a usage error" 1 "$?"
 bash "$SCRIPT" show --of other --head "$HEAD_D" >/dev/null 2>&1

@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-11-19
+
+### Fixed
+
+- The `confirm-lists-every-verifier-verdict` eval's `final-confirmed` grader passes a report that gives the final verdict in a table cell as `CONFIRMED (final)`. A table whose final verdict is NEEDS WORK still fails, as does an answer that lists CONFIRMED without stating it final.
+
+## [0.29.0] - 2026-11-19
+
+### Added
+
+- **`/verification:confirm` records one row per acceptance criterion with its verdict.** The record now takes a `--row` per criterion, complete ones included: the criterion, the files that meet it, the test or check that proves it, and the result. A fix's first row is the reported symptom with its reproduction test failing on the base and passing on the head; a refactor's is "behavior preserved: same tests pass". `confirm-verdict.sh show` prints the rows.
+
 ## [0.28.1] - 2026-11-18
 
 ### Fixed

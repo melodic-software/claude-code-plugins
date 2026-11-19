@@ -158,6 +158,15 @@ for hook in actionlint/hooks/actionlint-check.sh:lint bash-format/hooks/bash-for
   (cd "$E" && printf '{}' | PATH="$T/gitbin:$T/bin:$PATH" bash "$PLUGINS/$script" --end-of-turn) >/dev/null 2>&1
   not_run "$script --end-of-turn"
   expect "$script --end-of-turn: its entry ran git with GIT_CONFIG_COUNT=2" grep -qx 2 "$T/git-calls"
+  rm -f "$T/git-calls"
+  err=$(cd "$E" && printf '{}' | GIT_CONFIG_COUNT=x PATH="$T/gitbin:$T/bin:$PATH" bash "$PLUGINS/$script" --end-of-turn 2>&1 >/dev/null)
+  rc=$?
+  ran=no
+  [[ -e "$T/git-calls" ]] && ran=yes
+  want=0
+  [[ "$script" == actionlint/* ]] && want=2
+  expect "$script --end-of-turn, GIT_CONFIG_COUNT=x: exit $want, one stderr line, no git (rc $rc, git $ran, stderr [$err])" \
+    test "$rc|$ran|$err" = "$want|no|${script##*/}: cannot run the end-of-turn check: GIT_CONFIG_COUNT is not a number"
 done
 
 mkdir -p "$T/argbin"

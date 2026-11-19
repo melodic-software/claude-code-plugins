@@ -5,9 +5,10 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { budgetStops, checkBudget, checkKillSwitch, main, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
+import { budgetStops, checkBudget, checkKillSwitch, main, projectionGate, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
 import { readOutputs } from "./fixtures/read-outputs.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-kill-switch.mjs", import.meta.url));
 const WORKFLOWS = fileURLToPath(new URL("../../workflows/", import.meta.url));
@@ -281,6 +282,58 @@ test("a share that cannot be read makes no call and proceeds with a warning", as
   }
 });
 
+const PROJECT = { ...START, PROJECT_CHECK: "true" };
+const reading = (remaining, resetIn) => rateLimitResponse({ headers: headersOf(5000, remaining, NOW_S + resetIn) });
+
+test("a window projected to empty before a typical run ends holds the start, with the window's reset", async () => {
+  const { lines, outputs } = await runMain(PROJECT, reading(2000, 1800));
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 1800) }, "30 min in, 3000 used: 2000 - 3000 x 1260 / 1800 is under 0");
+  const notice = lines.find((line) => line.startsWith("::notice title=start-gate::"));
+  assert.match(notice, /stop=true; projected left 0 of the limit 21 min ahead or at the reset, against start-project=0\.3 \(start-run-minutes=21\) stop=true: /);
+});
+
+test("tonight's 21:51Z start, 86% left 5 min into the window, holds", async () => {
+  const { lines, outputs } = await runMain(PROJECT, reading(4300, 3300));
+  assert.equal(outputs.cause, "budget", "4300 - 700 x 1260 / 300 = 1360, 0.27 of 5000, under 0.3");
+  assert.ok(lines.some((line) => line.includes("projected left 0.27 of the limit")));
+});
+
+test("a quiet window lets the start go", async () => {
+  const { lines, outputs } = await runMain(PROJECT, reading(4700, 1800));
+  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" }, "30 min in, 300 used: 4700 - 300 x 1260 / 1800 = 4490, 0.9 of 5000");
+  assert.ok(lines.some((line) => line.includes("projected left 0.9 of the limit") && line.includes("stop=false; body core")));
+});
+
+test("the projection stops at the reset when the reset comes before the run's end", async () => {
+  const { lines, outputs } = await runMain(PROJECT, reading(2000, 300));
+  assert.equal(outputs.cause, "ok", "reset in 300 s: 2000 - 3000 x 300 / 3300 = 1727, 0.35; the full 1260 s would leave 0.17 and hold");
+  assert.ok(lines.some((line) => line.includes("projected left 0.35 of the limit")));
+});
+
+test("the projection gate adds to the start-gate share and never replaces it", async () => {
+  const low = await runMain(PROJECT, reading(499, 30));
+  assert.equal(low.outputs.cause, "budget", "499 left stops on the start-gate share");
+  assert.ok(!low.lines.some((line) => line.includes("projected left")), "the projection is not consulted after a share stop");
+  assert.equal((await runMain(START, reading(2000, 1800))).outputs.cause, "ok", "without PROJECT_CHECK a projected-empty window proceeds");
+});
+
+test("a projection gate that cannot be set up proceeds on the start-gate share alone, with a warning", async () => {
+  for (const [label, rateLimits] of [
+    ["no start-project", { "github-token": { "start-gate": 0.1, plan: 0.7, "start-run-minutes": 21 } }],
+    ["no start-run-minutes", { "github-token": { "start-gate": 0.1, "start-project": 0.3 } }],
+    ["fractional minutes", { "github-token": { "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 1.5 } }],
+  ]) {
+    const { lines, outputs } = await runMain(PROJECT, reading(2000, 1800), { rateLimits });
+    assert.equal(outputs.cause, "ok", label);
+    assert.ok(lines.some((line) => line.startsWith("::warning title=start-gate::the projection gate could not be set up")), label);
+  }
+});
+
+test("the shipped projection gate is start-project 0.3 over a 21-minute run", () => {
+  const gate = projectionGate(fileURLToPath(new URL("../log-api-budget/rate-limits.json", import.meta.url)), () => {});
+  assert.deepEqual([gate.share, gate.minutes], [0.3, 21]);
+});
+
 test("a failed budget read proceeds", async () => {
   const { outputs, lines } = await runMain(START, new Error("socket hang up"));
   assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
@@ -364,6 +417,7 @@ const GATES = {
 };
 
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
+const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
 
 // The read-runner calls that pass start-gate, by workflow and job: the issue
 // lane's key leg and its subscription leg, which is the slot's first call
@@ -418,10 +472,12 @@ test("every gate in the workflows is classified, and only start gates read the b
       seen.add(`${file} ${job}`);
       if (kind === "start") {
         assert.match(step, /^ {10}budget: "true"$/m, `${file} ${job} starts new work`);
+        assert.doesNotMatch(step, /project:/, `${file} ${job}: the projection gate is the issue lane's alone`);
       } else if (kind === "first-call") {
         assert.match(step, FIRST_CALL, `${file} ${job} starts new work on a starting caller's first call only`);
+        assert.match(step, FIRST_CALL_PROJECT, `${file} ${job} projects the window on a starting caller's first call only`);
       } else {
-        assert.doesNotMatch(step, /budget:/, `${file} ${job} checks the switches only`);
+        assert.doesNotMatch(step, /budget:|project:/, `${file} ${job} checks the switches only`);
       }
     }
   }
@@ -554,6 +610,77 @@ test("every budget job checks out log-api-budget beside the gate", () => {
   }
 });
 
+async function runWaiting(env, answers) {
+  const dir = tempDir("kill-switch-wait-");
+  try {
+    const outputPath = path.join(dir, "output");
+    writeFileSync(outputPath, "");
+    let clock = NOW_MS;
+    const sleeps = [];
+    const lines = [];
+    const queue = [...answers];
+    const { calls, fetchImpl } = recordingFetch(() => queue.shift()());
+    const sleep = async (ms) => {
+      sleeps.push(ms);
+      clock += ms;
+    };
+    await main({ GITHUB_OUTPUT: outputPath, BUDGET_TOKEN: "t", ...env }, { fetchImpl, now: () => clock, sleep, log: (line) => lines.push(line) });
+    return { calls, lines, sleeps, outputs: readOutputs(readFileSync(outputPath, "utf8")) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const lowUntil = (resetIn) => () => rateLimitResponse({ headers: headersOf(5000, 313, NOW_S + resetIn) });
+const freshWindow = () => rateLimitResponse({ headers: headersOf(5000, 5000, NOW_S + 4000) });
+
+test("tonight's refine-select stop, 313 left and the reset 467 s out, waits for the reset and starts once after it", async () => {
+  const { calls, lines, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [lowUntil(467), freshWindow]);
+  assert.deepEqual(sleeps, [468_000], "one wait, to a second past the reset");
+  assert.equal(calls.length, 2, "one read before the wait and one after it");
+  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
+  assert.ok(lines.includes(`::notice title=start-gate::the GITHUB_TOKEN budget stops this start until ${NOW_S + 467}; it waits 468s for the reset, then reads the budget once more`));
+  assert.ok(lines.includes(`::notice title=start-gate::started after the reset: the start the budget stopped at ${NOW_S} goes ahead after a 468s wait`), "the line a before/after count greps");
+});
+
+test("a start still under the gate after the reset stops on the second reading, with its reset, and waits no more", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: "1200" }, [lowUntil(100), lowUntil(3700)]);
+  assert.deepEqual([sleeps.length, calls.length], [1, 2]);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 3700) });
+});
+
+test("a reset past the wait budget stops at once, as before", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: "600" }, [lowUntil(900)]);
+  assert.deepEqual([sleeps.length, calls.length], [0, 1]);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 900) });
+});
+
+test("a gate with no wait budget never waits, however near the reset", async () => {
+  for (const value of [undefined, "", "0", "abc", "1201"]) {
+    const { sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: value }, [lowUntil(30)]);
+    assert.deepEqual([sleeps.length, outputs.cause], [0, "budget"], `WAIT_SECONDS=${JSON.stringify(value)}`);
+  }
+});
+
+test("a switch stop never waits", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, KILL_SWITCH_VALUE: "true", WAIT_SECONDS: "1200" }, []);
+  assert.deepEqual([calls.length, sleeps.length, outputs.cause], [0, 0, "switch"]);
+});
+
+test("only intake's refine-select waits, for WAIT_BUDGET_SECONDS.workResolveIssue, inside its timeout", () => {
+  const waiting = [];
+  for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
+    for (const [job, steps] of Object.entries(stepsByJob(file))) {
+      const gate = steps.find((step) => KILL_STEP.test(step) && /^ {10}wait-seconds:/m.test(step));
+      if (gate) waiting.push({ file, job, seconds: /^ {10}wait-seconds: "?(\d+)"?$/m.exec(gate)?.[1] });
+    }
+  }
+  assert.deepEqual(waiting, [{ file: "intake-triage.yml", job: "refine-select", seconds: String(WAIT_BUDGET_SECONDS.workResolveIssue) }]);
+  const text = readFileSync(path.join(WORKFLOWS, "intake-triage.yml"), "utf8");
+  const minutes = Number(/^ {2}refine-select:\n(?: {4}.*\n)*? {4}timeout-minutes: (\d+)$/m.exec(text)?.[1]);
+  assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `refine-select's ${minutes} min hold ten minutes of work and the wait`);
+});
+
 test("CLI writes proceed=true when both switches are exactly false and exits 0", () => {
   const { status, stdout, outputs } = runCli({ KILL_SWITCH_VALUE: "false", REPO_KILL_SWITCH_VALUE: "false" });
   assert.equal(status, 0);
@@ -574,6 +701,7 @@ test("CLI start gate in a checkout without log-api-budget warns, reads no budget
     const script = path.join(dir, "check-kill-switch", "check-kill-switch.mjs");
     mkdirSync(path.dirname(script));
     copyFileSync(SCRIPT, script);
+    copyFileSync(fileURLToPath(new URL("./projection.mjs", import.meta.url)), path.join(dir, "check-kill-switch", "projection.mjs"));
     const { status, stdout, outputs } = runCli({ ...START, BUDGET_TOKEN: "t" }, script);
     assert.equal(status, 0);
     assert.match(stdout, /::warning title=start-gate::rate-limits\.json gave no start-gate share \(ENOENT\)/);

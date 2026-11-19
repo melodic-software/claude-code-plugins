@@ -10,6 +10,10 @@
 CM_ENTRY_LIB_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 
 cm_usage_banner() {
+  if [[ "$1" == --usage ]]; then
+    printf '%s\n' "$2" >&2
+    return
+  fi
   # One sed rather than a range print piped into a strip: the `-e` fragments
   # give the braces the newlines a BSD sed wants around them.
   sed -n -e "2,${2}{" -e 's/^# \{0,1\}//' -e p -e '}' "$1" >&2

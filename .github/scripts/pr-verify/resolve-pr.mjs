@@ -304,10 +304,20 @@ export const HOLD_STEP = "Fail a lanes App pull request on kill switch, hold pat
 const OLD_HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
 const HOLD_STEPS = [HOLD_STEP, OLD_HOLD_STEP];
 export const AGGREGATE_STEP = "Aggregate lane results";
-// The ci-status step that runs ci-workflows' check-contract (title,
-// `do-not-merge` label, issue linkage), and the one error line its run.sh
-// writes for the label, whose name pr-require-checks.yml leaves the default.
-export const CONTRACT_STEP = "Check the pull-request contract";
+/**
+ * The ci-status step that fails on ci-workflows' check-contract (title,
+ * `do-not-merge` label, issue linkage), its own error line, and the one error
+ * line check-contract's run.sh writes for the label, whose name
+ * pr-require-checks.yml leaves the default. check-contract runs inside the
+ * report-ci-status composite, which AGGREGATE_STEP names: that step still
+ * succeeds, but its log keeps check-contract's lines and exit. A run from
+ * before the composite reports OLD_CONTRACT_STEP, which ran check-contract
+ * itself.
+ */
+export const CONTRACT_STEP = "Fail on the contract or draft policy";
+export const CONTRACT_LINE = "ci-status: the pull-request contract or the draft policy failed; see the step above.";
+const OLD_CONTRACT_STEP = "Check the pull-request contract";
+const CONTRACT_STEPS = [CONTRACT_STEP, OLD_CONTRACT_STEP];
 export const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
 // What merge-holds.mjs `holds` writes after each hold an approving review of
 // the head lifts, and the line the runner adds for the step's failing exit.
@@ -336,7 +346,9 @@ export const errorLines = (log) =>
 // both, the lanes aggregate succeeded, and every error that job logged is one
 // of `number`'s holds an approval lifts (at least one when HOLD_STEP failed),
 // DO_NOT_MERGE_LINE (exactly once when CONTRACT_STEP failed, never otherwise)
-// or a failed step's exit. ci-status still fails, so such a head never merges
+// or a failed step's exit; CONTRACT_STEP adds CONTRACT_LINE and check-contract's
+// exit inside the composite, once each, as a held run logs them
+// (https://github.com/melodic-software/ci-workflows/actions/runs/44383672751). ci-status still fails, so such a head never merges
 // unapproved or labeled; the verdict a judgment writes lifts no hold path and
 // no label. A read that fails, a job or step list cut short, or any other
 // error is false.
@@ -366,8 +378,9 @@ async function heldShape(read) {
     const names = failed.map((step) => step?.name);
     if (
       failed.length === 0 ||
-      failed.some((step) => step.conclusion !== "failure" || ![...HOLD_STEPS, CONTRACT_STEP].includes(step.name)) ||
+      failed.some((step) => step.conclusion !== "failure" || ![...HOLD_STEPS, ...CONTRACT_STEPS].includes(step.name)) ||
       new Set(names).size !== names.length ||
+      names.filter((name) => CONTRACT_STEPS.includes(name)).length > 1 ||
       !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
     ) {
       return null;
@@ -384,11 +397,14 @@ async function heldOnly(readLog, { ciId, names }, number) {
     const reasons = errors.filter((line) => line !== STEP_EXIT);
     const person = reasons.filter((line) => personHoldLine(line, number));
     const label = reasons.filter((line) => line === DO_NOT_MERGE_LINE);
+    const own = reasons.filter((line) => line === CONTRACT_LINE);
+    const composite = names.includes(CONTRACT_STEP) ? 1 : 0;
     return (
-      errors.length - reasons.length === names.length &&
-      person.length + label.length === reasons.length &&
+      errors.length - reasons.length === names.length + composite &&
+      person.length + label.length + own.length === reasons.length &&
       (person.length > 0) === names.some((name) => HOLD_STEPS.includes(name)) &&
-      label.length === (names.includes(CONTRACT_STEP) ? 1 : 0)
+      label.length === (names.some((name) => CONTRACT_STEPS.includes(name)) ? 1 : 0) &&
+      own.length === composite
     );
   } catch {
     return false;

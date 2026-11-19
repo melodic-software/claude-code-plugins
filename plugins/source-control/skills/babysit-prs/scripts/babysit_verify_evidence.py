@@ -3072,7 +3072,15 @@ class Reader:
         return self._schedule_value
 
     def _raw_file(self, path: str, ref: str, label: str) -> Any:
-        """The repository file at `path` on `ref`, read raw (`_read`)."""
+        """The repository JSON file at `path` on `ref`: from a checkout whose
+        HEAD is `ref` (`merge_policy.checkout_file_at`), else read raw
+        (`_read`)."""
+        text = merge_policy.checkout_file_at(path, ref)
+        if text is not None:
+            try:
+                return json.loads(text) if text.strip() else None
+            except ValueError as exc:
+                raise _Unreadable(f"{label}: {exc}") from exc
         return _read(
             [
                 "api",
@@ -3113,7 +3121,9 @@ class Reader:
         not JSON. A failed read or no such file raises `_Unreadable`."""
         owner, _, name = self.repo.partition("/")
         try:
-            text = merge_policy._file_at(owner, name, path, ref)
+            text = merge_policy.checkout_file_at(path, ref)
+            if text is None:
+                text = merge_policy._file_at(owner, name, path, ref)
         except merge_policy.PolicyReadError as exc:
             raise _Unreadable(f"{label}: {exc}") from exc
         if text is None:

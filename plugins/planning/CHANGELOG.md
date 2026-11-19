@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.9.2] - 2026-11-19
+
+### Changed
+
+- **`plan` and `interview` no longer assume `/clear` starts the next session.** After an approved plan, `plan` recommends a fresh session and defers how it starts to `/session-flow:workflow` when that plugin is enabled, which on the desktop app can be a new session started from the handoff; `interview`'s wayfind handoff says the same of the session that reads the ledger.
+
+## [5.9.1] - 2026-11-18
+
+### Changed
+
+- `draft-goal-condition` no longer names a release-status label for routines; it reads the status on the routines page and names it in the recommendation ([#16837](https://github.com/melodic-software/claude-code-plugins/issues/16837)).
+
 ## [5.9.0] - 2026-11-18
 
 ### Added

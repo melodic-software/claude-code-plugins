@@ -109,11 +109,16 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
 1. **Which section.** `allow` (auto-approve), `soft_deny` (block, overridable), `hard_deny` (never),
    `environment` (facts the classifier needs: organization, repositories, trusted domains).
    A `hard_deny` entry is a classifier judgment. When the answer is an action that must never
-   happen (it cannot be undone, exposes a secret, or sends data outside), say that it belongs in
-   `permissions.deny` or a `PreToolUse` hook, which the harness applies every time, and keep the
-   `hard_deny` entry as a second layer. For a Bash action prefer the hook; read what a Bash deny
-   rule matches in [permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
-   before recommending one.
+   happen (it cannot be undone, exposes a secret, or sends data outside), say that a classifier
+   judgment alone is not enough for it, and keep the `hard_deny` entry as a second layer. When
+   `/corrections:codify` is among the available skills, hand it the choice of mechanism; it picks
+   the strongest rung of the enforcement ladder that can decide the rule and proves the check.
+   Name the call, `/corrections:codify "<the rule>"`, for the user to run; never make it.
+   Otherwise, propose the strongest mechanism that can decide the rule: a change that
+   makes the mistake impossible first, then a check that blocks it, then a test, and an instruction
+   only when nothing a machine runs can decide it. Say that `/corrections:codify` was not
+   available, so the proposal is unproven. Before recommending a deny rule for a Bash action, read
+   what it matches in [permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax).
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.

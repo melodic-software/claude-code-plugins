@@ -60,10 +60,10 @@ if [[ "$got" -ge $((want - 5)) && "$got" -le "$want" ]]; then
 else
   fail "the step set the deadline '$got', want about '$want'"
 fi
-if [[ "$job" != *"rate-limit-wait-seconds:"* ]]; then
-  ok "the pinned composites keep their own rate-limit-wait-seconds default"
+if [[ "$(grep -c 'rate-limit-wait-seconds:' <<<"$job")" == 0 && "$(grep -c 'pr-require-checks/report-ci-status@' <<<"$job")" == 1 ]]; then
+  ok "ci-status runs report-ci-status once and leaves its two inner waits at their 60 s defaults, the 120 s its timeout holds"
 else
-  fail "ci-status passes rate-limit-wait-seconds to a composite, which the unchanged timeout does not hold"
+  fail "ci-status passes a rate-limit-wait-seconds the composite does not take, or does not call report-ci-status exactly once"
 fi
 first="$(grep -m1 '^      - name: ' <<<"$job")"
 if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; then

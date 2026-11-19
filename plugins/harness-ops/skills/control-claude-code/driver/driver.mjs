@@ -70,7 +70,6 @@ const MANIFESTS = ['package.json', 'package-lock.json'];
 const ENGINE = '@microsoft/tui-test';
 const COMPONENT = 'control-claude-code';
 const PLUGIN = 'harness-ops';
-const PLUGIN_DATA_ID = 'harness-ops-melodic-software';
 const NPM_CI_ARGS = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
 const NPM_TIMEOUT_MS = 600_000;
 const SIGNED = '.signatures-verified';
@@ -252,6 +251,20 @@ function checkoutRoot() {
   }
 }
 
+/**
+ * This plugin's data directory name, as Claude Code names it: the plugin id `<name>@<marketplace>`
+ * with every character outside A-Za-z0-9_- replaced by `-`. The marketplace comes from an install at
+ * <config>/plugins/cache/<marketplace>/<name>/<version>, the layout lib/plugin-options.mjs
+ * resolveInstall reads; this skill is copied alone into CI, so it keeps its own copy of the rule.
+ * Anywhere else is a --plugin-dir session, whose plugin id ends in @inline.
+ */
+export function pluginDataId(pluginRoot) {
+  const parts = pluginRoot.replaceAll('\\', '/').split('/');
+  const at = parts.lastIndexOf('cache');
+  const cached = at > 0 && parts[at - 1] === 'plugins' && parts.length - at === 4 && parts.slice(at + 1).every(Boolean);
+  return `${PLUGIN}@${cached ? parts[at + 1] : 'inline'}`.replace(/[^A-Za-z0-9_-]/g, '-');
+}
+
 function depsBase(explicit, create = true) {
   if (explicit) return { base: privateDir(resolve(explicit), { create }), rule: '--deps-dir' };
   const env = process.env.CLAUDE_PLUGIN_DATA;
@@ -261,7 +274,7 @@ function depsBase(explicit, create = true) {
   const root = checkoutRoot();
   if (root) return { base: join(root, '.work', PLUGIN), rule: 'checkout .work/' };
   const config = process.env.CLAUDE_CONFIG_DIR || join(os.homedir(), '.claude');
-  return { base: join(config, 'plugins', 'data', PLUGIN_DATA_ID), rule: 'plugin data directory' };
+  return { base: join(config, 'plugins', 'data', pluginDataId(resolve(HERE, '..', '..', '..'))), rule:'plugin data directory' };
 }
 
 const lockKey = () =>
@@ -939,7 +952,7 @@ async function serve(opts) {
   // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
   // still shows the environment the holder started with, which #8651's isolation probe covers.
   for (const name of CI_NAMES) delete process.env[name];
-  if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
+  if (await childExited(terminal)) throw new Error(`${launch.argv[0]} exited as soon as it started`);
   if (stale) rmSync(sock, { force: true });
   const closeTerminal = async () => {
     await ctx.recording?.mirror.closeQuiet().catch(() => {});
@@ -1218,7 +1231,7 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
     };
     child.on('error', (err) => {
       settle();
-      fail(err.code === 'ENOENT' ? new Error('claude is not on PATH') : err);
+      fail(err.code === 'ENOENT' ? new Error(`${argv[0]} is not on PATH`) : err);
     });
     child.on('close', (code, signal) => {
       settle();

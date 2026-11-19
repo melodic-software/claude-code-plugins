@@ -144,7 +144,7 @@ file may simply never have been carried). Removal without this pass loses the ed
 
 **File-lock release (Windows-critical).** Once both guards have cleared, and for a locked candidate once `bash "<scripts-dir>/worktree-claim.sh" stale <path>` has exited 0 (run for that candidate just before its release, not read from the Step 2 batch, and after any owner-is-done confirmation, as the Escalation guard below describes; any other exit keeps the row, with nothing stopped), release the candidate's OS file locks. `git worktree remove --force` overrides git's dirty/locked-worktree check but does not release OS file handles: on Windows any process holding a file under the worktree blocks directory deletion ("Permission denied" / "being used by another process"), and `--force` then unregisters the worktree but leaves a husk on disk. Stop the processes rooted in the candidate's path:
 
-- **Build servers** holding compiled output, e.g. `dotnet build-server shutdown` (.NET / VBCSCompiler + MSBuild), Gradle `--stop`, or your stack's equivalent. They hold bin/output DLLs open.
+- **Build servers** holding compiled output open: stop each with the shutdown command the project's build tool documents, read from its setup docs or project instructions at origin's default branch, resolved and read by SHA as [create.md § Workspace environment setup](create.md#workspace-environment-setup) step 2 does, never from the candidate's own tree. Skip this for a worktree whose stage reads untrusted input (that section's step 1). When skipped, or with no command stated, report that no build server was stopped.
 - **Long-lived daemons / MCP servers** started inside the worktree: identify processes whose executable path or command line is under the candidate directory, and stop only those (never processes belonging to other live worktrees).
 
 An orphaned-directory candidate (`empty` or `husk`) takes this release after its class's qualifying tests below pass and before the `rm -rf`. Skipping the release is the usual reason an earlier `/source-control:worktree cleanup` left husks; Step 5 then reports them honestly rather than hiding the failure.
@@ -385,9 +385,3 @@ Report honestly, and never count a husk as removed:
   space until the user removes it.
 
 Report: "Removed N worktrees (M fully deleted, K husks remaining, paths above); reaped R project-scope plugin install records; free space on <filesystem> went from X to Y (about Z freed). Run `/source-control:worktree status` to verify."
-
-**macOS build caches.** On a macOS host (`uname -s` prints `Darwin`) where `command -v xcrun`
-resolves, read [macos-caches.md](macos-caches.md) after this report and follow it: it measures the
-Xcode build cache and unavailable simulators and deletes an item only on its own yes. On any other
-host, or when `xcrun` does not resolve, skip it and do not mention it. `--dry-run` never reaches
-this step.

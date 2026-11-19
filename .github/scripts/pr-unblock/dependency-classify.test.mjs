@@ -858,6 +858,12 @@ const FIX_VECTORS = [
   ["requirements.txt", `numpy==2.5.3 \\\n${FIX_HASH.replace("b", "a")}\n`, `numpy==2.5.4 \\\n${FIX_HASH}\n    # via onnxruntime\n`, null],
   ["requirements.txt", "colorama==0.4.5\n", "colorama==0.4.6 ; sys_platform == 'win32'\n", null],
   ["requirements.in", "manim[typst]==0.20.0\n", "manim[typst]==0.21.0\n", null],
+  [
+    "requirements.txt",
+    "playwright==1.65.1 \\\n    --hash=sha256:0178cec62bfcc9c202f7d2c2c79c14ebac620c672f36ba31f0d7f0ee5ce87032 \\\n    --hash=sha256:43541b89fa293819eb98383feea837368ee681e67cc105b19f3dd58f1409f1d6\n    # via -r requirements.in\n",
+    "playwright==1.65.2 \\\n    --hash=sha256:2e03da7fd7cd6ea92d22524be147e5803649ab0ae9b362b9a78efa869c2f57c7 \\\n    --hash=sha256:33a224fba3fb72c5fa7eda49535b265c292f1fb87949c769754f9fcd0f5be2de \\\n    --hash=sha256:3bb758e12b963bf32f7fba5c4b86994f060126feb32d47f236589f53fe09746f\n    # via -r requirements.in\n",
+    null,
+  ],
   ["requirements.txt", "numpy==2.5.3\n", "--extra-index-url https://evil.example/simple\nnumpy==2.5.4\n", "requirements-line"],
   ["requirements.txt", "numpy==2.5.3\n", "--index-url https://evil.example/simple\nnumpy==2.5.4\n", "requirements-line"],
   ["requirements.txt", "numpy==2.5.3\n", "-e git+https://github.com/evil/x.git#egg=x\n", "requirements-line"],

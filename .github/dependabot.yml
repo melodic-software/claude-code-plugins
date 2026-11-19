@@ -310,10 +310,11 @@ updates:
   # cannot resolve it: manimpango has no Linux wheel, and building its metadata needs pangocairo.
   # update-types leaves security updates on; a bare ignore would stop those too.
   # lib/media-render's lock pins the same playwright (CI fails when the pins differ), so both
-  # directories share this entry. The playwright group does not bump them in one pull request:
-  # Dependabot cannot resolve /plugins/explainer-video's lock (dependency_file_not_resolvable,
-  # https://github.com/melodic-software/claude-code-plugins/actions/runs/44280304984), so that
-  # directory's playwright pin is bumped by hand to match lib/media-render.
+  # directories share this entry and its playwright group (group-by, in
+  # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference).
+  # Dependabot's pip-compile cannot relock explainer-video, so the group's pull request can bump
+  # lib/media-render alone; the pr-unblock lane then relocks explainer-video to the same pin with uv
+  # (dependency-relock.mjs).
   - package-ecosystem: pip
     directories:
       - /plugins/explainer-video

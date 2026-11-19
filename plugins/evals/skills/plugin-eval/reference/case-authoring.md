@@ -66,7 +66,10 @@ with and what it withholds:
       [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
       changes what a run can read). Grade on terms the hub itself carries.
 - [ ] A case whose skill must write under the workspace's `.claude/` is graded only on what the
-      skill produces before that write, or recorded as unmeasured. Why the write is denied:
+      skill produces before that write, or recorded as unmeasured. A `tool_used` grader with
+      `max: 0` on that tool, and no `input_match`, measures a premature write: the gate counts
+      the denied call as that grader's failure, not a void run
+      ([reading-results.md, Denials](reading-results.md#denials)). Why the write is denied:
       [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) (the
       `dontAsk` row and the `permissions.allow` paragraph) with
       [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools).

@@ -1989,6 +1989,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
   assert.deepEqual(Object.keys(PATCH_RULES).sort(), [
     "ci-context",
     "default",
+    "dependency-relock",
     "dependency-review",
     "docs",
     "install-script-pin",

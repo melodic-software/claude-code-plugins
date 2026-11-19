@@ -25,6 +25,7 @@ set -uo pipefail
 # and latch hook::notice_once across cases. A case that needs a data dir sets
 # its own.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/pr-body-linkage-gate.sh"
@@ -64,6 +65,11 @@ new_repo() {
     printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0\n' \
       >"$r/.github/workflows/ci.$gated"
     ;;
+  composite)
+    mkdir -p "$r/.github/workflows"
+    printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3\n' \
+      >"$r/.github/workflows/pr-require-checks.yml"
+    ;;
   nostep)
     mkdir -p "$r/.github/workflows"
     printf 'jobs:\n  ci-status:\n    steps:\n      - uses: actions/checkout@v5\n' \
@@ -82,6 +88,8 @@ new_repo "$GATED" yml
 new_repo "$UNGATED" plain
 new_repo "$NOSTEP" nostep
 new_repo "$GATED_YAML" yaml
+GATED_COMPOSITE="$WORK/gated-composite"
+new_repo "$GATED_COMPOSITE" composite
 new_repo "$OTHER" yml
 
 # mk_payload <repo> <command> -> the PreToolUse payload this hook reads, on stdout.
@@ -539,6 +547,8 @@ assert_allow "an absolute path to a compliant body allowed" "$GATED" \
 
 printf '%s\n' "$BAD" >"$GATED_YAML/body.md"
 assert_block "a .yaml gate workflow enforces too" "$GATED_YAML" "gh pr create -t T --body-file body.md"
+printf '%s\n' "$BAD" >"$GATED_COMPOSITE/body.md"
+assert_block "the report-ci-status composite enforces too" "$GATED_COMPOSITE" "gh pr create -t T --body-file body.md"
 
 # --- Locale independence -----------------------------------------------------
 # `[[:space:]]` is locale-defined; JavaScript's `\s` is not. Each body below

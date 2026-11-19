@@ -13,9 +13,10 @@ token's events start workflows; GITHUB_TOKEN's do not). Bounds:
 - `MAX_TOGGLES` per pull request, counted from the record lines and from the
   lane identity's conversions to draft on the timeline, which the lane token
   cannot delete as it can edit the comment;
-- at most one request per pr-merge sweep: the first candidate to reach
-  `limits` claims the `SPENT_ENV` file, whatever its answer; with no
-  `SPENT_ENV` (the local babysit loop) nothing is requested;
+- at most one request per pr-merge sweep: the first candidate to pass every
+  limit in `limits` claims the `SPENT_ENV` file, and a refused one leaves it
+  to the next; with no `SPENT_ENV` (the local babysit loop) nothing is
+  requested;
 - only while fewer than `MAX_RUNNING_JOBS` jobs run in the repository and
   both the lane token and the job's own token have `MIN_SHARE` of each
   bucket's hourly limit left.
@@ -241,19 +242,15 @@ def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
 
 
 def limits(repo: str) -> str | None:
-    """None when this sweep may request one whole review, else why not. The
-    first call in a sweep claims it, so a refusal also spends the sweep."""
+    """None when this sweep may request one whole review, else why not. Only
+    the call that passes every limit claims the sweep, so a refused candidate
+    leaves it to the next one."""
     spent = os.environ.get(SPENT_ENV)
     if not spent:
         return "not-pr-merge"
     path = Path(spent)
-    try:
-        with path.open("x"):
-            pass
-    except FileExistsError:
+    if path.exists():
         return "sweep-limit"
-    except OSError as exc:
-        return f"sweep-claim: {exc}"
     token = os.environ.get(JOB_TOKEN_ENV)
     if not token:
         return "job-token-missing"
@@ -268,6 +265,13 @@ def limits(repo: str) -> str | None:
         return f"limits-unread: {exc}"
     if running >= MAX_RUNNING_JOBS:
         return f"running-jobs:{running}"
+    try:
+        with path.open("x"):
+            pass
+    except FileExistsError:
+        return "sweep-limit"
+    except OSError as exc:
+        return f"sweep-claim: {exc}"
     return None
 
 
