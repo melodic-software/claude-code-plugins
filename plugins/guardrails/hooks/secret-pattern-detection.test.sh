@@ -701,20 +701,6 @@ fi
 # The payload is PIPED here, never `bash "$HOOK" <<<"$json"` — a here-string
 # would hang THIS FILE at exactly these sizes and read as the bug under test.
 
-# Content of EXACTLY $1 bytes, ending in " $2" when $2 is given. jq reads the
-# content on STDIN (`-Rs`): a 65KB `--arg` blows the Win32 32767-byte argv limit
-# and jq would never run. The separating space matters for the sibling
-# hardcoded-path suite, whose patterns require a left boundary; keeping one
-# builder shape across both suites keeps them comparable.
-size_filler() { head -c "$1" /dev/zero | tr '\0' b; }
-sized_write_json() {
-  local n="$1" tail="${2:-}"
-  [[ -n "$tail" ]] && tail=" $tail"
-  printf '%s%s' "$(size_filler $((n - ${#tail})))" "$tail" |
-    MSYS_NO_PATHCONV=1 jq -Rs --arg fp "$FIXTURE" \
-      '{tool_name:"Write",tool_input:{file_path:$fp,content:.}}'
-}
-
 # Bound every case so a regression FAILS LOUDLY instead of hanging CI. 150s is
 # generous on purpose: the legitimate large-payload itemization measured 41-67s
 # on Git Bash under Defender, while a deadlock never returns at any bound — so
@@ -723,19 +709,6 @@ run_bounded() {
   local rc=0
   printf '%s' "$1" | timeout 150 bash "$HOOK" >/dev/null 2>&1 || rc=$?
   printf '%s' "$rc"
-}
-
-# Asserts the EXACT code, and names 124 as its own failure. A "non-zero means
-# blocked" assertion would have ACCEPTED the hang and would not have caught this
-# defect — the whole point is that no verdict is not a blocking verdict.
-assert_bounded_exit() {
-  if [[ "$3" == "124" ]]; then
-    bad "$1: HUNG (exit 124 at the 150s bound) — here-string deadlock regression"
-  elif [[ "$3" == "$2" ]]; then
-    ok "$1 (exit $3)"
-  else
-    bad "$1: expected exit $2, got $3"
-  fi
 }
 
 # Clean payloads across the window and both shoulders — exercises the combined
@@ -781,30 +754,6 @@ assert_exit "boundary: empty content → exit 0" 0 "$RC"
 #   mcp__github__create_or_update_file — .tool_input.path + .tool_input.content
 #   mcp__github__push_files            — .tool_input.files[] of {path, content}
 #   mcp__github__delete_file           — NO content field at all
-mcp_single_json() {
-  jq -n --arg p "$1" --arg c "$2" \
-    '{tool_name:"mcp__github__create_or_update_file",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",path:$p,content:$c}}'
-}
-# mcp_push_json <path> <content> [<path> <content> ...]
-mcp_push_json() {
-  local args=() n=0
-  while (($#)); do
-    args+=(--arg "p$n" "$1" --arg "c$n" "$2")
-    shift 2
-    n=$((n + 1))
-  done
-  # One --arg pair per file, and an index-built object list, so the payload's
-  # shape is the tool schema's rather than a string-interpolated approximation.
-  local filter='{tool_name:"mcp__github__push_files",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",files:['
-  local i
-  for ((i = 0; i < n; i++)); do
-    ((i)) && filter+=','
-    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
-    filter+='{path:$p'"$i"',content:$c'"$i"'}'
-  done
-  filter+=']}}'
-  jq -n "${args[@]}" "$filter"
-}
 
 # --- create_or_update_file: the single-file shape
 RC=0
@@ -850,7 +799,6 @@ assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
 # --- a plugin-bundled GitHub server names its tools with a scoped segment
 # (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
-scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
 OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'" | scoped create_or_update_file)" 2>&1)
 RC=$?
 assert_exit "MCP scoped create_or_update_file: secret → exit 2" 2 "$RC"

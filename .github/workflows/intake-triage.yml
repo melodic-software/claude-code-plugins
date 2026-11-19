@@ -784,7 +784,7 @@ jobs:
     needs: [check-born-triaged, apply-verdict]
     if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' && needs.apply-verdict.outputs.held == '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     concurrency:
       group: intake-refine-select-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
@@ -841,6 +841,7 @@ jobs:
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
           # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
+          wait-seconds: "1200"
 
       # The same actors apply-verdict writes for, so a run whose verdict the
       # broker would not write starts no model either.

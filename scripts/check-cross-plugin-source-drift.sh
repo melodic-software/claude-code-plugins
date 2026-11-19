@@ -96,8 +96,6 @@ load_cluster() {
   fi
 }
 
-# Hash every file that participates in a 2+ cluster in ONE sha256sum, not one
-# exec per copy.
 declare -A file_hash
 hash_paths=()
 for rel in "${!cluster_entries[@]}"; do
@@ -108,9 +106,15 @@ for rel in "${!cluster_entries[@]}"; do
   done
 done
 if ((${#hash_paths[@]} > 0)); then
-  while read -r h path; do
-    file_hash["$path"]="$h"
-  done < <(sha256sum -- "${hash_paths[@]}")
+  hash_out="$(mktemp)" || exit 2
+  trap 'rm -f "$hash_out"' EXIT
+  if ! printf '%s\0' "${hash_paths[@]}" | xargs -0 sha256sum -z -- >"$hash_out"; then
+    echo "check-cross-plugin-source-drift: sha256sum failed" >&2
+    exit 2
+  fi
+  while IFS= read -r -d '' record; do
+    file_hash["${record:66}"]="${record:0:64}"
+  done <"$hash_out"
 fi
 
 for rel in "${!cluster_entries[@]}"; do
@@ -121,6 +125,10 @@ for rel in "${!cluster_entries[@]}"; do
   identical=1
   for entry in "${entries[@]}"; do
     h="${file_hash[${entry#*:}]:-}"
+    if [[ -z "$h" ]]; then
+      echo "check-cross-plugin-source-drift: no hash for ${entry#*:}" >&2
+      exit 2
+    fi
     if [[ -z "$first_hash" ]]; then
       first_hash="$h"
     elif [[ "$h" != "$first_hash" ]]; then

@@ -267,6 +267,18 @@ fallback), then:
 5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
    monitor, poll, or babysit the launched agent, and do not start new work items.
 
+## Delivery variant: desktop session
+
+When this session has a tool that starts another session (the Claude desktop app's Code tab) and
+`--cloud` was not given, read
+[`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md),
+"Background continuation", and deliver there instead of steps 1 to 3 above: our decision is to
+prefer the app's own session there. A start that is refused or fails takes steps 1 to 5 above.
+Without such a tool, skip that file.
+
+- **Pointer**: what a started session can do there,
+  <https://code.claude.com/docs/en/desktop#work-across-sessions>.
+
 ## Delivery variant: `--cloud`
 
 Same hard gate, completion condition gate, save-point, `/goal` payload, prompt file, failure
@@ -376,7 +388,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   launch command. No purpose given → nothing to tick
 - [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
   lock names this session carries the handover before `check-enter` (or none held)
-- [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
+- [ ] Dirty-tree gate evaluated this turn (not on a successful desktop start): `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
   edits-this-checkout-in-place warning in the report (`--settings` tier named as not covered);
@@ -390,7 +402,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   and launched only on the user's yes to it; a conversation-bound or already-met goal never
   launched as it stands, only redrafted (case 2) or left unlaunched (case 3); none → no launch, the message saying how to supply
   one, fallback to `/clear`-then-paste
-- [ ] Background agent launched (`claude --bg --name … --permission-mode auto`), the payload being
+- [ ] Background agent launched (not on a successful desktop start) (`claude --bg --name … --permission-mode auto`), the payload being
   `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
@@ -401,6 +413,10 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
+- [ ] Desktop session only: the whole brief counted within the limit, the session started in this
+  checkout, auto chosen when the start offers a permission mode; the report names the session,
+  warns that it and the user may touch the same files, and says goal arming there is unprobed; a
+  refused or failed start → steps 1 to 5
 - [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
   `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
   report names the session id, the teleport and follow-up commands, and the signed-in account,

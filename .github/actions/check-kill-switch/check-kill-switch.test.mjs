@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { budgetStops, checkBudget, checkKillSwitch, main, projectionGate, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
 import { readOutputs } from "./fixtures/read-outputs.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-kill-switch.mjs", import.meta.url));
 const WORKFLOWS = fileURLToPath(new URL("../../workflows/", import.meta.url));
@@ -607,6 +608,77 @@ test("every budget job checks out log-api-budget beside the gate", () => {
       .some((entry) => entry && ".github/actions/log-api-budget/".startsWith(`${entry}/`));
     assert.ok(covers, `${file} ${job}: its sparse checkout lists .github/actions/log-api-budget/`);
   }
+});
+
+async function runWaiting(env, answers) {
+  const dir = tempDir("kill-switch-wait-");
+  try {
+    const outputPath = path.join(dir, "output");
+    writeFileSync(outputPath, "");
+    let clock = NOW_MS;
+    const sleeps = [];
+    const lines = [];
+    const queue = [...answers];
+    const { calls, fetchImpl } = recordingFetch(() => queue.shift()());
+    const sleep = async (ms) => {
+      sleeps.push(ms);
+      clock += ms;
+    };
+    await main({ GITHUB_OUTPUT: outputPath, BUDGET_TOKEN: "t", ...env }, { fetchImpl, now: () => clock, sleep, log: (line) => lines.push(line) });
+    return { calls, lines, sleeps, outputs: readOutputs(readFileSync(outputPath, "utf8")) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const lowUntil = (resetIn) => () => rateLimitResponse({ headers: headersOf(5000, 313, NOW_S + resetIn) });
+const freshWindow = () => rateLimitResponse({ headers: headersOf(5000, 5000, NOW_S + 4000) });
+
+test("tonight's refine-select stop, 313 left and the reset 467 s out, waits for the reset and starts once after it", async () => {
+  const { calls, lines, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [lowUntil(467), freshWindow]);
+  assert.deepEqual(sleeps, [468_000], "one wait, to a second past the reset");
+  assert.equal(calls.length, 2, "one read before the wait and one after it");
+  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
+  assert.ok(lines.includes(`::notice title=start-gate::the GITHUB_TOKEN budget stops this start until ${NOW_S + 467}; it waits 468s for the reset, then reads the budget once more`));
+  assert.ok(lines.includes(`::notice title=start-gate::started after the reset: the start the budget stopped at ${NOW_S} goes ahead after a 468s wait`), "the line a before/after count greps");
+});
+
+test("a start still under the gate after the reset stops on the second reading, with its reset, and waits no more", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: "1200" }, [lowUntil(100), lowUntil(3700)]);
+  assert.deepEqual([sleeps.length, calls.length], [1, 2]);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 3700) });
+});
+
+test("a reset past the wait budget stops at once, as before", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: "600" }, [lowUntil(900)]);
+  assert.deepEqual([sleeps.length, calls.length], [0, 1]);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 900) });
+});
+
+test("a gate with no wait budget never waits, however near the reset", async () => {
+  for (const value of [undefined, "", "0", "abc", "1201"]) {
+    const { sleeps, outputs } = await runWaiting({ ...START, WAIT_SECONDS: value }, [lowUntil(30)]);
+    assert.deepEqual([sleeps.length, outputs.cause], [0, "budget"], `WAIT_SECONDS=${JSON.stringify(value)}`);
+  }
+});
+
+test("a switch stop never waits", async () => {
+  const { calls, sleeps, outputs } = await runWaiting({ ...START, KILL_SWITCH_VALUE: "true", WAIT_SECONDS: "1200" }, []);
+  assert.deepEqual([calls.length, sleeps.length, outputs.cause], [0, 0, "switch"]);
+});
+
+test("only intake's refine-select waits, for WAIT_BUDGET_SECONDS.workResolveIssue, inside its timeout", () => {
+  const waiting = [];
+  for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
+    for (const [job, steps] of Object.entries(stepsByJob(file))) {
+      const gate = steps.find((step) => KILL_STEP.test(step) && /^ {10}wait-seconds:/m.test(step));
+      if (gate) waiting.push({ file, job, seconds: /^ {10}wait-seconds: "?(\d+)"?$/m.exec(gate)?.[1] });
+    }
+  }
+  assert.deepEqual(waiting, [{ file: "intake-triage.yml", job: "refine-select", seconds: String(WAIT_BUDGET_SECONDS.workResolveIssue) }]);
+  const text = readFileSync(path.join(WORKFLOWS, "intake-triage.yml"), "utf8");
+  const minutes = Number(/^ {2}refine-select:\n(?: {4}.*\n)*? {4}timeout-minutes: (\d+)$/m.exec(text)?.[1]);
+  assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `refine-select's ${minutes} min hold ten minutes of work and the wait`);
 });
 
 test("CLI writes proceed=true when both switches are exactly false and exits 0", () => {

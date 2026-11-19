@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/courses/teachable/robust-http-apis-hale/course.json", "old_string": "\"status\": \"analyzed\"", "new_string": "\"status\": \"analyzed\""}}], "why": "course.json"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/courses/teachable/robust-http-apis-hale/analysis/action-items.md", "old_string": "CLAUDE.md", "new_string": "/corrections:codify"}}], "why": "the Phase 5 file"},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/CLAUDE.md", "old_string": "before committing.", "new_string": "before committing.\n\nValidate request bodies at the boundary."}}], "why": "edits CLAUDE.md"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/.claude/rules/api.md", "old_string": "a", "new_string": "b"}}], "why": "edits a rules file"}
+  ]
+}

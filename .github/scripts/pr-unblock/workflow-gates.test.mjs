@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { WAIT_BUDGET_SECONDS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
@@ -1706,5 +1707,12 @@ test("refine: one run per PR at a time, a newer event cancelling the run going, 
   const lines = jobBlock(DISPATCHER, "refine");
   const at = lines.indexOf("    concurrency:");
   assert.deepEqual(lines.slice(at + 1, at + 3), ["      group: pr-unblock-dispatch-refine-${{ github.event.pull_request.number }}", "      cancel-in-progress: true"]);
-  assert.ok(lines.includes("    timeout-minutes: 10"));
+  assert.ok(lines.includes("    timeout-minutes: 30"));
+});
+
+test("refine: the dispatch waits out a rate-limit reset for WAIT_BUDGET_SECONDS.workResolveIssue, inside the job's timeout", () => {
+  const step = stepBlock(DISPATCHER, "refine", "Dispatch pr-refine for this PR");
+  assert.ok(step.includes(`          API_BUDGET_WAIT_SECONDS: "${WAIT_BUDGET_SECONDS.workResolveIssue}"`));
+  const minutes = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobBlock(DISPATCHER, "refine").join("\n"))?.[1]);
+  assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${minutes} min`);
 });
