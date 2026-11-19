@@ -6465,7 +6465,7 @@ jobs:
       # fails closed. Every other author's pull request is not affected.
       # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
       # ci-status on each open lanes App pull request this failed, at most 3
-      # per half-hourly run, when ci-status was the run's only failed job on
+      # per hourly run, when ci-status was the run's only failed job on
       # attempt 1 (its `switch` kind keys on switchHold's "the lanes kill
       # switch is on" text, which reconcile.test.mjs pins this step to print).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS

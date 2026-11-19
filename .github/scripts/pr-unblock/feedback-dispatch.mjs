@@ -18,7 +18,9 @@
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it, or a person on the base's
 //   trusted-actors list did under an `adoption` section, with no `Hold:` body
-//   line and the PR and its head commit idle-hours old; on such an owner PR
+//   line and either auto-merge armed (`auto_merge`,
+//   https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or the PR
+//   and its head commit idle-hours old; on such an owner PR
 //   only a thread the select job keeps dispatches;
 // - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
@@ -232,15 +234,22 @@ export const DEFAULTS = Object.freeze({
 const SHA = /^[0-9a-f]{40}$/;
 const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
+export const autoMergeArmed = (pull) => pull?.auto_merge != null;
+
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
 // (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
-// job checks it again, as the round starts), and both
-// the PR's last update and its head commit at least idle-hours old, so the
-// lane does not push onto a branch a session is still working on. An
-// unreadable date is not idle.
+// job checks it again, as the round starts), and either auto-merge armed (the
+// session handed the PR to the merge gates; `auto_merge`,
+// https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or both the
+// PR's last update and its head commit at least idle-hours old, so the lane
+// does not push onto a branch a session is still working on. An unreadable
+// date is not idle.
 export async function ownerSkip({ api, pull, adoption, now }) {
   if (HOLD_LINE.test(String(pull.body ?? ""))) {
     return "held by a Hold: line";
+  }
+  if (autoMergeArmed(pull)) {
+    return "";
   }
   const since = now - adoption.idleHours * 3_600_000;
   if (!(Date.parse(pull.updated_at ?? "") <= since) || !(Date.parse(await api.headCommittedAt(pull.head.sha)) <= since)) {
@@ -322,6 +331,7 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
       firstAuthorId: nodes[0].author?.databaseId,
       review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
       heads,
+      rootBoundHead: nodes[0].boundHead,
     });
   if (!kept) {
     return null;
@@ -943,8 +953,9 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
 export const IDLE_OWNER_WINDOW_HOURS = 2;
 
 // An owner PR's review completes while the person's session is still on it,
-// so its review-run dispatch skips the idle test; once idle, the tick sends
-// it. A PR still active by the listing's last update spends no read; an idle
+// so its review-run dispatch skips the idle test unless auto-merge is armed
+// (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests,
+// `auto_merge`); once idle or armed, the tick sends it. A PR still active by the listing's last update spends no read; an idle
 // one spends one check-run read. A head with no round is decided by
 // dispatchFeedback (both markers on the head, a thread the lane works, about
 // six reads) only within IDLE_OWNER_WINDOW_HOURS of turning idle, so each
@@ -956,7 +967,7 @@ export const IDLE_OWNER_WINDOW_HOURS = 2;
 // PR, with no window, since resolving a thread may not move the update time.
 async function sweepIdleOwner(context) {
   const { api, pull, rest, settings } = context;
-  const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
+  const since = (rest.now ?? Date.now()) - (autoMergeArmed(pull) ? 0 : (rest.adoption?.idleHours ?? 0) * 3_600_000);
   const updated = Date.parse(pull.updated_at ?? "");
   if (!(updated <= since)) {
     return null;
