@@ -11,6 +11,7 @@ that wrote one, the below-the-rails note (281 bytes).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from handoff_chain import moved_heading, section_spans
@@ -98,6 +99,18 @@ def over_budget_marker(hot: Path) -> Path:
     """Where `fill` records a refused first attempt; not a `.md` file, so no
     handoff reader globs it, and removed when the fill writes."""
     return hot.parent / f".{hot.name}.over-budget"
+
+
+def refused_slots(marker: Path) -> set[str]:
+    """The slots a refused first fill recorded in `marker`; empty when the
+    file is absent or unreadable."""
+    try:
+        recorded = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(recorded, list):
+        return set()
+    return {name for name in recorded if isinstance(name, str) and name in SLOT_BUDGETS}
 
 
 def size_of(lines: list[str]) -> int:

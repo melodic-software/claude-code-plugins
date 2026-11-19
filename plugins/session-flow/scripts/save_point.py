@@ -1259,10 +1259,10 @@ def validate_doc(
 
 def _shrunk_copy(doc: Doc, previous: str) -> str | None:
     """This hop's file, relative to the handoffs dir, when a finished-chain
-    shrink can explain a missing predecessor: this file reads `Next: none
-    (closed)` and its hop file was written from `previous`, holding its
-    sections. None otherwise."""
-    if doc.shape not in HOP_FILE_SHAPES:
+    shrink can explain a missing predecessor: this file is the chain's newest
+    (no handoff names it as previous), reads `Next: none (closed)`, and its hop
+    file was written from `previous`, holding its sections. None otherwise."""
+    if doc.shape not in HOP_FILE_SHAPES or _successor(doc.path) is not None:
         return None
     span = _next_span(doc)
     root, hop = doc.frontmatter.get("chain_root", ""), _fm_int(doc, "hop")
@@ -2852,12 +2852,15 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
     marker = handoff_fit.over_budget_marker(path)
     overruns = handoff_fit.slot_overruns(values) if shape in HOP_FILE_SHAPES else []
-    if overruns and not marker.exists():
+    refused = handoff_fit.refused_slots(marker)
+    fresh = [item for item in overruns if item[0] not in refused]
+    if fresh:
+        recorded = sorted(refused | {name for name, _, _ in fresh})
         try:
-            marker.write_text(json.dumps(overruns) + "\n", encoding="utf-8")
+            marker.write_text(json.dumps(recorded) + "\n", encoding="utf-8")
         except OSError as exc:
             return _die(2, f"cannot record the attempt in {marker} ({exc})")
-        return _die(1, handoff_fit.refusal_text(overruns, marker))
+        return _die(1, handoff_fit.refusal_text(fresh, marker))
 
     out: list[str] = []
     for index, line in enumerate(lines):
@@ -4358,6 +4361,10 @@ def cmd_new(args: argparse.Namespace) -> int:
     handoffs.mkdir(parents=True, exist_ok=True)
     with target.open("x", encoding="utf-8", newline="\n") as fh:
         fh.write(content)
+    try:
+        handoff_fit.over_budget_marker(target).unlink(missing_ok=True)
+    except OSError:
+        pass
     print(_posix(target))
     if args.shape == 4:
         print(_budget_line(content), file=sys.stderr)

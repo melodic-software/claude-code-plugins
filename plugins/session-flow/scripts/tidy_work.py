@@ -18,7 +18,8 @@ A relative `--memory-dir` resolves against the repository top level. Kinds come
 from the memory-root layout:
 
     handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
-                   sidecar as part of the same item. `handoffs/` is its place;
+                   sidecar and `.<file>.over-budget` marker as part of the same
+                   item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
     archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
                    directory of hop files. It is kept while any handoff of its
@@ -135,6 +136,22 @@ CHECKLIST = "workflow-checklist.md"
 SLICE_INDEX = "INDEX.md"
 RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-[^/\\]+\.md$")
 SLOTS_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.slots\.json$")
+OVER_BUDGET_RE = re.compile(r"^\.(\d{8}T\d{6}Z-handoff-[^/\\]+\.md)\.over-budget$")
+
+
+def _sidecars(path: Path) -> list[Path]:
+    """The files `save_point.py` writes beside a handoff: its slots file and
+    the over-budget marker `fill` leaves."""
+    return [
+        p
+        for p in (
+            path.with_suffix(".slots.json"),
+            path.with_name(f".{path.name}.over-budget"),
+        )
+        if _plain_file(p)
+    ]
+
+
 # Concern dirs other skills write and read back; their entries are never removed.
 CONCERN_DIRS = (
     "reviews",
@@ -351,11 +368,7 @@ def inventory(root: Path, label: str) -> list[Item]:
         return items
 
     def add(path: Path, kind: str, link_file: Path | None, chain: str = "") -> None:
-        extras: list[Path] = []
-        if kind == "handoff" and _plain_file(
-            sidecar := path.with_suffix(".slots.json")
-        ):
-            extras.append(sidecar)
+        extras = _sidecars(path) if kind == "handoff" else []
         try:
             stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
@@ -386,6 +399,10 @@ def inventory(root: Path, label: str) -> list[Item]:
         # a handoff's sidecar is part of the handoff, wherever the pair sits
         if (slots := SLOTS_RE.match(path.name)) and _plain_file(
             path.with_name(f"{slots[1]}.md")
+        ):
+            return
+        if (marker := OVER_BUDGET_RE.match(path.name)) and _plain_file(
+            path.with_name(marker[1])
         ):
             return
         kind, link_file = _classify(path, parent_kind)
@@ -852,7 +869,7 @@ def plan_moves(root: Path) -> list[tuple[Path, Path]]:
         for dirname, name_re in layout:
             if name_re.match(src.name) and src.parent != root / dirname:
                 moves.append((src, root / dirname / src.name))
-                if _plain_file(sidecar := src.with_suffix(".slots.json")):
+                for sidecar in _sidecars(src):
                     moves.append((sidecar, root / dirname / sidecar.name))
     return moves
 

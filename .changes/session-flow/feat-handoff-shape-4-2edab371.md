@@ -20,7 +20,8 @@ bump: minor
   line, and a file past one Read page tells the reader to page. `amend` takes shape-4 files.
 - On shapes 3 and 4 the Resumption brief (979 bytes) and the below-the-rails note (281 bytes)
   have byte budgets. `fill` refuses the first value over a budget, naming the slot and the bytes
-  over, and writes the second; `validate` then fails it naming the slot, on files stamped
+  over, and writes the second for that slot; `tidy_work.py` keeps the attempt marker with its
+  handoff; `validate` then fails it naming the slot, on files stamped
   `checks: 3`, where it used to pass an oversized brief as UNVALIDATED.
 - `save_point.py read <file> --section <name>` prints one section, following a move to the hop
   file; `chain <file> --json` lists every hop of the chain, read from hop files where a hot file is
@@ -36,4 +37,4 @@ bump: minor
 - `tidy_work.py clean --apply` shrinks a finished shape-3 or shape-4 chain to its newest hot file
   and its hop files; it used to remove the whole chain. Shape-2 chains leave as before.
   `validate` then warns, instead of failing, on the newest hot file whose predecessor is gone
-  when that file is closed and its hop file holds the predecessor's copy.
+  when that file is the chain's newest, is closed, and its hop file holds the predecessor's copy.
