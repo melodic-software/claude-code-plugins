@@ -37,6 +37,11 @@
       "description": "Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names.",
       "default": true
     },
+    "linkage_gate_uses_pattern": {
+      "type": "string",
+      "title": "PR-linkage hooks workflow pattern (ERE)",
+      "description": "A POSIX ERE; the two PR-linkage hooks run only in a repository where a .github/workflows file matches it, usually the uses: line of the step that checks PR bodies in CI. A repository's linkage_gate_uses_pattern in docs/conventions/source-control.yaml wins over this value. Unset: neither hook gates any repository."
+    },
     "branch_issue_pattern": {
       "type": "string",
       "title": "Branch-to-issue pattern (ERE)",
