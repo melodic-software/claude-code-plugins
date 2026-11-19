@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [10.13.0] - 2026-11-19
+
+### Added
+
+- **`dependency-relock` patch row, a relock with no model turn.** When a Dependabot pip pull request
+  for a `group-by: dependency-name` group bumps one of the entry's directories and leaves another,
+  `review-dependency-select` uploads a relock request, `review-dependency-relock` runs the uv
+  `.github/requirements-relock.txt` pins in a digest-pinned `python:3.12-slim` container with no
+  permissions, `review-dependency-relock-patch`
+  checks the relocked lock with base code, and `apply-dependency-relock` pushes it as a
+  `[dependabot skip]` commit held to `dependency-version-change`. A relock that fails or is refused
+  stops as `dependency-pin-invalid`, labeled `needs-session`; it does not go to the model. `dependency-relock.mjs check` fails `test-bash` while a group's
+  directories disagree, when no pip group reads, or when a group directory's `requirements.in`
+  cannot be read.
+
+### Changed
+
+- pr-unblock-dispatch spends fewer core GITHUB_TOKEN calls and makes the same dispatch decisions. fix-ci reads a head's required run before its fix-ci and push-job check runs, so a head that the required run, a re-run, or a hold skips does not read those two lists. fix-docs reads the PR's check-run history (GraphQL) before the pr-refine.yml runs listing, so a PR the history already settles skips that REST listing. It reads a green run's latest jobs without a separate run read, because the listing already gives the run's status.
+
 ## [10.12.2] - 2026-11-19
 
 ### Changed
