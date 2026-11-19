@@ -254,7 +254,10 @@ declares a `permissions` block.
 **Why**: we treat a self-granted permission rule as inert, so the operative rule must be added by
 the operator to user settings. See convention anti-pattern 3. When deciding which keys a plugin
 `settings.json` honors, fetch
-[plugin manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings) live.
+[changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323) live, and the `settings`
+section of the
+[manifest reference, archived 2026-10-30](https://web.archive.org/web/20261030112732/https://code.claude.com/docs/en/plugins/manifest-reference.md)
+for the keys listed before that release.
 
 **Recommend**: remove the inert block; document an operator-setup note for the bare-name rule instead.
 

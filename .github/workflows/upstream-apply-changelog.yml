@@ -168,7 +168,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: model
@@ -196,7 +196,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: skipped
           lane: upstream-apply-changelog
@@ -291,7 +291,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: issue-lane
@@ -313,7 +313,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -345,7 +345,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -514,7 +514,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -568,7 +568,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -659,7 +659,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: issue-lane
@@ -683,7 +683,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -715,7 +715,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -843,7 +843,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -897,7 +897,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -983,7 +983,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: issue-lane
@@ -1006,7 +1006,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1038,7 +1038,7 @@ jobs:
         if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 75
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1153,7 +1153,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -1262,7 +1262,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: issue-lane
@@ -1270,7 +1270,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1306,7 +1306,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY
@@ -1362,7 +1362,7 @@ jobs:
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.probe.outcome }}
           execution-file: ${{ steps.probe.outputs.execution-file }}
@@ -1425,7 +1425,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
@@ -1491,7 +1491,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: issue-lane
@@ -1501,7 +1501,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1537,7 +1537,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN
@@ -1594,7 +1594,7 @@ jobs:
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.probe.outcome }}
           execution-file: ${{ steps.probe.outputs.execution-file }}
@@ -1657,7 +1657,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
@@ -1720,7 +1720,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: issue-lane
@@ -1729,7 +1729,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1765,7 +1765,7 @@ jobs:
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CAPTURE_PROBE_EXTRA_NAMES: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
@@ -1821,7 +1821,7 @@ jobs:
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.probe.outcome }}
           execution-file: ${{ steps.probe.outputs.execution-file }}

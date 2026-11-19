@@ -1,5 +1,43 @@
 # Changelog: session-flow plugin
 
+## [9.10.1] - 2026-11-19
+
+### Fixed
+
+- `save_point.py validate` no longer lets a successor drop a carried rule, decision or question
+  because its predecessor failed only on size: handoffs written from now on carry a `checks: 2`
+  stamp, and for them the predecessor downgrade applies only to content failures. Older files
+  validate as before.
+
+## [9.10.0] - 2026-11-19
+
+### Added
+
+- `/session-flow:audit-sessions resumed`: context at the tenth message of sessions resumed from a
+  handoff, as a median and sample size per session-flow plugin version, with a rise check
+  between two versions.
+
+### Fixed
+
+- `tidy_work.py clean` keeps every file of a handoff chain whose newest hot file is not closed
+  (`Next: none (closed)`), whatever its age or the state of the pull requests it names, and
+  prints one `kept open chain:` line per such chain.
+
+## [9.9.2] - 2026-11-19
+
+### Changed
+
+- **The `/export` records in `clean-stop`, `handoff` and `retro` point at the probe record instead of restating it.** Each keeps its decision, names its `export` entry in `docs/native-surfaces.md` for the headless refusal, the invocation mode and the reopen trigger, and points at the `/export` row of the commands page with no as-of date.
+- **`continue-in-background` and `workflow` say the medium effort floor is the marketplace's own, and why.** They name the "Effort floor" section of `docs/plugin-philosophy.md`, which keeps `low` for chat-like exchanges and read-only mechanical work.
+- **`keep-going` no longer states what stdin a shell's children inherit.** It keeps the reading rule: a `/dev/null` stdin cannot hang on a prompt.
+- **`retro`'s Paths section points at the sessions and memory pages** for where transcripts and auto memory are stored.
+
+## [9.9.1] - 2026-11-18
+
+### Changed
+
+- The observer reference's effort section no longer carries a record restating the docs' precedence between `CLAUDE_CODE_EFFORT_LEVEL`, `--effort` and settings files: `reference/observer.md` states, as its own rule, why the run passes `--effort`, drops the variable and pins it with `--settings`, and points to the env-vars, settings and model-config sections to read live ([#16837](https://github.com/melodic-software/claude-code-plugins/issues/16837)).
+
 ## [9.9.0] - 2026-11-18
 
 ### Added

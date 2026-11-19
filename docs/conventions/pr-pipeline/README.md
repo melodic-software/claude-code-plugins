@@ -386,7 +386,11 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    script waits for `retry-after` when the header is present. For a primary rate limit it waits
    until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
    exponential backoff with full jitter. A wait longer than a small per-step budget counts as
-   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
+   unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
+   the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
+   `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
+   within it, inside raised timeouts, since failing there drops finished work (#16642).
+   Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
@@ -565,6 +569,28 @@ it, not the lockfile; it posts no round marker, and the new head is reviewed as 
 of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
 the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
 marker at the new head.
+A `.github/dependabot.yml` entry whose `group-by: dependency-name` group spans several pip
+directories keeps each group package at one version in all of them. When Dependabot's group pull
+request bumps one directory and leaves another (its pip-compile could not relock it), the lane
+relocks the lagging directory to the bumped pin with no model turn
+([`dependency-relock.mjs`](../../../.github/scripts/pr-unblock/dependency-relock.mjs)), in three
+jobs so uv, which may run a package's build code, never runs beside a token.
+`review-dependency-select` reads the lagging directory's files from the head and uploads the
+relock request; a lock whose header names another command than the one the lane runs, or a missing
+file, goes to the model instead. `review-dependency-relock` runs uv, at the version
+`.github/requirements-relock.txt` pins and by the lock's own command, inside a digest-pinned
+`python:3.12-slim` container that sees only the request and work directories, in a job with no
+permissions, no secret and no checkout, and uploads only the relocked `requirements.txt`.
+`review-dependency-relock-patch`, base code with a read-only token, checks that lock pins the
+requested version and passes `dependency-version-change`, and writes the patch
+`apply-dependency-relock` pushes under the `dependency-relock` row. A relock that fails or that
+the rule refuses, such as one that adds a package (`requirements-new-package`), does not go to
+the model: it stops as `dependency-pin-invalid`, which
+[`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json) routes to a
+failing status and the `needs-session` label.
+`dependency-relock.mjs check` and an explicit playwright comparison fail `test-bash` while a
+group's directories pin different versions; the check also fails when no pip group reads or a
+group directory's `requirements.in` cannot be read.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -1006,7 +1032,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
-`review-dependency-select` writes with no model, `docs` for a push job that passes
+and `dependency-relock` for the group relock patch `review-dependency-relock-patch` writes with
+no model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
@@ -1985,7 +2012,10 @@ outdated with none of its flagged lines left at the head; an unresolved thread s
 
 Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull request passes every other gate
 and its only risk reasons are open findings a clean whole review of the head would close (no review
-of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
+of that head reported a finding or was whole, and no lane thread is unresolved), `review-path:` holds
+that such findings on the security lane keep standing, or `evidence-unbound:<lane>` with the unbound
+reason `rerun-not-allowed` (the new run's first attempt binds where the re-run did not; no other unbound
+reason requests one), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-platforms.yml` and pr-merge itself. The
@@ -1994,7 +2024,8 @@ request is toggled at most twice, counted from those lines and from the lane tok
 its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
 unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
-each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
+each have 30% of every rate-limit bucket's hourly limit left; a pull request refused on one of those limits leaves the
+run's toggle to the next candidate. An escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
 writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
 a draft a person made stays one.
@@ -3700,7 +3731,7 @@ run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triag
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
 ([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
-[whole-map pass](#the-whole-map-pass)'s driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+[whole-map pass](#the-whole-map-pass)'s driver leg, and `verify-capture` for the pr-verify capture's driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as

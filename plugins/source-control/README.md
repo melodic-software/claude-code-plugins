@@ -185,7 +185,8 @@ the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
 where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
-contract composite step `pr-require-checks/check-contract` (the SHA-pinned
+contract composite step `pr-require-checks/check-contract`, or the
+`pr-require-checks/report-ci-status` composite that runs it (the SHA-pinned
 `melodic-software/ci-workflows/.github/actions/<path>@<sha>` form, or
 ci-workflows' own local `./.github/actions/<path>`). A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
@@ -257,7 +258,8 @@ covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 It blocks only the same negated closing reference, under the same authority (a
 workflow in the consuming repository's own `.github/workflows/` that `uses:` the
-`pr-require-checks/check-contract` composite step), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
+`pr-require-checks/check-contract` composite step, or the `pr-require-checks/report-ci-status`
+composite that runs it), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
 Bash sibling's static-readability caveats don't apply here; the scope guards
 that remain are the workflow scan above, an origin-remote match on the call's
 `owner`/`repo` (another repository's PR is not this repo's policy), and an
@@ -409,8 +411,8 @@ repo's owner.
 |---|---|---|
 | `lane_instance` | string | a random `lane-<hex>` id made once and kept in the plugin data dir, never the hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `lane_app_slug` | string | none (the telemetry write identity comes from the token's user; set it under a GitHub App installation token so `babysit-loop` resolves `<slug>[bot]`) |
-| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `check-contract` step) |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `check-contract` step) |
+| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `check-contract` or `report-ci-status` step) |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `check-contract` or `report-ci-status` step) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -466,13 +468,15 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 **`pr_body_linkage_gate_enabled`.** Blocks only a negated closing reference. A missing closing
 line or a missing or empty `## Summary`, `## Fix`, `## Verification` or `## Related` section
 passes, since CI reports those as advisory. Enforced only in a repository whose
-`.github/workflows` carry a workflow that uses the `check-contract` composite step.
+`.github/workflows` carry a workflow that uses the `check-contract` composite step or the
+`report-ci-status` composite that runs it.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
 cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
 [docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It blocks
 the same negated closing reference, with the same policy scope: enforced only in a repository
-whose `.github/workflows` carry a workflow that uses the `check-contract` composite step.
+whose `.github/workflows` carry a workflow that uses the `check-contract` composite step or the
+`report-ci-status` composite that runs it.
 
 **`branch_issue_pattern`.** The last capture group must resolve to digits (`Closes #N` honors only
 a numeric issue). Set it for a non-default branch scheme that places the number differently, for

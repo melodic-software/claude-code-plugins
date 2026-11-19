@@ -20,7 +20,6 @@ recipe `one-focus-ring-with-focus-visible`. Read the file below that matches the
 | a contrast number, a failing pair, or text checked in both themes | `color/contrast.md` |
 | rewriting hex, rgb() or hsl() literals as oklch | `color/converting-colors.md` |
 | high chroma, Display P3, or a browser target without oklch() | `color/gamut-and-p3.md` |
-| detect reports Tailwind | `color/tailwind.md` |
 
 The colors of a dark theme, including the lightness order of its surfaces, are here (section 8);
 how the theme switches (`color-scheme`, a theme attribute) is the `theming` concern, and the right
@@ -81,9 +80,8 @@ values and nothing else: structure, keywords like `currentColor` or `transparent
 hex-expecting third-party config all stay put. Details in `color/converting-colors.md`.
 
 **Audit: Suggestion.** A fresh hex or `hsl()` literal landing in new code → express it as oklch.
-A fresh `rgb()` literal counts too. A hex counts here only where it defines a color token outside a
-Tailwind `@theme` block, which `color/tailwind.md` grades; a raw hex used in place of a token is
-graded once, under section 5.
+A fresh `rgb()` literal counts too. A hex counts here only where it defines a color token; a raw hex
+used in place of a token is graded once, under section 5.
 
 **L answers "light or dark."** A surface with L above `color.triage.light_surface_min_l` reads as
 light and wants dark text on it; at or below `color.triage.light_surface_min_l`, reach for light

@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.27] - 2026-11-19
+
+### Changed
+
+- Two `check-skill.sh` comments, the README's frontmatter and line-cap rows, and the `setup` skill's fresh-session note state the check's own rule and point at the docs section instead of restating the upstream command-name alias, frontmatter-parse, saved-value or line-count behavior.
+
+## [1.1.26] - 2026-11-18
+
+### Changed
+
+- `skills/check/SKILL.md` `validate-evals` step 3 runs any available JSON-schema validator without naming a specific tool ([#16801](https://github.com/melodic-software/claude-code-plugins/issues/16801)).
+
 ## [1.1.25] - 2026-11-17
 
 ### Changed

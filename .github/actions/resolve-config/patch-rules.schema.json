@@ -11,6 +11,7 @@
     "review-threads": { "$ref": "#/$defs/row" },
     "dependency-review": { "$ref": "#/$defs/row" },
     "install-script-pin": { "$ref": "#/$defs/row" },
+    "dependency-relock": { "$ref": "#/$defs/row" },
     "merge-base": { "$ref": "#/$defs/row" },
     "shared-copies": { "$ref": "#/$defs/row" },
     "docs": { "$ref": "#/$defs/row" },

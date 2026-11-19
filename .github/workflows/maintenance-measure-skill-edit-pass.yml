@@ -118,7 +118,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: pass
@@ -131,7 +131,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: skipped
           lane: eval-hill-climb-pass
@@ -196,7 +196,7 @@ jobs:
       # check-key-credit did not name the subscription leg.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: maintenance
@@ -304,19 +304,26 @@ jobs:
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
+      # eval-handoff.mjs: its published contract, contract-files.txt and the
+      # paths it lists, nothing run here:
+      # https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
       - name: Check out the launcher's classifier
         if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -519,7 +526,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -540,7 +547,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -606,7 +613,7 @@ jobs:
       # `present` is whether this leg runs the pass.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: maintenance
@@ -720,13 +727,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -872,7 +884,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -888,7 +900,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -947,7 +959,7 @@ jobs:
       # the subscription leg saw the fallback token set.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: maintenance
@@ -1052,13 +1064,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -1204,7 +1221,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}

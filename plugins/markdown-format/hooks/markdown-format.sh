@@ -10,6 +10,9 @@ IFS= read -r -d '' INPUT || :
 
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+  # shellcheck source=hook-utils.sh
+  source "$HOOK_DIR/hook-utils.sh"
+  hook::git_untrusted_env || exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
   report=""
   while IFS= read -r line; do
@@ -24,8 +27,6 @@ if [[ "${1:-}" == --end-of-turn ]]; then
     printf '%s\n' "$err" >&2
     exit 2
   fi
-  # shellcheck source=hook-utils.sh
-  source "$HOOK_DIR/hook-utils.sh"
   hook::emit_system_message "$err"
   exit 0
 fi

@@ -1,5 +1,56 @@
 # Changelog for the PR pipeline convention
 
+## [10.14.0] - 2026-11-19
+
+### Added
+
+- `models.routes` takes the run route `verify-capture`, the pr-verify capture's driver leg, on its own `verify-capture` profile: Opus at effort high, 120 turns. The capture drives in one session with no subagent, so its own turns carry the whole drive; it no longer takes `verify-pr`'s 60.
+
+### Fixed
+
+- work-resolve-issue's steps after the model ran wait for the workflow token's rate-limit reset, up to 1200 s (`rate-limit-wait-seconds`), instead of failing the run: the leak scan's reads, report-outcome and apply-issue-patch, Run Checks and Report Statuses. A stop-floor answer GitHub served no longer fails its step when the next call waits the reset out, and Report Statuses names the lane branch a run left when report-outcome did not finish, which the issue's next run reuses.
+
+## [10.13.1] - 2026-11-19
+
+### Fixed
+
+- Whole-review request: a pull request refused on the running-jobs or rate-limit floors leaves the run's one toggle to the next candidate instead of spending it.
+
+## [10.13.0] - 2026-11-19
+
+### Added
+
+- **`dependency-relock` patch row, a relock with no model turn.** When a Dependabot pip pull request
+  for a `group-by: dependency-name` group bumps one of the entry's directories and leaves another,
+  `review-dependency-select` uploads a relock request, `review-dependency-relock` runs the uv
+  `.github/requirements-relock.txt` pins in a digest-pinned `python:3.12-slim` container with no
+  permissions, `review-dependency-relock-patch`
+  checks the relocked lock with base code, and `apply-dependency-relock` pushes it as a
+  `[dependabot skip]` commit held to `dependency-version-change`. A relock that fails or is refused
+  stops as `dependency-pin-invalid`, labeled `needs-session`; it does not go to the model. `dependency-relock.mjs check` fails `test-bash` while a group's
+  directories disagree, when no pip group reads, or when a group directory's `requirements.in`
+  cannot be read.
+
+### Changed
+
+- pr-unblock-dispatch spends fewer core GITHUB_TOKEN calls and makes the same dispatch decisions. fix-ci reads a head's required run before its fix-ci and push-job check runs, so a head that the required run, a re-run, or a hold skips does not read those two lists. fix-docs reads the PR's check-run history (GraphQL) before the pr-refine.yml runs listing, so a PR the history already settles skips that REST listing. It reads a green run's latest jobs without a separate run read, because the listing already gives the run's status.
+
+## [10.12.2] - 2026-11-19
+
+### Changed
+
+- The verifier's resolver (`resolve-pr.mjs`) reads the upstream run's jobs for its draft-run check only once a run would otherwise be judged or rated, so a head it skips as already judged or already rated spends one GitHub API call fewer. Every judge and skip decision is unchanged; a draft-started run at a head that already has a counted verdict now reports `already-judged` instead of `draft-run`, and skips either way.
+
+### Fixed
+
+- The issue lane's `issue.json` section of `pr-run-activity.md` said every lanes App comment was left out. It now says which lanes App comments `write-issue.mjs` passes to the implementer: intake's refinement (`author_kind: refinement`) and pr-merge's capped-close record (`author_kind: verify-findings`). The triage verdict, the admission comment, the size-split record and every other App comment are left out, so the implementer never reads a triage verdict and needs no limit on its age ([#16969](https://github.com/melodic-software/claude-code-plugins/issues/16969)).
+
+## [10.12.1] - 2026-11-18
+
+### Fixed
+
+- pr-merge's whole-review request also covers a pull request held only by `evidence-unbound:<lane>` whose unbound reason is `rerun-not-allowed`: a new run at the same head binds where the re-run did not. No other unbound reason requests one, the once-per-head, twice-per-pull-request and once-per-run limits are unchanged, and what the merge gate accepts does not change.
+
 ## [10.12.0] - 2026-11-18
 
 ### Changed

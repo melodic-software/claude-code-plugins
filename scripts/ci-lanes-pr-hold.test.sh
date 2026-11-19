@@ -22,6 +22,8 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/ci-step.sh
+. "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
 API_PID=
@@ -33,19 +35,7 @@ export RUNNER_TEMP="$TMP_ROOT"
 ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
 
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
-step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
-  on && /^      - / { exit }
-  on { print }' "$WORKFLOW")"
-awk '/^        run: \|$/ { on = 1; next }
-  on && /^          / { print substr($0, 11); next }
-  on && /^[[:blank:]]*$/ { print ""; next }
-  on { exit }' <<<"$step" >"$TMP_ROOT/body.sh"
-
-if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
-  fail "no '$NAME' step with a run: | body in $WORKFLOW"
-  test_harness::report
-  exit 1
-fi
+step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the holds. A merge group has no
 # pull_request.draft, which is not true, so the queue still runs it.
@@ -414,7 +404,7 @@ for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit
   'BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json' \
   'HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json' \
   'BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json' \
-  "BABYSIT_CONFIG_CHECKOUT: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}" \
+  "BABYSIT_CONFIG_CHECKOUT: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config:{0}/.base', github.workspace) || format('{0}/.base', github.workspace) }}" \
   'BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
   'BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json' \
   'API_BUDGET_TOKEN: github-token'; do
@@ -472,7 +462,8 @@ else
   fail "no default-branch checkout named 'Check out main's Node pin and verdict reader' without kept credentials"
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
-want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk)
+want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
+  /.github/standards/trusted-actors/trusted-actors.json /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
 # Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
 while ((${#queue[@]})); do
@@ -489,7 +480,7 @@ for path in "${want_sparse[@]}"; do
   grep -qxF -- "$path" <<<"$sparse" || missing+=("$path")
 done
 if ((${#missing[@]} == 0)); then
-  ok "the reader's checkout holds the reader, its parser and every module the head-ref map and carry import"
+  ok "the reader's checkout holds the reader, its parser, the files it reads at main's tip and every module the head-ref map and carry import"
 else
   fail "the reader's checkout lacks: ${missing[*]}"
 fi

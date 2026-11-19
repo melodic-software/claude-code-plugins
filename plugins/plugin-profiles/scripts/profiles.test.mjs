@@ -660,6 +660,16 @@ test("AC5: check exits 1 when a shipped build.yaml names nope@melodic-software",
   assert.doesNotMatch(r.stdout, /nope@/, "a finding goes to stderr only");
 });
 
+test("check fails a shipped profile whose list is not in alphabetical order", () => {
+  const w = world();
+  const shipped = join(w.root, "shipped");
+  cpSync(SHIPPED, shipped, { recursive: true });
+  writeFileSync(join(shipped, "build.yaml"), `${readFileSync(join(shipped, "build.yaml"), "utf8")}optional:\n  - tdd@${M}\n  - review@${M}\n`);
+  const r = w.run(["check", "--shipped", shipped]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /FAIL: .*build\.yaml: optional is not in alphabetical order: review@melodic-software goes before tdd@melodic-software/);
+});
+
 test("#17038: check still fails a shipped profile that excludes an always-on member without always_on false", () => {
   const w = world();
   const shipped = join(w.root, "shipped");
@@ -747,9 +757,17 @@ test("list --json names every shipped profile but always-on, each with its descr
   const r = w.run(["list", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const profiles = JSON.parse(r.stdout);
-  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "native", "planning", "review"]);
+  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "improve", "interface-design", "native", "planning", "review"]);
   assert.equal(profiles.find((p) => p.name === "build").description, "Write the change, test, review, verify, open and merge the PR, and run lanes.");
   assert.match(profiles.find((p) => p.name === "native").description, /guardrails included/);
+  assert.match(profiles.find((p) => p.name === "improve").description, /^Targeted improvement of existing code/);
+});
+
+test("#17355: the shipped improve profile holds exactly its 13 members, in alphabetical order", () => {
+  const file = join(SHIPPED, "improve.yaml");
+  const improve = parseProfile(readFileSync(file, "utf8"), file);
+  const members = ["architecture", "code-metrics", "code-tidying", "codebase-health", "coupling", "implementation", "improvement", "overengineering", "performance", "review", "testing", "toolchain", "verification"];
+  assert.deepEqual(improve.plugins, members.map((name) => `${name}@${M}`));
 });
 
 test("list --json adds a repository profile to the shipped ones", () => {
@@ -951,7 +969,19 @@ test("save adds to the lists of an existing file and keeps its description", () 
   writeTree(w.home, { ".claude/plugin-profiles/notes.yaml": `description: Notes.\nplugins:\n  - songwriting@${M}\n` });
   const r = w.run(["save", "notes", "--level", "user", "--plugins", `review@${M}`, "--yes"]);
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "songwriting@${M}"\n  - "review@${M}"\n`);
+  assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "review@${M}"\n  - "songwriting@${M}"\n`);
+});
+
+test("save writes and previews every list in alphabetical order, whatever order the ids came in", () => {
+  const w = world();
+  const args = ["save", "notes", "--level", "user", "--plugins", `tdd@${M},review@${M},code-tidying@${M}`, "--optional", `spelling@${M},bash-format@${M}`, "--hide-skills", "zeta-skill,alpha-skill"];
+  const sorted = `plugins:\n  - "code-tidying@${M}"\n  - "review@${M}"\n  - "tdd@${M}"\noptional:\n  - "bash-format@${M}"\n  - "spelling@${M}"\nhide_skills:\n  - "alpha-skill"\n  - "zeta-skill"\n`;
+  const preview = w.run([...args, "--dry-run"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.ok(preview.stdout.includes(sorted.replace(/^/gm, "  ").trimEnd()), preview.stdout);
+  assert.equal(existsSync(userProfile(w, "notes")), false);
+  assert.equal(w.run([...args, "--yes"]).status, 0);
+  assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), sorted);
 });
 
 test("save with nobody to ask and no --yes writes nothing", () => {

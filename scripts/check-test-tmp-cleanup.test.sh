@@ -108,23 +108,11 @@ if mk_repo repo; then
   write_offender "$repo/plugins/p/bad.test.sh"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm case >/dev/null
-  stdout="$(bash "$repo/scripts/check-test-tmp-cleanup.sh" 2>/dev/null)"
-  rc=$?
-  if [[ $rc -eq 1 && -z "$stdout" ]]; then
-    ok "discover mode exits 1 with nothing on stdout"
-  else
-    fail "discover mode should exit 1 with an empty stdout (rc=$rc): $stdout"
-  fi
+  test_harness::assert_discover_quiet "$repo/scripts/check-test-tmp-cleanup.sh"
 else
   fail "discover mode: fixture build failed"
 fi
 
-bash "$SUT_SRC" --bogus >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "unknown mode exits 2"
-else
-  fail "unknown mode should exit 2 (rc=$rc)"
-fi
+test_harness::assert_unknown_mode "$SUT_SRC"
 
 test_harness::report

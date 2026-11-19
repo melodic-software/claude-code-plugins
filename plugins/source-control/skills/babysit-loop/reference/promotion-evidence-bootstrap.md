@@ -53,14 +53,11 @@ only through a session's `--settings` file, a server-managed (remote) policy, or
 Configure the options in managed settings or user settings; only managed settings can serve an
 unattended lane ([Deployment requirements by host](#deployment-requirements-by-host)).
 
-The helper can also read a managed file Claude Code itself skips. When a higher-ranked managed
-source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
-uses that source and ignores the managed settings files
-([managed settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
-"How Claude Code combines managed sources"). The helper sees only the files, so on such a host a
-stale `managed-settings.json` the harness no longer applies can still supply these options. On a
-host whose policy comes from a remote or MDM source, keep the options out of managed files or
-remove the stale file.
+The helper reads the managed settings files whether or not Claude Code applies them, so on a host
+whose policy comes from a remote, MDM or HKLM source, keep these options out of the managed
+settings files or remove a stale `managed-settings.json`: the helper must never read a value the
+harness does not apply. Which managed source Claude Code applies:
+[managed settings, "How Claude Code combines managed sources"](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources).
 
 The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
 helper from another directory, or starts Node with a preload such as `NODE_OPTIONS=--require`, is

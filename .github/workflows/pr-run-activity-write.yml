@@ -104,6 +104,15 @@ on:
         required: false
         type: number
         default: 30
+      rate-limit-wait-seconds:
+        description: >-
+          The run job's rate-limit wait budget (rate-guard.mjs waitBudgetMs):
+          a GitHub API stop whose reset comes within it is waited out instead
+          of failing the job. 0 keeps the guard's 60 s; the run job's timeout
+          must hold the wait.
+        required: false
+        type: number
+        default: 0
       issue-dimensions:
         description: >-
           Issue mode: the dimensions the caller resolved when it set
@@ -513,8 +522,8 @@ on:
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
           conflict-patch-not-applied or conflict-patch-protected-path; for
-          apply-patch under patch-prepare install-script-pin,
-          dependency-pin-invalid, dependency-pin-not-applied or
+          apply-patch under patch-prepare install-script-pin or
+          dependency-relock, dependency-pin-invalid, dependency-pin-not-applied or
           dependency-pin-protected-path; empty otherwise. Set only by runner
           steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
@@ -609,6 +618,8 @@ jobs:
       # Set after the script ran, so forgeable: post.mjs checks every row.
       api-failures: ${{ steps.api-failures.outputs.api-failures }}
       act-outcome: ${{ steps.act-script.outcome }}
+    env:
+      API_BUDGET_WAIT_SECONDS: ${{ inputs.rate-limit-wait-seconds }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -1745,11 +1756,12 @@ jobs:
             # apply-patch under the merge-base, install-script-pin and
             # shared-copies rows gives that row's own reasons alone.
             case "$PREPARE:$PATCH_PREPARE" in
-              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:shared-copies)
+              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:shared-copies)
                 case "$PATCH_PREPARE:$escalation" in
                   merge-base:unresolved-conflict | merge-base:workflow-staged | merge-base:unexpected-path-staged) ;;
                   merge-base:conflict-patch-invalid | merge-base:conflict-patch-not-applied | merge-base:conflict-patch-protected-path) ;;
                   install-script-pin:dependency-pin-invalid | install-script-pin:dependency-pin-not-applied | install-script-pin:dependency-pin-protected-path) ;;
+                  dependency-relock:dependency-pin-invalid | dependency-relock:dependency-pin-not-applied | dependency-relock:dependency-pin-protected-path) ;;
                   shared-copies:shared-copy-workflow-staged | shared-copies:shared-copy-unexpected-path-staged) ;;
                   shared-copies:shared-copy-patch-invalid | shared-copies:shared-copy-patch-not-applied | shared-copies:shared-copy-patch-protected-path) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;

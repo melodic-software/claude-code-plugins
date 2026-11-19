@@ -5,6 +5,24 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.7] - 2026-11-18
+
+### Fixed
+
+- The audit-permission-grants criteria point at the 2.1.323 changelog entry and an archived
+  capture of the manifest reference for which plugin `settings.json` keys take effect.
+
+## [5.2.6] - 2026-11-18
+
+### Changed
+
+- Skill bodies cut restated upstream text to pointers, with every rule and its reason kept ([#16926](https://github.com/melodic-software/claude-code-plugins/issues/16926)):
+  - `audit-automation-gaps` states the shift-left carve-out's reason in our words and replaces its Claim/Basis table with two pointers; its hook-timing absence record drops the quoted `SessionStart` line and the `SessionEnd` figure and points at both event sections.
+  - `audit-instructions` scopes its Read-tool rule to the plugin's own files and gives the reason: a sandbox denied plugin-directory searches in our eval runs (#13768).
+  - `audit-permission-state` points at its criteria records for the `--oracle` cost, the `--critique` measured runs and the `python3` parser need, rather than restating them; the measured defensive contract names its probe and carries its as-of date and recheck trigger.
+  - `audit` drops the GraphQL availability clause from the issue-recheck route and moves the auto-mode refusal probe record, with its category names, into `context/procedures.md`.
+  - `draft-auto-mode-rules` drops the clause attributing the provenance rule to the critique.
+
 ## [5.2.5] - 2026-11-18
 
 ### Changed

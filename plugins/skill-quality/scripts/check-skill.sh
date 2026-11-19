@@ -923,11 +923,8 @@ else
     # In a PLUGIN skill a matching `name` is not inert: this check treats a
     # declared name as registering a bare `/<name>` alias (pointer: for how a
     # skill gets its command name, see
-    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
-    # and the picker appends that alias in
-    # parentheses to any row whose typed prefix matches it:
-    # `/plugin:deploy (deploy)` (observed in 2.1.225).
-    # Omitting the field leaves the namespaced command identical and drops both.
+    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name).
+    # Omitting the field leaves the namespaced command identical and drops the alias.
     # Advisory, not a defect: the bare alias is a legitimate thing to want, and
     # declaring a matching name is the only way to register it.
     warn "frontmatter name '$CUR_NAME' repeats the plugin skill's directory — omit it unless the bare /$CUR_NAME alias is wanted"
@@ -977,10 +974,10 @@ else
   # An unquoted ": " in a plain description scalar, or a colon ending a line, is
   # a YAML mapping indicator, on the header line or any continuation line; a
   # trailing ` #` comment is not part of the value and is stripped first. A
-  # quoted scalar or a block scalar may contain it. This check fails it because
-  # an unparsable frontmatter loads the skill with no fields set (pointer: for
-  # frontmatter parse failures, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference). This is the plugin's one record for
+  # quoted scalar or a block scalar may contain it. This check fails it so every
+  # skill's frontmatter parses (pointer: for how Claude Code loads a skill whose
+  # frontmatter does not parse, see
+  # https://code.claude.com/docs/en/skills#frontmatter-reference). This is the plugin's one pointer for
   # that behavior; the summary contract below and the README point here.
   desc_lines="$(awk '
     !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }

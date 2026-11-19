@@ -28,9 +28,12 @@ coordination provider instead of publishing a spec that cannot travel.
 `create-item` calls can carry `--parent`. When the source is a tracker item, the container's own
 `create-item` carries `--parent "<source-item-id>"` (SKILL.md Step 4):
 
-- **Body**: the Brief **verbatim** (TLDR / Problem / Goal with its Intent, Vision,
-  When-goals-conflict and Finish line lines / Constraints / Acceptance criteria / Captured assumptions /
-  Out-of-scope / Deferred questions), plus the plan's `### Load-bearing assumptions` table
+- **Body**: the Brief **verbatim** (TLDR / Problem / Intent / Goal with its Intent, Vision,
+  When-goals-conflict and Finish line lines / Work size / Constraints / Acceptance criteria /
+  Captured assumptions / Out-of-scope / ADR verdicts when the Brief has them / Deferred questions,
+  in the order of `/planning:interview`'s
+  [Brief template](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/skills/interview/context/loop.md)
+  "Brief template (the literal shape)"), plus the plan's `### Load-bearing assumptions` table
   verbatim when the plan has one (a link in the Problem or a Source cell naming a memory-slice
   file becomes the file's name alone, since that slice is never committed), plus an optional `## Testing decisions`
   section when test-topology decisions (with prior-art test pointers) were locked at plan time,

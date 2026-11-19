@@ -3,6 +3,69 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.2] - 2026-11-19
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pr-merge sweep's one whole-review request is now spent only by a pull request that passes the rate-limit and running-jobs limits. A candidate refused on a limit no longer leaves every later candidate in the sweep answered `sweep-limit`. The limits themselves and the one request per sweep are unchanged.
+
+## [11.22.1] - 2026-11-19
+
+### Added
+
+- **An eval case for `ready`'s evidence step.** `pull-request-ready-posts-evidence-after-flip` runs `ready --evidence` on an offline draft whose head is verified and confirmed, and checks that the evidence comment goes up after the flip, with the publishable capture attached, and that the report names it. The forge now serves `gh run list` for the head (one run on a draft, a new one after the flip), so `ready`'s check for a run after the flip passes as the skill prescribes, and its tests cover that and its `gh repo set-default` answers.
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+- `babysit_verify_evidence.py` reads the trusted-actor list, admission rules and pipeline config at a commit from a checkout whose HEAD is that commit, before the contents API. `BABYSIT_CONFIG_CHECKOUT` now takes several checkouts separated by `os.pathsep`, and the first one whose HEAD is the commit answers.
+
+## [11.22.0] - 2026-11-19
+
+### Changed
+
+- **The pull-request evidence comment shows the verifier's criterion rows as one table.** When the verdict recorded for the head carries rows from `/verification:confirm`, the comment opens with one line stating the verdict, then a Criterion, Files, Test or check, Result table in place of the per-criterion result lines. A verdict recorded without rows keeps the lines. The `ready` report's verdict line now lists the rows under it.
+
+### Fixed
+
+- babysit-prs: a push that changes `plugins/code-metrics/scripts/**` or the code-metrics audit skill's scripts now stops an approval from carrying (`CARRY_REFUSES`), since CI's size check runs them.
+
+## [11.21.10] - 2026-11-18
+
+### Security
+
+- The worktree-add containment gate's worktree-root lookups (`config --get-all`, `rev-parse --git-dir` in `worktree-root-resolve.sh`) run through `hook::git_untrusted`, with the repository's `core.fsmonitor`, git hooks and pager turned off, as the gate's other git calls already do.
+
+## [11.21.9] - 2026-11-18
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pull request held only by `evidence-unbound:<lane>` with the unbound reason `rerun-not-allowed` now gets the gate's whole-review request, so a new run at the same head can bind the review. No other unbound reason requests one, and the per-head, per-pull-request and per-sweep limits still apply. What the merge gate accepts does not change.
+
+## [11.21.8] - 2026-11-18
+
+### Changed
+
+- **Skill docs point at the upstream page instead of restating it.** The Spoke paths block in the babysit-loop, babysit-prs, commit, pull-request and setup skills, the managed-sources note in the promotion-evidence bootstrap, the conflict worker's authority note, the Monitor watch notes, and the native-surface claim cells now state this plugin's rule and link the docs section, without paraphrasing what the page says.
+
+## [11.21.7] - 2026-11-18
+
+### Fixed
+
+- write a minor bump for a breaking change on a 0.x plugin
+
+  write-changelog-fragments.sh mapped a `!` subject or a BREAKING CHANGE
+  footer to `bump: major` whatever the plugin's version, so the release
+  script took a 0.x plugin straight to 1.0.0. A breaking change to a
+  plugin at 0.x now writes `bump: minor` with the entry led by
+  **Breaking:**; at 1.0 or above it stays major. `--level major` still
+  releases 1.0.0 deliberately.
+
+### Security
+
+- `reap-project-plugin-records.sh`, which the worktree-remove gate runs, sends its git calls through `hook::git_untrusted`, so reading and restoring the worktree's `.claude/settings.json` no longer starts a `core.fsmonitor` command or git hook named in that repository's config.
+
 ## [11.21.6] - 2026-11-18
 
 ### Fixed

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "peer/ledger-cli: draft PR #7 on refactor/improve-report-rounding. Left as a draft: the request did not authorize the ready flip."
+    },
+    {
+      "answer": "Run report, 1 repository.\n\n| Repository | PR | State |\n|---|---|---|\n| peer/ledger-cli | #7 | draft (flip not authorized) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Draft PR #7 is open for peer/ledger-cli. Shall I mark it ready for review?",
+      "why": "pre-fix interactive offer: an ask inside a repository's run"
+    },
+    {
+      "answer": "PR #7 is still a draft. Do you want me to flip it to ready?"
+    }
+  ]
+}

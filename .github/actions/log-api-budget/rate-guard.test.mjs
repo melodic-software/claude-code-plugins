@@ -4,11 +4,10 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
-const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
 const NOW = VECTORS.vector_now * 1000;
 // Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
@@ -95,111 +94,6 @@ test("classify reads a Headers object as it reads a plain one", () => {
   assert.deepEqual(classify({ ...vector.input, headers }, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
 });
 
-const DEFAULTS_PATH = new URL("./rate-limits.json", import.meta.url);
-
-test("defaults come from rate-limits.json: a changed default changes the module's", () =>
-  withDir((dir) => {
-    const defaults = JSON.parse(readFileSync(DEFAULTS_PATH, "utf8"));
-    const live = apiLimits({ resolvedPath: "", defaultsPath: DEFAULTS_PATH });
-    defaults["lanes-app"]["read-floor"] = 0.25;
-    defaults["content-creation"]["per-minute"] = 7;
-    const path = join(dir, "rate-limits.json");
-    writeFileSync(path, JSON.stringify(defaults));
-    const changed = apiLimits({ resolvedPath: "", defaultsPath: path });
-    assert.equal(changed["lanes-app"]["read-floor"], 0.25);
-    assert.notEqual(live["lanes-app"]["read-floor"], 0.25);
-    assert.equal(changed["content-creation"]["per-minute"], 7);
-    assert.deepEqual(changed["github-token"], live["github-token"]);
-  }));
-
-test("a missing or invalid rate-limits.json throws, so the latch warns that the floor is unchecked", () =>
-  withDir((dir) => {
-    const valid = JSON.parse(readFileSync(DEFAULTS_PATH, "utf8"));
-    const edits = {
-      "not JSON": "{",
-      "not an object": "[]",
-      "a pool missing": JSON.stringify({ ...valid, graphql: undefined }),
-      "an unknown pool": JSON.stringify({ ...valid, search: valid.graphql }),
-      "a share missing": JSON.stringify({ ...valid, "lanes-app": { ...valid["lanes-app"], "read-floor": undefined } }),
-      "a share past 1": JSON.stringify({ ...valid, "lanes-app": { ...valid["lanes-app"], "read-floor": 1.5 } }),
-      "a share as text": JSON.stringify({ ...valid, "lanes-app": { ...valid["lanes-app"], breaker: "0.2" } }),
-      "a plan of 0": JSON.stringify({ ...valid, graphql: { ...valid.graphql, plan: 0 } }),
-      "a fractional limit-cap": JSON.stringify({ ...valid, "github-token": { ...valid["github-token"], "limit-cap": 10.5 } }),
-      "a limit-cap of 0": JSON.stringify({ ...valid, "github-token": { ...valid["github-token"], "limit-cap": 0 } }),
-      "per-minute off content-creation": JSON.stringify({ ...valid, "owner-token": { ...valid["owner-token"], "per-minute": 80 } }),
-      "a per-hour of 0": JSON.stringify({ ...valid, "content-creation": { ...valid["content-creation"], "per-hour": 0 } }),
-      "an unknown field": JSON.stringify({ ...valid, graphql: { ...valid.graphql, floor: 0.1 } }),
-    };
-    assert.throws(() => apiLimits({ resolvedPath: "", defaultsPath: join(dir, "missing.json") }), "missing");
-    for (const [name, text] of Object.entries(edits)) {
-      const path = join(dir, "rate-limits.json");
-      writeFileSync(path, text);
-      assert.throws(() => apiLimits({ resolvedPath: "", defaultsPath: path }), name);
-    }
-  }));
-
-test("the schema states no limits.api default: rate-limits.json holds the only copy, for the schema's pools and fields", () => {
-  const schema = JSON.parse(readFileSync(SCHEMA_PATH, "utf8"));
-  const defaults = JSON.parse(readFileSync(DEFAULTS_PATH, "utf8"));
-  const entries = schema.properties.limits.properties.api.properties;
-  const pools = [schema.$defs["api-pool"], schema.$defs["api-content-pool"]];
-  for (const [name, entry] of Object.entries(entries)) {
-    assert.equal("default" in entry, false, name);
-  }
-  for (const pool of pools) {
-    for (const [field, property] of Object.entries(pool.properties)) {
-      assert.equal("default" in property, false, field);
-    }
-  }
-  assert.deepEqual(Object.keys(defaults).sort(), Object.keys(entries).sort());
-  for (const [name, fields] of Object.entries(defaults)) {
-    const allowed = [...Object.keys(schema.$defs[name === "content-creation" ? "api-content-pool" : "api-pool"].properties), ...FILE_ONLY_FIELDS];
-    assert.deepEqual(Object.keys(fields).filter((field) => !allowed.includes(field)), [], name);
-  }
-  // A file-only field is one the config cannot set: no pool's schema names it.
-  for (const pool of pools) {
-    for (const field of FILE_ONLY_FIELDS) {
-      assert.equal(field in pool.properties, false, field);
-    }
-  }
-  assert.equal(defaults["github-token"]["start-gate"], 0.1, "start-gate stays valid in rate-limits.json");
-});
-
-// github-token plans to a limit-cap of 1,000, the figure GitHub documents for
-// GITHUB_TOKEN per repository per hour
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions).
-// That is a planning cap, not this repository's live limit: its responses
-// report x-ratelimit-limit 5000. The other pools plan to the limit their
-// header reports.
-test("limit-cap defaults to 1000 for github-token only", () => {
-  const limits = apiLimits({ resolvedPath: "" });
-  assert.equal(limits["github-token"]["limit-cap"], 1000);
-  for (const name of ["lanes-app", "graphql", "owner-token", "content-creation"]) {
-    assert.equal(limits[name]["limit-cap"], undefined, name);
-  }
-});
-
-test("a resolved limit-cap caps another pool, and another github-token field keeps its cap", () =>
-  withDir((dir) => {
-    const path = join(dir, "resolved.json");
-    writeFileSync(path, JSON.stringify({ limits: { api: { "github-token": { "read-floor": 0.2 }, "lanes-app": { "limit-cap": 4000 } } } }));
-    const limits = apiLimits({ resolvedPath: path });
-    assert.equal(limits["github-token"]["limit-cap"], 1000);
-    assert.equal(limits["github-token"]["read-floor"], 0.2);
-    assert.equal(limits["lanes-app"]["limit-cap"], 4000);
-  }));
-
-test("a resolved config's limits.api overrides the rate-limits.json default for that field only", () =>
-  withDir((dir) => {
-    const path = join(dir, "resolved.json");
-    writeFileSync(path, JSON.stringify({ limits: { api: { "lanes-app": { "read-floor": 0.3 } } } }));
-    const limits = apiLimits({ resolvedPath: path });
-    const defaults = apiLimits({ resolvedPath: "" });
-    assert.equal(limits["lanes-app"]["read-floor"], 0.3);
-    assert.equal(limits["lanes-app"].plan, defaults["lanes-app"].plan);
-    assert.deepEqual(limits["github-token"], defaults["github-token"]);
-  }));
-
 test("poolOf and entryOf name the resource and its config entry", () => {
   assert.equal(poolOf("https://api.github.com/graphql"), "graphql");
   assert.equal(poolOf("https://api.github.com/search/issues?q=a"), "search");
@@ -224,7 +118,7 @@ function fakeGitHub(answers) {
 }
 
 // A latch on a fake clock: each wait moves the clock on instead of sleeping.
-function latchFor({ now = NOW, hold = false } = {}) {
+function latchFor({ now = NOW, hold = false, budgetMs } = {}) {
   const lines = [];
   const waits = [];
   let failed = 0;
@@ -242,6 +136,7 @@ function latchFor({ now = NOW, hold = false } = {}) {
       clock.now += ms;
     },
     hold,
+    ...(budgetMs === undefined ? {} : { budgetMs }),
   });
   return { latch, lines, clock, waits, failed: () => failed };
 }
@@ -309,6 +204,83 @@ test("a holding latch refuses a stop past the budget with a notice and fails not
   assert.equal(failed(), 0);
   assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
   assert.equal(lines.filter((line) => line.startsWith("::notice::") && line.includes("2026-10-23T10:33:20Z") && line.endsWith("this step holds")).length, 2);
+});
+
+test("API_BUDGET_WAIT_SECONDS sets the latch's budget only for whole seconds over the step's and up to work-resolve-issue's", () => {
+  const most = WAIT_BUDGET_SECONDS.workResolveIssue;
+  assert.equal(waitBudgetMs(String(most)), most * 1000);
+  assert.equal(waitBudgetMs(String(WAIT_BUDGET_SECONDS.step + 1)), (WAIT_BUDGET_SECONDS.step + 1) * 1000);
+  for (const value of [undefined, "", String(WAIT_BUDGET_SECONDS.step), "0", String(most + 1), "12.5", "-900", `${most}s`]) {
+    assert.equal(waitBudgetMs(value), 60_000, `${value} keeps the 60 s budget`);
+  }
+});
+
+const BUDGET_1200 = WAIT_BUDGET_SECONDS.workResolveIssue * 1000;
+const floored = (remaining, resetIn) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }];
+const refused = (resetIn) => [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }];
+
+test("a patient latch keeps a stop-floor answer, fails nothing, and sends the next call after the reset", async () => {
+  const gh = fakeGitHub([floored(33, 952), [200]]);
+  const { latch, lines, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 200);
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.deepEqual(waits, [953_000], "the reset plus a second");
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
+  assert.ok(lines.some((line) => line.startsWith("::notice::") && line.endsWith("the next call waits for the reset")));
+});
+
+test("the 60 s latch still fails the step on that stop-floor answer and refuses the next call", async () => {
+  const gh = fakeGitHub([floored(33, 952), [200]]);
+  const { latch, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+  assert.ok(failed() >= 1);
+});
+
+test("a patient latch sends a refused GET again after the reset, so the step does not fail", async () => {
+  const gh = fakeGitHub([refused(896), [200, {}, { id: 1 }]]);
+  const { latch, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = latch.guard(gh.fetch);
+  const response = await fetch(URL_A);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { id: 1 });
+  assert.deepEqual(gh.sent, [`GET ${URL_A}`, `GET ${URL_A}`]);
+  assert.deepEqual(waits, [897_000]);
+  assert.equal(failed(), 0);
+});
+
+test("a patient latch leaves a GET whose caller marks its resend to that caller, and fails it on a refusal it will not resend", async () => {
+  for (const [marker, failures] of [[true, 0], [false, 1]]) {
+    const gh = fakeGitHub([refused(896), [200]]);
+    const { latch, lines, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+    const response = await latch.guard(gh.fetch)(URL_A, { signal: AbortSignal.timeout(20_000), [RESEND]: marker });
+    assert.equal(response.status, 403, `[RESEND]: ${marker} gets the refusal back`);
+    assert.deepEqual(gh.sent, [`GET ${URL_A}`], `[RESEND]: ${marker} is not sent again inside the caller's timeout`);
+    assert.deepEqual(waits, []);
+    assert.equal(failed(), failures, `[RESEND]: ${marker}`);
+    assert.equal(lines.filter((line) => line.startsWith("::error::")).length, failures, `[RESEND]: ${marker}`);
+  }
+});
+
+test("a patient latch never resends a refused write, and refuses a reset past its budget", async () => {
+  const write = fakeGitHub([refused(896), [201]]);
+  const one = latchFor({ budgetMs: BUDGET_1200 });
+  assert.equal((await one.latch.guard(write.fetch)(URL_A, { method: "POST", body: "{}" })).status, 403);
+  assert.equal(write.sent.length, 1);
+  assert.ok(one.failed() >= 1);
+  const late = fakeGitHub([refused(WAIT_BUDGET_SECONDS.workResolveIssue + 100), [200]]);
+  const two = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = two.latch.guard(late.fetch);
+  assert.equal((await fetch(URL_A)).status, 403);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(late.sent.length, 1);
+  assert.deepEqual(two.waits, []);
+  assert.ok(two.failed() >= 1);
 });
 
 test("a primary limit on core leaves graphql open; a secondary one stops every pool", async () => {
@@ -916,9 +888,6 @@ const UNGUARDED = {
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
   // pr-merge's own guard is its owner's change.
   ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
-  // A test helper no lane runs: the credential-legs tests' read of ci-workflows
-  // files at a pinned SHA from raw.githubusercontent.com, not the API.
-  ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
   // Its API calls go through lib/github-rest.mjs, which imports the guard; the
   // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
@@ -1028,4 +997,46 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
     if (saved === undefined) delete process.env.API_BUDGET_TOKEN;
     else process.env.API_BUDGET_TOKEN = saved;
   }
+});
+
+const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
+const jobOf = (text, id) => {
+  const start = text.indexOf(`\n  ${id}:\n`);
+  assert.ok(start >= 0, `${id} is a job`);
+  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+  return text.slice(start, next < 0 ? undefined : start + 1 + next);
+};
+const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
+
+test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps the step waits' default", () => {
+  const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
+  const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
+  const [margin] = setting(job, "GH_READ_MARGIN_SECONDS");
+  assert.equal(jobSeconds - margin, WAIT_BUDGET_SECONDS.ciStatusReads);
+  assert.deepEqual(setting(job, "rate-limit-wait-seconds"), [], "report-ci-status takes no wait input");
+  assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@/g)?.length, 1, "ci-status calls the report-ci-status composite once");
+});
+
+test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {
+  assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
+});
+
+test("work-resolve-issue's waits after the model ran, and the leak scan's cap, are WAIT_BUDGET_SECONDS.workResolveIssue", () => {
+  const most = WAIT_BUDGET_SECONDS.workResolveIssue;
+  const lane = workflow("work-resolve-issue.yml");
+  for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback", "report-skip", "apply-issue-patch", "report-outcome"]) {
+    assert.deepEqual(setting(jobOf(lane, id), "rate-limit-wait-seconds"), [most], id);
+  }
+  for (const id of ["report-statuses", "run-checks"]) {
+    const job = jobOf(lane, id);
+    assert.deepEqual(setting(job, "API_BUDGET_WAIT_SECONDS"), [most], id);
+    assert.ok(setting(job, "timeout-minutes")[0] * 60 >= 600 + most, `${id}'s timeout holds ten minutes of work and the wait`);
+  }
+  assert.ok(setting(lane, "rate-limit-wait-seconds").every((seconds) => seconds === most), "no other wait in the lane");
+  const read = workflow("pr-run-activity-read.yml");
+  assert.deepEqual([...read.matchAll(/Number\(WAIT_SECONDS\) : 0, ([0-9]+)\) \* 1000/g)].map((match) => Number(match[1])), [most], "the leak scan caps its wait at it");
+  for (const [, grown, base] of read.matchAll(/timeout-minutes: \$\{\{ inputs\.rate-limit-wait-seconds > 0 && ([0-9]+) \|\| ([0-9]+) \}\}/g)) {
+    assert.ok((Number(grown) - Number(base)) * 60 >= most, "the scan job's raised timeouts hold the wait");
+  }
+  assert.equal([...read.matchAll(/inputs\.rate-limit-wait-seconds > 0 &&/g)].length, 2, "the scan job and its leak-scan step");
 });

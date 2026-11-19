@@ -10,6 +10,9 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+hook::git_untrusted_env || exit 2
 err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
 # silent-skip-ok: the SessionStart probe already reports a missing actionlint (prerequisites.json) and the bundled checker does too; blocking every turn end on a host problem would not help the model.
 [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0

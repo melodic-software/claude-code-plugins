@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "- flip: PR 655 is ready for review\n- evidence: created https://github.com/eval-fixture/app/pull/655#issuecomment-1\n", "why": "the evidence line names the created comment"}
+  ],
+  "fail": [
+    {"answer": "- flip: PR 655 is ready for review\n- digest: not available\n", "why": "no evidence line"},
+    {"answer": "- evidence: not posted, no evidence file for head 0123456\n", "why": "the step posted nothing"}
+  ]
+}

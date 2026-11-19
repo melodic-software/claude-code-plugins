@@ -3,16 +3,32 @@
 // a subscription leg's credit stop, 401/402 or limit stop when a fallback leg
 // follows, and never from the fallback leg. The rule cases take their expected
 // values from that description (ci-workflows .github/actions/run-claude-cli/
-// action.yml at b8bdd7f, the `handoff` output). The stream cases run the real
-// lane.cjs and classify.cjs, fetched at the pin the eval workflows check out;
-// their messages are the observed shapes ci-workflows' classify.test.cjs
-// records (CLI 2.1.302).
+// action.yml at b8bdd7f, the `handoff` output), held against the contract's
+// handoffReason. Every case runs run-claude-cli's published contract,
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs,
+// fetched at the pin the eval workflows check out, so a pin bump that reshapes
+// what eval-handoff reads fails here; the stream messages are the observed
+// shapes ci-workflows' classify.test.cjs records (CLI 2.1.302).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { CLASSIFIER_FILES, erroredTraces, handoffReason, judgeLegStreams, loadLauncher, withPartials } from "./eval-handoff.mjs";
+import { contractFilesAtPin, fetchAtPin } from "../lib/ci-workflows-at-pin.mjs";
+import { CONTRACT_FILES, erroredTraces, judgeLegStreams, loadContract, withPartials } from "./eval-handoff.mjs";
+
+const workflowPins = ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"].flatMap((name) => [
+  ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
+].map((m) => m[1]));
+const PIN = workflowPins[0];
+const CHECKOUT = [CONTRACT_FILES, ...(await contractFilesAtPin(PIN))];
+const ROOT = tempDir("eval-handoff-ci-workflows-");
+for (const path of CHECKOUT) {
+  mkdirSync(join(ROOT, path, ".."), { recursive: true });
+  writeFileSync(join(ROOT, path), await fetchAtPin(PIN, path));
+}
+const real = loadContract(ROOT);
+const handoffReason = (leg, ...rest) => real.handoffReason({ leg }, ...rest);
 
 test("a key leg hands off on a credit stop or a 401 or 402, never a 403 or a limit stop", () => {
   assert.equal(handoffReason("api-key", "credit-stop", 400), "credit-stop");
@@ -52,6 +68,7 @@ test("the first stream that hands off decides, else the first stop class is kept
     linesToMessages: (text) => [{ text }],
     judgeLeg: ({ executionFile }) => ({ failureClass: verdicts[JSON.parse(readFileSync(executionFile, "utf8"))[0].text][0], resets: null, messages: [{}] }),
     isCreditStop: () => false,
+    handoffReason: real.handoffReason,
   };
   const key = { leg: "api-key", fallbackReady: false };
   const streams = (...names) => names.map((text) => ({ text, exitCode: 1 }));
@@ -61,31 +78,13 @@ test("the first stream that hands off decides, else the first stop class is kept
   assert.deepEqual(judgeLegStreams([], key, launcher), { handoff: false, reason: "", laneClass: "" });
 });
 
-// The classifier the legs check out, fetched at the pin the workflows name, so
-// a pin bump that reshapes judgeLeg's return (failureClass, resets, the last
-// message's api_error_status) or isCreditStop fails here. The three paths are
-// the legs' sparse checkout.
-const workflowPins = ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"].flatMap((name) => [
-  ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
-].map((m) => m[1]));
-const PIN = workflowPins[0];
-const ROOT = tempDir("eval-handoff-ci-workflows-");
-for (const path of CLASSIFIER_FILES) {
-  const url = `https://raw.githubusercontent.com/melodic-software/ci-workflows/${PIN}/${path}`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  assert.ok(response.ok, `${url} answered ${response.status}`);
-  mkdirSync(join(ROOT, path, ".."), { recursive: true });
-  writeFileSync(join(ROOT, path), await response.text());
-}
-const real = loadLauncher(ROOT);
-
-test("the files eval-handoff loads are the eval legs' sparse checkout", () => {
+test("the eval legs' sparse checkout is the contract manifest and its paths at the pin", () => {
   for (const name of ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"]) {
     const sparse = [...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/sparse-checkout: \|\n((?: {12}\S+\n)+)/g)]
-      .filter(([block]) => block.includes("run-claude-cli/lane.cjs"))
+      .filter(([block]) => block.includes(CONTRACT_FILES))
       .map(([, block]) => block.trim().split(/\s+/));
     assert.equal(sparse.length, 3, name);
-    for (const paths of sparse) assert.deepEqual(paths, CLASSIFIER_FILES, name);
+    for (const paths of sparse) assert.deepEqual(paths, CHECKOUT, name);
   }
 });
 
@@ -95,7 +94,7 @@ test("the classifier loads under a workspace whose root package.json does not pa
   const { spawnSync } = await import("node:child_process");
   const ws = tempDir("eval-handoff-ws-");
   writeFileSync(join(ws, "package.json"), "not json {");
-  for (const path of CLASSIFIER_FILES) {
+  for (const path of CHECKOUT) {
     mkdirSync(join(ws, ".ci-workflows", path, ".."), { recursive: true });
     writeFileSync(join(ws, ".ci-workflows", path), readFileSync(join(ROOT, path)));
   }
@@ -180,20 +179,20 @@ const none = { handoff: false, reason: "", laneClass: "" };
 
 test("a suite that ended auth_failed hands off as a refused credential, and never reads as success", () => {
   const results = [{ partial: false }, partial("auth_failed")];
-  assert.deepEqual(withPartials(none, results, { leg: "api-key", fallbackReady: false }), { handoff: true, reason: "auth", laneClass: "auth" });
-  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: true }), { handoff: true, reason: "auth", laneClass: "auth" });
-  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: false }), { handoff: false, reason: "", laneClass: "auth" }, "no fallback leg");
-  assert.deepEqual(withPartials(none, results, { leg: "fallback", fallbackReady: true }), { handoff: false, reason: "", laneClass: "auth" }, "the fallback leg is the last");
+  assert.deepEqual(withPartials(none, results, { leg: "api-key", fallbackReady: false }, real), { handoff: true, reason: "auth", laneClass: "auth" });
+  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: true }, real), { handoff: true, reason: "auth", laneClass: "auth" });
+  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: false }, real), { handoff: false, reason: "", laneClass: "auth" }, "no fallback leg");
+  assert.deepEqual(withPartials(none, results, { leg: "fallback", fallbackReady: true }, real), { handoff: false, reason: "", laneClass: "auth" }, "the fallback leg is the last");
 });
 
 test("a suite stopped by its cost ceiling or an interrupt, or not partial, leaves the streams' verdict", () => {
   const key = { leg: "api-key", fallbackReady: false };
-  for (const reason of ["cost_ceiling", "interrupted"]) assert.deepEqual(withPartials(none, [partial(reason)], key), none, reason);
-  assert.deepEqual(withPartials(none, [{ partial: false, partialReason: null }, null], key), none);
+  for (const reason of ["cost_ceiling", "interrupted"]) assert.deepEqual(withPartials(none, [partial(reason)], key, real), none, reason);
+  assert.deepEqual(withPartials(none, [{ partial: false, partialReason: null }, null], key, real), none);
   const limited = { handoff: false, reason: "", laneClass: "rate-limit" };
-  assert.deepEqual(withPartials(limited, [partial("cost_ceiling")], key), limited);
+  assert.deepEqual(withPartials(limited, [partial("cost_ceiling")], key, real), limited);
   const credit = { handoff: true, reason: "credit-stop", laneClass: "credit-stop" };
-  assert.deepEqual(withPartials(credit, [partial("auth_failed")], key), credit, "a stream's handoff stands");
+  assert.deepEqual(withPartials(credit, [partial("auth_failed")], key, real), credit, "a stream's handoff stands");
 });
 
 test("the CLI hands a key leg off on an auth_failed suite whose runs kept no trace, and fails the fallback leg", async () => {

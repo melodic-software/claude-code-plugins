@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Request a whole review of a lane or adopted pull request's head when the
 only thing holding it is findings on its review chain that an incremental
-review cannot clear (`LaneEvidence.whole_review_clears`).
+review cannot clear (`LaneEvidence.whole_review_clears`), or review evidence
+unbound because the newest run is a re-run the gate does not accept.
 
 A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
@@ -12,9 +13,10 @@ token's events start workflows; GITHUB_TOKEN's do not). Bounds:
 - `MAX_TOGGLES` per pull request, counted from the record lines and from the
   lane identity's conversions to draft on the timeline, which the lane token
   cannot delete as it can edit the comment;
-- at most one request per pr-merge sweep: the first candidate to reach
-  `limits` claims the `SPENT_ENV` file, whatever its answer; with no
-  `SPENT_ENV` (the local babysit loop) nothing is requested;
+- at most one request per pr-merge sweep: the first candidate to pass every
+  limit in `limits` claims the `SPENT_ENV` file, and a refused one leaves it
+  to the next; with no `SPENT_ENV` (the local babysit loop) nothing is
+  requested;
 - only while fewer than `MAX_RUNNING_JOBS` jobs run in the repository and
   both the lane token and the job's own token have `MIN_SHARE` of each
   bucket's hourly limit left.
@@ -66,6 +68,7 @@ RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
 # The lane whose clean review clears a `review-path:` hold.
 SECURITY_LANE = "claude-security-review"
+RERUN_REFUSED = "rerun-not-allowed"
 CONVERT = (
     "mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id})"
     " { pullRequest { isDraft } } }"
@@ -80,8 +83,8 @@ def record_line(head: str, at: datetime) -> str:
     """One request's line; `at` is when the gate wrote it, before the toggle."""
     stamp = at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return (
-        f"{RECORD_PREFIX}{head}` at {stamp}: an incremental review cannot "
-        "clear the findings below."
+        f"{RECORD_PREFIX}{head}` at {stamp}: a whole review of this head "
+        "can clear the reasons below."
     )
 
 
@@ -114,23 +117,42 @@ def record_lines(body: Any) -> list[str]:
     return [m[0] for m in RECORD_RE.finditer(_unfenced(body))]
 
 
+def _rerun_refused(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
+    """The `evidence-unbound:` risk codes of the lanes whose one evidence entry
+    is unbound as `RERUN_REFUSED`, the one reason a new run at the same head
+    removes: the re-run rule reads only a run's later attempts
+    (babysit_review_evidence `_bound_record`)."""
+    names = [lane.lane for lane in lanes]
+    return {
+        f"evidence-unbound:{lane.lane}"
+        for lane in lanes
+        if lane.lane in babysit_risk.LANES
+        and names.count(lane.lane) == 1
+        and lane.unbound_reason == RERUN_REFUSED
+    }
+
+
 def wanted(
     reason: str | None,
     risk: babysit_risk.RiskResult,
     lanes: Sequence[babysit_risk.LaneEvidence],
 ) -> bool:
     """Every other gate passed (`reason` is None), the only reasons holding
-    the score are open findings and `review-path:` holds, and a clean whole
-    review would close each lane's. A `review-path:` hold stands while the
-    security lane's bound review counts an open finding of any tier
-    (`babysit_risk.security_review_clean`), so that lane must be one a whole
-    review clears."""
+    the score are open findings, `review-path:` holds and lanes unbound as
+    `RERUN_REFUSED`, and a clean whole review would close each lane's. A
+    `review-path:` hold stands while the security lane's bound review counts
+    an open finding of any tier (`babysit_risk.security_review_clean`), so
+    that lane must be one a whole review clears."""
     held_by = babysit_risk.holding(risk)
     if reason is not None or not held_by:
         return False
     path = babysit_risk.REVIEW_PATH_PREFIX
     codes = {r.code for r in held_by}
-    if not all(code in FINDING_CODES or code.startswith(path) for code in codes):
+    rerun = _rerun_refused(lanes) & codes
+    if not all(
+        code in FINDING_CODES or code.startswith(path) or code in rerun
+        for code in codes
+    ):
         return False
     review_path = any(code.startswith(path) for code in codes)
     held = [
@@ -150,7 +172,7 @@ def wanted(
     ]
     if review_path and not any(lane.lane == SECURITY_LANE for lane in held):
         return False
-    return bool(held) and all(lane.whole_review_clears for lane in held)
+    return bool(held or rerun) and all(lane.whole_review_clears for lane in held)
 
 
 def request(
@@ -220,19 +242,15 @@ def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
 
 
 def limits(repo: str) -> str | None:
-    """None when this sweep may request one whole review, else why not. The
-    first call in a sweep claims it, so a refusal also spends the sweep."""
+    """None when this sweep may request one whole review, else why not. Only
+    the call that passes every limit claims the sweep, so a refused candidate
+    leaves it to the next one."""
     spent = os.environ.get(SPENT_ENV)
     if not spent:
         return "not-pr-merge"
     path = Path(spent)
-    try:
-        with path.open("x"):
-            pass
-    except FileExistsError:
+    if path.exists():
         return "sweep-limit"
-    except OSError as exc:
-        return f"sweep-claim: {exc}"
     token = os.environ.get(JOB_TOKEN_ENV)
     if not token:
         return "job-token-missing"
@@ -247,6 +265,13 @@ def limits(repo: str) -> str | None:
         return f"limits-unread: {exc}"
     if running >= MAX_RUNNING_JOBS:
         return f"running-jobs:{running}"
+    try:
+        with path.open("x"):
+            pass
+    except FileExistsError:
+        return "sweep-limit"
+    except OSError as exc:
+        return f"sweep-claim: {exc}"
     return None
 
 
