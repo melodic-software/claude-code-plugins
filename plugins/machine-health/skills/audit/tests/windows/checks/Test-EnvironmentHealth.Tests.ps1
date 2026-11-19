@@ -286,7 +286,7 @@ Describe 'Test-EnvironmentHealth' -Tag 'check' {
 
             $raw = Invoke-EnvironmentHealthRaw
             $raw | Should -Not -Match 'super-secret-gh-token-2866-must-never-appear'
-            $raw | Should -Not -Match 'sk-planted-api-key-value-do-not-log'
+            $raw | Should -Not -Match 'planted-api-key-value-do-not-log'
             $raw | Should -Not -Match 'planted-secret-value-do-not-log'
             $raw | Should -Not -Match 'planted-password-value-do-not-log'
 

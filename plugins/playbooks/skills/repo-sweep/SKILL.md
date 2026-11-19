@@ -69,6 +69,11 @@ error everywhere; codes 10 and up carry the meanings below; any other non-zero c
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
 
+`<plugin-repo>` in the reference files is the `owner/repo` this plugin ships from: the path of the
+GitHub URL in the `repository` field of `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`
+(`jq -r .repository`). A manifest without one leaves it unresolved: ask the user for the
+repository, and skip the override check in `plan` with that said.
+
 ## Formats
 
 **Catalog** (`catalogs/<playbook>.md`, playbook name is the file stem): `###` heading is the

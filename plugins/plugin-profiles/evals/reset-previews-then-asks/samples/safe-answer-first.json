@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "**Reset the 1 file above that a profile record covers?**\n\n1. No: keep every profile as it is\n2. Yes (Recommended): you asked for a reset, and applying a profile again undoes it"
+    },
+    {
+      "answer": "Reset the 1 file above that a profile record covers?\n- **No**\n- **Yes** (Recommended)"
+    },
+    {
+      "answer": "Reset the 1 file above that a profile record covers? (No / Yes (Recommended))"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reset the 1 file above that a profile record covers?\n\n1. Yes (Recommended)\n2. No"
+    },
+    {
+      "answer": "Do you want me to go ahead and reset it?"
+    },
+    {
+      "answer": "Reset the 1 file above that a profile record covers? (Yes / No)"
+    }
+  ]
+}

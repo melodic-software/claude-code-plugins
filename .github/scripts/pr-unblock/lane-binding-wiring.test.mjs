@@ -120,6 +120,28 @@ test("currentThreads keeps a bound lane finding and leaves a forged one", async 
   assert.equal(kept[0].comments[0].lane, "claude-review");
 });
 
+const OLD = "b".repeat(40);
+const olderHeadThreads = async ({ reviewAt = OLD, body = bound("Off by one.", { sha: OLD }) } = {}) => {
+  const threads = [{ id: "T11", isResolved: false, isOutdated: false, comments: { totalCount: 1, nodes: [{ databaseId: 11, lastEditedAt: null }] } }];
+  const marker = { id: 1, user: ACTIONS, body: `<!-- claude-lane-reviewed-head lane=claude-review sha=${HEAD} -->`, created_at: AT };
+  const api = {
+    listIssueComments: async () => [marker],
+    listReviews: async () => [{ id: 1, user: ACTIONS, commit_id: reviewAt, submitted_at: AT }],
+    listReviewComments: async () => [row(11, body, { path: "a.js", line: 1 })],
+    listThreads: async () => threads,
+    getPermission: async () => "none",
+  };
+  const actions = fakeActions({ [RUN]: { path: CODE, head_sha: OLD, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(body, { head: OLD })] }] } });
+  const { kept } = await currentThreads({ api: withLaneBinding(api, actions), pr: PR, reviewerId: 209825114, appId: 3, trustedHumans: new Set() });
+  return kept.map((thread) => thread.id);
+};
+
+test("currentThreads keeps a bound lane finding from a review of an older head the markers no longer name", async () => {
+  assert.deepEqual(await olderHeadThreads(), ["T11"]);
+  assert.deepEqual(await olderHeadThreads({ reviewAt: "c".repeat(40) }), [], "a review on another head than its binding");
+  assert.deepEqual(await olderHeadThreads({ body: "Old finding.\n\nclaude-lane: claude-review" }), [], "a legacy finding with no binding");
+});
+
 test("the dispatcher's thread read binds each comment node by its databaseId", async () => {
   const genuine = bound("Off by one.");
   const node = (id, body) => ({
@@ -137,6 +159,16 @@ test("the dispatcher's thread read binds each comment node by its databaseId", a
   const workable = (list) => hasWorkableThread(list, { reviewerId: 209825114, appId: 3, trustedHumans: new Set(), heads: new Set([HEAD]) });
   assert.equal(workable([threads[0]]), true);
   assert.equal(workable([threads[1]]), false);
+});
+
+test("the dispatcher works a bound lane finding from a review of an older head", async () => {
+  const OLD = "b".repeat(40);
+  const body = bound("Off by one.", { sha: OLD });
+  const node = { databaseId: 11, author: { databaseId: MARKER_AUTHOR_ID }, createdAt: AT, body, lastEditedAt: null, pullRequestReview: { author: { databaseId: MARKER_AUTHOR_ID }, commit: { oid: OLD } } };
+  const api = { listReviewThreads: async () => [{ id: "T11", isResolved: false, comments: { nodes: [node] } }] };
+  const actions = fakeActions({ [RUN]: { path: CODE, head_sha: OLD, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(body, { head: OLD })] }] } });
+  const threads = await withLaneBinding(api, actions).listReviewThreads(PR);
+  assert.equal(hasWorkableThread(threads, { reviewerId: 209825114, appId: 3, trustedHumans: new Set(), heads: new Set([HEAD]) }), true);
 });
 
 test("resolve-threads' re-read binds the thread's comment nodes against its pull request", async () => {

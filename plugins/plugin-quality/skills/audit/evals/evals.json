@@ -341,7 +341,7 @@
     {
       "id": 26,
       "name": "standards-repo-unresolved-states-fallback",
-      "prompt": "The audited repo declares no standards repository and no local melodic-software/standards checkout exists. Write the Standards alignment section.",
+      "prompt": "The audited repo's plugin-quality.yaml sets no standards_repo key, so no standards repository resolves. Write the Standards alignment section.",
       "expected_output": "States that no standards source resolved and that the fallback applies, and records unresolved (or none). It infers no standards convention, cites no standards path, and invents no finding from memory of what the standards repo might say.",
       "files": [],
       "expectations": [

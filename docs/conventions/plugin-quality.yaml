@@ -1,0 +1,2 @@
+# yaml-language-server: $schema=../../plugins/plugin-quality/schemas/plugin-quality.schema.json
+standards_repo: melodic-software/standards
