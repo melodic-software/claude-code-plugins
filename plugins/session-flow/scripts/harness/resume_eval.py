@@ -1689,26 +1689,52 @@ def run_jobs(
     finishes; start at most `max_new` writer runs. After the first usage-limit exclusion
     submit nothing more and return 4; after a seed that differs from an earlier run of its
     case and arm, return 5; with runs excluded for infrastructure, return 6 so the same
-    command re-runs them."""
+    command re-runs them. A run graded before a crash but missing from graded.jsonl has
+    its rows appended instead of re-run; a job that raises lets the running ones finish
+    and append, then its exception propagates."""
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-    def done_before(job) -> bool:
+    def graded_rows(job) -> list[dict] | None:
         path = out_dir / job[0]["name"] / job[1] / str(job[3]) / "graded.json"
         try:
             rows = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return False
-        return bool(rows) and not any(
-            row_cause(row) is Cause.INFRASTRUCTURE for row in rows
+            return None
+        if rows and not any(row_cause(row) is Cause.INFRASTRUCTURE for row in rows):
+            return rows
+        return None
+
+    def run_key(row: dict) -> tuple:
+        return row["case"], row["arm"], row["reader"], row["index"]
+
+    graded_file = out_dir / "graded.jsonl"
+    recorded = _read_rows(graded_file) if graded_file.is_file() else []
+    last_recorded = {run_key(row): row for row in recorded}
+
+    def unrecorded_in_jsonl(row: dict) -> bool:
+        last = last_recorded.get(run_key(row))
+        return last is None or row_cause(last) is Cause.INFRASTRUCTURE
+
+    pending, unrecorded = [], []
+    for job in jobs:
+        rows = graded_rows(job)
+        if rows is None:
+            pending.append(job)
+        else:
+            unrecorded += filter(unrecorded_in_jsonl, rows)
+    if unrecorded:
+        with graded_file.open("a", encoding="utf-8") as handle:
+            handle.write("".join(json.dumps(r, default=str) + "\n" for r in unrecorded))
+        print(
+            f"recorded {len(unrecorded)} rows graded before an interrupted batch",
+            flush=True,
         )
 
     seeds: dict[tuple, str] = {}
-    graded_file = out_dir / "graded.jsonl"
-    for row in _read_rows(graded_file) if graded_file.is_file() else []:
+    for row in recorded + unrecorded:
         if row.get("seed_hash"):
             seeds.setdefault((row["case"], row["arm"]), row["seed_hash"])
 
-    pending = [job for job in jobs if not done_before(job)]
     if skipped := len(jobs) - len(pending):
         print(
             f"skipping {skipped} writer runs already graded without error", flush=True
@@ -1720,18 +1746,26 @@ def run_jobs(
         )
         pending = pending[:max_new]
     limit_hit = mismatch = False
+    first_crash: BaseException | None = None
     infrastructure = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         running = set()
         while pending or running:
-            while pending and not (limit_hit or mismatch) and len(running) < workers:
+            while (
+                pending
+                and not (limit_hit or mismatch or first_crash)
+                and len(running) < workers
+            ):
                 running.add(pool.submit(runner, *pending.pop(0), out_dir))
             if not running:
                 break
             finished, running = wait(running, return_when=FIRST_COMPLETED)
             for future in finished:
+                if future.exception() is not None:
+                    first_crash = first_crash or future.exception()
+                    continue
                 rows = future.result()
-                with (out_dir / "graded.jsonl").open("a", encoding="utf-8") as handle:
+                with graded_file.open("a", encoding="utf-8") as handle:
                     handle.write(
                         "".join(json.dumps(r, default=str) + "\n" for r in rows)
                     )
@@ -1769,6 +1803,8 @@ def run_jobs(
                 infrastructure += any(
                     row_cause(row) is Cause.INFRASTRUCTURE for row in rows
                 )
+    if first_crash:
+        raise first_crash
     if limit_hit:
         print(
             f"usage limit hit: stopped with {len(pending)} writer runs not started; re-run the same command after the reset",
@@ -1852,13 +1888,17 @@ class Cell:
 @dataclass
 class Group:
     """One `<arm>.<reader>` of the input: `last` maps (case, index) to the run's last
-    row; `excluded` counts every infrastructure row, re-run ones included."""
+    row; `excluded` counts runs whose last row is an infrastructure exclusion, so a
+    run that errored and then re-ran clean is not counted."""
 
     label: str
     arm: str
     reader: str
     last: dict
-    excluded: int = 0
+
+    @property
+    def excluded(self) -> int:
+        return sum(row_cause(row) is Cause.INFRASTRUCTURE for row in self.last.values())
 
 
 def load_groups(paths: list[str]) -> dict[str, Group]:
@@ -1876,7 +1916,6 @@ def load_groups(paths: list[str]) -> dict[str, Group]:
             if row_cause(row) is Cause.BEHAVIOR and not row.get("nondelivery"):
                 row = {**row, "nondelivery": row["error"], "error": None}
             group.last[(row["case"], row["index"])] = row
-            group.excluded += row_cause(row) is Cause.INFRASTRUCTURE
     return groups
 
 

@@ -2,6 +2,9 @@
 
 import json
 import os
+import time
+
+import pytest
 
 # The suite builds throwaway git repositories. Under an inherited absolute
 # GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) git would write into the caller's
@@ -688,7 +691,61 @@ def test_run_jobs_starts_no_more_than_the_writer_run_budget(tmp_path):
     assert sorted(ran) == [2, 3]
 
 
-def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, capsys):
+def _graded_indexes(out_dir):
+    return [
+        (r["index"], r["error"])
+        for r in resume_eval._read_rows(out_dir / "graded.jsonl")
+    ]
+
+
+def test_a_resume_records_runs_graded_but_never_appended(tmp_path):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["codex"], i) for i in range(3)]
+    grade_without_appending = _job_runner({}, [])
+    grade_without_appending(case, "before", ["codex"], 0, tmp_path)
+    grade_without_appending(case, "before", ["codex"], 1, tmp_path)
+    errored_row = {
+        "case": "re-a",
+        "arm": "before",
+        "reader": "codex",
+        "index": 1,
+        "error": "reader: CLI exited 1",
+    }
+    (tmp_path / "graded.jsonl").write_text(
+        json.dumps(errored_row) + "\n", encoding="utf-8"
+    )
+    ran = []
+    assert resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 1) == 0
+    assert ran == [2]
+    resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 1)
+    assert ran == [2]
+    assert _graded_indexes(tmp_path) == [
+        (1, "reader: CLI exited 1"),
+        (0, None),
+        (1, None),
+        (2, None),
+    ]
+
+
+def test_a_job_that_raises_keeps_the_rows_of_jobs_still_running(tmp_path):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["codex"], i) for i in range(2)]
+    grade = _job_runner({}, [])
+
+    def runner(case, arm, readers, index, out_dir):
+        if index == 0:
+            raise RuntimeError("runner crashed")
+        time.sleep(0.2)
+        return grade(case, arm, readers, index, out_dir)
+
+    with pytest.raises(RuntimeError):
+        resume_eval.run_jobs(jobs, runner, tmp_path, 2)
+    assert _graded_indexes(tmp_path) == [(1, None)]
+
+
+def test_report_keeps_the_last_row_per_run_and_counts_runs_whose_last_row_is_excluded(
+    tmp_path, capsys
+):
     def row(index, error):
         return {
             "case": "re-a",
@@ -709,6 +766,8 @@ def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, 
                 row(0, None),
                 row(1, "reader: CLI exited 1"),
                 row(1, None),
+                row(2, None),
+                row(2, "reader: CLI exited 1"),
             )
         ),
         encoding="utf-8",
@@ -717,7 +776,7 @@ def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, 
         ["report", "--graded", str(graded), "--out", str(tmp_path / "rep")]
     )
     assert "before.codex: 2 kept, 1 excluded" in capsys.readouterr().out
-    assert code == 0
+    assert code == 1
 
 
 def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
