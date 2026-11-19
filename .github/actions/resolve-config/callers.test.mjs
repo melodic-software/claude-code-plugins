@@ -25,7 +25,7 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
@@ -2796,7 +2796,7 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
   assert.ok(modes.size > 0, "a launcher step names its permission-mode");
   for (const pin of pins) {
-    const { cliArgs } = await laneAtPin(pin);
+    const { cliArgs } = await contractAtPin(pin);
     for (const permissionMode of new Set([...modes, "default"]))
       for (const sandbox of [true, false])
         for (const effort of ["", "high"])
