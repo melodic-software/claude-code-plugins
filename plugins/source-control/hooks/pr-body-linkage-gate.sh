@@ -11,7 +11,8 @@
 #
 # WHAT IT ENFORCES — no negated closing reference anywhere in the body, judged
 # as the consuming repository's `.github/actions/pr-require-checks/check-contract`
-# composite step (melodic-software/ci-workflows) judges it, after stripping HTML comments
+# composite step (melodic-software/ci-workflows; `report-ci-status` runs it,
+# https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/pr-require-checks/report-ci-status/action.yml) judges it, after stripping HTML comments
 # (terminated ones, then an unterminated `<!--` swallowing the rest) and masking
 # Markdown code. The rest of that contract (a closing line and non-empty
 # `## Summary`, `## Fix`, `## Verification` and `## Related` sections) is
@@ -19,7 +20,9 @@
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
 # runs only when one of the repo's `.github/workflows/*.yml` / `*.yaml` files
-# `uses:` the contract composite step `pr-require-checks/check-contract`, in
+# `uses:` the contract composite step `pr-require-checks/check-contract`, or
+# the `pr-require-checks/report-ci-status` composite that runs it
+# (https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/pr-require-checks/report-ci-status/action.yml), in
 # either fleet form (the SHA-pinned
 # `melodic-software/ci-workflows/.github/actions/<path>@<sha>`, or
 # ci-workflows' own local `./.github/actions/<path>`). The first
@@ -148,8 +151,11 @@ GATE_FILE=""
 # Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
 # (`melodic-software/ci-workflows/.github/actions/<path>@<sha>`) and
 # ci-workflows' own local dogfood (`./.github/actions/<path>`), where <path> is
-# `pr-require-checks/check-contract`. The trailing class keeps a longer sibling
-# directory (`check-contract-foo`) out.
+# `pr-require-checks/check-contract` or the `pr-require-checks/report-ci-status`
+# composite that runs it
+# (https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/pr-require-checks/report-ci-status/action.yml).
+# The trailing class keeps a longer sibling directory
+# (`check-contract-foo`) out.
 gate_re='\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
   # An unmatched glob stays literal; skipped here rather than leaking
