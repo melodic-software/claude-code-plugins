@@ -306,7 +306,7 @@ reads in that field is at the pointer:
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
 GraphQL `lastEditedAt`, since REST carries no edit time: the
 [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) list no
-body-edit event, and `renamed` covers only the title) and reports it as `body_edit`;
+body-edit event, and `renamed` covers only the title, as of 2026-10-31) and reports it as `body_edit`;
 `after_admission` is `true` when that edit is later than the latest `at` of the named labels,
 because a body rewritten after the labeler read it is not the body the labeler admitted.
 `admitted` is `true` only when every named label is trusted and `after_admission` is `false`; a
