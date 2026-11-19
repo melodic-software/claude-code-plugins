@@ -1986,6 +1986,17 @@ test("#17354: a folder known only from a live session is found", () => {
   assert.deepEqual(recordedFiles(resetJson(w, { PP_STUB_AGENTS: agents })), [rootLocal(w.project)]);
 });
 
+test("#17354: a reset run inside a repository finds it with no pointer and no other source", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), []);
+  const here = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(here.status, 0, here.stderr);
+  assert.deepEqual(recordedFiles(JSON.parse(here.stdout)), [rootLocal(w.project)]);
+});
+
 test("#17354: a session start in a repository applied before reset shipped writes its pointer, so reset finds it after the worktree it was applied from is gone", () => {
   const w = world();
   gitInit(w);
@@ -2376,6 +2387,26 @@ test("#17354: a one-session file names every plugin of every marketplace any pro
   const plain = world();
   const untouched = JSON.parse(readFileSync(launchJson(plain, ["review"]).file, "utf8"));
   assert.equal("widget@vendor" in untouched.enabledPlugins, false, "a marketplace no profile governs stays unnamed");
+});
+
+test("#17354: every reset row in scenarios.md names a test that exists", () => {
+  const read = (rel) => readFileSync(join(HERE, "..", rel), "utf8");
+  const scenarios = read("reference/scenarios.md");
+  const section = scenarios.slice(scenarios.indexOf("## Reset the whole machine"), scenarios.indexOf("## Dotfiles"));
+  const rows = section.split("\n").filter((line) => /^\| \d+ \|/.test(line));
+  assert.ok(rows.length >= 8, `${rows.length} reset rows`);
+  const names = (rel) => new Set([...read(rel).matchAll(/\btest\((["'])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]));
+  const suites = { "scripts/profiles.test.mjs": names("scripts/profiles.test.mjs"), "lib/machine-records.test.mjs": names("lib/machine-records.test.mjs"), "hooks/plugin-profile.test.ts": names("hooks/plugin-profile.test.ts") };
+  for (const row of rows) {
+    const proof = row.split(" | ").at(-1);
+    const quoted = [...proof.matchAll(/(?:`([^`]+\.test\.[a-z]+)` )?"([^"]+)"/g)];
+    assert.ok(quoted.length, `row names no test: ${row.slice(0, 60)}`);
+    let suite = "scripts/profiles.test.mjs";
+    for (const [, file, name] of quoted) {
+      if (file) suite = file;
+      assert.ok(suites[suite]?.has(name), `${suite} has no test "${name}"`);
+    }
+  }
 });
 
 const NO_RECORD_SKIP = (file) => `Skipped ${file}: no record; reset removes its entries only after a yes for this folder.`;

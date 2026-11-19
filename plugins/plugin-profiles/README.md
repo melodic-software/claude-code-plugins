@@ -190,6 +190,37 @@ how many entries the file holds. A profile an earlier version applied to a workt
 subdirectory's own `.claude/settings.local.json` is named by `status` as partly in force;
 `clear --for worktree` puts that file back.
 
+### Reset everything
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" reset --dry-run
+node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" reset
+```
+
+`reset` clears every settings file on the machine that holds a record: each folder's, each
+worktree's or subdirectory's own file, and user settings for the initial profile. One preview
+names each file, what it goes back to, and each entry edited since the apply that it would
+overwrite; one yes, typed or `--yes`, restores them, and reset prints one line per file. A folder
+whose `.claude/settings.local.json` holds plugin or skill entries but no record is listed with
+those entries, which go only after a yes for that folder: a terminal asks, and
+`--remove-unrecorded <file>` answers for a caller that asked already. `--yes` alone leaves it.
+Inside a session, `/plugin-profile` and **Reset** do the same and reload the session; the profile
+skill's reset action previews and asks the same way.
+
+Reset finds a repository through a pointer file under `~/.claude/plugin-profiles-state/repositories/`,
+written at each apply there and each session start there, and through the folders Claude Code has
+opened, the one-session records, the live sessions and the folder it runs in. It cannot find a
+repository with no pointer whose every known path is gone, such as a removed worktree or a
+submodule known only from its superproject, until a session starts there; an apply run from a
+plain terminal in a folder Claude Code never opened; or another config folder or lane. A record
+whose folder is gone is kept, never deleted; when its repository moved, the preview names the
+file where it is now, which reset puts back only after a yes for it. Reset never writes a
+committed `.claude/settings.json`. Each file is replaced whole, so a reset stopped part way
+leaves each file restored or untouched and the next reset finishes the rest; that holds for a
+process stopped part way, not for a power loss. A one-session file names each installed plugin of
+every marketplace a profile governs, so a reset elsewhere never changes a running terminal's
+plugins; a later `/plugin` toggle of such a plugin reaches only sessions started after it.
+
 `inventory` lists the installed plugins, what they depend on, what each ships and its skills.
 `usage` lists how often each skill and plugin was used on this machine, most used first, from the
 counts Claude Code keeps, or says that no usage history was found.

@@ -1124,7 +1124,7 @@ function machineFiles(where, env) {
   const pointerHomes = readPointers(where.configDir);
   const named = { projects: knownFolders(usageFile({ env, home: where.home })), sessions: sessionFolders(dataDirs), live: liveFolders(env) };
   const roots = pointerHomes.map((home) => dirname(home)).filter((dir) => basename(dir) === ".git").map((dir) => dirname(dir));
-  const folders = [...new Set([...named.projects, ...named.sessions, ...named.live, ...roots])].filter((dir) => existsSync(dir));
+  const folders = [...new Set([where.projectDir, ...named.projects, ...named.sessions, ...named.live, ...roots])].filter((dir) => existsSync(dir));
   const homes = [stateHome(where), ...dataDirs, ...pointerHomes, ...folders.map((dir) => repositoryHome(dir, { home: where.home })).filter(Boolean)];
   const knownFiles = folders.flatMap((dir) => {
     try {
@@ -1312,7 +1312,7 @@ async function reset(opts, where, env, io) {
     ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the reset; new sessions start from what their settings name.`
     : null;
   const lines = [
-    `Reset looked for profile records in user settings, ${counts.dataDirs} data folders, ${counts.pointers} repository pointers, ${counts.projects} folders Claude Code has opened, ${counts.sessions} one-session records and ${counts.live} live sessions.`,
+    `Reset looked for profile records in user settings, this folder, ${counts.dataDirs} data folders, ${counts.pointers} repository pointers, ${counts.projects} folders Claude Code has opened, ${counts.sessions} one-session records and ${counts.live} live sessions.`,
     rows.length ? `It found ${rows.length} settings ${rows.length === 1 ? "file" : "files"}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
     ...rows.flatMap((r) => r.lines),
     ...(keeps ? [keeps] : []),
