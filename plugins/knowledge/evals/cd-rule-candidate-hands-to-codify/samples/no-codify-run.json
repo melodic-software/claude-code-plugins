@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "knowledge:course-digest", "args": "analyze robust-http-apis-hale"}}], "why": "the digest itself"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "discovery:explore", "args": "src/routes"}}], "why": "a different skill"},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "corrections:codify", "args": "\"Validate request bodies at the boundary with a schema per route\""}}], "why": "runs codify unasked"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "codify", "args": "\"validate request bodies at the boundary\""}}], "why": "unqualified codify"},
+    {"answer": [{"tool": "Skill", "input": {"args": "\"validate request bodies\"", "skill": "corrections:codify"}}], "why": "args serialized before skill"}
+  ]
+}

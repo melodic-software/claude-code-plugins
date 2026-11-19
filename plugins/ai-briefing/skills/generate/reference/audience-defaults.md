@@ -12,7 +12,7 @@ The default audience is a **software engineering team** thinking about **pragmat
 AI in everyday development, engineering, and life**, not pure research breakthroughs, not
 speculative AGI debates. When ranking HIGH/MED/LOW, weight items by:
 
-- **Will an engineer use this next week?** (Claude Code release, Cursor SDK, Copilot feature) → HIGH bias
+- **Will an engineer use this next week?** → HIGH bias
 - **Does it change cost/access economics?** (model pricing, compute deals, chip launches that drop $/token) → HIGH bias
 - **Does it shift the legal/regulatory landscape with industry-wide impact?** (governance trials, copyright suits, AI-Act enforcement) → HIGH bias
 - **Is it real-world AI deployment at scale?** (robotaxi launches, humanoid production, AI-in-cars) → HIGH for production, MED for prototypes
