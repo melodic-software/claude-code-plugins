@@ -23,6 +23,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { isPrVerifyCaptureTitle, prVerifyCaptureTitle } from "../lib/run-title.mjs";
 
 export const CAPTURE_PATH = ".github/workflows/pr-verify-capture.yml";
 // A run or artifact id, and a run conclusion (GitHub's lowercase enum:
@@ -70,14 +71,14 @@ export const MAX_PAGES = 10;
 // The artifact name, which never starts like a verdict's (`pr-verify-`).
 export const artifactName = (pr, headSha) => `pr-capture-${pr}-${headSha}`;
 // The capture workflow's run-name, which ties its run to the upstream run.
-export const runTitle = (upstreamRunId, headSha) => `pr-verify-capture ${upstreamRunId} ${headSha}`;
+export const runTitle = prVerifyCaptureTitle;
 
 const isCaptureRun = (run, { repository, upstreamRunId, headSha }) =>
   run?.path === CAPTURE_PATH &&
   run.event === "workflow_run" &&
   run.head_branch === "main" &&
   run.repository?.full_name === repository &&
-  run.display_title === runTitle(upstreamRunId, headSha) &&
+  isPrVerifyCaptureTitle(run.display_title, upstreamRunId, headSha) &&
   RUN_ID.test(String(run.id));
 
 // The highest-id entry of a listed array that passes keep, if any.

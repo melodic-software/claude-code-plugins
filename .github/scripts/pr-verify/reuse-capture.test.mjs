@@ -62,6 +62,11 @@ test("an earlier green capture run of the same head is found by its artifact", a
   assert.deepEqual(calls, [`GET /repos/${REPO}/actions/artifacts?name=${NAME}&per_page=20`, `GET /repos/${REPO}/actions/runs/900`]);
 });
 
+test("a capture run under the Title Case run-name is found as under the old one", async () => {
+  const { github } = fake({ runs: { 900: run({ display_title: `PR Verify Capture 777 ${HEAD}` }) } });
+  assert.deepEqual(await findEarlier(github, { repository: REPO, pr: PR, headSha: HEAD, runId: "950" }), { runId: "900", artifactId: "5001" });
+});
+
 test("an artifact of the capture's name from anything but a green capture run of this head on main is passed over", async () => {
   for (const [why, record] of [
     ["another workflow", run({ path: ".github/workflows/pr-other.yml" })],
@@ -70,6 +75,10 @@ test("an artifact of the capture's name from anything but a green capture run of
     ["another repository", run({ repository: { full_name: "someone/fork" } })],
     ["a red run", run({ conclusion: "failure" })],
     ["a run of another head", run({ display_title: `pr-verify-capture 777 ${OTHER_HEAD}` })],
+    ["a Title Case run of another head", run({ display_title: `PR Verify Capture 777 ${OTHER_HEAD}` })],
+    ["another workflow's Title Case prefix", run({ display_title: `PR Unblock 777 ${HEAD}` })],
+    ["the wrong case", run({ display_title: `pr verify capture 777 ${HEAD}` })],
+    ["no upstream run id", run({ display_title: `PR Verify Capture ${HEAD}` })],
   ]) {
     const { github } = fake({ runs: { 900: record } });
     assert.equal(await findEarlier(github, { repository: REPO, pr: PR, headSha: HEAD, runId: "950" }), undefined, why);
