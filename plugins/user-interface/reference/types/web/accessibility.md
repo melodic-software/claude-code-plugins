@@ -12,8 +12,8 @@ thumb, a keyboard, or a screen reader and never touch a mouse. UI that only work
 pointer and perfect vision is broken however polished it looks. The rules below are the baseline,
 so do not defer them.
 
-The examples are HTML, CSS, JavaScript and React (JSX). In another framework, keep the behavior and
-write it in that framework's own idiom.
+The examples show the behavior, not code to copy: write each rule in the project's own framework
+and its idiom.
 
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it, and what that finding looks like.
@@ -83,7 +83,7 @@ The ring's color is the `--focus-ring` token, and the contrast it must keep is t
 concern's rule. How the ring is drawn across components (width, offset, a `box-shadow` ring,
 forced colors) is `/user-interface:write-css` recipe `one-focus-ring-with-focus-visible`.
 
-**Hunt for:** `outline: none`, `outline: 0`, `outline-none` (Tailwind) without a sibling
+**Hunt for:** `outline: none`, `outline: 0`, or a utility class that sets either, without a sibling
 `focus-visible` rule. A global reset is the usual culprit.
 
 A focus ring clipped by `overflow: hidden` on the parent is the same failure. Move the ring inside
@@ -181,19 +181,10 @@ nav drawers; accordions that collapse with `height: 0`.
 }
 ```
 
-```jsx
-<aside inert={!isOpen}>…</aside>
-```
-
-Check the project's React version against the release the pointer names before passing `inert` as a
-boolean. On a React older than that, pass `inert=""` while the panel is closed and `undefined`
-while it is open, so the attribute is present only when it should be.
-
-- **Pointer**: React changelog, "19.0.0 (December 5, 2024)", React DOM, "Add support for `inert`"
-  (the release from which React takes `inert` as a boolean prop),
-  <https://github.com/facebook/react/blob/main/CHANGELOG.md#1900-december-5-2024>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the project's React major version changes.
+Or set the `inert` attribute on the panel while it is closed and remove it while it is open, so the
+attribute is present only when it should be. Whether a framework renders a boolean `inert` value as
+that attribute depends on the framework and its version: check its own documentation for the
+version the project runs before passing one.
 
 `display: none` also works when the panel doesn't animate. To keep an exit animation, delay the
 flip: `transition: visibility 0s 200ms` on close.
@@ -249,8 +240,8 @@ element left out of view inside a scroller or clipped container.
 Screen readers and Tab follow the DOM. `order: -1`, `flex-direction: row-reverse`, or absolute
 positioning that reorders visually creates a tab sequence that jumps around the screen.
 
-**Hunt for:** `order:`, `row-reverse`, `column-reverse`, Tailwind `order-*` on containers with
-interactive children; positive `tabindex` values (always wrong).
+**Hunt for:** `order:`, `row-reverse`, `column-reverse`, or a utility class that sets them, on
+containers with interactive children; positive `tabindex` values (always wrong).
 
 Fix: reorder the markup, not the CSS. Section 16 checks a whole page's path.
 

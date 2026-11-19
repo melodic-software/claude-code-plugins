@@ -115,6 +115,8 @@ at it, in their own pull requests.
 | `/docs-hygiene:compress` | Same; settings read per repository |
 | `/docs-hygiene:extract-ssot` | Same; a fact repeated across repositories stays in its owner and the others point at it |
 | `/docs-hygiene:rename-references` | Same; one rename pair swept in each repository |
+| `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
+| `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
 
 ## Plugin-shipped copies
 
