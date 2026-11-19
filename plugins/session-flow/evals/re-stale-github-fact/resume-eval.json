@@ -18,6 +18,7 @@
       "config/routing.toml": "[routing]\nhuman_threshold = 0.7\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "review-routing",
       "lane": "review-routing",
       "hops": 5,

@@ -22,6 +22,7 @@
       "scripts/legacy/rotate_logs.sh": "#!/usr/bin/env bash\nset -euo pipefail\nfind logs -name '*.log' -mtime +7 -delete\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "drain-exit",
       "lane": "drain-exit",
       "hops": 2,

@@ -19,6 +19,7 @@
       "lane/drain.py": "import tomllib\n\n\ndef settings(path='config/drain.toml'):\n    with open(path, 'rb') as fh:\n        return tomllib.load(fh)['drain']\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "queue-drain",
       "lane": "queue-drain",
       "hops": 18,

@@ -17,6 +17,7 @@
       "CHANGELOG.md": "# Changelog\n\n## 2.13.0\n\n- Drain batch cap.\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "release-train",
       "lane": "release-train",
       "hops": 42,

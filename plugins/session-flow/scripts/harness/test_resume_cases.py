@@ -453,6 +453,7 @@ def _stub_copy(root: Path, body: str) -> Path:
 
 def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
+    spec["seed"]["predecessor"].pop("shape", None)
     three = _stub_copy(tmp_path / "three", "HANDOFF_SHAPE = 3\n")
     assert resume_cases.seed_shape(spec, three) == 3
     spec["seed"]["predecessor"]["shape"] = 2
@@ -461,6 +462,7 @@ def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path)
 
 def test_shape_4_is_an_unsupported_seed_shape(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
+    spec["seed"]["predecessor"].pop("shape", None)
     four = _stub_copy(tmp_path / "four", "X = 1\nHANDOFF_SHAPE = 4\n")
     repo = tmp_path / "repo"
     with pytest.raises(ValueError, match="unsupported seed shape 4"):

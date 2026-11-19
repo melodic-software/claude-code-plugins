@@ -17,6 +17,7 @@
       "lane/frontier.py": "def key(pr):\n    return (pr['number'], pr['headRefOid'])\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "lane-ops",
       "lane": "lane-ops",
       "hops": 56,
