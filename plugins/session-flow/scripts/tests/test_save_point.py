@@ -59,7 +59,7 @@ FIXTURE_MANIFEST = (
     "non-uuid/handoffs/20260901T100000Z-handoff-widget.md",
     "ascii-rails/handoffs/20260901T100000Z-handoff-widget.md",
     "fill-leftover/handoffs/20260901T100000Z-handoff-widget.md",
-    "shape-4/handoffs/20260901T100000Z-handoff-widget.md",
+    "shape-5/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260902T100000Z-handoff-widget.md",
     "dropped-entry/handoffs/20260901T100000Z-handoff-widget.md",
@@ -186,7 +186,7 @@ def test_validate_shape1_seven_section_legacy_warns_and_exits_zero(tmp_path):
 
 
 def test_validate_newer_shape_hard_fails_with_exit_3(tmp_path):
-    handoffs = materialize(tmp_path, "shape-4")
+    handoffs = materialize(tmp_path, "shape-5")
     result = run("validate", str(handoffs / HOP1))
     assert result.returncode == 3, out(result)
     assert "read it, do not rewrite it" in out(result)
@@ -1942,9 +1942,9 @@ def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
 
 
 def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path):
-    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix,
-    spacing and case aside) is a duplicate: validate warns and the oldest tag
-    stays the only copy once the writer drops it."""
+    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix and
+    its settle clause, spacing and case aside) is a duplicate: validate warns and
+    the oldest tag stays the only copy once the writer drops it."""
     target = new_hop2_skeleton(tmp_path)
     carried = "- [h1] The thing must stay green."
     text = target.read_text(encoding="utf-8")
@@ -1956,6 +1956,7 @@ def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path
     )
     copy = (
         "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+        f" (settle: save_point.py validate {HOP1})"
     )
     payload = required_slots(text)
     target.write_text(text.replace(slot, copy), encoding="utf-8", newline="\n")
@@ -2361,6 +2362,7 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
 @pytest.mark.parametrize(
     ("line", "expected", "needle"),
     [
+        ("handoff_shape: 5\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 4\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 1\n", 2, "handoff_shape 1"),
         ("", 2, "no handoff_shape key"),
@@ -4459,7 +4461,10 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
     assert made.returncode == 0, err(made)
     hop2 = handoffs / HOP2
     carried = hop2.read_text(encoding="utf-8")
-    tagged = "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green.\n"
+    tagged = (
+        "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green."
+        f" (settle: save_point.py validate {HOP1})\n"
+    )
     assert tagged in carried
     hop2.write_text(
         model_fill(carried).replace(tagged, "- [h2] A different rule.\n"),

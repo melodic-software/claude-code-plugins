@@ -114,6 +114,10 @@ class ShapeSpec:
         return tuple(s.name for s in self.sections if s.carried)
 
     @property
+    def movable(self) -> tuple[str, ...]:
+        return tuple(s.name for s in self.sections if s.movable)
+
+    @property
     def retired_entry_sections(self) -> dict[str, str]:
         """Sections whose id-less entries leave only when listed under their
         retire heading, to that heading."""
@@ -191,7 +195,57 @@ SHAPES: dict[int, ShapeSpec] = {
         cap_bytes=24_600,
         legacy_omits=("Suggested skills",),
     ),
+    4: ShapeSpec(
+        4,
+        (
+            SectionSpec(
+                "Original goal", binding=True, retire_heading="Retired goal amendments"
+            ),
+            *(
+                SectionSpec(name, binding=True)
+                for name in (
+                    "Resumption brief",
+                    "Remaining actions, in order",
+                    "Completion criteria",
+                )
+            ),
+            SectionSpec(
+                "Open questions",
+                binding=True,
+                id_prefix="Q",
+                retire_heading="Retired open questions",
+            ),
+            SectionSpec("Current rules", binding=True, **_RULES),
+            SectionSpec("Standing preferences", binding=True, **_RULES),
+            SectionSpec(
+                "Decisions in force",
+                binding=True,
+                id_prefix="D",
+                retire_heading="Retired decisions",
+            ),
+            *(
+                SectionSpec(name, binding=True)
+                for name in (
+                    "Pending commands",
+                    "Environment to re-establish",
+                    "This session",
+                    "Review before you continue",
+                )
+            ),
+            SectionSpec(
+                "Direction changes",
+                movable=True,
+                retire_heading="Retired direction changes",
+            ),
+            SectionSpec("Observations", movable=True),
+            SectionSpec("Suggested skills", movable=True),
+            SectionSpec("Prior sessions", carried=True),
+            SectionSpec("Resume prompt", carried=True),
+        ),
+        cap_bytes=24_600,
+    ),
 }
+HOP_FILE_SHAPES = tuple(shape for shape in SHAPES if shape >= 3)
 
 
 def fm_value(raw: str) -> str:
@@ -359,6 +413,46 @@ class MovePointer:
         m = MOVE_POINTER_RE.search(text)
         return cls(m["file"], m["heading"].strip()) if m else None
 
+    def moves(self, name: str) -> bool:
+        """True when this pointer stands for section `name`: its heading is the
+        name, or the name with the moving hop's tag (`moved_heading`)."""
+        return self.heading == name or bool(
+            re.fullmatch(rf"{re.escape(name)} \(h\d+\)", self.heading)
+        )
+
+    def target(self, base: Path) -> list[str] | None:
+        """The pointed section's body, the file read relative to `base` (the
+        handoffs directory); None when the file or the heading is not there."""
+        try:
+            text = (base / self.file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        lines = text.splitlines()
+        return next(
+            (
+                lines[at + 1 : end]
+                for title, at, end in section_spans(lines, 0)
+                if title == self.heading
+            ),
+            None,
+        )
+
+
+def moved_heading(name: str, hop: int) -> str:
+    """The heading a hop's own moved section takes in its hop file, which holds
+    the predecessor's copy of that section under the plain name."""
+    return f"{name} (h{hop})"
+
+
+def follow(body: list[str], name: str, base: Path) -> list[str] | None:
+    """A section body, or, when the body is only a move pointer for `name`, the
+    pointed body (None when unreachable)."""
+    content = [line for line in body if line.strip()]
+    pointer = MovePointer.parse(content[0]) if len(content) == 1 else None
+    if pointer is None or not pointer.moves(name):
+        return body
+    return pointer.target(base)
+
 
 @dataclass(frozen=True)
 class Link:
@@ -372,33 +466,21 @@ class Link:
     frontmatter: dict[str, str] = field(default_factory=dict)
     sections: tuple[tuple[str, tuple[str, ...]], ...] = ()
     hop_files: tuple[Path, ...] = ()
+    chain: tuple[str, ...] = ()
 
     def section(self, name: str) -> list[str] | None:
         """The section's body lines; a body that is only a move pointer to this
         heading is read from the hop file it names, None when that file or
         heading is not there."""
         body = next((list(b) for title, b in self.sections if title == name), None)
-        if body is None:
-            return None
-        content = [line for line in body if line.strip()]
-        pointer = MovePointer.parse(content[0]) if len(content) == 1 else None
-        if pointer is None or pointer.heading != name:
-            return body
-        try:
-            text = (self.path.parent / pointer.file).read_text(
-                encoding="utf-8", errors="replace"
-            )
-        except OSError:
-            return None
-        lines = text.splitlines()
-        return next(
-            (
-                lines[at + 1 : end]
-                for title, at, end in section_spans(lines, 0)
-                if title == name
-            ),
-            None,
-        )
+        return None if body is None else follow(body, name, self.path.parent)
+
+    @property
+    def hop(self) -> int | None:
+        raw = self.frontmatter.get("hop", "")
+        if raw.isdigit():
+            return int(raw)
+        return len(self.chain) if self.chain else None
 
 
 @dataclass(frozen=True)
@@ -468,7 +550,8 @@ def _resolve(cursor: Path, previous: str, strict: bool) -> Path | None:
     return cursor.parent / Path(previous).name
 
 
-def _link(path: Path) -> Link:
+def read_link(path: Path) -> Link:
+    """One handoff file as a `Link`, its predecessor not followed."""
     if not path.is_file():
         return Link(path, "missing")
     try:
@@ -499,6 +582,7 @@ def _link(path: Path) -> Link:
         fm.values,
         sections,
         hops,
+        tuple(fm.chain),
     )
 
 
@@ -518,7 +602,7 @@ def read_chain(path: Path, *, strict: bool = False, limit: int = 1000) -> Chain:
         if len(links) >= limit:
             return Chain(tuple(links), f"longer than {limit} entries")
         seen.add(resolved)
-        link = _link(cursor)
+        link = read_link(cursor)
         links.append(link)
         previous = link.frontmatter.get("previous_handoff")
         if link.status in ("missing", "unreadable") or not previous:
@@ -527,3 +611,153 @@ def read_chain(path: Path, *, strict: bool = False, limit: int = 1000) -> Chain:
         if cursor is None:
             break
     return Chain(tuple(links))
+
+
+JOURNEY_SECTIONS = ("Direction changes", "This session", "Observations")
+HOP_FILE_RE = re.compile(r"^h(\d+)-[0-9a-f]{8}\.md$")
+
+
+@dataclass(frozen=True)
+class Hop:
+    """One session of a chain as retro reads it: hop number (None for a shape-1
+    file), session id, hot-file name (empty when only its hop file is left),
+    the file its sections were read from (its hot file, else the next hop's
+    file holding their copy) and those sections, whole moves followed."""
+
+    hop: int | None
+    session_id: str
+    file: str
+    source: Path
+    sections: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Journey:
+    """Every hop of a chain on disk, newest first; `stop` as `Chain.stop`."""
+
+    hops: tuple[Hop, ...]
+    stop: str | None = None
+
+    @property
+    def session_ids(self) -> list[str]:
+        ids: list[str] = []
+        for hop in self.hops:
+            if hop.session_id not in ("", "unknown", *ids):
+                ids.append(hop.session_id)
+        return ids
+
+
+def _trimmed(lines: list[str]) -> list[str]:
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return lines[start:end]
+
+
+def _journey_sections(bodies: dict[str, list[str]], base: Path) -> dict[str, list[str]]:
+    found: dict[str, list[str]] = {}
+    for name in JOURNEY_SECTIONS:
+        body = bodies.get(name)
+        got = None if body is None else follow(body, name, base)
+        if got is not None:
+            found[name] = _trimmed(got)
+    return found
+
+
+def _row_sessions(body: list[str] | None) -> dict[str, str]:
+    """Hot-file name to session id, from a Prior sessions table."""
+    found: dict[str, str] = {}
+    for line in body or []:
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.lstrip().startswith("|") and len(cells) == 5 and cells[0] != "date":
+            if HANDOFF_NAME_RE.match(cells[4]):
+                found.setdefault(cells[4], cells[1])
+    return found
+
+
+def journey(path: Path, limit: int = 1000) -> Journey:
+    """Every hop of `path`'s chain still on disk: the hot files `read_chain`
+    reaches, then, from the chain's hop files, each hot file that is gone
+    (read from the copy the next hop's file holds) and any older hot file a
+    hop file names that the walk did not reach."""
+    handoffs = path.parent
+    chain = read_chain(path, limit=limit)
+    found: dict[str, Hop] = {}
+    rows: dict[str, str] = {}
+
+    def add(links: tuple[Link, ...]) -> None:
+        for link in links:
+            if link.status != "ok" or link.path.name in found:
+                continue
+            bodies = {title: list(body) for title, body in link.sections}
+            rows.update(_row_sessions(bodies.get("Prior sessions")))
+            found[link.path.name] = Hop(
+                link.hop,
+                link.frontmatter.get("session_id", ""),
+                link.path.name,
+                link.path,
+                _journey_sections(bodies, handoffs),
+            )
+
+    add(chain.links)
+    root = next(
+        (
+            r
+            for link in chain.links
+            if HANDOFF_NAME_RE.match(r := link.frontmatter.get("chain_root", ""))
+        ),
+        "",
+    )
+    archive = handoffs / ARCHIVE_DIR / _stem(root)
+    hop_files = sorted(
+        (
+            (int(m[1]), p)
+            for p in (archive.glob("h*.md") if root else ())
+            if (m := HOP_FILE_RE.match(p.name)) and p.is_file()
+        ),
+        reverse=True,
+    )
+    hop_sids: dict[int, tuple[str, Path]] = {}
+    for k, hop_path in hop_files:
+        try:
+            lines = hop_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        fm = read_frontmatter(lines)
+        hop_sids.setdefault(k, (fm.values.get("session_id", ""), hop_path))
+        bodies = {
+            title: lines[at + 1 : end]
+            for title, at, end in section_spans(lines, fm.body_start)
+        }
+        rows.update(_row_sessions(bodies.get("Prior sessions")))
+        moved = fm.values.get("moved_from", "")
+        if not HANDOFF_NAME_RE.match(moved) or moved in found:
+            continue
+        if (handoffs / moved).is_file():
+            add(read_chain(handoffs / moved, limit=limit).links)
+        else:
+            found[moved] = Hop(
+                k - 1, "", moved, hop_path, _journey_sections(bodies, handoffs)
+            )
+    hops = [
+        hop
+        if hop.session_id
+        else Hop(
+            hop.hop,
+            rows.get(hop.file) or hop_sids.get(hop.hop or 0, ("", None))[0],
+            hop.file,
+            hop.source,
+            hop.sections,
+        )
+        for hop in found.values()
+    ]
+    numbered = {hop.hop for hop in hops}
+    hops += [
+        Hop(k, sid, "", source)
+        for k, (sid, source) in hop_sids.items()
+        if k not in numbered
+    ]
+    hops.sort(key=lambda hop: (hop.hop is None, -(hop.hop or 0)))
+    return Journey(tuple(hops), chain.stop)

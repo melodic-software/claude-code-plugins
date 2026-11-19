@@ -21,6 +21,8 @@ Usage:
     save_point.py amend <file> --json <json> [--now <iso>]
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
+    save_point.py read <file> --section <name>
+    save_point.py chain <file> [--json]
     save_point.py memory-root
 
 Exit codes:
@@ -29,12 +31,17 @@ Exit codes:
                 self-ignore `.gitignore` (`*`), no --memory-dir outside a git
                 work tree with no plugin data dir to fall back to (neither
                 $CLAUDE_PLUGIN_DATA nor an installed cache layout), no session UUID / bridge-shaped
-                id, predecessor unreadable or outside the handoffs dir, target
-                already exists, a shape-3 predecessor continued as shape 2, or
+                id, predecessor outside the handoffs dir or not a handoff file,
+                target already exists, a shape-3 or shape-4 predecessor
+                continued as an older shape, or
                 a hop file owned by another session, or a same-session hop
                 file holding `## Amended …` or `## Retired …` content (run
                 `amend` instead)
               2 usage (neither or both of --previous / --no-previous, bad slug)
+              A --previous file that is missing or unreadable is no refusal:
+              the skeleton names it as previous_handoff with previous_status
+              missing|unreadable, one WARN line on stderr names it, and fill
+              and emit proceed
     fill      0 every slot replaced from the JSON, file written once, nothing
                 printed
               1 refused: a required slot absent from the JSON, a key naming no
@@ -46,8 +53,8 @@ Exit codes:
                 shape 2 or 3 (only skeletons `new` writes are filled), slots file
                 missing or unreadable or not a JSON object, a non-string or
                 non-UTF-8-encodable value (names the key), or a failed write
-              3 `handoff_shape` newer than `fill` knows: read it, do not
-                rewrite it
+              3 a `handoff_shape` past the shapes `fill` writes (shape 4
+                included): read it, do not rewrite it
     amend     0 written; prints the validate verdict, then the emit output (a
                 size FAIL never blocks the write)
               1 refused, both files untouched: an unfilled skeleton, a no-op, a
@@ -58,7 +65,9 @@ Exit codes:
               2 usage, unreadable, not a shape-3 handoff, a malformed JSON
                 object, or a failed write
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped;
-                a shape-3 core alone over the byte cap: label UNVALIDATED)
+                a shape-3 core alone over the byte cap: label UNVALIDATED; a
+                shape-4 file never passes UNVALIDATED: binding content over the
+                cap FAILs naming the section)
               1 validation failure
               2 usage / unreadable / not a handoff file
               3 `handoff_shape` newer than this validator knows: read it, do
@@ -70,6 +79,17 @@ Exit codes:
               1 section absent (shape 1 says so) or the file still carries a
                 `<!-- FILL` slot (unfinished skeleton, never emitted)
               2 usage / unreadable
+    read      0 printed the section body; a body that is only a move pointer
+                is read from the hop file it names
+              1 no such section, or its move pointer names no file or heading
+                on disk
+              2 usage / unreadable
+              3 `handoff_shape` newer than this script knows
+    chain     0 printed each hot file the walk reaches and each hop's
+                sections (hot file, else the next hop's file), and the
+                session ids; a missing link is a link, not a failure
+              2 usage / unreadable
+              3 `handoff_shape` newer than this script knows
     memory-root
               0 printed the absolute forward-slash memory root `new` uses
                 without --memory-dir (`.work` in a git work tree, else the
@@ -108,14 +128,19 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     ARCHIVE_DIR,
     BULLET_RE,
     HANDOFF_NAME_RE,
+    HOP_FILE_SHAPES,
     RETIRED_PREFIX,
     SHAPES,
     IdSpec,
+    MovePointer,
     entry_text,
     fm_value,
+    follow,
     hop_file_path,
     id_of,
+    journey,
     read_chain,
+    read_link,
     read_frontmatter,
     retired_in,
     retired_listings,
@@ -123,12 +148,14 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
 )
 
 HANDOFF_SHAPE = 3
+NEWEST_SHAPE = 4
 # Shapes `new --shape` writes and `fill` fills; shape 2 stays writable so a
 # shape-2 chain can still be generated (eval predecessors, size projections).
 WRITABLE_SHAPES = (2, 3)
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
+UNVERIFIED_SETTLE_FROM = 3
 
 S3 = SHAPES[3]
 RULES = S3.id_spec("R")
@@ -172,6 +199,7 @@ FRONTMATTER_KEYS_3 = (
     "session_id",
     "transcript",
     "previous_handoff",
+    "previous_status",
     "chain_root",
     "hop",
     "archive",
@@ -316,6 +344,9 @@ TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
 # As of 2026-10-11. Recheck when that "Size" entry changes its pointer or threshold.
 MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
+UNVERIFIED_RE = re.compile(r"\bUNVERIFIED\b")
+SETTLE_RE = re.compile(r"\(settle: [^\n]*\S[^\n]*\)")
+TOOL_SETTLE_RE = re.compile(r"\s*\(settle: [^()\n]+\)")
 FILL_MARK = "<!-- FILL"
 # The slot grammar `_fill()` writes, and the only parse of it. Non-greedy on the
 # instruction: the `## This session` line carries two slots, and a greedy group
@@ -353,6 +384,7 @@ THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
 RESCAN_PREFIX = "Re-scan: "
 NEXT_CLOSED = "Next: none (closed)"
+PREVIOUS_GONE = ("missing", "unreadable")
 NEXT_MAX = 5
 OPENING_ASK_CAP = 15
 FIRST_HOP_PRIOR = "None (first hop)."
@@ -617,7 +649,8 @@ class Entry:
     @property
     def normalized(self) -> str:
         text = TAG_RE.sub("", self.text)
-        text = UNVERIFIED_PRED_RE.sub("", text)
+        if UNVERIFIED_PRED_RE.match(text):
+            text = TOOL_SETTLE_RE.sub("", UNVERIFIED_PRED_RE.sub("", text), count=1)
         return " ".join(text.split())
 
 
@@ -674,12 +707,14 @@ class CheckKind(Enum):
     CARRY = "carry"
     POINTER = "pointer"
     ID_REUSE = "id_reuse"
+    UNVERIFIED = "unverified"
     MALFORMED = "malformed"
     TRANSCRIPT = "transcript"
+    OVER_CAP_BINDING = "over_cap_binding"
 
 
 CONTENT_KINDS = frozenset({CheckKind.ORDER, CheckKind.MALFORMED})
-SIZE_KINDS = frozenset({CheckKind.SIZE})
+SIZE_KINDS = frozenset({CheckKind.SIZE, CheckKind.OVER_CAP_BINDING})
 
 
 @dataclass(frozen=True)
@@ -1065,9 +1100,9 @@ def validate_doc(
     if shape < 1:
         f.fail(f"handoff_shape {shape} is not a shape: shapes are integers from 1 up")
         return f, 1
-    if shape > HANDOFF_SHAPE:
+    if shape > NEWEST_SHAPE:
         f.fail(
-            f"handoff_shape {shape} is newer than this validator knows ({HANDOFF_SHAPE}): read it, do not rewrite it"
+            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it"
         )
         return f, 3
 
@@ -1087,6 +1122,12 @@ def validate_doc(
         )
 
     previous = fm.get("previous_handoff")
+    gone = fm.get("previous_status")
+    if gone is not None and (previous is None or gone not in PREVIOUS_GONE):
+        f.fail(
+            f"frontmatter: previous_status is {' or '.join(PREVIOUS_GONE)} beside a previous_handoff (got {gone!r})"
+        )
+        gone = None
     pred: Doc | None = None
     if previous is not None:
         if not HANDOFF_NAME_RE.match(previous):
@@ -1105,6 +1146,10 @@ def validate_doc(
                 f.fail(
                     f"frontmatter: previous_handoff {previous!r} resolves outside this file's directory ({here}); a predecessor lives beside its successor"
                 )
+            elif gone is not None:
+                f.warn(
+                    f"frontmatter: predecessor {previous!r} was {gone} when this file was written (previous_status), so the checks against it are skipped; the chain is broken at that link"
+                )
             elif not pred_path.is_file():
                 f.fail(
                     f"frontmatter: previous_handoff {previous!r} not found beside this file"
@@ -1114,10 +1159,12 @@ def validate_doc(
                     pred = parse_doc(pred_path)
                 except (OSError, UnicodeDecodeError) as exc:
                     f.fail(f"predecessor {previous!r} unreadable: {exc}")
-    if shape == 3:
+    if shape in HOP_FILE_SHAPES:
         _validate_shape3(doc, f, previous, pred, projects_root, hop_text)
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
+    if (_fm_int(doc, "checks") or 0) >= UNVERIFIED_SETTLE_FROM:
+        _check_unverified(doc, f, SHAPES[shape].carried)
 
     for i, line in enumerate(doc.lines, 1):
         if FILL_MARK in line:
@@ -1308,6 +1355,24 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
             f.fail(f"{title}: empty; write 'None.' plus a reason")
 
 
+def _check_unverified(doc: Doc, f: Findings, carried: tuple[str, ...]) -> None:
+    """Every UNVERIFIED mark in a section the session wrote is followed on its
+    line by the command or source that settles it."""
+    for title, start, end in doc.sections:
+        if title in carried:
+            continue
+        for i in range(start + 1, end):
+            line = doc.lines[i]
+            if any(
+                not SETTLE_RE.search(line, m.end())
+                for m in UNVERIFIED_RE.finditer(line)
+            ):
+                f.fail(
+                    f"{title}: line {i + 1} marks a claim UNVERIFIED without naming what settles it; end that line with '(settle: <command or URL>)': {line.strip()[:60]!r}",
+                    CheckKind.UNVERIFIED,
+                )
+
+
 def _downgrading_fail(findings: Findings, checks: int) -> Finding | None:
     """The predecessor FAIL that downgrades its successor's carry checks: any
     FAIL for a successor stamped below `CONTENT_ONLY_DOWNGRADE_FROM`, a
@@ -1358,7 +1423,7 @@ def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
     included; the first shape-3 hop is where hop files start."""
     if pred is None:
         return name, 1, 1
-    if pred.shape == 3:
+    if pred.shape in HOP_FILE_SHAPES:
         hop = (_fm_int(pred, "hop") or 0) + 1
         start = _fm_int(pred, "archive_from") or hop
         return pred.frontmatter.get("chain_root") or pred.basename, hop, start
@@ -1400,7 +1465,7 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     if pred is None:
         return 1
     floor, ids = None, []
-    if pred.shape == 3:
+    if pred.shape in HOP_FILE_SHAPES:
         floor = _fm_int(pred, spec.floor_key)
         ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
     if floor is None and spec is not RULES:
@@ -1435,8 +1500,8 @@ def _amendment_spans(
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
     """The retirable units of an id-less retirable section and its other
     non-blank lines: amendment units for Original goal, one unit per line for
-    Direction changes."""
-    lines = doc.section(title) or []
+    Direction changes, a whole move followed to its hop file."""
+    lines = follow(doc.section(title) or [], title, doc.path.parent) or []
     if title == "Original goal":
         spans, plain = _amendment_spans(lines)
         return [tuple(lines[a:b]) for a, b in spans], plain
@@ -1457,7 +1522,7 @@ def _carries(pred: Doc | None, spec: IdSpec) -> bool:
     """`new` copies `spec`'s question or decision section off disk: the
     predecessor is shape 3, carries the id floor and holds entries there, each
     with an id (an id-less legacy entry is rewritten through the full slot)."""
-    if spec is RULES or pred is None or pred.shape != 3:
+    if spec is RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
     entries = _id_entries(pred, spec)
     return (
@@ -1472,7 +1537,11 @@ def _chain_hop_paths(pred: Doc, start: int):
     `previous_handoff` path from `archive_from` on, newest first."""
     cursor: Doc | None = pred
     seen: set[str] = set()
-    while cursor is not None and cursor.shape == 3 and cursor.basename not in seen:
+    while (
+        cursor is not None
+        and cursor.shape in HOP_FILE_SHAPES
+        and cursor.basename not in seen
+    ):
         seen.add(cursor.basename)
         hop = _fm_int(cursor, "hop")
         root = cursor.frontmatter.get("chain_root", "")
@@ -1616,7 +1685,7 @@ def _section_bytes(doc: Doc, titles: tuple[str, ...]) -> int:
 def _cap_state(doc: Doc) -> tuple[int, int]:
     """The hot file's size on disk and the bytes its core sections hold."""
     size = len(doc.path.read_bytes()) if doc.size is None else doc.size
-    return size, _section_bytes(doc, S3.binding)
+    return size, _section_bytes(doc, SHAPES.get(doc.shape, S3).binding)
 
 
 def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
@@ -1642,8 +1711,33 @@ CORE_NEVER_MOVES = (
 )
 
 
+def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
+    """The shape-4 size verdict, never UNVALIDATED: ('OVER-CAP', message) when
+    the binding and carried bytes alone pass the cap, naming the largest
+    binding section; ('FAIL', message) when movable content does; else None."""
+    size, core, carried, written = _size_parts(doc)
+    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+    if core + carried > cap:
+        name, held = max(
+            ((title, _section_bytes(doc, (title,))) for title in SHAPES[4].binding),
+            key=lambda pair: pair[1],
+        )
+        return (
+            "OVER-CAP",
+            f"OVER-CAP: {name} holds {held} bytes, and the binding and carried sections alone are over the {cap}-byte hot-file cap ({_size_text(core, carried, written)}); shrink {name}: retire what no longer binds through the 'retire' list, and leave settled history in {rel} with a pointer from Review before you continue",
+        )
+    if size > cap:
+        return (
+            "FAIL",
+            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(SHAPES[4].movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
+        )
+    return None
+
+
 def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
     """The size verdict: ('FAIL'|'UNVALIDATED', message), or None under the cap."""
+    if doc.shape == 4:
+        return _size_finding_4(doc, rel)
     size, core, carried, written = _size_parts(doc)
     parts = _size_text(core, carried, written)
     if size > READ_CAP_BYTES:
@@ -1778,13 +1872,16 @@ def _validate_shape3(
         f.fail(
             f"frontmatter: archive must be '{ARCHIVE_DIR}/{_stem(root)}/' (got {fm['archive']!r})"
         )
-    if doc.titles == list(S3.legacy_names):
+    spec = SHAPES[doc.shape]
+    if doc.titles == list(spec.legacy_names) != list(spec.names):
         f.warn(
             "headings: written before '## Suggested skills' joined shape 3; the next hop adds it"
         )
-        _check_headings(doc, f, S3.legacy_names)
+        _check_headings(doc, f, spec.legacy_names)
     else:
-        _check_headings(doc, f, S3.names)
+        _check_headings(doc, f, spec.names)
+    if doc.shape == 4:
+        _check_moves(doc, f, spec)
     _check_original_goal(doc, f, hop or 1)
 
     prompt = doc.section("Resume prompt") or []
@@ -1808,8 +1905,11 @@ def _validate_shape3(
         required = (
             spec is RULES
             or previous is None
-            or (pred is not None
-                and pred.shape == 3 and _fm_int(pred, spec.floor_key) is not None)
+            or (
+                pred is not None
+                and pred.shape in HOP_FILE_SHAPES
+                and _fm_int(pred, spec.floor_key) is not None
+            )
         )
         for n, entry, title in _id_entries(doc, spec):
             if n is None:
@@ -1873,9 +1973,35 @@ def _validate_shape3(
     level, message = verdict
     if level == "FAIL":
         f.fail(message, CheckKind.SIZE)
+    elif level == "OVER-CAP":
+        f.fail(message, CheckKind.OVER_CAP_BINDING)
     else:
         f.unvalidated = True
         f.warn(f"UNVALIDATED: {message}", CheckKind.SIZE)
+
+
+def _check_moves(doc: Doc, f: Findings, spec) -> None:
+    """Shape 4: a binding section never moves, and every move or history
+    pointer (`archive/<chain>/h<k>-<sid8>.md#<heading>`) names a hop file and a
+    heading on disk."""
+    base = doc.path.parent
+    for title, start, end in doc.sections:
+        if title in spec.carried:
+            continue
+        for i in range(start + 1, end):
+            pointer = MovePointer.parse(doc.lines[i])
+            if pointer is None:
+                continue
+            if title in spec.binding and pointer.moves(title):
+                f.fail(
+                    f"{title}: a binding section stays whole in the hot file; line {i + 1} moves it to {pointer.file}",
+                    CheckKind.POINTER,
+                )
+            elif pointer.target(base) is None:
+                f.fail(
+                    f"{title}: line {i + 1} points at '{pointer.file}#{pointer.heading}', which is not on disk (no such hop file, or no '## {pointer.heading}' in it)",
+                    CheckKind.POINTER,
+                )
 
 
 def _check_id_reuse(
@@ -1911,7 +2037,7 @@ def _check_carry_3(
     """Nothing the predecessor held is dropped: it stays in this file or is in
     this hop's file."""
     arch = _squash(archived or "")
-    if pred.shape == 3:
+    if pred.shape in HOP_FILE_SHAPES:
         _check_retired_entries(doc, f, pred, start, rel, archived, report)
         if archived is None:
             return
@@ -2004,7 +2130,7 @@ def _check_retire_pointers(
                 f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'",
                 CheckKind.POINTER,
             )
-    if pred is None or pred.shape != 3:
+    if pred is None or pred.shape not in HOP_FILE_SHAPES:
         return
     for line in _retire_pointers(pred):
         if line not in review:
@@ -2134,6 +2260,91 @@ def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
     print(f"validate: {label}{count} {_posix(doc.path)}")
 
 
+def _readable_link(file: str):
+    """The file as a `Link`, or None plus the exit code, the refusal printed."""
+    path = Path(file)
+    if not path.is_file():
+        return None, _die(2, f"not a file: {path}")
+    link = read_link(path)
+    if link.status == "unreadable":
+        return None, _die(2, f"cannot read {path}")
+    if link.status == "unsupported_shape":
+        return None, _die(
+            3,
+            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself: {_posix(path)}",
+        )
+    return link, 0
+
+
+def cmd_read(args: argparse.Namespace) -> int:
+    link, code = _readable_link(args.file)
+    if link is None:
+        return code
+    body = link.section(args.section)
+    if body is None:
+        held = any(title == args.section for title, _ in link.sections)
+        return _die(
+            1,
+            f"'## {args.section}' points at a hop file or heading that is not on disk: {_posix(link.path)}"
+            if held
+            else f"no '## {args.section}' section: {_posix(link.path)}",
+        )
+    sys.stdout.write("\n".join(_trim_blank(body)) + "\n")
+    return 0
+
+
+def cmd_chain(args: argparse.Namespace) -> int:
+    link, code = _readable_link(args.file)
+    if link is None:
+        return code
+    chain = read_chain(link.path)
+    walk = journey(link.path)
+    report = {
+        "file": _posix(link.path),
+        "stop": chain.stop,
+        "links": [
+            {
+                "file": _posix(x.path),
+                "status": x.status,
+                "shape": x.shape,
+                "hop": x.hop,
+                **{
+                    key: x.frontmatter.get(key)
+                    for key in (
+                        "session_id",
+                        "date",
+                        "topic",
+                        "previous_handoff",
+                        "previous_status",
+                        "chain_root",
+                    )
+                },
+                "hop_files": [_posix(p) for p in x.hop_files],
+            }
+            for x in chain.links
+        ],
+        "hops": [
+            {
+                "hop": hop.hop,
+                "session_id": hop.session_id,
+                "file": hop.file,
+                "source": _posix(hop.source),
+                "sections": hop.sections,
+            }
+            for hop in walk.hops
+        ],
+        "session_ids": walk.session_ids,
+    }
+    if args.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return 0
+    for x in report["links"]:
+        print(f"{x['status']}\thop {x['hop']}\t{x['session_id']}\t{x['file']}")
+    for hop in report["hops"]:
+        print(f"hop {hop['hop']}\t{hop['session_id']}\t{hop['source']}")
+    return 0
+
+
 # --- emit -------------------------------------------------------------------------
 
 
@@ -2155,14 +2366,15 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 f"shape 1 handoff has no '## Resume prompt' section (legacy file, never rewritten): {_posix(path)}",
             )
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
-    if doc.shape == 3:
+    if doc.shape in HOP_FILE_SHAPES:
         # The prompt is never withheld (save-point.md, "Three failed attempts
         # do not withhold the rails"); the notice says validate fails it.
         # An UNVALIDATED verdict is always under the Read cap, so only a FAIL
         # needs the size read.
         verdict = _size_finding(doc, "this hop's file")
         if verdict and (
-            verdict[0] == "UNVALIDATED" or _cap_state(doc)[0] > READ_CAP_BYTES
+            verdict[0] in ("UNVALIDATED", "OVER-CAP")
+            or _cap_state(doc)[0] > READ_CAP_BYTES
         ):
             level, message = verdict
             tail = (
@@ -2170,7 +2382,8 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 if level == "UNVALIDATED"
                 else "`validate` fails it"
             )
-            print(f"{level}: {message}; {tail}; the prompt is emitted", file=sys.stderr)
+            head = message if message.startswith(f"{level}:") else f"{level}: {message}"
+            print(f"{head}; {tail}; the prompt is emitted", file=sys.stderr)
     real = _posix(path)
     out: list[str] = []
     for line in _trim_blank(body):
@@ -2414,10 +2627,10 @@ def cmd_fill(args: argparse.Namespace) -> int:
             2,
             f"handoff_shape {shape} is not a shape: shapes are integers from 1 up; {unsupported}",
         )
-    if shape > HANDOFF_SHAPE:
+    if shape not in WRITABLE_SHAPES:
         return _die(
             3,
-            f"handoff_shape {shape} is newer than fill knows ({HANDOFF_SHAPE}): read it, do not rewrite it: {path}",
+            f"handoff_shape {shape} is not a shape fill writes ({', '.join(map(str, WRITABLE_SHAPES))}): read it, do not rewrite it: {path}",
         )
 
     slots_path = Path(args.slots)
@@ -3117,10 +3330,17 @@ def _goal_slot_instruction(order: str, edge: str) -> str:
     )
 
 
-def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[str]:
+def _settle_validate(pred: Doc) -> str:
+    return f"(settle: save_point.py validate {pred.basename})"
+
+
+def _tag_carried(
+    body: list[str], default_hop: int, unverified: bool, settle: str
+) -> list[str]:
     """Carry a predecessor's cumulative section forward verbatim, tagging
     untagged entries `[h<default_hop>]` and, for a predecessor that failed
-    validation, marking every entry UNVERIFIED."""
+    validation, marking every entry UNVERIFIED. An UNVERIFIED mark without a
+    settle clause gets `settle` after its line's text."""
     lines = _trim_blank(body)
     for entry in parse_entries(body):
         if entry.exempt:
@@ -3139,6 +3359,8 @@ def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[st
             tag = f"[h{default_hop}]"
         if unverified and not UNVERIFIED_PRED_RE.match(rest):
             rest = "UNVERIFIED (predecessor failed validation): " + rest
+        if UNVERIFIED_PRED_RE.match(rest) and not SETTLE_RE.search(rest):
+            rest = f"{rest.rstrip()} {settle}"
         lines[idx] = f"{marker}{tag} {rest}"
     return lines
 
@@ -3180,17 +3402,26 @@ def _first_line(body: list[str] | None) -> str:
 def _pred_row(pred: Doc, pred_transcript: str) -> str:
     """The Prior-sessions row describing the predecessor."""
     if pred.shape in (None, 1):
-        did_left = f"UNVERIFIED (shape-1 predecessor; brief: {_first_line(pred.section('Resumption brief'))})"
+        did_left = f"UNVERIFIED (shape-1 predecessor; brief: {_first_line(pred.section('Resumption brief'))}) (settle: read {pred.basename} § Resumption brief)"
     else:
         this = [line for line in (pred.section("This session") or []) if line.strip()]
         did_left = (
             this[0].strip()
             if this
-            else "UNVERIFIED (predecessor had no This session line)"
+            else f"UNVERIFIED (predecessor had no This session line) (settle: read {pred.basename})"
         )
     return (
         f"| {pred.frontmatter.get('date', 'unknown')} | {pred.frontmatter.get('session_id', 'unknown')} "
         f"| {pred_transcript} | {did_left} | {pred.basename} |"
+    )
+
+
+def _gone_row(name: str, status: str) -> str:
+    """The Prior-sessions row naming a predecessor `new` could not read."""
+    return (
+        f"| unknown | unknown | unresolved (predecessor {status}) "
+        f"| UNVERIFIED (predecessor {status} when this file was written) "
+        f"(settle: /session-flow:find-handoff {name}) | {name} |"
     )
 
 
@@ -3273,10 +3504,11 @@ def build_skeleton(
     pred_transcript: str,
     settings_file: str | None = None,
     start_command: str | None = None,
+    gone: tuple[str, str] | None = None,
 ) -> str:
-    previous = pred.basename if pred is not None else None
+    previous = pred.basename if pred is not None else (gone[0] if gone else None)
     if pred is None:
-        chain = [target.name]
+        chain = [*([gone[0]] if gone else []), target.name]
     elif pred.shape in (None, 1):
         chain = legacy_chain(pred) + [target.name]
     else:
@@ -3296,6 +3528,8 @@ def build_skeleton(
     ]
     if previous is not None:
         fm.append(f"previous_handoff: {previous}")
+    if gone is not None:
+        fm.append(f"previous_status: {gone[1]}")
     fm.append("chain:")
     fm.extend(f"  - {item}" for item in chain)
     fm.append("---")
@@ -3390,7 +3624,11 @@ def build_skeleton(
                 if pred_body is None:
                     lines.append(f"None. (shape-1 predecessor had no {title})")
                 else:
-                    lines.extend(_tag_carried(pred_body, pred_hop, pred_failed))
+                    lines.extend(
+                        _tag_carried(
+                            pred_body, pred_hop, pred_failed, _settle_validate(pred)
+                        )
+                    )
                 slot = _fill(
                     f"{name}-new",
                     f"optional: write new [h{hop}] entries on this line, above any 'Superseded:' marker (entries below one are read as superseded); move disproved ones under a 'Superseded:' line (never delete), re-tag re-verified ones [h{hop}]; delete this line when nothing changes",
@@ -3408,7 +3646,9 @@ def build_skeleton(
     section("This session", _this_session_lines())
 
     # Prior sessions
-    if pred is None:
+    if gone is not None:
+        section("Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, _gone_row(*gone)])
+    elif pred is None:
         section("Prior sessions", [FIRST_HOP_PRIOR])
     else:
         rows = _parse_prior_rows(pred.section("Prior sessions"))
@@ -3463,6 +3703,7 @@ def build_skeleton_3(
     pred_transcript: str,
     settings_file: str | None = None,
     start_command: str | None = None,
+    gone: tuple[str, str] | None = None,
 ) -> str:
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
@@ -3481,6 +3722,8 @@ def build_skeleton_3(
     ]
     if pred is not None:
         fm.append(f"previous_handoff: {pred.basename}")
+    elif gone is not None:
+        fm += [f"previous_handoff: {gone[0]}", f"previous_status: {gone[1]}"]
     fm += [
         f"chain_root: {root}",
         f"hop: {hop}",
@@ -3699,7 +3942,9 @@ def build_skeleton_3(
 
     section("This session", _this_session_lines())
 
-    if pred is None:
+    if gone is not None:
+        section("Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, _gone_row(*gone)])
+    elif pred is None:
         section("Prior sessions", [FIRST_HOP_PRIOR])
     else:
         rows = [
@@ -3835,33 +4080,47 @@ def cmd_new(args: argparse.Namespace) -> int:
     pred: Doc | None = None
     pred_failed = False
     pred_transcript = ""
+    gone: tuple[str, str] | None = None
     if args.previous:
         pred_path = Path(args.previous).expanduser()
-        if not pred_path.is_file():
-            return _die(1, f"predecessor not found: {pred_path}")
-        try:
-            pred = parse_doc(pred_path)
-        except (OSError, UnicodeDecodeError) as exc:
-            return _die(1, f"predecessor unreadable: {exc}")
-        if not pred.has_frontmatter or pred.frontmatter.get("type") != "handoff":
-            return _die(
-                1,
-                f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}",
-            )
         if not _same_file(str(pred_path.parent), handoffs):
             return _die(
                 1,
                 f"predecessor must live in the handoffs dir the new file is written to ({handoffs.as_posix()}); got {_posix(pred_path)}",
             )
-        if isinstance(pred.shape, int) and pred.shape > HANDOFF_SHAPE:
+        if not pred_path.is_file():
+            gone = (pred_path.name, "missing")
+        else:
+            try:
+                pred = parse_doc(pred_path)
+            except (OSError, UnicodeDecodeError):
+                gone = (pred_path.name, "unreadable")
+        if gone is not None and not HANDOFF_NAME_RE.match(gone[0]):
             return _die(
                 1,
-                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({HANDOFF_SHAPE}): read it, do not build on it",
+                f"predecessor {gone[1]} and {gone[0]!r} is not a <TS>-handoff-<topic>.md name: {_posix(pred_path)}",
             )
-        if pred.shape == 3 and args.shape < 3:
+        if gone is not None:
+            print(
+                f"WARN: predecessor {gone[0]} is {gone[1]}; the new handoff names it as previous_handoff with previous_status: {gone[1]} and starts its checks afresh",
+                file=sys.stderr,
+            )
+    if pred is not None:
+        pred_path = pred.path
+        if not pred.has_frontmatter or pred.frontmatter.get("type") != "handoff":
             return _die(
                 1,
-                f"predecessor is shape 3; a shape-3 chain is never continued as shape {args.shape}",
+                f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}",
+            )
+        if isinstance(pred.shape, int) and pred.shape > NEWEST_SHAPE:
+            return _die(
+                1,
+                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it",
+            )
+        if pred.shape in HOP_FILE_SHAPES and args.shape < pred.shape:
+            return _die(
+                1,
+                f"predecessor is shape {pred.shape}; a shape-{pred.shape} chain is never continued as shape {args.shape}",
             )
         if pred.shape not in (None, 1):
             _, code = validate_doc(pred, projects_root, False, shallow=True)
@@ -3901,6 +4160,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         purpose=purpose,
         settings_file=settings_file,
         start_command=start_command,
+        gone=gone,
     )
     if args.shape == 2:
         content = build_skeleton(**common, pred_failed=pred_failed)
@@ -4080,6 +4340,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); the file is untouched",
     )
     p_emit.set_defaults(func=cmd_emit)
+
+    p_read = sub.add_parser(
+        "read",
+        help="print one section's body; a section moved to its hop file is read from there",
+    )
+    p_read.add_argument("file")
+    p_read.add_argument("--section", required=True, help="the heading, without '## '")
+    p_read.set_defaults(func=cmd_read)
+
+    p_chain = sub.add_parser(
+        "chain",
+        help="the file's chain: each hot file reached, and each hop's sections from hot or hop files",
+    )
+    p_chain.add_argument("file")
+    p_chain.add_argument("--json", action="store_true", help="print JSON")
+    p_chain.set_defaults(func=cmd_chain)
 
     p_root = sub.add_parser(
         "memory-root", help="print the memory root `new` uses without --memory-dir"

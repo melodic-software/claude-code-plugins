@@ -116,14 +116,17 @@ def test_every_hot_file_of_an_open_chain_carries_the_open_chain_reason(env):
 
 
 def test_a_finished_chain_still_leaves_by_the_age_and_pr_rules(env):
+    """A finished shape-2 chain leaves whole; a finished shape-3 chain shrinks to
+    its newest hot file and its archive (PLAN.md D7)."""
     two = two_chain(env, (OPEN_NEXT, CLOSED_NEXT))
-    three = open_three_chain(env, (OPEN_NEXT, CLOSED_NEXT))
+    root3, newest3, archive = open_three_chain(env, (OPEN_NEXT, CLOSED_NEXT))
     state = links(env[0], MERGED)
     dry = run_tidy(env, "clean", *state)
     assert "kept open chain: " not in dry.stdout, dry.stdout
     result = run_tidy(env, "clean", *state, "--apply")
     assert result.returncode == 0, result.stdout
-    assert not any(path.exists() for path in (*two, *three)), result.stdout
+    assert not any(path.exists() for path in (*two, root3)), result.stdout
+    assert newest3.exists() and archive.is_dir(), result.stdout
 
 
 def test_only_the_newest_hot_file_decides_whether_a_chain_is_open(env):

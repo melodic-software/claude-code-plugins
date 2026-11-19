@@ -49,6 +49,9 @@ An item is in flight, and so kept, when any of these holds:
       (shape-3 `chain_root`, shape-2 first `chain:` entry) and the files they
       name as root, `chain:` entry or `previous_handoff`; no link is looked up
       for them, and `clean` prints one `kept open chain:` line per such chain
+    - it is the newest hot file of a finished shape-3 or shape-4 chain: such a
+      chain shrinks to that file and its hop files (the archive stays with
+      it); a shape-2 chain is never shrunk and leaves by the rules here
     - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
       (missing and unrecognized values count as not done)
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
@@ -172,6 +175,8 @@ class Item:
     closed: bool = False
     chain_names: frozenset[str] = frozenset()
     open_chain: tuple[str, str] | None = None
+    shape: int | None = None
+    shrinks: bool = False
 
     @property
     def paths(self) -> list[Path]:
@@ -266,19 +271,21 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
-def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str]]:
-    """A handoff's chain root (shape 3's `chain_root`, shape 2's first `chain:`
-    entry, else none: shape 1 belongs to no chain), whether its Resume prompt
-    `Next:` line closes the chain, and the handoff names it links to."""
+def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str], int | None]:
+    """A handoff's chain root (shape 3 and 4's `chain_root`, shape 2's first
+    `chain:` entry, else none: shape 1 belongs to no chain), whether its Resume
+    prompt `Next:` line closes the chain, the handoff names it links to, and its
+    shape."""
     try:
         doc = save_point.parse_doc(path)
     except (OSError, UnicodeDecodeError):
-        return "", False, frozenset()
+        return "", False, frozenset(), None
     root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
     span = save_point._next_span(doc)
     closed = span is not None and doc.lines[span[0]] == save_point.NEXT_CLOSED
     names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
-    return root, closed, frozenset(n for n in names if n)
+    shape = doc.shape if isinstance(doc.shape, int) else None
+    return root, closed, frozenset(n for n in names if n), shape
 
 
 def _unfinished_stage(slice_dir: Path) -> bool:
@@ -356,9 +363,9 @@ def inventory(root: Path, label: str) -> list[Item]:
         links = _refs_of(link_file) if link_file else []
         if kind == "scratch":
             links = _name_refs(path.name)
-        closed, names = False, frozenset[str]()
+        closed, names, shape = False, frozenset[str](), None
         if kind == "handoff":
-            chain, closed, names = _chain_facts(path)
+            chain, closed, names, shape = _chain_facts(path)
         items.append(
             Item(
                 path,
@@ -371,6 +378,7 @@ def inventory(root: Path, label: str) -> list[Item]:
                 chain=chain,
                 closed=closed,
                 chain_names=names,
+                shape=shape,
             )
         )
 
@@ -472,6 +480,21 @@ def _mentions(text: str, name: str, is_dir: bool) -> bool:
     return re.search(rf"(?<![\w.-]){re.escape(name)}/", text) is not None
 
 
+def keep_finished(members: list[Item], tip: Item, root: str) -> None:
+    """A finished shape-3 or shape-4 chain shrinks without losing what retro
+    reads: its newest hot file stays, and with it the chain's hop files, which
+    hold every older hot file's sections; its older hot files are then judged
+    without the newest one's references to them. A shape-2 chain has no hop
+    files, so the shrink never applies to it."""
+    if tip.shape not in save_point.HOP_FILE_SHAPES:
+        return
+    tip.reasons.append(
+        f"newest hot file of finished chain {root}: a shrink keeps it and every hop file"
+    )
+    for item in members:
+        item.shrinks = True
+
+
 def mark_open_chains(items: list[Item]) -> None:
     """Keep every handoff of a chain whose newest hot file (by its `<TS>` name)
     does not close it, whatever its age or PR state. A chain's handoffs are those
@@ -485,6 +508,7 @@ def mark_open_chains(items: list[Item]) -> None:
     for (label, root), members in chains.items():
         tip = max(members, key=lambda i: i.path.name)
         if tip.closed:
+            keep_finished(members, tip, root)
             continue
         names = {root}.union(*(m.chain_names for m in members))
         for item in handoffs:
@@ -507,7 +531,7 @@ def mark_in_flight(
     now: float,
     roots: dict[str, Path],
 ) -> None:
-    kept_handoffs: list[tuple[float, str]] = []  # (mtime, text) of handoffs kept
+    kept_handoffs: list[tuple[float, str, tuple[str, str]]] = []
     mark_open_chains(items)
 
     def judge(item: Item) -> None:
@@ -516,9 +540,12 @@ def mark_in_flight(
         if now - item.mtime < days * 86400:
             item.reasons.append(f"modified within {days:g} days")
         is_dir = item.path.is_dir()
+        own = (item.root, item.chain) if item.shrinks else None
         if any(
-            mtime > item.mtime and _mentions(text, item.path.name, is_dir)
-            for mtime, text in kept_handoffs
+            mtime > item.mtime
+            and chain != own
+            and _mentions(text, item.path.name, is_dir)
+            for mtime, text, chain in kept_handoffs
         ):
             item.reasons.append("named by a later handoff")
         if not item.reasons and _holds_git(item.path):
@@ -539,7 +566,11 @@ def mark_in_flight(
         if item.keep:
             try:
                 kept_handoffs.append(
-                    (item.mtime, item.path.read_text(encoding="utf-8"))
+                    (
+                        item.mtime,
+                        item.path.read_text(encoding="utf-8"),
+                        (item.root, item.chain),
+                    )
                 )
             except (OSError, UnicodeDecodeError):
                 pass

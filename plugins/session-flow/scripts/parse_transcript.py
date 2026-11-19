@@ -69,6 +69,11 @@ Output:
             "all_subagents": [{"id", "type", "description", "session_id"}, ...],
             "all_models": [...], "all_branches": [...],
           },
+          "handoff_journey": [  # --chain-from only: each hop, newest first, its
+            {"hop": N, "session_id": "<UUID>", "source": "<file read>",
+             "sections": {"Direction changes": [...], "This session": [...],
+                          "Observations": [...]}},
+          ],                    # sections read from hop files when a hot file is gone
         }
 
 Exit codes:
@@ -488,9 +493,14 @@ def _emit_and_exit(
 
 
 def _emit_multi_and_exit(
-    session_ids: list[str], base_path: Path, topic: str | None = None
+    session_ids: list[str],
+    base_path: Path,
+    topic: str | None = None,
+    journey: list[dict[str, Any]] | None = None,
 ) -> NoReturn:
     output = build_multi_session_output(session_ids, base_path, topic)
+    if journey is not None:
+        output["handoff_journey"] = journey
     print(json.dumps(output, indent=2))
     sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
 
@@ -592,18 +602,30 @@ def extract_chain_from_handoff(
     handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
     """The session ids on `handoff_file`'s chain, newest first, through
-    `handoff_chain.read_chain`. Callers prepend the current $CLAUDE_CODE_SESSION_ID
-    themselves if they want it. A pointer cycle or a chain past `limit` ends the
-    walk with a stderr warning rather than truncating silently."""
-    chain = handoff_chain.read_chain(handoff_file, limit=limit)
-    if chain.stop is not None:
-        print(f"warning: handoff chain {chain.stop}; stopping walk", file=sys.stderr)
-    sids: list[str] = []
-    for link in chain.links:
-        sid = link.frontmatter.get("session_id")
-        if sid and sid != "unknown" and sid not in sids:
-            sids.append(sid)
-    return sids
+    `handoff_chain.journey`: the hot files the walk reaches, plus every hop whose
+    hot file is gone but whose hop file remains. Callers prepend the current
+    $CLAUDE_CODE_SESSION_ID themselves if they want it. A pointer cycle or a
+    chain past `limit` ends the walk with a stderr warning rather than
+    truncating silently."""
+    walk = handoff_chain.journey(handoff_file, limit=limit)
+    if walk.stop is not None:
+        print(f"warning: handoff chain {walk.stop}; stopping walk", file=sys.stderr)
+    return walk.session_ids
+
+
+def handoff_journey(handoff_file: Path) -> list[dict[str, Any]]:
+    """Each hop of the chain, newest first: hop number, session id, the file its
+    sections came from, and its Direction changes, This session and
+    Observations, a section moved to a hop file read from there."""
+    return [
+        {
+            "hop": hop.hop,
+            "session_id": hop.session_id,
+            "source": hop.source.as_posix(),
+            "sections": hop.sections,
+        }
+        for hop in handoff_chain.journey(handoff_file).hops
+    ]
 
 
 UUID_RE = re.compile(r'"uuid"\s*:\s*"([^"]+)"')
@@ -937,7 +959,12 @@ def main() -> None:
             all_sids.append(ns.current_session)
         all_sids.extend(chain_sids)
         m = HANDOFF_TOPIC_RE.search(ns.chain_from.name)
-        _emit_multi_and_exit(all_sids, ns.base, m.group(1) if m else None)
+        _emit_multi_and_exit(
+            all_sids,
+            ns.base,
+            m.group(1) if m else None,
+            handoff_journey(ns.chain_from),
+        )
 
     # Multi-session: --sessions
     if ns.sessions:
