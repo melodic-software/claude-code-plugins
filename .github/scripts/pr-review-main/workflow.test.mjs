@@ -1196,11 +1196,16 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
   // The check-trigger job's own result still gates the key leg, as the implicit success() did.
   assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
   assert.ok(!runs({ result: "success", outputs: {} }, triggered, { cancelled: true }));
-  // The gate runs on every run of this attempt's check-trigger job, a head with no
-  // lane source or one already judged included.
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { "check-trigger": trigger } });
-  for (const outputs of [{}, { proceed: "" }, { review: "false" }, { judged: "true" }]) {
-    assert.ok(probeRuns({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
+  const reviewRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { "check-trigger": trigger, [PROBE]: { result: "skipped", outputs: {} } } });
+  for (const outputs of [{}, { proceed: "" }, { review: "" }]) {
+    const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
+    assert.ok(probeRuns(trigger), JSON.stringify(outputs));
+  }
+  for (const outputs of [{ review: "false" }, { judged: "true" }, { held: "true" }]) {
+    const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
+    assert.ok(!probeRuns(trigger), JSON.stringify(outputs));
+    assert.ok(!reviewRuns(trigger), `the review job runs where the gate skipped: ${JSON.stringify(outputs)}`);
   }
   assert.ok(!probeRuns({ ...triggered, outputs: { ...triggered.outputs, "run-attempt": "2" } }));
   assert.ok(!admits(jobGate(PROBE), { github: { ...upstreamRun, ref: "refs/heads/x" }, needs: { "check-trigger": triggered } }));
