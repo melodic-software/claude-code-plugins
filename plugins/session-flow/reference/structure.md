@@ -7,10 +7,12 @@ and destination resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with no prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
-**Shape 3.** A handoff written by this procedure carries `handoff_shape: 3` in its frontmatter:
-a hot file plus one archive file per hop ([Shape 3](#shape-3-hot-file-and-per-hop-archive)).
-Shape-2 files (one self-contained file per hop, [Body sections (shape 2)](#body-sections-shape-2))
-still validate and read unchanged, and a shape-2 chain's next hop writes shape 3. Every
+**Shape 4.** A handoff written by this procedure is the shape `new` writes by default,
+`handoff_shape: 4`: a hot file plus one archive file per hop
+([Shape 3](#shape-3-hot-file-and-per-hop-archive), with the order and moves of
+[Shape 4](#shape-4)). Shape-2 and shape-3 files
+([Body sections (shape 2)](#body-sections-shape-2)) still validate and read unchanged, and a
+shape-2 or shape-3 chain's next hop writes shape 4. Every
 deterministic field is written by the engine script
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
@@ -99,13 +101,14 @@ What the writer owns, since no script can judge it:
   substance changed, ending it `Rewritten h<N>: <why>` for this hop `N`; never shorten one to save
   bytes.
 
-**From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
+**From shape 2.** The first hop file of a shape-2 chain, written by its first shape-4 hop (or a
+shape-3 hop written earlier), reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file
 verbatim, and `new` replaces the `Opening ask: see <root>` pointer with the root's own verbatim
 ask. The writer then states the rules still in force under Current rules, with ids, reading the
 predecessor's Constraints in the hop file, and writes the direction trail so far. Hop numbers
 count from the chain root, shape-1 and shape-2 hops included; hop files start at that first
-shape-3 hop (`archive_from`).
+hop-file hop (`archive_from`).
 
 ### Shape 4
 
@@ -818,23 +821,48 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 
 | # | Section | Holds |
 |---|---|---|
-| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim, copied from the predecessor with any new amendment below |
+| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below; an amendment leaves only as a retire listing |
 | 2 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>` |
 | 3 | Remaining actions, in order | every action still to take |
 | 4 | Completion criteria | observable goal-states with met/unmet marks |
-| 5 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks |
-| 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
-| 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
-| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on |
+| 5 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks; copied off disk each hop; an answered one leaves only as a retire listing |
+| 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …`; copied off disk each hop, a changed one rewritten in place under its id; a retired one leaves only as a retire listing |
+| 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)`; copied off disk each hop; a promoted one leaves only as a retire listing |
+| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop; a settled one leaves only as a retire listing |
 | 9 | Pending commands | every command waiting on the user, verbatim |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
-| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
-| 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT` |
+| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per hop file and retire heading this hop used |
+| 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
 | 14 | Observations | session-wide observations, summarized |
 | 15 | Suggested skills | which skills to invoke for the remaining work |
 | 16 | Prior sessions | the predecessor's last rows, then one row describing the predecessor |
 | 17 | Resume prompt | the rails block; always last |
+
+Without a script, the hand-writer owns the carry that `new`, `fill` and `retire` own otherwise:
+
+- **Copy, never retype.** Every entry, `- Retired entries:` line and `- Folded:` line the
+  predecessor's hot file holds is copied with the Read and Write tools. Fold nothing by hand: a
+  Direction changes line stays until a later `new` folds it.
+- **Retire by moving, with a reason.** An entry that no longer binds (an answered question, a
+  settled decision, a retired rule or promoted preference, a superseded amendment unit or trail
+  line) leaves the hot file only by moving into this hop's file under its retire heading: the
+  entry verbatim, then a line `Retired: <reason>`. The `retire` list's `[h<k>]#<i>` ref names the
+  i-th line tagged `[h<k>]`; by hand, move that line itself. An entry never leaves to meet the
+  size cap.
+
+  | Hot-file section | Retire heading in the hop file |
+  |---|---|
+  | Original goal (amendment units) | `## Retired goal amendments` |
+  | Direction changes | `## Retired direction changes` |
+  | Open questions | `## Retired open questions` |
+  | Current rules, Standing preferences | `## Retired rules` |
+  | Decisions in force | `## Retired decisions` |
+
+- **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
+  add `- Retired entries: <hop file> § <heading>` to Review before you continue, and keep every
+  such line the predecessor holds: a dropped one leaves earlier retirements unreachable, and no
+  check catches it.
 
 ### Frontmatter shape 3
 
@@ -851,7 +879,7 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first ho
 chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
-archive_from: <M>                         # first shape-3 hop; hop files exist from M on
+archive_from: <M>                         # first hop-file hop (shape 3 or 4); hop files exist from M on
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 repo: <the Handoff origin: line's first slot>
 ---

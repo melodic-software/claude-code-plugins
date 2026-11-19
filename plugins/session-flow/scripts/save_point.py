@@ -2821,7 +2821,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
     if not slot_line:
         return _die(
             1,
-            f"no {FILL_MARK} slot in {_posix(path)}; a filled file is validated, never filled again",
+            f"no {FILL_MARK} slot in {_posix(path)}; a filled file is validated, never filled again; fold a later change in with `save_point.py amend {_posix(path)} --json <path>`",
         )
 
     unknown = sorted(key for key in values if key not in slot_line)

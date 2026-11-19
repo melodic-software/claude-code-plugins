@@ -424,3 +424,12 @@ def test_validate_fails_a_closed_file_whose_hop_file_names_another_predecessor(
     result = validate(second)
     assert result.returncode == 1
     assert "not found beside this file" in out(result)
+
+
+def test_fill_on_a_filled_file_refuses_and_names_amend(tmp_path):
+    path = hop(make_repo(tmp_path), tmp_path)
+    before = path.read_bytes()
+    again = run("fill", str(path), "--slots", str(tmp_path / f"{path.stem}.slots.json"))
+    assert again.returncode == 1, err(again)
+    assert "save_point.py amend" in err(again), err(again)
+    assert path.read_bytes() == before
