@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -8,83 +8,11 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
-import { ENTRY, LANE_WORKFLOWS, main, PAYLOAD, REPO, TELEMETRY_ENTRY, TELEMETRY_PAYLOAD, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
+import { ENTRY, LANE_WORKFLOWS, PAYLOAD, REPO, RUN_WORKFLOWS, TELEMETRY_ENTRY, TELEMETRY_PAYLOAD, TRANSCRIPT_JOB_IDS } from "./pull.mjs";
+import { artifact, fakeDeps, FOREVER, iso, MARKER, MESSAGES, NOW, REPO_ID, run, sealed, seedState, sinkDir, stateOf, workflowLines } from "./pull-fixtures.mjs";
 import { CAP_BYTES, parseArtifactName, paths, prune, query, readOutcomes, readRows, telemetrySpans, traceIdOf, transcriptMetrics, writeRows } from "./store.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
-
-const MARKER = "plaintext-marker-5d21";
-const NOW = Date.parse("2026-11-02T12:00:00Z");
-const REPO_ID = 1277265216;
-const MESSAGES = [
-  { type: "system", subtype: "init", model: "claude-opus-5-5", session_id: "s" },
-  { type: "assistant", message: { content: [{ type: "text", text: MARKER }] } },
-  { type: "result", subtype: "success", is_error: false, num_turns: 7, duration_ms: 1200, usage: { input_tokens: 10, output_tokens: 20 }, modelUsage: { "claude-opus-5-5": {}, "claude-sonnet-5-5": {} } },
-];
-const iso = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
-
-// A fake artifact zip: the fake unzip reads this JSON back as its entries.
-const zipOf = (entries) => Buffer.from(JSON.stringify(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, Buffer.from(v).toString("base64")]))));
-
-function artifact(id, { jobId = "check-intent", attempt = 1, runId = 42, createdAt = NOW - 60_000, fork = false, entries, record }) {
-  return { id, name: `lane-transcript-${jobId}-${attempt}`, size_in_bytes: 100, expired: false, created_at: iso(createdAt), workflow_run: { id: runId, repository_id: REPO_ID, head_repository_id: fork ? 1 : REPO_ID }, zip: zipOf(entries ?? { [ENTRY]: record }) };
-}
-
-function sealed(publicLine, { runId = 42, jobId = "check-intent", messages = MESSAGES } = {}) {
-  return sealRecord(parsePublicKey(publicLine), PAYLOAD, gzipSync(Buffer.from(JSON.stringify(messages))), String(runId), jobId);
-}
-
-// `artifacts` is newest first, as GitHub lists them; each name's listing pages
-// through the ones with that name. `failures` maps a gh URL's suffix to how
-// many calls to it fail before one succeeds.
-function fakeDeps(artifacts, { now = NOW, runs = {}, failures = {} } = {}) {
-  const calls = [];
-  const sleeps = [];
-  const byId = new Map(artifacts.map((a) => [a.id, a]));
-  const left = { ...failures };
-  return {
-    calls,
-    sleeps,
-    now: () => now,
-    sleep: (ms) => sleeps.push(ms),
-    gh(args) {
-      calls.push(args.join(" "));
-      const url = args[1];
-      const failing = Object.keys(left).find((suffix) => url.endsWith(suffix));
-      if (failing && left[failing]-- > 0) throw Object.assign(new Error(`HTTP 502 ${MARKER}`), { status: 1 });
-      let m = /actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(url);
-      if (m) {
-        const page = artifacts.filter((a) => a.name === m[1]).slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100);
-        return Buffer.from(JSON.stringify({ artifacts: page.map(({ zip, ...a }) => a) }));
-      }
-      m = /actions\/artifacts\/(\d+)\/zip$/.exec(url);
-      if (m) return byId.get(Number(m[1])).zip;
-      m = /actions\/runs\/(\d+)$/.exec(url);
-      if (m) return Buffer.from(JSON.stringify(runs[m[1]] ?? { path: ".github/workflows/pr-verify.yml", name: "pr-verify", event: "pull_request", head_branch: "feat/x", conclusion: "success" }));
-      throw Object.assign(new Error("unexpected gh call"), { status: 9 });
-    },
-    unzip(args) {
-      const entries = JSON.parse(readFileSync(args[1], "utf8"));
-      if (args[0] === "-Z1") return Buffer.from(Object.keys(entries).join("\n"));
-      return Buffer.from(entries[args[2]], "base64");
-    },
-  };
-}
-
-function run(argv, { env = {}, deps } = {}) {
-  let out = "";
-  let err = "";
-  const code = main(argv, env, deps, { out: (s) => (out += s), err: (s) => (err += s) });
-  return { code, out, err };
-}
-
-const sinkDir = () => path.join(tempDir("lane-transcripts-"), "sink");
-const FOREVER = Number.MAX_SAFE_INTEGER;
-const stateOf = (sink) => JSON.parse(readFileSync(paths(sink).state, "utf8"));
-const seedState = (sink, state) => {
-  mkdirSync(sink, { recursive: true });
-  writeFileSync(paths(sink).state, JSON.stringify(state));
-};
 
 test("a pull opens each sealed transcript into the sink, gzipped, with a metrics row and no plaintext on stdout or stderr", () => {
   const { publicLine, privateText } = generate();
@@ -142,47 +70,6 @@ test("a pull skips fork runs, records bound to another run, a wrong key, odd zip
   assert.equal(readRows(sink).length, 1);
 });
 
-const listings = (deps) => deps.calls.filter((c) => c.includes("actions/artifacts?"));
-
-test("a pull lists every name built from the job-ids by attempts 1 to 3, one call per name with no artifact, and never the repository-wide listing", () => {
-  const { privateText } = generate();
-  const deps = fakeDeps([]);
-  assert.equal(run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
-  const expected = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flat().flatMap((id) => [1, 2, 3].map((n) => `api repos/${REPO}/actions/artifacts?name=lane-transcript-${id}-${n}&per_page=100&page=1`)))];
-  assert.deepEqual(listings(deps), expected, "each name once, though two workflows share the model job-id");
-  for (const name of ["lane-transcript-check-intent-spec-3", "lane-transcript-judge-fallback-d8-1", "lane-transcript-review-subscription-claude-security-review-4-2", "lane-transcript-adjudicate-feedback-2-fallback-1", "lane-transcript-reuse-summary-1", "lane-transcript-reuse-summary-subscription-2", "lane-transcript-reuse-summary-fallback-3"]) {
-    assert.ok(TRANSCRIPT_NAMES.includes(name), name);
-  }
-});
-
-test("a name's listing pages until an artifact older than the last successful pull, less the overlap, then the next name is listed", () => {
-  const { publicLine, privateText } = generate();
-  const sink = sinkDir();
-  seedState(sink, { last_success_at: iso(NOW - 24 * 3600_000) });
-  const held = Array.from({ length: 100 }, (_, i) => artifact(1000 - i, { record: sealed(publicLine) }));
-  held[99].created_at = iso(NOW - 31 * 3600_000);
-  writeRows(sink, held.slice(0, 99).map((a) => ({ artifact_id: a.id, created_at: a.created_at, date: a.created_at.slice(0, 10), transcript: null })));
-  const older = artifact(900, { createdAt: NOW - 40 * 3600_000, record: sealed(publicLine) });
-  const deps = fakeDeps([...held, older, artifact(5, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) })]);
-  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
-  assert.equal(result.code, 0, result.err);
-  assert.ok(!deps.calls.some((c) => c.includes("check-intent-1&per_page=100&page=2")), "the page that reached the cutoff ends that name");
-  assert.ok(deps.calls.some((c) => c.includes("name=lane-transcript-check-intent-2&")), "the next name is still listed");
-  assert.match(result.out, /"pulled":1,"known":99/);
-  assert.deepEqual(readRows(sink).filter((r) => r.transcript).map((r) => r.artifact_id), [5]);
-});
-
-test("a re-run's attempt-2 artifact of a run created before the cutoff is pulled, by the artifact's own created_at", () => {
-  const { publicLine, privateText } = generate();
-  const sink = sinkDir();
-  seedState(sink, { last_success_at: iso(NOW - 24 * 3600_000) });
-  const rerun = artifact(77, { attempt: 2, runId: 77, createdAt: NOW - 3600_000, record: sealed(publicLine, { runId: 77 }) });
-  const runs = { 77: { path: ".github/workflows/pr-verify.yml", name: "pr-verify", event: "pull_request", head_branch: "feat/x", conclusion: "success", created_at: iso(NOW - 3 * 86400_000) } };
-  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([rerun], { runs }) });
-  assert.equal(result.code, 0, result.err);
-  const [row] = readRows(sink);
-  assert.deepEqual({ id: row.artifact_id, attempt: row.run_attempt, job: row.job_id }, { id: 77, attempt: 2, job: "check-intent" });
-});
 
 const backlogState = (resumeAgeHours) => ({ last_success_at: iso(NOW - 3600_000), last_error: null, budget_exhausted: true, resume_cutoff_at: iso(NOW - resumeAgeHours * 3600_000) });
 
@@ -247,62 +134,17 @@ test("a fresh pull exits 0 while pull-outcomes is stale, so a timer that chains 
   assert.match(result.err, /^ALERT: no pull-outcomes pass has succeeded/m);
 });
 
-test("a budget-stopped pull's successor starts listing at the name it stopped on and wraps, so two pulls together list every name", () => {
-  const { privateText } = generate();
-  const sink = sinkDir();
-  seedState(sink, { last_success_at: iso(NOW - 86400_000) });
-  const listedNames = (deps) => listings(deps).map((c) => /name=([^&]+)&/.exec(c)[1]);
-  const budget = 500;
-  const first = { ...fakeDeps([]), ghCallBudget: budget };
-  run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: first });
-  const second = { ...fakeDeps([]), ghCallBudget: budget };
-  run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: second });
-  assert.ok(budget < TRANSCRIPT_NAMES.length && 2 * budget > TRANSCRIPT_NAMES.length, "one pull lists only part of the names");
-  assert.equal(listedNames(second)[0], TRANSCRIPT_NAMES[budget], "the second pull starts where the first stopped");
-  assert.deepEqual(new Set([...listedNames(first), ...listedNames(second)]), new Set(TRANSCRIPT_NAMES));
-});
-
-test("a pull stops at its gh call budget, records a success that says so, and the next pull a day later still reaches what it left", () => {
-  const { publicLine, privateText } = generate();
-  const sink = sinkDir();
-  seedState(sink, { last_success_at: iso(NOW - 3 * 86400_000) });
-  const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
-  // Three artifacts under the first listed name, each its own run, two days old.
-  const backlog = [301, 302, 303].map((id) => artifact(id, { jobId: "refine-issue", runId: id, createdAt: NOW - 2 * 86400_000, record: sealed(publicLine, { runId: id, jobId: "refine-issue" }) }));
-  // Budget 5: one listing call, then a zip and a run read for each of two artifacts.
-  const first = { ...fakeDeps(backlog), ghCallBudget: 5 };
-  const stopped = run(["pull", "--sink", sink], { env: env(), deps: first });
-  assert.equal(stopped.code, 0, stopped.err);
-  assert.equal(first.calls.length, 5, "no call past the budget");
-  assert.match(stopped.out, /gh calls: 5 of 5/);
-  assert.equal(readRows(sink).length, 2);
-  const state = stateOf(sink);
-  assert.deepEqual({ at: state.last_success_at, error: state.last_error, exhausted: state.budget_exhausted, calls: state.gh_calls }, { at: new Date(NOW).toISOString(), error: null, exhausted: true, calls: 5 });
-  const shown = JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out);
-  assert.deepEqual({ stale: shown.stale, exhausted: shown.budget_exhausted, resume: shown.resume_cutoff_at }, { stale: false, exhausted: true, resume: new Date(NOW - 78 * 3600_000).toISOString() });
-
-  const second = fakeDeps(backlog, { now: NOW + 86400_000 });
-  const resumed = run(["pull", "--sink", sink], { env: env(), deps: second });
-  assert.equal(resumed.code, 0, resumed.err);
-  assert.deepEqual(second.calls.filter((c) => c.endsWith("/zip")), [`api repos/${REPO}/actions/artifacts/303/zip`], "only the artifact the stopped pull left");
-  assert.deepEqual(readRows(sink).map((r) => r.artifact_id).sort(), [301, 302, 303]);
-  assert.equal(stateOf(sink).budget_exhausted, false);
-  assert.match(resumed.out, new RegExp(`gh calls: ${second.calls.length} of `));
-});
-
 test("a failed pull still logs its gh call count", () => {
   const { privateText } = generate();
   const deps = fakeDeps([], { failures: { "lane-transcript-refine-issue-1&per_page=100&page=1": 99 } });
   const result = run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: { ...deps, ghAttempts: 2 } });
   assert.equal(result.code, 1);
-  assert.match(result.out, /gh calls: 2 of /);
+  assert.match(result.out, new RegExp(`gh calls: ${RUN_WORKFLOWS.length + 2} of `));
   assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
 });
 
 // The job-id each upload-lane-transcript step passes, read from the workflow
 // text: the enclosing job's key stands in for github.job.
-const WORKFLOWS = path.join(import.meta.dirname, "..", "..", ".github", "workflows");
-const workflowLines = () => readdirSync(WORKFLOWS).filter((f) => f.endsWith(".yml")).map((file) => [file, readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n")]);
 
 function uploadJobIds() {
   const found = {};
@@ -473,7 +315,8 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     const { publicLine, privateText } = generate();
     const sink = sinkDir();
     const previous = iso(NOW - 24 * 3600_000);
-    seedState(sink, { last_success_at: previous });
+    const cursor = iso(NOW - 12 * 3600_000);
+    seedState(sink, { last_success_at: previous, cursors: { "lane-transcript-check-intent-1": cursor } });
     const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
     // Older than OVERLAP (6 hours) at the failed pull, so a cutoff taken from that pull would miss it.
     const failing = artifact(51, { runId: 51, createdAt: NOW - 10 * 3600_000, record: sealed(publicLine, { runId: 51 }) });
@@ -488,6 +331,8 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     assert.equal(state.last_error, `fetch-failed: 1 transcript(s) (${kind})`);
     assert.equal(state.last_tally.fetch_failed, 1);
     assert.equal(state.last_attempt_at, new Date(NOW).toISOString());
+    assert.equal(state.cursors["lane-transcript-check-intent-1"], cursor, "the failed artifact's name keeps its cursor");
+    assert.equal(state.cursors["lane-transcript-capture-1"], new Date(NOW).toISOString(), "a name listed through moves its cursor");
     for (const text of [partial.out, partial.err, JSON.stringify(state)]) assert.ok(!text.includes(MARKER), "no call's error text is stored or printed");
 
     const later = NOW + 3600_000;
