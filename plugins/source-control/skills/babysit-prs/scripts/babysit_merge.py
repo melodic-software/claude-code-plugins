@@ -4487,7 +4487,9 @@ INFRA_CAUSE_LINES = {
     ),
 }
 MAIN_RED = "main-red"
-WAITING_CAUSES = frozenset({"rate-limit", "read-floor", "verify-unreadable", MAIN_RED})
+WAITING_CAUSES = frozenset(
+    {"rate-limit", "read-floor", "verify-unreadable", "kill-switch", "lost-runner", MAIN_RED}
+)
 MAIN_RED_WINDOW = timedelta(hours=3)
 ISO_STAMP_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 # The reset assumed when no annotation names one: GitHub's primary limit

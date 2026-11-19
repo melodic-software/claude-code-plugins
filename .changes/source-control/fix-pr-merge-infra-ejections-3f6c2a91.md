@@ -12,6 +12,6 @@ bump: patch
   runner, or a job main failed at the same time. Every failed job must name
   such a cause, so a real check failure beside one still counts. The new
   merge.queue-ejection-infra-causes list names which causes apply (default
-  all); budget causes and main-red excuse a removal only after their reset
+  all); every cause excuses a removal only after its reset
   or an hour. Each excused removal gets a queue-ejection notice, and older
   removals are found past the newest page of failed merge-group runs.

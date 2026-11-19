@@ -1500,21 +1500,41 @@ class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
         self.annotations[2] = STOP_FLOOR_GATE
         self.assert_excused("read-floor")
 
-    def test_a_kill_switch_stop_does_not_wait_an_hour(self) -> None:
+    BEFORE_DEFAULT_RESET = "2026-11-19T08:30:00Z"
+    AFTER_DEFAULT_RESET = "2026-11-19T09:00:00Z"
+
+    def _kill_switch_stop(self) -> None:
         self.annotations[2] = KILL_SWITCH_GATE
-        self.now = merge.parse_github_timestamp("2026-11-19T07:55:00Z")
+
+    def test_a_kill_switch_stop_is_counted_before_the_default_hour_passes(self) -> None:
+        self._kill_switch_stop()
+        self.now = merge.parse_github_timestamp(self.BEFORE_DEFAULT_RESET)
+        self.assert_counted()
+
+    def test_a_kill_switch_stop_is_not_counted_after_the_default_hour(self) -> None:
+        self._kill_switch_stop()
+        self.now = merge.parse_github_timestamp(self.AFTER_DEFAULT_RESET)
         self.assert_excused("kill-switch")
 
     def test_a_budget_cause_is_counted_until_its_reset_passes(self) -> None:
-        self.now = merge.parse_github_timestamp("2026-11-19T08:30:00Z")
+        self.now = merge.parse_github_timestamp(self.BEFORE_DEFAULT_RESET)
         self.assert_counted()
 
-    def test_a_lost_runner_is_not_counted(self) -> None:
+    def _lost_runner(self) -> None:
         self.jobs[9].append(_job(3, "Test Bash"))
         self.annotations |= {
             2: [EXIT],
             3: [_annotation("failure", "The self-hosted runner lost communication with the server.")],
         }
+
+    def test_a_lost_runner_is_counted_before_the_default_hour_passes(self) -> None:
+        self._lost_runner()
+        self.now = merge.parse_github_timestamp(self.BEFORE_DEFAULT_RESET)
+        self.assert_counted()
+
+    def test_a_lost_runner_is_not_counted_after_the_default_hour(self) -> None:
+        self._lost_runner()
+        self.now = merge.parse_github_timestamp(self.AFTER_DEFAULT_RESET)
         self.assert_excused("lost-runner")
 
     def test_pr_verify_not_passing_without_an_unreadable_line_is_counted(
