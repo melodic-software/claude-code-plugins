@@ -13,7 +13,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { JOBS_BATCH, JOBS_QUERY, main, servedReads, WRITE_STEP } from "./reconcile.mjs";
+import { INTAKE, JOBS_BATCH, JOBS_QUERY, main, servedReads, SETTLED_VERSION, VERDICT_DISPATCH, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -21,6 +21,8 @@ const NOW = Date.parse("2026-10-19T20:00:00Z");
 const STATUS = JSON.parse(readFileSync(new URL("./fixtures/components.json", import.meta.url), "utf8"));
 const PARITY = JSON.parse(readFileSync(new URL("./fixtures/jobs-graphql-parity.json", import.meta.url), "utf8"));
 const VERIFY = ".github/workflows/pr-verify.yml";
+const MAIN_REVIEW = ".github/workflows/pr-review-main.yml";
+const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
 const MAIN_TIP = "e".repeat(40);
 
 test("a recorded GraphQL answer stands in for REST's job listing and annotations on every field the rules read", () => {
@@ -73,9 +75,10 @@ test("a node that does not answer for the run's first attempt in full is left to
  * GitHub as the reconciler reads it with no open pull request: lane runs by
  * workflow and status, first-attempt jobs and annotations by REST, and the
  * same jobs through JOBS_QUERY when `graphql` is "on". "refused" answers
- * every query 502; "errors" answers it with a GraphQL error body.
+ * every query 502; "errors" answers it with a GraphQL error body; "nulls"
+ * answers no node. `carry` lists one trusted pass with a settled-runs artifact.
  */
-function fakeGitHub(runs, graphql) {
+function fakeGitHub(runs, graphql, carry) {
   const calls = [];
   const byId = new Map(runs.map((r) => [r.id, r]));
   const byNode = new Map(runs.map((r) => [r.node_id, r]));
@@ -112,13 +115,16 @@ function fakeGitHub(runs, graphql) {
       if (graphql === "errors") {
         throw new Error("POST /graphql (GraphQL errors)");
       }
-      return { data: { nodes: body.variables.ids.map((id) => node(byNode.get(id)) ?? null) } };
+      return { data: { nodes: body.variables.ids.map((id) => (graphql === "nulls" ? null : (node(byNode.get(id)) ?? null))) } };
     }
     if (method === "GET" && apiPath.startsWith(`/repos/${REPO}/pulls?`)) {
       return [];
     }
     if (method === "GET" && apiPath.includes("/actions/workflows/maintenance-reconcile-lost-runs.yml/runs?")) {
-      return { total_count: 0, workflow_runs: [] };
+      return { total_count: carry ? 1 : 0, workflow_runs: carry ? [LAST_PASS] : [] };
+    }
+    if (method === "GET" && apiPath === `/repos/${REPO}/actions/runs/${LAST_PASS.id}/artifacts?per_page=100`) {
+      return { total_count: 1, artifacts: [{ id: 4242, name: "reconcile-settled-runs", expired: false }] };
     }
     const byWorkflow = /\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=[^&]+&status=([a-z_]+)&per_page=100(?:&page=([0-9]+))?$/.exec(apiPath);
     if (method === "GET" && byWorkflow) {
@@ -139,7 +145,7 @@ function fakeGitHub(runs, graphql) {
     if (method === "GET" && notes) {
       return runs.flatMap(jobsOf).find((j) => j.id === Number(notes[1]))?.notes ?? [];
     }
-    const one = /\/actions\/runs\/([0-9]+)(\/rerun)?$/.exec(apiPath);
+    const one = /\/actions\/runs\/([0-9]+)(\/rerun|\/rerun-failed-jobs)?$/.exec(apiPath);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
     }
@@ -152,14 +158,14 @@ function fakeGitHub(runs, graphql) {
 }
 
 /** Plan then act, as the workflow runs them; the plan's carry is returned. */
-async function reconcile(runs, graphql) {
-  const { github, calls } = fakeGitHub(runs, graphql);
+async function reconcile(runs, graphql, carry) {
+  const { github, calls } = fakeGitHub(runs, graphql, carry);
   const dir = tempDir("reconcile-batch-");
   try {
     const files = { PLAN_PATH: path.join(dir, "plan.json"), RECORD_PATH: path.join(dir, "record.json"), GITHUB_OUTPUT: path.join(dir, "output"), SETTLED_PATH: path.join(dir, "settled.json") };
     writeFileSync(files.GITHUB_OUTPUT, "");
     const step = (mode) =>
-      main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", ...files, MODE: mode }, github, fetchStatus: async () => STATUS, sleep: async () => {}, now: NOW, download: () => "" });
+      main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", ...files, MODE: mode }, github, fetchStatus: async () => STATUS, sleep: async () => {}, now: NOW, download: () => carry ?? "" });
     const planCode = await step("plan");
     const code = planCode === 0 ? await step("act") : planCode;
     return {
@@ -169,6 +175,7 @@ async function reconcile(runs, graphql) {
       plan: JSON.parse(readFileSync(files.PLAN_PATH, "utf8")),
       settled: JSON.parse(readFileSync(files.SETTLED_PATH, "utf8")),
       reruns: calls.filter((c) => c.startsWith("POST ") && c.endsWith("/rerun")).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])),
+      failedJobReruns: calls.filter((c) => c.startsWith("POST ") && c.endsWith("/rerun-failed-jobs")).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -199,11 +206,11 @@ const intentJob = (id, { held = false, judged = false, wrote = false, failed = f
   notes: held ? [{ annotation_level: "notice", title: "pr-verify", message: "held: pr-verify could not resolve the pull request: GET /repos/x failed with status 502" }] : [{ annotation_level: "notice", title: "api", message: "api calls: 12" }],
 });
 const skippedJob = (id) => ({ id, name: "Check Intent Fallback", status: "completed", conclusion: "skipped", runner_id: null, steps: [] });
-const verifyRun = (id, conclusion, jobs) => ({
+const verifyRun = (id, conclusion, jobs, { path: runPath = VERIFY, event = "workflow_run" } = {}) => ({
   id,
   node_id: `WFR_${id}`,
-  path: VERIFY,
-  event: "workflow_run",
+  path: runPath,
+  event,
   status: "completed",
   conclusion,
   run_attempt: 1,
@@ -214,44 +221,76 @@ const verifyRun = (id, conclusion, jobs) => ({
   updated_at: "2026-10-19T19:45:00Z",
   jobs,
 });
+const oneJob = (id, name, failedStep, notes = []) => ({
+  id,
+  name,
+  status: "completed",
+  conclusion: "failure",
+  steps: [step("Set up job", 1), step(failedStep, 2, "failure"), step("Later step", 3, "skipped"), step("Complete job", 4)],
+  notes,
+});
+/** A pr-review-main run as it lists: seven skipped jobs and two that ran. */
+const reviewJobs = (id) => [
+  ...Array.from({ length: 7 }, (_, i) => ({ ...skippedJob(id * 10 + i), name: `Review ${i}` })),
+  { ...intentJob(id * 10 + 7), name: "Check Trigger" },
+  { ...intentJob(id * 10 + 8), name: "Review Handoffs Credit" },
+];
 /**
- * Six succeeded runs, one of them held on a GitHub fault; two failed lost
- * lane runs, one past its judge step, one before it; one that wrote its verdict.
+ * Six succeeded pr-verify runs, one of them held on a GitHub fault, and a
+ * succeeded pr-review-main run; three failed lost lane runs: one before its
+ * judge step (701, whose read the last pass carried), one past it, one that
+ * wrote its verdict; two failed intake runs, one only in its floor-label job;
+ * two failed verdict posts, one the kill switch stopped and one that broke.
  */
 const WORLD = [
   ...[601, 602, 603, 604, 605].map((id) => verifyRun(id, "success", [intentJob(id * 10), skippedJob(id * 10 + 1)])),
   verifyRun(606, "success", [intentJob(6060, { held: true }), skippedJob(6061)]),
+  verifyRun(607, "success", reviewJobs(607), { path: MAIN_REVIEW }),
   verifyRun(701, "failure", [intentJob(7010, { failed: true }), skippedJob(7011)]),
   verifyRun(702, "failure", [intentJob(7020, { failed: true, judged: true }), skippedJob(7021)]),
   verifyRun(703, "failure", [intentJob(7030, { failed: true, judged: true, wrote: true }), skippedJob(7031)]),
+  verifyRun(801, "failure", [oneJob(8010, "Intake Label Needs Triage / label", "Add the label")], { path: INTAKE, event: "issues" }),
+  verifyRun(802, "failure", [oneJob(8020, "Triage / triage", "Triage the issue")], { path: INTAKE, event: "issues" }),
+  verifyRun(901, "failure", [oneJob(9010, "Post Verify Notes", VERDICT_STOP_STEP)], { path: VERDICT_DISPATCH }),
+  verifyRun(902, "failure", [oneJob(9020, "Post Verify Notes", "Post the notes", [{ annotation_level: "failure", title: "", message: "the post broke" }])], { path: VERDICT_DISPATCH }),
 ];
+const slim = ({ notes: _, ...job }) => job;
+/** The last pass's carry: run 701's first-attempt read, which holdReason takes instead of reading. */
+const CARRY = JSON.stringify({
+  version: SETTLED_VERSION,
+  repository: REPO,
+  runs: [],
+  jobs: [{ id: 701, attempt: 1, head: MAIN_TIP, updated_at: "2026-10-19T19:45:00Z", jobs: WORLD.find((r) => r.id === 701).jobs.map(slim) }],
+});
 const restReads = (calls) => calls.filter((c) => c.includes("/attempts/1/jobs?") || c.includes("/check-runs/")).length;
+const queries = (calls) => calls.filter((c) => c === "POST /graphql").length;
 
 test("a pass that batches its job reads decides as a REST pass does, with fewer calls", async () => {
-  const rest = await reconcile(WORLD, "refused");
-  const served = await reconcile(WORLD, "on");
+  const rest = await reconcile(WORLD, "refused", CARRY);
+  const served = await reconcile(WORLD, "on", CARRY);
   assert.equal(rest.code, 0);
   assert.deepEqual(rest.reruns.sort(), [606, 701, 702].sort(), "the held run and the lost runs whose write never started");
-  for (const key of ["code", "reruns", "outputs", "plan", "settled"]) {
+  assert.deepEqual(rest.failedJobReruns.sort(), [801, 901].sort(), "the floor-label intake run and the switch-stopped verdict post");
+  assert.ok(!rest.calls.includes(`GET /repos/${REPO}/actions/runs/701/attempts/1/jobs?per_page=100`), "the carried read is taken");
+  for (const key of ["code", "reruns", "failedJobReruns", "outputs", "plan", "settled"]) {
     assert.deepEqual(served[key], rest[key], key);
   }
-  assert.equal(served.calls.filter((c) => c === "POST /graphql").length, 2, "the 3 lost lane runs are one batch; the 6 succeeded runs a batch of 5 and one left to REST");
+  assert.equal(queries(served.calls), 5, "lane runs 702-703, succeeded runs 601-605 and 606-607, intake 801-802, verdicts 901-902");
   assert.ok(served.calls.length < rest.calls.length, `${served.calls.length} calls against ${rest.calls.length}`);
-  assert.deepEqual(
-    served.calls.filter((c) => c.includes("/attempts/1/jobs?")),
-    [`GET /repos/${REPO}/actions/runs/606/attempts/1/jobs?per_page=100`],
-  );
+  assert.deepEqual(served.calls.filter((c) => c.includes("/attempts/1/jobs?")), []);
 });
 
-test("a GraphQL error sends no later batch, and every run is read through REST as before", async () => {
-  const rest = await reconcile(WORLD, "refused");
-  const errors = await reconcile(WORLD, "errors");
-  for (const key of ["code", "reruns", "outputs", "plan", "settled"]) {
-    assert.deepEqual(errors[key], rest[key], key);
+test("a query that fails or answers for none of its runs sends no later batch, and every run is read through REST as before", async () => {
+  const rest = await reconcile(WORLD, "refused", CARRY);
+  for (const mode of ["errors", "nulls"]) {
+    const failed = await reconcile(WORLD, mode, CARRY);
+    for (const key of ["code", "reruns", "failedJobReruns", "outputs", "plan", "settled"]) {
+      assert.deepEqual(failed[key], rest[key], `${mode}: ${key}`);
+    }
+    assert.equal(queries(failed.calls), 1, mode);
+    assert.equal(restReads(failed.calls), restReads(rest.calls), mode);
   }
-  assert.equal(errors.calls.filter((c) => c === "POST /graphql").length, 1);
-  assert.equal(rest.calls.filter((c) => c === "POST /graphql").length, 1);
-  assert.equal(restReads(errors.calls), restReads(rest.calls));
+  assert.equal(queries(rest.calls), 1);
 });
 
 test("one run to read, or runs listed without a node id, send no query", async () => {

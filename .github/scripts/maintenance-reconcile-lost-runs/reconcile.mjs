@@ -594,8 +594,8 @@ export function servedReads(repo, run, node) {
  * by the REST path each answer stands in for. A batch of one run is left to
  * REST, where it costs the same one call. A run the answer does not cover in
  * full is read through REST; after a query fails, by error or GraphQL's own
- * rate limit, every later run this pass is too (`state.failed`), so this
- * never stops a pass REST would finish.
+ * rate limit, or answers for none of its runs, every later run this pass is
+ * too (`state.failed`), so this never stops a pass REST would finish.
  */
 async function prefetchJobs(send, repo, runs, cache, state) {
   const wanted = [...new Map(runs.filter((r) => Number.isSafeInteger(r?.id) && typeof r.node_id === "string" && !cache.has(jobsPath(repo, r.id))).map((r) => [r.id, r])).values()];
@@ -603,6 +603,10 @@ async function prefetchJobs(send, repo, runs, cache, state) {
     const batch = wanted.slice(at, at + JOBS_BATCH);
     try {
       const nodes = (await send("POST", "/graphql", { query: JOBS_QUERY, variables: { ids: batch.map((r) => r.node_id) } }))?.data?.nodes;
+      if (!batch.some((r, i) => Array.isArray(nodes) && nodes[i]?.databaseId === r.id && nodes[i].runAttempt === 1)) {
+        state.failed = true;
+        continue;
+      }
       batch.forEach((r, i) => {
         for (const [path, answer] of servedReads(repo, r, Array.isArray(nodes) ? nodes[i] : undefined) ?? []) {
           cache.set(path, answer);
