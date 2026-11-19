@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing carries over: /clear and open #4489.",
+      "why": "plain clear"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a handoff first with /session-flow:handoff, then /clear.",
+      "why": "handoff"
+    },
+    {
+      "answer": "/compact keep the report work.",
+      "why": "compact"
+    }
+  ]
+}

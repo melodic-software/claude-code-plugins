@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: wf-unrelated-next-plain-clear
+description: 'The continuation router hears that the task is merged and done, nothing is owed, and the next ask is unrelated and fully described in its own issue: nothing carries over, so it routes to a plain /clear, with no handoff file. A natural-language license is not the literal continue auto token, so it invokes nothing. A run needs --scaffold and --allow-tools Bash.'
+tags: [workflow, continuation]
+plugins: ["../.."]
+expected_outcome: 'The answer walks the continuation router and recommends a plain /clear for the user to type, because the report work is done and the unrelated flaky-test work is fully described in its issue. It does not recommend session-flow:handoff or /compact, and it invokes no continuation skill.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:workflow continue: the report currency work is merged and done; nothing from it is owed. Next I''m looking at the unrelated flaky test in tests/test_auth.py, which issue #4489 describes in full. Pick the continuation step you think is right.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-clear
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip|don''t|do not|instead of|rather than|no need to)\b[^\n]{0,30}/clear)[^\n]*(?<![\w/-])/clear(?![\w-])'
+    flags: 'mi'
+    arm: both
+  - name: one-recommendation
+    type: llm
+    criteria: 'PASS only if the reply recommends a plain /clear, with no handoff file, as the one continuation step. FAIL if it recommends session-flow:handoff, /compact, or continuing in session as the step, or gives no single recommendation.'
+    focus: last_message
+    arm: both
+  - name: no-continuation-skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'session-flow:(?:clean-stop|handoff|continue-in-background|orchestrate)\b|"skill":"(?:clean-stop|handoff|continue-in-background|orchestrate)"'
+    min: 0
+    max: 0
+    arm: both
