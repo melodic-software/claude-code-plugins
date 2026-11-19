@@ -694,6 +694,7 @@ def test_stop_open_items(ctx):
     assert "write the docs" in output["reason"]
     assert "fix the flaky test" in output["reason"]
     assert RULES_TAIL in output["reason"]
+    assert " refresh " not in output["reason"], "the hook keeps the blocks current, so it asks for no refresh"
     check = ctx.cli("check")
     assert check.returncode == 1
     assert check_lines(check)["open"] == "2"
@@ -742,14 +743,106 @@ def test_stop_after_mode_warning_still_holds_open_items(ctx):
     assert "write the docs" in json.loads(second)["reason"]
 
 
-def test_stop_blocks_on_unlisted_refusal(ctx):
+def test_stop_lists_a_new_refusal_itself(ctx):
     started_with_tasks(ctx, "- [x] done\n")
     ctx.hook("PermissionRequest", "permission_request_bash")
-    output = json.loads(ctx.hook("Stop", "stop"))
-    assert output["decision"] == "block"
-    assert "refresh" in output["reason"]
-    assert ctx.cli("refresh").returncode == 0
+    assert ctx.hook("Stop", "stop") == "", "the Stop hook lists the refusal, so no refresh is needed to stop"
+    assert "- R1 permission prompt" in block(ctx.report().read_text(encoding="utf-8"), "refused")
+    assert check_lines(ctx.cli("check"))["blocks_fresh"] == "pass"
+
+
+def test_stop_refreshes_blocks_from_the_transcript_and_keeps_the_agents_sections(ctx):
+    started_with_tasks(ctx, "- [x] done\n")
+    fill_report(ctx.report(), "- **Decision:** which database.\n  **Options:** Postgres; SQLite.\n  **Recommendation:** Postgres.\n")
+    before = ctx.report().read_text(encoding="utf-8")
+    ctx.install_transcript()
     assert ctx.hook("Stop", "stop") == ""
+    text = ctx.report().read_text(encoding="utf-8")
+    assert "gh pr create" in block(text, "externals"), "the first Stop records the transcript and lists its external actions"
+    assert "curl -X POST https://example.invalid/api/deploy" in block(text, "refused"), "an auto mode denial is listed"
+    assert [r["id"] for r in ctx.refused()] == ["R1"]
+    assert text.split("<!-- away:refused:begin -->")[0] == before.split("<!-- away:refused:begin -->")[0], (
+        "everything above the script-owned blocks, Needs you included, is left as the agent wrote it"
+    )
+    assert ctx.hook("Stop", "stop") == ""
+    assert [r["id"] for r in ctx.refused()] == ["R1"], "a second Stop adds no duplicate"
+
+
+def test_stop_leaves_the_file_scan_to_end(ctx):
+    watched = ctx.root / "watched"
+    watched.mkdir()
+    task = ctx.repo / "tasks.md"
+    task.write_text("- [x] done\n", encoding="utf-8")
+    ctx.start(
+        "--kind", "until", "--until", "2000-01-01T00:00:00+00:00", "--task-file", str(task),
+        "--setting", f"away_watched_folders={watched}",
+    )
+    fill_report(ctx.report())
+    (watched / "written.txt").write_text("x", encoding="utf-8")
+    assert ctx.hook("Stop", "stop") == ""
+    assert "written.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "the Stop hook runs no file scan"
+    assert ctx.cli("end").returncode == 0
+    assert "written.txt" in block(ctx.report().read_text(encoding="utf-8"), "files"), "end scans the watched folders"
+
+
+def test_stop_still_holds_open_items_when_the_report_cannot_be_written(ctx):
+    started_with_tasks(ctx, "- [ ] write the docs\n")
+    blocker = ctx.root / "not-a-dir"
+    blocker.write_text("", encoding="utf-8")
+    state = ctx.state()
+    (ctx.state_dir / "state.json").write_text(json.dumps(dict(state, report_path=str(blocker / "report.md"))), encoding="utf-8")
+    payload = dict(HOOK_INPUTS["stop"], session_id=SESSION, transcript_path=str(ctx.root / "t.jsonl"))
+    result = ctx.run("hook", "Stop", stdin=json.dumps(payload))
+    assert result.returncode == 0
+    output = json.loads(result.stdout)
+    assert output["decision"] == "block" and "write the docs" in output["reason"], "a failed rewrite keeps the open-items hold"
+    assert "stop refresh failed" in result.stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks need POSIX permissions")
+@pytest.mark.parametrize("swap", ["report", "folder"])
+def test_stop_never_writes_through_a_link_planted_at_the_report(ctx, swap):
+    ignored = Away(ctx.root / "ignored")
+    (ignored.repo / ".gitignore").write_text(".work/\n", encoding="utf-8")
+    task = ignored.repo / "tasks.md"
+    task.write_text("- [x] done\n", encoding="utf-8")
+    ignored.start("--kind", "trip", "--task-file", str(task))
+    report = ignored.report()
+    secret = ctx.root / "secret.txt"
+    secret.write_text("TOP-SECRET-VALUE\n", encoding="utf-8")
+    outside = ctx.root / "outside"
+    outside.mkdir()
+    if swap == "report":
+        report.unlink()
+        report.symlink_to(secret)
+    else:
+        moved = report.parent.with_name("away-real")
+        report.parent.rename(moved)
+        report.parent.symlink_to(outside)
+    ignored.hook("PermissionRequest", "permission_request_bash")
+    ignored.hook("Stop", "stop")
+    assert secret.read_text(encoding="utf-8") == "TOP-SECRET-VALUE\n", "the linked file is left as it was"
+    assert list(outside.iterdir()) == [], "nothing is written into the linked folder"
+    if swap == "report":
+        assert report.is_symlink(), "the link is not replaced by a copy of what it points at"
+    result = ignored.cli("end")
+    assert result.returncode == 1 and "left untouched" in result.stderr, "end reports the refusal"
+    assert "Traceback" not in result.stderr
+    assert secret.read_text(encoding="utf-8") == "TOP-SECRET-VALUE\n" and list(outside.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks need POSIX permissions")
+def test_end_writes_a_report_recorded_through_a_linked_folder_before_report_dir_existed(ctx):
+    ctx.start()
+    via = ctx.root / "via"
+    via.symlink_to(ctx.state_dir)
+    state = ctx.state()
+    state.pop("report_dir")
+    state["report_path"] = str(via / "report.md")
+    (ctx.state_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    result = ctx.cli("end")
+    assert result.returncode == 0, result.stderr
+    assert "Watched:" in block((ctx.state_dir / "report.md").read_text(encoding="utf-8"), "files")
 
 
 def test_stop_records_transcript_path(ctx):
@@ -776,11 +869,6 @@ def test_prompt_subagent_report_not_return(ctx):
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
 
 
-def _stop_note(ctx: Away) -> str:
-    started_with_tasks(ctx, "- [ ] write the docs\n")
-    return json.loads(ctx.hook("Stop", "stop"))["reason"]
-
-
 def _active_note(ctx: Away) -> str:
     ctx.start()
     return context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
@@ -794,8 +882,8 @@ def _back_note(ctx: Away) -> str:
 
 @pytest.mark.parametrize(
     ("note", "verb", "status_after"),
-    [(_stop_note, "refresh", "active"), (_active_note, "end", "ended"), (_back_note, "deliver", None)],
-    ids=["stop-refresh", "active-end", "back-deliver"],
+    [(_active_note, "end", "ended"), (_back_note, "deliver", None)],
+    ids=["active-end", "back-deliver"],
 )
 def test_hook_note_command_names_data_root(ctx, note, verb, status_after):
     text = note(ctx)
@@ -1061,18 +1149,6 @@ def test_plain_refresh_keeps_the_files_block(ctx):
     second.write_text("x", encoding="utf-8")
     assert ctx.cli("end").returncode == 0
     assert str(second) in block(ctx.report().read_text(encoding="utf-8"), "files"), "end always rescans"
-
-
-def test_first_refresh_after_report_by_rescans_once(ctx):
-    ctx.start("--kind", "until", "--until", "2000-01-01T00:00:00+00:00")
-    early = ctx.home / "early.txt"
-    early.write_text("x", encoding="utf-8")
-    assert ctx.cli("refresh").returncode == 0
-    assert str(early) in block(ctx.report().read_text(encoding="utf-8"), "files"), "report_by has passed: rescan"
-    late = ctx.home / "late.txt"
-    late.write_text("x", encoding="utf-8")
-    assert ctx.cli("refresh").returncode == 0
-    assert "late.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "only the first one rescans"
 
 
 def test_file_walk_budget(ctx, monkeypatch):
