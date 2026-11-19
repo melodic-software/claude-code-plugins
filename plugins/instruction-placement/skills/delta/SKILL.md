@@ -1,6 +1,6 @@
 ---
 description: "Re-run the placement audit and report only what moved since the last run, above a noise budget. Declined findings stay declined. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only. Realign still owns every change."
-argument-hint: "[--since <ISO date>] [--noise-budget <n>]"
+argument-hint: "[--since <ISO date>] [--noise-budget <n>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -20,7 +20,9 @@ metadata:
   summary: Report only what moved since the last placement audit
 ---
 
-**Arguments.** `[--since <ISO date>] [--noise-budget <n>]`. Default: since the artifact's last run
+**Arguments.** `[--since <ISO date>] [--noise-budget <n>] [--repo <repo> ...]`. Default: since the
+artifact's last run, in this checkout. `--repo` and the other target forms: "Over several
+repositories" below
 
 ## Pre-computed context
 
@@ -62,6 +64,26 @@ never reaches another worktree. Read it, honor every entry it merges to, and
 
 A decline in the baseline would be a per-checkout fact, and the operator gets asked again from the
 next worktree. That is the bug this lane exists downstream of.
+
+## Over several repositories
+
+With no target form, the run compares this checkout, as it always has. A target form selects
+several repositories, resolved, counted and listed as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target forms"
+and "Resolving repositories" say. What differs here:
+
+- **One delta state per repository, in the audit's worktree.** A multi-repository `audit` keeps
+  each repository's findings artifact in its worktree on the branch `instruction-placement/realign`
+  (that skill's "Over several repositories"). Select that entry in
+  `git -C <root> worktree list --porcelain` and run the workflow there, one subagent per repository
+  ("Fan-out" there), with `--root` set to the worktree on every script call and the worktree's
+  branch, not the pre-compute block's, as the branch identity for the home and the baseline's
+  `branch:` gate. The baseline, the artifact merge and the capture all stay in that worktree, and
+  each repository's own suppression surface applies. A repository with no worktree on that branch has neither input there: report it
+  as the both-absent row and route it to `audit`.
+- **One merged report.** Lead with the moved and suppressed counts per repository, then merge the
+  moved findings as "Merging findings" says, each written as `owner/name IP-<n>`. A quiet
+  repository is one line, not a section.
 
 ## What counts as movement
 

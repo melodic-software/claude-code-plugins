@@ -65,5 +65,4 @@ user's decision as an assumption is the failure the auto-guard exists to prevent
 licenses it.
 
 The unattended condition is **declared by the caller, never sniffed**, the same rule the auto-guard's
-unattended path states. There is no supported way for a session to observe that it is
-non-interactive, so never read an environment variable to decide this.
+unattended path states: never read an environment variable to decide this.

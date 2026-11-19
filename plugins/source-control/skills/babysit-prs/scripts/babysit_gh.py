@@ -3103,6 +3103,8 @@ def collect_lane_runs(
         else ""
     )
     for path, job_names in lanes:
+        if not path or not job_names:
+            continue
         # The cache key carries one slash-free name: carry-run-cache.mjs keeps
         # only such a key.
         job_suffix = job_names[0].rsplit(" / ", 1)[-1]

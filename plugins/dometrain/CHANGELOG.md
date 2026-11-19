@@ -3,6 +3,14 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.11] - 2026-11-19
+
+### Changed
+
+- The setup skill's mechanism note states its never-read-`/mcp` rule as its own decision, with the
+  reason, and neither that note nor the skill's closing rules restate which tools can see `/mcp`
+  output.
+
 ## [0.9.10] - 2026-11-18
 
 ### Changed

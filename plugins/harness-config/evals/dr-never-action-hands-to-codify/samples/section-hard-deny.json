@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A force-push to main cannot be undone, so the classifier entry goes in hard_deny and stays as a second layer.\n\nSECTION: hard_deny\nPROPOSAL: `/corrections:codify \"never force-push to main\"`",
+      "why": "the fixed section line"
+    },
+    {
+      "answer": "**SECTION:** `hard_deny`\n**PROPOSAL:** hand it to codify",
+      "why": "bold and code markup around the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SECTION: soft_deny\nPROPOSAL: none",
+      "why": "an overridable block for a never action"
+    },
+    {
+      "answer": "SECTION: allow\nPROPOSAL: none",
+      "why": "wrong section"
+    }
+  ]
+}
