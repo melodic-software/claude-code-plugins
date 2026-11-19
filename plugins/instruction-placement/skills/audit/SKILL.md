@@ -1,6 +1,6 @@
 ---
 description: "Read-only sweep for instruction content on the wrong surface: demote always-loaded conventions that belong on one file type or subtree; promote stranded docs conventions. Safety rails are hard-denied from demotion. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Sibling realign applies accepted findings."
-argument-hint: "[core|expanded] [path ...]"
+argument-hint: "[core|expanded] [path ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -22,7 +22,8 @@ metadata:
   summary: Find instruction content on the wrong surface and propose validated destinations
 ---
 
-**Arguments.** `[core|expanded] [path ...]`. Default: core+expanded over the whole repository
+**Arguments.** `[core|expanded] [path ...] [--repo <repo> ...]`. Default: core+expanded over the
+whole repository. `--repo` and the other target forms: "Over several repositories" below
 
 ## Pre-computed context
 
@@ -47,6 +48,41 @@ This skill finds content whose scope is narrower than the surface carrying it, a
 surface Claude never reads at all, and proposes where each should go.
 
 **It is read-only.** Every finding is a proposal; the operator decides, and `realign` executes.
+
+## Over several repositories
+
+With no target form, the run covers this checkout, as it always has. A target form selects several
+repositories, resolved, counted and listed as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target forms"
+and "Resolving repositories" say. What differs here:
+
+- **Audit in the worktree `realign` will use.** The findings artifact is checkout-local and keyed by
+  branch (`findings-artifact.md` "Where it lives"), so an artifact written in another checkout is
+  one `realign` and `delta` never find. Per repository, that worktree is the one on the branch
+  `instruction-placement/realign`, found in `git -C <root> worktree list --porcelain`. Reuse it
+  when it exists, so a re-audit merges into the earlier artifact and keeps every decision. Only
+  when none exists, create one on that branch by that repository's convention: from the local
+  branch when it is left without a worktree, else from `origin/HEAD`. Run the workflow there, one
+  subagent per repository ("Fan-out" there), with `--root` set to the worktree on every
+  `detect.sh`, `glob-tools.sh` and `render-index.sh` call, the worktree's branch as the branch
+  identity for the home, and that repository's own suppression surface. This worktree and branch
+  are the only thing the audit adds to another repository; the read-only rule holds for every
+  tracked file.
+- **The quote check runs once.** It reads docs pages, not a repository: run it once, with no
+  arguments, and pass its result into each repository's subagent brief.
+- **One artifact per repository.** An `IP-<n>` handle is unique within its repository only, so the
+  report writes every finding as `owner/name IP-<n>`.
+- **One merged report.** Merge as "Merging findings" says, on this skill's rank (step 7 below).
+  Name each repository's worktree path and artifact path, which `realign` and `delta` start from.
+- **A rule several repositories repeat.** A section whose heading path and normative text match, or
+  nearly match, in the always-loaded files of two or more repositories is one row of the merged
+  report, listing each repository and source range. It names the candidate single homes: the
+  machine layer (the user-scope instructions every repository's sessions load) and, when the
+  operator names one, the standards repository. A section a sync mechanism already copies into
+  each repository is excluded, as the contract's "Cross-repository signals" says. The row is
+  report-only: it is written to no artifact, has no `finding_id`, `realign` never applies it, and
+  it proposes no move or edit. Consolidating is the operator's own decision and edit, outside this
+  plugin, so the boundary rule under "Hard rules" still holds.
 
 ## Read these before adjudicating anything
 
@@ -237,7 +273,9 @@ table and the two rules that keep routing from becoming silent dropping.
 
 - **Read-only.** The only files this skill writes are its own findings artifact, untracked
   and never committed, and the docs cache `quote-check.sh` refreshes through `fetch-docs.sh`,
-  outside the repository. No edit to any instruction file, ever, not even an obviously correct one.
+  outside the repository. A multi-repository run also adds the `instruction-placement/realign`
+  worktree and branch per repository ("Over several repositories"). No edit to any instruction
+  file, ever, not even an obviously correct one.
 - **Never propose a glob that failed validation.** The check is mechanical and cheap; a guessed glob
   produces a rule that silently never fires, which is strictly worse than leaving the content alone.
 - **Never propose demoting a hard-deny candidate**, under any argument, including an operator

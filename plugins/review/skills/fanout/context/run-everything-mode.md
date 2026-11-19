@@ -27,7 +27,7 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 
 ## Pre-launch availability gate
 
-The Workflow tool is not present in every session. Decide availability before attempting a launch. The check is whether the Workflow tool is in this session's toolset (listed or loadable); when it is absent → main-thread fallback. Pointer: for the switches that turn workflows off, fetch [workflows: turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) live. Recheck trigger: workflows become available in every session, so the toolset check stops being needed.
+The Workflow tool is not present in every session. Decide availability before attempting a launch. The check is whether the Workflow tool is in this session's toolset (listed or loadable); when it is absent → main-thread fallback. Pointer: for the switches that turn workflows off, fetch [workflows: turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) live.
 
 If availability cannot be positively confirmed, fall back (fail-safe, not fail-open).
 
