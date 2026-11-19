@@ -53,6 +53,18 @@ import babysit_run_cache as run_cache
 import babysit_verify_evidence as ve
 import test_babysit_merge_unattended as unattended
 
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 REPO = "example-org/example-repo"
 PR = 41
 HEAD = "a" * 40
