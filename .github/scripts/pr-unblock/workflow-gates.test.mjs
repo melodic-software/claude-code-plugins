@@ -1078,6 +1078,7 @@ test("pr-unblock-dispatch.yml installs the FAIL-cap reader only on a run that di
 
 test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
   const dispatcher = cronMinutes(DISPATCHER);
+  assert.deepEqual(dispatcher, [9, 39], "the dispatcher keeps its 9 and 39 ticks");
   for (const minute of cronMinutes("maintenance-reconcile-lost-runs.yml")) {
     assert.ok(dispatcher.includes((minute + 5) % 60), `a dispatcher tick follows the reconciler's minute ${minute}`);
   }

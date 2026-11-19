@@ -3354,7 +3354,7 @@ them on every `pull_request` run, contract-only runs included:
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
-  reconciler re-runs that review run, one lane per head per half-hourly pass, and its completion
+  reconciler re-runs that review run, one lane per head per hourly pass, and its completion
   re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
   switch stops no merge of its own: a head with no review is red here, the merge gate holds it
   (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
