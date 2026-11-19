@@ -857,7 +857,7 @@ jobs:
               local dir=${RUNNER_TEMP:-}/api-budget
               [[ -n ${RUNNER_TEMP:-} && -s $dir/stop ]] || return 0
               { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf '\001\n'
-                cat -- "$dir/guessed" "$dir/fallback" 2>/dev/null; printf '\001\n'; } | awk '
+                cat -- "$dir/guessed" 2>/dev/null; printf '\002\n'; cat -- "$dir/fallback" 2>/dev/null; printf '\001\n'; } | awk '
                 index($0, "\001") { part++; next }
                 length($2) > 12 { next }
                 part == 0 && /^([a-z_]+|\*) [0-9]+$/ { if (!($1 in at) || $2 + 0 > at[$1]) at[$1] = $2 + 0; next }
@@ -4978,7 +4978,7 @@ jobs:
           local dir=${RUNNER_TEMP:-}/api-budget
           [[ -n ${RUNNER_TEMP:-} && -s $dir/stop ]] || return 0
           { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf '\001\n'
-            cat -- "$dir/guessed" "$dir/fallback" 2>/dev/null; printf '\001\n'; } | awk '
+            cat -- "$dir/guessed" 2>/dev/null; printf '\002\n'; cat -- "$dir/fallback" 2>/dev/null; printf '\001\n'; } | awk '
             index($0, "\001") { part++; next }
             length($2) > 12 { next }
             part == 0 && /^([a-z_]+|\*) [0-9]+$/ { if (!($1 in at) || $2 + 0 > at[$1]) at[$1] = $2 + 0; next }

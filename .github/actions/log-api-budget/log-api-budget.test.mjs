@@ -462,6 +462,8 @@ test("api_budget_emit_stops marks a time no header gave as guessed, from the she
     assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit guessed\n`);
     stopFiles(dir, { stop: "core 1795045611\n", fallback: "core 1795040000\n" });
     assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit\n`, "a guess for another reset marks nothing");
+    stopFiles(dir, { stop: "core 1795045611\n", guessed: "graphql 17950", fallback: "core 1795045611\n" });
+    assert.equal(bash(dir, "api_budget_emit_stops").stdout, `${STOP}core 1795045611 limit guessed\n`, "a partial guessed line leaves the fallback's first line whole");
   }));
 
 test("api_budget_emit_stops takes only whole stop lines, as the guard reads the stop file", () =>
