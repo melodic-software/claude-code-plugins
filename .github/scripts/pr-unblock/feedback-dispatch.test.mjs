@@ -3365,6 +3365,22 @@ test("an owner PR or its head commit active within idle-hours is not dispatched"
   }
 });
 
+const ARMED = { auto_merge: { merge_method: "squash", enabled_by: { id: KYLE.databaseId, type: "User" } } };
+test("an active owner PR with auto-merge armed is dispatched without waiting idle-hours", async () => {
+  for (const [label, api] of [
+    ["a recent update", ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T11:00:00Z", ...ARMED }) })],
+    ["a recent head commit", ownerApi({ pulls: ownerPull(ARMED) }, "2026-10-28T11:30:00Z")],
+  ]) {
+    const { result, lines } = await decideOwner(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, `${label}: ${lines.join("\n")}`);
+    assert.deepEqual(api.calls.commits, [], label);
+  }
+  const held = ownerApi({ pulls: ownerPull({ ...ARMED, body: "Hold: mine" }) });
+  const { result, lines } = await decideOwner(held);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /held by a Hold: line/);
+});
+
 test("an owner PR with a Hold: body line is not dispatched", async () => {
   const api = ownerApi({ pulls: ownerPull({ body: "Summary\n  hold: I am still on this" }) });
   const { result, lines } = await decideOwner(api);
@@ -3559,6 +3575,14 @@ test("the sweep decides an idle owner head with no round only within the idle wi
   // A new update opens the window again.
   const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
   assert.equal((await ownerSweep(reopened))?.number, 42);
+});
+
+test("the sweep sends an active owner PR with auto-merge armed and no round, as its review completion would", async () => {
+  const armed = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T11:30:00Z", ...ARMED }));
+  assert.equal((await ownerSweep(armed))?.number, 42);
+  assert.equal(armed.calls.dispatch.length, 1);
+  const unarmed = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T11:30:00Z" }));
+  assert.equal(await ownerSweep(unarmed), null);
 });
 
 test("the sweep clears an idle owner PR's failing stop once no thread is left, past the idle window, under its gates", async () => {

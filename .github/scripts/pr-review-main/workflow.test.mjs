@@ -1848,6 +1848,7 @@ test("every later leg repeats the key leg's steps but for its credential and why
       // (pinned per leg in the credential-order test and credential-legs.test.mjs).
       .replace(/^ {10}leg: (?:key|subscription|fallback)\n/m, "")
       .replace(/^ {10}fallback-set: .*\n/m, "")
+      .replace(/\n {10}key-off: \$\{\{ vars\.CLAUDE_API_KEYS_DISABLED == 'true' \}\}$/m, "")
       .replace(/\n {10}reason: \$\{\{ matrix\.reason \}\}$/m, "")
       // The key leg's take on the check-trigger job's gate (its own test above).
       .replace(/ && needs\.check-trigger\.outputs\.run-attempt != github\.run_attempt$/m, "")

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Vendored-copy check for the good-css files /user-interface:write-css ships
-# unmodified. Run weekly as a row of scripts/upstream-drift-vendored-report.sh
-# by .github/workflows/maintenance-file-upstream-drift-issues.yml;
-# docs/upstream/good-css.md is the attribution and pin record, and the
-# upstream side of the pin is read by scripts/check-upstream-drift.sh.
+# unmodified, a row of scripts/upstream-drift-vendored-report.sh. The
+# attribution and pin record is
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/good-css.md;
+# scripts/check-upstream-drift.sh reads the upstream side of the pin.
 #
 # Read-only and offline. Checks that each vendored copy still hashes
 # (git hash-object) to the upstream blob SHA at the pin.

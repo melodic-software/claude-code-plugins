@@ -4,6 +4,26 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.6.0] - 2026-11-18
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+A vendored-copy drift issue enters the issue lane with no owner step, as a hex-pin one does, by
+the owner's direction of 2026-11-18: github-actions[bot] wrote it, nobody else last edited it, its
+title is `Upstream drift: <id>` and its first body line is the filer's vendored-copy lead. Its
+fixed spec runs the skill's update procedure, found from the id's row in
+`scripts/upstream-drift-vendored-report.sh`, folds the changes into the skill's distilled files,
+adds a changelog fragment and changes only markdown under the plugin's `skills/`, markdown,
+`.jsonc` and `LICENSE` files in its `vendor/` baselines, plus that fragment, never a script, hook,
+library, manifest, MCP config or eval suite. In a `SKILL.md` outside `vendor/` it changes no
+frontmatter line but the sync stamps and no `` !` `` line or fenced block, and it adds, renames and
+removes none, and it never edits the update procedure it follows (a skill's `actions/update.md`, or the plugin's `update` skill outside `vendor/`). It is trusted only for an id whose
+every vendored row carries the new `files-only` mark (an apply mode that installs no package), so a
+row whose update runs `npm install` stays with a person. The workflow runs daily instead of
+weekly, so the section is now "Daily drift issues". The "Admission with no owner step" bullet says
+so.
+
 ## [6.5.1] - 2026-11-18
 
 Docs-only; patch. The release intake workflow checks for a new Claude Code release every hour,

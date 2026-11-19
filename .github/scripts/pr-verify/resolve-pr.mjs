@@ -72,11 +72,11 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
-export { refsIssue };
+export { refsIssue, vendoredRows };
 
 // The name grammar lives with its writer; the resolver checks names against it.
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
@@ -794,28 +794,98 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
   return pages;
 }
 
+// Path segments a vendored sync never writes and an agent or a user's
+// machine may run: a skill's own scripts (the next issue-lane run executes
+// its update script), hooks, shared libraries, the plugin manifest and MCP
+// config, and eval suites
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+const VENDORED_UNSAFE = new Set(["scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."]);
+const VENDOR_INERT = /(?:\.md|\.jsonc|^LICENSE)$/;
+// Whether `name` is a path a vendored sync of `plugin` may write: a
+// changelog fragment directly under `.changes/<plugin>/`, or, under
+// `plugins/<plugin>/skills/`, a markdown file, or in a `vendor/` baseline a
+// markdown, `.jsonc` or `LICENSE` file, with no segment of VENDORED_UNSAFE,
+// and never the update procedure the vendored spec names: a skill's
+// `actions/update.md` or, outside `vendor/`, the plugin's `update` skill
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Pure.
+export function vendoredPath(plugin, name) {
+  if (typeof plugin !== "string" || typeof name !== "string") {
+    return false;
+  }
+  const fragment = `.changes/${plugin}/`;
+  if (name.startsWith(fragment)) {
+    return /^[^/]+\.md$/.test(name.slice(fragment.length));
+  }
+  const parts = name.split("/");
+  const vendored = parts.slice(4, -1).includes("vendor");
+  const procedure = (parts[3] === "update" && !vendored) || (parts.at(-2) === "actions" && parts.at(-1) === "update.md");
+  return (
+    name.startsWith(`plugins/${plugin}/skills/`) &&
+    parts.length > 4 &&
+    parts.every((part) => part !== "" && !VENDORED_UNSAFE.has(part)) &&
+    !procedure &&
+    (vendored ? VENDOR_INERT.test(parts.at(-1)) : name.endsWith(".md"))
+  );
+}
+
+// A SKILL.md Claude Code loads, whose frontmatter, `` !` `` lines and ```!
+// blocks run or grant on a user's machine (https://code.claude.com/docs/en/skills).
+export const skillFile = (name) => typeof name === "string" && /^plugins\/[^/]+\/skills\/(?:[^/]+\/)+SKILL\.md$/.test(name) && !name.split("/").slice(4, -1).includes("vendor");
+
+const SYNC_STAMP = /^ {2}(upstream-version|upstream-sha|synced): ("?)[\w.\/@:+-]+\2$/;
+const PRECOMPUTE_FENCE = /(?:`{3,}|~{3,})\s*!/;
+
+function skillSurface(text) {
+  const lines = typeof text === "string" ? text.split("\n") : [];
+  const end = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
+  if (end === -1 || lines.some((line) => PRECOMPUTE_FENCE.test(line))) {
+    return null;
+  }
+  return {
+    front: lines.slice(1, end).map((line) => (SYNC_STAMP.test(line) ? line.slice(0, line.indexOf(":") + 1) : line)),
+    precompute: lines.slice(end + 1).filter((line) => line.includes("!`")),
+  };
+}
+
+// Whether a vendored sync changes a SKILL.md's frontmatter only in its sync
+// stamp values and leaves its `` !` `` lines as they were, with no ```! block
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+export function skillTextSafe(base, head) {
+  const before = skillSurface(base);
+  const after = skillSurface(head);
+  return before !== null && after !== null && JSON.stringify(before) === JSON.stringify(after);
+}
+
+function vendoredSkillSafe(file) {
+  if (skillFile(file?.previous_filename)) {
+    return false;
+  }
+  return !skillFile(file?.filename) || (file.status === "modified" && skillTextSafe(file.texts?.base, file.texts?.head));
+}
+
 // The spec of an issue the upstream-drift workflow filed, or null. The issue
-// counts when it is a trusted drift issue (admit.mjs driftIssueId), `pages`
-// (this checkout's) pins its upstream id, and `files`, the pull request's
-// changed files, are only modifications of those pages. The spec is
-// admit.mjs driftSpecText for the id and those page paths, so a string an
-// upstream put in the issue's rows never becomes spec.
-export function driftSpec(issue, pages, files) {
-  const id = driftIssueId(issue);
-  if (id === null) {
+// counts when it is a trusted drift issue (admit.mjs driftIssue) and `files`,
+// the pull request's changed files, stay inside its kind's scope: for the
+// hex-pin kind, only modifications of the `pages` (this checkout's) that pin
+// its upstream id; for the vendored kind, only vendoredPath files of the
+// plugin `rows` (vendoredRows) maps the id to, any status. The spec is admit.mjs trustedDriftSpec, so a string
+// an upstream put in the issue's rows never becomes spec
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md).
+export function driftSpec(issue, pages, files, rows = vendoredRows()) {
+  const drift = driftIssue(issue, rows);
+  if (drift === null || !Array.isArray(files) || files.length === 0 || files.length >= COMPARE_FILES_CAP) {
     return null;
   }
-  const own = [...pages].filter(([, upstream]) => upstream === id).map(([page]) => page);
-  if (
-    own.length === 0 ||
-    !Array.isArray(files) ||
-    files.length === 0 ||
-    files.length >= COMPARE_FILES_CAP ||
-    !files.every((file) => file?.status === "modified" && own.includes(file.filename))
-  ) {
+  if (drift.kind === "vendored") {
+    const plugin = rows.get(drift.id);
+    const inside = (name) => vendoredPath(plugin, name);
+    return typeof plugin === "string" && files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename)) && vendoredSkillSafe(file)) ? trustedDriftSpec(drift) : null;
+  }
+  const own = [...pages].filter(([, upstream]) => upstream === drift.id).map(([page]) => page);
+  if (own.length === 0 || !files.every((file) => file?.status === "modified" && own.includes(file.filename))) {
     return null;
   }
-  return driftSpecText(id, own);
+  return trustedDriftSpec(drift, own);
 }
 
 // The monitoring lane's main-red incident (maintenance-monitor-signals
@@ -846,6 +916,16 @@ export const MAIN_RED_SPEC = [
 // read. Pure.
 export const mainRedIncident = (issue) => actionsBotOnly(issue) && issue.title === MAIN_RED_TITLE && readMarker(issue.body)?.key === MAIN_RED_KEY;
 
+const SKILL_READS_MAX = 10;
+
+async function fileText(github, repository, name, ref) {
+  const file = await github("GET", `/repos/${repository}/contents/${name.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+  if (file?.encoding !== "base64" || typeof file.content !== "string") {
+    throw incomplete(`${name} at ${ref} could not be read`);
+  }
+  return Buffer.from(file.content, "base64").toString("utf8");
+}
+
 // The files a pull request changes from `base` to `head` (GET compare, three
 // dots, as the pull request's diff). A failed read throws.
 async function compareFiles(github, repository, base, head) {
@@ -853,7 +933,16 @@ async function compareFiles(github, repository, base, head) {
   if (!Array.isArray(answer?.files)) {
     throw incomplete(`the changed files from ${base} to ${head} could not be read`);
   }
-  return answer.files;
+  const mergeBase = answer.merge_base_commit?.sha;
+  const skills = answer.files.filter((file) => file?.status === "modified" && skillFile(file.filename));
+  if (skills.length === 0 || skills.length > SKILL_READS_MAX || typeof mergeBase !== "string") {
+    return answer.files;
+  }
+  const texts = new Map();
+  for (const { filename } of skills) {
+    texts.set(filename, { base: await fileText(github, repository, filename, mergeBase), head: await fileText(github, repository, filename, head) });
+  }
+  return answer.files.map((file) => (texts.has(file?.filename) ? { ...file, texts: texts.get(file.filename) } : file));
 }
 
 // The closing issues in this repository, or, when the pull request closes
@@ -881,8 +970,9 @@ async function compareFiles(github, repository, base, head) {
 // `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
 // defaults to this checkout's schedule, so every caller (the pr-unblock lanes
 // too) gets the same spec. A closing issue the upstream-drift workflow filed
-// takes its spec from its upstream id and `drift.pages` (driftSpec, by
-// default this checkout's docs/upstream pages), marked `source`
+// takes its spec from its upstream id, `drift.pages` and `drift.rows`
+// (driftSpec, by default this checkout's docs/upstream pages and vendored
+// rows), marked `source`
 // `upstream-drift`, only when `drift.changedFiles` reads the pull request's
 // changed files; a caller that passes none (the pr-unblock lanes) gets none.
 // A closing or `Refs:` issue the monitoring lane filed for a red main
@@ -984,7 +1074,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     const files = await drift.changedFiles();
     const pages = drift.pages ?? upstreamPages();
     for (const issue of issues) {
-      const body = driftSpec(issue, pages, files);
+      const body = driftSpec(issue, pages, files, drift.rows ?? vendoredRows());
       if (body !== null) {
         driftBodies.set(issue.number, body);
       }
