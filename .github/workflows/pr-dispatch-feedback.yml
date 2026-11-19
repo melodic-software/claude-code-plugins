@@ -378,7 +378,7 @@ jobs:
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
