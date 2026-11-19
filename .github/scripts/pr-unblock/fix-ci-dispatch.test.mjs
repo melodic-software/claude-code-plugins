@@ -1264,6 +1264,28 @@ test("a head its required run skips reads none of its fix-ci or push job check r
   assert.ok(lines.includes("skip fix-ci #9: infra failure, re-run job re-runs it once"), lines.join("\n"));
 });
 
+test("a head at the cap whose required run skips it is warned about once and recorded, so later runs read nothing for it", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (minute) => `2026-10-22T09:${minute}:00Z`;
+  const failedRun = (minute) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "failure", output: { title: null }, started_at: at(minute), completed_at: at(minute) });
+  const checks = [lanes("SUCCESS"), check("Test Macos Planning Shared", "FAILURE"), check("pr-unblock / fix-ci", "FAILURE", { completedAt: at("30") })];
+  const apiOptions = {
+    pages: [[pr(7, { checks })]],
+    history: new Map([[head, [failedRun("10"), failedRun("20"), failedRun("30")]]]),
+    requiredRuns: new Map([[`${head} ${ADVISORY}`, { run: { ...tested(2), conclusion: "success" }, jobs: [] }]]),
+  };
+  const record = emptyRecord();
+  const first = await run(apiOptions, { record });
+  assert.deepEqual(first.result.dispatched, []);
+  assert.ok(first.lines.includes(`::warning::#7: head ${head}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), first.lines.join("\n"));
+  assert.ok(isHandled(record, "pr-unblock / fix-ci", head), "the capped head is recorded");
+  const second = await run(apiOptions, { record });
+  assert.deepEqual(second.result.dispatched, []);
+  assert.deepEqual({ runs: second.api.calls.runs, history: second.api.calls.history, jobs: second.api.calls.jobs }, { runs: 0, history: [], jobs: [] }, "the next run reads nothing past the listing");
+  const under = await run({ ...apiOptions, history: new Map([[head, [failedRun("30")]]]) }, { record: emptyRecord() });
+  assert.ok(under.lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), "under the cap the early reason still skips it");
+});
+
 test("a green ci-status with only a failed fix-ci run, or no failure, is left alone", async () => {
   const { api, result } = await run({
     pages: [[pr(5, { checks: [lanes("SUCCESS"), check("pr-unblock / fix-ci", "FAILURE")] }), pr(6, { checks: [lanes("SUCCESS"), check("lint", "SUCCESS")] })]],

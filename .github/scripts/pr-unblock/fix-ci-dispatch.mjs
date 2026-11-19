@@ -599,7 +599,7 @@ export async function dispatchCiFixes({
       { ...node, requiredRun, laneGate, fixCiRuns: [] },
       { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, ownedBranches, now },
     );
-    if (early !== "") {
+    if (early !== "" && !headChecks(node, actionsAppId)?.some((run) => run.name === checkName)) {
       log(`skip fix-ci #${node.number}: ${early}`);
       continue;
     }
@@ -625,6 +625,10 @@ export async function dispatchCiFixes({
     if (capped > 0) {
       log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} ran ${capped} time(s), the most one head gets; no fix-ci until a new push`);
       markHandled(record, checkName, node.headRefOid);
+      continue;
+    }
+    if (early !== "") {
+      log(`skip fix-ci #${node.number}: ${early}`);
       continue;
     }
     // A cancelled tested run can hide a failed job behind a later skipped run
