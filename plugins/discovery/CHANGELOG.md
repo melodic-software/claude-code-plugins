@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [2.2.4] - 2026-11-19
+
+### Changed
+
+- The research discipline's download recipe gives its reason for putting the random part of a
+  `mktemp` template in the directory in its own words, and points to the FreeBSD `mktemp(1)` page
+  instead of quoting it with a fetch date.
+
 ## [2.2.3] - 2026-11-18
 
 ### Fixed

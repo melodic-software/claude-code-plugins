@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [4.1.1] - 2026-11-19
+
+### Fixed
+
+- `/docs-hygiene:audit-noise --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
 ## [4.1.0] - 2026-11-19
 
 ### Added
