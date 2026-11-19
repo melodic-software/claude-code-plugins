@@ -26,3 +26,4 @@ copied into any plugin: add a row here, and register the plugin's own copy of `R
 | `/instruction-placement:check` | Points here through its plugin-shipped copy; one gate verdict per repository |
 | `/instruction-placement:realign` | Points here through its plugin-shipped copy; applies one repository's findings at a time |
 | `/repo-hygiene:clean` (batch forms) | Source of the flags; points here through its plugin-shipped copy; `--repo` and `--repos-from` take local paths only and, alone, keep every clone they name |
+| `/work-items:scan-todos` | Points here through its plugin-shipped copy; files each marker in its own repository's tracker |
