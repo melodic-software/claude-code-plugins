@@ -114,10 +114,6 @@
 #                               the N above by route, most first (ties by
 #                               route), at most 15 routes and 1000 bytes, the
 #                               rest summed; `other` for a line with no route
-#
-# pr-require-checks.yml's ci-status job and mark-lanes step carry this file
-# verbatim in their API_BUDGET_SH env (neither has a checkout of this
-# directory); log-api-budget.test.mjs keeps the three the same.
 
 api_budget_read() {
   local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines
@@ -599,6 +595,22 @@ api_budget_is_content() {
 api_budget_count_content() {
   local dir=${RUNNER_TEMP:-}/api-budget
   [[ -n ${RUNNER_TEMP:-} ]] && mkdir -p "$dir" 2>/dev/null && date +%s >>"$dir/content-creation"
+  return 0
+}
+
+api_budget_emit_stops() {
+  local dir=${RUNNER_TEMP:-}/api-budget
+  [[ -n ${RUNNER_TEMP:-} && -s $dir/stop ]] || return 0
+  { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf '\001\n'
+    cat -- "$dir/guessed" 2>/dev/null; printf '\002\n'; cat -- "$dir/fallback" 2>/dev/null; printf '\001\n'; } | awk '
+    index($0, "\001") { part++; next }
+    length($2) > 12 { next }
+    part == 0 && /^([a-z_]+|\*) [0-9]+$/ { if (!($1 in at) || $2 + 0 > at[$1]) at[$1] = $2 + 0; next }
+    part == 1 && /^([a-z_]+|\*) [0-9]+ (limit|server-5[0-9][0-9])$/ { if ($3 == "limit") limit[$1, $2 + 0]; else srv[$1, $2 + 0] = $3; next }
+    part == 2 && /^([a-z_]+|\*) [0-9]+$/ { guess[$1, $2 + 0] }
+    END {
+      for (p in at) printf "%s %d %s%s\n", p, at[p], ((p, at[p]) in srv && !((p, at[p]) in limit)) ? srv[p, at[p]] : "limit", ((p, at[p]) in guess) ? " guessed" : ""
+    }' | LC_ALL=C sort | awk '{ line = line (NR > 1 ? "; " : "") $0 } END { if (NR) printf "::notice title=api-stop::%s\n", line }'
   return 0
 }
 

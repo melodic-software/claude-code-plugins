@@ -1003,6 +1003,10 @@ models:
       model: opus
       effort: high
       max-turns: 300
+    verify-capture:
+      model: opus
+      effort: high
+      max-turns: 120
   default-profile: standard
   routes:
     # Resolves code conflicts, a fix on code like address-feedback's.
@@ -1015,6 +1019,7 @@ models:
     fix-docs: docs-fix
     verify-pr: review
     verify-map: verify-map
+    verify-capture: verify-capture
     # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
     # through subagent-model its blind checker's model; the checker's effort
     # stays its agent file's pin (owner decision Q1).

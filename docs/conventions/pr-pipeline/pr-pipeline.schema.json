@@ -1045,7 +1045,7 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback, verify-map); a value is a key of profiles. The config reader rejects any other key or value."
+          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback, verify-map, verify-capture); a value is a key of profiles. The config reader rejects any other key or value."
         },
         "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" },
         "issue-status": { "$ref": "#/$defs/issue-status" }

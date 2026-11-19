@@ -386,7 +386,11 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    script waits for `retry-after` when the header is present. For a primary rate limit it waits
    until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
    exponential backoff with full jitter. A wait longer than a small per-step budget counts as
-   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
+   unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
+   the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
+   `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
+   within it, inside raised timeouts, since failing there drops finished work (#16642).
+   Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
@@ -3727,7 +3731,7 @@ run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triag
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
 ([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
-[whole-map pass](#the-whole-map-pass)'s driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+[whole-map pass](#the-whole-map-pass)'s driver leg, and `verify-capture` for the pr-verify capture's driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as

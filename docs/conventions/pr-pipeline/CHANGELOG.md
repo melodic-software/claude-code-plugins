@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## [10.14.0] - 2026-11-19
+
+### Added
+
+- `models.routes` takes the run route `verify-capture`, the pr-verify capture's driver leg, on its own `verify-capture` profile: Opus at effort high, 120 turns. The capture drives in one session with no subagent, so its own turns carry the whole drive; it no longer takes `verify-pr`'s 60.
+
+### Fixed
+
+- work-resolve-issue's steps after the model ran wait for the workflow token's rate-limit reset, up to 1200 s (`rate-limit-wait-seconds`), instead of failing the run: the leak scan's reads, report-outcome and apply-issue-patch, Run Checks and Report Statuses. A stop-floor answer GitHub served no longer fails its step when the next call waits the reset out, and Report Statuses names the lane branch a run left when report-outcome did not finish, which the issue's next run reuses.
+
+## [10.13.1] - 2026-11-19
+
+### Fixed
+
+- Whole-review request: a pull request refused on the running-jobs or rate-limit floors leaves the run's one toggle to the next candidate instead of spending it.
+
 ## [10.13.0] - 2026-11-19
 
 ### Added
