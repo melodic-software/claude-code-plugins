@@ -172,7 +172,7 @@ async function resetAll($: EngineInterface): Promise<string> {
   const askable = preview.folders.flatMap(f => (f.ask ? [f.ask] : []))
   if (!preview.folders.length)
     return preview.unchangedSinceReset?.length
-      ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
+      ? 'Nothing to reset: each file reset already handled is unchanged since.'
       : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
   const pickedReset = preview.questionRecommend?.asked

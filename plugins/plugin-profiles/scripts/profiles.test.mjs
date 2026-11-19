@@ -3176,7 +3176,7 @@ test("#17354: a record kept in a folder that cannot hold it is listed as ignored
 const noteOf = (w, file, home = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline")) => join(home, "restored", `${sha(realpathSync(file))}.json`);
 /** The preview line counting the files reset left unchanged since, naming the first three and how many more. */
 const UNCHANGED_LINE = (files) =>
-  `${files.length} ${files.length === 1 ? "file that reset restored earlier is" : "files that reset restored earlier are"} unchanged since; reset leaves ${files.length === 1 ? "it" : "them"}: ${files.length > 3 ? `${files.slice(0, 3).join(", ")} and ${files.length - 3} more` : files.join(", ")}.`;
+  `${files.length} ${files.length === 1 ? "file that reset already handled is" : "files that reset already handled are"} unchanged since; reset leaves ${files.length === 1 ? "it" : "them"}: ${files.length > 3 ? `${files.slice(0, 3).join(", ")} and ${files.length - 3} more` : files.join(", ")}.`;
 
 test("#17354: the preview line counting files unchanged since reset names the first three and how many more", () => {
   const w = world();
@@ -3192,6 +3192,23 @@ test("#17354: the preview line counting files unchanged since reset names the fi
   assert.equal(preview.unchangedSinceReset.length, 4);
   assert.ok(preview.lines.includes(UNCHANGED_LINE(preview.unchangedSinceReset)), preview.lines.join("\n"));
   assert.match(preview.lines.at(-1), / and 1 more\.$/);
+});
+
+test("#17354: a cut-off file reset finished with a yes while keeping a hand edit is counted among files reset already handled, in words true for it", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.notEqual(w.read(), LOCAL_BEFORE, "the hand edit stays, so the file is not back at its original");
+  knowFolders(w, w.project);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.unchangedSinceReset, [w.localFile]);
+  assert.ok(preview.lines.includes(UNCHANGED_LINE([w.localFile])), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((l) => l.includes("restored earlier")), "the file was handled, not restored to its original");
 });
 
 test("#17354: after a reset, the files it restored that hold hand-written entries are not listed again and no question is asked", () => {
