@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.4] - 2026-11-19
+
+### Changed
+
+- **audit:** the discovery guide's Windows directions no longer suggest Docker Desktop image disk
+  usage, dev-tool version skew or SDK and runtime end-of-life as probes, with the tool commands
+  each one named. The shipped container disk-usage and SDK-version checks are unchanged.
+
 ## [0.27.3] - 2026-11-18
 
 ### Changed
