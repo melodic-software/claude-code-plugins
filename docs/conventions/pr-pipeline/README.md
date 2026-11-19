@@ -391,7 +391,9 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
    within it, inside raised timeouts, since failing there drops finished work (#16642). So does
    ci-status's merge-queue verdict reader after a read it did not send below the read floor,
-   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417).
+   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417), and
+   check-plugins' read of the queued pull request in a merge group, for up to
+   `WAIT_BUDGET_SECONDS.queuedPr`, since four gates refuse without it and eject the group.
    Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.

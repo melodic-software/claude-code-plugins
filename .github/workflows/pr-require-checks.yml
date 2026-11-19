@@ -182,7 +182,8 @@ concurrency:
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
 # The four jobs with a 3-minute budget (mark-lanes, select-tests,
-# check-plugins, check-catalog) carry a 9-minute timeout.
+# check-plugins, check-catalog) carry a 9-minute timeout; check-plugins adds
+# its queued pull request read's wait for a rate limit's reset, which is no work.
 #
 # CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
 # actions/cache/restore, and its save step runs only on refs/heads/main (the
@@ -2314,7 +2315,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 24
     # pull-requests: read lets "Resolve the queued pull request" read the
     # queued pull request in a merge group.
     permissions:
@@ -2500,16 +2501,28 @@ jobs:
         env:
           QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
           GH_TOKEN: ${{ github.token }}
+          QUEUED_PR_WAIT_SECONDS: 900
         shell: bash scripts/run-hygiene-gate.sh queued-pr {0}
         run: |
           # shellcheck source=/dev/null
           ! . .github/actions/log-api-budget/api-budget.bash || api_budget_wrap_gh github-token
+          # shellcheck source=/dev/null
+          . .github/scripts/pr-merge/rate-stop.bash
+          # shellcheck source=/dev/null
+          . .github/scripts/pr-merge/retry-call.bash
           if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
             echo "::error::Cannot read a pull request number from the merge group's head ref '$QUEUE_HEAD_REF'."
             exit 1
           fi
           number="${BASH_REMATCH[1]}"
-          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
+          # Each read overwrites the file, so a refused read's body never
+          # reaches the answer.
+          read_pr() { gh api "repos/$GITHUB_REPOSITORY/pulls/$number" >"$RUNNER_TEMP/queued-pr.json"; }
+          retry_call --read "$QUEUED_PR_WAIT_SECONDS" read_pr || {
+            echo "::error::Could not read queued pull request #$number: $retry_call_unknown."
+            exit 1
+          }
+          pr="$(cat "$RUNNER_TEMP/queued-pr.json")"
           author="$(jq -r '.user.login' <<<"$pr")"
           head_sha="$(jq -r '.head.sha' <<<"$pr")"
           # A fork's branch name is not this repository's release branch.

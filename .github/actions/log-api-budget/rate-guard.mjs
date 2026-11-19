@@ -79,8 +79,15 @@ const MAX_RESET = 999_999_999_999;
  *   check_response_timeout_minutes and merge-group runs of up to about 12
  *   minutes, a longer wait would time the entry out
  *   (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch).
+ * - `queuedPr`: check-plugins' read of the queued pull request in a merge
+ *   group, its QUEUED_PR_WAIT_SECONDS: how long a rate-limited read waits for
+ *   the reset before the bump, fragment, release and vendor gates refuse and
+ *   eject the group. The job's timeout-minutes holds it on top of its 9. The
+ *   merge queue's 30-minute check_response_timeout_minutes must still hold the
+ *   wait, the job's other work and ci-status after it, so it stays at 15
+ *   minutes.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 

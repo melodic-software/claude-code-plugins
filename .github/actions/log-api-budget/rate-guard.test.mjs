@@ -1027,6 +1027,14 @@ test("ci-status's verdict reader waits WAIT_BUDGET_SECONDS.ciStatusVerify for th
   assert.equal(minutes * 60, jobSeconds + WAIT_BUDGET_SECONDS.ciStatusVerify, "the timeout is gh_read's job seconds and the wait");
 });
 
+test("check-plugins' queued pull request read waits WAIT_BUDGET_SECONDS.queuedPr, and the job's timeout holds it", () => {
+  const job = jobOf(workflow("pr-require-checks.yml"), "check-plugins");
+  assert.deepEqual(setting(job, "QUEUED_PR_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.queuedPr]);
+  assert.match(job, /retry_call --read "\$QUEUED_PR_WAIT_SECONDS" read_pr /, "the read takes the wait");
+  const [minutes] = setting(job, "timeout-minutes");
+  assert.equal(minutes * 60, 9 * 60 + WAIT_BUDGET_SECONDS.queuedPr, "the timeout is the 3-minute budget's 9 and the wait");
+});
+
 test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {
   assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
 });
