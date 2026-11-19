@@ -7,7 +7,7 @@ import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
-import { main, pickProfile } from "./profiles.mjs";
+import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -2327,4 +2327,82 @@ test("#17354: a file another reset already restored is reported as already resto
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
+});
+
+const NO_RECORD_SKIP = (file) => `Skipped ${file}: no record; reset removes its entries only after a yes for this folder.`;
+
+test("#17354: a folder with plugin entries and no record is listed with each entry and changed only after its own yes", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const [row] = resetJson(w).folders;
+  assert.deepEqual([row.file, row.recorded, row.action, row.entries], [w.localFile, false, "remove-entries", [`songwriting@${M}`, `review@${M}`]]);
+  assert.equal(row.ask.file, w.localFile);
+  assert.ok(row.lines[0].includes(`songwriting@${M}, review@${M}`), row.lines[0]);
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(w.read(), LOCAL_BEFORE, "--yes alone never covers a folder without a record");
+  const wrong = reset(w, ["--yes", "--remove-unrecorded", join(w.root, "elsewhere", ".claude", "settings.local.json")]);
+  assert.equal(wrong.status, 1);
+  assert.match(wrong.stderr, /not reset: .* is not a folder without a record in the preview; nothing was written/);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 2 plugin and skill entries of ${w.localFile}, which had no record.`]);
+  const after = JSON.parse(w.read());
+  assert.equal("enabledPlugins" in after, false);
+  assert.deepEqual(after, withoutProfileKeys(LOCAL_BEFORE));
+});
+
+test("#17354: askPerFolder removes only the folders answered yes", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let shown = "";
+  output.on("data", (chunk) => {
+    shown += chunk;
+  });
+  const rows = ["/a", "/b", "/c"].map((file) => ({ file, question: `Remove ${file}?` }));
+  const answered = askPerFolder(rows, { input, output });
+  input.write("y\n");
+  input.write("no\n");
+  input.end();
+  assert.deepEqual([...(await answered)], ["/a"]);
+  assert.match(shown, /Remove \/a\? \[y\/N\] .*Remove \/b\? \[y\/N\] /s);
+  assert.deepEqual([...(await askPerFolder([], { input: new PassThrough(), output }))], []);
+});
+
+test("#17354: with --yes and nobody answering, reset restores every recorded folder and skips each unrecorded one, saying why", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  knowFolders(w, w.project, p2.dir);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [NO_RECORD_SKIP(w.localFile), `Restored ${p2.file} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a record whose folder is missing is kept, listed as not found, and a git-home record names the moved file it would restore", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const movedFile = rootLocal(moved);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[old, "skip", movedFile]], "the moved file is offered once, through the record");
+  assert.equal(rows[0].ask.file, movedFile);
+  assert.match(rows[0].lines[0], /folder not found; record kept\. The repository is now at /);
+  const kept = reset(w, ["--yes"]);
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.deepEqual(resultLines(kept.stdout), [`Skipped ${old}: folder not found; record kept.`]);
+  assert.notEqual(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.equal(readdirSync(join(moved, ".git", "plugin-profiles", "records")).length, 1);
+  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
 });
