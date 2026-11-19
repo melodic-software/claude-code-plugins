@@ -1768,6 +1768,20 @@
         "display",
         "hooks"
       ]
+    },
+    {
+      "name": "themes",
+      "source": "./plugins/themes",
+      "defaultEnabled": false,
+      "category": "claude-code",
+      "tags": [
+        "mod",
+        "theme",
+        "backdrop",
+        "desktop",
+        "shader",
+        "svg"
+      ]
     }
   ]
 }
