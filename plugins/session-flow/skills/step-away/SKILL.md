@@ -3,30 +3,6 @@ description: "Run this session alone while the person is away (AFK): refuse prom
 argument-hint: "[until <time>|<trip>|fresh session] [scope ...]"
 user-invocable: true
 disable-model-invocation: true
-hooks:
-  # Exec form. `command` is `node` (a real executable). exec-bash.mjs finds
-  # Git Bash and never System32\bash.exe, then runs run-away-hook.sh, which
-  # finds Python and runs away.py hook <event>. Bare `bash` or `python3` as
-  # `command` is the launch that fails open on Windows.
-  # A skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT} (our
-  # probe, PR #1014). These two hooks stay with the main session; the
-  # PermissionRequest and Elicitation hooks live in hooks/hooks.json because
-  # frontmatter hooks do not reach subagents (our probe of subagent hook reach).
-  # Pointer: when checking how exec form spawns `command` with `args`, fetch
-  # https://code.claude.com/docs/en/hooks#exec-form-and-shell-form and
-  # https://code.claude.com/docs/en/hooks#command-hook-fields live.
-  Stop:
-    - hooks:
-        - type: command
-          command: node
-          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh", "Stop"]
-          timeout: 60
-  UserPromptSubmit:
-    - hooks:
-        - type: command
-          command: node
-          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh", "UserPromptSubmit"]
-          timeout: 30
 metadata:
   workflow-stage: session
   summary: Run the session alone while the person is away and report on return
@@ -88,13 +64,16 @@ state has silent hooks: prompts would wait all night and no report would exist.
    session is not armed. Do not start the work. After every `start` that exits 0, run
    `away.py status` in a separate call: any status other than `"active"` means the state did not
    persist where the hooks read it (a Bash sandbox can do this), which is the same failure.
-4. **Tell the person, in one message:** the report path; the report-by time, or "until you are
+4. **End the launch turn with one message to the person**, doing no work in scope this turn: the
+   Stop hook blocks the turn's end while task items are open and brings the run straight back to
+   work, so this message is the last thing they read before leaving. It holds: the report path; the report-by time, or "until you are
    back"; every `warning=` line `start` printed, each in full; the context zone word from the
    `mcp__context-usage__status` tool, with a warning when the tool reports the zone as heavy (when
    the tool is absent, one line says the zone check was skipped); and that the first turn's end may add one more warning,
    that the permission mode is not auto. Never hand off later because of the context level: the
    run continues in this session through compaction unless the person asked for a fresh session.
-5. **Propose the goal line** for the person to submit before leaving, filled in:
+5. **Propose the goal line** in that same message, for the person to submit before leaving, filled
+   in with the real task file path, session id and data root:
 
    ```text
    /goal every item in <task file> is done or marked parked, and `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" check --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"` exits 0
@@ -109,7 +88,8 @@ state has silent hooks: prompts would wait all night and no report would exist.
    off unarmed, where the background session runs in auto mode with no away rules, refusals or
    report, by invoking `/session-flow:continue-in-background` through the Skill tool with
    their own words. Run no `start` for the hand-off.
-7. **Work.** Read [reference/rules.md](reference/rules.md), then work the task file.
+7. **Work**, from the turn after the launch message (the Stop hook's note or the person's `/goal`
+   line starts it): read [reference/rules.md](reference/rules.md), then work the task file.
 
 ## Return
 
@@ -123,9 +103,10 @@ evidence is checked.
 
 ## Gotchas
 
-- The Stop and UserPromptSubmit hooks stay registered for the rest of the session, and the
-  plugin's PermissionRequest and Elicitation hooks run in every session; all of them do nothing
-  unless this session's absence is active.
+- The away hooks (PermissionRequest, Elicitation, Stop, UserPromptSubmit) are plugin hooks in
+  `hooks/hooks.json`, so they run in every session, survive a resume or restart and reach
+  subagents; each does nothing unless this session's absence is active. Skill-frontmatter hooks
+  would not do: they are dropped when the process restarts and get no `CLAUDE_PLUGIN_DATA`.
 - A sandboxed command's network prompt never reaches a hook, so it cannot be refused and waits for
   the person. Pointer:
   <https://code.claude.com/docs/en/hooks#permissionrequest>.
@@ -133,5 +114,9 @@ evidence is checked.
   the bypass-permission modes do for the rest of it. Pointer:
   <https://code.claude.com/docs/en/permission-modes#skip-all-checks-with-bypasspermissions-mode>.
 - Keep the machine awake: a sleeping machine stops the run.
+- With the Bash sandbox on, the plugin data directory is read-only inside it, so every `away.py`
+  call that writes (`start`, `refresh`, `end`, `deliver`) has to run outside the sandbox. Where
+  that asks the person, run `start` while they are here; during the absence a write that would ask
+  is refused, so the report goes stale while the hooks, which run outside the sandbox, keep working.
 - A second `/session-flow:step-away` during an active absence reconciles with it and keeps its
   report; one after the absence ended starts a new absence with a new report.

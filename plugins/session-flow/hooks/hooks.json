@@ -1,5 +1,5 @@
 {
-  "description": "Arms the session observer at session start, and while a /session-flow:step-away absence is active refuses permission prompts and declines MCP questions, recording each in the away report.",
+  "description": "Arms the session observer at session start, and while a /session-flow:step-away absence is active refuses permission prompts and declines MCP questions, recording each in the away report, holds the turn's end while the away work is unfinished, and notes the absence on each prompt.",
   "hooks": {
     "SessionStart": [
       {
@@ -41,6 +41,38 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh",
               "Elicitation"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh",
+              "Stop"
+            ],
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-away-hook.sh",
+              "UserPromptSubmit"
             ],
             "timeout": 30
           }

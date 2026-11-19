@@ -1110,6 +1110,23 @@ def _log(what: str, exc: BaseException) -> None:
     sys.stderr.write(f"away.py: {what}: {type(exc).__name__}: {exc}\n")
 
 
+def hook_state(env: Mapping[str, str], session: str) -> tuple[Paths, dict] | None:
+    """This session's away state for a hook. Skill-frontmatter hooks get no CLAUDE_PLUGIN_DATA, and a
+    --plugin-dir load has no derivable root, so without the variable every session-flow data
+    directory under the config dir is tried; a state found there can only make a hook refuse."""
+    roots = [data_root(env, DEFAULT_PLUGIN_ROOT)]
+    if not env.get("CLAUDE_PLUGIN_DATA"):
+        roots += sorted((config_dir(env) / "plugins" / "data").glob(f"{plugin_paths.PLUGIN_NAME}*"))
+    for root in roots:
+        if root is None:
+            continue
+        paths = session_paths(root, session, DEFAULT_PLUGIN_ROOT)
+        state = read_state(paths)
+        if state is not None:
+            return paths, state
+    return None
+
+
 def run_hook(argv: list[str]) -> int:
     """Answer one hook event. Exits 0 on every path; stdout carries only the decision JSON."""
     try:
@@ -1122,13 +1139,10 @@ def run_hook(argv: list[str]) -> int:
         payload = json.loads(sys.stdin.read() or "null")
         if not isinstance(payload, dict) or not valid_session(payload.get("session_id")):
             return 0
-        root = data_root(os.environ, DEFAULT_PLUGIN_ROOT)
-        if root is None:
+        found = hook_state(os.environ, payload["session_id"])
+        if found is None:
             return 0
-        paths = session_paths(root, payload["session_id"], DEFAULT_PLUGIN_ROOT)
-        state = read_state(paths)
-        if state is None:
-            return 0
+        paths, state = found
         output = handler(Hook(payload, paths, state))
         if output is not None:
             sys.stdout.write(json.dumps(output) + "\n")

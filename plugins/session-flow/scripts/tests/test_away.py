@@ -467,6 +467,27 @@ def test_hook_bad_input_exits_zero(ctx):
     assert (result.returncode, result.stdout) == (0, "")
 
 
+def test_hook_finds_state_without_plugin_data_env(ctx):
+    """A skill-frontmatter hook gets no CLAUDE_PLUGIN_DATA; under --plugin-dir the root is not derivable."""
+    ctx.data = ctx.config / "plugins" / "data" / "session-flow-inline"
+    ctx.start()
+    payload = dict(HOOK_INPUTS["permission_request_bash"], session_id=SESSION, cwd=str(ctx.repo))
+    env = ctx.env()
+    env.pop("CLAUDE_PLUGIN_DATA")
+    result = ctx.run("hook", "PermissionRequest", stdin=json.dumps(payload), env=env)
+    assert result.returncode == 0, result.stderr
+    decision = json.loads(result.stdout)["hookSpecificOutput"]["decision"]
+    assert decision["behavior"] == "deny", "the hook finds this session's state under the config dir's session-flow data dirs"
+
+
+def test_hook_without_state_anywhere_stays_silent(ctx):
+    payload = dict(HOOK_INPUTS["permission_request_bash"], session_id=SESSION, cwd=str(ctx.repo))
+    env = ctx.env()
+    env.pop("CLAUDE_PLUGIN_DATA")
+    result = ctx.run("hook", "PermissionRequest", stdin=json.dumps(payload), env=env)
+    assert result.returncode == 0 and result.stdout == "", "no state for the session means no decision"
+
+
 def test_permission_request_never_allows(ctx):
     ctx.start()
     main = json.loads(ctx.hook("PermissionRequest", "permission_request_bash"))
