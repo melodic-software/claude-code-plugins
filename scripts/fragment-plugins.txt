@@ -16,6 +16,7 @@ architecture
 attribution
 autonomy
 bash-format
+bedroom
 bugs
 code-metrics
 code-tidying

@@ -1,0 +1,21 @@
+{
+  "name": "bedroom",
+  "version": "0.0.0",
+  "description": "A mod for the Claude Code desktop app: a theme whose backdrop is a teenager's bedroom in the country at dusk, about 2004, drawn as one SVG with a lighting shader, with things to click (television, tape deck, console, computer, lamps) and a /bedroom command.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "mod",
+    "theme",
+    "backdrop",
+    "desktop",
+    "shader",
+    "svg"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
+}

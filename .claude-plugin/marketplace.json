@@ -1768,6 +1768,20 @@
         "display",
         "hooks"
       ]
+    },
+    {
+      "name": "bedroom",
+      "source": "./plugins/bedroom",
+      "defaultEnabled": false,
+      "category": "claude-code",
+      "tags": [
+        "mod",
+        "theme",
+        "backdrop",
+        "desktop",
+        "shader",
+        "svg"
+      ]
     }
   ]
 }
