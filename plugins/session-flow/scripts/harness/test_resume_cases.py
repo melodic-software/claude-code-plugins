@@ -82,6 +82,8 @@ def test_the_committed_cases_are_the_known_set():
             "re-oversized-brief",
             "re-shape3-near-cap",
             "re-late-event",
+            "re-transition-2-to-4",
+            "re-transition-3-to-4",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
@@ -448,7 +450,7 @@ def test_generated_lines_never_name_a_trap_number(built, name):
         for line in path.read_text(encoding="utf-8").split("\n"):
             if not {int(n) for n in number.findall(line)} & reserved:
                 continue
-            body = re.sub(r"^- \[h\d+\] ", "", line)
+            body = re.sub(r"^- \[[hRQD]\d+\] ", "", line)
             parts = (
                 body[len("did: ") :].split(" · left: ")
                 if body.startswith("did: ")
