@@ -262,11 +262,16 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     const mergeAsync = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/merge-async$/.exec(path);
     if (method === "PUT" && mergeAsync) {
       merges.push({ number: Number(mergeAsync[1]), body });
-      const error = pulls.find((candidate) => candidate.number === Number(mergeAsync[1]))?.mergeError;
-      if (error) {
-        throw error;
+      const found = pulls.find((candidate) => candidate.number === Number(mergeAsync[1]));
+      if (found?.mergeError) {
+        throw found.mergeError;
       }
-      return { status: "pending" };
+      return found?.mergeResults ? { status: "pending", details: { uuid: `U${found.number}` } } : { status: "pending" };
+    }
+    const mergeResult = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/merge-async\/U([0-9]+)$/.exec(path);
+    if (method === "GET" && mergeResult) {
+      const results = pulls.find((candidate) => candidate.number === Number(mergeResult[1])).mergeResults;
+      return results.length > 1 ? results.shift() : results[0];
     }
     // The lane lifting the human-gated label (approvalLift).
     if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
@@ -4586,6 +4591,42 @@ test("a refused async merge leaves the layer unmerged with a person's explanator
     ],
   );
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_10", head: HEAD }]);
+});
+
+test("a bottom layer already in main's merge queue is neither sent again nor counted again toward the room", async () => {
+  const queued = pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, queued: true });
+  const { code, merges, pins, writes, lines, notes } = await run([queued, pull(10)], {}, { mergeQueue: true }, { ...ROOM, count: 1, cap: 2, queued: [7] });
+  assert.equal(code, 0);
+  assert.deepEqual(merges, []);
+  assert.deepEqual(pins.map((pin) => pin.path), [`${ISSUES}/10/comments`]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_10", head: HEAD }]);
+  assert.deepEqual(notes, []);
+  assert.ok(lines.includes("enable-auto-merge: #7 left: its async merge already put it in main's merge queue"));
+});
+
+test("an accepted async merge whose result ends failed leaves the layer with a person's explanatory comment; one that merges or enqueues does not", async () => {
+  const pending = { status: "pending", details: { uuid: "U7" } };
+  const failed = { status: "failed", details: { message: "Merge conflict" } };
+  const { code, merges, notes, slept } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeResults: [pending, failed] })]);
+  assert.equal(code, 0);
+  assert.equal(merges.length, 1);
+  assert.deepEqual(slept, [5000, 5000]);
+  const reason = "GitHub refused the async merge of this stack layer (its result: failed: Merge conflict), so it stays unmerged; the lane adds no credential, and a person merges it or clears the cause";
+  assert.deepEqual(
+    notes.map(({ method, path, body }) => ({ method, path, body: body.body === undefined ? body : body.body.replaceAll("\n  ", " ") })),
+    [
+      { method: "POST", path: `${ISSUES}/7/comments`, body: personNote(reason) },
+      { method: "POST", path: `${ISSUES}/7/labels`, body: { labels: ["needs-human"] } },
+    ],
+  );
+  for (const status of ["merged", "enqueued"]) {
+    const done = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeResults: [{ status }] })]);
+    assert.deepEqual(done.notes, [], status);
+    assert.ok(done.statuses.some((line) => line.description === "async merge requested for its stack's bottom layer"), status);
+  }
+  const waiting = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeResults: [pending] })]);
+  assert.deepEqual(waiting.slept, [5000, 5000, 5000, 5000, 5000, 5000]);
+  assert.deepEqual(waiting.notes, []);
 });
 
 test("an async merge already pending is neither a refusal nor sent again", async () => {

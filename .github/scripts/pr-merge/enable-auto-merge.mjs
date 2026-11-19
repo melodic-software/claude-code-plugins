@@ -398,8 +398,15 @@ export const MERGE_QUEUE_QUERY = `query($owner: String!, $name: String!) {
 export const mergeAsyncBody = (head, queued) =>
   queued ? { sha: head, merge_action: "merge_queue", bypass_rules: false } : { sha: head, merge_action: "direct_merge", merge_method: "squash", bypass_rules: false };
 export const mergeRefused = (error, limited = false) => error instanceof GitHubError && !limited && error.status >= 400 && error.status < 500 && ![401, 409, 429].includes(error.status);
-export const mergeRefusedReason = (status, said) =>
-  `GitHub refused the async merge of this stack layer (status ${status}${said ? `: ${escapeCommand(said)}` : ""}), so it stays unmerged; the lane adds no credential, and a person merges it or clears the cause`;
+export const mergeRefusedReason = (cause, said) =>
+  `GitHub refused the async merge of this stack layer (${cause}${said ? `: ${escapeCommand(said)}` : ""}), so it stays unmerged; the lane adds no credential, and a person merges it or clears the cause`;
+export const STACK_QUEUED = "its async merge already put it in main's merge queue";
+// A 202 is only accepted: the merge runs in the background and can still end
+// "failed" (https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#get-the-result-of-an-asynchronous-merge),
+// so its result is read this many times, MERGE_RESULT_WAIT_MS apart. One still
+// pending after them is left: the next run's send answers 409 while it is.
+export const MERGE_RESULT_READS = 6;
+export const MERGE_RESULT_WAIT_MS = 5_000;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const firstLine = (body) => bodyLines(body)[0];
@@ -2526,6 +2533,19 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       if (action === "verify") {
         ({ action, reason, clears, comment, withdraw } = { action: "none", reason: "its verifier verdict is not read yet" });
       }
+      if (action === "arm" && stackPlace(pull) === STACK_BOTTOM) {
+        let queued;
+        try {
+          queued = (await github("POST", "/graphql", { query: QUEUE_ENTRY_QUERY, variables: { owner: repo[1], name: repo[2], pr: pull.number } }))?.data?.repository?.pullRequest;
+        } catch (error) {
+          console.log(`enable-auto-merge: #${pull.number} merge queue entry did not read: ${describe(error)}`);
+        }
+        if (typeof queued?.id !== "string") {
+          ({ action, reason } = { action: "none", reason: "its merge queue entry did not read, so its async merge is not sent this run" });
+        } else if (queued.mergeQueueEntry != null) {
+          ({ action, reason } = { action: "none", reason: STACK_QUEUED });
+        }
+      }
       // A pull request armed earlier in this run counts toward the cap.
       const full = action === "arm" ? roomHold(pull) : null;
       if (full !== null) {
@@ -2621,9 +2641,27 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           continue;
         }
         try {
-          await github("PUT", `/repos/${repo[0]}/pulls/${pull.number}/merge-async`, mergeAsyncBody(pull.headRefOid, queue.mergeQueue != null));
+          let result = await github("PUT", `/repos/${repo[0]}/pulls/${pull.number}/merge-async`, mergeAsyncBody(pull.headRefOid, queue.mergeQueue != null));
+          const uuid = result?.details?.uuid;
+          for (let read = 0; result?.status === "pending" && typeof uuid === "string" && read < MERGE_RESULT_READS; read += 1) {
+            await sleep(MERGE_RESULT_WAIT_MS);
+            try {
+              result = await github("GET", `/repos/${repo[0]}/pulls/${pull.number}/merge-async/${encodeURIComponent(uuid)}`);
+            } catch (error) {
+              console.log(`enable-auto-merge: #${pull.number} async merge result did not read: ${describe(error)}`);
+              break;
+            }
+          }
+          if (result?.status === "failed") {
+            inFlight -= 1;
+            const why = mergeRefusedReason("its result: failed", result.details?.message);
+            console.log(`::warning title=enable-auto-merge::#${pull.number} ${escapeCommand(why)}`);
+            leave(pull, `refused: ${why}`);
+            await note(pull, detail, { clears: "person", reason: why });
+            continue;
+          }
           leave(pull, "merge requested");
-          console.log(`enable-auto-merge: #${pull.number} stack bottom layer: async merge requested at ${pull.headRefOid}`);
+          console.log(`enable-auto-merge: #${pull.number} stack bottom layer: async merge requested at ${pull.headRefOid} (${escapeCommand(result?.status ?? "no status")})`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "async merge requested for its stack's bottom layer" });
         } catch (error) {
           if (error instanceof GitHubError && error.status === 409) {
@@ -2632,7 +2670,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           } else if (mergeRefused(error, answer?.limited)) {
             inFlight -= 1;
             const { said } = answer === null ? { said: "" } : await answerBody(answer.text);
-            const why = mergeRefusedReason(error.status, said);
+            const why = mergeRefusedReason(`status ${error.status}`, said);
             console.log(`::warning title=enable-auto-merge::#${pull.number} ${escapeCommand(why)}`);
             leave(pull, `refused: ${why}`);
             await note(pull, detail, { clears: "person", reason: why });
