@@ -1,6 +1,6 @@
 ---
 description: "Apply an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the audit artifact; never re-judges. Each accepted finding is the whole move. Hard-denied safety content has no path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. No blanket-approve. Audit proposes; this applies."
-argument-hint: "[finding-id ...]"
+argument-hint: "[finding-id ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -22,7 +22,9 @@ metadata:
   summary: Apply accepted placement findings behind a per-item human gate
 ---
 
-**Arguments.** `[finding-id ...]`. Default: every finding awaiting a decision, in ranked order
+**Arguments.** `[finding-id ...] [--repo <repo> ...]`. Default: every finding awaiting a decision,
+in ranked order, in this checkout. `--repo` and the other target forms: "Over several
+repositories" below
 
 ## Pre-computed context
 
@@ -91,7 +93,8 @@ in the table above. Do not invent a format here. Four rules bind the write:
 - **A reason is required, and it is theirs, not yours.** An entry with no stated reason cannot be
   reviewed or retired later. If the operator gives none, ask once; if they still give none, record
   `declined` in the artifact only and say the decline will not survive this checkout.
-- **Team layer only.** Write `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`, never
+- **Team layer only.** Write `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` (on a
+  multi-repository run, the worktree's: "Over several repositories"), never
   `~/.claude/**` and never the `.local.md` personal override: a personal-layer entry the team layer does not
   carry is reported `personal-only, not applied` and suppresses nothing, so writing one would look
   like recording a decision while recording none.
@@ -159,6 +162,30 @@ Then four checks before the first edit, because acting on a stale artifact edits
    `pending` and is presented again.
 4. **Version drift.** The artifact's `claude_code_version` against the running one. On a material
    difference, re-verify the mechanics before trusting destination choices that depend on them.
+
+## Over several repositories
+
+With no target form, the run applies this checkout's findings, as it always has. A target form
+selects the repositories a multi-repository `audit` covered, resolved as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target forms"
+and "Resolving repositories" say. What differs here:
+
+- **An acceptance names its repository.** An `IP-<n>` handle is unique within its repository only,
+  so an acceptance is `owner/name IP-<n>`. With more than one repository in scope, a bare id is a
+  question, not an acceptance: ask which repository it means.
+- **Apply in the audit's worktree.** The artifact is checkout-local, so it is not in the clone a
+  repository resolves to. Select the entry on the branch `instruction-placement/realign` in
+  `git -C <root> worktree list --porcelain`, never another worktree of the clone, and run the whole
+  procedure there: `--root` set to it on every `glob-tools.sh`, `render-index.sh` and
+  `verify-load.sh` call, the worktree's branch as the branch identity for the home and the branch
+  match, every edit under it, and a decline's suppression entry written to its
+  `.claude/instruction-placement.md`, not this checkout's. A repository with no worktree on that
+  branch, or no artifact in it, is reported as "no audit run" and skipped.
+- **The quote check runs once.** It reads docs pages, not a repository: run it once, with no
+  arguments, before the first repository's artifact is read.
+- **One repository at a time.** Finish one repository's accepted findings before the next starts.
+  Its changes stay uncommitted in that worktree, for that repository's own pull request, per
+  "Writes stay per repository".
 
 ## Execution
 
