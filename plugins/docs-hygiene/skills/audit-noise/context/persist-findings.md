@@ -1,13 +1,13 @@
 # Persisting findings: this skill's read of the detector-findings contract
 
 **Read the producer contract before the first write**:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
+[`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 an `audit-noise` run decides for itself. Where the two disagree, the contract wins and this file is
 the defect.
 
-**If the contract cannot be fetched, do not write.** Report that the destination and the guard
+**If the contract cannot be read, do not write.** Report that the destination and the guard
 could not be resolved from their owner, and stop. An invented destination reports success while
 the consumer never scans that path.
 
@@ -48,12 +48,12 @@ report**, never the relay.
 
 ## Compose by script, not by hand
 
-Once the destination is resolved and the contract fetch succeeded, run
+Once the destination is resolved and the contract read succeeded, run
 `${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <detect output file> --out <resolved path>`.
 The script owns the mechanical half: the fence recomputation, cell assembly and escaping, tier
 lookup (a mirror of the crosswalk, whose row stays authoritative), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. The model owns everything before the script
-(destination resolution, the fetch-and-refuse gate, the self-ignore guard) and after it (reading
+(destination resolution, the read-and-refuse gate, the self-ignore guard) and after it (reading
 the written file's head to confirm shape, and, when the consuming project defines its own severity
 vocabulary, mapping to it by editing the written file's `Tier` cells per the contract's
 consumer-precedence rule).
