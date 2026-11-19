@@ -10591,7 +10591,7 @@ test("the policy probe reruns a session with no tool call, at most three times, 
   const calls = [
     ["Read", { file_path: "/proc/self/environ" }],
     ["Read", { file_path: `${root}/.runner` }],
-    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Grep", { pattern: "policy-probe", glob: "environ", path: "/proc/self" }],
     ["Glob", { pattern: "environ", path: "/proc/self" }],
   ];
   const stream = (made, denials) =>
