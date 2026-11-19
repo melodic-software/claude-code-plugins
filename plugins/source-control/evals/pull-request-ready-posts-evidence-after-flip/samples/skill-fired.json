@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "source-control:pull-request", "args": "ready 655 --evidence evidence/e2e-summary.json"}}], "why": "the pull-request skill ran"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "gh pr ready 655"}}], "why": "flipped by hand, no skill"}
+  ]
+}

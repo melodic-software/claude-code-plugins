@@ -57,18 +57,26 @@ const history = (counts = [], earlier = counts.map(() => 0)) => ({
 });
 
 function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), reviewComments = new Map(), runJobs = new Map() } = {}) {
-  const calls = { history: [], dispatch: [], jobs: [] };
+  const calls = { history: [], dispatch: [], jobs: [], latestJobs: [], runListings: 0 };
+  const jobsOf = (runId) => {
+    const read = runJobs.get(runId);
+    if (read instanceof Error) {
+      throw read;
+    }
+    return read ?? null;
+  };
   return {
     calls,
     // Per run id, its status and latest jobs, null when it is gone, or the
     // error the read throws.
     async readRunJobs(runId) {
       calls.jobs.push(runId);
-      const read = runJobs.get(runId);
-      if (read instanceof Error) {
-        throw read;
-      }
-      return read ?? null;
+      return jobsOf(runId);
+    },
+    async readLatestJobs(runId) {
+      calls.latestJobs.push(runId);
+      const read = jobsOf(runId);
+      return read === null ? null : { jobs: read.jobs };
     },
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
@@ -96,6 +104,7 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
       return { rateLimit: { cost: 1, remaining: 4989 }, pullRequest: histories[number] ?? history([0]) };
     },
     async listWorkflowRuns() {
+      calls.runListings += 1;
       if (workflowRuns instanceof Error) {
         throw workflowRuns;
       }
@@ -377,14 +386,14 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
 
 const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `pr-refine fix-docs #${number}` });
 
-test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded without a history read", async () => {
+test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded", async () => {
   // success: the run job stopped at its trigger gate or emitted an empty head.
   for (const conclusion of ["success", "skipped"]) {
     const record = emptyRecord();
     record.docsRuns.set(pr(54).headRefOid, ["9"]);
     const { api, lines } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, conclusion)] }, { record });
     assert.deepEqual(numbers(api), [], conclusion);
-    assert.deepEqual(api.calls.history, [], conclusion);
+    assert.equal(api.calls.history.length, 1, `${conclusion}: a history with no check run leaves the runs listing to decide`);
     assert.ok(isHandled(record, CHECK, pr(54).headRefOid), conclusion);
     assert.equal(record.docsRuns.has(pr(54).headRefOid), false, conclusion);
     assert.ok(lines.includes("skip fix-docs #54: a pr-refine.yml run for it already ended"), lines.join("\n"));
@@ -730,6 +739,66 @@ test("the GitHub API reads a run's status and its latest jobs as one complete pa
   assert.equal(await api.readRunJobs("38779200002"), null);
   await assert.rejects(api.readRunJobs("38779200003"), /not one complete page/);
   await assert.rejects(api.readRunJobs("../1"), /not a run id/);
+});
+
+test("the GitHub API reads a run's latest jobs alone, with no run read; a gone run reads null", async () => {
+  const urls = [];
+  const responses = [
+    { ok: true, status: 200, body: { total_count: 1, jobs: [job("Fix Docs / Run", "success")] } },
+    { ok: false, status: 404, body: {} },
+    { ok: false, status: 502, body: {} },
+  ];
+  const api = createGitHubApi({
+    token: "t",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      const { ok, status, body } = responses.shift();
+      return { ok, status, json: async () => body };
+    },
+  });
+  assert.deepEqual(await api.readLatestJobs("38779200001"), { jobs: [job("Fix Docs / Run", "success")] });
+  assert.deepEqual(urls, ["https://api.example/repos/octo/repo/actions/runs/38779200001/jobs?filter=latest&per_page=100"], "one request: the jobs listing");
+  assert.equal(await api.readLatestJobs("38779200002"), null, "a 404 is a run that is gone");
+  await assert.rejects(api.readLatestJobs("38779200003"), /returned 502/, "any other failure is thrown, so the PR is held");
+  await assert.rejects(api.readLatestJobs("../1"), /not a run id/);
+});
+
+test("a PR whose history has a fix-docs check run is skipped and recorded before the runs listing is read", async () => {
+  for (const workflowRuns of [[], [ran(9, 54, "success")], [{ id: 1, status: "in_progress", display_title: "pr-refine fix-docs #54" }], [ran(9, 54, "failure")]]) {
+    const { api, lines, record } = await run({ pages: [[pr(54)]], histories: { 54: history([0, 1]) }, workflowRuns });
+    const label = JSON.stringify(workflowRuns);
+    assert.deepEqual(numbers(api), [], label);
+    assert.ok(isHandled(record, CHECK, pr(54).headRefOid), label);
+    assert.equal(api.calls.runListings, 0, `${label}: no runs listing`);
+    assert.deepEqual(api.calls.latestJobs, [], label);
+    assert.ok(lines.includes("skip fix-docs #54: an earlier commit already has a pr-refine / fix-docs check run"), lines.join("\n"));
+  }
+});
+
+test("a PR with no fix-docs check run in its history still reads the runs listing, then dispatches as before", async () => {
+  const { api } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, "failure")] });
+  assert.deepEqual(numbers(api), ["54"]);
+  assert.equal(api.calls.runListings, 1);
+  const going = await run({ pages: [[pr(54)]], workflowRuns: [{ id: 1, status: "in_progress", display_title: "pr-refine fix-docs #54" }] });
+  assert.deepEqual(numbers(going.api), [], "a run going still holds it");
+});
+
+test("a failed history read holds the PR before the runs listing is read; the PRs after it go on", async () => {
+  const { api, lines } = await run({ pages: [[pr(60), pr(61)]], failHistory: new Set([60]) });
+  assert.deepEqual(numbers(api), ["61"]);
+  assert.equal(api.calls.runListings, 1, "the listing is read once, for #61");
+  const alone = await run({ pages: [[pr(60)]], failHistory: new Set([60]) });
+  assert.deepEqual([numbers(alone.api), alone.api.calls.runListings], [[], 0]);
+  assert.ok(lines.includes("::warning::#60: could not read fix-docs history or holds: history read failed; skipped, a later run retries"), lines.join("\n"));
+});
+
+test("a green run's held-or-not read costs its latest jobs only: the listing already gave its status", async () => {
+  const { api } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, "success")], runJobs: new Map([[9, HANDED_OFF]]) });
+  assert.deepEqual(numbers(api), ["54"]);
+  assert.deepEqual([api.calls.latestJobs, api.calls.jobs], [[9], []]);
 });
 
 test("the GitHub API sends the one-PR and history queries with their variables", async () => {
