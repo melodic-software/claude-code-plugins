@@ -35,7 +35,6 @@ import copy
 import importlib.util
 import json
 import ntpath
-import os
 import re
 import subprocess
 import sys
@@ -2648,7 +2647,7 @@ class RunValidityTest(unittest.TestCase):
             verdict = proc.stdout.strip().splitlines()[-1]
             self.assertIn(
                 "own eval root searches excused: %s root `%s` pattern `%s`"
-                % (tool, os.path.realpath(root), pattern),
+                % (tool, root, pattern),
                 verdict,
             )
 
