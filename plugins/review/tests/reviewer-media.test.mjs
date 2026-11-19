@@ -7,6 +7,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(PLUGIN, "skills/reviewer-media/scripts");

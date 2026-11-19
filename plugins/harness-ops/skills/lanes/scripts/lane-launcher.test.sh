@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for lane-launcher.sh.
-#
 # Coverage:
 #   - config resolution + validation (missing / malformed / empty-lanes)
 #   - status renders per-lane running/stopped state from an --agents-json fixture
@@ -23,6 +21,8 @@
 # and `git` so no real CLI or network is touched.
 
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/lane-launcher.sh"
@@ -33,21 +33,14 @@ trap 'rm -rf "$TMP"' EXIT
 # so no case writes into the caller's real plugin data.
 export CLAUDE_PLUGIN_DATA="$TMP/harness-ops-test-data"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s\n      expected: %q\n      got:      %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 assert_not_eq() { if [[ "$3" != "$2" ]]; then pass "$1"; else fail "$1" "anything but: $2" "$3"; fi; }
-assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
-assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
 # --- Fixture repo -------------------------------------------------------------
 REPO="$TMP/repo"
@@ -1275,7 +1268,6 @@ assert_eq "a refused ultracode lane below its floor prints no mods line" 0 "$out
 # path holds a literal `$(...)`, and every case runs under BASH_COMPAT=51, where
 # bash expands some array subscripts twice: a launcher that evaluated a path,
 # a value from the file or a telemetry body would create the PWNED file.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 ET_BIN="$TMP/et-bin"
 mkdir -p "$ET_BIN"
 ln -s "$STUB_BIN/claude" "$ET_BIN/claude"

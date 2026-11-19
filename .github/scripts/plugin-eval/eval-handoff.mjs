@@ -7,10 +7,10 @@
 // as stream-json, one message per line (code.claude.com/docs/en/plugin-evals,
 // "What a grader can look at", the `trace` row), the same stream run-claude-cli
 // writes as its execution file. So every errored run's trace and the probe's
-// stream go through lane.cjs judgeLeg and classify.cjs isCreditStop from the
-// ci-workflows checkout at the pin the lanes run (CI_WORKFLOWS), and the leg
-// hands off on the rule lane.cjs handoffReason applies, restated below because
-// lane.cjs does not export it:
+// stream go through judgeLeg and isCreditStop from run-claude-cli's published
+// contract in the ci-workflows checkout at the pin the lanes run (CI_WORKFLOWS),
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs,
+// and the leg hands off on the contract's handoffReason:
 //   key leg           a credit stop, or class auth with API status 401 or 402
 //   subscription leg  with FALLBACK_READY true: a credit stop, a 401 or 402,
 //                     or a limit stop (a rejected rate_limit_event with its reset)
@@ -39,21 +39,9 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const LEGS = { key: "api-key", subscription: "subscription", fallback: "fallback" };
-const REFUSED_STATUSES = [401, 402];
+const AUTH_FAILED_STATUS = 401;
 // The classes a run's trace can show that say the credential stopped, not the case.
 const STOP_CLASSES = ["credit-stop", "auth", "rate-limit", "overloaded"];
-
-export function handoffReason(leg, failureClass, status, { fallbackReady = false, limitStop = false, creditStop = false } = {}) {
-  const refused = failureClass === "auth" && REFUSED_STATUSES.includes(status);
-  if (leg === "api-key") {
-    if (failureClass === "credit-stop") return "credit-stop";
-    return refused ? "auth" : "";
-  }
-  if (leg !== "subscription" || !fallbackReady || failureClass === "") return "";
-  if (creditStop) return "credit-stop";
-  if (refused) return "auth";
-  return failureClass === "rate-limit" && limitStop ? "limit-stop" : "";
-}
 
 // Every errored run's trace path, resolved as run-validity.py resolves it.
 export function erroredTraces(result, base) {
@@ -71,14 +59,14 @@ export function erroredTraces(result, base) {
 }
 
 // One stream's verdict: its class and why it hands off ("" when it does not).
-export function judgeStream(text, exitCode, { leg, fallbackReady }, { judgeLeg, linesToMessages, isCreditStop }) {
+export function judgeStream(text, exitCode, { leg, fallbackReady }, { judgeLeg, linesToMessages, isCreditStop, handoffReason }) {
   const dir = mkdtempSync(join(tmpdir(), "eval-handoff-"));
   try {
     const executionFile = join(dir, "execution.json");
     writeFileSync(executionFile, JSON.stringify(linesToMessages(text)));
     const judged = judgeLeg({ leg: { leg }, executionFile, exitCode, timedOut: false, maxTurns: "" });
     const status = judged.messages.at(-1)?.api_error_status;
-    const reason = handoffReason(leg, judged.failureClass, Number.isInteger(status) ? status : null, {
+    const reason = handoffReason({ leg }, judged.failureClass, Number.isInteger(status) ? status : null, {
       fallbackReady,
       limitStop: judged.failureClass === "rate-limit" && judged.resets !== null,
       creditStop: leg === "subscription" && isCreditStop(judged.messages, { exitCode }),
@@ -108,9 +96,9 @@ function authFailed(result) {
 
 // The streams' verdict, overruled by a suite that ended auth_failed unless a
 // stream already handed off.
-export function withPartials(verdict, results, { leg, fallbackReady }) {
+export function withPartials(verdict, results, { leg, fallbackReady }, { handoffReason }) {
   if (verdict.handoff || !results.some(authFailed)) return verdict;
-  const reason = handoffReason(leg, "auth", REFUSED_STATUSES[0], { fallbackReady });
+  const reason = handoffReason({ leg }, "auth", AUTH_FAILED_STATUS, { fallbackReady });
   return { handoff: reason !== "", reason, laneClass: "auth" };
 }
 
@@ -122,28 +110,23 @@ function readJson(path) {
   }
 }
 
-// The classifier's four files (lane.cjs and the three it requires), copied
-// under a folder of their own whose package.json ends Node's package-scope
-// lookup there. Required in place, the lookup climbs past the sparse checkout
-// to the workspace root, and a package.json there that does not parse stops
-// the require (run 42138674762).
-export const CLASSIFIER_FILES = [
-  ".github/actions/run-claude-cli/lane.cjs",
-  ".github/actions/run-claude-cli/managed-settings.cjs",
-  ".github/actions/report-lane-outcome/classify.cjs",
-  ".github/scripts/resolve-npm-tool-version.cjs",
-];
-export function loadLauncher(root) {
-  const dir = mkdtempSync(join(tmpdir(), "eval-handoff-classifier-"));
+export const CONTRACT = ".github/actions/run-claude-cli/contract.cjs";
+export const CONTRACT_FILES = ".github/actions/run-claude-cli/contract-files.txt";
+export const contractFiles = (manifest) => manifest.split("\n").map((line) => line.trim()).filter(Boolean);
+
+// Copied under a folder whose package.json ends Node's package-scope lookup
+// there, as contract.cjs asks: required in place, the lookup climbs to the
+// workspace root, whose package.json may not parse (run 42138674762):
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
+export function loadContract(root) {
+  const dir = mkdtempSync(join(tmpdir(), "eval-handoff-contract-"));
   try {
     writeFileSync(join(dir, "package.json"), '{"type":"commonjs"}\n');
-    for (const path of CLASSIFIER_FILES) {
+    for (const path of contractFiles(readFileSync(join(root, CONTRACT_FILES), "utf8"))) {
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       copyFileSync(join(root, path), join(dir, path));
     }
-    const require = createRequire(join(dir, CLASSIFIER_FILES[0]));
-    const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
-    return { ...require("./lane.cjs"), isCreditStop };
+    return createRequire(join(dir, "package.json"))(`./${CONTRACT}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -152,7 +135,7 @@ export function loadLauncher(root) {
 function main(env) {
   const leg = LEGS[env.LEG];
   if (!leg) throw new Error(`LEG must be key, subscription or fallback, not ${JSON.stringify(env.LEG)}`);
-  const launcher = loadLauncher(env.CI_WORKFLOWS ?? "");
+  const launcher = loadContract(env.CI_WORKFLOWS ?? "");
   const streams = [];
   if (env.PROBE && existsSync(env.PROBE)) {
     const exitCode = Number.parseInt(env.PROBE_EXIT ?? "", 10);
@@ -172,7 +155,7 @@ function main(env) {
     }
   }
   const options = { leg, fallbackReady: env.FALLBACK_READY === "true" };
-  const verdict = withPartials(judgeLegStreams(streams, options, launcher), results, options);
+  const verdict = withPartials(judgeLegStreams(streams, options, launcher), results, options, launcher);
   if (env.LEG_RESULT) {
     const message = {
       type: "result",

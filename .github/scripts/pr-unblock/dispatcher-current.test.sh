@@ -60,7 +60,8 @@ STUB
 cat >"$TMP/bin/git" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB/git"
-cat "$STUB/tip"
+# The tip commit for a HEAD read, the tip's blob for a HEAD:<path> read.
+if [[ ${*: -1} == HEAD ]]; then cat "$STUB/tip_sha"; else cat "$STUB/tip"; fi
 STUB
 chmod +x "$TMP/bin/gh" "$TMP/bin/git"
 
@@ -73,6 +74,7 @@ run_case() {
   printf '%s\n' "${ARTIFACTS-$NO_ARTIFACTS}" >"$STUB/artifacts"
   printf '%s\n' "$3" >"$STUB/blob"
   printf '%s\n' "$4" >"$STUB/tip"
+  printf '%s\n' "${TIP_SHA-2222222222222222222222222222222222222222}" >"$STUB/tip_sha"
   : >"$STUB/calls"
   : >"$STUB/git"
   : >"$STUB/output"
@@ -89,7 +91,13 @@ check "same file: exit 0" 0 "$RC"
 check "same file: not stale" '' "$(cat "$STUB/output")"
 check "same file: reads the run, then the file at its head" \
   "repos/o/r/actions/runs/41217038328 repos/o/r/contents/$UNBLOCK?ref=$HEAD" "$(tr '\n' ' ' <"$STUB/calls" | sed 's/ $//')"
-check "same file: reads the tip's blob of that path" "-C .base rev-parse -q --verify HEAD:$UNBLOCK" "$(cat "$STUB/git")"
+check "same file: reads the tip commit, then the tip's blob of that path" \
+  "-C .base rev-parse -q --verify HEAD|-C .base rev-parse -q --verify HEAD:$UNBLOCK" "$(paste -sd'|' "$STUB/git")"
+
+TIP_SHA=$HEAD run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "dispatcher on the tip: exit 0" 0 "$RC"
+check "dispatcher on the tip: not stale" '' "$(cat "$STUB/output")"
+check "dispatcher on the tip: reads the run alone" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
 
 run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
 check "older file: exit 0" 0 "$RC"
@@ -140,6 +148,10 @@ check "target: reads the run, its record, then the file at the recorded commit, 
 
 EVENT=pull_request_target ARTIFACTS="$(listing "$(artifact other)" "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
 check "target, older file: stale" 'stale=true' "$(cat "$STUB/output")"
+
+TIP_SHA=$REC EVENT=pull_request_target ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "target, record names the tip: reads no contents" 0 "$(grep -c contents "$STUB/calls")"
+check "target, record names the tip: not stale" '' "$(cat "$STUB/output")"
 
 for case in \
   "no record|$(listing)" \

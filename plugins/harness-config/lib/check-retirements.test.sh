@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/check-retirements.sh (no external test lib — ships with the plugin).
-#
 # The copies in carrying plugins are byte-identical and registered in
 # scripts/cross-plugin-source-registry.txt, so this suite covers all of them.
 set -uo pipefail
@@ -8,24 +6,16 @@ set -uo pipefail
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git rev-parse` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-retirements.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
 }
@@ -34,15 +24,6 @@ assert_contains() {
   *"$3"*) pass "$1" ;;
   *) fail "$1" "expected to contain: $3 -- got: $2" ;;
   esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
 assert_file_eq() {
   # assert_file_eq <label> <expected-file> <actual-file> — byte-for-byte
@@ -741,9 +722,4 @@ run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
 assert_exit "case 24: a file holding only the block cleans" 0 "$RC"
 if [[ -e "$r/conf.yaml" ]]; then fail "case 24: a file left empty is removed" "still present"; else pass "case 24: a file left empty is removed"; fi
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

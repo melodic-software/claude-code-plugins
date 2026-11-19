@@ -7,7 +7,7 @@ import path from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
-import { fetchAtPin, laneAtPin } from "../../lib/ci-workflows-at-pin.mjs";
+import { contractAtPin, fetchAtPin } from "../../lib/ci-workflows-at-pin.mjs";
 import { CLI_VERSION, cliArgs, JUDGE, LEG_ENV, legEnv, MANAGED_SETTINGS, promptText, RUN_CLAUDE_CLI_PIN } from "./replay.mjs";
 
 const text = readFileSync(new URL("../../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -145,7 +145,7 @@ const inputDefault = (yml, name) => {
 };
 
 test("cliArgs is the pinned lane.cjs argv for this lane, with the replay's settings file", async () => {
-  const lane = await laneAtPin(RUN_CLAUDE_CLI_PIN);
+  const lane = await contractAtPin(RUN_CLAUDE_CLI_PIN);
   const sandbox = inputDefault(await actionYml("run-claude-cli"), "sandbox");
   for (const [model, effort, maxTurns] of [["opus", "", 60], ["sonnet", "high", 5]]) {
     const pinned = lane.cliArgs({
@@ -170,7 +170,7 @@ test("cliArgs is the pinned lane.cjs argv for this lane, with the replay's setti
 test("the runner's CLI version, environment additions and managed settings are the pinned actions'", async () => {
   const run = await actionYml("run-claude-cli");
   assert.equal(CLI_VERSION, inputDefault(run, "cli-version"));
-  const { legEnv: pinnedLegEnv } = await laneAtPin(RUN_CLAUDE_CLI_PIN);
+  const { legEnv: pinnedLegEnv } = await contractAtPin(RUN_CLAUDE_CLI_PIN);
   const added = pinnedLegEnv({}, { leg: "subscription", value: "t" }, { watchdogMaxWaitMs: inputDefault(run, "watchdog-max-wait-ms") });
   delete added.CLAUDE_CODE_OAUTH_TOKEN;
   assert.deepEqual(LEG_ENV, added);

@@ -87,6 +87,20 @@ inputs:
       malformed or another lane's writes nothing.
     required: false
     default: ""
+  conflict-base:
+    description: >
+      With conflict-paths, the pinned base a merge round that stopped
+      unresolved-conflict merged. Both are written as one
+      `conflict-record <json>` line of output.text
+      (.github/scripts/lib/conflict-record.mjs), which
+      .github/scripts/pr-unblock/dispatch.mjs reads. Empty, or either out of
+      shape, writes nothing.
+    required: false
+    default: ""
+  conflict-paths:
+    description: With conflict-base, the round's unmerged paths as one JSON array (run-prepare.sh's conflict-paths output).
+    required: false
+    default: ""
   verdict-path:
     description: Path of the downloaded verdict.json. A missing file posts failure.
     required: false
@@ -123,6 +137,8 @@ runs:
         ALL_VERIFIED: ${{ inputs.all-verified }}
         UNVERIFIED: ${{ inputs.unverified }}
         LANE_OUTCOME: ${{ inputs.lane-outcome }}
+        CONFLICT_BASE: ${{ inputs.conflict-base }}
+        CONFLICT_PATHS: ${{ inputs.conflict-paths }}
         VERDICT_PATH: ${{ inputs.verdict-path }}
         BASE_PATH: ${{ inputs.base-path }}
         HEAD_SHA_FALLBACK: ${{ inputs.head-sha-fallback }}

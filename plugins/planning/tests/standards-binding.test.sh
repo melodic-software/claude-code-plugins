@@ -10,16 +10,8 @@ SETUP="$PLUGIN_DIR/skills/setup/SKILL.md"
 TEMPLATE="$PLUGIN_DIR/skills/plan/context/plan-template.md"
 REVIEWER="$PLUGIN_DIR/skills/plan/context/plan-reviewer.md"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=../lib/test-ok-fail.sh
+source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
 # --- grounding subsection exists exactly once, inside Step 2 ----------------
 count=$(grep -c "Ground in consumer standards" "$ARCHITECT")

@@ -421,10 +421,18 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   rule, a test).
 - **Remediate:** a rule a deterministic check already enforces to the Enforced bar is not also
   kept as prose: flag the prose for deletion and name the enforcing check (Deletion tiers,
-  enforced). Convert a must-always rule with no such check, including one whose check only warns
-  or reaches less than the prose, to a hook or another blocking check; once the check exists,
-  the prose goes in the same change, named against that check. An already-followed rule that does
-  not govern a situation is an editorial deletion. Any other rule that governs a situation,
+  enforced). A must-always rule with no such check, including one whose check only warns or
+  reaches less than the prose, moves to a mechanism: when `/corrections:codify` is among the
+  available skills, hand it the choice of mechanism; it picks the strongest rung of the
+  enforcement ladder that can decide the rule and proves the check. The finding names the call,
+  `/corrections:codify "<the rule>"`, or `/corrections:codify rules <file>` for the instruction
+  file that carries it, and this report-only skill never makes it. Otherwise, propose the
+  strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
+  then a check that blocks it, then a test, and an instruction only when nothing a machine runs
+  can decide it. Say that `/corrections:codify` was not available, so the proposal is unproven.
+  Once a check that meets the Enforced bar exists, the prose goes in the same change, named
+  against that check. An already-followed rule that does not govern a situation is an editorial
+  deletion. Any other rule that governs a situation,
   including the part a warning-only or narrower check leaves uncovered, is consequential: open a
   watch, and propose the deletion only when a closed watch is cited.
 - **Hold instead of delete** when the candidate matches a protected class in the
@@ -1219,8 +1227,15 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps
-  recurring, offer the mechanism route, a `PreToolUse` hook, a `permissions.deny` rule, or a skill's
-  own `disallowed-tools`, since a mechanism outranks instruction text.
+  recurring, offer the mechanism route, since a mechanism outranks instruction text: when
+  `/corrections:codify` is among the available skills, hand it the choice of mechanism; it picks
+  the strongest rung of the enforcement ladder that can decide the rule and proves the check. The
+  finding names the call, `/corrections:codify "<the rule>"`, on the rule the documented winner
+  or the operator's choice states, and never makes it. Otherwise,
+  propose the strongest mechanism that can decide the rule: a change that makes the mistake
+  impossible first, then a check that blocks it, then a test, and an instruction only when nothing
+  a machine runs can decide it. Say that `/corrections:codify` was not available, so the proposal
+  is unproven.
 - **Must NOT flag:** two surfaces that can never be resident together (that is orphaned instruction
   drift, reported separately). Different observables sharing a keyword. The same verb over different
   objects. An absolute carrying its own exception beside a directive presupposing that exception. A

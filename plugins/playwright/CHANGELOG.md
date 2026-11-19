@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.21] - 2026-11-19
+
+### Changed
+
+- The demo-video skill's locked numpy moves from 2.5.4 to 2.5.5, matching the animation plugin's lock.
+
 ## [2.0.20] - 2026-11-19
 
 ### Changed

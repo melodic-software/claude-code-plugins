@@ -124,7 +124,7 @@ dash, spans its pause.
 
 ```bash
 bash plugins/speech/scripts/speech.test.sh
-bash plugins/speech/hooks/install-python-deps.test.sh
+bash lib/install-python-deps.test.sh
 ```
 
 Set `SPEECH_E2E_DATA_DIR` to a data directory that holds the installed packages and the model, with

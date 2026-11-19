@@ -1,6 +1,8 @@
 import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const dir = process.argv[2];
 const base = process.argv[3];

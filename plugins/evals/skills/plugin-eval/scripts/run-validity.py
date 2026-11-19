@@ -156,8 +156,15 @@ one line per check, detail lines indented under it:
                       its quoting. A command holding an unquoted &, ( or ),
                       or a $( or backtick outside single quotes anywhere,
                       never qualifies, nor does a part left holding an
-                      unquoted glob, brace or tilde or an unresolved $. The
-                      run's score was
+                      unquoted glob, brace or tilde or an unresolved $. A
+                      denied named call other than Skill that a tool_used
+                      grader of its case forbids with max 0 and no
+                      input_match is set aside the same way when that grader
+                      failed in the run, unless it is a with-arm call naming
+                      no absolute path or one at, under or above the
+                      plugin's directory: the grader already scored the call
+                      as the run's failure, such as a Write to a protected
+                      .claude/ path. The run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -192,15 +199,24 @@ one line per check, detail lines indented under it:
 
 The last line is `verdict: VALID` or `verdict: INVALID` with its reasons. A
 FAIL, or a check that could not run (UNCHECKED), makes the run INVALID; a WARN
-does not. The line before it counts the runs that ran Bash, decides nothing,
+does not. A permission-denials FAIL names the calls it counted, each its tool
+and its target (a path, a command or the denied hosts), on one line: the target
+redacted by the plugin's vendored gitleaks redactor (scripts/redact.py), its
+whitespace collapsed and cut to TARGET_CHARS, a call repeated across runs named
+once with its count, at most DENIED_SHOWN of them; with no redactor loaded, or
+one failing closed, it names the tools only. The line before it counts the runs that ran Bash, decides nothing,
 and names no case, command or trace text, so it may be published:
-`bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>]`. A run ran Bash
-when a Bash call got a tool_result that is neither a permission denial nor a
-failed result reporting the sandbox failing to start. A run with no readable trace is counted in its arm's
-total and as unknown. A run whose init tools list leaves Bash out, with no Bash
-call, is left out of its arm; an arm of only such runs is `<arm> n/a`, and a
-suite of them `bash ran: n/a`. A case's allowed_tools cannot grant Bash, so the
-init tools list is the record read.
+`bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>][, absent tool <m>]`.
+A run ran Bash when a Bash call got a tool_result that is neither a permission
+denial, a failed result reporting the sandbox failing to start, nor a failed
+result reporting the session has no Bash tool. A run with no readable trace is
+counted in its arm's total and as unknown. A run whose init tools list leaves
+Bash out, with no Bash call but those that found no Bash tool, is left out of
+its arm; an arm of only such runs is `<arm> n/a`, and a suite of them
+`bash ran: n/a`. `absent tool <m>` counts, over every run, the Bash calls whose
+result found no Bash tool; the permission denials check counts one only when the
+result line's permission_denials lists it. A case's allowed_tools cannot grant Bash, so the init tools list is the
+record read.
 
 A should-trigger case has a `tool_used` grader on the Skill tool that requires a
 call. A case is a no-trigger control, and exempt, when its tags (prompt.md or
@@ -217,6 +233,7 @@ Exit codes:
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import posixpath
@@ -225,6 +242,13 @@ import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
+
+DENIED_SHOWN = 10
+TARGET_CHARS = 120
+REDACT_PY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "scripts", "redact.py"
+)
+UNPRINTABLE = re.compile(r"[\s\x00-\x1f\x7f-\x9f]+")
 
 FULL_SCORE = 1.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
@@ -331,6 +355,15 @@ MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[]
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
+# An is_error Bash tool_result when the session has no Bash tool: the call never
+# reached a permission check or a shell.
+# - Pointer: no docs page covers it; observed as "<tool_use_error>Error: No such
+#   tool available: Bash. Bash is disabled for this session, ..." in with-arm
+#   runs of https://github.com/melodic-software/claude-code-plugins/actions/runs/44475945897
+#   (Claude Code 2.1.328); bash-absent.jsonl in the test fixtures keeps its shape.
+# - As of: 2026-11-19
+# - Recheck trigger: a release note rewording the unknown-tool error.
+ABSENT_TOOL_TEXT = "No such tool available: Bash"
 # A tool result showing that a program the session ran could not start: a mise
 # shim with no tool behind it ("mise ERROR node is not a valid shim"), or the
 # shell finding no such command (bash's "bash: line 1: <name>: command not
@@ -905,41 +938,57 @@ def init_tools(run):
     return tools if isinstance(tools, list) else None
 
 
+def tool_absent(block):
+    """True when a failed tool_result reports the session has no Bash tool."""
+    return block.get(RESULT_ERROR) is True and ABSENT_TOOL_TEXT in json.dumps(
+        block.get(CONTENT)
+    )
+
+
 def bash_state(run):
-    """RAN, NOT_RAN, UNKNOWN (no readable trace) or EXEMPT (no Bash offered or called)."""
+    """(state, absent): state is RAN, NOT_RAN, UNKNOWN (no readable trace) or EXEMPT
+    (no Bash offered, and no Bash call but those that found no Bash tool); absent
+    counts the Bash calls whose result found no Bash tool."""
     if run.trace is None:
-        return UNKNOWN
-    bash = set()
+        return UNKNOWN, 0
+    bash, absent, ran = set(), set(), False
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
             if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == BASH_TOOL:
                 bash.add(block.get(USE_ID))
-            elif (
-                block.get(BLOCK_TYPE) == TOOL_RESULT
-                and block.get(RESULT_USE_ID) in bash
-                and not is_denial(block)
-                and not sandbox_failed(block)
-            ):
-                return RAN
+            elif block.get(BLOCK_TYPE) == TOOL_RESULT and block.get(RESULT_USE_ID) in bash:
+                if tool_absent(block):
+                    absent.add(block.get(RESULT_USE_ID))
+                elif not is_denial(block) and not sandbox_failed(block):
+                    ran = True
+    if ran:
+        return RAN, len(absent)
     tools = init_tools(run)
-    return EXEMPT if not bash and tools is not None and BASH_TOOL not in tools else NOT_RAN
+    offered = tools is None or BASH_TOOL in tools
+    return (NOT_RAN if bash - absent or offered else EXEMPT), len(absent)
 
 
 def bash_line(runs, arms):
     """The `bash ran:` line the module docstring describes."""
-    states = [(r.arm, bash_state(r)) for r in runs if r.arm in arms]
+    states = [(r.arm,) + bash_state(r) for r in runs if r.arm in arms]
+    absent = sum(n for _, _, n in states)
+    suffix = ", absent tool %d" % absent if absent else ""
     parts = []
     for arm in arms:
-        got = [s for a, s in states if a == arm]
+        got = [s for a, s, _ in states if a == arm]
         counted = [s for s in got if s != EXEMPT]
         if got and not counted:
             parts.append("%s n/a" % arm)
         else:
             parts.append("%s %d of %d" % (arm, counted.count(RAN), len(counted)))
     if all(p.endswith(" n/a") for p in parts):
-        return "bash ran: n/a"
-    unknown = sum(1 for _, s in states if s == UNKNOWN)
-    return "bash ran: %s%s" % (", ".join(parts), ", unknown %d" % unknown if unknown else "")
+        return "bash ran: n/a" + suffix
+    unknown = sum(1 for _, s, _ in states if s == UNKNOWN)
+    return "bash ran: %s%s%s" % (
+        ", ".join(parts),
+        ", unknown %d" % unknown if unknown else "",
+        suffix,
+    )
 
 
 def has_output(content):
@@ -2334,6 +2383,32 @@ def own_copy_denial(run, denial, roots):
     )
 
 
+def forbidden_denial(run, denial, roots, root):
+    """True when the denial is a named call other than Skill that a tool_used
+    grader of its case forbids outright (max 0, no input_match) and that grader
+    failed in this run. The grader already scored the call as the run's failure,
+    so the denial only kept the forbidden call from landing. A with-arm call
+    naming no absolute path, or one at, under or above the plugin's directory
+    (inside), never qualifies."""
+    _, paths, name, _, _, _ = denial
+    if name in (None, SKILL_TOOL):
+        return False
+    if run.arm == "with" and any(inside(p, roots) for p in paths):
+        return False
+    results = {g.get(GRADER_NAME): g for g in as_list(run.row.get(RUN_GRADERS))}
+    for grader in as_list(run.case.get(CASE_GRADER_DEFS)):
+        config = as_dict(grader.get(GRADER_CONFIG))
+        if (
+            grader.get(GRADER_TYPE) == FIRE_GRADER_TYPE
+            and config.get(CONFIG_TOOL) == name
+            and config.get(CONFIG_MAX) == 0
+            and grader_input_match(run.case, grader, root) is None
+            and as_dict(results.get(grader.get(GRADER_NAME))).get(GRADER_PASSED) is False
+        ):
+            return True
+    return False
+
+
 def names_absent(term, absent):
     """True when a search term, its wildcard and anchor ends stripped, is one of
     the absent plugins' names, case ignored (*markdown-format*, .*x.*, ^x$)."""
@@ -2766,6 +2841,47 @@ def check_programs(runs, root=None):
     return PASS, "no trace shows a shim error or command not found", [], None
 
 
+def load_redactor(path=REDACT_PY):
+    """The plugin's vendored redactor, or None when it cannot load or fails closed."""
+    try:
+        spec = importlib.util.spec_from_file_location("plugin_eval_redact", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        redactor = module.load_redactor()
+    except (OSError, ImportError, SyntaxError, AttributeError):
+        return None
+    finally:
+        sys.modules.pop("plugin_eval_redact", None)
+    return None if redactor.fail_closed else redactor
+
+
+def named_calls(found, redactor):
+    """The denied calls in found, in trace order, as one line: each its tool and
+    its redacted, collapsed and cut target, a repeat counted, at most DENIED_SHOWN;
+    the tools only when redactor is None."""
+    counts = {}
+    for d in found:
+        name, target = d[4]
+        if name == "network-outbound":
+            name, target = BASH_TOOL, "network-outbound " + ", ".join(target)
+        else:
+            target = json.loads(target)
+            if not isinstance(target, str):
+                target = json.dumps(target, sort_keys=True)
+        text = ""
+        if redactor is not None:
+            text = UNPRINTABLE.sub(" ", redactor.redact(target)).strip().replace("`", "'")
+            if len(text) > TARGET_CHARS:
+                text = text[: TARGET_CHARS - 3] + "..."
+        call = "%s `%s`" % (name or "tool", text) if text else name or "tool"
+        counts[call] = counts.get(call, 0) + 1
+    shown = [c if n == 1 else "%s x%d" % (c, n) for c, n in counts.items()]
+    if len(shown) > DENIED_SHOWN:
+        shown = shown[:DENIED_SHOWN] + ["+%d more" % (len(shown) - DENIED_SHOWN)]
+    return ", ".join(shown)
+
+
 def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=()):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
@@ -2820,6 +2936,19 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
+    forbidden = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and d not in lacked[r]
+            and d not in recovered[r]
+            and forbidden_denial(r, d, roots, root)
+        ]
+        for r in traced
+    }
     # With-arm sandbox network denials: set aside in an invocation-probe, control
     # or no-network case, else a FAIL whatever the rules below say.
     network = {r: network_denials(r, {d[3] for d in every[r]}) for r in traced}
@@ -2838,6 +2967,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in searched[r]
             and d not in lacked[r]
             and d not in recovered[r]
+            and d not in forbidden[r]
         ]
         + [d for d in network[r] if d not in offline[r]]
         for r in traced
@@ -2904,6 +3034,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             "; %s whose plugin part a later call ran alone and was allowed, not counted"
             % plural(rerun, "denied compound Bash call")
         )
+    graded_fail = sum(len(forbidden[r]) for r in denied)
+    if graded_fail:
+        summary += (
+            "; %s a failed max-0 tool_used grader of its case forbids, scored as that"
+            " grader's failure, not counted" % plural(graded_fail, "denied call")
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -2921,7 +3057,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory%s,%s%s%s%s which never"
+            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -2934,6 +3070,9 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 " lacks," if missing_search else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
+                " or a denied call a failed max-0 tool_used grader of its case forbids,"
+                if graded_fail
+                else "",
                 " or a with-arm sandbox network denial in an invocation-probe, control"
                 " or no-network case,"
                 if unplugged
@@ -2942,8 +3081,9 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             )
         )
     if failed:
-        reason = "%s in the traces" % plural(
-            sum(len(found[r]) for r in failed), "permission denial"
+        reason = "%s in the traces: %s" % (
+            plural(sum(len(found[r]) for r in failed), "permission denial"),
+            named_calls([d for r in failed for d in found[r]], load_redactor()),
         )
         if warned:
             reason += " (warnings only, not counted: case %s)" % ", ".join(warned_cases)

@@ -10,6 +10,8 @@ import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIER
 import { PREDICATES } from "./predicates.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");

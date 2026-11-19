@@ -1,7 +1,8 @@
 // maintenance-measure-skill-edit-pass.yml and pr-run-plugin-evals.yml pick each leg's
 // credential through ci-workflows' select-model-credential, fetched at the pin
-// the workflows name. A leg's handoff comes from eval-handoff.mjs (its
-// handoffReason, the rule run-claude-cli's lane.cjs applies), so this truth
+// the workflows name. A leg's handoff comes from eval-handoff.mjs (the
+// handoffReason run-claude-cli's contract exports:
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs), so this truth
 // table drives every handoff that rule can give, with the FALLBACK_READY each
 // leg passes it, through each workflow's own conditions and inputs, over every
 // combination of gate verdict, gate job result, secrets set or empty, and a
@@ -16,7 +17,6 @@ import { test } from "node:test";
 
 import { loadSelect, runs, selectPin, value } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
-import { handoffReason } from "./eval-handoff.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const HILL = read("maintenance-measure-skill-edit-pass.yml");
@@ -111,7 +111,7 @@ function facts(leg) {
         }
   return [...seen.values()];
 }
-const reasonOf = (leg, f, fallbackReady) => handoffReason(EVAL_LEG[leg], f.failureClass, f.status, { fallbackReady, limitStop: f.limitStop, creditStop: f.creditStop });
+const reasonOf = (leg, f, fallbackReady) => S.handoffReason({ leg: EVAL_LEG[leg] }, f.failureClass, f.status, { fallbackReady, limitStop: f.limitStop, creditStop: f.creditStop });
 
 // The judge step's outputs: it runs only when the leg's credential let the
 // probe run and no step before the probe failed; its handoff is

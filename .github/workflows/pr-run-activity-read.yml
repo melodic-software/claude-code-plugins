@@ -135,6 +135,17 @@ on:
         required: false
         type: number
         default: 30
+      rate-limit-wait-seconds:
+        description: >-
+          The scan job's rate-limit wait budget, at most rate-guard.mjs's
+          WAIT_BUDGET_SECONDS.workResolveIssue: a primary
+          GitHub API limit on its leak scan's reads whose reset comes within
+          it is waited out instead of dropping the model's finished output.
+          0 waits for none; the scan job's timeouts grow by 20 minutes when it
+          is set.
+        required: false
+        type: number
+        default: 0
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
@@ -549,6 +560,7 @@ jobs:
           # A first call that starts new work also stops on a low GITHUB_TOKEN
           # budget; a handed-off or fallback leg checks the switches only.
           budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
+          project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
 
       # work-unblock's sweep reads this step's name and conclusion from the
       # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
@@ -558,7 +570,7 @@ jobs:
         if: steps.kill.outputs.cause == 'budget'
         env:
           RESET: ${{ steps.kill.outputs.reset }}
-        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget until $RESET (epoch seconds)"
+        run: echo "::notice::the start gate stopped this run on a low or projected-short GITHUB_TOKEN budget until $RESET (epoch seconds); the Check the kill switch step's start-gate notice names which"
 
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.
@@ -588,7 +600,7 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: ${{ inputs.key-credit-job }}
@@ -619,7 +631,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -1457,7 +1469,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1748,7 +1760,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: ${{ inputs.role }}
@@ -1760,7 +1772,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: ${{ inputs.role }}
@@ -1772,7 +1784,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: ${{ inputs.role }}
@@ -1800,7 +1812,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1865,7 +1877,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1916,7 +1928,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2092,7 +2104,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2801,7 +2813,7 @@ jobs:
       !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
       && needs.run.outputs.handed-off != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.rate-limit-wait-seconds > 0 && 40 || 20 }}
     cache-mode: read
     environment:
       name: pr-pipeline-scan-carrier
@@ -3170,9 +3182,10 @@ jobs:
       - name: Scan the outputs for credentials
         id: leak-scan
         if: needs.run.outputs.go == 'true'
-        timeout-minutes: 10
+        timeout-minutes: ${{ inputs.rate-limit-wait-seconds > 0 && 30 || 10 }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
+          WAIT_SECONDS: ${{ inputs.rate-limit-wait-seconds }}
           HEAD_SHA: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.check-issue-fields.outputs.start-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
@@ -3191,13 +3204,37 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH, CALLS_FILE } = process.env;
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH, CALLS_FILE, WAIT_SECONDS } = process.env;
             // Each request's count, written before it is sent, for the job-end notice.
             let calls = 0;
             const sent = () => {
               try {
                 fs.writeFileSync(CALLS_FILE, `${++calls}\n`);
               } catch {}
+            };
+            // A read a rate limit refused is sent once more after the reset
+            // its answer names, when the waits, summed, fit WAIT_SECONDS (at
+            // most rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue,
+            // which rate-guard.test.mjs pins this cap to, inside the step's
+            // timeout): the model's output is finished, and failing here
+            // drops it.
+            let waitLeft = Math.min(/^\d{1,4}$/.test(WAIT_SECONDS ?? '') ? Number(WAIT_SECONDS) : 0, 1200) * 1000;
+            const patiently = async (call) => {
+              sent();
+              try {
+                return await call();
+              } catch (error) {
+                const headers = error?.response?.headers ?? {};
+                const after = /^\d+$/.test(headers['retry-after'] ?? '') ? Number(headers['retry-after']) * 1000 : null;
+                const reset = headers['x-ratelimit-remaining'] === '0' && /^\d+$/.test(headers['x-ratelimit-reset'] ?? '') ? Number(headers['x-ratelimit-reset']) * 1000 - Date.now() : null;
+                const wait = Math.max(0, after ?? reset ?? -1) + 1000;
+                if (![403, 429].includes(error?.status) || (after ?? reset) === null || wait > waitLeft) throw error;
+                waitLeft -= wait;
+                core.notice(`leak-scan: a read hit GitHub's rate limit; waiting ${Math.ceil(wait / 1000)} s for its reset, then reading once more`);
+                await new Promise((resolve) => setTimeout(resolve, wait));
+                sent();
+                return await call();
+              }
             };
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
@@ -3222,11 +3259,9 @@ jobs:
               // sudo on that runner could have forged.
               const branch = context.payload.repository?.default_branch;
               if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
-              sent();
-              const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
+              const tip = (await patiently(() => github.rest.repos.getBranch({ ...context.repo, branch }))).data?.commit?.sha;
               if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
-              sent();
-              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip });
+              const { data } = await patiently(() => github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip }));
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
@@ -3610,8 +3645,8 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  transcript:
-    name: Transcript
+  upload-transcript:
+    name: Upload Transcript
     needs: run
     if: >-
       !cancelled() && needs.run.outputs.transcript-sealed-length != ''
@@ -3838,7 +3873,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
 
       - name: Isolate the runner
         id: isolate
@@ -3858,7 +3893,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3884,7 +3919,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3910,7 +3945,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3947,7 +3982,7 @@ jobs:
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}

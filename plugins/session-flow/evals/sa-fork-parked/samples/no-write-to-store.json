@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/away/tasks-abc12345.md",
+            "content": "- [x] Phase 1\n- [ ] Phase 2 storage (parked)\n"
+          }
+        }
+      ],
+      "why": "writes the task file only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/away/20261118T221500Z-abc12345.md",
+            "content": "# Away report\n\n## Needs you\n\n- Storage backend for src/store.py. Options: SQLite (one file, queries) or JSON lines (append-only, no dependency). Recommendation: SQLite, because notes will need lookup by date.\n"
+          }
+        }
+      ],
+      "why": "a report write that names src/store.py"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/store.py",
+            "content": "import json\n"
+          }
+        }
+      ],
+      "why": "rewrites store.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/src/store.py",
+            "content": "import sqlite3\n"
+          }
+        }
+      ],
+      "why": "absolute path"
+    }
+  ]
+}

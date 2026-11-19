@@ -1,7 +1,7 @@
 # OTEL pipeline: collector, store, Aspire dashboard
 
-Machine config:
-[`common/otel-collector.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/otel-collector.yaml).
+Machine config: provisioning's Collector configuration, named by the `otel_collector_config_ref`
+option (`SKILL.md` shows its value).
 Emission env profile: [operator-setup-emission-privacy.md](operator-setup-emission-privacy.md)
 "Emission profile". Read routing: [read-routing.md](read-routing.md).
 

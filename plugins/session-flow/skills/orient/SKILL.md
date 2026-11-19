@@ -53,6 +53,9 @@ now" matters, not just "what did we just say." The verification records
    off this thread. Background tasks, monitors, subagents, and the other
    off-thread kinds
    ([`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)).
+   On the desktop app, with a tool that lists the user's other sessions,
+   include those sessions per
+   [`${CLAUDE_PLUGIN_ROOT}/reference/desktop-session-list.md`](${CLAUDE_PLUGIN_ROOT}/reference/desktop-session-list.md).
    Report the off-thread work at a glance. In the four-part briefing, do
    **not** inspect or recover it; that is `/session-flow:keep-going`.
 

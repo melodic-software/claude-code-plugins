@@ -1,7 +1,8 @@
 # Posture catalog
 
 Fourteen postures. Each row: the applicability predicate (which component purposes it binds), what
-counts as present, and the guide pointer that owns the recommended wording. Pointers only.
+counts as present, and the guide pointer that owns the recommended wording; P7 also names who
+picks the mechanism a MISSING verdict proposes. Pointers only.
 Wording is fetched live per SKILL.md Phase A.
 
 Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
@@ -182,6 +183,14 @@ Classify each component by what its body has the model DO (multiple or none):
   delegates the destructive step to**, followed and read. The script gate is the easiest to miss,
   because nothing in the component's own text announces it. This is the only row whose presence
   evidence may live outside the inventory.
+- **Proposal when MISSING:** this row does not choose between a gate and a confirmation line.
+  When `/corrections:codify` is among the available skills, hand it the choice of mechanism; it
+  picks the strongest rung of the enforcement ladder that can decide the rule and proves the
+  check. The proposal names the call, `/corrections:codify "<the rule>"`, and never makes it.
+  Otherwise, propose the strongest mechanism that can decide the rule: a change that makes the
+  mistake impossible first, then a check that blocks it, then a test, and an instruction only when
+  nothing a machine runs can decide it. Say that `/corrections:codify` was not available, so the
+  proposal is unproven.
 - **Pointer:** main page, "Balancing autonomy and safety".
 
 ### P8: Context-budget reassurance

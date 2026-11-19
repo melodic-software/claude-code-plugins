@@ -20,9 +20,13 @@
 # GITHUB_OUTPUT, and the lanes bot identity and LOOP_NO_PROGRESS prepare.sh
 # reads; optional EXPECT_STATE and EXPECT_TREE.
 #
-# Outputs: merge-state, escalation-reason, conflict-tree, and skip-reason
-# (awaiting-human on an escalation). Exit 1 on a hash mismatch, a prepare.sh failure, malformed
-# output, or a merge that does not reach the expected state and tree.
+# Outputs (step outputs, https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-output-parameter):
+# merge-state, escalation-reason, conflict-tree, skip-reason
+# (awaiting-human on an escalation), and conflict-paths: prepare.sh's unmerged
+# paths as one JSON array line (needs jq), empty when there are none, when the
+# line passes 16,384 characters, or when a path is not UTF-8. Exit 1 on a hash
+# mismatch, a prepare.sh failure, malformed output, or a merge that does not
+# reach the expected state and tree.
 set -euo pipefail
 
 fail() {
@@ -78,10 +82,19 @@ if [[ -n ${EXPECT_STATE:-} ]]; then
   fi
 fi
 
+paths=""
+if [[ -s $OUT/unmerged-paths ]]; then
+  paths=$(jq -Rsc 'split("\u0000") | map(select(. != ""))' <"$OUT/unmerged-paths")
+fi
+if ((${#paths} > 16384)) || [[ $paths == *$'\xef\xbf\xbd'* ]]; then
+  paths=""
+fi
+
 {
   echo "merge-state=$state"
   echo "escalation-reason=$reason"
   echo "conflict-tree=$tree"
   echo "skip-reason=$skip"
+  echo "conflict-paths=$paths"
 } >>"$GITHUB_OUTPUT"
 echo "merge-state=$state escalation-reason=$reason conflict-tree=$tree"

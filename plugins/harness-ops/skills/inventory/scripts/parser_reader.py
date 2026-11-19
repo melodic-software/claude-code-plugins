@@ -22,8 +22,10 @@ Install base, first match wins:
   <checkout>/.work/harness-ops
                          when this file runs from a git checkout of the
                          marketplace, whose .work/ is gitignored
-  <config dir>/plugins/data/harness-ops-melodic-software
-                         where Claude Code puts this plugin's data directory
+  <config dir>/plugins/data/<plugin data id>
+                         where Claude Code puts this plugin's data directory:
+                         harness-ops-<marketplace> for an install in the plugin
+                         cache, harness-ops-inline anywhere else (plugin_data_id)
 
 Anything that stops the reader (no node, no npm, a failed install, a helper
 that does not load) raises ReaderBroken carrying the exact command that
@@ -54,7 +56,7 @@ HELPER = JS_DIR / "parser_helper.cjs"
 MANIFESTS = ("package.json", "package-lock.json")
 REQUIRED_PACKAGES = ("acorn", "eslint-scope")
 COMPONENT = "inventory-parser"
-PLUGIN_DATA_ID = "harness-ops-melodic-software"
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 NPM_CI_ARGS = ("ci", "--ignore-scripts", "--no-audit", "--no-fund")
 NPM_TIMEOUT_SECONDS = 600
 STALE_PARTIAL_SECONDS = 2 * NPM_TIMEOUT_SECONDS
@@ -74,6 +76,24 @@ class ReaderBroken(Exception):
 
 def lock_key() -> str:
     return hashlib.sha256((JS_DIR / "package-lock.json").read_bytes()).hexdigest()[:12]
+
+
+def plugin_data_id(plugin_root: str | Path) -> str:
+    """This plugin's data directory name, as Claude Code names it.
+
+    The plugin id `<name>@<marketplace>` with every character outside
+    A-Za-z0-9_- replaced by `-`. The marketplace comes from an install at
+    <config>/plugins/cache/<marketplace>/<name>/<version>, the layout
+    lib/plugin-options.mjs resolveInstall reads; anywhere else is a
+    --plugin-dir session, whose plugin id ends in @inline.
+    """
+    parts = str(plugin_root).replace("\\", "/").split("/")
+    tail = parts[-4:]
+    cached = (
+        len(parts) > 4 and parts[-5] == "plugins" and tail[0] == "cache" and all(tail)
+    )
+    marketplace = tail[1] if cached else "inline"
+    return re.sub(r"[^A-Za-z0-9_-]", "-", f"harness-ops@{marketplace}")
 
 
 def checkout_root() -> Path | None:
@@ -106,7 +126,10 @@ def deps_base(explicit: str | None) -> tuple[Path, str]:
         return root / ".work" / "harness-ops", "checkout .work/"
     config = os.environ.get("CLAUDE_CONFIG_DIR")
     base = Path(config) if config else Path.home() / ".claude"
-    return base / "plugins" / "data" / PLUGIN_DATA_ID, "plugin data directory"
+    return (
+        base / "plugins" / "data" / plugin_data_id(PLUGIN_ROOT),
+        "plugin data directory",
+    )
 
 
 def install_dir(base: Path) -> Path:
