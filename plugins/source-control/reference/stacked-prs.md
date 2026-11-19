@@ -40,7 +40,8 @@ default branch, and still fail any other non-default base
 merge lane lands only a stack's bottom layer, through the async merge once its `CI Status` is green,
 and never a layer above it
 ([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)). The issue lane
-does not stack yet, so an attended session may stack, and an unattended lane does not.
+does not stack yet ([#17539](https://github.com/melodic-software/claude-code-plugins/issues/17539)),
+so an attended session may stack, and an unattended lane does not.
 
 - **Pointer**: for why and when GitHub recommends a stack, fetch
   [About stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#why-use-github-stacked-pull-requests)
@@ -49,7 +50,7 @@ does not stack yet, so an attended session may stack, and an unattended lane doe
   Correlate with the probe results in the pull request that closed
   [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
 - **Recheck trigger**: [#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)
-  closes.
+  or [#17539](https://github.com/melodic-software/claude-code-plugins/issues/17539) closes.
 
 ## Create
 
