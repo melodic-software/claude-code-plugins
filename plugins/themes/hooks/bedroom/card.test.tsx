@@ -85,6 +85,11 @@ test('a press flips the same state the command flips, and a typed command shows 
 
   await ui.press({ key: 'theme' })
   expect((await ui.find({ key: 'theme' }))?.props.label).toBe('theme: off')
+  expect((await ui.find({ type: 'Text', text: 'the theme is cleared' }))?.text).toBe('the theme is cleared')
+
+  await bedroom($, 'on')
+  expect((await ui.find({ key: 'theme' }))?.props.label).toBe('theme: on')
+  expect(await ui.find({ type: 'Text', text: 'the theme is cleared' })).toBeUndefined()
   await ui.unmount()
 })
 

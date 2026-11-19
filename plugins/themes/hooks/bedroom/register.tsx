@@ -258,9 +258,9 @@ function amountOf(name: Stepped): number {
   return name === 'dim' ? Math.round(saved.dim * 100) : name === 'glass' ? Math.round(saved.glass * 100) : saved.blur
 }
 
-/** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. An answer that is the status line already on the card clears the last one. */
+/** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. No answer, or one that is the status line already on the card, clears the last one. */
 async function refreshCard($: EngineInterface, said?: string): Promise<void> {
-  await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, ...(said !== undefined && { said: said === describe() ? undefined : said }) }))
+  await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, said: said === undefined || said === describe() ? undefined : said }))
 }
 
 /** A press on the card: the command with those words, its answer shown on the card. */
@@ -382,7 +382,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'bedroom',
-      description: 'The bedroom theme of the themes plugin: alone it shows the settings card; status, tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off',
+      description: 'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off',
     })
     const stored = (await $.store.get(STORE_KEY)) as Partial<Saved> | undefined
 
