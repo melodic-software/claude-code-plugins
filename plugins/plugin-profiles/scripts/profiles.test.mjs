@@ -2329,6 +2329,55 @@ test("#17354: a file another reset already restored is reported as already resto
   assert.deepEqual(w.records(), []);
 });
 
+/** Each plugin and skill entry in force for a session started with sessionFile, read in Claude Code's order: --settings over local over project over user. */
+function inForce(w, sessionFile) {
+  const docs = [sessionFile, w.localFile, join(w.project, ".claude", "settings.json"), join(w.home, ".claude", "settings.json")].map((f) => (existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : {}));
+  const of = (key) => {
+    const names = [...new Set(docs.flatMap((d) => Object.keys(d[key] ?? {})))].sort();
+    return Object.fromEntries(names.map((n) => [n, docs.map((d) => d[key]?.[n]).find((v) => v !== undefined)]));
+  };
+  return { plugins: of("enabledPlugins"), skills: of("skillOverrides") };
+}
+/** A user profile of another marketplace than the shipped ones, so profiles govern two marketplaces. */
+const vendorProfile = (w) => writeTree(w.home, { ".claude/plugin-profiles/gadgets.yaml": "description: Vendor gadgets.\nplugins: [widget@vendor]\nhide_skills: [gadget-skill]\n" });
+const setUserPlugin = (w, id, value) => {
+  const file = join(w.home, ".claude", "settings.json");
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  doc.enabledPlugins[id] = value;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+};
+
+test("#17354: a one-session file keeps every plugin and skill entry in force after a reset of the folder and the initial profile, and is left byte for byte", () => {
+  const w = world();
+  vendorProfile(w);
+  setUserPlugin(w, "widget@vendor", false);
+  const session = launchJson(w, ["review"]).file;
+  const bytes = readFileSync(session, "utf8");
+  assert.equal(w.run(["apply", "gadgets", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, elsewhere(w), ["apply", "build", "--for", "initial", "--yes"]).status, 0);
+  const before = inForce(w, session);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE, "the folder was reset");
+  assert.deepEqual(inForce(w, session), before);
+  assert.equal(readFileSync(session, "utf8"), bytes);
+});
+
+test("#17354: a one-session file names every plugin of every marketplace any profile governs, so a user-settings toggle of such a plugin made after launch does not reach that session", () => {
+  const w = world();
+  vendorProfile(w);
+  setUserPlugin(w, "widget@vendor", true);
+  const session = launchJson(w, ["review"]).file;
+  const doc = JSON.parse(readFileSync(session, "utf8"));
+  assert.equal(doc.enabledPlugins["widget@vendor"], true, "frozen at its value at launch");
+  assert.equal(doc.skillOverrides["gadget-skill"], "on");
+  setUserPlugin(w, "widget@vendor", false);
+  assert.equal(inForce(w, session).plugins["widget@vendor"], true, "the later toggle in user settings does not reach the running session");
+  const plain = world();
+  const untouched = JSON.parse(readFileSync(launchJson(plain, ["review"]).file, "utf8"));
+  assert.equal("widget@vendor" in untouched.enabledPlugins, false, "a marketplace no profile governs stays unnamed");
+});
+
 const NO_RECORD_SKIP = (file) => `Skipped ${file}: no record; reset removes its entries only after a yes for this folder.`;
 
 test("#17354: a folder with plugin entries and no record is listed with each entry and changed only after its own yes", () => {

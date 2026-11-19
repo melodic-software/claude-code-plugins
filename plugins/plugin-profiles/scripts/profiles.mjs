@@ -330,6 +330,10 @@ function diff(now, final) {
 /** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
 const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) => [...p.hideSkills]));
 
+/** Every marketplace some profile names a plugin of; a one-session file freezes each one's plugins at launch, so no other profile's write or reset reaches that session. */
+const governedMarketplaces = (catalog) =>
+  new Set(everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
+
 /** Reads every input, plans, and works out the exact entries the target file ends with. */
 function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
@@ -343,7 +347,14 @@ function prepare(opts, where, catalog, records) {
   const result = plan({ catalog, profile: opts.name, inventory: inv, layers, current: loaded, target: opts.target });
   const now = settings.doc.enabledPlugins ?? {};
   const final = { enabledPlugins: { ...base.enabledPlugins, ...result.writes }, skillOverrides: { ...base.skillOverrides, ...result.skillWrites } };
-  if (session) for (const skill of hideableSkills(catalog)) final.skillOverrides[skill] ??= "on";
+  if (session) {
+    for (const skill of hideableSkills(catalog)) final.skillOverrides[skill] ??= "on";
+    const governed = governedMarketplaces(catalog);
+    for (const id of result.untouched) {
+      const value = effective(loaded, id);
+      if (governed.has(marketplaceOf(id)) && value !== undefined) final.enabledPlugins[id] = value;
+    }
+  }
   const pending = {};
   if (opts.deferOff) {
     for (const id of new Set([...Object.keys(now), ...Object.keys(final.enabledPlugins)])) {
