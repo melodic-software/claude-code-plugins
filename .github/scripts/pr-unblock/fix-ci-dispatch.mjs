@@ -56,7 +56,8 @@ import {
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
-import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
+import { isPrUnblockTitle } from "../lib/run-title.mjs";
+import { HOLD_LINE } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
@@ -551,7 +552,7 @@ export async function dispatchCiFixes({
     }
   };
   for (const node of candidates) {
-    const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+    const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, activity, node.number));
     if (inFlight) {
       log(`skip fix-ci #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
       continue;
@@ -699,7 +700,7 @@ export async function dispatchCiFixes({
   // holds the head.
   for (const node of stale) {
     const stoppedAt = Date.parse(staleStop(node, { base, appSenderId, holdLabels, gateLabel }).createdAt ?? "");
-    const since = runs.find((run) => run.display_title === runTitle(activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
+    const since = runs.find((run) => isPrUnblockTitle(run.display_title, activity, node.number) &&!(Date.parse(run.created_at ?? "") < stoppedAt));
     if (since) {
       log(`skip fix-ci #${node.number}: ${workflow} run ${since.id} started after the fix-ci stop on head ${node.headRefOid}`);
       continue;

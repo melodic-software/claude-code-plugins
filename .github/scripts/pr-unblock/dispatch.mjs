@@ -45,6 +45,7 @@
 import { appendFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
+import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
@@ -54,7 +55,7 @@ import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, sendDispatch, writeRecord } from "./dispatch-record.mjs";
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
+import { shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
@@ -103,7 +104,7 @@ function holdReads(api, node) {
 
 // The in-flight run of `activity` for the PR, logged as a skip, or undefined.
 function inFlightRun(log, active, { workflow, activity, node }) {
-  const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+  const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, activity, node.number));
   if (inFlight) {
     log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
   }
