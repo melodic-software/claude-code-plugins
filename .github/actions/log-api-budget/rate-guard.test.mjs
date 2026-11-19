@@ -888,9 +888,6 @@ const UNGUARDED = {
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
   // pr-merge's own guard is its owner's change.
   ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
-  // A test helper no lane runs: the credential-legs tests' read of ci-workflows
-  // files at a pinned SHA from raw.githubusercontent.com, not the API.
-  ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
   // Its API calls go through lib/github-rest.mjs, which imports the guard; the
   // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
