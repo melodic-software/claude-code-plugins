@@ -14,7 +14,7 @@ graders:
     target: 'last_message'
   - name: 'proposal-as-diff'
     type: 'regex'
-    pattern: '\x60\x60\x60diff|/corrections:codify\s+"'
+    pattern: '\x60\x60\x60diff'
     target: 'last_message'
   - name: 'verdicts-fit-purpose'
     type: 'llm'
