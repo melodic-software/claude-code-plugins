@@ -80,6 +80,7 @@ REGISTRY=(
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
+  "check-claude-secrets-environment.sh|node|-|-"
   "check-comment-hygiene.sh|curl|HEAD|-"
   "check-comment-lint.sh|-|-|-"
   "check-conformance-registry.sh|-|-|-"

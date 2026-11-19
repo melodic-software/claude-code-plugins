@@ -975,6 +975,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
       && needs.refine-key-credit.outputs.next-leg != 'subscription' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -1328,6 +1331,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
       && (needs.refine-issue.outputs.next-leg == 'subscription' || needs.refine-key-credit.outputs.next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -1627,6 +1633,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
       && needs.refine-issue-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read

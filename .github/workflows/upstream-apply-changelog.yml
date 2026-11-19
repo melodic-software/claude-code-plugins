@@ -228,6 +228,9 @@ jobs:
     # The first attempt only: a re-run never runs the model again. A key the
     # credit gate skipped runs nothing here; apply-changelog-subscription runs it.
     if: needs.select-release.outputs.proceed == 'true' && needs.select-release.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -598,6 +601,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -924,6 +930,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && needs.apply-changelog-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -1219,6 +1228,9 @@ jobs:
     name: Verify Env Scrub
     needs: select-release
     if: needs.select-release.outputs.proceed == 'true' && needs.select-release.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1449,6 +1461,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.verify-env-scrub.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1681,6 +1696,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && needs.verify-env-scrub-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read

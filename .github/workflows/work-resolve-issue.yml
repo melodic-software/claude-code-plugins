@@ -474,6 +474,9 @@ jobs:
     name: Resolve Issue Handoff
     needs: [check-admission, pick-slot, resolve-issue]
     if: ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

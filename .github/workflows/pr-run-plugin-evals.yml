@@ -120,18 +120,25 @@ on:
         required: false
         type: boolean
         default: true
-  pull_request:
-    types: [labeled]
+  # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
+  # completion runs this file from main, never the PR's copy, so the eval
+  # jobs' claude-lanes environment admits the run
+  # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
+  # Nothing the recorder run wrote is read: the jobs re-read the PR, its
+  # label event and its actors from the API.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [PR Run Plugin Evals Label]
+    types: [completed]
 
 permissions: {}
 
-# Only an `eval: run` label event shares its pull request's group; any other
-# event gets a group of its own, so a different label cannot replace a pending
-# re-run.
+# A recorder run shares its pull request branch's group; any other event gets
+# a group of its own, so a dispatch cannot replace a pending re-run
+# (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 concurrency:
   group: >-
-    eval-${{ github.event_name == 'pull_request' && github.event.label.name == 'eval: run'
-    && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+    eval-${{ github.event_name == 'workflow_run'
+    && format('pr-{0}', github.event.workflow_run.head_branch) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 env:
@@ -150,10 +157,10 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-      || (github.event_name == 'pull_request'
-      && github.event.label.name == 'eval: run'
-      && github.event.pull_request.head.repo.full_name == github.repository
-      && !github.event.pull_request.draft)
+      || (github.event_name == 'workflow_run'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -199,16 +206,20 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success' && ((github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-      || (github.event_name == 'pull_request'
-      && github.event.label.name == 'eval: run'
-      && github.event.pull_request.head.repo.full_name == github.repository
-      && !github.event.pull_request.draft)) }}
+      || (github.event_name == 'workflow_run'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository)) }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
+      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
       actions: read # check-trusted-trigger reads this run's re-runner
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
@@ -223,7 +234,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -237,10 +248,10 @@ jobs:
       # The default branch tip; on a dispatch, the dispatched commit, which the
       # job if: holds to the default branch.
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -315,7 +326,7 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -325,12 +336,16 @@ jobs:
       # the credential must come from a listed human, so a person opts in to
       # each run.
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-          SENDER_ID: ${{ github.event.sender.id }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          RUN_PATH: ${{ github.event.workflow_run.path }}
+          GH_TOKEN: ${{ github.token }}
         run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
 
       # Only whether each secret is set reaches the action, never its value.
@@ -350,10 +365,10 @@ jobs:
       # history so the next step diffs this same commit against its base. A
       # checkout runs no code from it.
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: .head
           fetch-depth: 0
           persist-credentials: false
@@ -367,8 +382,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           TARGET: ${{ inputs.target }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.gate.outputs.pr-base-sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: bash .base/.github/scripts/plugin-eval/choose-plugins.sh
 
       # validate-cases.py makes no model call. A FAIL is a case the binary
@@ -379,8 +394,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       # The tools and Chromium go under /opt, outside HOME, which each eval
@@ -404,7 +419,7 @@ jobs:
       # be written or read back. The probe step below proves the denial.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -524,7 +539,7 @@ jobs:
       # next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         env:
           LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -620,7 +635,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -737,7 +752,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'workflow_run' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |
@@ -961,12 +976,16 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success'
       && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
+      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
       actions: read # check-trusted-trigger reads this run's re-runner
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
@@ -981,7 +1000,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -993,10 +1012,10 @@ jobs:
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -1064,19 +1083,23 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-          SENDER_ID: ${{ github.event.sender.id }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          RUN_PATH: ${{ github.event.workflow_run.path }}
+          GH_TOKEN: ${{ github.token }}
         run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
 
       # Only whether each secret is set reaches the action, never its value.
@@ -1092,10 +1115,10 @@ jobs:
           reason: ${{ needs.run-eval.outputs.next-reason || needs.check-key-credit.outputs.next-reason }}
 
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: .head
           fetch-depth: 0
           persist-credentials: false
@@ -1106,8 +1129,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           TARGET: ${{ inputs.target }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.gate.outputs.pr-base-sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: bash .base/.github/scripts/plugin-eval/choose-plugins.sh
 
       - name: Validate and stage the suites
@@ -1115,8 +1138,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       - name: Create the tool directories
@@ -1125,7 +1148,7 @@ jobs:
 
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1210,7 +1233,7 @@ jobs:
 
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1280,7 +1303,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -1384,7 +1407,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'workflow_run' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |
@@ -1544,12 +1567,16 @@ jobs:
     name: Run Eval Fallback
     needs: [check-key-credit, run-eval-subscription]
     if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
+      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
       actions: read # check-trusted-trigger reads this run's re-runner
     env:
       API_BUDGET_TOKEN: github-token
@@ -1561,7 +1588,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -1573,10 +1600,10 @@ jobs:
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -1644,19 +1671,23 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_run'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-          SENDER_ID: ${{ github.event.sender.id }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          RUN_PATH: ${{ github.event.workflow_run.path }}
+          GH_TOKEN: ${{ github.token }}
         run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
 
       # Only whether the fallback token is set reaches the action, never its
@@ -1671,10 +1702,10 @@ jobs:
           reason: ${{ needs.run-eval-subscription.outputs.next-reason }}
 
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: .head
           fetch-depth: 0
           persist-credentials: false
@@ -1685,8 +1716,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           TARGET: ${{ inputs.target }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.gate.outputs.pr-base-sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: bash .base/.github/scripts/plugin-eval/choose-plugins.sh
 
       - name: Validate and stage the suites
@@ -1694,8 +1725,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       - name: Create the tool directories
@@ -1704,7 +1735,7 @@ jobs:
 
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1789,7 +1820,7 @@ jobs:
 
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1859,7 +1890,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -1963,7 +1994,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'workflow_run' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |

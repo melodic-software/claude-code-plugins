@@ -403,6 +403,16 @@ run_case "an environment in a read caller fails" 1 \
   "printf '  deploy:\n    environment: { name: pr-pipeline-scan-carrier, deployment: false }\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER" \
   "$CALLER:12: names an environment other than pr-pipeline-scan-carrier"
 
+run_case "the claude-lanes environment with deployment: false in a read caller passes" 0 \
+  "printf '  handoff:\n    environment: { name: claude-lanes, deployment: false }\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER"
+
+run_case "the claude-lanes environment with deployment: false on a read workflow job passes" 0 \
+  "rewrite awk '{ print } NR == 8 { print \"    environment: { name: claude-lanes, deployment: false }\" }'"
+
+run_case "the claude-lanes environment by bare name, which records a deployment, fails" 1 \
+  "printf '  handoff:\n    environment: claude-lanes\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER" \
+  "$CALLER:12: names an environment other than pr-pipeline-scan-carrier with deployment: false on the read workflow's scan job, or claude-lanes with deployment: false"
+
 run_case "a read workflow that references the key fails" 1 \
   "printf '      app-private-key:\n        required: true\n' >>$READ" \
   "$READ:15: references the App key"
