@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.21.10] - 2026-11-18
+
+### Security
+
+- The worktree-add containment gate's worktree-root lookups (`config --get-all`, `rev-parse --git-dir` in `worktree-root-resolve.sh`) run through `hook::git_untrusted`, with the repository's `core.fsmonitor`, git hooks and pager turned off, as the gate's other git calls already do.
+
 ## [11.21.9] - 2026-11-18
 
 ### Fixed

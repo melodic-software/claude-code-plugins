@@ -5,6 +5,15 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.9] - 2026-11-18
+
+### Fixed
+
+- The config audit's silent no-op key check points at the 2.1.323 changelog entry and an
+  archived capture of the manifest reference, in place of the removed "Default settings" section,
+  and flags every key but `agent` as a no-op and `agent` itself as deprecated, since 2.1.323
+  removed `subagentStatusLine` and deprecated a plugin's `agent`.
+
 ## [0.21.8] - 2026-11-17
 
 ### Changed

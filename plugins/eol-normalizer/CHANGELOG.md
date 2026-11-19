@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.36] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [1.0.35] - 2026-11-18
 
 ### Security
