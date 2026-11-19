@@ -354,7 +354,7 @@ cmd_score() {
     fi
   done
   if ((resolvable == 0)); then
-    printf 'Error: none of the %s probe file(s) in %s has a skill_dir that resolves under %s. The shipped seed probes name skills of the melodic-software marketplace checkout (plugins/<plugin>/skills/..., such as plugins/skill-quality/...) that are not present here. Pass your own probes directory (same JSON shape, skill_dir relative to your repo root or absolute), or set MEASURE_INVOCATION_REPO_ROOT to the repo root the probes name.\n' "${#files[@]}" "$dir" "$root" >&2
+    printf 'Error: none of the %s probe file(s) in %s has a skill_dir that resolves under %s. The shipped seed probes name skills of the marketplace checkout this plugin ships from (plugins/<plugin>/skills/..., such as plugins/skill-quality/...) that are not present here. Pass your own probes directory (same JSON shape, skill_dir relative to your repo root or absolute), or set MEASURE_INVOCATION_REPO_ROOT to the repo root the probes name.\n' "${#files[@]}" "$dir" "$root" >&2
     exit 2
   fi
   local skill_idx=0
