@@ -2,4 +2,4 @@
 bump: none
 ---
 
-Eval fixtures only: the canary tokens are split in source so lane leak scans pass; no shipped behavior changes.
+Test and eval fixtures only: credential-shaped fixture values are built at run time so lane leak scans pass; no shipped behavior changes.
