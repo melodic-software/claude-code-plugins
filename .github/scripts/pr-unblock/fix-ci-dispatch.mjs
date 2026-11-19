@@ -700,7 +700,7 @@ export async function dispatchCiFixes({
   // holds the head.
   for (const node of stale) {
     const stoppedAt = Date.parse(staleStop(node, { base, appSenderId, holdLabels, gateLabel }).createdAt ?? "");
-    const since = runs.find((run) => isPrUnblockTitle(run.display_title, activity, node.number) &&!(Date.parse(run.created_at ?? "") < stoppedAt));
+    const since = runs.find((run) => isPrUnblockTitle(run.display_title, activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
     if (since) {
       log(`skip fix-ci #${node.number}: ${workflow} run ${since.id} started after the fix-ci stop on head ${node.headRefOid}`);
       continue;

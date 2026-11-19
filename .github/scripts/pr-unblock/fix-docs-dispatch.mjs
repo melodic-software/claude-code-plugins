@@ -370,7 +370,7 @@ export async function dispatchDocsFixes({
     const titled = (run) => isPrRefineTitle(run.display_title, activity, node.number);
     let runEnded;
     try {
-      runEnded = await docsRunsEnded(runs, titled,(id) => api.readLatestJobs(id), activity, maxRunsPerHead);
+      runEnded = await docsRunsEnded(runs, titled, (id) => api.readLatestJobs(id), activity, maxRunsPerHead);
     } catch (error) {
       log(`::warning::#${node.number}: a ${workflow} run's jobs ${error.rateLimited ? "are rate limited" : "could not be read"} (${error.message}); no fix-docs dispatched, a later run retries`);
       continue;
