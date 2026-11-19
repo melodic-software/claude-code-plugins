@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "SECTION: hard_deny\nPROPOSAL: run `/corrections:codify \"auto mode must never force-push to main\"` yourself; it picks and proves the mechanism",
+      "why": "the proposal is the named codify call for the user"
+    },
+    {
+      "answer": "SECTION: hard_deny\n**PROPOSAL:** hand the mechanism choice to /corrections:codify",
+      "why": "codify named on the proposal line in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SECTION: hard_deny\nPROPOSAL: add `Bash(git push --force*)` to permissions.deny; prefer a PreToolUse hook for Bash",
+      "why": "the skill picks the mechanism itself"
+    },
+    {
+      "answer": "You might also look at /corrections:codify.\n\nSECTION: hard_deny\nPROPOSAL: add a PreToolUse hook that blocks force-pushes to main",
+      "why": "codify only outside the proposal line"
+    }
+  ]
+}

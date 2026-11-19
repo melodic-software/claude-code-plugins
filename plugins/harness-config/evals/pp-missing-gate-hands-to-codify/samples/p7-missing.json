@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "purge-builds is destructive-capable and nothing gates the deletion.\n\nP7: MISSING\nPROPOSAL: `/corrections:codify \"confirm before purge-builds deletes build/ and dist/\"`",
+      "why": "the fixed verdict line"
+    },
+    {
+      "answer": "**P7:** `MISSING`\n**PROPOSAL:** hand it to codify",
+      "why": "bold and code markup around the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "P7: PRESENT\nPROPOSAL: none",
+      "why": "treats the ungated deletion as gated"
+    },
+    {
+      "answer": "P7: NOT-APPLICABLE\nPROPOSAL: none",
+      "why": "fails the destructive-capable predicate"
+    }
+  ]
+}
