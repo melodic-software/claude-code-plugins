@@ -1017,6 +1017,16 @@ test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps
   assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@/g)?.length, 1, "ci-status calls the report-ci-status composite once");
 });
 
+test("ci-status's verdict reader waits WAIT_BUDGET_SECONDS.ciStatusVerify for the read floor's reset, and the job's timeout holds it", () => {
+  const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
+  const waits = [...job.matchAll(/\$\(BABYSIT_READ_FLOOR_WAIT_SECONDS=([0-9]+) BABYSIT_READ_FLOOR_STOP=1 python3 "\$VERIFY_EVIDENCE_SCRIPT" evidence /g)].map((match) => Number(match[1]));
+  assert.deepEqual(waits, [WAIT_BUDGET_SECONDS.ciStatusVerify], "the lanes App's reader, the one whose verify:unreadable holds");
+  assert.equal(job.match(/BABYSIT_READ_FLOOR_WAIT_SECONDS=/g).length, 1, "no other reader waits");
+  const [minutes] = setting(job, "timeout-minutes");
+  const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
+  assert.equal(minutes * 60, jobSeconds + WAIT_BUDGET_SECONDS.ciStatusVerify, "the timeout is gh_read's job seconds and the wait");
+});
+
 test("check-plugins' queued pull request read waits WAIT_BUDGET_SECONDS.queuedPr, and the job's timeout holds it", () => {
   const job = jobOf(workflow("pr-require-checks.yml"), "check-plugins");
   assert.deepEqual(setting(job, "QUEUED_PR_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.queuedPr]);
