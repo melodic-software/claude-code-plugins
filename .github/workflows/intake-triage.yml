@@ -1065,6 +1065,7 @@ jobs:
           leg: key
           role: intake
           credential-set: ${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # Files, not step outputs: run-claude-cli reads both. A `default` model
       # resolves to an empty model, which the launcher cannot pass.
