@@ -1,14 +1,12 @@
 # Verification record: `/export`
 
 This skill suggests `/export` to the person and never runs it, and gates the suggestion on the
-command being available in the person's session. Our probes back this: on Claude Code 2.1.241
-(2026-08-24), `claude --bare -p "/export <path>"` refused the command as unavailable in that
-environment, and on 2.1.263 (2026-09-11) it registered as an interactive local-jsx command, not a
-prompt, so the Skill tool never lists it. We found no switch that disables it.
+command being available in the person's session. We treat it as an interactive built-in that the
+Skill tool cannot invoke and a headless run cannot reach.
 
-- **Pointer**: for the `/export` command, see
-  <https://code.claude.com/docs/en/commands#all-commands>; for the headless refusal and the
-  invocation mode, the probes above.
-- **As of**: 2026-09-29
-- **Recheck trigger**: a Claude Code release note or the commands page adds an `/export` format or
-  redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+- **Probe record**: the `export` → `session-flow:handoff` entry of `docs/native-surfaces.md` in
+  this plugin's marketplace repository holds the headless refusal, the invocation mode, and the
+  trigger that reopens this decision.
+- **Pointer**: when deciding whether `/export` can run headless or take a format or redaction
+  flag, fetch the `/export` row of
+  [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) live.

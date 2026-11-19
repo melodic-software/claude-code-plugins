@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.9.1] - 2026-11-18
+
+### Changed
+
+- The observer reference's effort section no longer carries a record restating the docs' precedence between `CLAUDE_CODE_EFFORT_LEVEL`, `--effort` and settings files: `reference/observer.md` states, as its own rule, why the run passes `--effort`, drops the variable and pins it with `--settings`, and points to the env-vars, settings and model-config sections to read live ([#16837](https://github.com/melodic-software/claude-code-plugins/issues/16837)).
+
 ## [9.9.0] - 2026-11-18
 
 ### Added

@@ -48,7 +48,7 @@ record decisions kept outside this repository.
 | Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
 |---|---|---|---|---|---|
 | The term "software factory" | Names agent sessions that events start, with no person launching them | Inference: the target state needs one name | We had rejected the term as a second name for our loop lane | **adapt**: adopted with a wider meaning, every lane together; see the term row in [aihero-course.md](aihero-course.md#terms-from-the-v13-video-pass-decided-2026-10-10) and the [glossary](../glossary.md) | [#16695](https://github.com/melodic-software/claude-code-plugins/pull/16695) |
-| A spec-implementation flow: exploration step, one runner per ready ticket, merge, agent review last | Runs a whole spec through parallel runners in waves until every ticket closes | Inference: one ticket at a time is too slow for a full spec | `/work-items:ship` runs per-item pull requests or one integration branch | **hold**: compare at workshop 08, on the exploration artifact, review after merge, the wave loop and the role split | none |
+| A spec-implementation flow: exploration step, one runner per ready ticket, merge, agent review last | Runs a whole spec through parallel runners in waves until every ticket closes | Inference: one ticket at a time is too slow for a full spec | `/work-items:ship` runs per-item pull requests or one integration branch | **already have** per item, compared in the [workshop 8 record](aihero-software-factory-part-two.md#lesson-9-implement-spec): `/work-items:ship` runs per-item pull requests, so no new pipeline is added; **reject** agent review last, since both review lanes run on every ready pull request | none |
 | Trust grows with the number of agents running | Measures progress by how many agents run at once | Inference: more agents is the visible sign of a working setup | Our autonomy ladder is keyed to merge authority, not agent count | **adapt**: two limits, agents running and changes waiting on the owner; the numbers wait for workshop 08 and the automation-shape pass, since they depend on infrastructure and on what counts as an agent; the ladder stays keyed to merge authority | none |
 | Brakes before accelerators | Puts review, design, shared terms, planning and checks in place before more automation | Inference: speed without checks multiplies defects | Our gates and throughput loops had no map under this split | **take**: the ordering governs new or widened automation, and verification keeping pace is the per-loop audit question; the brake and accelerator terms and the topology table's column landed, the ordering rule and the checks-to-loops map wait for the automation-shape pass | [#16695](https://github.com/melodic-software/claude-code-plugins/pull/16695) (terms only) |
 | Prerequisites: context window, a context budget, steering, grilling | Assumes the crash-course basics | Inference: later workshops build on them | Same | **already have**: recorded in [aihero-course.md](aihero-course.md) | none |
@@ -77,7 +77,7 @@ record decisions kept outside this repository.
 |---|---|---|---|---|---|
 | Any agent that runs skills; switching agents loses nothing | Treats a skill folder as portable across harnesses | Inference: learners want freedom of tool | Harnesses differ in how they load skills | **reject** for now: Claude Code plugins only | none |
 | The course skills ship inside the practice repository | Needs nothing installed globally | Inference: global installs drift between learners | ADR 0018's premise of no repository-local skills no longer held | **already have** repository delivery through plugins; **adapt**: ADR 0018 says a repository-local control skill is not a distribution unit ([ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)) | [#15287](https://github.com/melodic-software/claude-code-plugins/pull/15287) |
-| The skills folder is a symbolic link to another folder | Serves one skill set to several harnesses | Inference: harnesses look in different folders | Unconfirmed whether Claude Code reads a skills folder that is itself a link | **hold**: confirm when the follow-along experiment first lists its skills | none |
+| The skills folder is a symbolic link to another folder | Serves one skill set to several harnesses | Inference: harnesses look in different folders | Whether Claude Code reads a skills folder that is itself a link | **already have**: confirmed 2026-11-16 in the follow-along experiment, where a project skill loads through a linked `.claude/skills` folder | none |
 | Any top-class model, chosen with the benchmark | Repeats the model advice for setup | Inference: as above | As above | **hold**: the model-choice decision | none |
 | A personal skill with the same name can win over the repository's | Warns that a global skill silently replaces a project one | Inference: learners get results unlike his | Plugin skills are namespaced and cannot be shadowed; a project skill can replace a bundled skill of the same name | **already have** for plugins; **adapt** in the experiment: record that it runs his versions of skills that share a bundled name | none |
 | Home-folder instruction files load in every project | Warns that personal instructions fight the repository's | Inference: hidden instructions skew results | The experiment sat under a repository with its own instruction files | **adapt**: the experiment clone moved outside any repository | none |
@@ -111,9 +111,9 @@ record decisions kept outside this repository.
 | Public, so hosted CI runs free | Avoids CI charges | Inference: private repositories run out of included minutes | Larger runners bill even on public repositories | **already have**: the pull-request pipeline's cost hold covers larger runners ([pr-pipeline](../conventions/pr-pipeline/README.md)) | none |
 | The same sample app as the crash course | Builds new skills on a known codebase | Inference: a new app adds noise | Same | **already have** | none |
 | Install, seed, then start the app; ignore install warnings | Gets the app running | Inference: warnings scare learners | Same | **already have** in the experiment; ignoring audit warnings fits a throwaway repository only | none |
-| Third-party accounts for later lessons | Prepares notification and whiteboard services | Inference: sign-ups stall a lesson | Nothing here uses them yet | **hold**: sign up when those lessons arrive | none |
+| Third-party accounts for later lessons | Prepares notification and whiteboard services | Inference: sign-ups stall a lesson | Nothing here uses them yet | **no change**: those lessons arrived and none needs either account, so no sign-up is made | none |
 | A troubleshooting section built from member reports | Collects common setup failures | Inference: the same failures recur | Not our case | **no change** | none |
-| A lock file pins vendored skills by path and content hash | Fixes the skill versions the course uses | Inference: skill changes would break lessons | Our rule: installs track the latest marketplace version, never a per-repository pin | **hold**: compare at the workshop that installs skills | none |
+| A lock file pins vendored skills by path and content hash | Fixes the skill versions the course uses | Inference: skill changes would break lessons | Our rule: installs track the latest marketplace version, never a per-repository pin | **already have**: no repository here vendors skills; plugins install from the marketplace, and borrowed upstream content is pinned by commit with a weekly drift check ([mattpocock-skills.md](mattpocock-skills.md)), so a lock file has no consumer | none |
 
 ### Keeping in step with the instructor
 
@@ -128,7 +128,6 @@ record decisions kept outside this repository.
 
 ### Handed elsewhere
 
-- The spec-implementation flow, compared with `/work-items:ship`: workshop 08.
 - The two limits' numbers and the checks-to-loops map behind brakes before accelerators: the
   automation-shape pass after workshop 08.
 - Model choice, the long-task benchmark as one input, and top-class model advice: the model-choice
@@ -140,7 +139,6 @@ record decisions kept outside this repository.
   Windows-only machine is still to be decided.
 - Cherry-picking against a hard-coded runner model: rechecked 2026-11-18 at two later course
   commits; the hold in the lesson table stands.
-- Per-repository skill pinning: the skills-install workshop.
 
 ## License notice
 

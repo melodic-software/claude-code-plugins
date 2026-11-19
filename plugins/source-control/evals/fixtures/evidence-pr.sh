@@ -46,9 +46,10 @@ head_sha="$(git rev-parse HEAD)"
 bash "$here/gh-forge/install.sh" 412 feat/cart-totals main "feat: show the cart total in currency" --open
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
 
-criteria=""
+criteria="" rows=()
 for ((i = 0; i < count; i++)); do
   criteria+="- The ${names[i]} page shows the total in currency"$'\n'
+  rows+=(--row "The ${names[i]} page shows the total in currency | src/cart.ts | drive: open ${names[i]} page | COMPLETE")
 done
 jq -n --arg body "## Summary"$'\n\n'"Show the cart total in currency."$'\n\n'"## Acceptance criteria"$'\n\n'"$criteria" \
   '{body: $body}' >"$forge/pr-overlay.json"
@@ -80,4 +81,4 @@ for side in base head; do
   fi
 done
 
-bash "$plugin/skills/pull-request/scripts/confirm-verdict.sh" record --head "$head_sha" --verdict CONFIRMED
+bash "$plugin/skills/pull-request/scripts/confirm-verdict.sh" record --head "$head_sha" --verdict CONFIRMED "${rows[@]}"
