@@ -326,8 +326,7 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
   lowers its model, effort, or review depth: it keeps working and reports the window, its
   `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
-  human action a lane never performs or scripts;
-  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
+  human action a lane never performs or scripts), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it

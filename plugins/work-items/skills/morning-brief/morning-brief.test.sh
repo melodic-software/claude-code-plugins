@@ -1413,6 +1413,13 @@ EOF
 cat >"$REST/$(rest_key "$R/check-runs/770/annotations?per_page=100").json" <<'EOF'
 [{"message": "Process completed with exit code 1."}, {"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]
 EOF
+printf 'jobs:\n  t:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/intake-triage.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - uses: "anthropics/claude-code-action@v1"\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/pr-review-main.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - uses: anthropics/claude-code-base-action@0123abc\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/pr-unblock.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - run: make test\n' >"$REST/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
 
 OUT_REST="$(run_stub rest)"
 RC_REST=$?
@@ -1441,6 +1448,33 @@ assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
 assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 10 sections unreadable: stuck stranded landed touches"
+
+mkdir -p "$TMP/cfg-lanes" "$TMP/cfg-no-lanes"
+cat >"$TMP/cfg-lanes/work-items.yaml" <<'EOF'
+morning_brief:
+  lane_workflows:
+    - intake-triage.yml
+    - absent-lane.yml
+  lane_outcome_contract_ref:
+    - "https://example.invalid/lane-outcome.md#fields"
+    - docs/lane-record.md
+EOF
+LANES_CFG="$(section "$(run_stub rest --config-home "$TMP/cfg-lanes")" "== Lanes")"
+assert_contains "lane_workflows: a configured file the repo has is read" "$LANES_CFG" "intake-triage.yml  runs=1"
+assert_not_contains "lane_workflows: a file the list leaves out is not read" "$LANES_CFG" "pr-review-main.yml  runs="
+assert_not_contains "lane_workflows: a configured file the repo lacks is dropped" "$LANES_CFG" "absent-lane.yml"
+assert_contains "lane_outcome_contract_ref: each pointer prints under the heading, the anchor kept" "$LANES_CFG" \
+  "lane-outcome record contract: https://example.invalid/lane-outcome.md#fields docs/lane-record.md"
+LANES_DEFAULT="$(section "$(run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_contains "lane_workflows unset: a workflow using claude-code-action is a lane" "$LANES_DEFAULT" "intake-triage.yml  runs=1"
+assert_contains "lane_workflows unset: a workflow using claude-code-base-action is a lane" "$LANES_DEFAULT" "pr-unblock.yml  runs=1"
+assert_not_contains "lane_workflows unset: a workflow with no Claude action is not a lane" "$LANES_DEFAULT" "ci.yml"
+assert_not_contains "lane_outcome_contract_ref unset: no contract line" "$LANES_DEFAULT" "lane-outcome record contract:"
+cp -R "$REST" "$TMP/rest-no-wf"
+rm -f "$TMP/rest-no-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
+LANES_NO_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-no-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_contains "lane_workflows unset: an unread workflow file is UNREADABLE" "$LANES_NO_WF" "UNREADABLE: workflow .github/workflows/ci.yml"
+assert_not_contains "lane_workflows unset: an unread workflow file is never 'none found'" "$LANES_NO_WF" "no lane workflows found"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'

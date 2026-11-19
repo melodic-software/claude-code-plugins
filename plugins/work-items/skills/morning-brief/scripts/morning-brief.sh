@@ -177,7 +177,6 @@
 # shellcheck disable=SC2329  # the per-section fetch functions are dispatched by name through gql_or_rest, which ShellCheck cannot follow
 set -uo pipefail
 
-# --- Queue labels (melodic-software defaults; overridable / filtered live) ------
 DEFAULT_QUEUE_LABELS=(
   "needs-triage"
   "status: ready"
@@ -234,19 +233,9 @@ DATA_DIR_ARG=""
 LANE_RUNS_JSON=""
 LANE_ANNOTATIONS_JSON=""
 LANE_WORKFLOWS_ARG=""
-# The workflows that run Claude in the melodic-software repos; live runs keep
-# the ones that exist in the target repo.
-DEFAULT_LANE_WORKFLOWS=(
-  "intake-triage.yml"
-  "pr-review-hosted.yml"
-  "pr-review-main.yml"
-  "pr-review-security-hosted.yml"
-  "pr-rate-merge-risk.yml"
-  "pr-verify.yml"
-  "pr-refine.yml"
-  "pr-unblock.yml"
-  "work-resolve-issue.yml"
-)
+LANE_WORKFLOWS_CONFIG=""
+LANE_OUTCOME_CONTRACT_REF=""
+CLAUDE_ACTION_RE='uses:[[:space:]]*["'\'']?anthropics/claude-code(-base)?-action@'
 LANE_DAYS=7
 # Each read run costs one jobs read plus one annotations read per job.
 LANE_READ_LIMIT=200
@@ -582,6 +571,8 @@ config_value WORKFLOW_READ_LIMIT workflow_read_limit uint 300
 n_cost_settings=${#COST_SETTING_LAYERS[@]}
 config_value LANDED_SAMPLE landed_sample uint 3
 LANDED_SETTING="${COST_SETTING_LAYERS[*]:n_cost_settings}"
+config_value LANE_WORKFLOWS_CONFIG lane_workflows list ""
+config_value LANE_OUTCOME_CONTRACT_REF lane_outcome_contract_ref list ""
 COST_SETTING_LAYERS=("${COST_SETTING_LAYERS[@]:0:n_cost_settings}")
 
 WORK="$(mktemp -d)"
@@ -884,11 +875,6 @@ fmt_age() {
 }
 
 # --- Queue label resolution ---------------------------------------------------
-# Defaults match melodic-software's taxonomy, with the decision label the tracker
-# binding maps. Live runs filter to labels that actually exist in the target repo
-# so a consuming repo with a different scheme does not render misleading rows.
-# Pass --queue-labels / --decision-label to pin a custom set (same spirit as
-# --telemetry-issue).
 resolve_queue_labels() {
   QUEUE_LABELS=()
   if [[ -n "$QUEUE_LABELS_ARG" ]]; then
@@ -2477,6 +2463,7 @@ fetch_lane_annotations() {
 print_lanes() {
   local since=$((NOW_EPOCH - LANE_DAYS * 86400)) runs="$WORK/lane-runs.json" ann="$WORK/lane-ann.json" part _parts
   echo "== Lanes, last ${LANE_DAYS}d (runs, failures by class, limit stops, restarts, turn headroom, model usage) =="
+  [[ -n "$LANE_OUTCOME_CONTRACT_REF" ]] && echo "  lane-outcome record contract: ${LANE_OUTCOME_CONTRACT_REF//,/ }"
   LANE_WORKFLOWS=()
   if [[ -n "$LANE_WORKFLOWS_ARG" ]]; then
     IFS=',' read -ra _parts <<<"$LANE_WORKFLOWS_ARG"
@@ -2508,11 +2495,23 @@ print_lanes() {
         unreadable lanes "workflow list: $LAST_ERR"
         return
       }
-      local wf
-      for wf in "${DEFAULT_LANE_WORKFLOWS[@]}"; do
-        jq -s -e --arg wf "$wf" '[ .[].workflows[]?.path | split("/") | last ] | index($wf) != null' "$WORK/lane.wfs" >/dev/null 2>&1 &&
-          LANE_WORKFLOWS+=("$wf")
-      done
+      local wf path
+      if [[ -n "$LANE_WORKFLOWS_CONFIG" ]]; then
+        IFS=',' read -ra _parts <<<"$LANE_WORKFLOWS_CONFIG"
+        for wf in "${_parts[@]}"; do
+          jq -s -e --arg wf "$wf" '[ .[].workflows[]?.path | split("/") | last ] | index($wf) != null' "$WORK/lane.wfs" >/dev/null 2>&1 &&
+            LANE_WORKFLOWS+=("$wf")
+        done
+      else
+        while IFS= read -r path; do
+          gh_read "$WORK/lane.wf" api -H 'Accept: application/vnd.github.raw' \
+            "repos/$REPO/contents/.github/workflows/$(urlencode "${path##*/}")" || {
+            unreadable lanes "workflow $path: $LAST_ERR"
+            return
+          }
+          grep -Eq "$CLAUDE_ACTION_RE" "$WORK/lane.wf" && LANE_WORKFLOWS+=("${path##*/}")
+        done < <(jq -r -s '.[].workflows[]?.path | select(test("^\\.github/workflows/[^/]+\\.ya?ml$"))' "$WORK/lane.wfs")
+      fi
     fi
     ((${#LANE_WORKFLOWS[@]})) || {
       echo "  no lane workflows found (nothing to report)"

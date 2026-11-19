@@ -33,8 +33,11 @@ When an item genuinely needs the frontier quota guard and lacks the label:
 2. **Autonomous lane.** Note the need in the triage comment and leave the label unstamped when
    the repo cannot provision it; the work-loop lane treats the item as general tier until triage
    (or an operator) applies the label.
-3. **Label-as-code owner.** Route provisioning to that system (`melodic-software/github-iac` for
-   org repos). This plugin never creates the label ad hoc when label-as-code owns writes.
+3. **Label-as-code owner.** Route provisioning to the repository the `label_as_code_repo` key of
+   `docs/conventions/work-items.yaml` names (read it with
+   `skills/triage/scripts/parse-concern-value.sh docs/conventions/work-items.yaml label_as_code_repo`;
+   empty output: no owner is declared). This plugin never creates the label ad hoc when
+   label-as-code owns writes.
 
 ## Migration
 
