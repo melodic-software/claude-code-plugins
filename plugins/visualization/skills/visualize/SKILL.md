@@ -78,9 +78,9 @@ process, sequence, or state in the domain, prefer a mermaid family. Pseudocode
 never paraphrases pasted code when a structural form answers the question. Pick
 the smallest view that makes the key point clear, place it beside the short
 text it supports, keep only the calls, files, props, states, and boundaries the
-question needs, and use one form, sometimes several, rarely all. One example per
-form lives in [`context/code-shapes.md`](context/code-shapes.md); its paths and
-identifiers are placeholders.
+question needs, and use one form, sometimes several, rarely all.
+[`context/code-shapes.md`](context/code-shapes.md) has a section per form, most with an
+example; its paths and identifiers are placeholders.
 
 A diagram that will be committed to the repository (a doc, ADR or README) is Mermaid source, over
 any canvas or page, so it diffs and reviews as text. The one exception is the `excalidraw-file`

@@ -3,6 +3,14 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.3] - 2026-11-19
+
+### Fixed
+
+- `/mutation-testing:audit --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
 ## [0.20.2] - 2026-11-18
 
 ### Changed

@@ -1,5 +1,25 @@
 # Changelog: docs-hygiene plugin
 
+## [4.1.1] - 2026-11-19
+
+### Fixed
+
+- `/docs-hygiene:audit-noise --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
+## [4.1.0] - 2026-11-19
+
+### Added
+
+- `audit-derivability`, `audit-encapsulation`, `audit-noise`, `audit-progressive-disclosure`,
+  `compress`, `extract-ssot` and `rename-references` accept the target-scope forms (`--repo`,
+  `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run once per
+  repository. Each repository keeps its own settings, findings files, ledgers and pull requests.
+  A run with no target form works as before.
+- `reference/target-scope.md`, a generated copy of the target-scope contract, and a "Several
+  repositories" section in `context/clean-tree-fallback.md` with the rules all seven skills share.
+
 ## [4.0.12] - 2026-11-17
 
 ### Changed

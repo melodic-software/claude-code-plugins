@@ -27,6 +27,18 @@
         }
       ],
       "why": "report sidecar in the memory slice, not the relay file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/reviews/main/20261107T100000Z-attribution.md",
+            "content": "| Rule | Location |"
+          }
+        }
+      ],
+      "why": "the findings file, which the bundled contract lets the run write offline"
     }
   ],
   "fail": [
@@ -53,18 +65,6 @@
         }
       ],
       "why": "rewrites the quoted doc"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/ws/.work/reviews/main/20261107T100000Z-attribution.md",
-            "content": "| Rule | Location |"
-          }
-        }
-      ],
-      "why": "writes a findings file to a guessed path"
     }
   ]
 }

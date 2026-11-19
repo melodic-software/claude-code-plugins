@@ -851,6 +851,19 @@ def test_stop_records_transcript_path(ctx):
     assert ctx.state()["transcript_path"] == str(ctx.root / "t.jsonl")
 
 
+def test_refresh_finds_an_unrecorded_transcript_under_projects(ctx):
+    ctx.start()
+    assert ctx.state()["transcript_path"] is None
+    assert ctx.cli("refresh").returncode == 0
+    assert "not recorded yet" in block(ctx.report().read_text(encoding="utf-8"), "externals"), "no transcript on disk yet"
+    write_jsonl(ctx.config / "projects" / "-some-launch-folder" / f"{SESSION}.jsonl", MAIN_TRANSCRIPT)
+    write_jsonl(ctx.config / "projects" / "-other-folder" / "another-session.jsonl", SUBAGENT_TRANSCRIPT)
+    assert ctx.cli("refresh").returncode == 0
+    externals = block(ctx.report().read_text(encoding="utf-8"), "externals")
+    assert "gh pr create" in externals, "a session armed from another one still lists its external actions"
+    assert "feat-from-subagent" not in externals, "another session's transcript is not read"
+
+
 
 def context_of(output: str) -> str:
     specific = json.loads(output)["hookSpecificOutput"]
