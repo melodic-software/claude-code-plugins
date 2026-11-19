@@ -5,6 +5,20 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.0.0] - 2026-11-19
+
+Major: the escalation contract changes (§2).
+
+- **A recorded owner decision lifts a pull request's escalation (§2).** A session removes a lane's
+  machine-escalated human-gated label from a pull request when an owner-decisions row or the
+  owner's verbatim words cover every reason the escalation names, as an intent, vision or
+  primary-design question, and cites that record in a comment on the pull request. Without one the
+  label stays the owner's. Operator-parked items, review-lane holds, security stops,
+  `security: outside-actor` and the trust, credential, injection and pr-merge person holds stay
+  the owner's (owner decision 2026-11-19).
+- **Wording only (§3, §4, §6).** Three sentences are reworded with no change in meaning: the
+  capability-tier rationale, the autonomous-pipeline reminder, and the rate-limits backoff note.
+
 ## [19.10.1] - 2026-11-18
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
