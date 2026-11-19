@@ -152,14 +152,17 @@ alone.
 ([`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
 "Prior sessions" and the frontmatter shapes):
 
-- Read the newest file's `chain:` (or `chain_root` and `hop`) for how many sessions the chain
-  holds, its `## Prior sessions` rows (date, session id, transcript, did/left, file), and its own
-  `## This session` line as the newest row.
-- When the table lacks a row for any earlier session in the chain, walk `previous_handoff` to the
-  root, taking each file's frontmatter `date` and `session_id` and its `## This session` line,
-  until every session has a row. A file with no `This session` line gives an `UNVERIFIED` row
-  from its Resumption brief. A row that differs between a table and the file it names is a
-  disagreement, reported as one.
+- Read the chain with
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" chain <newest file> --json`: each entry
+  of `hops` is one session (hop, date, session id, and its `This session` line under `sections`,
+  read from the next hop's file when its own hot file is gone), newest first, and `links` gives
+  each hot file the walk reached with its status. That covers every handoff shape and needs no
+  read by position.
+- Read the newest file's Prior sessions table with
+  `save_point.py read <newest file> --section "Prior sessions"` for the transcript of each listed
+  session. A session with no `This session` line gives an `UNVERIFIED` row from its Resumption
+  brief. A row that differs between a table and the hop it names is a disagreement, reported as
+  one.
 - The effort started at the earliest of the chain root's `date`, the boundary's first commit and
   the container's creation; give each candidate when they differ. Find the first commit with no
   date bound, so it can be older than the other two: for a branch boundary it is the first line of

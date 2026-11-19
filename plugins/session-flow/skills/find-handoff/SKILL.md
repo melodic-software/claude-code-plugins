@@ -71,7 +71,7 @@ has two forms on disk and both are read: the shape-2 two-slot form
 `Handoff origin: <remote URL> <repo-relative path>` (a slot with whitespace double-quoted) and the
 legacy form `Handoff origin: <identity>, relative path <path>.`.
 
-**A shape-2 or shape-3 file stores its own resume prompt.** Files carrying `handoff_shape: 2` or `3` end with a
+**A shape-2, shape-3 or shape-4 file stores its own resume prompt.** Files carrying `handoff_shape: 2`, `3` or `4` end with a
 `## Resume prompt` section holding the rails prompt exactly as it was emitted (both regions when a
 goal applied), so rung 1 can hand back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
@@ -98,7 +98,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
    the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
    unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
-   jumps to, how a shape-2 or shape-3 candidate's stored `## Resume prompt` is printed, and the
+   jumps to, how a shape-2, shape-3 or shape-4 candidate's stored `## Resume prompt` is printed, and the
    repo-correlation check that stops a merely recent candidate from being presented as this
    work's. A strong, recent candidate ends the ladder here.
 

@@ -5,6 +5,7 @@
 set -euo pipefail
 
 root="$PWD"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 git init -q --bare -b main .remote/origin.git
 git init -q -b main
 git config user.name eval
@@ -39,21 +40,5 @@ git -C .remote/other commit -q -am "fix(lock): bound the cron lock wait"
 git -C .remote/other push -q origin main feat/retry-backoff
 rm -rf .remote/other
 
-mkdir -p .work/handoffs
-cat >.work/handoffs/20261008T160000Z-handoff-lease-table.md <<'EOF'
-# Handoff: lease table
-
-## Original goal
-
-"Replace the cron lock with a lease table so two schedulers never run the same job."
-
-## Premises
-
-- Base is main. feat/lease-table was up to date with main when this was written.
-- feat/retry-backoff (PR #12) is open and not on main yet, so the renewal loop must not import
-  its backoff helper until it merges.
-
-## Next
-
-- Write the renewal loop in src/lease.ts, with a fixed 1-second retry until PR #12 merges.
-EOF
+mkdir -p .work
+cp -R "$here/fixtures/handoffs" .work/handoffs

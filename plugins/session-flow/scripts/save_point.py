@@ -2328,6 +2328,7 @@ def cmd_chain(args: argparse.Namespace) -> int:
             {
                 "hop": hop.hop,
                 "session_id": hop.session_id,
+                "date": hop.date,
                 "file": hop.file,
                 "source": _posix(hop.source),
                 "sections": hop.sections,

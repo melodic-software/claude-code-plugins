@@ -22,6 +22,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 ## Contents
 
 - [Shape 3: hot file and per-hop archive](#shape-3-hot-file-and-per-hop-archive)
+  - [Shape 4](#shape-4)
 - [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
@@ -163,6 +164,29 @@ ask. The writer then states the rules still in force under Current rules, with i
 predecessor's Constraints in the hop file, and writes the direction trail so far. Hop numbers
 count from the chain root, shape-1 and shape-2 hops included; hop files start at that first
 shape-3 hop (`archive_from`).
+
+### Shape 4
+
+A shape-4 file (`handoff_shape: 4`) has the same frontmatter, hop files and id rules as shape 3,
+with its sections in another order and three of them movable. `validate`, `read`, `chain` and
+`emit` read it; `new` still writes shape 3, and `new --previous` refuses to continue a shape-4
+chain as shape 3. The order is the `ShapeSpec` for shape 4 in
+`${CLAUDE_PLUGIN_ROOT}/scripts/handoff_chain.py`: Original goal, Resumption brief, Remaining
+actions, Completion criteria, Open questions, Current rules, Standing preferences, Decisions in
+force, Pending commands, Environment to re-establish, This session, Review before you continue
+(all twelve binding, kept whole in the hot file), then Direction changes, Observations and
+Suggested skills (movable), then Prior sessions and Resume prompt.
+
+- **A moved section** leaves one line in the hot file, `- Moved:
+  archive/<chain-stem>/h<k>-<session8>.md#<Section> (h<k>)`, and its body goes to this hop's file
+  under `## <Section> (h<k>)`: the hop tag keeps it apart from the predecessor's copy of the same
+  section, which that file holds under the plain name.
+- **A history pointer** in Review before you continue uses the same `archive/…/h<k>-…md#<heading>`
+  form. `validate` fails a move or history pointer whose file or heading is not on disk, and a
+  binding section that moved.
+- **Size.** Over the cap, movable content moves to the hop file. When the binding and carried
+  sections alone are over it, `validate` fails with `OVER-CAP: <section> holds <n> bytes`, naming
+  the largest binding section; a shape-4 file never passes UNVALIDATED.
 
 ## Body sections (shape 2)
 
@@ -686,6 +710,25 @@ written to disk (shape-1 files are never rewritten).
 
 Consumers cite this section list rather than restating it. A copy of the list in another file
 drifts silently.
+
+**Readers go through the script.** A skill that reads a handoff (retro, orient, find-handoff,
+reanchor, continue-in-background) reads a section by name with
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`, which
+follows a move to the hop file, and walks a chain with `save_point.py chain <file> --json`: every
+hot file the walk reaches (a missing or unreadable one is a link with that status, not an error),
+and every hop's Direction changes, This session and Observations, read from the next hop's file
+when a hot file is gone. Neither reads by position, so shapes 2, 3 and 4 read alike. Both exit 3 on
+a shape newer than the script knows; read that file itself.
+
+**A broken link.** When `new --previous` finds its predecessor missing or unreadable, it writes
+the handoff anyway, names the file as `previous_handoff` with `previous_status: missing` or
+`unreadable`, and gives Prior sessions one row naming it; `validate` warns and skips the checks
+against it.
+
+**UNVERIFIED names its settle.** In a file stamped `checks: 3` or higher, every `UNVERIFIED` mark
+in a section the session wrote ends its line with `(settle: <command or URL>)`, the command or
+source that settles it; `validate` fails one that does not. Prior sessions and Resume prompt are
+exempt.
 
 ## Full-path write procedure
 

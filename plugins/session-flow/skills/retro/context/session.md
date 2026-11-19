@@ -15,7 +15,13 @@ When handoff save-points exist (the sibling `handoff` skill's directory, meaning
 location), the retro analyzes every chained session across
 `/session-flow:handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
-the first entry lacking `session_id`).
+the first entry lacking `session_id`), then reads the chain's hop files for every hop whose hot
+file is gone, as after `tidy_work.py clean` shrinks a finished chain.
+
+**Each hop's journey.** Under `--chain-from` the output's `handoff_journey` lists every hop,
+newest first, with its hop number, session id, date and its Direction changes, This session and
+Observations, each read from the hop file when the section moved there or the hot file is gone.
+Build the chain's narrative from those entries, one per hop, never from the newest file alone.
 
 Apply the continuity gate in `<plugin-root>/reference/transcript-parser.md` first.
 

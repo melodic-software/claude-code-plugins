@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- Write the row writer in src/export.py; it must stream rows to the file, since ledger exports reach 2 GB.",
+      "why": "carries the streaming note"
+    },
+    {
+      "answer": "Note: rows are streamed, never buffered (exports reach 2 GB).",
+      "why": "passive form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Write the row writer in src/export.py and its test in tests/test_export.py.",
+      "why": "no streaming note"
+    },
+    {
+      "answer": "The last handoff noted nothing about memory.",
+      "why": "read only the hot file"
+    }
+  ]
+}

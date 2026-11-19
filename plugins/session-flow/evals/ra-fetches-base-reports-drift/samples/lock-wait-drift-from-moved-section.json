@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Stale premise: the handoff says src/lock.ts calls cronLock() with no bound on the wait, but main now passes timeoutMs: 5000.",
+      "why": "names the new timeout"
+    },
+    {
+      "answer": "| src/lock.ts unbounded | claimed | main gained fix(lock): bound the cron lock wait |",
+      "why": "names the fixing commit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The handoff assumes src/lock.ts calls cronLock() with no bound on the wait; I did not check it.",
+      "why": "restates the premise without the drift"
+    },
+    {
+      "answer": "feat/lease-table is 3 commits behind main.",
+      "why": "another premise"
+    }
+  ]
+}

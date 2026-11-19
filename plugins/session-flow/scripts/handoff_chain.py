@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 ARCHIVE_DIR = "archive"
@@ -629,6 +629,7 @@ class Hop:
     file: str
     source: Path
     sections: dict[str, list[str]] = field(default_factory=dict)
+    date: str = ""
 
 
 @dataclass(frozen=True)
@@ -666,14 +667,14 @@ def _journey_sections(bodies: dict[str, list[str]], base: Path) -> dict[str, lis
     return found
 
 
-def _row_sessions(body: list[str] | None) -> dict[str, str]:
-    """Hot-file name to session id, from a Prior sessions table."""
-    found: dict[str, str] = {}
+def _row_sessions(body: list[str] | None) -> dict[str, tuple[str, str]]:
+    """Hot-file name to (session id, date), from a Prior sessions table."""
+    found: dict[str, tuple[str, str]] = {}
     for line in body or []:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if line.lstrip().startswith("|") and len(cells) == 5 and cells[0] != "date":
             if HANDOFF_NAME_RE.match(cells[4]):
-                found.setdefault(cells[4], cells[1])
+                found.setdefault(cells[4], (cells[1], cells[0]))
     return found
 
 
@@ -685,7 +686,7 @@ def journey(path: Path, limit: int = 1000) -> Journey:
     handoffs = path.parent
     chain = read_chain(path, limit=limit)
     found: dict[str, Hop] = {}
-    rows: dict[str, str] = {}
+    rows: dict[str, tuple[str, str]] = {}
 
     def add(links: tuple[Link, ...]) -> None:
         for link in links:
@@ -699,6 +700,7 @@ def journey(path: Path, limit: int = 1000) -> Journey:
                 link.path.name,
                 link.path,
                 _journey_sections(bodies, handoffs),
+                link.frontmatter.get("date", ""),
             )
 
     add(chain.links)
@@ -741,18 +743,18 @@ def journey(path: Path, limit: int = 1000) -> Journey:
             found[moved] = Hop(
                 k - 1, "", moved, hop_path, _journey_sections(bodies, handoffs)
             )
-    hops = [
-        hop
-        if hop.session_id
-        else Hop(
-            hop.hop,
-            rows.get(hop.file) or hop_sids.get(hop.hop or 0, ("", None))[0],
-            hop.file,
-            hop.source,
-            hop.sections,
+    hops: list[Hop] = []
+    for hop in found.values():
+        sid, date = rows.get(hop.file, ("", ""))
+        hops.append(
+            replace(
+                hop,
+                session_id=hop.session_id
+                or sid
+                or hop_sids.get(hop.hop or 0, ("", None))[0],
+                date=hop.date or date,
+            )
         )
-        for hop in found.values()
-    ]
     numbered = {hop.hop for hop in hops}
     hops += [
         Hop(k, sid, "", source)

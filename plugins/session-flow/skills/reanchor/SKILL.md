@@ -66,14 +66,16 @@ back up.
    actions still connect to it, stated in one sentence. A quote that was
    re-derived instead of copied is reported as drift between the links, the
    paraphrase is the drift, and it is invisible at any single hop because each
-   rewording is individually plausible. For a shape-3 handoff (`handoff_shape: 3`)
-   that comparison is
-   `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" validate <file>`
-   (`python` when `python3` is absent, 3.10+) on each shape-3 link: an exit 0 means
-   that link's goal section starts with its predecessor's verbatim, and a FAIL line
-   naming `Original goal` is the drift finding, so the links' text never needs
-   reading. Open the prior link's file only for a shape-1 or shape-2 link, or when
-   `validate` cannot run. An absent `Original goal` is itself a
+   rewording is individually plausible. List the links with
+   `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" chain <file> --json`
+   (`python` when `python3` is absent, 3.10+): each link's file, shape and status.
+   For a shape-3 or shape-4 link that comparison is `save_point.py validate <link>`:
+   an exit 0 means that link's goal section starts with its predecessor's verbatim,
+   and a FAIL line naming `Original goal` is the drift finding, so the links' text
+   never needs reading. A link `chain` reports `missing` or `unreadable` ends the
+   comparison there; name it in the report. For a shape-1 or shape-2 link, or when
+   `validate` cannot run, read the goal with
+   `save_point.py read <link> --section "Original goal"`. An absent `Original goal` is itself a
    defect: never infer the goal from the process the document describes, because
    that process is the thing that drifted. Ask for it in the user's own words.
    Where the next actions cannot be tied to the goal in a sentence, that is the

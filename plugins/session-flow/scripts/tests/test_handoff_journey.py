@@ -29,6 +29,7 @@ def assert_hop_sections(journey: list[dict], hops: int) -> None:
         values = hop_values(k)
         sections = by_hop[k]["sections"]
         assert by_hop[k]["session_id"] == SIDS[k - 1]
+        assert by_hop[k]["date"] == f"2026-09-0{k}T10:00:00Z"
         assert sections["Observations"] == [values["observations"]]
         assert sections["This session"][0] == (
             f"did: {values['did']} · left: {values['left']}"

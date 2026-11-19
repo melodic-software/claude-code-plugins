@@ -38,3 +38,8 @@ cat >src/other_feature.py <<'EOF'
 def greeting(name, punctuation="!"):
     return "Hello, " + name + punctuation
 EOF
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mkdir -p .work
+printf '*\n' >.work/.gitignore
+cp -R "$here/fixtures/handoffs" .work/handoffs

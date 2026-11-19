@@ -70,7 +70,7 @@ Output:
             "all_models": [...], "all_branches": [...],
           },
           "handoff_journey": [  # --chain-from only: each hop, newest first, its
-            {"hop": N, "session_id": "<UUID>", "source": "<file read>",
+            {"hop": N, "session_id": "<UUID>", "date": "<ISO>", "source": "<file read>",
              "sections": {"Direction changes": [...], "This session": [...],
                           "Observations": [...]}},
           ],                    # sections read from hop files when a hot file is gone
@@ -621,6 +621,7 @@ def handoff_journey(handoff_file: Path) -> list[dict[str, Any]]:
         {
             "hop": hop.hop,
             "session_id": hop.session_id,
+            "date": hop.date,
             "source": hop.source.as_posix(),
             "sections": hop.sections,
         }

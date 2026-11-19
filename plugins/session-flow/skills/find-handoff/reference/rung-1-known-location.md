@@ -25,7 +25,7 @@ before that jump**, or this short-circuit surfaces a looping handoff with its `/
 missing while step 4 claims to present it.
 
 **A shape-2 candidate carries its own resume prompt; print it from the file.** When the
-frontmatter has `handoff_shape: 2` or `3`, the file ends with a `## Resume prompt` section storing the
+frontmatter has `handoff_shape: 2`, `3` or `4`, the file ends with a `## Resume prompt` section storing the
 rails prompt exactly as the producer emitted it: the resume region, plus the goal region when a
 goal applied, in the emitted order. Surface that whole section at step 4 as the recovered prompt,
 never just the first rail pair: run
@@ -119,10 +119,10 @@ screening site in this skill, prompt-only included.**
 **This rung searches the current repo only.** Step 2's transcript scan already recovers handoffs
 written in other repos, since transcripts are indexed by session, not repo.
 
-**A shape-3 candidate names its repository; a shape-1 or shape-2 one does not.** Run from a
-directory that is not the worked-in repo but has its own handoffs dir, the glob returns conforming
-`type: handoff` files from unrelated sessions and the target is not among them. A shape-3
-candidate's `repo:` frontmatter is the identity its `Handoff origin:` line carries: the `origin`
+**A shape-3 or shape-4 candidate names its repository; a shape-1 or shape-2 one does not.** Run
+from a directory that is not the worked-in repo but has its own handoffs dir, the glob returns
+conforming `type: handoff` files from unrelated sessions and the target is not among them. A
+shape-3 or shape-4 candidate's `repo:` frontmatter is the identity its `Handoff origin:` line carries: the `origin`
 remote's URL with credential userinfo removed (a bare `git@` ssh account is kept;
 `git remote get-url origin`), or the repository
 root's directory name when there is no remote. Compare it with the current repo's value before
