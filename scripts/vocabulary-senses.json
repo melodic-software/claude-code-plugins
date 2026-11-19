@@ -130,6 +130,7 @@
         {"phrase": "\\btiers?[- ](?:[0-9]|(?-i:[A-D])\\b)", "reason": "a numbered or lettered tier of a classification (evidence, path, requirement or citation tiers), not a config scope"},
         {"phrase": "\\bconsumer[- ]precedence\\b", "reason": "detector-findings' severity tiers and their consumer-precedence rule"},
         {"path": "docs/contracts/detector-findings/**", "reason": "detector-findings' severity tiers rank findings, not config scopes"},
+        {"path": "plugins/*/reference/detector-findings.md", "reason": "generated copies of docs/contracts/detector-findings (scripts/shared-copies.txt), byte for byte"},
         {"path": "plugins/review/context/severity.md", "reason": "review's severity tiers rank findings, not config scopes"},
         {"phrase": "\\beffort-tiers\\b", "reason": "plugin-philosophy's effort tiers are effort levels, not config scopes"},
         {"phrase": "\\benterprise-tier keys\\b", "reason": "an API customer's plan tier, not a config scope"},
