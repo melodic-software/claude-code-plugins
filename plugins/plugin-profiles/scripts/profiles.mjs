@@ -1233,6 +1233,7 @@ const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "value
 const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const ownEntries = (n) => counted(n, "plugin and skill entry", "plugin and skill entries");
 /** The first three ids and how many more, followed by tail when some are left out. */
 const fewOf = (ids, tail = "") => (ids.length > 3 ? `${ids.slice(0, 3).join(", ")} and ${ids.length - 3} more${tail}` : list(ids));
 /** An apply's time in this machine's time zone; the recorded text when it is not a date. */
@@ -1279,14 +1280,15 @@ function resetRow(where, f, waits = false) {
       return skip(`${error.message}; left as it is`, [`${file}: ${error.message}; reset leaves it.`]);
     }
     if (restoredHashOf(homesOf(where, file), file) === settings.hash) return { ...row, action: "unchanged", lines: [] };
+    const entries = ownEntries(f.entries.length);
     return {
       ...row,
       action: "remove-entries",
       reason: NO_RECORD,
       entries: f.entries,
       settings,
-      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries, ", listed above")})?`),
-      lines: [`${file}: no profile record, and its ${f.entries.length} plugin and skill entries may be your own: ${list(f.entries)}. Reset removes them only after a yes for this folder.`],
+      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${entries} (${fewOf(f.entries, ", listed above")})?`),
+      lines: [`${file}: no profile record, and its ${entries} may be your own: ${list(f.entries)}. Reset removes ${f.entries.length === 1 ? "it" : "them"} only after a yes for this folder.`],
     };
   }
   if (!resetWrites(where, file)) {
@@ -1391,7 +1393,7 @@ function resetOne(row, { chosen, kept, keepRecorded }) {
     const keys = ["enabledPlugins", "skillOverrides"];
     const edits = Object.fromEntries(keys.map((key) => [key, Object.fromEntries(Object.keys(row.settings.doc[key] ?? {}).map((name) => [name, null]))]));
     const text = editText(row.settings, edits, { dropEmpty: keys });
-    return guarded(() => writeSettings(file, row.settings.hash, text), `Removed the ${row.entries.length} plugin and skill entries of ${file}, which had no record.`);
+    return guarded(() => writeSettings(file, row.settings.hash, text), `Removed the ${ownEntries(row.entries.length)} of ${file}, which had no record.`);
   }
   if (row.movedTo && yes) {
     const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);

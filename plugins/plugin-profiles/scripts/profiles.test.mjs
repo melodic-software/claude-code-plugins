@@ -2700,6 +2700,18 @@ test("#17354: the reset preview's questions say what each yes covers, and stay s
   assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?");
 });
 
+test("#17354: a folder without a record holding one entry is named as one entry in its preview line, its question and its result", () => {
+  const w = world();
+  writeFileSync(w.localFile, `${JSON.stringify({ enabledPlugins: { [`p0@${M}`]: true } }, null, 2)}\n`);
+  knowFolders(w, w.project);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.ask.question, `${w.localFile} has no profile record. Remove its 1 plugin and skill entry (p0@${M})?`);
+  assert.equal(row.lines[0], `${w.localFile}: no profile record, and its 1 plugin and skill entry may be your own: p0@${M}. Reset removes it only after a yes for this folder.`);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 1 plugin and skill entry of ${w.localFile}, which had no record.`]);
+});
+
 test("#17354: the one question says once that folders without a record and files whose earlier reset was cut off each get their own question", () => {
   const w = world();
   cutOffThenPutBack(w);
