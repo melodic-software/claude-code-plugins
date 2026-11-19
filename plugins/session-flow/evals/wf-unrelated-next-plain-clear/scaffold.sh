@@ -18,5 +18,12 @@ import random
 def test_token_refresh():
     assert random.random() < 0.95
 EOF
-git add .gitignore src tests
+mkdir -p docs
+cat >docs/issue-4489.md <<'EOF'
+# test_token_refresh fails about one run in twenty
+
+tests/test_auth.py::test_token_refresh asserts on a random draw, so it fails about 5% of runs.
+Replace the random draw with a fixed token clock.
+EOF
+git add .gitignore src tests docs
 git commit -q -m "report currency merged"

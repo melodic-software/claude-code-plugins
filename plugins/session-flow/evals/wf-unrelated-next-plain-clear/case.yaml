@@ -7,7 +7,7 @@ expected_outcome: 'The answer walks the continuation router and recommends a pla
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/session-flow:workflow continue: the report currency work is merged and done; nothing from it is owed. Next I''m looking at the unrelated flaky test in tests/test_auth.py, which issue #4489 describes in full. Pick the continuation step you think is right.'
+  prompt: '/session-flow:workflow continue: the report currency work is merged and done; nothing from it is owed. Next I''m looking at the unrelated flaky test in tests/test_auth.py, which issue #4489 describes in full (its text is in docs/issue-4489.md). Pick the continuation step you think is right.'
   allowed_tools: [Bash, Read, Grep, Glob, Skill]
   max_turns: 20
   timeout_seconds: 600
