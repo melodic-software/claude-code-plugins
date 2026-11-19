@@ -45,15 +45,15 @@
     {
       "id": 4,
       "name": "persist-refuses-without-contract",
-      "prompt": "/ai-slop:audit evals/fixtures/report-only.md relative to the skill directory, with the detector-findings contract URL unreachable. Treat the audited file as tracked in the repo under audit.",
-      "expected_output": "The audit report is delivered with the fixture's four findings intact, but no findings file is written: the audit examined a tracked file, so persistence applies, and the skill reports that the producer contract could not be fetched and refuses to invent a destination, per persist-findings.md.",
+      "prompt": "/ai-slop:audit evals/fixtures/report-only.md relative to the skill directory, with this plugin's bundled reference/detector-findings.md unreadable (assume every read of it fails). Treat the audited file as tracked in the repo under audit.",
+      "expected_output": "The audit report is delivered with the fixture's four findings intact, but no findings file is written: the audit examined a tracked file, so persistence applies, and the skill reports that the producer contract could not be read and refuses to invent a destination, per persist-findings.md.",
       "files": ["evals/fixtures/report-only.md"],
       "expectations": [
         "Delivers the human-facing findings report regardless",
         "Treats persistence as applicable, since the audit examined a tracked file, rather than passing over the step as out of scope",
-        "Fetches the producer contract before writing anything, per persist-findings.md",
-        "Does NOT write a findings file when the contract fetch fails",
-        "States that persistence was refused because the contract was unreachable, rather than silently skipping it, and does not attribute the refusal to the target being out of tracked space"
+        "Reads the plugin's bundled producer contract before writing anything, per persist-findings.md, and fetches no URL in its place",
+        "Does NOT write a findings file when the contract read fails",
+        "States that persistence was refused because the contract could not be read, rather than silently skipping it, and does not attribute the refusal to the target being out of tracked space"
       ]
     },
     {

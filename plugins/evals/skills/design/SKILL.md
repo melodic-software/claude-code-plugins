@@ -215,8 +215,7 @@ Before finishing, confirm and record in the criteria doc:
 - LLM-graded cases name a grader model different from the generator and constrain the verdict
   format. Add a reasoning-then-discard instruction only where the grader model does not already
   think before answering; a grader with always-on thinking reasons before it decides, so an
-  output-side reasoning block buys nothing and roughly doubles the output tokens every re-run
-  pays for.
+  output-side reasoning block buys nothing and adds output tokens every re-run pays for.
 - Re-run cost is stated (which cases are code-graded and free vs LLM-graded and metered).
 
 ### Grader check

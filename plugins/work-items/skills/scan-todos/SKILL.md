@@ -1,6 +1,6 @@
 ---
 description: "Sweep source comments, not tracker items, for TODO/FIXME/HACK/XXX markers and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. Not the workflow for new work: durable work belongs in the tracker when it is written. Tracker items go to /work-items:track."
-argument-hint: "[--path <dir>] [--work]"
+argument-hint: "[--path <dir>] [--work] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -28,6 +28,22 @@ Resolve or file each actionable comment marker. To catch new markers as they lan
 
 - `--path <dir>`: limit the scan to one directory (default: repo root).
 - `--work`: after presenting groups, auto-select the smallest group and start resolving.
+- `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words: scan
+  several repositories. With none of them, the scan covers the current repository as below.
+
+## Several repositories
+
+The target forms resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md)
+"Target forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository's
+subagent runs Scan and Group only, with `<project root>` set to its own root and `--path` applied
+inside it, and returns its groups. Outside the session's own checkout, Detection greps
+`origin/HEAD` (`git -C <root> grep -nE '<pattern>' origin/HEAD -- ...`) and drops the
+`origin/HEAD:` prefix from each hit. The parent keys groups by repository and parent folder,
+presents one table of them all by count, and takes the selection; `--work` picks the smallest
+group across every repository. The selected group's markers are resolved under "Writes stay per
+repository", in a worktree of that group's repository, and each significant marker is filed with
+`/work-items:track add --repo <owner/name>` so it lands in that repository's tracker.
 
 ## Detection
 

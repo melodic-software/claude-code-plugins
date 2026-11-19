@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [10.15.6] - 2026-11-19
+
+### Changed
+
+- The legacy FAILs file is `.github/verify-legacy-fails.json`, which `BABYSIT_VERIFY_LEGACY_FAILS` names for the verdict reader, instead of a file beside the reader.
+
+## [10.15.5] - 2026-11-19
+
+### Fixed
+
+- A rate limit whose header reset passes between the rate guard recording it and `rate_stop_from` reading it no longer turns into a guessed one-hour stop on every pool: the limit is over, so `retry_call --read` retries the read. Before, a reset a second away could fail the merge group's queued pull request read, which turned main's scheduled run red in `scripts/ci-queued-pr.test.sh`.
+
+## [10.15.4] - 2026-11-19
+
+### Fixed
+
+- ci-status's merge-queue verdict reader waits up to 900 s (`WAIT_BUDGET_SECONDS.ciStatusVerify`) for github-token's reset after a read it did not send below the read floor, then judges again, instead of ejecting the lane pull request as `verify:unreadable`; the job's timeout grows to 35 minutes to hold the wait.
+
 ## [10.15.3] - 2026-11-19
 
 ### Fixed

@@ -8,9 +8,26 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$SCRIPT_DIR/review-venue.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+TREE="$TEST_TMPDIR/tree/skills"
+mkdir -p "$TREE/pull-request/scripts" "$TREE/babysit-prs/scripts"
+cp "$SCRIPT_DIR/review-venue.sh" "$TREE/pull-request/scripts/"
+cp "$SCRIPT_DIR/../../babysit-prs/scripts/babysit-python.sh" "$TREE/babysit-prs/scripts/"
+printf 'import sys\nsys.stdout.write(open(%s).read())\n' "'$TEST_TMPDIR/settings.json'" \
+  >"$TREE/babysit-prs/scripts/babysit_merge_settings.py"
+SCRIPT="$TREE/pull-request/scripts/review-venue.sh"
+settings() {
+  local entry list=()
+  for entry in "$@"; do list+=("$(jq -nc --arg e "$entry" '{lane: ($e | sub("=.*"; "")), workflow: ($e | sub("^[^=]*="; ""))}')"); done
+  jq -sc '{review_lane_workflows: .}' <<<"$(printf '%s\n' "${list[@]}")" >"$TEST_TMPDIR/settings.json"
+}
+REPO_WORKFLOWS=(
+  code-review=melodic-software/ci-workflows/.github/workflows/pr-review.yml
+  security-review=melodic-software/ci-workflows/.github/workflows/pr-review-security.yml
+  either=melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml
+)
+settings "${REPO_WORKFLOWS[@]}"
 
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
@@ -320,6 +337,39 @@ reset
 page 1 "$(other_run)" "$(lane_run 11 .github/workflows/pr-review.yml 'someone-else/ci-workflows/.github/workflows/pr-review.yml@main')"
 out=$(run)
 assert_contains "a review workflow from another owner is not a lane" "$out" "code-review local absent"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+printf '{"review_lane_workflows": []}\n' >"$TEST_TMPDIR/settings.json"
+out=$(run)
+assert_exit "an unset review_lane_workflows is still a read" 0 "$?"
+assert_contains "unset, the code lane runs locally" "$out" \
+  "code-review local absent: the review_lane_workflows setting names no workflow for the code-review lane"
+assert_contains "unset, the security lane runs locally" "$out" \
+  "security-review local absent: the review_lane_workflows setting names no workflow for the security-review lane"
+assert_not_contains "unset, no run listing is read" "$(cat "$TEST_TMPDIR/calls")" "actions/runs"
+
+settings code-review=acme/reviews/.github/workflows/review.yml
+page 1 "$(other_run)" "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CODE")" \
+  "$(lane_run 33 .github/workflows/acme.yml 'acme/reviews/.github/workflows/review.yml@v1')"
+wf 33 completed:success:1
+out=$(run)
+assert_contains "a configured workflow is a lane" "$out" "code-review ci healthy"
+assert_contains "the configured lane names its caller" "$out" ".github/workflows/acme.yml"
+assert_contains "a lane the setting leaves out runs locally" "$out" \
+  "security-review local absent: the review_lane_workflows setting names no workflow"
+
+settings code-review=acme/reviews/.github/workflows/review.yml
+page 1 "$(other_run)" "$(lane_run 33 .github/workflows/acme.yml 'acme/reviews/.github/workflows/review.yml.evil@v1')"
+out=$(run)
+assert_contains "a longer workflow name is not the configured one" "$out" "code-review local absent: no recent"
+
+rm -f "$TEST_TMPDIR/settings.json"
+run >/dev/null 2>&1
+assert_exit "an unreadable setting fails closed" 2 "$?"
+settings "${REPO_WORKFLOWS[@]}"
 
 reset
 full=()

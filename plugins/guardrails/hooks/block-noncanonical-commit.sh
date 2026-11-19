@@ -50,8 +50,8 @@
 # Per-repo/per-user allow-list: the `block_noncanonical_commit_allow` userConfig
 # option is a comma-separated list of form tokens (currently just
 # "message-flag", which allows a `-m` value the shell would expand). Set it
-# with `/plugin configure guardrails@melodic-software` or headless via `claude plugin install
-# --config`; read from the CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW
+# with `/plugin configure guardrails@<marketplace>` or headless via `claude plugin install
+# --config` (https://code.claude.com/docs/en/plugins/cli-reference#plugin-install); read from the CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW
 # process mirror. Kill switch: `block_noncanonical_commit_enabled` set to false.
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL via the shared parser in hook-utils.sh, so

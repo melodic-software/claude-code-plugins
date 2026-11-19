@@ -126,7 +126,8 @@ Any `open` row it adds returns the run to Step 2.
 **Record every item.** Before dispatching a sweep, write `- sweep <M> | register through Q<N>`
 into the ledger's `## Assumption sweep` section, where `sweep <M>` counts the sweeps from 1 and
 `Q<N>` is the register's last row. Then write each item there as
-`- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`. The disposition is one of: the `Q<N>` register row the item became, or the
+`- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, keeping the sub-agent's
+`S<N>` ids, which restart at `S1` in each sweep. The disposition is one of: the `Q<N>` register row the item became, or the
 existing row a hedged item points at; the `F<N>` line that settles it; or `deferred: <where>` for
 an item settled outside the register (a hedged item's `deferred: confirmation restate`). Only a
 hedged item points at a row its source names; every other item's `Q<N>` is the new row it became,

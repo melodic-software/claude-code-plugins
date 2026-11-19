@@ -251,6 +251,20 @@
         "The save-point is still written and the exit is the /clear-then-paste instruction",
         "The message does not tell the user to type `/goal <condition>` in this session"
       ]
+    },
+    {
+      "id": 20,
+      "name": "step-away-caller-gets-the-full-session-id",
+      "prompt": "/continue-in-background prompt parser-plan finish the parser plan, done when every item in .work/away/tasks-1a2b3c4d.md is done or marked parked. This was invoked by /session-flow:step-away for a fresh session, through the Skill tool. Clean tree apart from the save-points. No /goal is set in this session. The launch prints `backgrounded · 5f0c9e21 · continue-parser-plan`.",
+      "expected_output": "The request states a checkable done condition, so it is a fresh goal: no draft and no confirmation round. The prompt file written with the Write tool starts with `/goal `, then the goal region holding the task-file condition, a blank line and the resume region; there is no leading step-away command. The launch runs `claude --bg ... --permission-mode auto` with that file. The skill then lists `claude agents --json --all`, takes the entry whose `id` is `5f0c9e21`, reports its full `sessionId`, and hands that id back to step-away instead of ending the task. It runs no `away.py` command itself.",
+      "files": [],
+      "expectations": [
+        "The prompt file starts with `/goal ` and its condition names `.work/away/tasks-1a2b3c4d.md`; no line starts with `/session-flow:step-away`",
+        "No goal is drafted and no confirmation question is asked before the launch",
+        "The payload is written to a temporary file with the Write tool and passed to `claude --bg` with `--permission-mode auto`, not inlined in the command",
+        "`claude agents --json --all` is read and the full `sessionId` of the entry with `id` `5f0c9e21` is reported, not only the 8-character short id",
+        "The full session id is handed back to the calling step-away skill, and the skill runs no `away.py` command itself"
+      ]
     }
   ]
 }

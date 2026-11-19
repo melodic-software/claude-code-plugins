@@ -95,6 +95,7 @@ env:
   # job's 10-minute timeout and the key leg's start; a later leg that waited
   # out a key leg's 22-minute model step reads its own.
   SHARED_TEXT_MAX_AGE_MINUTES: "20"
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
 
 jobs:
   # The PR's file list and, for a lane-source PR, the trigger gate, read once
@@ -158,6 +159,11 @@ jobs:
       - name: Record the main commit
         id: main
         run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -772,6 +778,11 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -1727,6 +1738,11 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2650,6 +2666,11 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
