@@ -625,6 +625,31 @@ printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)"
 assert_not_contains "non-git chezmoi source is not a fleet entry" "$out" "$NOGIT"
 
+# --owner keeps the fleet repos whose origin owner matches, and dedupes clones.
+FL_OTHER="$(mkrepo fleet-other-owner)"
+FL_NOORIGIN="$(mkrepo fleet-no-origin)"
+git -C "$FL_OTHER" remote add origin https://github.com/someone-else/repo.git
+printf '#!/bin/sh\nprintf "%%s\\n" "%s" "%s" "%s" "%s" "%s"\n' "$FL_A" "$FL_B" "$FL_CLONE" "$FL_OTHER" "$FL_NOORIGIN" >"$SHIM/ghq"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$FL_CZ" >"$SHIM/chezmoi"
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --owner Owner 2>/dev/null)" || rc=$?
+assert_exit "--owner dry-run exits 0" 0 "$rc"
+assert_contains "--owner keeps a ghq repo of that owner" "$out" "Repo: $FL_B"
+assert_contains "--owner keeps the chezmoi source of that owner" "$out" "Repo: $FL_CZ"
+assert_not_contains "--owner drops a repo of another owner" "$out" "$FL_OTHER"
+assert_not_contains "--owner drops a repo with no origin" "$out" "$FL_NOORIGIN"
+assert_contains "--owner dedupes clones of one origin" "$out" "skipped duplicate of $FL_A"
+assert_contains "--owner counts the owner's unique repos" "$out" "repos=3 "
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --owner someone-else 2>/dev/null)"
+assert_contains "--owner selects only the other owner's repo" "$out" "Repo: $FL_OTHER"$'\n'"Outcome: scanned"
+assert_not_contains "--owner someone-else drops owner's repos" "$out" "Repo: $FL_B"
+rc=0
+PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --owner nobody >/dev/null 2>&1 || rc=$?
+assert_exit "--owner matching no repo is the no-repos error" 2 "$rc"
+rc=0
+bash "$BATCH" --tier caches --owner >/dev/null 2>&1 || rc=$?
+assert_exit "--owner with no value exits 2" 2 "$rc"
+
 # --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
 mkclean() {
   git init "$1" >/dev/null 2>&1

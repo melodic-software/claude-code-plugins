@@ -110,6 +110,7 @@ at it, in their own pull requests.
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
 | `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
 | `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
+| `/repo-hygiene:clean` (batch forms) | Source of the flags; points here through its plugin-shipped copy; `--repo` and `--repos-from` take local paths only and, alone, keep every clone they name |
 
 ## Plugin-shipped copies
 

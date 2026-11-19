@@ -263,6 +263,31 @@ batch_discover_fleet() {
   fi
 }
 
+# batch_discover_owner <array-name> <owner> — append each repo batch_discover_fleet
+# finds whose origin (batch_remote_key) is `<host>/<owner>/<name>`. The owner
+# compares case-insensitively on github.com, as batch_remote_key folds that host's
+# path, and exactly elsewhere. A repo with no origin, or a local-path origin with
+# no host, never matches.
+batch_discover_owner() {
+  local -n _owned="$1"
+  local owner="$2" entry top rk path
+  local -a found=()
+  batch_discover_fleet found
+  for entry in "${found[@]}"; do
+    top="$(batch_normalize_input "$entry")"
+    rk="$(batch_remote_key "$top")"
+    [[ -n "$rk" && -n "${rk%%/*}" ]] || continue
+    path="${rk#*/}"
+    if [[ "${rk%%/*}" == github.com ]]; then
+      owner="$(tr '[:upper:]' '[:lower:]' <<<"$2")"
+    else
+      owner="$2"
+    fi
+    [[ "${path%%/*}" == "$owner" && "$path" == */* ]] && _owned+=("$entry")
+  done
+  return 0
+}
+
 # Unique shared-object-store accumulators, populated by batch_add_gitdir.
 BATCH_GITDIR_KEYS=()
 BATCH_GITDIR_TOPS=()
