@@ -35,8 +35,8 @@ refinements and one ceiling.**
   else the bundled default, sets it. The user-global and personal override layers each apply only
   when lower, so the effective cap is the smallest of the three. A higher personal value is ignored
   and reported.
-- **`churn_exclude`**: entries **union** across layers, and with the bundled defaults unless
-  `churn_exclude_defaults: false`. A later layer adds patterns; it never silently drops an
+- **`churn_exclude`**: entries **union** across layers, and with the mechanical files resolved from
+  the repository unless `churn_exclude_defaults: false`. A later layer adds patterns; it never silently drops an
   earlier layer's.
 - **`evidence_sources`** merges **per source name**: a later layer's entry for source X
   replaces X only. A later layer declaring a source name with an empty body is an explicit
@@ -56,7 +56,7 @@ the consumer's own commentary and is not parsed.
 churn_window: "90 days ago"
 churn_exclude:
   - '(^|/)generated/'
-  - '\.designer\.cs$'
+  - '(^|/)fixtures/recorded/'
 churn_exclude_defaults: true
 find_open_item_cap: 5
 find_run_item_cap: 3
@@ -79,8 +79,8 @@ evidence_sources:
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `churn_window` | string accepted by `git log --since` | `"90 days ago"` | The hotspot recipe's change-frequency window, its main tuning knob. The recipe's history-depth gate still applies: a window the history does not cover shrinks or downgrades to an evidence gap regardless of this value. |
-| `churn_exclude` | list of ERE patterns | `[]` | Extra patterns matched against paths from `git log --name-only` and excluded from churn counting. Unioned across layers and with the bundled defaults. |
-| `churn_exclude_defaults` | boolean (`true` \| `false`, since bare `on`/`off` is the YAML 1.1 coercion footgun and is not accepted) | `true` | `false` drops the bundled default exclusions (lockfiles, generated/minified artifacts, and vendored trees: the ERE in the hotspot recipe), leaving only declared patterns. |
+| `churn_exclude` | list of ERE patterns | `[]` | Extra patterns matched against paths from `git log --name-only` and excluded from churn counting. Unioned across layers and with the mechanical files resolved from the repository. |
+| `churn_exclude_defaults` | boolean (`true` \| `false`, since bare `on`/`off` is the YAML 1.1 coercion footgun and is not accepted) | `true` | `false` drops the exclusions resolved from the repository (the lockfiles, generated or minified output, snapshots and vendored trees its `.gitattributes`, build and manifest files show: the hotspot recipe's Step 2), leaving only declared patterns. The plugin ships no exclusion list. |
 | `find_open_item_cap` | non-negative integer | `5` | Applied to each source label on its own (`source: improvement-find`, `source: architecture-improve`): unattended `/improvement:find` files nothing under a label while the open items carrying it number at or above this, and otherwise files no more than the room left under it. A hard stop the invocation prompt cannot raise, and personal layers can only lower ("Merge semantics"); `0` stops all unattended filing. A value that is not a non-negative integer is malformed: that layer's value is ignored and reported. |
 | `find_run_item_cap` | positive integer | `3` | Where the adaptive per-run filing cap starts: how many items one unattended run files, across all source labels. |
 | `find_run_item_cap_floor`, `find_run_item_cap_ceiling` | positive integers | `1`, `5` | The range that cap adapts within. Floor, start and ceiling must ascend (equal is allowed); otherwise all three take their defaults and the conflict is reported. |

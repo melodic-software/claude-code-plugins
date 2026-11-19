@@ -2478,26 +2478,23 @@ test("each path through the resolver makes a pinned number of API calls", async 
     // As above; the head commit's time is weighed against the relink fields
     // the spec read carries (9 calls when the relink was a read of its own).
     ["an unjudged head with its commit time", committed(), "ok", 8],
-    // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
-    // the head's checks runs, the spec (9 with the relink read).
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 8],
-    // As above, but the PR links no issue now: the spec's relink fields serve
-    // only the body-edit rule (9 with the relink read).
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
-    // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
-    // the FAIL's run and compare, the head's checks runs (12 with the relink read).
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
-    // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
-    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
+    ["a FAIL named without issues: run, commit pulls, the FAIL name, its run and compare, the head's checks runs, the spec", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
+    ["a FAIL named without issues, no issue linked: the spec's relink fields serve only the body-edit rule", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 7],
+    ["a FAIL named with the PR's issues: run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare, the head's checks runs", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 10],
+    ["a pass with the spec unchanged: run, commit pulls, three names, the pass's run and compare, the spec", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
     // As above, then the FAIL name with issues.
     ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
   for (const [label, setup, expected, count] of cases) {
     const { reason: got, paths } = await calls({ issues: [edited], ...setup });
     assert.equal(got, expected, label);
     assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
+    assert.equal(paths.filter((p) => p === jobsPath).length, expected === "already-judged" ? 0 : 1, `${label}: the run's jobs are read only for a run that proceeds`);
   }
+  assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS })).reason, "draft-run", "a draft-started run at an unjudged head skips as draft-run");
+  assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS, ...counted(`pr-verify-41-${HEAD}-fail`) })).reason, "already-judged", "a draft-started run at a judged head skips as already-judged");
   // A run red only on a hold: run, commit pulls, the run's jobs once for
   // heldOnly and draftRun, ci-status's log, three names, the spec, the -i7
   // name (10 when draftRun read the jobs again).

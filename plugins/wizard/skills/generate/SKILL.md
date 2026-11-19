@@ -94,7 +94,7 @@ which column:
 | To learn | Look in |
 |---|---|
 | Values CI must receive | Each workflow under `.github/workflows/*`, read whole: a `secrets.*` or `vars.*` reference means a row whose Saved to includes CI |
-| Values the app reads locally | `.env.example`, `docker-compose*`, the framework's config files |
+| Values the app reads locally | Any committed template of `.env` keys, each config file the repository's README or setup docs name, and the environment variables and config files the source code reads |
 | Manual steps already written down | `README` |
 | Keys this machine already has | The live `.env`, key names only: `grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env`. Its values are never read |
 

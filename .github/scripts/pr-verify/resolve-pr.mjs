@@ -1099,11 +1099,13 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   // An unreadable draft state throws, as any other failed read here does: the
   // step holds before its judgment (closing), so it writes no verdict, and the
   // lost-run reconciler re-runs it once (reconcile.mjs faultHeld).
-  if (await draftRun(github, repository, upstreamRunId, readJobs)) {
-    return skip("draft-run");
-  }
-  // draftRun read the list whole, or it would have thrown.
-  keepJobs?.((await readJobs()).jobs);
+  const notDraftRun = async () => {
+    if (await draftRun(github, repository, upstreamRunId, readJobs)) {
+      return false;
+    }
+    keepJobs?.((await readJobs()).jobs);
+    return true;
+  };
   // The judged head's changed files, read only for a drift issue (driftSpec).
   const drift = { pages, changedFiles: () => compareFiles(github, repository, pull.base.sha, head) };
   // Another workflow's reads of the same pull request (pr-rate-merge-risk.yml):
@@ -1114,6 +1116,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (rated !== undefined) {
     if (await rated({ github, repository, number: pull.number, head, base })) {
       return skip("already-rated");
+    }
+    if (!(await notDraftRun())) {
+      return skip("draft-run");
     }
     const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base, schedule, drift);
     return { proceed: true, reason: "ok", relinkSinceHead: false, prNumber: pull.number, headSha: head, baseSha: pull.base.sha, headRef: String(pull.head.ref ?? ""), ...spec };
@@ -1213,6 +1218,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
       return skip("already-judged");
     }
     reopened = "body-edited";
+  }
+  if (!(await notDraftRun())) {
+    return skip("draft-run");
   }
   return {
     proceed: true,

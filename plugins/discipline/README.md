@@ -18,6 +18,7 @@ first-class use, and the audit may honestly return clean.
 - [What each skill does](#what-each-skill-does)
   - [do-your-research](#do-your-research)
   - [follow-our-standards](#follow-our-standards)
+  - [follow-operating-procedures](#follow-operating-procedures)
   - [point-dont-copy](#point-dont-copy)
   - [reason-dont-recite](#reason-dont-recite)
   - [tighten-your-output](#tighten-your-output)
@@ -43,6 +44,7 @@ first-class use, and the audit may honestly return clean.
 |---|---|
 | `/discipline:do-your-research` | Research and no-assumptions before assertion; its fan-out tier verifies a typed full inventory of the session's claims |
 | `/discipline:follow-our-standards` | Alignment to the consuming org's engineering conventions |
+| `/discipline:follow-operating-procedures` | The operating procedures in the user's and the project's instruction files, reread from disk on each invocation |
 | `/discipline:point-dont-copy` | Pointer over copy. Cite the living source, don't duplicate it |
 | `/discipline:reason-dont-recite` | Interrogate inherited content. Precedent describes, it doesn't justify |
 | `/discipline:tighten-your-output` | Terseness. Fewer words or lines with no loss of meaning or correctness |
@@ -115,6 +117,20 @@ declared managed / locally-owned boundary.
 
 ```shell
 /discipline:follow-our-standards    # resolve + re-anchor + audit + correct
+```
+
+### follow-operating-procedures
+
+Rereads every instruction file Claude Code loads for the session (the user's, the project's, and
+the rules already loaded) with the Read tool, on every invocation, then audits the work in flight
+against that text and corrects drift. It stores no procedures and no fallback baseline: the
+instruction files are the only source ([ADR 0112](../../docs/adr/0112-keep-operating-procedures-in-the-user-instructions-and-reread-them-on-demand.md)).
+It names a missing file and continues, stops when it finds none, and reports drift that needs a
+pull request, issue or comment as open without acting on it. Each invocation adds the full text of
+those files to the session, so it is invoked on demand and never runs in `sweep-all`.
+
+```shell
+/discipline:follow-operating-procedures    # reread + audit + correct
 ```
 
 ### point-dont-copy
