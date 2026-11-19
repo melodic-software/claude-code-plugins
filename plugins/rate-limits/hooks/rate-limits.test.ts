@@ -1518,7 +1518,7 @@ for (const value of ['example.com/switch', 'https://a b', 'javascript:alert(1)']
   })
 }
 
-test('options: a report mode outside the list loads as automatic and the module adds no line',{ options: { rate_limits_enabled: false, rate_limit_report_mode: 'loud' } }, async ($, on) => {
+test('options: a report mode outside the list loads as automatic and the module adds no line', { options: { rate_limits_enabled: false, rate_limit_report_mode: 'loud' } }, async ($, on) => {
   const { w } = world(on, { limits: limits(97) })
   expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_5H_97])
   expect(optionLogs(w)).toEqual([])
