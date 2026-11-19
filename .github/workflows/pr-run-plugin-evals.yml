@@ -482,7 +482,9 @@ jobs:
           bin-dir: /opt/tools/bin
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
+      # eval-handoff.mjs: its published contract, contract-files.txt and the
+      # paths it lists, nothing run here:
+      # https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -492,9 +494,14 @@ jobs:
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -1193,9 +1200,14 @@ jobs:
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -1767,9 +1779,14 @@ jobs:
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
