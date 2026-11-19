@@ -1,4 +1,4 @@
-import { VP, U, FLOOR_Y, CEILING_Y, DEFAULT_STATE, f, pts, type Part, type State } from '../lib.ts'
+import { VP, U, FLOOR_Y, CEILING_Y, DEFAULT_STATE, esc, f, pts, type Part, type State } from '../lib.ts'
 
 type Stop = readonly [number, string, number?]
 type P = readonly [number, number]
@@ -323,10 +323,17 @@ export function part(state: State = DEFAULT_STATE): Part {
   ])
   flag += `<path d="${sleeve}" fill="${L6 ? '#17181c' : '#060608'}"/>`
   const ink = L6 ? '#cfcdc2' : '#0c110f'
+  const pennantLine = (text: string | undefined, fallback: string, at: string, width: number): string => {
+    const shown = text ?? fallback
+    const length = text === undefined ? width : f(Math.min(width, (width / fallback.length) * [...text].length))
+
+    return `<text ${at} textLength="${length}" lengthAdjust="spacingAndGlyphs">${esc(shown)}</text>`
+  }
   flag +=
     `<g clip-path="url(#room-pc)"><g fill="${ink}" font-family="Rockwell, Georgia, Times New Roman, serif" font-weight="bold" transform="rotate(1.5 280 160)">` +
-    `<text x="283" y="148.5" font-size="8.5" letter-spacing="1.6" textLength="72" lengthAdjust="spacingAndGlyphs">LANTERN HILL</text>` +
-    `<text x="281" y="168.5" font-size="17" letter-spacing=".6" textLength="128" lengthAdjust="spacingAndGlyphs">NIGHTJARS</text></g></g>`
+    pennantLine(state.titles?.['pennant-top'], 'LANTERN HILL', 'x="283" y="148.5" font-size="8.5" letter-spacing="1.6"', 72) +
+    pennantLine(state.titles?.pennant, 'NIGHTJARS', 'x="281" y="168.5" font-size="17" letter-spacing=".6"', 128) +
+    `</g></g>`
   defs += `<clipPath id="room-pc"><path d="${pen}"/></clipPath>`
   const tack = L6 ? '#b8ab8c' : '#121116'
   flag += `<path d="${pen}" fill="url(#room-stipple)" opacity="${L6 ? '.3' : '.15'}"/>`

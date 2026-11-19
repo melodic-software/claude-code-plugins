@@ -16,7 +16,6 @@ architecture
 attribution
 autonomy
 bash-format
-bedroom
 bugs
 code-metrics
 code-tidying
@@ -95,6 +94,7 @@ spelling
 sql-server
 tdd
 testing
+themes
 toolchain
 user-experience
 user-interface

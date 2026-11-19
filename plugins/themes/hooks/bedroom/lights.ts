@@ -1,5 +1,4 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
-// spellchecker:off
 import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, range, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
 const v = values({ tv: [0, 1], lava: [0, 1], clock: [0, 719], pc: [0, 1], lamp: [0, 1], tape: [0, 1], console: [0, 1], light: [0, 1] })
@@ -18,12 +17,12 @@ const v = values({ tv: [0, 1], lava: [0, 1], clock: [0, 719], pc: [0, 1], lamp: 
 function ell(p: vec2, c: vec2, r: vec2): number {
   return length((p - c) / r)
 }
-// 1 inside the box of centre c and half size h, 0 outside, with a soft edge e wide either side.
+// 1 inside the box of center c and half size h, 0 outside, with a soft edge e wide either side.
 function sbox(p: vec2, c: vec2, h: vec2, e: number): number {
   let d = vec2(abs(p - c) - h)
   return 1 - smoothstep(-e, e, max(d.x, d.y))
 }
-// The television's light on the room, k strong, its colour following the screen: blue idle, green-grey tape,
+// The television's light on the room, k strong, its color following the screen: blue idle, green-grey tape,
 // dim violet console (the tape wins over the console).
 function tvl(tape: number, con: number, k: number): vec3 {
   let kc = con * (1 - tape)
@@ -33,7 +32,7 @@ function eq(n: number, k: number): number {
   return 1 - step(0.5, abs(n - k))
 }
 // One bar of a digit, drawn on whole pixels so its edges are hard and every bar is the same thickness: px is the
-// pixel, a and b the ends of its centre line in the room's units, k the pixels a unit, t its thickness in pixels.
+// pixel, a and b the ends of its center line in the room's units, k the pixels a unit, t its thickness in pixels.
 function bar(px: vec2, a: vec2, b: vec2, k: number, t: number): number {
   let lo = vec2(floor(a * k + 0.5) - vec2(floor(t * 0.5)))
   let hi = vec2(floor(b * k + 0.5) - vec2(floor(t * 0.5)) + vec2(t))
@@ -97,7 +96,7 @@ function pic(uv: vec2): vec4 {
   let now_clock = state.at(vec2(8, 0)).x
   let s = max(size.x / 1600, size.y / 1000)
   let at = vec2(vec2(800 + (uv.x - 0.5) * size.x / s, 500 + (0.5 - uv.y) * size.y / s))
-  // Computed dusk, laid first so every light below goes over it. Each point keeps m of its lit colour and takes dc,
+  // Computed dusk, laid first so every light below goes over it. Each point keeps m of its lit color and takes dc,
   // the dusk's own blue ambient; m rises down the wall, falls toward the camera on the floor, and is set by region for
   // the furniture. The bulb's output falls as v_light squared and glows warm part way. The television's halo is added
   // back, and the window's sky, the two screens and the power lights stay out of the darkening.
@@ -171,7 +170,7 @@ function pic(uv: vec2): vec4 {
   m = m * (1 - 0.6 * clamp(dot(vl, vl) - 0.3, 0, 0.75))
   }
   if (at.x > 955.0) {
-  // The things the television lights keep more of their lit colour (their own edges and grain) and take its light
+  // The things the television lights keep more of their lit color (their own edges and grain) and take its light
   // (tvl), by v_tv, over a darker ambient than the wall's, vec3(0.0, 0.01, 0.035).
   if (at.x < 1425.0) {
   if (at.y < 616.0) {
@@ -305,7 +304,7 @@ function pic(uv: vec2): vec4 {
   // picture, a slow tracking band.
   // Tape: a night rooftop on a played tape, laid under the television's own cover so the tube collapse and the dark
   // glass still hide it. Opaque inside the rounded glass while the tape plays. Positions here are the picture's own,
-  // tu: the glass centre is 0, its top edge 1, x to the right and y up. The room's glass is 141 by 106 with corners of
+  // tu: the glass center is 0, its top edge 1, x to the right and y up. The room's glass is 141 by 106 with corners of
   // 9 and a lip 3 wider round it with corners of 11 (scene/parts/tv.ts); the lip is lit blue there, so this covers it
   // too and paints it the dark green the tape's light would leave on it. It goes under acc, so the first picture laid
   // under wins: keep this before the console's picture, and lay that under acc too, so the tape wins over the console.
@@ -739,4 +738,3 @@ export default shader({
   fps: 30,
   passes: [state, picture((p: Pixel) => pic(p.uv))],
 })
-// spellchecker:on

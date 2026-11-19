@@ -73,8 +73,16 @@ export type State = {
   lava: boolean
   /** plain: posters with no real person in them, the only kind drawn. */
   posters: 'plain'
-  /** Titles written in the room: the console game's on the screen, the tape's on its spine. */
-  titles?: { console?: string; tape?: string }
+  /** Titles written in the room. Absent, the made-up defaults show. */
+  titles?: Titles
+}
+
+/** The titles written in the room, kept on this machine only: the console game's on the screen, the tape's on its spine, and the pennant's two lines. */
+export type Titles = { console?: string; tape?: string; pennant?: string; 'pennant-top'?: string }
+
+/** Text made safe to write inside an SVG element or attribute. */
+export function esc(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 export const DEFAULT_STATE: State = { tv: true, tape: false, console: false, pc: true, light: false, lamp: false, lava: false, posters: 'plain' }

@@ -1,4 +1,4 @@
-import { VP, f, pts, unit, type Part, type State } from '../lib.ts'
+import { VP, esc, f, pts, unit, type Part, type State } from '../lib.ts'
 
 type Stop = readonly [number, string, number?]
 type Pt = readonly [number, number]
@@ -503,7 +503,6 @@ export function part(state: State): Part {
   if (state.lava) over += E(1376, 528, 15, 32, '#a85cff', `${o(0.24 * (L ? 0.6 : 1))} filter="url(#tv-bf)"`)
 
   const z = (s: string): string => s.replace(/(^|[^\d.])0\.(?=\d)/g, '$1.')
-  const esc = (t: string): string => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const name = esc(state.titles?.console ?? 'FAR MERIDIAN')
   const fit = name.length > 13 ? ' textLength="82" lengthAdjust="spacingAndGlyphs"' : ''
   const title = `<g font-family="Bahnschrift, Eurostile, 'Segoe UI', sans-serif" font-weight="300" font-stretch="expanded" font-size="7" letter-spacing="2.2" text-anchor="middle"><text x="1209.1" y="482.5"${fit} fill="#7f9dff" opacity=".55" filter="url(#tv-tg)">${name}</text><text x="1209.1" y="482.5"${fit} fill="#e4ebff">${name}</text></g>`
@@ -511,7 +510,7 @@ export function part(state: State): Part {
     style: z(style),
     defs: z(defs) + `<filter id="tv-tg" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="1.2"/></filter>`,
     under: z(under),
-    body: z(body).replace('@TITLE@', title).replace('@TAPE@', esc(state.titles?.tape ?? 'ROOFTOP')),
+    body: z(body).replace('@TITLE@', () => title).replace('@TAPE@', () => esc(state.titles?.tape ?? 'ROOFTOP')),
     over: z(over),
   }
 }

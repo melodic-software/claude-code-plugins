@@ -1,17 +1,36 @@
 import type { Register, ThemeSetArgs } from 'claude-code'
 
-import { makeColors } from './make-colors.js'
+import { makeColors } from '../make-colors.js'
 import { bedroomSvg } from './scene.ts'
-import { DEFAULT_STATE, HITS, type State } from './scene/lib.ts'
+import { DEFAULT_STATE, HITS, type State, type Titles } from './scene/lib.ts'
 
 const SCENE = 'bedroom'
+/** The key the bedroom's settings are stored under in the themes plugin's store, named for the theme so another theme's cannot collide. */
+const STORE_KEY = 'bedroom:saved'
 const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as const
 type Switch = (typeof SWITCHES)[number]
 
 /** What is saved across sessions: the switches, how far back the room sits, and the window's shape for clicks. */
 type Saved = { state: State; dim: number; aspect: number; glass: number; blur: number; titles: Titles }
-/** The titles written in the room, kept on this machine only: the console game's and the tape's. Absent, the made-up defaults show. */
-type Titles = { console?: string; tape?: string }
+
+/** The longest title each place in the room holds. The pennant's lines are capped at what its taper fits at the drawn size. */
+export const TITLE_CAPS = { console: 24, tape: 24, pennant: 12, 'pennant-top': 16 } as const
+type TitleKey = keyof typeof TITLE_CAPS
+const TITLE_KEYS = Object.keys(TITLE_CAPS) as TitleKey[]
+
+/** The titles after /bedroom title KEY TEXT: TEXT capped to fit (the pennant's in capitals, as it is lettered); no TEXT puts the default back. */
+export function withTitle(titles: Titles, key: TitleKey, text: string): Titles {
+  const next = { ...titles }
+  const trimmed = text.trim()
+
+  if (trimmed === '') {
+    delete next[key]
+  } else {
+    next[key] = (key.startsWith('pennant') ? trimmed.toUpperCase() : trimmed).slice(0, TITLE_CAPS[key])
+  }
+
+  return next
+}
 
 const DEFAULT_ASPECT = 2000 / 1062
 const CALIBRATION_POINT = { x: 1110, y: 906 }
@@ -25,25 +44,18 @@ let isInstant = true
 /** What /bedroom stats reports. The times are this module's own: the app's drawing time cannot be read from a mod. */
 const stats = { renders: 0, roomSends: 0, valueOnly: 0, buildMs: 0, maxBuildMs: 0, askMs: 0, chars: 0 }
 let askedAt: number | undefined
+/** The build /bedroom stats names, so a tester can tell which one the app loaded. */
 const BUILD = 'wave1-nocursor-36'
-const IS_DUSK_COMPUTED = true
-const INSTANT = IS_DUSK_COMPUTED ? ['tv', 'lava', 'pc', 'lamp', 'tape', 'console', 'light'] : ['tv', 'lava', 'pc', 'lamp', 'tape', 'console']
+/** The switches the shader answers by itself in instant mode: every one, since the shader computes the dusk light. */
+const INSTANT: readonly string[] = SWITCHES
 let sent: Record<string, number> = {}
+/** False after a render that drew the room without the shader: a shader started again takes its switches from `sent`, so the next one re-seeds it. */
+let isShaderSeeded = false
 const sendAll = (): void => {
   sent = Object.fromEntries(SWITCHES.map(name => [name, saved.state[name] ? 1 : 0]))
 }
 
 sendAll()
-/** The last things that happened, newest last, written to telemetry.json in the mod's folder. */
-const events: string[] = []
-let lastCause = 'load'
-
-function note(line: string): void {
-  events.push(`${new Date().toISOString()} ${line}`)
-  if (events.length > 200) {
-    events.shift()
-  }
-}
 let lastSource = ''
 const SETTLE_MS = 7000
 let holdShaderUntil = 0
@@ -82,15 +94,21 @@ export function toViewBox(x: number, y: number, aspect: number): { x: number; y:
   return { x: 800 + (x - 0.5) * width, y: 500 + (y - 0.5) * height }
 }
 
-/** The thing a viewBox point lands on, if any. */
-export function hitAt(x: number, y: number): string | undefined {
-  for (const [name, [left, top, width, height]] of Object.entries(HITS)) {
-    if (x >= left && x <= left + width && y >= top && y <= top + height) {
-      return name
-    }
-  }
+/** Every thing a viewBox point lands on: the shader flips each switch whose rectangle holds a click, so where rectangles overlap a click lands on more than one. */
+export function hitsAt(x: number, y: number): string[] {
+  return Object.entries(HITS)
+    .filter(([, [left, top, width, height]]) => x >= left && x <= left + width && y >= top && y <= top + height)
+    .map(([name]) => name)
+}
 
-  return undefined
+/** The first thing a viewBox point lands on, if any. */
+export function hitAt(x: number, y: number): string | undefined {
+  return hitsAt(x, y)[0]
+}
+
+/** The switches a viewBox point flips, as the shader flips them: the tape's spine is the tape. */
+export function switchesAt(x: number, y: number): string[] {
+  return [...new Set(hitsAt(x, y).map(name => (name === 'spine' ? 'tape' : name)))]
 }
 
 /** The minute of the half day, 0 to 719, by the computer's own local time: what the VCR clock shows. */
@@ -111,9 +129,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'bedroom',
-      description: 'The bedroom theme: tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title, instant, stats, calibrate, reset, off',
+      description: 'The bedroom theme of the themes plugin: tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, off',
     })
-    const stored = (await $.store.get('saved')) as Partial<Saved> | undefined
+    const stored = (await $.store.get(STORE_KEY)) as Partial<Saved> | undefined
 
     if (stored !== undefined) {
       saved = {
@@ -132,18 +150,14 @@ export const register: Register = on => {
       $.ui.toast(unpainted)
     }
     const set = await $.theme.set(look())
-
-    note(`loaded build ${BUILD}: ${set.isDrawn ? 'drawn' : `not drawn, ${set.reason}`}; local time ${new Date().toTimeString()}`)
     const tick = (): void => {
       $.clock.after(60_050 - (Date.now() % 60_000), () => {
-        lastCause = 'the minute turning'
         $.ui.invalidate('ui.render')
         tick()
       })
     }
 
     tick()
-    void $.fs.write(`${$.plugin.root}/telemetry.json`, JSON.stringify({ build: BUILD, stats, events }, null, 1)).catch(() => undefined)
     if (!set.isDrawn) {
       $.ui.toast(`bedroom is not drawn: ${set.reason}`)
     }
@@ -158,7 +172,7 @@ export const register: Register = on => {
     const { Shader, Svg } = $.ui.resolve(e)
     const startedAt = performance.now()
     const source = isInstant
-      ? bedroomSvg({ ...saved.state, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: IS_DUSK_COMPUTED ? true : saved.state.light, titles: saved.titles }, saved.dim)
+      ? bedroomSvg({ ...saved.state, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: true, titles: saved.titles }, saved.dim)
       : bedroomSvg({ ...saved.state, titles: saved.titles }, saved.dim)
     const buildMs = performance.now() - startedAt
 
@@ -170,27 +184,29 @@ export const register: Register = on => {
       stats.askMs = startedAt - askedAt
       askedAt = undefined
     }
-    note(`render ${stats.renders} after ${lastCause}: ${source === lastSource ? 'numbers only' : 'ROOM SENT'}, asked after ${stats.askMs.toFixed(0)} ms, built in ${buildMs.toFixed(1)} ms, instant ${isInstant ? 'on' : 'off'}, state ${JSON.stringify(saved.state)}`)
     if (source === lastSource) {
       stats.valueOnly += 1
     } else {
       stats.roomSends += 1
       if (isInstant) {
         holdShaderUntil = performance.now() + SETTLE_MS
-        note(`room changed while the shader ran: drawing the room alone for ${SETTLE_MS} ms`)
         $.clock.after(SETTLE_MS + 200, () => {
-          lastCause = 'the room settling'
           $.ui.invalidate('ui.render')
         })
       }
       lastSource = source
     }
-    void $.fs.write(`${$.plugin.root}/telemetry.json`, JSON.stringify({ build: BUILD, stats, events }, null, 1)).catch(() => undefined)
     $.ui.log(`bedroom render ${stats.renders}: asked after ${stats.askMs.toFixed(1)} ms, built in ${buildMs.toFixed(1)} ms, ${source.length} chars, room sent ${stats.roomSends} times`, { to: 'debug' })
     const svg = <Svg source={source} alt="A teenager's bedroom in the country just after sunset" isInteractive />
 
     if (!isInstant || performance.now() < holdShaderUntil) {
+      isShaderSeeded = false
+
       return svg
+    }
+    if (!isShaderSeeded) {
+      sendAll()
+      isShaderSeeded = true
     }
 
     return (
@@ -201,7 +217,6 @@ export const register: Register = on => {
   })
 
   on('ui.pointer', async ($, e, next) => {
-    try {
     if (e.scene !== SCENE) {
       return next(e)
     }
@@ -214,49 +229,38 @@ export const register: Register = on => {
       const aspect = width < 1590 ? width / 1000 : height < 990 ? 1600 / height : 1.6
 
       saved = { ...saved, aspect: Math.min(4, Math.max(0.5, aspect)) }
-      await $.store.set('saved', saved)
+      await $.store.set(STORE_KEY, saved)
       $.ui.toast(`bedroom: clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
 
       return {}
     }
     const point = toViewBox(e.x, e.y, saved.aspect)
-    const struck = hitAt(point.x, point.y)
-    const name = struck === 'spine' ? 'tape' : struck
+    const names = switchesAt(point.x, point.y)
 
-    lastCause = `click at ${e.x.toFixed(3)},${e.y.toFixed(3)} (room ${point.x.toFixed(0)},${point.y.toFixed(0)}) on ${name ?? 'nothing'}${name !== undefined && !INSTANT.includes(name) && name !== 'cat' ? ', which sends the room' : ''}`
-    note(lastCause)
-
-    if (name === undefined) {
+    if (names.length === 0) {
       return next(e)
     }
-    if (name === 'cat') {
+    if (names.includes('cat')) {
       $.ui.toast('the cat purrs')
 
       return {}
     }
-    const key = name as Switch
-
-    saved = { ...saved, state: { ...saved.state, [key]: !saved.state[key] } }
-    note(`${key} is now ${saved.state[key] ? 'on' : 'off'}`)
-    if (!(isInstant && INSTANT.includes(key))) {
-      sent = { ...sent, [key]: saved.state[key] ? 1 : 0 }
-      askedAt = performance.now()
-      $.ui.invalidate('ui.render')
+    for (const key of names as Switch[]) {
+      saved = { ...saved, state: { ...saved.state, [key]: !saved.state[key] } }
+      if (!(isInstant && INSTANT.includes(key))) {
+        sent = { ...sent, [key]: saved.state[key] ? 1 : 0 }
+        askedAt = performance.now()
+        $.ui.invalidate('ui.render')
+      }
     }
-    void $.store.set('saved', saved).catch(() => undefined)
+    void $.store.set(STORE_KEY, saved).catch(() => undefined)
 
     return {}
-    } finally {
-      void $.fs.write(`${$.plugin.root}/telemetry.json`, JSON.stringify({ build: BUILD, stats, events }, null, 1)).catch(() => undefined)
-    }
   })
 
   on('command.run', { command: 'bedroom' }, async ($, e) => {
     const [word = '', value = ''] = e.args.trim().toLowerCase().split(/ +/)
     const rest = e.args.trim().split(/ +/).slice(2).join(' ')
-
-    lastCause = `/bedroom ${word} ${value}`.trim()
-    note(lastCause)
 
     if (word === '') {
       return { text: describe() }
@@ -286,28 +290,24 @@ export const register: Register = on => {
         return { text: `give a number from 0 to ${most}, as in /bedroom ${word} ${word === 'glass' ? 30 : 4}. glass is how solid the panels over the room are (now ${Math.round(saved.glass * 100)}); blur is how much they blur it (now ${saved.blur})` }
       }
       saved = word === 'glass' ? { ...saved, glass: amount / 100 } : { ...saved, blur: amount }
-      await $.store.set('saved', saved)
+      await $.store.set(STORE_KEY, saved)
       const set = await $.theme.set(look())
 
       return { text: set.isDrawn ? `glass ${Math.round(saved.glass * 100)}, blur ${saved.blur}` : `not drawn: ${set.reason}` }
     }
     if (word === 'title') {
-      if (value !== 'console' && value !== 'tape') {
-        return { text: `say which: /bedroom title console <text> or /bedroom title tape <text>; with no text it goes back to the default. Now: console "${saved.titles.console ?? 'default'}", tape "${saved.titles.tape ?? 'default'}"` }
+      if (!(TITLE_KEYS as string[]).includes(value)) {
+        return { text: `say which: /bedroom title console|tape|pennant|pennant-top <text>; with no text it goes back to the default. Now: ${TITLE_KEYS.map(key => `${key} "${saved.titles[key] ?? 'default'}"`).join(', ')}` }
       }
-      const titles = { ...saved.titles }
+      const key = value as TitleKey
+      const titles = withTitle(saved.titles, key, rest)
 
-      if (rest === '') {
-        delete titles[value]
-      } else {
-        titles[value] = rest.slice(0, 24)
-      }
       saved = { ...saved, titles }
       askedAt = performance.now()
       $.ui.invalidate('ui.render')
-      await $.store.set('saved', saved)
+      await $.store.set(STORE_KEY, saved)
 
-      return { text: `the ${value}'s title is ${rest === '' ? 'the default' : `"${titles[value]}"`}; this sends the room once` }
+      return { text: `the ${key} title is ${titles[key] === undefined ? 'the default' : `"${titles[key]}"`}; this sends the room once` }
     }
     if (word === 'stats') {
       return {
@@ -350,11 +350,11 @@ export const register: Register = on => {
         $.ui.invalidate('ui.render')
       })
     } else {
-      return { text: `no such setting. The switches are ${SWITCHES.join(', ')}; also posters, dim, glass, blur, title, instant, stats, calibrate, reset, on, off` }
+      return { text: `no such setting. The switches are ${SWITCHES.join(', ')}; also posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off` }
     }
     askedAt = performance.now()
     $.ui.invalidate('ui.render')
-    await $.store.set('saved', saved)
+    await $.store.set(STORE_KEY, saved)
 
     return { text: describe() }
   })

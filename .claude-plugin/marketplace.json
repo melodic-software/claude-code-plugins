@@ -1770,8 +1770,8 @@
       ]
     },
     {
-      "name": "bedroom",
-      "source": "./plugins/bedroom",
+      "name": "themes",
+      "source": "./plugins/themes",
       "defaultEnabled": false,
       "category": "claude-code",
       "tags": [
