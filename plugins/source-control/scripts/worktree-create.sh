@@ -1277,10 +1277,6 @@ else
   esac
 fi
 
-# --no-track on fresh: the base is <remote>/<default>, and git would otherwise
-# record it as the new branch's upstream, so a bare `git push` fails under
-# push.default=simple and push-branch.sh, which sets -u only when no upstream
-# exists, keeps the wrong one. head stays as it was.
 checkout_rev="${base_commit:-}"
 ((branch_exists)) && checkout_rev="refs/heads/$branch"
 checkout_env=()
@@ -1290,6 +1286,11 @@ if git -C "$toplevel" grep -q -E -e '^[^#]*[[:space:]]filter=lfs([[:space:]]|$)'
   lfs_skipped=1
 fi
 
+# --no-track on fresh: the base is <remote>/<default>, and git would otherwise
+# record it as the new branch's upstream, so a bare `git push` fails under
+# push.default=simple and push-branch.sh, which sets -u only when no upstream
+# exists, keeps the wrong one. head stays as it was. push.default:
+# https://git-scm.com/docs/git-config#Documentation/git-config.txt-pushdefault
 if ((branch_exists)); then
   env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
 elif [[ "$base_ref" == fresh ]]; then
