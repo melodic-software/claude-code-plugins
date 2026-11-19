@@ -1243,7 +1243,7 @@ const localTime = (iso) => {
 };
 /** The one question that covers every recorded file, or null when no file has a record to restore. */
 function resetQuestion(rows) {
-  const n = rows.filter((r) => RESTORES.includes(r.action)).length;
+  const n = rows.filter((r) => RESTORES.includes(r.action) || r.newer).length;
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
@@ -1260,8 +1260,11 @@ const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) =
 /** The records a moved record's row folds in, oldest first, as the preview and the result name them. */
 const foldedIn = (later) => `the ${later.length === 1 ? "record" : "records"} of ${list(later.map((e) => `${e.settingsFile} (profile ${e.record.profile})`))}`;
 
-/** One file's row in the reset preview: what reset does to it and the lines that say so. later holds the records of a moved record's file, oldest first, folded into its row. */
-function resetRow(where, f, later = []) {
+/**
+ * One file's row in the reset preview: what reset does to it and the lines that say so. For a moved record's file, later holds the
+ * other moved records, oldest first, and newer the row of the record at the file's new place; both fold into this row.
+ */
+function resetRow(where, f, later = [], newer = null) {
   const file = f.settingsFile;
   const rec = f.record;
   const row = { file, recorded: Boolean(rec) && !f.adopted, adopted: f.adopted, unfinished: rec?.phase === "off-pending", overwrites: [], found: f };
@@ -1294,21 +1297,28 @@ function resetRow(where, f, later = []) {
   if (f.missing) {
     const kept = skip("folder not found; record kept", [`${file}: folder not found; record kept.`]);
     if (!f.movedTo) return kept;
+    const now = dirname(dirname(f.movedTo));
+    if (newer && !RESTORES.includes(newer.action)) {
+      return { ...kept, lines: [`${file}: folder not found; record kept. The repository is now at ${now}, where ${f.movedTo} is listed with its own record; once that record is put back, a later reset offers the file from this one.`] };
+    }
+    const folds = newer ? [...later, newer.found] : later;
     try {
-      const movedPlan = clearPlan(f.movedTo, { found: f.recordPath, record: { ...later.reduce((acc, e) => foldRecords(acc, e.record), rec), settingsFile: f.movedTo } });
-      const now = dirname(dirname(f.movedTo));
-      const folding = later.length ? `, folding in ${foldedIn(later)}` : "";
-      const one = later.length === 1;
+      const movedPlan = clearPlan(f.movedTo, { found: f.recordPath, record: { ...folds.reduce((acc, e) => foldRecords(acc, e.record), rec), settingsFile: f.movedTo } });
+      const folding = folds.length ? `, folding in ${foldedIn(folds)}` : "";
+      const one = folds.length === 1;
+      const older = [f, ...later];
       return {
         ...kept,
         movedTo: f.movedTo,
         movedPlan,
-        folds: later,
+        folds,
+        newer,
         overwrites: overwritesOf(movedPlan),
         ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record${folding}?`),
         lines: [
           `${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`,
-          ...(later.length ? [`  ${one ? `Profile ${later[0].record.profile} was applied there since` : "Profiles were applied since"}; reset folds in ${foldedIn(later)}, so the file goes back to what it held before the first apply, and removes ${one ? "both records" : "every record"}.`] : []),
+          ...(folds.length ? [`  ${one ? `Profile ${folds[0].record.profile} was applied there since` : "Profiles were applied since"}; reset folds in ${foldedIn(folds)}, so the file goes back to what it held before the first apply, and removes ${one ? "both records" : "every record"}.`] : []),
+          ...(newer ? [`  Without a yes for it, the one yes puts back only what profile ${newer.found.record.profile} changed in ${f.movedTo} and keeps ${foldedIn(older)} for a later reset; a no leaves the file and every record.`] : []),
           ...overwriteLines(movedPlan),
         ],
       };
@@ -1407,8 +1417,15 @@ function resetOne(row, { chosen, kept, keepRecorded }) {
     const result = guarded(() => clearWrite(row.movedPlan, dropAll),`Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile})${folding}.`);
     return { ...result, restored: result.ok, leaves: result.ok ? leaves(row.movedPlan, row.movedTo) : undefined };
   }
-  const keptRecord = row.movedTo ? `, and the record of ${file} is kept` : row.action === "finish-cut-off" ? ", and its record is kept" : "";
-  if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${keptRecord}.`, ok: true };
+  const keeps = (entries) => `${foldedIn(entries)} ${entries.length === 1 ? "is" : "are"} kept`;
+  if (row.newer && !no && !keepRecorded) {
+    const older = [f, ...row.folds.slice(0, -1)];
+    const result = resetOne(row.newer, { chosen, kept });
+    const capital = keeps(older).replace(/^t/, "T");
+    return { ...result, line: `${result.line} ${capital}, so a later reset offers to put ${row.movedTo} back to before the first apply.`, files: [row.movedTo] };
+  }
+  const keptRecord = row.movedTo ? `, and ${keeps([f, ...row.folds])}` : row.action === "finish-cut-off" ? ", and its record is kept" : "";
+  if (no || (keepRecorded && row.newer)) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${keptRecord}.`, ok: true };
   if (keepRecorded && RESTORES.includes(row.action)) return { line: `Skipped ${file}: you answered no, so it is left as it is${f.adopted ? "" : ", and its record is kept"}.`, ok: true };
   if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
   if (row.action === "skip" || (row.ask && !yes)) return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
@@ -1486,11 +1503,13 @@ async function reset(opts, where, env, io) {
     files.filter((f) => f.record && f.missing && f.movedTo && !f.ignored && !f.adopted && resetWrites(where, f.settingsFile)).sort((a, b) => String(a.record.appliedAt).localeCompare(String(b.record.appliedAt))),
     (f) => realPath(f.movedTo),
   );
-  const laterOf = (f) => {
+  const rowOf = (f) => {
     const [oldest, ...rest] = movedFrom.get(realPath(f.movedTo ?? "")) ?? [];
-    return oldest === f ? [...rest, recorded.get(realPath(f.movedTo))].filter(Boolean) : [];
+    if (oldest !== f) return resetRow(where, f);
+    const newer = recorded.get(realPath(f.movedTo));
+    return resetRow(where, f, rest, newer && resetRow(where, newer));
   };
-  const all = files.map((f) => resetRow(where, f, laterOf(f)));
+  const all = files.map(rowOf);
   const moved = new Set(all.filter((r) => r.movedTo).map((r) => realPath(r.movedTo)));
   const folded = new Set(all.flatMap((r) => r.folds ?? []));
   const shown = all.filter((r) => !folded.has(r.found) && !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
@@ -1509,7 +1528,7 @@ async function reset(opts, where, env, io) {
   ];
   const question = resetQuestion(rows);
   if (opts.json && opts.dryRun) {
-    const folders = rows.map(({ found, plan, movedPlan, settings, folds, ...r }) => r);
+    const folders = rows.map(({ found, plan, movedPlan, settings, folds, newer, ...r }) => r);
     io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, unchangedSinceReset: unchanged, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
@@ -1558,7 +1577,7 @@ async function reset(opts, where, env, io) {
     }
     say(result.line);
     if (!result.ok) failed = true;
-    if (result.restored) for (const restored of [row.file, ...(row.folds ?? []).map((e) => e.settingsFile)]) done.add(realPath(restored));
+    if (result.restored) for (const restored of result.files ?? [row.file, ...(row.folds ?? []).map((e) => e.settingsFile)]) done.add(realPath(restored));
     if (result.leaves) noteLeft(where, result.leaves);
   }
   for (const home of new Set(homes.map(realPath))) forgetStaleRestored(home, (file) => hashOf(readText(file)));

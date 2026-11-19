@@ -2787,6 +2787,42 @@ test("#17354: a moved repository with a profile applied at its new place is one 
   assert.deepEqual(readdirSync(records), []);
 });
 
+test("#17354: a moved repository with a profile applied at its new place, given --yes and no answer for it, puts back the newer profile under the one yes, keeps the older record, and the next reset offers the file from it", () => {
+  for (const cut of [null, "before the write", "after the write"]) {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const old = rootLocal(w.project);
+    const moved = join(w.root, "repo-now");
+    renameSync(w.project, moved);
+    knowFolders(w, moved);
+    const movedFile = rootLocal(moved);
+    const buildLeft = readFileSync(movedFile, "utf8");
+    assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const records = join(moved, ".git", "plugin-profiles", "records");
+    const olderName = `${sha(old)}.json`;
+    const newerPath = join(records, `${sha(movedFile)}.json`);
+    if (cut) {
+      const rec = JSON.parse(readFileSync(newerPath, "utf8"));
+      writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(buildLeft), fromHash: sha(readFileSync(movedFile, "utf8")) }, null, 2)}\n`);
+      if (cut === "after the write") writeFileSync(movedFile, buildLeft);
+    }
+    const preview = resetJson(w);
+    assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record are not covered: each gets its own question.", `cut ${cut}`);
+    const r = reset(w, ["--yes"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const done = cut === "after the write" ? `Finished an earlier reset of ${movedFile}: its record is removed.` : `Restored ${movedFile} (profile review).`;
+    assert.deepEqual(resultLines(r.stdout), [`${done} The record of ${old} (profile build) is kept, so a later reset offers to put ${movedFile} back to before the first apply.`], `cut ${cut}`);
+    assert.equal(readFileSync(movedFile, "utf8"), buildLeft, `cut ${cut}`);
+    assert.deepEqual(readdirSync(records), [olderName], `cut ${cut}`);
+    const next = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+    assert.equal(next.status, 0, next.stdout + next.stderr);
+    assert.deepEqual(resultLines(next.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
+    assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE, `cut ${cut}`);
+    assert.deepEqual(readdirSync(records), []);
+  }
+});
+
 test("#17354: a repository moved twice, with a profile applied at each place, is one row folding every record oldest first, and its yes puts back the file before the first apply", () => {
   const w = world();
   gitInit(w);
