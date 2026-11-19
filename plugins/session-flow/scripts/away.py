@@ -359,6 +359,11 @@ def redact(text: str, limit: int = DETAIL_LIMIT) -> str:
     return excerpt if excerpt is not None else WITHHELD
 
 
+def one_line(value: object) -> str:
+    """A name from outside (a file name, an agent label) as one report line: control characters escaped."""
+    return re.sub(r"[\x00-\x1f\x7f]", lambda match: f"\\x{ord(match.group()):02x}", str(value))
+
+
 def clean(value: object, limit: int = FIELD_LIMIT) -> str | None:
     """A caller-supplied name or reason, redacted and capped before it is stored or shown."""
     return None if value is None else redact(str(value), limit)
@@ -863,7 +868,8 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
         scan = scan_transcripts(transcript, started)
         append_refusals(paths, scan.denials, unless_seen="tool_use_id")
         externals = [
-            f"- {use.ts} {use.agent}: {use.name if use.name.startswith('mcp__') else describe_tool(use.name, use.input)}"
+            f"- {one_line(use.ts)} {one_line(use.agent)}: "
+            f"{one_line(use.name) if use.name.startswith('mcp__') else describe_tool(use.name, use.input)}"
             for use in scan.uses
             if is_external(use)
         ]
@@ -892,7 +898,7 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
         f"Watched: {', '.join(watched)}, without dot folders or git repositories; scanned in {seconds:.1f} s.",
         "",
     ]
-    file_lines += _limited([f"- {path}" for path in scan.files], FILES_LIMIT) or ["None."]
+    file_lines += _limited([f"- {one_line(path)}" for path in scan.files], FILES_LIMIT) or ["None."]
     if not scan.complete:
         file_lines.append(f"- Scan stopped after {SCAN_BUDGET_SECONDS:g} s; the list is incomplete.")
     write_blocks(state, {"files": file_lines})
@@ -1048,6 +1054,12 @@ def on_stop(hook: Hook) -> dict | None:
         return warn, state.get("last_block_digest")
 
     warn, last_digest = update_state(paths, first_look)
+    if warn and mode == "bypassPermissions":
+        return _block(
+            "Away mode: this session's permission mode is bypassPermissions, where almost nothing prompts, "
+            "so the away hooks refuse almost nothing and actions run unreviewed. Tell the person now, before "
+            "they leave, and offer to continue in auto mode. Then carry on."
+        )
     if warn:
         return _block(
             f"Away mode: this session's permission mode is {mode}, not auto, so every action that would "
@@ -1119,12 +1131,17 @@ def hook_state(env: Mapping[str, str], session: str) -> tuple[Paths, dict] | Non
     a hook refuse."""
     roots = [data_root(env, DEFAULT_PLUGIN_ROOT)]
     if not env.get("CLAUDE_PLUGIN_DATA"):
-        roots += sorted((config_dir(env) / "plugins" / "data").glob(f"{plugin_paths.PLUGIN_NAME}*"))
+        name = plugin_paths.PLUGIN_NAME
+        found = (config_dir(env) / "plugins" / "data").glob(f"{name}*")
+        roots += sorted(p for p in found if p.is_dir() and (p.name == name or p.name.startswith(f"{name}-")))
     for root in roots:
         if root is None:
             continue
         paths = session_paths(root, session, DEFAULT_PLUGIN_ROOT)
-        state = read_state(paths)
+        try:
+            state = read_state(paths)
+        except (OSError, ValueError):
+            continue
         if state is not None:
             return paths, state
     return None

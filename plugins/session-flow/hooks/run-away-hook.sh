@@ -3,7 +3,11 @@ set -uo pipefail
 
 EVENT="${1:-}"
 [[ -n "$EVENT" ]] || exit 0
-[[ -z "${CLAUDE_PLUGIN_DATA:-}" || -d "$CLAUDE_PLUGIN_DATA/away" ]] || exit 0
+DATA="${CLAUDE_PLUGIN_DATA:-}"
+case "${DATA##*/}" in
+  session-flow | session-flow-*) [[ -d "$DATA/away" ]] || exit 0 ;;
+  *) ;;
+esac
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 0
 

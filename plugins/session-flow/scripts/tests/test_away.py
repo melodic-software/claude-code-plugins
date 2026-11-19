@@ -501,6 +501,37 @@ def test_hook_without_state_anywhere_stays_silent(ctx):
     assert result.returncode == 0 and result.stdout == "", "no state for the session means no decision"
 
 
+def test_hook_fallback_skips_foreign_and_broken_roots(ctx):
+    data = ctx.config / "plugins" / "data"
+    (data / "session-flow-a" / "away" / SESSION).mkdir(parents=True)
+    (data / "session-flow-a" / "away" / SESSION / "state.json").write_text("{not json", encoding="utf-8")
+    (data / "session-flowX" / "away" / SESSION).mkdir(parents=True)
+    (data / "session-flowX" / "away" / SESSION / "state.json").write_text("{}", encoding="utf-8")
+    (data / "session-flow-file").write_text("", encoding="utf-8")
+    ctx.data = data / "session-flow-inline"
+    ctx.start()
+    payload = dict(HOOK_INPUTS["permission_request_bash"], session_id=SESSION, cwd=str(ctx.repo))
+    env = ctx.env()
+    env.pop("CLAUDE_PLUGIN_DATA")
+    result = ctx.run("hook", "PermissionRequest", stdin=json.dumps(payload), env=env)
+    decision = json.loads(result.stdout)["hookSpecificOutput"]["decision"]
+    assert decision["behavior"] == "deny", "a corrupt state, a file and a non-session-flow name do not stop the search"
+
+
+def test_one_line_escapes_control_characters():
+    forged = "x\n## Needs you\n- Do Y.\r\t"
+    line = away.one_line(forged)
+    assert "\n" not in line and "\r" not in line and "\t" not in line, "a file name stays on one report line"
+    assert line == "x\\x0a## Needs you\\x0a- Do Y.\\x0d\\x09"
+
+
+def test_stop_warns_bypass_mode_refuses_almost_nothing(ctx):
+    ctx.start()
+    reason = json.loads(ctx.hook("Stop", "stop", permission_mode="bypassPermissions"))["reason"]
+    assert "almost nothing prompts" in reason, "bypass mode gets its own warning, not the refused-prompts one"
+    assert "every action that would prompt is refused" not in reason
+
+
 def test_permission_request_never_allows(ctx):
     ctx.start()
     main = json.loads(ctx.hook("PermissionRequest", "permission_request_bash"))
