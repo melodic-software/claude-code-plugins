@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
 import { readRecord } from "../../scripts/lib/lane-outcome.mjs";
+import { MAX_LENGTH, readConflictRecord } from "../../scripts/lib/conflict-record.mjs";
 import { main } from "./report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -203,6 +204,31 @@ test("a record out of shape, of another lane, or not JSON writes no record line"
   ]) {
     const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: raw });
     assert.equal(calls[0].body.output.text, undefined, label);
+  }
+});
+
+const CONFLICT = { CONFLICT_BASE: "e".repeat(40), CONFLICT_PATHS: JSON.stringify(["docs/contract.md", "src/a b.mjs"]) };
+
+test("a conflict base and paths post a conflict record beside the lane record, each read back by its reader", async () => {
+  const { calls } = await run({ ...LIMIT, ...CONFLICT });
+  const { text } = calls[0].body.output;
+  assert.deepEqual(readConflictRecord(text), { base: "e".repeat(40), paths: ["docs/contract.md", "src/a b.mjs"] });
+  assert.deepEqual(readRecord(text), { ...OUTCOME, activity: "simplify" });
+  const alone = await run(CONFLICT);
+  assert.deepEqual(readConflictRecord(alone.calls[0].body.output.text), readConflictRecord(text));
+});
+
+test("a conflict base or paths missing or out of shape post no conflict record", async () => {
+  for (const env of [
+    { CONFLICT_BASE: "", CONFLICT_PATHS: CONFLICT.CONFLICT_PATHS },
+    { CONFLICT_BASE: "main", CONFLICT_PATHS: CONFLICT.CONFLICT_PATHS },
+    { CONFLICT_BASE: CONFLICT.CONFLICT_BASE, CONFLICT_PATHS: "" },
+    { CONFLICT_BASE: CONFLICT.CONFLICT_BASE, CONFLICT_PATHS: "[]" },
+    { CONFLICT_BASE: CONFLICT.CONFLICT_BASE, CONFLICT_PATHS: "not json" },
+    { CONFLICT_BASE: CONFLICT.CONFLICT_BASE, CONFLICT_PATHS: JSON.stringify(["x".repeat(MAX_LENGTH)]) },
+  ]) {
+    const { calls } = await run(env);
+    assert.equal(calls[0].body.output.text, undefined, JSON.stringify(env).slice(0, 120));
   }
 });
 

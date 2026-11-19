@@ -103,6 +103,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+import plugin_paths  # noqa: E402  (plugin_paths.py beside this script)
 from io_streams import utf8_streams  # noqa: E402  (io_streams.py beside this script)
 
 HANDOFF_SHAPE = 3
@@ -3150,42 +3151,13 @@ def _git_toplevel(start: Path) -> Path | None:
     return Path(top).resolve() if top else None
 
 
-def _plugin_data_root() -> Path | None:
-    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when its last path
-    segment names session-flow, else derived from this script's install path.
-    Bash-tool commands do not receive this plugin's value, so the derivation
-    is the normal case in a session (record: ``reference/structure.md``
-    "Verification record: plugin data dir"), and another plugin's SessionStart
-    hook can export its own data dir under that name, which is ignored.
-    An installed plugin runs from ``<config>/plugins/cache/<marketplace>/
-    <plugin>/<version>/``, and its data dir is ``<config>/plugins/data/<id>/``
-    where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
-    than a letter, digit, ``_`` or ``-`` replaced by ``-``. Any other layout
-    (``--plugin-dir``, a source checkout) has no derivable id: None.
-    Caveat: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
-    env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
-    segment = Path(env.rstrip("/\\")).name if env else ""
-    if segment == "session-flow" or segment.startswith("session-flow-"):
-        return Path(env).expanduser()
-    version_dir = _SCRIPTS_DIR.parent
-    plugin_dir = version_dir.parent
-    marketplace_dir = plugin_dir.parent
-    cache_dir = marketplace_dir.parent
-    if cache_dir.name != "cache" or cache_dir.parent.name != "plugins":
-        return None
-    plugin_id = re.sub(
-        r"[^A-Za-z0-9_-]", "-", f"{plugin_dir.name}@{marketplace_dir.name}"
-    )
-    return cache_dir.parent / "data" / plugin_id
-
-
 def _default_memory_dir() -> Path | None:
     """``.work`` under a git top level; ``<plugin data>/artifacts`` outside
     one. None when there is no project root and no plugin data dir to fall
     back to."""
     if _git_toplevel(Path.cwd()) is not None:
         return Path(".work")
-    data_root = _plugin_data_root()
+    data_root = plugin_paths.data_root(os.environ, _SCRIPTS_DIR.parent)
     return data_root / "artifacts" if data_root is not None else None
 
 

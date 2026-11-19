@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for check-all.sh.
-#
 # Coverage:
 #   - reads <output-dir>/registry-snapshot.tsv (header
 #     written to OUT regardless of input rows)
@@ -29,23 +27,13 @@ SCRIPT="$SCRIPT_DIR/check-all.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# Inline test helpers — self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_ne() { if [[ "$3" != "$2" ]]; then pass "$1"; else fail "$1" "different from: $2" "$3"; fi; }
-assert_exit() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi; }
-assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
-assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 assert_file_exists() { if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "file exists: $2" "absent"; fi; }
 
 # Build per-case CWD with snapshot.tsv + PATH-stub gh.

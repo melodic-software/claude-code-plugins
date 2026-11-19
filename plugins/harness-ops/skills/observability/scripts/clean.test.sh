@@ -30,19 +30,13 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s: expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 
 ROOT_REL=".observability/claude"
 OLD='{"ts":"2020-01-01T00:00:00Z","n":1}'

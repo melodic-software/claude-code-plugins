@@ -104,6 +104,11 @@ with Needs you, then run `away.py deliver`. Who counts as the person is in rules
 kept beside the state moves to the plugin data's `away-reports/` folder, so give the person that
 path when it differs from the one shown.
 
+A parked Needs-you item runs only once the person accepts it, by naming it or through
+`/session-flow:go-with-recommendations`; until then, answer the person and wait, ending each
+answer with the open Needs-you items and their `Recommendation:` lines, so that skill finds them in
+your latest message.
+
 ## Next
 
 /session-flow:go-with-recommendations on return, to accept the parked recommendations once the
