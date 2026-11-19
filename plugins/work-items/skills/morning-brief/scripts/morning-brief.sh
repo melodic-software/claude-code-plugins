@@ -2504,13 +2504,15 @@ print_lanes() {
         done
       else
         while IFS= read -r path; do
-          gh_read "$WORK/lane.wf" api -H 'Accept: application/vnd.github.raw' \
-            "repos/$REPO/contents/.github/workflows/$(urlencode "${path##*/}")" || {
+          if ! gh_read "$WORK/lane.wf" api -H 'Accept: application/vnd.github.raw' \
+            "repos/$REPO/contents/.github/workflows/$(urlencode "${path##*/}")"; then
+            [[ "$LAST_ERR" == *"HTTP 404"* ]] && continue
             unreadable lanes "workflow $path: $LAST_ERR"
             return
-          }
+          fi
           grep -Eq "$CLAUDE_ACTION_RE" "$WORK/lane.wf" && LANE_WORKFLOWS+=("${path##*/}")
-        done < <(jq -r -s '.[].workflows[]?.path | select(test("^\\.github/workflows/[^/]+\\.ya?ml$"))' "$WORK/lane.wfs")
+        done < <(jq -r -s '.[].workflows[]? | select(.state != "deleted") | .path
+          | select(test("^\\.github/workflows/[^/]+\\.ya?ml$"))' "$WORK/lane.wfs")
       fi
     fi
     ((${#LANE_WORKFLOWS[@]})) || {

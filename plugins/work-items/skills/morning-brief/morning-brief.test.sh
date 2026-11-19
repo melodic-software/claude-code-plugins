@@ -1062,6 +1062,10 @@ case "$mode" in
       cat "$f"
       exit 0
     fi
+    if [[ -f "${f%.json}.err" ]]; then
+      cat "${f%.json}.err" >&2
+      exit 1
+    fi
     printf '{"message":"Not Found","documentation_url":"https://example.invalid/docs"}\n'
     printf 'gh: Not Found (HTTP 404) — no fixture %s\n' "$key" >&2
     exit 1
@@ -1467,11 +1471,22 @@ assert_contains "lane_workflows unset: a workflow using claude-code-action is a 
 assert_contains "lane_workflows unset: a workflow using claude-code-base-action is a lane" "$LANES_DEFAULT" "pr-unblock.yml  runs=1"
 assert_not_contains "lane_workflows unset: a workflow with no Claude action is not a lane" "$LANES_DEFAULT" "ci.yml"
 assert_not_contains "lane_outcome_contract_ref unset: no contract line" "$LANES_DEFAULT" "lane-outcome record contract:"
-cp -R "$REST" "$TMP/rest-no-wf"
-rm -f "$TMP/rest-no-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
-LANES_NO_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-no-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
-assert_contains "lane_workflows unset: an unread workflow file is UNREADABLE" "$LANES_NO_WF" "UNREADABLE: workflow .github/workflows/ci.yml"
-assert_not_contains "lane_workflows unset: an unread workflow file is never 'none found'" "$LANES_NO_WF" "no lane workflows found"
+cp -R "$REST" "$TMP/rest-err-wf"
+rm -f "$TMP/rest-err-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
+printf 'gh: boom, the upstream fell over (HTTP 500)\n' >"$TMP/rest-err-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").err"
+LANES_ERR_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-err-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_contains "lane_workflows unset: a workflow file read that fails is UNREADABLE" "$LANES_ERR_WF" "UNREADABLE: workflow .github/workflows/ci.yml"
+assert_not_contains "lane_workflows unset: a failed workflow file read is never 'none found'" "$LANES_ERR_WF" "no lane workflows found"
+cp -R "$REST" "$TMP/rest-gone-wf"
+rm -f "$TMP/rest-gone-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
+cat >"$TMP/rest-gone-wf/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
+{"total_count": 5, "workflows": [{"path": ".github/workflows/intake-triage.yml", "state": "active"}, {"path": ".github/workflows/old.yml", "state": "deleted"}, {"path": ".github/workflows/ci.yml", "state": "active"}, {"path": ".github/workflows/pr-unblock.yml", "state": "active"}, {"path": ".github/workflows/pr-review-main.yml", "state": "active"}]}
+EOF
+LANES_GONE_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-gone-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_not_contains "lane_workflows unset: a workflow file that answers 404 is not UNREADABLE" "$LANES_GONE_WF" "UNREADABLE"
+assert_contains "lane_workflows unset: lanes are still read past a 404 and a deleted workflow" "$LANES_GONE_WF" "intake-triage.yml  runs=1"
+assert_contains "lane_workflows unset: a lane listed after the 404 is read" "$LANES_GONE_WF" "pr-unblock.yml  runs=1"
+assert_not_contains "lane_workflows unset: a deleted workflow is not a lane" "$LANES_GONE_WF" "old.yml"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'

@@ -15,9 +15,8 @@ bump: minor
   the record fields the brief reads. label_as_code_repo in
   docs/conventions/work-items.yaml names the repository that owns the
   tracker's labels. The plugin no longer ships an organization's lane
-  workflow list, lane-outcome links, label-as-code repository or account
-  tool link; this repository sets its own values in
-  docs/conventions/work-items.yaml.
+  workflow list, lane-outcome links or label-as-code repository; this
+  repository sets its own values in docs/conventions/work-items.yaml.
 
 ### Fixed
 
@@ -26,6 +25,12 @@ bump: minor
   capability-tier-labels.md and the schema run parse-concern-value.sh from
   <plugin-root>, as ai-disclaimer.md does. The morning brief's record field
   list names v and the credential fields it reads.
+
+- skip a workflow whose file is gone when the brief finds lanes
+
+  With lane_workflows unset, a workflow the Actions list names but whose
+  file is deleted or on another branch is not a lane; it no longer makes
+  the Lanes section UNREADABLE.
 
 - read label_as_code_repo wherever a declared label-as-code owner decides
 
