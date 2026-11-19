@@ -52,9 +52,11 @@ Choose the backend before anything else, by the first rule that answers: a `--ba
 argument; the board reference's shape (a Miro board URL is `miro`, a `.md` path is `markdown`);
 the `board_backend` option, which is `${user_config.board_backend}` here (empty, unexpanded or any
 other value counts as unset); else `markdown`. Say which backend runs and why in the first reply.
-For markdown, that reply calls it the default backend (for example `backend: markdown (default)`),
-names the `docs/event-storming` default board directory, and says the location is confirmed just
-before the first board write; it runs no command to find the directory.
+When the last rule chose markdown, that reply calls it the default backend (for example
+`backend: markdown (default)`); any other rule's reply names that rule as the reason. A markdown run
+that will write a new board names the `docs/event-storming` default board directory and says the
+location is confirmed just before the first board write. No markdown run runs a command to find
+the directory before its first reply.
 
 When the chosen backend's `check_available` fails, stop before any workshop phase: say what is
 missing and offer the two routes, making it available or rerunning with `--backend` set to the
