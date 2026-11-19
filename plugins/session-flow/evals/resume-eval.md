@@ -55,12 +55,19 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
 - `seed.predecessor`: generator parameters for `build_predecessor_chain` (hops, `target_bytes`,
   goal, vision, `injections` at their hops, the newest hop's `final` hot-section text).
   `injections[].visible_in_reads` states whether the seeded reads show the entry;
-  `seed_history` refuses a case where they disagree. `shape: 3` builds hot files and hop files
-  through `save_point.py fill` instead of the default shape 2; its injections target
+  `seed_history` refuses a case where they disagree. Each arm seeds with its own plugin copy's
+  `save_point.py` (`compact` and `free-hand` with the `before` copy's), in the shape that copy
+  writes unless the case names `shape`. `shape: 3` builds hot files and hop files through
+  `save_point.py fill`, and `target_bytes` steers the newest hot file's size; its injections target
   `amendment`, `trail`, `rules`, `open-questions` or `decisions`, and one with
   `retire: {hop, reason}` is retired at that hop through `fill`'s `retire` list. An id-section
   injection with `reuse: <injection id>` takes the id that injection held, which must be in the
-  same section and retired at an earlier hop.
+  same section and retired at an earlier hop. `expected_fail: [{hop, fail, arms?}]` states a
+  hop that must FAIL `validate` with every FAIL line matching the `fail` regex; the build
+  continues past it and stops when it validates or fails otherwise. An entry naming `arms`
+  holds only for those arms.
+- `task_relation`: `same` (the session continues the task, the compaction flow) or `boundary`
+  (a fresh session resumes from a handoff); `report --subset` selects one.
 - `seed.reads.pattern`: overrides the size-based read pattern (`whole`, `paged`, `partial`,
   `partial+constraints`).
 - `seed.history`: `after_reads` (the assistant turn after the reads) and `work` turns, in
@@ -118,10 +125,21 @@ env TMPDIR=<short-dir> python3 -I plugins/session-flow/scripts/harness/resume_ev
   --arm before --arm free-hand --arm compact --reader claude-code --reader codex \
   --copy before=<plugin-copy> --codex-model <codex-default-model> --runs 10 -j 4 --out <out-dir>
 python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
-  --graded <out-dir>/graded.jsonl --out <report-dir>
+  --graded <out-dir>/graded.jsonl [--graded <out-dir-2>/graded.jsonl] --out <report-dir> \
+  [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--subset same|boundary]
 ```
 
 `run` resumes: it skips runs already graded without error and stops after the first
-usage-limit exclusion, so the same command continues after a reset. Each arm and reader
-gets its own result file in plugin eval's schema. Compare two of them with
-`/evals:plugin-eval`'s `scripts/noise-report.py <after> --baseline <before> --margin 0.05`.
+usage-limit exclusion, so the same command continues after a reset. It exits 2 when an arm
+has no plugin copy to seed from or the session is worktree-isolated, 3 on the resource guard,
+4 on a usage limit, 5 when a case and arm's seed hash differs between runs, and 6 while
+infrastructure exclusions remain (re-run the same command).
+
+`report` writes one `<arm>.<reader>.json` per group in plugin eval's schema; with more than one
+`--graded`, groups are suffixed `@<n>` by file position, which makes an A/A pair. With
+`--baseline`, each group of the same reader also gets
+`pairs/<group>--vs--<baseline>/{<group>,<baseline>}.json`, scored only on the probes both arms
+grade. Compare a pair with `/evals:plugin-eval`'s
+`scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`, M set from an
+A/A pair of `before` runs. `report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with
+`--threshold`), `untagged:` or `seed mismatch:` line, and 2 on an unknown `--baseline`.
