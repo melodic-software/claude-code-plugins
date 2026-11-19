@@ -38,7 +38,11 @@ listed the repositories that hold records.
 4. **A record whose folder is gone is kept.** Reset never deletes it under the one yes; when it was
    the record of a main checkout's root file and that repository moved, the preview names the
    repository's root file where it is now, which reset restores from the record only after a yes
-   for it. A gone subfolder or linked worktree of a repository still there is only kept.
+   for it. When a profile was applied at the new place since, that file has two records and gets
+   one row and one write: each entry goes back to the older record's before-value, else the
+   newer's, and both records are removed after the write, the newer first, so a reset cut off
+   between the two leaves the older record and the next reset finishes. A gone subfolder or
+   linked worktree of a repository still there is only kept.
 5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
    previewed in one process and writes in another passes it, and the write refuses, writing
    nothing, when what it would write differs from that preview.

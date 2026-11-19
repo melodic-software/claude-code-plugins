@@ -2579,6 +2579,67 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
   assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
 });
 
+test("#17354: a moved repository with a profile applied at its new place is one row, folding both records, and its yes puts back the file before the first apply", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const movedFile = rootLocal(moved);
+  assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const records = join(moved, ".git", "plugin-profiles", "records");
+  assert.equal(readdirSync(records).length, 2);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[old, "skip", movedFile]], "one row for the one file");
+  assert.equal(rows[0].ask.file, movedFile);
+  assert.match(rows[0].lines.join("\n"), new RegExp(`folds in the record of ${esc(movedFile)} \\(profile review\\)`));
+  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build), folding in the record of ${movedFile} (profile review).`]);
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(readdirSync(records), []);
+});
+
+test("#17354: a folded reset of a moved repository cut off after its write, with both records or only the older left, is finished by the next reset", () => {
+  for (const newerRemoved of [false, true]) {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const [olderName] = gitRecords(w);
+    const moved = join(w.root, "repo-now");
+    renameSync(w.project, moved);
+    knowFolders(w, moved);
+    const movedFile = rootLocal(moved);
+    assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const records = join(moved, ".git", "plugin-profiles", "records");
+    writeFileSync(movedFile, LOCAL_BEFORE);
+    if (newerRemoved) for (const name of readdirSync(records).filter((n) => n !== olderName)) rmSync(join(records, name));
+    const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE, `newer record removed: ${newerRemoved}`);
+    assert.deepEqual(readdirSync(records), []);
+  }
+});
+
+test("#17354: a moved repository with a profile applied at its new place, answered no, keeps its file and both records", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const movedFile = rootLocal(moved);
+  assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const records = join(moved, ".git", "plugin-profiles", "records");
+  const applied = readFileSync(movedFile, "utf8");
+  const r = reset(w, ["--yes", "--keep-unrecorded", movedFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(readFileSync(movedFile, "utf8"), applied);
+  assert.equal(readdirSync(records).length, 2);
+});
+
 test("#17354: a write given the preview's id refuses, writing nothing, once what reset would write differs from that preview", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);

@@ -108,6 +108,7 @@ import {
   baseline,
   deleteRecord,
   findRecord,
+  foldRecords,
   forgetRestored,
   forgetStaleRestored,
   holdsEveryEntry,
@@ -1188,8 +1189,13 @@ function resetQuestion(rows) {
   return rows.some((r) => r.ask) ? `${covers} Folders without a record are not covered: each gets its own question.` : covers;
 }
 
-/** One file's row in the reset preview: what reset does to it and the lines that say so. */
-function resetRow(where, f) {
+/** The preview lines naming each entry edited since the apply that a restore changes again. */
+const overwriteLines = (plan) =>
+  plan.overwrites.map((e) => `  Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; reset puts back ${e.before}.`);
+const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) => ({ name, current, before }));
+
+/** One file's row in the reset preview: what reset does to it and the lines that say so. newer is the record of a moved record's file, folded into its row. */
+function resetRow(where, f, newer) {
   const file = f.settingsFile;
   const rec = f.record;
   const row = { file, recorded: Boolean(rec) && !f.adopted, adopted: f.adopted, unfinished: rec?.phase === "off-pending", overwrites: [], found: f };
@@ -1223,14 +1229,21 @@ function resetRow(where, f) {
     const kept = skip("folder not found; record kept", [`${file}: folder not found; record kept.`]);
     if (!f.movedTo) return kept;
     try {
-      const movedPlan = clearPlan(f.movedTo, { found: f.recordPath, record: { ...rec, settingsFile: f.movedTo } });
+      const movedPlan = clearPlan(f.movedTo, { found: f.recordPath, record: { ...(newer ? foldRecords(rec, newer.record) : rec), settingsFile: f.movedTo } });
       const now = dirname(dirname(f.movedTo));
+      const folding = newer ? `, folding in the record of ${f.movedTo} (profile ${newer.record.profile})` : "";
       return {
         ...kept,
         movedTo: f.movedTo,
         movedPlan,
-        ask: { file: f.movedTo, question: `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?` },
-        lines: [`${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`],
+        folds: newer,
+        overwrites: overwritesOf(movedPlan),
+        ask: { file: f.movedTo, question: `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record${folding}?` },
+        lines: [
+          `${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`,
+          ...(newer ? [`  Profile ${newer.record.profile} was applied there since; reset folds in the record of ${f.movedTo} (profile ${newer.record.profile}), so the file goes back to what it held before the first apply, and removes both records.`] : []),
+          ...overwriteLines(movedPlan),
+        ],
       };
     } catch (error) {
       if (!(error instanceof SettingsError)) throw error;
@@ -1260,10 +1273,10 @@ function resetRow(where, f) {
     ...row,
     action: plan.removes ? "remove-file" : "restore",
     plan,
-    overwrites: plan.overwrites.map(({ name, current, before }) => ({ name, current, before })),
+    overwrites: overwritesOf(plan),
     lines: [
       head,
-      ...plan.overwrites.map((e) => `  Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; reset puts back ${e.before}.`),
+      ...overwriteLines(plan),
       ...(row.unfinished ? [`  A switch to ${rec.profile} is unfinished in another session; after reset, that session's reload writes nothing.`] : []),
     ],
   };
@@ -1279,10 +1292,12 @@ function resetOne(row, { chosen, kept }) {
   const yes = Boolean(row.ask) && chosen.has(realPath(row.ask.file));
   const no = Boolean(row.ask) && kept.has(realPath(row.ask.file));
   const changedUnder = (path) => ({ line: `Skipped ${path}: it changed during the reset and is left as the other writer left it; run reset again.`, ok: false });
-  const original = f.copies.find((c) => c.path === f.recordPath)?.text ?? null;
-  const dropCopies = (planned) => {
-    for (const c of f.copies) if (readText(c.path) === (c.path === f.recordPath ? planned : c.text)) deleteRecord(c.path);
+  const textOf = (entry) => entry.copies.find((c) => c.path === entry.recordPath)?.text ?? null;
+  const original = textOf(f);
+  const dropCopiesOf = (entry, planned) => {
+    for (const c of entry.copies) if (readText(c.path) === (c.path === entry.recordPath ? planned : c.text)) deleteRecord(c.path);
   };
+  const dropCopies = (planned) => dropCopiesOf(f, planned);
   const guarded = (write, line) => {
     try {
       write();
@@ -1299,7 +1314,13 @@ function resetOne(row, { chosen, kept }) {
     return guarded(() => writeSettings(file, row.settings.hash, text), `Removed the ${row.entries.length} plugin and skill entries of ${file}, which had no record.`);
   }
   if (row.movedTo && yes) {
-    const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);
+    const { folds } = row;
+    const dropBoth = () => {
+      if (folds) dropCopiesOf(folds, textOf(folds));
+      dropCopies(original);
+    };
+    const folding = folds ? `, folding in the record of ${row.movedTo} (profile ${folds.record.profile})` : "";
+    const result = guarded(() => clearWrite(row.movedPlan, dropBoth), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile})${folding}.`);
     return { ...result, restored: result.ok, leaves: result.ok ? leaves(row.movedPlan, row.movedTo) : undefined };
   }
   if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${row.movedTo ? `, and the record of ${file} is kept` : ""}.`, ok: true };
@@ -1362,16 +1383,19 @@ function noteLeft(where, { file, hash }) {
   } catch {}
 }
 
-/** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and record it was planned from. */
+/** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and records it was planned from. */
+const recordHash = (entry) => hashOf(entry?.copies.find((c) => c.path === entry.recordPath)?.text ?? null);
 const previewIdOf = (rows) =>
-  hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, hashOf(r.found.copies.find((c) => c.path === r.found.recordPath)?.text ?? null)])));
+  hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, recordHash(r.found), ...(r.folds ? [recordHash(r.folds)] : [])])));
 
 async function reset(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not reset: ${refusal(where.surface, "folder")}`);
   const { files, homes, counts } = machineFiles(where, env);
-  const all = files.map((f) => resetRow(where, f));
+  const recorded = new Map(files.filter((f) => f.record && !f.adopted && !f.ignored && !f.missing).map((f) => [realPath(f.settingsFile), f]));
+  const all = files.map((f) => resetRow(where, f, f.movedTo && recorded.get(realPath(f.movedTo))));
   const moved = new Set(all.filter((r) => r.movedTo).map((r) => realPath(r.movedTo)));
-  const shown = all.filter((r) => !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
+  const folded = new Set(all.map((r) => r.folds).filter(Boolean));
+  const shown = all.filter((r) => !folded.has(r.found) && !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
   const unchanged = shown.filter((r) => r.action === "unchanged").map((r) => r.file);
   const rows = shown.filter((r) => r.action !== "unchanged");
   const keeps = sessionProfile(env)
@@ -1387,7 +1411,7 @@ async function reset(opts, where, env, io) {
   ];
   const question = resetQuestion(rows);
   if (opts.json && opts.dryRun) {
-    const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
+    const folders = rows.map(({ found, plan, movedPlan, settings, folds, ...r }) => r);
     io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, unchangedSinceReset: unchanged, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
@@ -1432,7 +1456,7 @@ async function reset(opts, where, env, io) {
     }
     say(result.line);
     if (!result.ok) failed = true;
-    if (result.restored) done.add(realPath(row.file));
+    if (result.restored) for (const restored of [row.file, row.folds?.settingsFile].filter(Boolean)) done.add(realPath(restored));
     if (result.leaves) noteLeft(where, result.leaves);
   }
   for (const home of new Set(homes.map(realPath))) forgetStaleRestored(home, (file) => hashOf(readText(file)));

@@ -172,6 +172,24 @@ export function nextRecord(previous, apply) {
   return record;
 }
 
+/**
+ * One record for a file that an older and a newer record both cover: each entry goes back to the older record's before-value,
+ * else the newer's, and is compared against the newer record's write, as nextRecord chains one apply onto the last.
+ */
+export function foldRecords(older, newer) {
+  const folded = { ...newer, createdFile: older.createdFile, createdFolder: older.createdFolder, containers: older.containers };
+  for (const section of Object.values(SECTIONS)) {
+    const entries = {};
+    for (const name of new Set([...Object.keys(older[section] ?? {}), ...Object.keys(newer[section] ?? {})])) {
+      const { before } = older[section]?.[name] ?? newer[section][name];
+      const { after } = newer[section]?.[name] ?? older[section][name];
+      if (before !== after) entries[name] = { before, after };
+    }
+    folded[section] = entries;
+  }
+  return folded;
+}
+
 export function restoreEdits(record) {
   const edits = {};
   for (const [key, section] of Object.entries(SECTIONS)) {
