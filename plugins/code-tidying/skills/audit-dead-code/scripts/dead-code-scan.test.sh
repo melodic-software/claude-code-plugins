@@ -9,6 +9,7 @@ set -uo pipefail
 # An inherited ABSOLUTE GIT_DIR outranks -C, so a fixture's `git config user.email` would
 # land in the CALLER's .git/config; clear it unconditionally before building fixtures.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCAN="$SCRIPT_DIR/dead-code-scan.sh"

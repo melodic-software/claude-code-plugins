@@ -44,6 +44,12 @@
 # Authorization header, as gh's do
 # (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
 #
+# Once the listing's pool is empty, the rate guard sends no read before its
+# reset, so a failed read names that reset. A job that sets
+# API_BUDGET_WAIT_SECONDS waits for it once through rate-guard.mjs's waitOut,
+# within the guard's wait budget, then reads again; a reset past that budget
+# and past the reads' window ends the reads at once.
+#
 # Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale, credit-stop)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
@@ -191,9 +197,23 @@ read_jobs() {
   done
 }
 
+held_by() {
+  declare -F api_budget_stop_until >/dev/null || return 0
+  local until status
+  until=$(api_budget_stop_until core)
+  [[ -n $until ]] || return 0
+  if status=$(api_budget_server_status core "$until"); then
+    echo "GitHub answered HTTP $status with a Retry-After, so no call goes before $(api_budget_when "$until")"
+  else
+    echo "GitHub's core API rate limit holds until $(api_budget_when "$until")"
+  fi
+}
+rate_guard=${BASH_SOURCE[0]%/*}/../../actions/log-api-budget/rate-guard.mjs
+
 reads=0
 failed=0
 waited=0
+waited_out=""
 while :; do
   reads=$((reads + 1))
   missing=""
@@ -207,6 +227,23 @@ while :; do
   else
     missing="the jobs read failed"
     failed=$((failed + 1))
+    held=$(held_by)
+    if [[ -n $held ]]; then
+      missing+=": $held"
+      if [[ -n ${API_BUDGET_WAIT_SECONDS:-} ]]; then
+        if [[ -z $waited_out && -f $rate_guard ]] &&
+          node --input-type=module -e 'const { createRateLimitLatch } = await import(process.argv[1]); const latch = createRateLimitLatch(); if (!latch.waits(process.argv[2])) process.exit(3); await latch.waitOut(process.argv[2], "GET");' \
+            "$(realpath "$rate_guard")" "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs"; then
+          waited_out=1
+          if [[ -z $(held_by) ]]; then
+            failed=$((failed - 1))
+            continue
+          fi
+        fi
+        stop=$(api_budget_stop_until core)
+        ((${stop:-0} - $(date +%s) <= window - waited)) || break
+      fi
+    fi
   fi
   if [[ -z $missing ]]; then
     printf '%s\n' "${answers//$'\t'/=}" >>"${GITHUB_OUTPUT}"

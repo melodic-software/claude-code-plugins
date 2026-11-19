@@ -32,6 +32,8 @@ import {
   readState,
   sinkBytes,
   staleness,
+  telemetryPath,
+  telemetrySpans,
   traceIdOf,
   transcriptMetrics,
   transcriptPath,
@@ -43,12 +45,16 @@ import {
 export const REPO = "melodic-software/claude-code-plugins";
 export const PAYLOAD = "transcript.json.gz";
 export const ENTRY = `${PAYLOAD}.sealed`;
+export const TELEMETRY_PAYLOAD = "otel.jsonl.gz";
+export const TELEMETRY_ENTRY = `${TELEMETRY_PAYLOAD}.sealed`;
 const HOUR = 60 * 60 * 1000;
 const ARTIFACT_DAYS = 7;
 const OVERLAP = 6 * HOUR;
 const PER_PAGE = 100;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
+const MAX_TELEMETRY_PLAIN = 64 * 1024 * 1024;
+const UNEXTRACTED = Symbol("unextracted");
 export const GH_ATTEMPTS = 5;
 export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
@@ -209,15 +215,15 @@ function fetched(kind, call) {
 
 /**
  * A second sealed file the writer may add beside the transcript, such as the
- * leg's telemetry; the pull does not open it.
+ * leg's telemetry; the pull opens only the telemetry.
  */
 const EXTRA_SEALED = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.sealed$/;
 
 /**
- * The sealed record inside one artifact zip: the sealed transcript, and at
- * most one other sealed file.
+ * The sealed records inside one artifact zip: the sealed transcript, and the
+ * telemetry when it is the one other sealed file.
  */
-function sealedRecord(deps, sink, zip) {
+function sealedRecords(deps, sink, zip) {
   const dir = mkdtempSync(path.join(paths(sink).tmp, "zip-"));
   try {
     const file = path.join(dir, "artifact.zip");
@@ -226,7 +232,13 @@ function sealedRecord(deps, sink, zip) {
     const entries = unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
     const extra = entries.filter((entry) => entry !== ENTRY);
     if (entries.length - extra.length !== 1 || extra.length > 1 || !extra.every((entry) => EXTRA_SEALED.test(entry))) return null;
-    return unzip(["-p", file, ENTRY]);
+    const transcript = unzip(["-p", file, ENTRY]);
+    if (extra[0] !== TELEMETRY_ENTRY) return { transcript, telemetry: null };
+    try {
+      return { transcript, telemetry: deps.unzip(["-p", file, TELEMETRY_ENTRY]) };
+    } catch {
+      return { transcript, telemetry: UNEXTRACTED };
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -323,11 +335,11 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
 
 function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, now }) {
   const runId = String(artifact.workflow_run.id);
-  const record = sealedRecord(deps, sink, fetched("artifact-zip", () => ghRetried(deps, ["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`])));
-  if (!record) return "bad_zip";
+  const records = sealedRecords(deps, sink, fetched("artifact-zip", () => ghRetried(deps, ["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`])));
+  if (!records) return "bad_zip";
   let gz;
   try {
-    gz = openRecord(recipient, [recipient.keyId], PAYLOAD, record, runId, named.jobId);
+    gz = openRecord(recipient, [recipient.keyId], PAYLOAD, records.transcript, runId, named.jobId);
   } catch (error) {
     if (error instanceof OpenError) return "sealed_mismatch";
     throw error;
@@ -367,8 +379,41 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, no
   const file = path.join(sink, row.transcript);
   ensureDir(path.dirname(file));
   writeFileSync(file, gz, { mode: 0o600 });
+  const telemetry = openTelemetry(recipient, records.telemetry, runId, named.jobId, row.trace_id);
+  Object.assign(row, telemetry.fields);
+  if (telemetry.gz) {
+    row.telemetry = telemetryPath(row);
+    writeFileSync(path.join(sink, row.telemetry), telemetry.gz, { mode: 0o600 });
+  }
   appendRow(sink, row);
   return "pulled";
+}
+
+const NO_TELEMETRY = { telemetry: null, telemetry_bytes: null, telemetry_spans: null, telemetry_joined_spans: null };
+
+/**
+ * The leg's telemetry, opened under its own payload name and the transcript's
+ * run and job binding, and the row fields it gives. `telemetry_outcome` is
+ * `none` (no file), `sealed_mismatch` (it did not open), `unreadable` (it
+ * could not be extracted from the zip, or it opened but did not decompress
+ * within its cap) or `stored`.
+ */
+function openTelemetry(recipient, record, runId, jobId, traceId) {
+  if (!record) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "none" } };
+  if (record === UNEXTRACTED) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "unreadable" } };
+  let gz;
+  try {
+    gz = openRecord(recipient, [recipient.keyId], TELEMETRY_PAYLOAD, record, runId, jobId);
+  } catch (error) {
+    if (error instanceof OpenError) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "sealed_mismatch" } };
+    throw error;
+  }
+  try {
+    const text = gunzipSync(gz, { maxOutputLength: MAX_TELEMETRY_PLAIN }).toString("utf8");
+    return { gz, fields: { telemetry_bytes: gz.length, ...telemetrySpans(text, traceId), telemetry_outcome: "stored" } };
+  } catch {
+    return { fields: { ...NO_TELEMETRY, telemetry_outcome: "unreadable" } };
+  }
 }
 
 /**

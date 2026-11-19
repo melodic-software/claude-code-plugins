@@ -271,23 +271,6 @@ run_guarded() {
   fi
 }
 
-# alias_chain <hops> <terminal> [diverge] — an N-hop chain where every hop
-# defines both `alias.aN` and `alias.aN.command`. They expand identically by
-# default (equivalent states, collapsed by memoization); `diverge` gives each
-# spelling its own trailing word so no two analysis paths share a state and only
-# the traversal budget can stop the walk.
-alias_chain() {
-  local n="$1" terminal="$2" mode="${3:-same}" cmd="git" i
-  for ((i = 1; i < n; i++)); do
-    if [[ "$mode" == diverge ]]; then
-      cmd+=" -c alias.a$i='a$((i + 1)) --x$i' -c alias.a$i.command='a$((i + 1)) --y$i'"
-    else
-      cmd+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"
-    fi
-  done
-  printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
-}
-
 # The SAFE terminal is the demanding case: it exhausts the whole tree rather than
 # exiting on the first path that reaches a commit. Exiting 0 is what proves the
 # walk stayed inside the re-expansion cap — before the bounds this shape did not

@@ -62,7 +62,6 @@ const CONTRACT = {
     subtle_mix_percent: 12,
     triage: { light_surface_min_l: 0.6, near_black_l: [0.25, 0.75, 0.3], near_white_l: [0.85, 0.45] },
   },
-  components: { primitives_default: "base-ui" },
   icon: { filled_below_px: 12, label_gap_em: 0.5, label_gap_px: [6, 8], size_em: 1, size_px: [12, 16, 20, 24, 48] },
   layout: {
     breakout_width: "80rem",
@@ -116,19 +115,6 @@ test("the shipped defaults validate against team.schema.json with no error", () 
   const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
   assert.deepEqual(layers[0], { name: "defaults", path: null, state: "loaded", errors: [], error_keys: [] });
   assert.deepEqual(values, CONTRACT);
-});
-
-// Expected values: the owner's decision that base-ui is the default, and the setting's three
-// library values.
-test("the primitives default takes a library key and keeps base-ui otherwise", () => {
-  const primitivesWith = (raw) => {
-    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { components_primitives_default: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
-    return { primitives: values.components.primitives_default, error_keys: layers[1].error_keys };
-  };
-  assert.deepEqual(primitivesWith("radix"), { primitives: "radix", error_keys: [] });
-  assert.deepEqual(primitivesWith("react-aria"), { primitives: "react-aria", error_keys: [] });
-  assert.deepEqual(primitivesWith("Base UI"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
-  assert.deepEqual(primitivesWith("shadcn"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
 });
 
 // Expected values: the key's contract, an integer of at least 0 with default 24 (the gap past

@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: gr-loads-evidence-check
+description: 'Go-with-recommendations evidence check: accepting two recommendations stated in the prompt, the run calls the Skill tool for discipline:do-your-research before acting, and labels each item with a Basis line. The prompt carries the recommendations because a case has no earlier assistant turn. Only session-flow loads here, so the Skill call may report the discipline skill missing; the grader counts the call either way, which is the wording this case guards. Needs --scaffold.'
+tags: [go-with-recommendations, evidence-check]
+plugins: ["../.."]
+expected_outcome: 'The run calls the Skill tool with an input naming do-your-research, then reports each of Q1 and Q2 as unchanged or old, new and why, each with a Basis line.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:go-with-recommendations Exceptions: none. Context, since this conversation shows no earlier turn: your latest message to me recommended two things, Q1 raise the default attempts in src/retry.ts from 5 to 8, and Q2 replace the fixed 1000 ms delay in src/retry.ts with exponential backoff capped at 30 seconds. Treat Q1 and Q2 as the recommendations to accept.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: loads-evidence-check
+    type: tool_used
+    tool: Skill
+    input_match: 'do-your-research'
+    min: 1
+    arm: both
+  - name: labels-basis
+    type: regex
+    pattern: '\bBasis:[`*_\s]*(?:verified|judgment)\b'
+    flags: 'i'
+    arm: both

@@ -77,6 +77,12 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   ([lane-outcome.mjs](../../scripts/lib/lane-outcome.mjs)), it opens `output.text` as
   `lane-outcome <json>`, with `activity` added and only the known fields kept. It never changes the
   conclusion or title.
+- When `conflict-base` is a commit id and `conflict-paths` a non-empty JSON array of paths, it
+  adds the line `conflict-record {"base":…,"paths":[…]}` to `output.text`
+  ([conflict-record.mjs](../../scripts/lib/conflict-record.mjs)), after any lane-outcome line.
+  pr-run-activity-write.yml passes both only for a merge-base round that stopped
+  `unresolved-conflict`, and the pr-unblock dispatcher sends that head again only once main
+  changes one of those paths.
 - Exit 0 after posting; exit 1 on a refusal, a malformed repository,
   head SHA, fallback SHA or non-empty PR head SHA, or a failed POST.
 

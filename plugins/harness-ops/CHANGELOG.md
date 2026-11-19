@@ -3,6 +3,43 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.0] - 2026-11-19
+
+### Added
+
+- `probe_state_issue` option and `harness-ops.yaml` key: the issue, as `<owner>/<repo>#<number>`, the `cloud-routine/state-read-back-next-run` behavior probe works against. `scripts/probe-state-issue.mjs` resolves it and `probe.py run --state-issue` takes it. With none set, a live run skips the case.
+- `otel_store_reset_doc`, `otel_collector_config_ref` and `otel_dashboards_compose_ref` options: where your machine provisioning documents the OTEL store reset, the Collector configuration and the dashboard compose file. `/harness-ops:observability` shows them and links nothing when they are unset.
+
+### Changed
+
+- When `CLAUDE_PLUGIN_DATA` is not usable, the inventory parser, the control-claude-code driver and the known-issues registry now name their data directory after the marketplace this plugin is installed from, as Claude Code does. Before, they used a fixed directory name. Outside the plugin cache they use `harness-ops-inline`, the name Claude Code gives a `--plugin-dir` session's data directory. `scripts/session-telemetry-state.mjs`, which observability and setup read, follows the same rule for the session-telemetry id: it no longer falls back to a fixed marketplace.
+- The behavior-probe cases and skill text no longer name a particular organization's repository. The auto-mode `gh secret` cases target `probe-owner.invalid/probe-repo`, a name no GitHub login can have.
+
+## [10.4.1] - 2026-11-19
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+## [10.4.0] - 2026-11-19
+
+### Added
+
+- `control-claude-code`: `launch --cwd <dir>` starts Claude Code in a directory the person names.
+
+### Changed
+
+- `control-claude-code`: a local `launch` starts Claude Code in `<session>.cwd` under the runtime directory, emptied and made private on each launch, instead of the caller's shell directory, so the launched session's file tools cannot reach the caller's checkout. A launch under `--in-sandbox` keeps the caller's directory. `launch` and its `--dry-run` print the directory.
+- `control-claude-code`: the default `stepMs` wait is 90000 ms, up from 15000, and SKILL.md says a longer step passes its own `wait-for --timeout`.
+- `control-claude-code`: Cleanup runs the `## Mask` post-check before `stop`, while the session it reads still runs.
+- `control-claude-code`: SKILL.md states the 1 to 32 character `<session>` limit, where a local drive writes, that Ready and `logs` still run in the run's starting directory, that config isolation is the pr-verify capture's sandbox, and that a local drive cannot load a plugin's declared dependencies.
+
+### Fixed
+
+- `control-claude-code`: under `--real-setup`, the print-mode turns of the driver's `ready` and `log` keep `--strict-mcp-config` (why: <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>). The interactive `launch --real-setup` session still drops both isolating flags.
+
+- control-claude-code: when `--launcher` starts the session, a launcher word missing from `PATH` and a session that exits at once are now reported under that word, where both messages named `claude`.
+
 ## [10.3.1] - 2026-11-18
 
 ### Changed

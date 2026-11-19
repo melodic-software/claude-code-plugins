@@ -386,7 +386,15 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    script waits for `retry-after` when the header is present. For a primary rate limit it waits
    until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
    exponential backoff with full jitter. A wait longer than a small per-step budget counts as
-   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
+   unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
+   the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
+   `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
+   within it, inside raised timeouts, since failing there drops finished work (#16642). So does
+   ci-status's merge-queue verdict reader after a read it did not send below the read floor,
+   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417), and
+   check-plugins' read of the queued pull request in a merge group, for up to
+   `WAIT_BUDGET_SECONDS.queuedPr`, since four gates refuse without it and eject the group.
+   Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
@@ -565,6 +573,28 @@ it, not the lockfile; it posts no round marker, and the new head is reviewed as 
 of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
 the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
 marker at the new head.
+A `.github/dependabot.yml` entry whose `group-by: dependency-name` group spans several pip
+directories keeps each group package at one version in all of them. When Dependabot's group pull
+request bumps one directory and leaves another (its pip-compile could not relock it), the lane
+relocks the lagging directory to the bumped pin with no model turn
+([`dependency-relock.mjs`](../../../.github/scripts/pr-unblock/dependency-relock.mjs)), in three
+jobs so uv, which may run a package's build code, never runs beside a token.
+`review-dependency-select` reads the lagging directory's files from the head and uploads the
+relock request; a lock whose header names another command than the one the lane runs, or a missing
+file, goes to the model instead. `review-dependency-relock` runs uv, at the version
+`.github/requirements-relock.txt` pins and by the lock's own command, inside a digest-pinned
+`python:3.12-slim` container that sees only the request and work directories, in a job with no
+permissions, no secret and no checkout, and uploads only the relocked `requirements.txt`.
+`review-dependency-relock-patch`, base code with a read-only token, checks that lock pins the
+requested version and passes `dependency-version-change`, and writes the patch
+`apply-dependency-relock` pushes under the `dependency-relock` row. A relock that fails or that
+the rule refuses, such as one that adds a package (`requirements-new-package`), does not go to
+the model: it stops as `dependency-pin-invalid`, which
+[`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json) routes to a
+failing status and the `needs-session` label.
+`dependency-relock.mjs check` and an explicit playwright comparison fail `test-bash` while a
+group's directories pin different versions; the check also fails when no pip group reads or a
+group directory's `requirements.in` cannot be read.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -928,7 +958,11 @@ activity's dispatcher, under the cap it already keeps: `limit-stops-per-head` fo
 `resolve-conflicts`, `fix-ci-restarts` and the per-head cap for `fix-ci`,
 `SWEEP_HEAD_CAP` for `address-feedback`. A `fix-ci` or `address-feedback` retry runs one model
 rung up (`escalate-to`), read in the run from the head's own stop record, never from a dispatch
-input; the others retry as a fresh session. A retry that acts and does not stop posts success over the
+input; the others retry as a fresh session. A `resolve-conflicts` push job that stops
+`unresolved-conflict` records its pinned base and the round's unmerged paths in its check
+(`conflict-record`), and the dispatcher sends that head again only once a main commit since that
+base changes one of those paths, read in one compare call per base move; a stop with no record, a
+failed read, or a new head sends as before. A retry that acts and does not stop posts success over the
 failing status (`report-escalation.sh clear`); one that ends on a skip, such as a reply job with no
 model turn, leaves it. A select job that finds the stop gone on its head also posts success
 and skips `stop-resolved`: `address-feedback` once no hold and no unresolved review thread is left,
@@ -1006,7 +1040,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
-`review-dependency-select` writes with no model, `docs` for a push job that passes
+and `dependency-relock` for the group relock patch `review-dependency-relock-patch` writes with
+no model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
@@ -1997,7 +2032,8 @@ request is toggled at most twice, counted from those lines and from the lane tok
 its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
 unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
-each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
+each have 30% of every rate-limit bucket's hourly limit left; a pull request refused on one of those limits leaves the
+run's toggle to the next candidate. An escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
 writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
 a draft a person made stays one.
@@ -2305,7 +2341,9 @@ pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(to
 pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
 1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
-read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+read floor (`limits.api` `read-floor` of the header's limit, inlined in the job env), left. The
+reader plans its own floor to that live limit too, not github-token's `limit-cap` (owner decision
+D418).
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
@@ -3703,7 +3741,7 @@ run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triag
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
 ([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
-[whole-map pass](#the-whole-map-pass)'s driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+[whole-map pass](#the-whole-map-pass)'s driver leg, and `verify-capture` for the pr-verify capture's driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
@@ -3919,7 +3957,7 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch `refine` run sends for its PR's event; 0 to 20. Each event offers one PR, so 0 turns CI fix-docs off and any other value turns it on. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause`, `breaker` and `stop-floor` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads `read-floor` and `limit-cap`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge and enable-auto-merge sweep jobs, which skip at job level while the post-merge check and cover dispatch run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause`, `breaker` and `stop-floor` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads `read-floor` and `limit-cap`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge and enable-auto-merge sweep jobs, which skip at job level while the post-merge check and cover dispatch run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
 | `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's planned budget, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;

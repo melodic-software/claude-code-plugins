@@ -10,12 +10,8 @@ SUT="$SCRIPT_DIR/count-rereads.py"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # turn <file> <message-id> <block>...
 # Appends one assistant record; several blocks share the record and its id.

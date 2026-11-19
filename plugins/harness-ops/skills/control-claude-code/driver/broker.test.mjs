@@ -15,6 +15,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { childEnv, driverArgs, KEY_PREFIX, Refused, SESSION, startConfig, VERBS } from './broker.mjs';
 import { SESSION as DRIVER_SESSION, SANDBOX_KEY_PREFIX as DRIVER_KEY_PREFIX, installDir as installDirOf } from './driver.mjs';
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DRIVER = join(HERE, 'driver.mjs');

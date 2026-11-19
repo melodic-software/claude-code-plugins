@@ -107,10 +107,8 @@ at it, in their own pull requests.
 
 ## Adopters
 
-| Skill | Status |
-|---|---|
-| `/architecture:improve` (deepening and conventions lenses) | Through `improvement-steps.md` "Scope and fan-out" and its plugin-shipped copy |
-| `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
+The Adopters table is `docs/contracts/target-scope/adopters.md`, kept outside this file so that
+adding an adopter changes no plugin-shipped copy. An adopting skill adds its row there.
 
 ## Plugin-shipped copies
 

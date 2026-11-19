@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of a docs tree's file names against a configured casing rule: proposes a name per offender, classifies every reference to it, refuses case-only collisions, and writes the plan realign-file-names applies. Use when: 'audit file names', 'are our doc filenames consistent', 'plan a docs rename', 'which files break the naming rule', 'find every reference to this doc', 'rename the docs tree', 'lower-kebab the docs folder', 'what would a docs rename touch'. Renames nothing."
-argument-hint: "[audit] [root ...]"
+argument-hint: "[audit] [root ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/inventory.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/sweep.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git branch --show-current:*)", "Bash(git rev-parse:*)", "Bash(git check-ignore:*)", "Read", "Write", "Grep"]
@@ -36,6 +36,34 @@ generated record or a released changelog entry on the way through.
 This skill does the finding and the deciding, and writes the result down. It
 renames nothing. `/docs-naming:realign-file-names` executes the plan, one
 acceptance at a time.
+
+## Over several repositories
+
+With no target form, the run covers this checkout, as it always has. A target
+form selects several repositories, resolved, counted and listed as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+"Target forms" and "Resolving repositories" say. What differs here:
+
+- **Audit in the worktree the realign will use.** The plan is checkout-local and
+  keyed by branch, so a plan written in another checkout is one the realign never
+  finds. Per repository, the audit's worktree is the one on the branch
+  `docs-naming/file-names`, found in `git -C <root> worktree list --porcelain`.
+  Reuse it when it exists, so a re-audit merges into the earlier plan and keeps
+  every decision ("Where the artifact goes"). Only when none exists, create one
+  on that branch by that repository's convention: from the local branch when it
+  is left without a worktree, else from `origin/HEAD`. Run "Facts before
+  judgment" there with `--root` set to it, one subagent per repository
+  ("Fan-out" there). A detached worktree would key the plan by a short SHA that
+  the realign's first commit changes. This worktree and branch are the only
+  thing the audit adds to another repository; the contract's read-only rule
+  holds for every tracked file.
+- **One plan per repository.** Each plan lives in the home "Where the artifact
+  goes" names, inside that repository's worktree, never in the invoking
+  checkout. A finding id is unique within its repository only, so the report
+  writes every finding as `owner/name FN-xxxxxxxx`.
+- **One merged report.** Merge as "Merging findings" says, ranking a rename
+  planned in several repositories by its total sites across them. Name each
+  repository's worktree path and plan path, which the realign starts from.
 
 ## Read these before presenting anything
 

@@ -10,16 +10,8 @@ REPO_DIR="$(cd "$PLUGIN_DIR/../.." && pwd)"
 CONTRACT="$REPO_DIR/docs/contracts/rendered-views/README.md"
 REFERENCE="$PLUGIN_DIR/reference/rendered-view.md"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=../lib/test-ok-fail.sh
+source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
 if grep -q "The planning views are the third exception: the brainstorm, design and plan views" "$CONTRACT"; then
   ok "the contract names the brainstorm, design and plan views as the Artifact exception"

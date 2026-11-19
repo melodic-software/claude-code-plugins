@@ -25,16 +25,19 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 // The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
 process.env.TMPDIR = tempDir("callers-tmp-");
@@ -872,9 +875,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "sync-shared-copies-select",
     "apply-shared-copies",
     "apply-dependency-pin",
+    "review-dependency-relock-patch",
+    "apply-dependency-relock",
   ];
   const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin", "apply-dependency-relock"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   // The push job of each activity that pushes, before its select job's head.
   const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
@@ -885,7 +890,7 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
     ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
     ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
-    ...Object.fromEntries([...Object.values(PUSHERS), "apply-dependency-pin"].map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
+    ...Object.fromEntries([...Object.values(PUSHERS), "apply-dependency-pin", "apply-dependency-relock"].map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
     "needs.apply-patch.outputs.rung-up": rungUp,
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
@@ -971,9 +976,8 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   // The head is the commit the activity's push job pushed, else its select
   // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
-  // review-dependency has a second push job: the install-script pin, with no model turn.
-  const PIN = { "review-dependency-select": "apply-dependency-pin" };
-  const heads = HEADS.flatMap((id) => [...[PUSHERS[id], PIN[id]].filter(Boolean).map((push) => `needs.${push}.outputs.pushed-commit`), `needs.${id}.outputs.head-sha`]);
+  const PIN = { "review-dependency-select": ["apply-dependency-pin", "apply-dependency-relock"] };
+  const heads = HEADS.flatMap((id) => [...[PUSHERS[id], ...(PIN[id] ?? [])].filter(Boolean).map((push) => `needs.${push}.outputs.pushed-commit`), `needs.${id}.outputs.head-sha`]);
   assert.equal(post.env.HEAD_SHA.trim(), `\${{ ${heads.join(" || ")} }}`);
   const pushedSha = "d".repeat(40);
   for (const headFrom of HEADS) {
@@ -981,8 +985,8 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     if (PUSHERS[headFrom]) {
       assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PUSHERS[headFrom], pushedSha })), pushedSha, `${PUSHERS[headFrom]}'s pushed commit over ${headFrom}'s head`);
     }
-    if (PIN[headFrom]) {
-      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PIN[headFrom], pushedSha })), pushedSha, `${PIN[headFrom]}'s pushed commit over ${headFrom}'s head`);
+    for (const pin of PIN[headFrom] ?? []) {
+      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: pin, pushedSha })), pushedSha, `${pin}'s pushed commit over ${headFrom}'s head`);
     }
   }
   // report-escalation's reason, except that a rung-up retry whose patch
@@ -1075,7 +1079,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin", "review-dependency-relock-patch", "apply-dependency-relock"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -2794,7 +2798,7 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
   assert.ok(modes.size > 0, "a launcher step names its permission-mode");
   for (const pin of pins) {
-    const { cliArgs } = await laneAtPin(pin);
+    const { cliArgs } = await contractAtPin(pin);
     for (const permissionMode of new Set([...modes, "default"]))
       for (const sandbox of [true, false])
         for (const effort of ["", "high"])
@@ -2805,6 +2809,39 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
             assert.ok(at >= 0 && args[at + 1] === "none", `${pin} cliArgs (${permissionMode}, sandbox ${sandbox}, effort "${effort}", ${list.length} tools): ${args.join(" ")}`);
           }
   }
+});
+
+const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const [pin] = job.steps.map((step) => String(step.uses ?? "").match(new RegExp(`^melodic-software/ci-workflows/${composite}@([0-9a-f]{40})$`))?.[1]).filter(Boolean);
+  assert.ok(pin, "ci-status pins report-ci-status to a full SHA");
+  const action = async (path) => parse(await fetchAtPin(pin, `${path}/action.yml`));
+  const waits = {};
+  let rerun = 0;
+  for (const step of (await action(composite)).runs.steps) {
+    if (!step.uses?.startsWith("$/")) continue;
+    const path = step.uses.slice(2);
+    const { inputs } = await action(path);
+    const value = (key) => Number(step.with?.[key] ?? inputs[key]?.default ?? 0);
+    if (inputs["rate-limit-wait-seconds"]) waits[path.split("/").pop()] = value("rate-limit-wait-seconds");
+    rerun += value("rerun-wait-seconds");
+  }
+  for (const name of ["check-contract", "aggregate-results"]) assert.ok(name in waits, `report-ci-status at ${pin} runs ${name} with a rate-limit-wait-seconds input`);
+  for (const [name, seconds] of Object.entries(waits)) {
+    assert.ok(seconds <= WAIT_BUDGET_SECONDS.step, `${name}'s rate-limit-wait-seconds at ${pin} is ${seconds}, over WAIT_BUDGET_SECONDS.step ${WAIT_BUDGET_SECONDS.step}`);
+  }
+  const delays = (await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/run.sh")).match(/^OWN_GATE_RETRY_DELAYS='([0-9 ]+)'$/m)?.[1];
+  assert.ok(delays, `aggregate-results/run.sh at ${pin} sets OWN_GATE_RETRY_DELAYS`);
+  const ownGate = delays.split(" ").reduce((sum, seconds) => sum + Number(seconds), 0);
+  const margin = job.env.GH_READ_MARGIN_SECONDS;
+  const total = Object.values(waits).reduce((sum, seconds) => sum + seconds, rerun + ownGate + STATUS_WRITE_RETRY_SECONDS);
+  assert.ok(
+    total <= margin,
+    `report-ci-status's rate-limit waits ${JSON.stringify(waits)}, ${rerun} s rerun wait, ${ownGate} s own-gate retries and ${STATUS_WRITE_RETRY_SECONDS} s status writes at ${pin} total ${total} s, over GH_READ_MARGIN_SECONDS ${margin}`,
+  );
 });
 
 // Each launcher leg is followed by a check that the CLI's init message
@@ -3943,6 +3980,51 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
 });
 
+test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read within rate-limit-wait-seconds", async (t) => {
+  const root = tempDir("scan-wait-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const step = scanSteps().find((s) => s.id === "leak-scan");
+  assert.equal(step.env.WAIT_SECONDS, "${{ inputs.rate-limit-wait-seconds }}");
+  const run = async (env, answers) => {
+    const notices = [];
+    const branches = [];
+    const file = join(root, "scan-leak-calls");
+    rmSync(file, { force: true });
+    const github = {
+      rest: {
+        repos: {
+          getBranch: async () => {
+            branches.push(answers.length);
+            const answer = answers.shift();
+            if (answer instanceof Error) throw answer;
+            return answer;
+          },
+          getContent: async () => {
+            throw new Error("stop after the gate read");
+          },
+        },
+      },
+    };
+    const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {}, notice: (line) => notices.push(line) };
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { HEAD_SHA: "a".repeat(40), CALLS_FILE: file, ...env },
+    }).catch(() => {});
+    return { calls: existsSync(file) ? readFileSync(file, "utf8") : null, notices, reads: branches.length };
+  };
+  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
+  const tip = { data: { commit: { sha: GATE_TIP } } };
+  const waited = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [limited(), tip]);
+  assert.equal(waited.reads, 2, "getBranch is read again after the wait");
+  assert.equal(waited.calls, "3\n", "both getBranch reads and the gate's getContent");
+  assert.equal(waited.notices.length, 1);
+  const unset = await run({}, [limited(), tip]);
+  assert.equal(unset.reads, 1, "no budget: no second read");
+  assert.equal(unset.calls, "1\n");
+  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
+  assert.equal(other.reads, 1, "a 404 is not a rate limit");
+});
+
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
@@ -4521,7 +4603,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
   const steps = scanSteps();
   const step = (id) => steps.find((s) => s.id === id);
   const scan = step("leak-scan");
-  assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
+  assert.match(String(scan["timeout-minutes"]), /^\$\{\{ inputs\.rate-limit-wait-seconds > 0 && [1-9][0-9]* \|\| [1-9][0-9]* \}\}$/, "a slow scan ends, failing closed");
   assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
   const copy = "${{ steps.leak-scan.outputs.dir }}";
   assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.startsWith(`${copy}/`)));
@@ -4992,7 +5074,7 @@ function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KE
 function transcriptRecord(t, runOutputs) {
   const temp = tempDir("transcript-record-");
   t.after(() => rmSync(temp, { recursive: true, force: true }));
-  const step = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find((s) => s.id === "record");
+  const step = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find((s) => s.id === "record");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
     const output = NEEDS_RUN_OUTPUT.exec(expression)?.[1];
@@ -5023,7 +5105,7 @@ test("pr-run-activity-read.yml: the transcript job uploads the run job's leg tra
     const { status, log, record } = transcriptRecord(t, carried.runOutputs);
     assert.equal(status, 0, log);
     assert.deepEqual(openTranscript(record, jobId), LEG_MESSAGES, jobId);
-    const upload = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find(isUpload);
+    const upload = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find(isUpload);
     assert.equal(expand(upload.with.name, { ...carried.context, "github.run_attempt": "2" }), `lane-transcript-${jobId}-2`, "the artifact name the puller lists for this job-id");
     assert.throws(() => openTranscript(record, "resolve-conflicts"), undefined, "bound to its job-id");
   }
@@ -5165,7 +5247,7 @@ test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript 
   }
   assert.equal(evaluate(seal.if, { "steps.seal-check.outcome": "success", "steps.transcript-carry.outputs.staged": "true" }), true);
   assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /transcript-/);
-  const job = jobs.transcript;
+  const job = jobs["upload-transcript"];
   assert.deepEqual(job.needs, "run");
   assert.deepEqual(job.permissions, {});
   assert.equal(job.environment, undefined);
@@ -8596,7 +8678,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue" });
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) });
+  const laneJobs = workflow("work-resolve-issue.yml").jobs;
+  for (const id of ["resolve-issue-handoff", "resolve-issue-subscription-handoff", "resolve-issue-stale"]) {
+    const job = laneJobs[id];
+    const evidence = job.steps.find((s) => s.run?.startsWith("bash .base/.github/scripts/lib/handoff-evidence.sh "));
+    assert.equal(evidence.env.API_BUDGET_WAIT_SECONDS, String(WAIT_BUDGET_SECONDS.workResolveIssue), `${id} waits WAIT_BUDGET_SECONDS.workResolveIssue`);
+    assert.ok(job["timeout-minutes"] * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${id}'s timeout holds ten minutes of reads and the wait`);
+  }
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],
@@ -9072,6 +9161,26 @@ test("every model leg is followed by a sealed transcript upload of its own execu
   assert.ok(legs >= 13, `only ${legs} model legs found`);
 });
 
+test("a transcript upload's otel-file is its own leg's, from a launcher with the receiver on", () => {
+  let carried = 0;
+  for (const file of workflowFiles()) {
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      for (const [at, step] of steps.entries()) {
+        if (step.with?.["otel-receiver"] !== undefined) assert.ok(isLauncher(step), `${file}#${jobId} ${step.name}: otel-receiver on a step that is no launcher`);
+        if (!isTranscriptUpload(step) || step.with?.["otel-file"] === undefined) continue;
+        carried++;
+        const leg = /^\$\{\{ steps\.([\w-]+)\.outputs\.execution-file \}\}$/.exec(step.with["execution-file"] ?? "")?.[1];
+        assert.equal(step.with["otel-file"], `\${{ steps.${leg}.outputs.otel-file }}`, `${file}#${jobId} ${step.name}: the otel-file of the leg whose transcript it uploads`);
+        const launcher = steps.slice(0, at).find((s) => s.id === leg);
+        assert.ok(launcher && isLauncher(launcher), `${file}#${jobId} ${step.name}: ${leg} is a launcher before it`);
+        assert.equal(launcher.with?.["otel-receiver"], "true", `${file}#${jobId} ${leg}: the receiver is on`);
+      }
+    }
+  }
+  if (workflowFiles().includes("maintenance-audit-lane-runs.yml")) assert.ok(carried >= 3, `only ${carried} uploads carry telemetry`);
+});
+
 test("every caller of a reusable holding model legs passes the transcript key", () => {
   let callers = 0;
   for (const file of workflowFiles()) {
@@ -9172,6 +9281,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-pin -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-relock -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
@@ -9586,6 +9696,79 @@ test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded
   assert.ok(!["review-dependency", "apply-dependency-patch", "apply-dependency-verdict"].some((name) => (jobs[name].needs ?? []).includes("apply-dependency-pin")), "no model or verdict job waits on the pin");
 });
 
+test("pr-unblock.yml: the group relock runs uv with no token, and only a base-code job's checked patch is pushed under the dependency-relock row", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const select = jobs["review-dependency-select"];
+  assert.ok(!select.steps.some((step) => /setup-python/.test(step.uses ?? "")), "the token-holding select job installs no Python and runs no uv");
+  const uploadRequest = select.steps.find((step) => step.id === "upload-relock");
+  assert.equal(uploadRequest.with.name, "dependency-relock-request-${{ github.run_attempt }}");
+  assert.equal(evaluate(uploadRequest.if, { "steps.select.outputs.relock-state": "written", "steps.scan-relock.outputs.clean": "false" }), false, "an unscanned request is not uploaded");
+  const relockState = (outcome) => evaluate(select.outputs["relock-state"], { "steps.upload-relock.outcome": outcome });
+  assert.deepEqual([relockState("success"), relockState("failure")], ["written", ""]);
+
+  const relock = jobs["review-dependency-relock"];
+  assert.deepEqual(relock.permissions, {}, "no token scope beside uv");
+  assert.deepEqual(relock.needs, "review-dependency-select");
+  assert.ok(!JSON.stringify(relock).includes("secrets."), "no secret");
+  assert.ok(!JSON.stringify(relock).includes("github.token"), "no token handed to a step");
+  assert.deepEqual(
+    relock.steps.map((step) => (step.uses ?? "run").split("@")[0]),
+    ["actions/download-artifact", "run", "actions/upload-artifact"],
+    "no checkout and no cache step",
+  );
+  assert.match(relock.steps[1].env.RELOCK_IMAGE, /^python:3\.12-slim@sha256:[0-9a-f]{64}$/, "a digest-pinned image");
+  assert.match(relock.steps[1].run, /docker run --rm -v "\$RUNNER_TEMP\/relock-work:\/w" -v "\$RUNNER_TEMP\/relock-request:\/r:ro"/, "uv runs in a container that sees only the work and request directories");
+  assert.doesNotMatch(relock.steps[1].run, /--privileged|docker\.sock|--pid|--network[= ]host/, "the container reaches no runner process");
+  assert.equal(relock.steps[2].with.path, "${{ runner.temp }}/relock-out/requirements.txt", "only the copied regular lock leaves");
+
+  const patch = jobs["review-dependency-relock-patch"];
+  assert.deepEqual(patch.permissions, { contents: "read" });
+  assert.deepEqual(patch.needs, ["review-dependency-select", "review-dependency-relock"]);
+  assert.equal(evaluate(patch.if, { "needs.review-dependency-select.outputs.relock-state": "written" }), true, "runs even when the relock job failed, to stop the round");
+  const checkout = patch.steps.find((step) => /actions\/checkout/.test(step.uses ?? ""));
+  assert.equal(checkout.with.ref, "${{ steps.tip.outputs.sha }}", "base code only");
+  assert.match(patch.steps.find((step) => step.id === "patch").run, /dependency-relock\.mjs patch /);
+  assert.match(patch.steps.find((step) => step.id === "patch").run, /REQUEST_SHA256/);
+  const reason = (outcome) => evaluate(patch.outputs["escalation-reason"], { "steps.upload-pin.outcome": outcome });
+  assert.deepEqual([reason("success"), reason("skipped"), reason("failure")], ["", "dependency-pin-invalid", "dependency-pin-invalid"]);
+
+  const push = jobs["apply-dependency-relock"];
+  assert.deepEqual(push.needs, ["review-dependency-select", "review-dependency-relock-patch"]);
+  assert.equal(evaluate(push.if, { "needs.review-dependency-relock-patch.outputs.pin-state": "written" }), true);
+  assert.equal(evaluate(push.if, { "needs.review-dependency-relock-patch.outputs.pin-state": "" }), false);
+  assert.equal(push.with.activity, "apply-dependency-patch");
+  assert.equal(push.with["patch-prepare"], "dependency-relock", "a literal row, never a job output");
+  assert.equal(push.with["patch-sha256"], "${{ needs.review-dependency-relock-patch.outputs.pin-sha256 }}");
+  assert.ok(!Object.values(push.with).some((value) => String(value).includes("review-dependency-relock.outputs")), "nothing from the uv job");
+  const PATCH_RULES = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "patch-rules.json"), "utf8"));
+  assert.deepEqual(PATCH_RULES["dependency-relock"].requires, []);
+  assert.equal(PATCH_RULES["dependency-relock"]["content-rule"], "dependency-version-change", "the fix rule the pr-merge lane's provenance check mirrors");
+  assert.equal(PATCH_RULES["dependency-relock"]["max-files"], 2, "one directory's requirements.in and requirements.txt");
+  assert.deepEqual(PATCH_RULES["dependency-relock"].escalations, PATCH_RULES["install-script-pin"].escalations, "the pin's stop reasons, which report-escalation already routes");
+});
+
+test("pr-unblock.yml: the relock job uploads only a regular requirements.txt the container left, never what a symlink points at", (t) => {
+  const run = workflow("pr-unblock.yml").jobs["review-dependency-relock"].steps.find((step) => step.name === "Relock the lagging directory").run;
+  const outcome = (leave) => {
+    const root = tempDir("relock-step-");
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const temp = join(root, "temp");
+    const bin = join(root, "bin");
+    mkdirSync(join(temp, "relock-request"), { recursive: true });
+    mkdirSync(bin);
+    writeFileSync(join(temp, "relock-request/requirements.in"), "playwright==1.65.2\n");
+    writeFileSync(join(temp, "relock-request/requirements.txt"), "playwright==1.65.1\n");
+    writeFileSync(join(root, "runner-secret"), "ACTIONS_RUNTIME_TOKEN=leaked\n");
+    writeFileSync(join(bin, "docker"), `#!/usr/bin/env bash\nset -e\ncd "$RUNNER_TEMP/relock-work"\n${leave}\n`, { mode: 0o755 });
+    const result = spawnSync("bash", ["-e", "-c", run], { env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, RELOCK_IMAGE: "image", SECRET: join(root, "runner-secret") }, encoding: "utf8" });
+    const out = join(temp, "relock-out/requirements.txt");
+    return { status: result.status, uploaded: existsSync(out) ? readFileSync(out, "utf8") : null };
+  };
+  assert.deepEqual(outcome(`printf 'playwright==1.65.2\\n' >requirements.txt`), { status: 0, uploaded: "playwright==1.65.2\n" }, "a regular relocked lock is staged for upload");
+  assert.deepEqual(outcome(`rm requirements.txt; ln -s "$SECRET" requirements.txt`), { status: 1, uploaded: null }, "a symlink to a runner file is refused, nothing staged");
+  assert.deepEqual(outcome(`rm requirements.txt; mkdir requirements.txt; ln -s "$SECRET" requirements.txt/x`), { status: 1, uploaded: null }, "a directory in its place is refused");
+});
+
 // The not-run job posts the activity's check on every head the select job
 // read: neutral with a reason when it decided, failure when it failed, which
 // dispatch.mjs counts toward limit-stops-per-head.
@@ -9964,7 +10147,8 @@ test("every checkout of this repository takes a SHA, and main's tip comes only f
       assert.ok(["main", DEFAULT_BRANCH].includes(tip.env.TIP_BRANCH), where);
       assert.equal(tip.env.GIT_TERMINAL_PROMPT, "0", where);
       assert.equal(tip.uses, undefined, where);
-      assert.equal(tip.run, TIP_RUN, `${where}: the one tip script`);
+      const carries = steps.some((s) => String(s.env?.PR_MERGE_MAIN_TIP ?? "").includes("steps.tip.outputs.carry-tip"));
+      assert.equal(tip.run, carries ? TIP_RUN_CARRY : TIP_RUN, `${where}: the one tip script`);
     }
   }
   assert.ok(tips >= 70, `only ${tips} tip steps found`);
@@ -9977,6 +10161,22 @@ const TIP_RUN = [
   '  sleep "$((RANDOM % (2 * i + 1)))"',
   "done",
   'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "",
+].join("\n");
+
+const TIP_RUN_CARRY = [
+  'until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&',
+  "    sha=$(awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }' <<<\"$refs\") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
+  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  '  sleep "$((RANDOM % (2 * i + 1)))"',
+  "done",
+  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "# The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only",
+  "# while no tag is named main, which they refuse: with it, no reader",
+  "# process reads git/ref/tags/main or git/ref/heads/main again.",
+  "if ! awk '$2 == \"refs/tags/main\" || $2 == \"refs/tags/main^{}\" { found = 1 } END { exit !found }' <<<\"$refs\"; then",
+  '  echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"',
+  "fi",
   "",
 ].join("\n");
 
@@ -10446,7 +10646,7 @@ test("the policy probe reruns a session with no tool call, at most three times, 
   const calls = [
     ["Read", { file_path: "/proc/self/environ" }],
     ["Read", { file_path: `${root}/.runner` }],
-    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Grep", { pattern: "policy-probe", glob: "environ", path: "/proc/self" }],
     ["Glob", { pattern: "environ", path: "/proc/self" }],
   ];
   const stream = (made, denials) =>

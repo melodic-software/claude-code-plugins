@@ -224,11 +224,6 @@ color:
     near_white_l:
       - 0.85
       - 0.45
-# The primitives library a React project with none installed builds on: a setting value from the
-# primitives table in component-libraries.md, not a package name (install by the name its Install
-# page gives). The project's installed library and design system beat every layer.
-components:
-  primitives_default: base-ui
 # Icon sizes and gaps in px or em. icon.size_px, the ladder of sizes, and icon.label_gap_em are heuristics.
 icon:
   filled_below_px: 12

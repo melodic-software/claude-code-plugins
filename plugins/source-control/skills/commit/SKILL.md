@@ -117,8 +117,8 @@ The subject convention (what shape a subject must take) resolves via a ladder, c
    else is already a single anchored regex and is used as-is.
 2. **The consuming project's own `CLAUDE.md`, `AGENTS.md`, rules, or commit-msg hook**, if the
    effective merged config declares no `subject_pattern` (absent from every layer, which includes the
-   case where layers exist but only contribute other keys) but the project declares (or enforces via
-   lefthook, husky, commitlint, or a plain `.git/hooks/`) a different convention, follow that instead.
+   case where layers exist but only contribute other keys) but the project declares (or enforces with
+   a commit-msg hook) a different convention, follow that instead.
 3. **Conventional Commits (11-type vocabulary)**, the default when neither of the above is present.
    Every subject must match this anchored pattern:
 

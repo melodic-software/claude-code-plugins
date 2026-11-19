@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2238,8 +2238,8 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     assert.equal(count("POST /graphql"), 1);
     assert.equal(
       reads.length,
-      1 + numbers.length + 3 * 2 + 7 + 2 + 1 + 1 + 1,
-      "the pulls page, one run listing per head, the cancelled and failure listings for each of pr-verify, pr-review-main and pr-rate-merge-risk, one repository-wide listing for each of the other seven statuses, one held-run listing for each of pr-verify and pr-review-main, one intake listing, one stopped-verdict listing and the one pre-filter query",
+      1 + numbers.length + 3 * 2 + 7 + 3 + 1 + 1 + 1,
+      "the pulls page, one run listing per head, the cancelled and failure listings for each of pr-verify, pr-review-main and pr-rate-merge-risk, one repository-wide listing for each of the other seven statuses, one held-run listing for each of pr-verify, pr-review-main and pr-rate-merge-risk, one intake listing, one stopped-verdict listing and the one pre-filter query",
     );
   });
 });
@@ -3671,5 +3671,62 @@ test("pr-rate-merge-risk still names its rate and write steps as the reconciler 
     assert.match(writes[0], /\n[ ]+if: \$\{\{ !cancelled\(\) && steps\.rate\.outcome == 'success' /, name);
     const trigger = steps.find((s) => s.startsWith("      - name: Check the trigger\n"));
     assert.match(trigger, /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/, name);
+  }
+});
+
+const SWITCHED_RATINGS = fixture("runs-switch-stopped-rater-2026-11-18.json");
+const PASS_2212 = Date.parse("2026-11-18T22:12:12Z");
+const STOPPED_HEAD = "5de165ae079891c3c51b0580b502310b9d1ba703";
+const stoppedPull = { ...pr(17276), head: { ...pr(17276).head, sha: STOPPED_HEAD } };
+const stoppedChecks = run(44405002001, STOPPED_HEAD, { conclusion: "success", created: "2026-11-18T21:40:00Z", updated: "2026-11-18T21:46:59Z" });
+const recordedRater = (key, opts = {}) => ({ ...SWITCHED_RATINGS[key].run, head_repository: { full_name: REPO }, jobs: SWITCHED_RATINGS[key].jobs, ...opts });
+
+test("a merge-risk run the lanes kill switch stopped green is recorded and re-run once on the first pass after the switch lifts", async () => {
+  const stopped = recordedRater("switch-stopped-44405002826");
+  const { code, reruns, failedJobReruns, outputs } = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, stopped], now: PASS_2212 });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [44405002826]);
+  assert.deepEqual(failedJobReruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-44405002826-2-${stopped.head_sha}`, "", ""]);
+});
+
+test("a stopped merge-risk run is not read while the lanes kill switch is on, nor re-run at attempt 2", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const on = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, recordedRater("switch-stopped-44405002826")], now: PASS_2212, env: { KILL_SWITCH: "stop" } });
+  assert.deepEqual(on.calls, [], "the switch stops the pass before any read");
+  const again = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, recordedRater("switch-stopped-44405002826", { run_attempt: 2 })], now: PASS_2212 });
+  assert.deepEqual(again.calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("a merge-risk run the switch stopped in the leg its key leg handed off to is re-run, not settled", async () => {
+  const stopped = recordedRater("switch-stopped-44405002826");
+  const [key, subscription, fallback] = stopped.jobs;
+  const resolvedKey = { ...key, steps: key.steps.map((step) => (step.name === RATER_RESOLVE_STEP ? { ...step, conclusion: "success" } : step)) };
+  const stoppedSubscription = { ...subscription, conclusion: "success", steps: key.steps };
+  const handedOff = { ...stopped, jobs: [resolvedKey, stoppedSubscription, fallback] };
+  const { code, reruns, settled } = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, handedOff], now: PASS_2212, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [44405002826]);
+  assert.deepEqual(settled.runs, []);
+});
+
+test("a merge-risk run whose resolver ran is not re-run and is settled, so its jobs are read once", async () => {
+  const resolved = recordedRater("resolved-44405353994");
+  const { code, calls, settled } = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, resolved], now: PASS_2212, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.deepEqual(settled.runs, [{ id: 44405353994, reason: "" }]);
+});
+
+test("pr-rate-merge-risk still gates its resolver on the kill-switch step the reconciler reads, in every leg", () => {
+  const legs = verifyLegs("pr-rate-merge-risk.yml");
+  assert.equal(legs.length, 3);
+  assert.deepEqual(legs.map(({ body }) => /^ {4}name: (.*)$/m.exec(body)?.[1]), RATER_LEGS);
+  for (const { name, body } of legs) {
+    const steps = legSteps(body);
+    const kill = steps.find((s) => s.startsWith(`      - name: ${RATER_SWITCH_STEP}\n`));
+    assert.match(kill, /\n[ ]+id: kill\n/, name);
+    const resolve = steps.find((s) => s.startsWith(`      - name: ${RATER_RESOLVE_STEP}\n`));
+    assert.match(resolve, /\n[ ]+if: steps\.kill\.outputs\.proceed == 'true'\n/, name);
   }
 });

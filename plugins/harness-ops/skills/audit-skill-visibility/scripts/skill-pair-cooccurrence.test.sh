@@ -34,6 +34,7 @@ set -uo pipefail
 # An inherited absolute GIT_DIR outranks -C and would write the fixture's git
 # identity into the caller's clone; clear it before any fixture is built.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/skill-pair-cooccurrence.sh"

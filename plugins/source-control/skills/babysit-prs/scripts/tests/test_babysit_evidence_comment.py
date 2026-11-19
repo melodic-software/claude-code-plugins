@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import pathlib
+import re
 import sys
 import unittest
 from typing import Any
@@ -97,6 +98,45 @@ class FindCapture(unittest.TestCase):
                     }
                 )
                 self.assertIsNone(ec.find_capture(REPO, PR, HEAD, read))
+
+    def test_the_title_case_run_name_counts_and_a_near_miss_does_not(self) -> None:
+        for title, found in (
+            (f"PR Verify Capture 812 {HEAD}", True),
+            (f"pr verify capture 812 {HEAD}", False),
+            (f"PR Unblock 812 {HEAD}", False),
+            (f"PR Verify Capture {HEAD}", False),
+            (f"PR Verify Capture 812 {'b' * 40}", False),
+        ):
+            with self.subTest(title):
+                self.assertEqual(
+                    ec.capture_run(capture_run(display_title=title), REPO, HEAD), found
+                )
+
+    def test_the_title_prefixes_are_run_title_mjs_and_the_workflow_run_name_reads(
+        self,
+    ) -> None:
+        root = pathlib.Path(__file__).resolve().parents[6]
+        module = (root / ".github/scripts/lib/run-title.mjs").read_text(
+            encoding="utf-8"
+        )
+        entry = re.search(
+            r'"pr-verify-capture\.yml": Object\.freeze\(\[([^\]]*)\]\)', module
+        )
+        assert entry is not None
+        self.assertEqual(
+            set(ec.CAPTURE_TITLE_PREFIXES), set(json.loads(f"[{entry.group(1)}]"))
+        )
+        workflow = (root / ".github/workflows/pr-verify-capture.yml").read_text(
+            encoding="utf-8"
+        )
+        run_name = re.search(r"^run-name: (.*)$", workflow, re.M)
+        assert run_name is not None
+        title = (
+            run_name.group(1)
+            .replace("${{ github.event.workflow_run.id }}", "812")
+            .replace("${{ github.event.workflow_run.head_sha }}", HEAD)
+        )
+        self.assertTrue(ec.capture_run(capture_run(display_title=title), REPO, HEAD))
 
     def test_expired_or_misnamed_artifacts_are_not_read_further(self) -> None:
         read = reader(

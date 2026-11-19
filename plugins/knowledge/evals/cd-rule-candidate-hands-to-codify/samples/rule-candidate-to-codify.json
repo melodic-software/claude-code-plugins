@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "# Action Items: Robust HTTP APIs in TypeScript\n\n## Rule candidates\n\nRules or conventions worth codifying, each handed to `/corrections:codify`:\n\n- [ ] **Validate request bodies at the boundary** — Hand to `/corrections:codify \"Validate request bodies at the boundary: every route that reads a body parses it with a schema first\"`.\n  Rationale from course: untrusted bytes reach the store otherwise.\n  - Source: \"Schemas at the edge\"\n\n## Skill candidates\n\nNone.", "why": "the new template shape"},
+    {"answer": "## Rule candidates\n\n1. `/corrections:codify \"every POST route parses req.body with a schema before the handler\"` — the course's rule to validate request bodies at the boundary; codify picks the mechanism.\n\n## Testing practice improvements\n\n- Add a malformed-body test per route.", "why": "codify call first, the rule after it"},
+    {"answer": "## Rule Candidates (handed to codify)\n\n- [ ] **Schema-validate every incoming request payload**\n  - Hand to `/corrections:codify \"Schema-validate every incoming request payload at the route boundary\"`\n  - Source: \"Where untrusted data enters\"", "why": "the call on a sub-bullet of the entry"}
+  ],
+  "fail": [
+    {"answer": "# Action Items: Robust HTTP APIs in TypeScript\n\n## CLAUDE.md / .claude/rules/ candidates\n\nRules or conventions worth codifying:\n\n- [ ] **Validate request bodies at the boundary** — Add to `CLAUDE.md`.\n  Rationale from course: untrusted bytes reach the store otherwise.\n  - Source: \"Schemas at the edge\"", "why": "the pre-change template output"},
+    {"answer": "## Rule candidates\n\n- [ ] **Validate request bodies at the boundary** — Add to `.claude/rules/api.md`.\n- [ ] **Keep a bad-payload fixture** — Hand to `/corrections:codify \"keep a fixture of known-bad payloads\"`.", "why": "codify names only a different rule"},
+    {"answer": "## Architecture pattern changes\n\n- Validate request bodies at the boundary with zod middleware; `/corrections:codify` could later check it.", "why": "no Rule candidates section"},
+    {"answer": ""},
+    {"answer": "The course recommends contract tests per route.", "why": "a different answer"}
+  ]
+}
