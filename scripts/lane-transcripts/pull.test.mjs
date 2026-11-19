@@ -814,6 +814,25 @@ test("telemetry bound to another job or payload name is not stored, and a transc
   assert.ok(readRows(sink).every((r) => r.telemetry === null && r.transcript));
 });
 
+test("telemetry that cannot be extracted or is over its size cap is unreadable, and the transcript is kept", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const page = [
+    artifact(81, { entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: sealedTelemetry(publicLine, "\n".repeat(64 * 1024 * 1024 + 1)) } }),
+    artifact(82, { attempt: 2, entries: { [ENTRY]: sealed(publicLine), [TELEMETRY_ENTRY]: "z" } }),
+  ];
+  const deps = fakeDeps(page);
+  const unzip = deps.unzip;
+  deps.unzip = (args) => {
+    if (args[2] === TELEMETRY_ENTRY && JSON.parse(readFileSync(args[1], "utf8"))[TELEMETRY_ENTRY] === Buffer.from("z").toString("base64")) throw Object.assign(new Error("maxBuffer"), { status: 9 });
+    return unzip(args);
+  };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 0, result.err);
+  const byId = Object.fromEntries(readRows(sink).map((r) => [r.artifact_id, [r.telemetry_outcome, r.telemetry, Boolean(r.transcript)]]));
+  assert.deepEqual(byId, { 81: ["unreadable", null, true], 82: ["unreadable", null, true] });
+});
+
 test("telemetrySpans counts spans across lines and skips a line that is not JSON", () => {
   const trace = "a".repeat(32);
   assert.deepEqual(telemetrySpans(`not json\n${telemetryLines([trace, "b".repeat(32)])}`, trace), { telemetry_spans: 2, telemetry_joined_spans: 1 });

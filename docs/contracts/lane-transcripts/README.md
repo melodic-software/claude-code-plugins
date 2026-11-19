@@ -39,8 +39,9 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
   credential scan blocks, arrives as a marker, never cut short. When the other outputs leave no
   room even for a marker, nothing is carried.
 - A leg's telemetry is gzipped JSONL, one OTLP/JSON export request per line, traces and logs
-  together; a line's top-level `resourceSpans` or `resourceLogs` key says which. Prompt and tool
-  content are redacted at the source.
+  together; a line's top-level `resourceSpans` or `resourceLogs` key says which. The writer
+  (ci-workflows run-claude-cli's `otel-receiver`) leaves the CLI's redaction of prompt and tool
+  content on.
   - **Pointer**: for the line shapes, read the [OTLP specification](https://opentelemetry.io/docs/specs/otlp/).
 - The file name under a lane's date directory is the writer's; readers take a transcript's or
   telemetry's path from its row, never by building it.

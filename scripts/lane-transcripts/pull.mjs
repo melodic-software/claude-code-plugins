@@ -53,6 +53,8 @@ const OVERLAP = 6 * HOUR;
 const PER_PAGE = 100;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
+const MAX_TELEMETRY_PLAIN = 64 * 1024 * 1024;
+const UNEXTRACTED = Symbol("unextracted");
 export const GH_ATTEMPTS = 5;
 export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
@@ -230,7 +232,13 @@ function sealedRecords(deps, sink, zip) {
     const entries = unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
     const extra = entries.filter((entry) => entry !== ENTRY);
     if (entries.length - extra.length !== 1 || extra.length > 1 || !extra.every((entry) => EXTRA_SEALED.test(entry))) return null;
-    return { transcript: unzip(["-p", file, ENTRY]), telemetry: extra[0] === TELEMETRY_ENTRY ? unzip(["-p", file, TELEMETRY_ENTRY]) : null };
+    const transcript = unzip(["-p", file, ENTRY]);
+    if (extra[0] !== TELEMETRY_ENTRY) return { transcript, telemetry: null };
+    try {
+      return { transcript, telemetry: deps.unzip(["-p", file, TELEMETRY_ENTRY]) };
+    } catch {
+      return { transcript, telemetry: UNEXTRACTED };
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -391,6 +399,7 @@ const NO_TELEMETRY = { telemetry: null, telemetry_bytes: null, telemetry_spans: 
  */
 function openTelemetry(recipient, record, runId, jobId, traceId) {
   if (!record) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "none" } };
+  if (record === UNEXTRACTED) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "unreadable" } };
   let gz;
   try {
     gz = openRecord(recipient, [recipient.keyId], TELEMETRY_PAYLOAD, record, runId, jobId);
@@ -398,13 +407,12 @@ function openTelemetry(recipient, record, runId, jobId, traceId) {
     if (error instanceof OpenError) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "sealed_mismatch" } };
     throw error;
   }
-  let text;
   try {
-    text = gunzipSync(gz, { maxOutputLength: MAX_PLAIN }).toString("utf8");
+    const text = gunzipSync(gz, { maxOutputLength: MAX_TELEMETRY_PLAIN }).toString("utf8");
+    return { gz, fields: { telemetry_bytes: gz.length, ...telemetrySpans(text, traceId), telemetry_outcome: "stored" } };
   } catch {
     return { fields: { ...NO_TELEMETRY, telemetry_outcome: "unreadable" } };
   }
-  return { gz, fields: { telemetry_bytes: gz.length, ...telemetrySpans(text, traceId), telemetry_outcome: "stored" } };
 }
 
 /**

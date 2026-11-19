@@ -125,7 +125,11 @@ export const telemetryPath = (row) => transcriptPath(row).replace(/\.json\.gz$/,
 export function telemetrySpans(text, traceId) {
   let spans = 0;
   let joined = 0;
-  for (const line of text.split("\n")) {
+  for (let at = 0; at < text.length; ) {
+    const end = text.indexOf("\n", at);
+    const line = text.slice(at, end === -1 ? text.length : end);
+    at = end === -1 ? text.length : end + 1;
+    if (line.trim() === "") continue;
     let request;
     try {
       request = JSON.parse(line);
