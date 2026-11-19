@@ -522,7 +522,15 @@ async function consent(opts, gate, interactive, question = "Apply these changes?
   if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
-function commit(p, opts, where) {
+/** Saves the record; a finish saves it only while the pending record it read is still there, checked just before the rename, and is false when it is not. */
+function claimRecord(p, record, finishing) {
+  if (finishing && !swapRecord(finishing.path, finishing.text, recordText(record))) return false;
+  if (finishing?.path !== p.recPath) saveRecord(p.recPath, record);
+  return true;
+}
+
+/** Writes the record, then the settings file; false, writing nothing, when the pending record a finish read has changed. */
+function commit(p, opts, where, finishing = null) {
   const text = editText(p.settings, p.edits);
   if (opts.target === "session") return writeSettings(p.file, p.settings.hash, text);
   const record = nextRecord(p.previous, {
@@ -539,12 +547,15 @@ function commit(p, opts, where) {
     pending: p.pending,
     installed: [...p.inv.keys()],
   });
-  saveRecord(p.recPath, record);
+  if (!claimRecord(p, record, finishing)) return false;
   notePointer(where, p.file);
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
-    if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
+    if (finishing) {
+      swapRecord(finishing.path, recordText(record), finishing.text);
+      if (finishing.path !== p.recPath) deleteRecord(p.recPath);
+    } else if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
     else deleteRecord(p.recPath);
     throw error;
   }
@@ -561,13 +572,17 @@ async function apply(opts, where, env, io) {
   if (opts.deferOff && sessionProfile(env)) {
     throw new NotApplied(`not applied: this session runs in profile ${sessionProfile(env)} from a one-session settings file, so a switch here would not hold; start a session in ${opts.name} with apply ${opts.name} --for session, then the claude --settings command it prints`);
   }
+  let finishing = null;
   if (opts.finishPending) {
     const file = targetFile(where, opts.target);
-    const rec = recordOf(where, file).record;
+    const { found } = recordOf(where, file);
+    const text = found && readText(found);
+    const rec = text ? JSON.parse(text) : null;
     if (rec?.phase !== "off-pending" || rec.profile !== opts.name) {
       io.out(`Nothing to finish: no unfinished switch to ${opts.name} is recorded for ${file}.`);
       return 0;
     }
+    finishing = { path: found, text, gone: `Nothing to finish: the unfinished switch to ${opts.name} recorded for ${file} changed while finishing (a reset, a clear or another switch); nothing was written.` };
     opts = { ...opts, yes: true };
   }
   const catalog = catalogFor(where, opts.target);
@@ -593,19 +608,24 @@ async function apply(opts, where, env, io) {
   }
   if (opts.dryRun) return 0;
   await consent(opts, gate, interactive());
+  let claimed;
   try {
-    commit(p, opts, where);
+    claimed = commit(p, opts, where, finishing);
   } catch (error) {
     if (!(error instanceof SettingsConflict)) throw error;
     const again = prepare(opts, where, catalog, records);
     if (!sameChange(p, again)) throw new NotApplied(`not applied: ${p.file} changed while applying and the change alters the plan; run apply again to see the new preview`);
     p = again;
     try {
-      commit(p, opts, where);
+      claimed = commit(p, opts, where, finishing);
     } catch (second) {
       if (second instanceof SettingsConflict) throw new NotApplied(`not applied: ${p.file} kept changing while applying; it is left as the other writer left it`);
       throw second;
     }
+  }
+  if (claimed === false) {
+    io.out(finishing.gone);
+    return 0;
   }
   io.out(`Applied ${opts.name} to ${p.file}.`);
   if (opts.target === "session") {

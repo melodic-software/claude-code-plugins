@@ -626,6 +626,26 @@ test("#17354: apply --finish-pending does nothing once the folder's record is go
   assert.equal(w.run(["apply", "build", "--for", "session", "--finish-pending"]).status, 2, "only a folder or user settings has a switch to finish");
 });
 
+test("#17354: a reset in another terminal while apply --finish-pending lists the installed plugins makes the finish write nothing, even when the deferred switch left the settings bytes unchanged", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  rmSync(dataRecordsDir(w), { recursive: true });
+  const before = w.read();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  assert.equal(w.read(), before, "the deferred switch wrote no byte");
+  const during = join(w.root, "during.json");
+  writeFileSync(during, JSON.stringify({ argv: [CLI, "reset", "--yes"], cwd: elsewhere(w) }));
+  const r = w.run(["apply", "build", "--for", "folder", "--finish-pending"], { PP_STUB_DURING_LIST: during });
+  assert.equal(existsSync(during), false, "the reset ran during the finish");
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, new RegExp(`^Nothing to finish: the unfinished switch to build recorded for ${esc(w.localFile)} changed while finishing \\(a reset, a clear or another switch\\); nothing was written\\.$`, "m"));
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], true, "the cancelled switch is not reapplied");
+  assert.deepEqual(w.records(), []);
+});
+
 test("AC11: --defer-off also holds back the off entry of a plugin that only user settings switch on", () => {
   const w = world({ local: null });
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
