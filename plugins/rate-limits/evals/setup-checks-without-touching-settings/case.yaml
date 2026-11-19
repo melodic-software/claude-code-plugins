@@ -11,7 +11,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-3'
     type: 'llm'
-    criteria: 'Reports each of rate_limits_enabled, model_notices, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data, rate_limits_band and rate_limits_toast as its own row with its value'
+    criteria: 'Reports each of rate_limits_enabled, model_notices, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data, rate_limits_band, rate_limits_toast and account_switch_url as its own row with its value'
     focus: 'trace'
   - name: 'expectation-4'
     type: 'llm'

@@ -1,5 +1,18 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [4.2.2] - 2026-11-19
+
+### Changed
+
+- The `compress_articles` record in the config reference quotes caveman's **Remove** list, so it is a stored value and gets back its as-of date, 2026-11-06.
+- `/docs-hygiene:audit-derivability`'s Sources pointer for which subagents skip launch-loaded files no longer carries a recheck trigger, and the matching row is gone from its Recheck triggers table.
+
 ## [4.2.1] - 2026-11-19
 
 ### Changed

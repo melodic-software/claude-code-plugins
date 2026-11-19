@@ -1,0 +1,4 @@
+{
+  "description": "Loads the themes module, which registers each theme: the bedroom theme sets its look at session start, draws its backdrop and shader on ui.render, answers clicks on ui.pointer and runs /bedroom on command.run.",
+  "modules": ["./register.tsx"]
+}
