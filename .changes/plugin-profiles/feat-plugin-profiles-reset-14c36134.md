@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- `profiles.mjs reset` puts every settings file a profile changed on the machine back, user settings included, behind one preview and one yes; a reset stopped part way finishes on the next run.
+- `profiles.mjs reset` puts every settings file a profile changed on the machine back, user settings included, behind one preview and one yes; a reset stopped part way finishes on the next run. It reads a record only from a home that can hold it, refuses a write that no longer matches the preview passed with `--preview-id`, and exits 3 when it wrote what it could and named each file it skipped.
 - The `/plugin-profile` picker has a **Reset** row under No profile, and the profile skill has a reset action; both show the same preview and ask before writing, and a folder without a record changes only on a yes for that folder.
 
 ### Changed

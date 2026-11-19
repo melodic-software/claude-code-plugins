@@ -27,14 +27,21 @@ listed the repositories that hold records.
    applies never write the same file. Every reset also reads the folders in `~/.claude.json`
    `projects`, each one-session record's folder, each live session's folder and the folder it runs
    in, resolves each to its repository, and reads the user state home and every data folder.
-   Records are grouped by settings file, so a file with records in two homes is restored once.
+   Records are grouped by settings file, so a file with records in two homes is restored once. A
+   record counts only from a home that can hold it (the same homes `clear` reads for that file);
+   one elsewhere, such as a repository's `.git` naming user settings or another repository's file,
+   is listed as ignored and never written from.
 3. **What stays unfound.** A repository with no pointer whose every known path is gone (a removed
    worktree, a submodule known only from its superproject) until a session starts there, an apply
    from a plain terminal in a folder Claude Code never opened, and other config folders. The README
    and the scenarios table name them.
-4. **A record whose folder is gone is kept.** Reset never deletes it under the one yes; when its
-   repository moved, the preview names that repository's file, which reset restores from the record
-   only after a yes for it.
+4. **A record whose folder is gone is kept.** Reset never deletes it under the one yes; when it was
+   the record of a main checkout's root file and that repository moved, the preview names the
+   repository's root file where it is now, which reset restores from the record only after a yes
+   for it. A gone subfolder or linked worktree of a repository still there is only kept.
+5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
+   previewed in one process and writes in another passes it, and the write refuses, writing
+   nothing, when what it would write differs from that preview.
 
 ## Considered options
 

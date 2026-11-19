@@ -22,8 +22,9 @@ gave for the recorded files.
 2. **A yes per folder.** Its `enabledPlugins` and `skillOverrides` keys are removed only after a yes
    for that folder: a terminal asks one question per folder after the single yes, and a caller that
    has asked already (the `/plugin-profile` picker, the profile skill) passes
-   `--remove-unrecorded <file>` once per yes. A named file the preview did not list stops the reset
-   before anything is written.
+   `--remove-unrecorded <file>` once per yes and `--keep-unrecorded <file>` once per no, which is
+   reported as kept at that answer. A named file the preview did not ask about stops the reset
+   before anything is written, and the refusal names the files it does ask about.
 3. **`--yes` is the single yes only.** It restores every recorded file and skips each folder without
    a record, saying why.
 4. **User settings are never offered.** User `settings.json` without a record is left alone, and a
@@ -40,8 +41,10 @@ gave for the recorded files.
 
 - An unattended `reset --yes` never removes an entry no profile recorded.
 - The preview grows by one row per such folder, and each defaults to keep.
-- Every caller that runs reset for a person asks per folder in the tool's own question text, which
-  the `--json` preview carries.
+- Every caller that runs reset for a person asks the single question and each per-folder question
+  in the tool's own text, which the `--json` preview carries. The single question says it covers
+  only the files with a record, and a per-folder question names the count and the first few
+  entries, the full list staying in the preview.
 
 ## Revisit triggers
 
