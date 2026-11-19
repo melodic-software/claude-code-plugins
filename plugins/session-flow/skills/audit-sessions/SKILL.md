@@ -336,8 +336,9 @@ message's context and a session's version is in the script's docstring.
   it. `rise` stays null, and the exit is 1, until both sides hold `--min-per-side` sessions (default
   10); widen the sample with an earlier `--since`. `miss_count` is null: a retro or the owner counts
   the binding rules, decisions and open questions a resumed session missed.
-- **Run time.** It opens every transcript in scope and stops each one early, but a large projects
-  root still takes minutes: give it a Bash timeout of 600000 ms or run it in the background.
+- **Run time.** It opens every transcript and stops each one early. A run over 3,478 transcripts
+  took about 85 s (measured 2026-11-19; recheck when a run exceeds 300 s), so give it a Bash
+  timeout of 600000 ms or run it in the background.
 - Show the report as it came back. Step 3's rule covers every id, path and version it prints.
 
 ## Boundary, the built-in `/insights` command
