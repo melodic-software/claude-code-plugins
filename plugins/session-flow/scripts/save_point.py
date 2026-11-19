@@ -5,7 +5,8 @@
 Owns every deterministic field of a handoff file so the model writes only the
 reasoning slots. `new` writes shape 3 by default: a hot file plus one archive
 file per hop, `handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, holding
-the predecessor sections the hot file does not carry. Shape 2 (`--shape 2`)
+the predecessor sections the hot file does not carry; a shape-4 predecessor
+continues as shape 4, and `--shape 4` starts one. Shape 2 (`--shape 2`)
 stays writable, and shape-1 and shape-2 files validate and read unchanged.
 Stdlib only; Python 3.10+. Read-only on the repository except the files `new`
 creates (it never writes a `.gitignore` and never rewrites an existing
@@ -16,7 +17,7 @@ Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
                       [--memory-dir <root>] [--session-id <uuid>]
                       [--projects-root <dir>] [--repo-root <dir>] [--now <iso>]
-                      [--shape 2|3] [--purpose <text>]
+                      [--shape 2|3|4] [--purpose <text>]
     save_point.py fill <file> --slots <json>
     save_point.py amend <file> --json <json> [--now <iso>]
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
@@ -42,19 +43,27 @@ Exit codes:
               the skeleton names it as previous_handoff with previous_status
               missing|unreadable, one WARN line on stderr names it, and fill
               and emit proceed
-    fill      0 every slot replaced from the JSON, file written once, nothing
-                printed
+    fill      0 every slot replaced from the JSON, file written once; shape 2
+                and 3 print nothing; shape 4 moves whole movable sections
+                (Observations, Suggested skills, Direction changes) to this
+                hop's file behind a pointer until the hot file is under the
+                cap, then prints the validate verdict (an OVER-CAP line when
+                binding content alone is over it) and the emit output
+              1 (shapes 3 and 4) a Resumption brief or below-the-rails note
+                over its slot budget on the first try: nothing written, the
+                slot and the bytes over named; the next fill writes anyway and
+                validate FAILs the slot
               1 refused: a required slot absent from the JSON, a key naming no
                 slot in the file, a slot name occurring twice in the file, a
                 value carrying the literal `<!-- FILL`, no slot in the file at
                 all, or a closing `next` value whose line above is not bare
                 `Next:`
               2 usage, target missing or unreadable, not a handoff file, or not
-                shape 2 or 3 (only skeletons `new` writes are filled), slots file
+                shape 2, 3 or 4 (only skeletons `new` writes are filled), slots file
                 missing or unreadable or not a JSON object, a non-string or
                 non-UTF-8-encodable value (names the key), or a failed write
-              3 a `handoff_shape` past the shapes `fill` writes (shape 4
-                included): read it, do not rewrite it
+              3 a `handoff_shape` past the shapes `fill` writes: read it, do
+                not rewrite it
     amend     0 written; prints the validate verdict, then the emit output (a
                 size FAIL never blocks the write)
               1 refused, both files untouched: an unfilled skeleton, a no-op, a
@@ -62,7 +71,7 @@ Exit codes:
                 this hop added removed without a retire, a FAIL the amend would
                 add, or a file that is no longer the chain tip (prints the
                 successor's `amend` command)
-              2 usage, unreadable, not a shape-3 handoff, a malformed JSON
+              2 usage, unreadable, not a shape-3 or shape-4 handoff, a malformed JSON
                 object, or a failed write
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped;
                 a shape-3 core alone over the byte cap: label UNVALIDATED; a
@@ -147,16 +156,19 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     retired_listings,
     section_spans,
 )
+import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
+from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
 HANDOFF_SHAPE = 3
 NEWEST_SHAPE = 4
 # Shapes `new --shape` writes and `fill` fills; shape 2 stays writable so a
 # shape-2 chain can still be generated (eval predecessors, size projections).
-WRITABLE_SHAPES = (2, 3)
+WRITABLE_SHAPES = (2, 3, 4)
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
 UNVERIFIED_SETTLE_FROM = 3
+SLOT_SIZE_FROM = 3
 
 S3 = SHAPES[3]
 RULES = S3.id_spec("R")
@@ -301,7 +313,6 @@ REWRITTEN = {
 # `new --purpose` writes the stated purpose as the Resumption brief's first line
 # and points the brief and skills slots at it (save-point.md, "The purpose
 # argument tailors emphasis only").
-PURPOSE_PREFIX = "Purpose: "
 PURPOSE_SKILLS = "; selected for the Purpose line in Resumption brief, each serving it"
 
 
@@ -716,10 +727,13 @@ class CheckKind(Enum):
     MALFORMED = "malformed"
     TRANSCRIPT = "transcript"
     OVER_CAP_BINDING = "over_cap_binding"
+    SLOT_SIZE = "slot_size"
 
 
 CONTENT_KINDS = frozenset({CheckKind.ORDER, CheckKind.MALFORMED})
-SIZE_KINDS = frozenset({CheckKind.SIZE, CheckKind.OVER_CAP_BINDING})
+SIZE_KINDS = frozenset(
+    {CheckKind.SIZE, CheckKind.OVER_CAP_BINDING, CheckKind.SLOT_SIZE}
+)
 
 
 @dataclass(frozen=True)
@@ -1156,9 +1170,15 @@ def validate_doc(
                     f"frontmatter: predecessor {previous!r} was {gone} when this file was written (previous_status), so the checks against it are skipped; the chain is broken at that link"
                 )
             elif not pred_path.is_file():
-                f.fail(
-                    f"frontmatter: previous_handoff {previous!r} not found beside this file"
-                )
+                copy = _shrunk_copy(doc, previous)
+                if copy is None:
+                    f.fail(
+                        f"frontmatter: previous_handoff {previous!r} not found beside this file"
+                    )
+                else:
+                    f.warn(
+                        f"frontmatter: predecessor {previous!r} was removed from this finished chain; its copy is in this hop's file {copy}, so the checks against it are skipped"
+                    )
             elif not shallow:
                 try:
                     pred = parse_doc(pred_path)
@@ -1235,6 +1255,36 @@ def validate_doc(
                 break
 
     return f, 1 if f.failed else 0
+
+
+def _shrunk_copy(doc: Doc, previous: str) -> str | None:
+    """This hop's file, relative to the handoffs dir, when a finished-chain
+    shrink can explain a missing predecessor: this file reads `Next: none
+    (closed)` and its hop file was written from `previous`, holding its
+    sections. None otherwise."""
+    if doc.shape not in HOP_FILE_SHAPES:
+        return None
+    span = _next_span(doc)
+    root, hop = doc.frontmatter.get("chain_root", ""), _fm_int(doc, "hop")
+    if span is None or doc.lines[span[0]] != NEXT_CLOSED:
+        return None
+    if not HANDOFF_NAME_RE.match(root) or hop is None:
+        return None
+    own = hop_file_path(
+        doc.path.parent, root, hop, doc.frontmatter.get("session_id", "")
+    )
+    try:
+        held = parse_doc(own)
+    except (OSError, UnicodeDecodeError):
+        return None
+    fm = held.frontmatter
+    if (
+        fm.get("type") != ARCHIVE_TYPE
+        or fm.get("moved_from") != previous
+        or not held.sections
+    ):
+        return None
+    return own.relative_to(doc.path.parent).as_posix()
 
 
 def _validate_shape2(
@@ -2009,6 +2059,12 @@ def _validate_shape3(
     _check_retire_pointers(doc, f, pred, rel, archived, report)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
+    slots = _check_slot_sizes(doc, f)
+    if doc.shape == 4 and _cap_state(doc)[0] > READ_CAP_BYTES:
+        f.warn(
+            f"size: {_cap_state(doc)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
+            CheckKind.SIZE,
+        )
     verdict = _size_finding(doc, rel)
     if verdict is None:
         return
@@ -2017,9 +2073,29 @@ def _validate_shape3(
         f.fail(message, CheckKind.SIZE)
     elif level == "OVER-CAP":
         f.fail(message, CheckKind.OVER_CAP_BINDING)
+    elif slots:
+        f.warn(f"size: {message}", CheckKind.SIZE)
     else:
         f.unvalidated = True
         f.warn(f"UNVALIDATED: {message}", CheckKind.SIZE)
+
+
+def _check_slot_sizes(doc: Doc, f: Findings) -> int:
+    """FAIL each size-classed slot over its budget, on a file stamped
+    SLOT_SIZE_FROM or higher; returns how many failed."""
+    if (_fm_int(doc, "checks") or 0) < SLOT_SIZE_FROM:
+        return 0
+    held = handoff_fit.written_slot_bytes(
+        doc.section("Resumption brief"), doc.section("Resume prompt")
+    )
+    overruns = [
+        (name, held[name], budget)
+        for name, budget in handoff_fit.SLOT_BUDGETS.items()
+        if held.get(name, 0) > budget
+    ]
+    for name, size, budget in overruns:
+        f.fail(handoff_fit.overrun_text(name, size, budget), CheckKind.SLOT_SIZE)
+    return len(overruns)
 
 
 def _check_moves(doc: Doc, f: Findings, spec) -> None:
@@ -2654,7 +2730,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
     # shape is read, never rewritten, and `_UnparsableShape` is tested first so
     # no later comparison meets a non-integer.
     shape = doc.shape
-    unsupported = f"fill only writes shape-2 and shape-3 skeletons: {path}"
+    unsupported = f"fill only writes shape-2, shape-3 and shape-4 skeletons: {path}"
     if isinstance(shape, _UnparsableShape):
         return _die(
             2,
@@ -2694,8 +2770,11 @@ def cmd_fill(args: argparse.Namespace) -> int:
     # substitution (`_apply_retire`).
     retire = values.pop("retire", None)
     if retire is not None:
-        if shape != 3:
-            return _die(2, f"slots key 'retire' applies to shape-3 files only: {path}")
+        if shape not in HOP_FILE_SHAPES:
+            return _die(
+                2,
+                f"slots key 'retire' applies to shape-3 and shape-4 files only: {path}",
+            )
         if not _retire_shape_ok(retire):
             return _die(2, f"slots key 'retire' {RETIRE_SHAPE}")
     # Every exit-2 check runs over every key before the exit-1 check below, so a
@@ -2771,6 +2850,15 @@ def cmd_fill(args: argparse.Namespace) -> int:
             )
         closing = index
 
+    marker = handoff_fit.over_budget_marker(path)
+    overruns = handoff_fit.slot_overruns(values) if shape in HOP_FILE_SHAPES else []
+    if overruns and not marker.exists():
+        try:
+            marker.write_text(json.dumps(overruns) + "\n", encoding="utf-8")
+        except OSError as exc:
+            return _die(2, f"cannot record the attempt in {marker} ({exc})")
+        return _die(1, handoff_fit.refusal_text(overruns, marker))
+
     out: list[str] = []
     for index, line in enumerate(lines):
         content, terminator = _line_parts(line)
@@ -2802,11 +2890,12 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
     writes: list[tuple[Path, str, bytes]] = []
-    if retire:
+    if retire or shape == 4:
+        hop_number = _fm_int(doc, "hop") or 0
         own = hop_file_path(
             path.parent,
             doc.frontmatter.get("chain_root", ""),
-            _fm_int(doc, "hop") or 0,
+            hop_number,
             doc.frontmatter.get("session_id", ""),
         )
         rel = own.relative_to(path.parent).as_posix()
@@ -2815,13 +2904,27 @@ def cmd_fill(args: argparse.Namespace) -> int:
             hop_text = before.decode("utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             return _die(
-                1, f"retire: cannot read this hop's file {rel} ({exc}); nothing written"
+                1,
+                f"{'retire: ' if retire else ''}cannot read this hop's file {rel} ({exc}); nothing written",
             )
-        refs = [(item["ref"], item["reason"].strip()) for item in retire]
-        moved = _apply_retire(out, hop_text.splitlines(keepends=True), refs, rel)
-        if isinstance(moved, str):
-            return _die(1, f"{moved}; nothing written")
-        out, hop_lines = moved
+        hop_lines = hop_text.splitlines(keepends=True)
+        if retire:
+            refs = [(item["ref"], item["reason"].strip()) for item in retire]
+            moved = _apply_retire(out, hop_lines, refs, rel)
+            if isinstance(moved, str):
+                return _die(1, f"{moved}; nothing written")
+            out, hop_lines = moved
+        if shape == 4:
+            out, hop_lines, _ = handoff_fit.fit(
+                out,
+                hop_lines,
+                movable=SHAPES[4].movable,
+                cap=SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES,
+                rel=rel,
+                hop_number=hop_number,
+                term=(_line_parts(lines[0])[1] if lines else "") or "\n",
+            )
+            out = handoff_fit.paged(out, READ_CAP_BYTES)
         writes.append((own, "".join(hop_lines), before))
     # Every value was encode-checked above and the source decoded cleanly, so
     # the encodes below cannot raise. The hop file is written before the hot
@@ -2835,6 +2938,17 @@ def cmd_fill(args: argparse.Namespace) -> int:
                 _write_atomic(written, original)
             return _die(2, f"cannot write {target} ({exc}); nothing written")
         done.append((target, before))
+    try:
+        marker.unlink(missing_ok=True)
+    except OSError:
+        pass
+    if shape != 4:
+        return 0
+    written = parse_doc(path)
+    findings, code = validate_doc(written, None, False)
+    _print_verdict(written, findings, code)
+    sys.stdout.flush()
+    cmd_emit(argparse.Namespace(file=str(path), format="rails"))
     return 0
 
 
@@ -2994,10 +3108,10 @@ def cmd_amend(args: argparse.Namespace) -> int:
         return _die(2, f"cannot read {path}: {exc}")
     if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
         return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
-    if doc.shape != 3:
+    if doc.shape not in HOP_FILE_SHAPES:
         return _die(
             2,
-            f"amend rewrites shape-3 hot files only (handoff_shape {doc.frontmatter.get('handoff_shape')!r}): {path}",
+            f"amend rewrites shape-3 and shape-4 hot files only (handoff_shape {doc.frontmatter.get('handoff_shape')!r}): {path}",
         )
     if any(FILL_MARK in line for line in doc.lines):
         return _die(
@@ -3498,7 +3612,7 @@ def _resume_prompt(
             ),
         ),
         "",
-        f"Or reopen the producing session in place: `claude --resume {session_id}{settings}`.",
+        f"{REOPEN_PREFIX}`claude --resume {session_id}{settings}`.",
         _fill(
             "below-rail",
             "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
@@ -3699,7 +3813,9 @@ def hop_file_text(
     lines.append("---")
     if pred is None:
         return "\n".join([*lines, "", "None (first hop): nothing moved."]) + "\n"
-    skip = {"Resume prompt"} | ({"Original goal"} if pred.shape == 3 else set())
+    skip = {"Resume prompt"} | (
+        {"Original goal"} if pred.shape in HOP_FILE_SHAPES else set()
+    )
     for title, start, end in pred.sections:
         if title not in skip:
             lines += ["", f"## {title}", "", *_trim_blank(pred.lines[start + 1 : end])]
@@ -3721,16 +3837,17 @@ def build_skeleton_3(
     settings_file: str | None = None,
     start_command: str | None = None,
     gone: tuple[str, str] | None = None,
+    shape: int = 3,
 ) -> str:
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
-    carried = pred is not None and pred.shape == 3
+    carried = pred is not None and pred.shape in HOP_FILE_SHAPES
     floors = {spec.floor_key: _next_id(pred, spec) for spec in S3.id_specs}
     next_id = floors[RULES.floor_key]
     fm = [
         "---",
         "type: handoff",
-        "handoff_shape: 3",
+        f"handoff_shape: {shape}",
         f"checks: {CHECKS}",
         f"date: {date}",
         f"topic: {slug}",
@@ -3750,10 +3867,10 @@ def build_skeleton_3(
         f"repo: {origin}",
         "---",
     ]
-    body: list[str] = []
+    bodies: dict[str, list[str]] = {}
 
     def section(title: str, lines: list[str]) -> None:
-        body.extend(["", f"## {title}", "", *_trim_blank(lines)])
+        bodies[title] = ["", f"## {title}", "", *_trim_blank(lines)]
 
     amended = _fill(
         "amended",
@@ -3821,7 +3938,12 @@ def build_skeleton_3(
     trail_retire = f"; a carried line that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[h<k>]#<i>', 'reason': ...}} (i counts the lines tagged [h<k>]), which lists it in {hop_rel} under '## {S3.retired_entry_sections['Direction changes']}'"
     if carried:
         pointer, kept, folded = None, [], False
-        for line in _section_lines(pred, "Direction changes"):
+        held = follow(
+            pred.section("Direction changes") or [],
+            "Direction changes",
+            pred.path.parent,
+        )
+        for line in _trim_blank(held or []):
             if line.startswith(FOLD_PREFIX):
                 pointer = line
             elif _folds(line, hop):
@@ -3995,6 +4117,7 @@ def build_skeleton_3(
         "Resume prompt",
         _resume_prompt(target, session_id, origin, origin_path, settings_file, start_command),
     )
+    body = [line for title in SHAPES[shape].names for line in bodies[title]]
     return "\n".join(fm + body) + "\n"
 
 
@@ -4017,6 +4140,11 @@ def cmd_new(args: argparse.Namespace) -> int:
     purpose = " ".join((args.purpose or "").split()) or None
     if purpose and ("<!--" in purpose or "-->" in purpose):
         return _die(2, "--purpose must not carry '<!--' or '-->'; rewrite it without")
+    for name, held, budget in handoff_fit.slot_overruns({"brief": purpose or ""}):
+        print(
+            f"WARN: --purpose is {held} bytes, over the {budget}-byte budget of slot '{name}' it opens; shorten it",
+            file=sys.stderr,
+        )
 
     session_id = args.session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     if not session_id:
@@ -4134,6 +4262,8 @@ def cmd_new(args: argparse.Namespace) -> int:
                 1,
                 f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it",
             )
+        if args.shape is None and pred.shape in HOP_FILE_SHAPES:
+            args.shape = max(HANDOFF_SHAPE, pred.shape)
         if pred.shape in HOP_FILE_SHAPES and args.shape < pred.shape:
             return _die(
                 1,
@@ -4153,6 +4283,8 @@ def cmd_new(args: argparse.Namespace) -> int:
                 if UUID_RE.match(pred_sid)
                 else "unresolved (shape-1 predecessor; no session UUID)"
             )
+    if args.shape is None:
+        args.shape = HANDOFF_SHAPE
 
     if repo_root is not None:
         origin = origin_identity(_git_origin(repo_root), repo_root.name)
@@ -4182,7 +4314,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.shape == 2:
         content = build_skeleton(**common, pred_failed=pred_failed)
     else:
-        content = build_skeleton_3(**common)
+        content = build_skeleton_3(**common, shape=args.shape)
         root, hop, _ = _chain_position(pred, target.name)
         # The root comes from the predecessor's frontmatter: hold it to a bare
         # handoff name so no `../` lands the hop file outside the archive.
@@ -4227,7 +4359,20 @@ def cmd_new(args: argparse.Namespace) -> int:
     with target.open("x", encoding="utf-8", newline="\n") as fh:
         fh.write(content)
     print(_posix(target))
+    if args.shape == 4:
+        print(_budget_line(content), file=sys.stderr)
     return 0
+
+
+def _budget_line(skeleton: str) -> str:
+    """The bytes left for the slots under the shape-4 cap, and each
+    size-classed slot's budget."""
+    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+    fixed = len(FILL_SLOT_RE.sub("", skeleton).encode("utf-8"))
+    slots = ", ".join(
+        f"{name} {n} bytes" for name, n in handoff_fit.SLOT_BUDGETS.items()
+    )
+    return f"budget: {cap - fixed} bytes for the written slots ({cap}-byte cap, {fixed} bytes written by new); slot budgets: {slots}; movable sections ({', '.join(handoff_fit.MOVE_ORDER)}) move to this hop's file past the cap"
 
 
 def _parse_now(raw: str | None) -> datetime | None:
@@ -4295,8 +4440,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--shape",
         type=int,
         choices=WRITABLE_SHAPES,
-        default=HANDOFF_SHAPE,
-        help="shape to write (default %(default)s; shape 2 builds no hot file or archive)",
+        default=None,
+        help=f"shape to write (default {HANDOFF_SHAPE}, or the predecessor's shape when newer; shape 2 builds no hot file or archive)",
     )
     p_new.set_defaults(func=cmd_new)
 

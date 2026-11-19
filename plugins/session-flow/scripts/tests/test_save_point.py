@@ -1463,6 +1463,7 @@ def _install_in_cache(version_dir):
         "save_point.py",
         "io_streams.py",
         "handoff_chain.py",
+        "handoff_fit.py",
         "plugin_paths.py",
     ):
         shutil.copy2(SCRIPT.parent / name, scripts / name)
@@ -2368,7 +2369,6 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
     ("line", "expected", "needle"),
     [
         ("handoff_shape: 5\n", 3, "read it, do not rewrite it"),
-        ("handoff_shape: 4\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 1\n", 2, "handoff_shape 1"),
         ("", 2, "no handoff_shape key"),
         ("handoff_shape: 0\n", 2, "handoff_shape 0 is not a shape"),
@@ -4224,7 +4224,7 @@ def test_amend_refusals_leave_both_files_byte_identical(
     "prep, code, needle",
     [
         ("skeleton", 1, "unfinished skeleton"),
-        ("shape2", 2, "shape-3 hot files only"),
+        ("shape2", 2, "shape-3 and shape-4 hot files only"),
         ("not-handoff", 2, "not a handoff file"),
     ],
 )
@@ -4511,7 +4511,7 @@ def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
     [
         ("observations", 30000, "size: "),
         ("observations", READ_CAP, "size: "),
-        ("brief", 30000, "UNVALIDATED: "),
+        ("brief", 30000, "slot_size: "),
     ],
 )
 def test_every_size_finding_carries_a_size_kind(tmp_path, slot, pad, marker):

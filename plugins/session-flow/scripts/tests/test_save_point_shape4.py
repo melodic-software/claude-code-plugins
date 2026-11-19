@@ -219,7 +219,7 @@ def test_new_refuses_to_continue_a_shape4_chain_as_shape3(tmp_path):
             str(hop1),
             sid=SIDS[1],
             now="2026-09-02T10:00:00Z",
-            shape=None,
+            shape="3",
         )
     )
     assert made.returncode == 1, out(made)
