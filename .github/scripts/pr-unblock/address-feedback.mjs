@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
+import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
 import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
@@ -293,7 +293,8 @@ export async function bindLaneRows(rows, { kind, check, fields = restFields }) {
       continue;
     }
     const lane = await check({ kind, id, body: row.body, createdAt, updatedAt, lastEditedAt });
-    bound.push({ ...row, body: lane ? withoutBinding(row.body) : withoutLaneFooter(row.body) });
+    const boundHead = lane ? bindingOf(row.body)?.sha : undefined;
+    bound.push({ ...row, body: lane ? withoutBinding(row.body) : withoutLaneFooter(row.body), ...(boundHead && { boundHead }) });
   }
   return bound;
 }
@@ -1024,12 +1025,13 @@ export const restMentions = ({ issueComments = [], reviewComments = [], reviews 
 // asks for the thread, so its review may be on an earlier head. `review` is
 // { user: { id }, commit_id }. keepThreads and the dispatcher
 // (feedback-dispatch.mjs hasWorkableThread) both judge a thread with this.
-export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
+export function onReviewedHead({ authors, firstAuthorId, review, heads, rootBoundHead }) {
   const directed = authors.some((a) => a.direction === true);
   // threadAuthors accepted the root's author (the reviewer bot, a listed
   // review bot, or github-actions[bot] for a verifier note or a lane comment),
   // so its own review vouches for it.
-  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id));
+  const laneVerifiedHead = rootBoundHead !== undefined && review?.commit_id === rootBoundHead;
+  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id) || laneVerifiedHead);
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
@@ -1072,7 +1074,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       continue;
     }
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
+    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads, rootBoundHead: rows[0].boundHead })) {
       continue;
     }
     const skip = requestSkip({

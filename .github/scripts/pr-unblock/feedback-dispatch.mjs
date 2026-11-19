@@ -331,6 +331,7 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
       firstAuthorId: nodes[0].author?.databaseId,
       review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
       heads,
+      rootBoundHead: nodes[0].boundHead,
     });
   if (!kept) {
     return null;
