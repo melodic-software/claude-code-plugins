@@ -2394,12 +2394,12 @@ test("a GraphQL query answered 502 with retry-after is not sent again, and the n
 });
 
 // A rate latch on a fake clock that each sleep moves on.
-function latchClock({ hold = false } = {}) {
-  const clock = { now: 0 };
+function latchClock({ hold = false, start = 0, tick = 0 } = {}) {
+  const clock = { now: start };
   const slept = [];
   let failed = 0;
   const latch = createRateLimitLatch({
-    now: () => clock.now,
+    now: () => (clock.now += tick),
     log: () => {},
     fail: () => {
       failed += 1;
@@ -2437,6 +2437,15 @@ test("createGitHub waits on the rate latch for a reset within the budget, and re
   await assert.rejects(github("GET", PULLS_PATH), RateLimitStop);
   assert.equal(gh.sent.length, 5);
   assert.equal(failed(), 3);
+});
+
+test("a read answered retry-after 1 at the end of a second waits it out, not refused by the clock moving on", async () => {
+  const gh = flaky([secondaryLimit(1), { status: 200, body: '[{"number":7}]' }]);
+  const { failed, options } = latchClock({ start: 970, tick: 5 });
+  const github = createGitHub({ ...gh.options, ...options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.equal(failed(), 0);
+  assert.equal(gh.sent.length, 2);
 });
 
 // The same ride-out end to end on the process-wide latch: a read answered
