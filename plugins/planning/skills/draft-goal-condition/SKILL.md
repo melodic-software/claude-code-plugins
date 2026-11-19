@@ -235,8 +235,8 @@ When the `ProposeGoal` tool resolves in this session, also propose the condition
 the conditions the Routing paragraph below lists. The tool has its own, lower cap: read it from
 [reference/native-goal.md](reference/native-goal.md) at run time, re-run the Step 3 counter with
 `--limit <that cap>` first, and propose only a condition that passes it and contains no tab
-character (the tool expands tabs before it counts, so the raw count would understate it). The
-paste-ready line is emitted either way.
+character (why: [reference/native-goal.md](reference/native-goal.md)). The paste-ready line is
+emitted either way.
 
 When Step 0.5 ran, emit the run contract in `reference/run-contract.md` beside the condition.
 
