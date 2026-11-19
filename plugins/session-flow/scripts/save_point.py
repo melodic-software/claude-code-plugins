@@ -110,6 +110,7 @@ HANDOFF_SHAPE = 3
 # shape-2 chain can still be generated (eval predecessors, size projections).
 WRITABLE_SHAPES = (2, 3)
 CHECKS = 2
+CONTENT_ONLY_DOWNGRADE_FROM = 2
 
 # Shape 3: a hot file in this fixed order, `Original goal` first and
 # `Resume prompt` last, plus one immutable archive file per hop.
@@ -769,21 +770,15 @@ def parse_entries(body: list[str]) -> list[Entry]:
 
 class CheckKind(Enum):
     SIZE = "size"
-    SLOT_SIZE = "slot_size"
     ORDER = "order"
     CARRY = "carry"
-    ID_REUSE = "id_reuse"
     POINTER = "pointer"
-    UNVERIFIED = "unverified"
     MALFORMED = "malformed"
     TRANSCRIPT = "transcript"
-    OVER_CAP_BINDING = "over_cap_binding"
 
 
 CONTENT_KINDS = frozenset({CheckKind.ORDER, CheckKind.MALFORMED})
-SIZE_KINDS = frozenset(
-    {CheckKind.SIZE, CheckKind.SLOT_SIZE, CheckKind.OVER_CAP_BINDING}
-)
+SIZE_KINDS = frozenset({CheckKind.SIZE})
 
 
 @dataclass(frozen=True)
@@ -1414,9 +1409,14 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
 
 def _downgrading_fail(findings: Findings, checks: int) -> Finding | None:
     """The predecessor FAIL that downgrades its successor's carry checks: any
-    FAIL for a successor stamped below `CHECKS`, a content-kind FAIL otherwise."""
+    FAIL for a successor stamped below `CONTENT_ONLY_DOWNGRADE_FROM`, a
+    content-kind FAIL otherwise."""
     return next(
-        (x for x in findings.fails if checks < CHECKS or x.kind in CONTENT_KINDS),
+        (
+            x
+            for x in findings.fails
+            if checks < CONTENT_ONLY_DOWNGRADE_FROM or x.kind in CONTENT_KINDS
+        ),
         None,
     )
 

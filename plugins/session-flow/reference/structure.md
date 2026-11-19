@@ -239,8 +239,10 @@ state of now).
 - **One entry per line**, continuation lines indented. A section with nothing to carry and nothing
   new reads `None.` plus a half-line of reason; `None.` lines are exempt from the tag rule.
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that
-  itself failed validation has every carried entry prefixed
-  `UNVERIFIED (predecessor failed validation):` after its tag.
+  itself failed validation on an order or malformed check (a heading out of place, a broken
+  frontmatter key or rail) has every carried entry prefixed
+  `UNVERIFIED (predecessor failed validation):` after its tag. A size, transcript or archive
+  FAIL alone does not. A file without the `checks: 2` stamp keeps the old rule: any FAIL.
 - **Size.** `validate` warns when the file passes 300 lines, so one Read call returns the whole
   file. A measured chain ran about 70 tokens a line (425 lines, ~29.6k tokens), and 300 lines
   leaves margin under the Read tool's per-call cap. The warning does not fail the file.
@@ -843,6 +845,7 @@ the hand-written file needs no slots JSON.
 ---
 type: handoff
 handoff_shape: 3
+checks: 2                                 # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
 session_id: <UUID>
@@ -867,6 +870,7 @@ same `hop` and two sibling hop files, told apart by their session prefix.
 ---
 type: handoff
 handoff_shape: 2
+checks: 2                                 # rule-set version the file was written under
 date: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 topic: <kebab>
 session_id: <UUID>                        # REQUIRED — CLAUDE_CODE_SESSION_ID at write time
@@ -951,11 +955,14 @@ placeholder-shaped (settle the goal with the user, then fill it); the `Opening a
 `(shape-1 root, no verbatim ask recorded)`; its `## Prior sessions` row carries the
 `UNVERIFIED (shape-1 predecessor; brief: …)` cell.
 
-**A predecessor that fails shape-2 validation** (or a hand-written Python-absent file) is still
-copied forward: in a shape-2 successor every carried entry is prefixed
-`UNVERIFIED (predecessor failed validation):`, and `validate` on the successor downgrades the predecessor-derived checks (chain prefix, Prior
-sessions prefix) to WARN naming the predecessor's failure, so one bad hop never blocks every later
-hop. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
+**A predecessor that fails validation** (or a hand-written Python-absent file) is still
+copied forward. For a successor stamped `checks: 2`, only an order or malformed FAIL in the
+predecessor counts: then in a shape-2 successor every carried entry is prefixed
+`UNVERIFIED (predecessor failed validation):`, and `validate` on the successor downgrades the
+predecessor-derived checks (chain prefix, Prior sessions prefix, carried entries) to WARN naming
+that failure, so one bad hop never blocks every later hop. A predecessor that failed only on size,
+its transcript or its archive leaves the successor's carry checks at FAIL, so a dropped rule
+never passes. A successor without the stamp downgrades on any predecessor FAIL. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
 predecessors' frontmatter to find their hop files.
 
 **Unfinished skeletons stay on disk and are never a save-point.** A `new` run that was never

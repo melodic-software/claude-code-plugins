@@ -4485,3 +4485,36 @@ def test_amend_keeps_the_checks_stamp(tmp_path):
     result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
     assert result.returncode == 0, err(result)
     assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+
+
+def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
+    tmp_path, monkeypatch
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    edit(hop2, "- [R1] The thing must stay green.\n", "")
+    assert "\nchecks: 2\n" in hop2.read_text(encoding="utf-8")
+    sp = _save_point_module()
+    monkeypatch.setattr(sp, "CHECKS", 3)
+    findings, code = sp.validate_doc(sp.parse_doc(hop2), None, True)
+    failed = [x.text for x in findings.items if x.level == "FAIL"]
+    assert code == 1, failed
+    assert any("[R1] left this file without a retirement" in t for t in failed), failed
+
+
+@pytest.mark.parametrize(
+    ("slot", "pad", "marker"),
+    [
+        ("observations", 30000, "size: "),
+        ("observations", READ_CAP, "size: "),
+        ("brief", 30000, "UNVALIDATED: "),
+    ],
+)
+def test_every_size_finding_carries_a_size_kind(tmp_path, slot, pad, marker):
+    sp = _save_point_module()
+    hot = s3_hop(make_repo(tmp_path), tmp_path, values={slot: "x" * pad})
+    findings, _ = sp.validate_doc(sp.parse_doc(hot), None, False)
+    sized = [x for x in findings.items if x.text.startswith(marker)]
+    assert sized, [x.text[:80] for x in findings.items]
+    assert all(x.kind in sp.SIZE_KINDS for x in sized), sized
