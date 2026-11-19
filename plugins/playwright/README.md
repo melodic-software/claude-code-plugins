@@ -96,7 +96,7 @@ marketplace follows:
 - Six of its ten reference files run past 100 lines (up to 433) with no
   contents list.
 
-This wrapper is a 163-line hub with trigger phrases, routes to ten
+This wrapper is a 163-line hub with trigger phrases, routes to nine
 topic files that each carry a contents list when long, and adds gotchas
 observed in the marketplace's browser-tools benchmark. Recheck when the
 upstream version moves: if its skill closes these gaps, plan the switch
