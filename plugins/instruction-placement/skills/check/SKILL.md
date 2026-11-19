@@ -1,6 +1,6 @@
 ---
 description: "Pass/fail gate over path-scoped instruction surfaces: every .claude/rules/ glob must resolve, and the always-loaded rules index must match disk. Failures are SILENT in Claude Code. Use when: 'check my rules', 'are my path-scoped rules actually firing', 'is the rules index stale', 'validate paths frontmatter', 'why is my rule not loading', 'CI gate for .claude/rules', or after a change to a rule's paths: or the rules tree. Read-only; sibling realign applies fixes."
-argument-hint: "[--file <index-path>] [--breadth-max <pct>]"
+argument-hint: "[--file <index-path>] [--breadth-max <pct>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -18,7 +18,8 @@ metadata:
   summary: Gate that every path-scoped rule glob resolves and the rules index is current
 ---
 
-**Arguments.** `[--file <index-path>] [--breadth-max <pct>]`. Default: gate the whole repository
+**Arguments.** `[--file <index-path>] [--breadth-max <pct>] [--repo <repo> ...]`. Default: gate the
+whole repository. `--repo` and the other target forms: "Over several repositories" below
 
 ## Pre-computed context
 
@@ -125,6 +126,27 @@ Pass `--breadth-max` through when the operator supplies it. The default of 75% i
 not a law; a documentation repository where `**/*.md` legitimately covers most files should raise
 it rather than live with a standing warning.
 
+### Over several repositories
+
+With no target form, the gate covers this repository, as it always has. A target form selects
+several repositories, resolved, counted and listed as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target forms"
+and "Resolving repositories" say. What differs here:
+
+- **Gate `origin/HEAD` in a throwaway worktree.** The scripts read files on disk, and another
+  session's checkout can be dirty or behind. Per repository, after the contract's one fetch, add a
+  detached worktree at `origin/HEAD` (`git -C <root> worktree add --detach <tmp> origin/HEAD`), run
+  every command above with `--root <tmp>`, and remove it when the gate is done
+  (`git -C <root> worktree remove <tmp>`). That worktree is the only thing the gate adds to another
+  repository, and it does not outlive the run. The session's own checkout is gated in place.
+- **The index target resolves per repository.** A `--file` is read relative to each repository's
+  root, and the precedence table above picks each repository's winner on its own. Name the winner
+  per repository.
+- **One verdict per repository, one exit code.** Report each repository's verdict and its failing
+  patterns, each written with its `owner/name`, as "Merging findings" says. The exit code is 0
+  only when every repository is clean; a repository that could not be measured, or that failed to
+  resolve, makes it non-zero and is named with its reason.
+
 ## Reading the output
 
 Both scripts emit deterministic TSV. `glob-tools.sh` rows are:
@@ -152,8 +174,9 @@ do about it**. The three failure statuses have different fixes and saying "inval
 
 ## Hard rules
 
-- **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. Fixing a broken glob is the sibling
-  `realign` skill's job, or the operator's.
+- **Read-only.** No `Edit`, no `Write`, no mutating `Bash` beyond the throwaway worktree a
+  multi-repository run adds and removes. Fixing a broken glob is the sibling `realign` skill's
+  job, or the operator's.
 - **Never fabricate a verdict.** If a script cannot run, because this is not a git repository or
   tooling is missing, report that plainly and exit non-zero. A gate that passes because it could
   not measure is worse than no gate.
