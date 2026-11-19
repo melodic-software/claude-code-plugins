@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.4] - 2026-11-19
+
+### Removed
+
+- `worktree cleanup` no longer reports or deletes Xcode build output and unavailable simulators on a macOS host: `context/macos-caches.md`, its pointer in `context/cleanup.md`, the optional `xcrun` prerequisite and the eval case that tested the page are gone (ADR 0101).
+- `worktree create`'s post-create checks drop the per-ecosystem table (.NET, Node, Python commands) and the hook-manager examples; a dependencies row reads the project's own install step from its Workspace environment `setup` or setup docs, and reports the check as not run when none is stated. `cleanup`'s file-lock release names no build tool's shutdown command; it uses the one the project documents.
+- `commit`'s subject ladder and `setup`'s convention inference no longer name hook managers or commit-message linters by tool; they read the commit-msg hook the repository's own files name.
+- `pull-request` prep's verify gate, the ready action's verify step and the CI fix rules no longer list per-tool commands, test-runner flags or suppression syntaxes as examples. The verify gate runs the commands the repository's CI workflows, ecosystem records or instructions name, and an ecosystem none of them covers is named in the PR body as not verified locally.
+
+### Fixed
+
+- The PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) enforce again in a repository whose ci-status job runs the ci-workflows `report-ci-status` composite, which runs check-contract inside it. Before, they stopped checking in every repository moved to that composite.
+
 ## [11.22.3] - 2026-11-19
 
 ### Changed

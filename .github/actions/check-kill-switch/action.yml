@@ -43,6 +43,15 @@ inputs:
       limit, both from rate-limits.json. Set only on the issue lane's first call.
     required: false
     default: "false"
+  wait-seconds:
+    description: >
+      With budget "true", a budget stop whose reset is within this many
+      seconds waits for it and reads the budget once more, so the start goes
+      ahead after the reset. Whole seconds over 60, at most rate-guard.mjs's
+      WAIT_BUDGET_SECONDS.workResolveIssue; empty (the default) never waits.
+      The job's timeout must hold the wait.
+    required: false
+    default: ""
   token:
     description: >
       The token whose GET /rate_limit answer is the budget reading. Defaults
@@ -75,5 +84,6 @@ runs:
         REPO_KILL_SWITCH_VALUE: ${{ inputs.repo-value }}
         BUDGET_CHECK: ${{ inputs.budget }}
         PROJECT_CHECK: ${{ inputs.project }}
+        WAIT_SECONDS: ${{ inputs.wait-seconds }}
         BUDGET_TOKEN: ${{ inputs.token }}
       run: node "$GITHUB_ACTION_PATH/check-kill-switch.mjs"

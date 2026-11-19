@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.7.0] - 2026-11-19
+
+### Added
+
+- **`ship` offers one session per ready item on the desktop app.** In the `per-item PRs` shape, when two or more independent items are ready and the session has a tool that starts another session, `ship` offers a session per item, each in its own worktree with a brief that claims the item first; `context/parallel-sessions.md` holds the rules and is read only in that case. The integration-branch shape never gets it.
+
 ## [15.6.7] - 2026-11-19
 
 ### Changed

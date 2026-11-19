@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/resolve-convention-home.sh (no external test lib — ships with the plugin).
-#
-# Per-plugin assertion helpers are deliberately duplicated, not shared:
-# docs/contracts/shell-test-helpers/README.md.
-#
 # shellcheck disable=SC2016 # single-quoted backticks are the grammar under test
 set -uo pipefail
 
@@ -12,18 +7,9 @@ SCRIPT="$SCRIPT_DIR/resolve-convention-home.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
 }
@@ -32,9 +18,6 @@ assert_contains() {
   *"$3"*) pass "$1" ;;
   *) fail "$1" "expected to contain: $3 (got: $2)" ;;
   esac
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
 
 BEGIN='<!-- BEGIN GENERATED: convention-home -->'
@@ -477,9 +460,4 @@ bash "$SCRIPT" --root "$TEST_TMPDIR/root-link" >/dev/null 2>&1 || RC=$?
 assert_exit "case 30d: a symlinked --root with a real home resolves" 0 "$RC"
 assert_eq "case 30d: prints the home" "docs/conventions" "$OUT"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit
