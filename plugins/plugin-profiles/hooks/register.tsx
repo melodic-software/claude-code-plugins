@@ -36,7 +36,17 @@ type Preview = {
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
 /** One answer to a file's own question: the button's label and the flag that passes it to reset. */
 type Answer = { label: string; flag: string }
-type ResetPreview = { sessionProfile: string | null; previewId: string; question: string | null; folders: { action: string; ask?: { file: string; question: string; yes: Answer; no: Answer } }[]; unchangedSinceReset?: string[]; lines: string[] }
+/** The answer the tool advises for one question and its one-sentence reason. */
+type Recommend = { answer: 'yes' | 'no'; reason: string }
+type ResetPreview = {
+  sessionProfile: string | null
+  previewId: string
+  question: string | null
+  questionRecommend?: { asked: Recommend; unasked: Recommend } | null
+  folders: { action: string; ask?: { file: string; question: string; yes: Answer; no: Answer; recommend?: Recommend } }[]
+  unchangedSinceReset?: string[]
+  lines: string[]
+}
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -106,10 +116,13 @@ async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]):
 
 /**
  * Every question this module asks: the answer that changes nothing is listed first, so it is the pre-selected one, and
- * Esc or a failed prompt is that answer. True only when the person picks the answer that writes.
+ * Esc or a failed prompt is that answer. The tool's recommendation, when it gives one, shows as a line just before the
+ * question. True only when the person picks the answer that writes.
  */
-const chose = async ($: EngineInterface, question: string, safe: string, writes: string, header = 'Profile') =>
-  (await $.ui.ask(question, { options: [safe, writes], header }).catch(() => safe)) === writes
+async function chose($: EngineInterface, question: string, safe: string, writes: string, header = 'Profile', recommend?: Recommend) {
+  if (recommend) $.ui.log(`Recommended: ${recommend.answer === 'yes' ? writes : safe}. ${recommend.reason}`)
+  return (await $.ui.ask(question, { options: [safe, writes], header }).catch(() => safe)) === writes
+}
 
 /** Asks Cancel or Apply; true only on the person's Apply. */
 const confirmed = ($: EngineInterface, question: string) => chose($, question, CANCEL, APPLY)
@@ -162,11 +175,12 @@ async function resetAll($: EngineInterface): Promise<string> {
       ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
       : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
-  const keepRecorded = Boolean(preview.question) && !(await chose($, preview.question as string, CANCEL, APPLY, RESET))
+  const pickedReset = preview.questionRecommend?.asked
+  const keepRecorded = Boolean(preview.question) && !(await chose($, preview.question as string, CANCEL, APPLY, RESET, pickedReset))
   const yes: string[] = []
   const no: string[] = []
   for (const ask of askable) {
-    if (await chose($, ask.question, ask.no.label, ask.yes.label, RESET)) yes.push(ask.yes.flag, ask.file)
+    if (await chose($, ask.question, ask.no.label, ask.yes.label, RESET, ask.recommend)) yes.push(ask.yes.flag, ask.file)
     else no.push(ask.no.flag, ask.file)
   }
   if ((!preview.question || keepRecorded) && !yes.length) return 'Not reset; nothing changed.'

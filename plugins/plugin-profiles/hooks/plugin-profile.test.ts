@@ -620,6 +620,17 @@ test('#17354: a file question dismissed with Esc is its answer that changes noth
   expect(resets(w)).toEqual([[...PICK_ARGS, '--keep-unrecorded', PICKED]])
 })
 
+test("#17354: each reset question shows the tool's recommended answer and its reason as a hint, and the answer that changes nothing stays first", async ($, on) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED, recommend: { answer: 'no', reason: 'Reset did not write these entries, so they may be your own.' } }
+  const dry = JSON.parse(resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]).stdout as string)
+  const questionRecommend = { asked: { answer: 'yes', reason: 'You asked for a reset (the reason the tool words).' }, unasked: { answer: 'no', reason: 'Nobody asked (the tool words it).' } }
+  const w = world(on, ['Apply', 'Keep'], { resetDry: { exitCode: 0, stdout: JSON.stringify({ ...dry, questionRecommend }) } })
+  await runPicking($, w, 'Reset')
+  const hints = w.logs.filter(line => line.startsWith('Recommended: '))
+  expect(hints).toEqual(['Recommended: Apply. You asked for a reset (the reason the tool words).', 'Recommended: Keep. Reset did not write these entries, so they may be your own.'])
+  expect(w.asks.map(a => a.options)).toEqual([['Cancel', 'Apply'], ['Keep', 'Remove']])
+})
+
 test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {
   const refusal = 'not reset: what reset would write changed since the preview; nothing was written. Look at the new preview: reset --dry-run'
   const w = world(on, ['Apply'], { reset: { exitCode: 1, stderr: `${refusal}\n` } })

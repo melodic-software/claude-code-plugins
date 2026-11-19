@@ -187,7 +187,8 @@ const ASKS = {
   },
 };
 const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
-const askOf = (kind, file, question) => ({ file, question, yes: kind.yes, no: kind.no });
+/** A file's own question; recommend is the answer reset advises, yes or no, with its one-sentence reason. */
+const askOf = (kind, file, question, recommend) => ({ file, question, yes: kind.yes, no: kind.no, recommend });
 const kindOf = (ask) => Object.values(ASKS).find((kind) => kind.yes.flag === ask.yes.flag);
 
 class UsageError extends Error {}
@@ -1241,16 +1242,30 @@ const localTime = (iso) => {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? String(iso) : at.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 };
-/** The one question that covers every recorded file, or null when no file has a record to restore. */
+/**
+ * The one question that covers every recorded file and what reset advises for it, yes for a person who asked for a reset and
+ * no otherwise; null when no file has a record to restore.
+ */
 function resetQuestion(rows) {
   const n = rows.filter((r) => RESTORES.includes(r.action)).length;
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
-  if (asked.length < 2) return [covers, ...asked.map((kind) => kind.covers)].join(" ");
   const kinds = asked.map((kind) => kind.some).join(" and ");
-  return `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`;
+  return {
+    text: asked.length < 2 ? [covers, ...asked.map((kind) => kind.covers)].join(" ") : `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`,
+    recommend: {
+      asked: { answer: "yes", reason: `You asked for a reset: a yes puts back the ${counted(n, "file")} above as ${n === 1 ? "its" : "their"} lines say, and applying a profile again undoes it.` },
+      unasked: { answer: "no", reason: "Nobody asked for a reset, so a no keeps every profile as it is." },
+    },
+  };
 }
+
+/** What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another value. */
+const recommendFrom = (profile, overwrites) =>
+  overwrites.length
+    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied, so the file may hold changes you want; a no changes nothing.` }
+    : { answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
 
 /** The preview lines naming each entry edited since the apply that a restore changes again. */
 const overwriteLines = (plan) =>
@@ -1288,7 +1303,10 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
       reason: NO_RECORD,
       entries: f.entries,
       settings,
-      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${entries} (${fewOf(f.entries, ", listed above")})?`),
+      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${entries} (${fewOf(f.entries, ", listed above")})?`, {
+        answer: "no",
+        reason: f.entries.length === 1 ? "Reset did not write this entry, so it may be your own." : "Reset did not write these entries, so they may be your own.",
+      }),
       lines: [`${file}: no profile record, and its ${entries} may be your own: ${list(f.entries)}. Reset removes ${f.entries.length === 1 ? "it" : "them"} only after a yes for this folder.`],
     };
   }
@@ -1309,7 +1327,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
         movedTo: f.movedTo,
         movedPlan,
         overwrites: overwritesOf(movedPlan),
-        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`),
+        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites)),
         lines: [`${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`, ...overwriteLines(movedPlan)],
       };
     } catch (error) {
@@ -1341,7 +1359,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
       reason: CUT_OFF,
       entries,
       plan: clearPlan(file, { found: f.recordPath, record: still }),
-      ask: askOf(ASKS.cutOff, file, `An earlier reset of ${file} was cut off and the file changed since. Put back the ${counted(entries.length, "entry", "entries")} still at ${values} (${fewOf(entries)}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`),
+      ask: askOf(ASKS.cutOff, file, `An earlier reset of ${file} was cut off and the file changed since. Put back the ${counted(entries.length, "entry", "entries")} still at ${values} (${fewOf(entries)}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`, recommendFrom(rec.profile, plan.overwrites)),
       lines: [
         `${file}: an earlier reset of this file was cut off and the file changed since. ${counted(entries.length, "entry", "entries")} still ${entries.length === 1 ? "holds" : "hold"} ${values}: ${fewOf(entries)}.`,
         `  A yes for this file puts those back to their values from before the profile and leaves the ${counted(changed.length, "entry", "entries")} changed by hand since as ${changed.length === 1 ? "it is" : "they are"} (${fewOf(changed)}); a no keeps the file and its record.`,
@@ -1499,10 +1517,11 @@ async function reset(opts, where, env, io) {
     ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}.`] : []),
     ...(keeps ? [keeps] : []),
   ];
-  const question = resetQuestion(rows);
+  const covering = resetQuestion(rows);
+  const question = covering?.text ?? null;
   if (opts.json && opts.dryRun) {
     const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
-    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, unchangedSinceReset: unchanged, lines }, null, 2));
+    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, questionRecommend: covering?.recommend ?? null, folders, unchangedSinceReset: unchanged, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
   if (opts.previewId && opts.previewId !== previewIdOf(rows)) {

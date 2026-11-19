@@ -2400,6 +2400,7 @@ test("#17354: a reset cut off before a file's write, then an entry put back by h
     question: `An earlier reset of ${w.localFile} was cut off and the file changed since. Put back the ${still.length} entries still at the values profile build wrote (${few}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`,
     yes: { label: "Put back", flag: "--finish-cut-off" },
     no: { label: "Keep", flag: "--keep-cut-off" },
+    recommend: { answer: "yes", reason: "Each entry profile build wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote." },
   });
   assert.deepEqual(row.lines, [
     `${w.localFile}: an earlier reset of this file was cut off and the file changed since. ${still.length} entries still hold the values profile build wrote: ${few}.`,
@@ -3536,4 +3537,42 @@ test("#17354: at a terminal, an empty answer or any answer but y or yes writes n
       assert.ok(!resultLines(r.stdout).some((line) => /^(Restored|Removed|Finished) /.test(line)), `${cell}: ${r.stdout}`);
     }
   }
+});
+
+/** Sets one entry profile build wrote in file to a value neither the profile nor the file before it held. */
+function editByHand(file) {
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+}
+
+test("#17354: the reset preview recommends one answer per question with a one-sentence reason from the row's facts, and keeps when those facts do not settle it", () => {
+  const SAFE = (profile) => ({ answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
+  const EDITED = { answer: "no", reason: `1 entry (implementation@${M}) changed by hand since profile build was applied, so the file may hold changes you want; a no changes nothing.` };
+  const recommendOf = (k) => resetJson(k.w).folders.find((f) => f.ask).ask.recommend;
+
+  assert.deepEqual(recommendOf(KINDS.noRecord()), { answer: "no", reason: "Reset did not write these entries, so they may be your own." });
+  const one = world();
+  writeFileSync(one.localFile, `${JSON.stringify({ enabledPlugins: { [`p0@${M}`]: true } }, null, 2)}\n`);
+  knowFolders(one, one.project);
+  assert.deepEqual(recommendOf({ w: one }), { answer: "no", reason: "Reset did not write this entry, so it may be your own." });
+
+  assert.deepEqual(recommendOf(KINDS.cutOffChanged()), SAFE("build"), "the entry changed since is back at its value from before, as a reset leaves it");
+  const cut = world();
+  assert.equal(cut.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(cut, cut.localFile, { written: false });
+  editByHand(cut.localFile);
+  assert.deepEqual(recommendOf({ w: cut }), EDITED);
+
+  assert.deepEqual(recommendOf(KINDS.movedNoNewer()), SAFE("build"));
+  const moved = KINDS.movedNoNewer();
+  editByHand(moved.files.M);
+  assert.deepEqual(recommendOf(moved), EDITED);
+
+  const preview = resetJson(KINDS.restore().w);
+  assert.deepEqual(preview.questionRecommend, {
+    asked: { answer: "yes", reason: "You asked for a reset: a yes puts back the 1 file above as its lines say, and applying a profile again undoes it." },
+    unasked: { answer: "no", reason: "Nobody asked for a reset, so a no keeps every profile as it is." },
+  });
+  assert.equal(resetJson(KINDS.noRecord().w).questionRecommend, null, "no question, no recommendation for it");
 });
