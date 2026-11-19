@@ -797,7 +797,7 @@ export const RATE_WINDOW_MS = 3_600_000;
 // would refuse while the first re-run is going (UNVERIFIED) rather than start
 // a third attempt. Should both land, the extra attempt has no record of its
 // own, so pr-verify refuses it: the head is stranded, never let through.
-export const PENDING_BACKOFF_MINUTES = 20;
+export const PENDING_BACKOFF_MINUTES = 45;
 // A hosted review run a kill switch may have stopped: it reads success with no
 // job failed, so only its jobs can tell (`reviewStopped`).
 const isUnreviewed = (r) => GATED_REVIEWS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
