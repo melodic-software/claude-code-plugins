@@ -275,13 +275,13 @@
     "review_lane_workflows": {
       "type": "string",
       "title": "Review lane workflows",
-      "description": "Reusable workflows whose pull_request runs count as a CI review lane for review_venue auto, one per entry as code-review=, security-review= or either= then <owner>/<repo>/.github/workflows/<file>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no run counts, so every lane reads local.",
+      "description": "Reusable workflows whose runs count as a CI review lane, each as code-review=, security-review= or either= then <owner>/<repo>/.github/workflows/<file>. User or managed settings only, never a repository. Absent: no run counts, so every lane reads local.",
       "multiple": true
     },
     "review_lane_checks": {
       "type": "string",
       "title": "Review lane checks",
-      "description": "The AI review lanes' caller and check names the merge gate accepts, one per entry as claude-review: or claude-security-review: then caller=<.github/workflows/file>, status=<check name> or merge=<check name>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no check is AI review, so the merge gate holds.",
+      "description": "AI review lane callers and check names the merge gate accepts, each as claude-review: or claude-security-review: then caller=<workflow path>, status=<check> or merge=<check>. User or managed settings only, never a repository. Absent: no check is AI review, so the gate holds.",
       "multiple": true
     },
     "owner_decisions_record": {
@@ -303,8 +303,8 @@
     },
     "issue_status_app_login": {
       "type": "string",
-      "title": "Issue status App login",
-      "description": "The one GitHub App login (<slug>[bot]) whose Work status field values the merge gate counts like a person's, when the repository's trusted-actors list also lists it. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only a person's values count."
+      "title": "Issue status app login",
+      "description": "The one GitHub App login (<slug>[bot]) whose Work status field values the merge gate counts like a person's, when the trusted-actors list also lists it. User or managed settings only, never a repository. Absent: only a person's values count."
     },
     "promotion_evidence_binding": {
       "type": "file",
