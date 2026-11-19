@@ -242,7 +242,11 @@ class Ranking(unittest.TestCase):
             ["git", "clone", "-q", "--depth", "1", f"file://{self.repo}", str(shallow)],
             check=True,
             capture_output=True,
-            env={k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")},
+            env={
+                **{k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")},
+                "GIT_CONFIG_GLOBAL": os.devnull,
+                "GIT_CONFIG_NOSYSTEM": "1",
+            },
         )
         p = self.run_rank(cwd=shallow)
         self.assertEqual(p.returncode, 0, p.stderr)
