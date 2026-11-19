@@ -203,8 +203,10 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
     assert (
         "Bash(curl *)" in deny
         and "Bash(wget *)" in deny
-        and "Bash(git ls-remote *)" in deny
+        and "Bash(git ls-remote https *)" in deny
+        and "Bash(git ls-remote git@*)" in deny
     )
+    assert not {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} & set(deny)
     assert "WebFetch" in deny
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
     assert "pluginConfigs" not in resume_eval.run_settings()
