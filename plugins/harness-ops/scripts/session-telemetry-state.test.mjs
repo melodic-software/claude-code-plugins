@@ -76,4 +76,12 @@ describe("session-telemetry-state.mjs", () => {
     assert.ok(out.includes("claude plugin enable session-telemetry@inline"), out);
     assert.ok(out.includes(`data_dir=${path.join(dir, "plugins", "data", "session-telemetry-inline")}`), out);
   });
+
+  test("harness-ops outside the plugin cache, session-telemetry installed: the sibling keeps its installed id", () => {
+    const dir = config({ installed: true, enabled: true, options: { session_event_log_dir: "telemetry/hooks" } });
+    const out = run(dir, path.join(dir, "src", "plugins", "harness-ops"));
+    assert.match(out, /^session-telemetry: enabled$/m);
+    assert.ok(out.includes(`data_dir=${path.join(dir, "plugins", "data", "session-telemetry-acme")}`), out);
+    assert.match(out, /^option session_event_log_dir=telemetry\/hooks$/m);
+  });
 });

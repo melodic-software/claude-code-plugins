@@ -36,11 +36,9 @@ function args(argv) {
 
 export function state({ project, env = process.env, ownRoot = OWN_ROOT }) {
   const own = resolveInstall(ownRoot);
-  const marketplace = own.pluginId?.split("@")[1] ?? "inline";
   const config = own.userSettings
     ? path.dirname(own.userSettings)
     : env.CLAUDE_CONFIG_DIR || path.join(env.HOME || homedir(), ".claude");
-  const id = `${NAME}@${marketplace}`;
   let managed = [];
   try {
     managed = managedSettingsFiles();
@@ -49,8 +47,15 @@ export function state({ project, env = process.env, ownRoot = OWN_ROOT }) {
   }
   const nameOf = (root) => readJson(path.join(root, ".claude-plugin", "plugin.json"))?.name;
   const enabledRoot = rootsFromSettings(config, project, managed, env).roots.find((root) => nameOf(root) === NAME);
-  const records = readJson(path.join(config, "plugins", "installed_plugins.json"))?.plugins?.[id];
-  const installedRoot = [records ?? []].flat().find((r) => r?.installPath && existsSync(r.installPath))?.installPath;
+  const installed = readJson(path.join(config, "plugins", "installed_plugins.json"))?.plugins ?? {};
+  const liveRoot = (key) => [installed[key] ?? []].flat().find((r) => r?.installPath && existsSync(r.installPath))?.installPath;
+  const siblingIds = Object.keys(installed).filter((key) => key.startsWith(`${NAME}@`) && liveRoot(key));
+  const id = own.pluginId
+    ? `${NAME}@${own.pluginId.split("@")[1]}`
+    : (siblingIds.find((key) => enabledRoot && path.resolve(liveRoot(key)) === path.resolve(enabledRoot)) ??
+      siblingIds[0] ??
+      `${NAME}@inline`);
+  const installedRoot = liveRoot(id);
   const root = enabledRoot ?? installedRoot;
   const dataDir = path.join(config, "plugins", "data", id.replace(/[^A-Za-z0-9_-]/g, "-"));
   const defaults = Object.fromEntries(

@@ -92,9 +92,11 @@ Where this machine's provisioning documents each part, from this plugin's option
 - Collector configuration: `${user_config.otel_collector_config_ref}`
 - dashboard stack: `${user_config.otel_dashboards_compose_ref}`
 
-A value renders only when its key is set; an unset key leaves the literal placeholder token, which
-means no reference is configured: name the part and point the user at their machine provisioning,
-never at a repository of your own guessing. The `context/` files name these parts by option.
+We treat a value that is empty or still the literal placeholder token as no reference configured:
+name the part and point the user at their machine provisioning, never at a repository of your own
+guessing. The `context/` files name these parts by option. Pointer: for how a skill body's
+`${user_config.*}` token resolves, see
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## Arguments
 
