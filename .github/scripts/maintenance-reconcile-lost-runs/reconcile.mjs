@@ -1928,11 +1928,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
-  // Every item takes one place: a PR's CI set, each hosted review run in it
-  // that is re-run whole, or one lane run. A set can hold several records, and
-  // the workflow has MAX_IN_FLIGHT upload steps, so what does not fit waits for
-  // a later pass: a re-run with no record would be refused. A set short of
-  // places waits whole, so its checks re-run never goes without its reviews.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   let uploads = MAX_IN_FLIGHT;
   const items = [];
