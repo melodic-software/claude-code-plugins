@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.0.2] - 2026-11-19
+
+### Fixed
+
+- stop counting infra merge-queue removals toward merge.max-queue-ejections
+
+  The babysit-prs gate and enable-auto-merge no longer count a removal whose
+  merge-group run failed on infra alone: a GitHub rate limit, the API read
+  or stop floor, a verify:unreadable refusal, the lanes kill switch, a lost
+  runner, or a job main failed at the same time. Every failed job must name
+  such a cause, so a real check failure beside one still counts. The new
+  merge.queue-ejection-infra-causes list names which causes apply (default
+  all); every cause excuses a removal only after its reset
+  or an hour. Each excused removal gets a queue-ejection notice, and older
+  removals are found past the newest page of failed merge-group runs.
+
+## [13.0.1] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
 ## [13.0.0] - 2026-11-19
 
 ### Added

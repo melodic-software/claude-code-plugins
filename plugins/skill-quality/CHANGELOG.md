@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.28] - 2026-11-19
+
+### Changed
+
+- `measure-invocation.sh`'s no-resolvable-probe error says the seed probes name skills of the marketplace checkout this plugin ships from, without naming the publisher.
+
 ## [1.1.27] - 2026-11-19
 
 ### Changed

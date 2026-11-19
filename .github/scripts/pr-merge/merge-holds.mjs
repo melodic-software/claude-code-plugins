@@ -448,6 +448,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["lib/publish-gate.mjs", "enforcement"],
   [".github/recurring-schedule.json", "enforcement"],
   ["docs/upstream/**", "enforcement"],
+  ["scripts/upstream-drift-vendored-report.sh", "enforcement"],
   [".github/scripts/recurring-schedule/file-due.mjs", "enforcement"],
   [".github/scripts/maintenance-monitor-signals/issues.mjs", "enforcement"],
   [".github/scripts/lib/github-rest.mjs", "enforcement"],

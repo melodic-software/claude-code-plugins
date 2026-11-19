@@ -22,7 +22,9 @@
 //          `claude --settings` and changes no settings file. The record of a folder in git goes
 //          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
-//          pending, for an in-session switch; the next apply writes them. A target the surface
+//          pending, for an in-session switch; the next apply writes them. --finish-pending is that
+//          next apply: it writes only while the target's record is still off-pending for <name>,
+//          and otherwise prints that there is nothing to finish and writes nothing. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
 //          remember_folder_profile option is false, and --defer-off in a session that
 //          PLUGIN_PROFILES_SESSION names.
@@ -54,7 +56,11 @@
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created. Like apply it prints what it changes first and writes
 //          on --yes or a yes typed at the prompt; --dry-run prints and stops.
-// list     The profiles a folder apply can name, each with its description line.
+// reset    Clears every settings file on this machine that holds a profile's record, user settings
+//          included, behind one preview and one yes: each file is replaced whole, its record is
+//          marked restoring before the write and removed after it, and a file whose folder is gone,
+//          or that is not a .claude/settings.local.json or user settings, keeps its record.
+// list    The profiles a folder apply can name, each with its description line.
 // inventory  The installed plugins, their dependencies, what each ships and its skills.
 // usage    How often each skill and plugin was used on this machine (lib/usage.mjs), most used
 //          first, or that no usage history was found.
@@ -74,9 +80,11 @@
 //          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk.
 //
 // Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
-// consent, a missing required prerequisite, settings changed by another writer) or the check
-// failed. Exit 2: usage, profile or settings
-// file error. apply names a missing plugin with its install command and installs nothing.
+// consent, a missing required prerequisite, settings changed by another writer), nothing
+// written, or the check failed. Exit 2: usage, profile or settings
+// file error. Exit 3: a reset wrote what it could and named each file it skipped (scenario row
+// 37 of https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
+// apply names a missing plugin with its install command and installs nothing.
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
@@ -91,23 +99,44 @@ import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplac
 import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
-import { replaceFile } from "../lib/atomic-file.mjs";
+import { readText, replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
-import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
+import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
+import {
+  ABSENT,
+  baseline,
+  deleteRecord,
+  findRecord,
+  forgetRestored,
+  forgetStaleRestored,
+  holdsEveryEntry,
+  nextRecord,
+  noteRestored,
+  realPath,
+  recordPath,
+  recordText,
+  restoreEdits,
+  restoredHashOf,
+  restoringRecord,
+  saveRecord,
+  stillWritten,
+  swapRecord,
+} from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
   deleteSettings,
   editText,
+  hashOf,
   readLayers,
   readSettings,
   settingsPaths,
   writeSettings,
 } from "../lib/settings-io.mjs";
-import { othersInFolder } from "../lib/sessions.mjs";
+import { liveFolders, othersInFolder } from "../lib/sessions.mjs";
 import { detectSurface, doesNotApply, refusal, surfaceLine } from "../lib/surface.mjs";
-import { readUsage, usageFile } from "../lib/usage.mjs";
+import { knownFolders, readUsage, usageFile } from "../lib/usage.mjs";
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
@@ -120,18 +149,47 @@ const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 const sessionProfile = (env) => env[SESSION_VAR] || null;
 /** The variables a started claude never inherits; its session file sets its own. */
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
-const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
+const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off] [--finish-pending]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
        profiles.mjs start [<profile> | --profile <profile>] [--with <settings file or JSON>] [--unattended] [--dry-run] [claude arguments]
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
        profiles.mjs install <name@marketplace> [--dry-run] [--yes]
        profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>] [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
        profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
+
+/** Exit status of a reset that wrote what it could and named each file it skipped; 1 stays "nothing written". */
+const PARTLY_DONE = 3;
+
+/**
+ * The kinds of file reset asks about one at a time: the answer each label and flag gives, what the one question
+ * says it leaves to them, and what reset says when nobody is there to answer.
+ */
+const ASKS = {
+  unrecorded: {
+    yes: { label: "Remove", flag: "--remove-unrecorded" },
+    no: { label: "Keep", flag: "--keep-unrecorded" },
+    covers: "Folders without a record are not covered: each gets its own question.",
+    some: "folders without a record",
+    waits: "a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change",
+  },
+  cutOff: {
+    yes: { label: "Put back", flag: "--finish-cut-off" },
+    no: { label: "Keep", flag: "--keep-cut-off" },
+    covers: "A file whose earlier reset was cut off is not covered: each gets its own question.",
+    some: "files whose earlier reset was cut off",
+    waits: "a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back",
+  },
+};
+const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
+/** A file's own question; recommend is the answer reset advises, yes or no, with its one-sentence reason. */
+const askOf = (kind, file, question, recommend) => ({ file, question, yes: kind.yes, no: kind.no, recommend });
+const kindOf = (ask) => Object.values(ASKS).find((kind) => kind.yes.flag === ask.yes.flag);
 
 class UsageError extends Error {}
 class NotApplied extends Error {}
@@ -201,11 +259,22 @@ function otherDataDirs(where) {
   }
 }
 
+const stateHome = (where) => join(where.configDir, "plugin-profiles-state");
+
+/** The record home of a settings file in a repository: its git common folder's plugin-profiles, else null. */
+const gitHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? null : repositoryHome(dirname(dirname(file)), { home: where.home }));
+
 /** Where a settings file's record lives first: the repository's git common folder, the config folder for user settings, else null. */
-function primaryHome(where, file) {
-  if (realPath(file) === realPath(where.paths.user)) return join(where.configDir, "plugin-profiles-state");
-  const level = folderLevel(dirname(dirname(file)), { home: where.home });
-  return level.recordInGit ? join(level.commonDir, "plugin-profiles") : null;
+const primaryHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? stateHome(where) : gitHome(where, file));
+
+/** Records that a repository holds records, so reset finds it from any folder; never fails the caller. */
+function notePointer(where, file) {
+  const home = gitHome(where, file);
+  try {
+    if (home && existsSync(recordPath(home, file))) writePointer(where.configDir, home);
+  } catch {
+    return;
+  }
 }
 
 /** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
@@ -260,16 +329,17 @@ function parseStart(rest) {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (command === "start") return parseStart(rest);
-  if (!["apply", "launch", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
+  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, answers: [], previewId: null };
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json", "--keep-recorded"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: [...ANSWER_FLAGS, "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (values.includes(arg)) {
       if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
-      opts[arg === "--for" ? "target" : camel(arg)] = rest[++i];
+      if (ANSWER_FLAGS.includes(arg)) opts.answers.push({ flag: arg, file: rest[++i] });
+      else opts[arg === "--for" ? "target" : camel(arg)] = rest[++i];
     }
     else if (flags.includes(arg)) opts[camel(arg)] = true;
     else if ([...NAMED, "launch"].includes(command) && !arg.startsWith("--") && !opts.name) opts.name = arg;
@@ -279,7 +349,10 @@ function parseArgs(argv) {
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : command === "clear" ? Object.keys(TARGET_FILES) : ["folder", "initial"];
   if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
-  if (["apply", "clear"].includes(command) && opts.json && !opts.dryRun) throw new UsageError(`${command} --json prints a preview and needs --dry-run`);
+  if (opts.finishPending && opts.target === "session") throw new UsageError("--finish-pending applies to a folder or user settings, not a one-session file");
+  if (["apply", "clear", "reset"].includes(command) && opts.json && !opts.dryRun && !(command === "reset" && opts.yes)) {
+    throw new UsageError(command === "reset" ? "reset --json prints the preview with --dry-run, or each file's result with --yes" : `${command} --json prints a preview and needs --dry-run`);
+  }
   return opts;
 }
 
@@ -308,6 +381,10 @@ function diff(now, final) {
 /** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
 const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) => [...p.hideSkills]));
 
+/** Every marketplace some profile names a plugin of; a one-session file freezes each one's plugins at launch, so no other profile's write or reset reaches that session. */
+const governedMarketplaces = (catalog) =>
+  new Set(everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
+
 /** Reads every input, plans, and works out the exact entries the target file ends with. */
 function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
@@ -321,7 +398,14 @@ function prepare(opts, where, catalog, records) {
   const result = plan({ catalog, profile: opts.name, inventory: inv, layers, current: loaded, target: opts.target });
   const now = settings.doc.enabledPlugins ?? {};
   const final = { enabledPlugins: { ...base.enabledPlugins, ...result.writes }, skillOverrides: { ...base.skillOverrides, ...result.skillWrites } };
-  if (session) for (const skill of hideableSkills(catalog)) final.skillOverrides[skill] ??= "on";
+  if (session) {
+    for (const skill of hideableSkills(catalog)) final.skillOverrides[skill] ??= "on";
+    const governed = governedMarketplaces(catalog);
+    for (const id of result.untouched) {
+      const value = effective(loaded, id);
+      if (governed.has(marketplaceOf(id)) && value !== undefined) final.enabledPlugins[id] = value;
+    }
+  }
   const pending = {};
   if (opts.deferOff) {
     for (const id of new Set([...Object.keys(now), ...Object.keys(final.enabledPlugins)])) {
@@ -440,7 +524,15 @@ async function consent(opts, gate, interactive, question = "Apply these changes?
   if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
-function commit(p, opts, where) {
+/** Saves the record; a finish saves it only while the pending record it read is still there, checked just before the rename, and is false when it is not. */
+function claimRecord(p, record, finishing) {
+  if (finishing && !swapRecord(finishing.path, finishing.text, recordText(record))) return false;
+  if (finishing?.path !== p.recPath) saveRecord(p.recPath, record);
+  return true;
+}
+
+/** Writes the record, then the settings file; false, writing nothing, when the pending record a finish read has changed. */
+function commit(p, opts, where, finishing = null) {
   const text = editText(p.settings, p.edits);
   if (opts.target === "session") return writeSettings(p.file, p.settings.hash, text);
   const record = nextRecord(p.previous, {
@@ -457,15 +549,20 @@ function commit(p, opts, where) {
     pending: p.pending,
     installed: [...p.inv.keys()],
   });
-  saveRecord(p.recPath, record);
+  if (!claimRecord(p, record, finishing)) return false;
+  notePointer(where, p.file);
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
-    if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
+    if (finishing) {
+      swapRecord(finishing.path, recordText(record), finishing.text);
+      if (finishing.path !== p.recPath) deleteRecord(p.recPath);
+    } else if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
     else deleteRecord(p.recPath);
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);
+  forgetRestored(homesOf(where, p.file), p.file);
 }
 
 async function apply(opts, where, env, io) {
@@ -476,6 +573,19 @@ async function apply(opts, where, env, io) {
   }
   if (opts.deferOff && sessionProfile(env)) {
     throw new NotApplied(`not applied: this session runs in profile ${sessionProfile(env)} from a one-session settings file, so a switch here would not hold; start a session in ${opts.name} with apply ${opts.name} --for session, then the claude --settings command it prints`);
+  }
+  let finishing = null;
+  if (opts.finishPending) {
+    const file = targetFile(where, opts.target);
+    const { found } = recordOf(where, file);
+    const text = found && readText(found);
+    const rec = text ? JSON.parse(text) : null;
+    if (rec?.phase !== "off-pending" || rec.profile !== opts.name) {
+      io.out(`Nothing to finish: no unfinished switch to ${opts.name} is recorded for ${file}.`);
+      return 0;
+    }
+    finishing = { path: found, text, gone: `Nothing to finish: the unfinished switch to ${opts.name} recorded for ${file} changed while finishing (a reset, a clear or another switch); nothing was written.` };
+    opts = { ...opts, yes: true };
   }
   const catalog = catalogFor(where, opts.target);
   const records = () => recordsFromCli();
@@ -500,19 +610,24 @@ async function apply(opts, where, env, io) {
   }
   if (opts.dryRun) return 0;
   await consent(opts, gate, interactive());
+  let claimed;
   try {
-    commit(p, opts, where);
+    claimed = commit(p, opts, where, finishing);
   } catch (error) {
     if (!(error instanceof SettingsConflict)) throw error;
     const again = prepare(opts, where, catalog, records);
     if (!sameChange(p, again)) throw new NotApplied(`not applied: ${p.file} changed while applying and the change alters the plan; run apply again to see the new preview`);
     p = again;
     try {
-      commit(p, opts, where);
+      claimed = commit(p, opts, where, finishing);
     } catch (second) {
       if (second instanceof SettingsConflict) throw new NotApplied(`not applied: ${p.file} kept changing while applying; it is left as the other writer left it`);
       throw second;
     }
+  }
+  if (claimed === false) {
+    io.out(finishing.gone);
+    return 0;
   }
   io.out(`Applied ${opts.name} to ${p.file}.`);
   if (opts.target === "session") {
@@ -682,6 +797,39 @@ export function pickProfile(rows, marked, { input = process.stdin, output = proc
     rl.setPrompt("Start which profile? ");
     rl.prompt();
   });
+}
+
+/** One reader for every [y/N] question of a run: yes(question) is true only for a typed y or yes; input that ends answers no and asks nothing more. */
+function lineAsker({ input = process.stdin, output = process.stdout } = {}) {
+  const rl = createInterface({ input, terminal: false });
+  const lines = rl[Symbol.asyncIterator]();
+  let ended = false;
+  return {
+    async yes(question) {
+      if (ended) return false;
+      output.write(`${question} [y/N] `);
+      const { value, done } = await lines.next();
+      ended = done;
+      return !done && ["y", "yes"].includes(value.trim().toLowerCase());
+    },
+    close() {
+      rl.close();
+      input.pause?.();
+    },
+  };
+}
+
+/** Asks one [y/N] per row, in order; resolves to the files answered yes. No answer, or input that ends, is a no. */
+export async function askPerFolder(rows, streams = {}) {
+  const yes = new Set();
+  if (!rows.length) return yes;
+  const asker = lineAsker(streams);
+  try {
+    for (const row of rows) if (await asker.yes(row.question)) yes.add(row.file);
+  } finally {
+    asker.close();
+  }
+  return yes;
 }
 
 /** Runs claude with stdio inherited and without the cleared variables; resolves to its exit status, 128 plus the signal number when a signal ended it. */
@@ -936,6 +1084,7 @@ function writeRootPointer(where) {
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
     writeRootPointer(where);
+    if (!doesNotApply(where.surface)) for (const file of [where.paths.local, where.paths.earlier].filter(Boolean)) notePointer(where, file);
     const input = hookInput(io);
     const resumed = (() => {
       try {
@@ -984,50 +1133,464 @@ function removeEmptyFolder(dir) {
   } catch {}
 }
 
-async function clear(opts, where, env, io) {
-  if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
-  const file = targetFile(where, opts.target);
-  const { found: recPath, record: rec } = recordOf(where, file);
-  const keeps = keepsSessionProfile(env);
-  const preview = (recorded, lines) => {
-    if (opts.json) io.out(JSON.stringify({ recorded, sessionProfile: sessionProfile(env), lines: keeps ? [...lines, keeps] : lines }, null, 2));
-    else for (const line of keeps ? [...lines, keeps] : lines) io.out(line);
-  };
-  if (!rec) {
-    const doc = readSettings(file).doc;
-    const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(doc[key] ?? {}).length);
-    preview(false, [plugins + skills
-      ? `No record of a profile apply was found for ${file}, so clear cannot tell which of its ${plugins} plugin entries and ${skills} skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${file}.`
-      : `No profile is recorded for ${file}; nothing to clear.`]);
-    return 0;
-  }
+/** What clearing one settings file does: its record, the text or removal that puts it back, and the preview lines. */
+function clearPlan(file, found) {
+  const { found: recPath, record: rec } = found;
   const settings = readSettings(file);
+  if (!rec) {
+    const [plugins, skills] = ["enabledPlugins", "skillOverrides"].map((key) => Object.keys(settings.doc[key] ?? {}).length);
+    return {
+      file, settings, rec: null, recPath, plugins, skills,
+      lines: [plugins + skills
+        ? `No record of a profile apply was found for ${file}, so clear cannot tell which of its ${plugins} plugin entries and ${skills} skill entries a profile wrote; it changes nothing. To drop them all, remove the enabledPlugins and skillOverrides keys from ${file}.`
+        : `No profile is recorded for ${file}; nothing to clear.`],
+    };
+  }
   const { edits, dropEmpty } = restoreEdits(rec);
   const text = editText(settings, edits, { dropEmpty });
   const removes = rec.createdFile && Object.keys(JSON.parse(text)).length === 0;
-  preview(true, [
-    `Clears profile ${rec.profile} from ${file}.`,
-    removes
-      ? `Removes the file${rec.createdFolder ? ", and its folder when nothing else is in it," : ""} which the first apply created.`
-      : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
-    ...overwrittenEdits(rec, settings.doc).map(
-      (e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`,
-    ),
-  ]);
-  if (opts.dryRun) return 0;
+  const overwrites = overwrittenEdits(rec, settings.doc);
+  return {
+    file, settings, rec, recPath, edits, text, removes, overwrites,
+    lines: [
+      `Clears profile ${rec.profile} from ${file}.`,
+      removes
+        ? `Removes the file${rec.createdFolder ? ", and its folder when nothing else is in it," : ""} which the first apply created.`
+        : `Puts back ${Object.keys(edits.enabledPlugins).length} plugin entries and ${Object.keys(edits.skillOverrides).length} skill entries to their values before the first apply.`,
+      ...overwrites.map((e) => `Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; clear puts back ${e.before}.`),
+    ],
+  };
+}
+
+/** Writes or removes the planned file under the hash guard, removes a folder the apply created once empty, then drops the record. */
+function clearWrite(plan, dropRecord = () => plan.recPath && deleteRecord(plan.recPath)) {
+  if (plan.removes) {
+    deleteSettings(plan.file, plan.settings.hash);
+    if (plan.rec.createdFolder) removeEmptyFolder(dirname(plan.file));
+  } else writeSettings(plan.file, plan.settings.hash, plan.text);
+  dropRecord();
+}
+
+async function clear(opts, where, env, io) {
+  if (doesNotApply(where.surface)) throw new NotApplied(`not cleared: ${refusal(where.surface, opts.target)}`);
+  const file = targetFile(where, opts.target);
+  const plan = clearPlan(file, recordOf(where, file));
+  const keeps = keepsSessionProfile(env);
+  const lines = keeps ? [...plan.lines, keeps] : plan.lines;
+  if (opts.json) io.out(JSON.stringify({ recorded: Boolean(plan.rec), sessionProfile: sessionProfile(env), lines }, null, 2));
+  else for (const line of lines) io.out(line);
+  if (!plan.rec || opts.dryRun) return 0;
   await consent(opts, [], interactive(), "Clear this profile? [y/N] ");
   try {
-    if (removes) {
-      deleteSettings(file, settings.hash);
-      if (rec.createdFolder) removeEmptyFolder(dirname(file));
-    } else writeSettings(file, settings.hash, text);
+    clearWrite(plan);
   } catch (error) {
     if (error instanceof SettingsConflict) throw new NotApplied(`not cleared: ${file} changed while clearing; run clear again`);
     throw error;
   }
-  if (recPath) deleteRecord(recPath);
-  io.out(`Cleared profile ${rec.profile} from ${file}.`);
+  io.out(`Cleared profile ${plan.rec.profile} from ${file}.`);
   return 0;
+}
+
+/** The only files reset writes: a folder's .claude/settings.local.json and user settings. */
+const resetWrites = (where, file) =>
+  realPath(file) === realPath(where.paths.user) || (basename(file) === "settings.local.json" && basename(dirname(file)) === ".claude");
+
+/** Every settings file reset can reach, the record homes it read, and how many folders each source named. */
+function machineFiles(where, env) {
+  const dataDirs = [where.dataDir, ...otherDataDirs(where)];
+  const pointerHomes = readPointers(where.configDir);
+  const named = { projects: knownFolders(usageFile({ env, home: where.home })), sessions: sessionFolders(dataDirs), live: liveFolders(env) };
+  const roots = pointerHomes.map((home) => dirname(home)).filter((dir) => basename(dir) === ".git").map((dir) => dirname(dir));
+  const folders = [...new Set([where.projectDir, ...named.projects, ...named.sessions, ...named.live, ...roots])].filter((dir) => existsSync(dir));
+  const homes = [stateHome(where), ...dataDirs, ...pointerHomes, ...folders.map((dir) => repositoryHome(dir, { home: where.home })).filter(Boolean)];
+  const knownFiles = folders.flatMap((dir) => {
+    try {
+      const at = locate(env, dir, dir);
+      return [at.paths.local, at.paths.earlier].filter(Boolean).map((file) => ({ file, found: recordOf(at, file) }));
+    } catch {
+      return [];
+    }
+  });
+  const lookup = (file) => {
+    try {
+      return recordOf(where, file);
+    } catch {
+      return null;
+    }
+  };
+  const holding = (file) => {
+    try {
+      return homesOf(where, file);
+    } catch {
+      return [];
+    }
+  };
+  const files = machineSettingsFiles({ homes, homesOf: holding, recordOf: lookup, knownFiles });
+  return { files, homes, counts: { dataDirs: dataDirs.length, pointers: pointerHomes.length, ...Object.fromEntries(Object.entries(named).map(([k, v]) => [k, v.length])) } };
+}
+
+const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
+const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "values"} profile ${profile} wrote`;
+const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
+const RESTORES = ["restore", "remove-file", "finish-restore"];
+const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const ownEntries = (n) => counted(n, "plugin and skill entry", "plugin and skill entries");
+/** The first three ids and how many more, followed by tail when some are left out. */
+const fewOf = (ids, tail = "") => (ids.length > 3 ? `${ids.slice(0, 3).join(", ")} and ${ids.length - 3} more${tail}` : list(ids));
+/** An apply's time in this machine's time zone; the recorded text when it is not a date. */
+const localTime = (iso) => {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? String(iso) : at.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+};
+/**
+ * The one question that covers every recorded file and what reset advises for it, yes for a person who asked for a reset and
+ * no otherwise; null when no file has a record to restore.
+ */
+function resetQuestion(rows) {
+  const n = rows.filter((r) => RESTORES.includes(r.action)).length;
+  if (!n) return null;
+  const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
+  const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
+  const kinds = asked.map((kind) => kind.some).join(" and ");
+  return {
+    text: asked.length < 2 ? [covers, ...asked.map((kind) => kind.covers)].join(" ") : `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`,
+    recommend: {
+      asked: { answer: "yes", reason: `You asked for a reset: a yes puts back the ${counted(n, "file")} above as ${n === 1 ? "its" : "their"} lines say, and applying a profile again undoes it.` },
+      unasked: { answer: "no", reason: "Nobody asked for a reset, so a no keeps every profile as it is." },
+    },
+  };
+}
+
+/** What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another value. */
+const recommendFrom = (profile, overwrites) =>
+  overwrites.length
+    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied, so the file may hold changes you want; a no changes nothing.` }
+    : { answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
+
+/** The preview lines naming each entry edited since the apply that a restore changes again. */
+const overwriteLines = (plan) =>
+  plan.overwrites.map((e) => `  Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; reset puts back ${e.before}.`);
+const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) => ({ name, current, before }));
+
+const WAITS = "folder not found; record kept until reset puts back the later record of its repository's file";
+const WAITED = "folder not found; record kept. This reset put back a later record of its repository's file; run reset again to be offered the next record, newest first";
+
+/**
+ * One file's row in the reset preview: what reset does to it and the lines that say so. A moved record waits, offered for
+ * nothing, while a later record covers the file at the repository's new place; that later record is layered over it.
+ */
+function resetRow(where, f, { waits = false, layered = false } = {}) {
+  const file = f.settingsFile;
+  const rec = f.record;
+  const row = { file, recorded: Boolean(rec) && !f.adopted, adopted: f.adopted, unfinished: rec?.phase === "off-pending", overwrites: [], found: f };
+  const skip = (reason, lines) => ({ ...row, action: "skip", reason, lines });
+  if (f.ignored) {
+    return { ...skip("ignored", [`Ignored the record ${f.recordPath}: it names ${file}, whose record is never kept there, so reset never writes from it.`]), record: f.recordPath };
+  }
+  if (!rec) {
+    let settings;
+    try {
+      settings = readSettings(file);
+    } catch (error) {
+      if (!(error instanceof SettingsError)) throw error;
+      return skip(`${error.message}; left as it is`, [`${file}: ${error.message}; reset leaves it.`]);
+    }
+    if (restoredHashOf(homesOf(where, file), file) === settings.hash) return { ...row, action: "unchanged", lines: [] };
+    const entries = ownEntries(f.entries.length);
+    return {
+      ...row,
+      action: "remove-entries",
+      reason: NO_RECORD,
+      entries: f.entries,
+      settings,
+      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${entries} (${fewOf(f.entries, ", listed above")})?`, {
+        answer: "no",
+        reason: f.entries.length === 1 ? "Reset did not write this entry, so it may be your own." : "Reset did not write these entries, so they may be your own.",
+      }),
+      lines: [`${file}: no profile record, and its ${entries} may be your own: ${list(f.entries)}. Reset removes ${f.entries.length === 1 ? "it" : "them"} only after a yes for this folder.`],
+    };
+  }
+  if (!resetWrites(where, file)) {
+    return skip("reset writes only .claude/settings.local.json files and user settings; record kept", [`${file}: reset writes only .claude/settings.local.json files and user settings, so it leaves this file and its record.`]);
+  }
+  if (f.missing) {
+    const kept = skip("folder not found; record kept", [`${file}: folder not found; record kept.`]);
+    if (!f.movedTo) return kept;
+    const now = dirname(dirname(f.movedTo));
+    if (waits) {
+      return { ...skip(WAITS, [`${file}: folder not found; record kept. The repository is now at ${now}, and ${f.movedTo} has a later record that reset handles first; running reset again afterwards offers this one.`]), waitsFor: f.movedTo };
+    }
+    try {
+      const movedPlan = clearPlan(f.movedTo, { found: f.recordPath, record: { ...rec, settingsFile: f.movedTo } });
+      return {
+        ...kept,
+        movedTo: f.movedTo,
+        movedPlan,
+        overwrites: overwritesOf(movedPlan),
+        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites)),
+        lines: [`${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`, ...overwriteLines(movedPlan)],
+      };
+    } catch (error) {
+      if (!(error instanceof SettingsError)) throw error;
+      return kept;
+    }
+  }
+  let plan;
+  try {
+    plan = clearPlan(file, { found: f.recordPath, record: rec });
+  } catch (error) {
+    if (!(error instanceof SettingsError)) throw error;
+    return skip(`${error.message}; record kept`, [`${file}: ${error.message}; reset leaves it and its record.`]);
+  }
+  if (rec.phase === "restoring" && plan.settings.hash === rec.restoredHash) {
+    return { ...row, action: "finish-restore", plan, lines: [`${file}: an earlier reset restored it and was cut off before removing its record; reset removes the record.`] };
+  }
+  if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc)) {
+    const still = stillWritten(rec, plan.settings.doc);
+    const entries = [...Object.keys(still.entries), ...Object.keys(still.skillOverrides)];
+    if (!entries.length) {
+      return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
+    }
+    const values = wroteValues(entries, rec.profile);
+    const changed = [...Object.keys(rec.entries), ...Object.keys(rec.skillOverrides)].filter((id) => !entries.includes(id));
+    return {
+      ...row,
+      action: "finish-cut-off",
+      reason: CUT_OFF,
+      entries,
+      plan: clearPlan(file, { found: f.recordPath, record: still }),
+      ask: askOf(ASKS.cutOff, file, `An earlier reset of ${file} was cut off and the file changed since. Put back the ${counted(entries.length, "entry", "entries")} still at ${values} (${fewOf(entries)}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`, recommendFrom(rec.profile, plan.overwrites)),
+      lines: [
+        `${file}: an earlier reset of this file was cut off and the file changed since. ${counted(entries.length, "entry", "entries")} still ${entries.length === 1 ? "holds" : "hold"} ${values}: ${fewOf(entries)}.`,
+        `  A yes for this file puts those back to their values from before the profile and leaves the ${counted(changed.length, "entry", "entries")} changed by hand since as ${changed.length === 1 ? "it is" : "they are"} (${fewOf(changed)}); a no keeps the file and its record.`,
+      ],
+    };
+  }
+  const what = plan.removes
+    ? "removes the file, which the first apply created"
+    : `puts back ${counted(Object.keys(plan.edits.enabledPlugins).length, "plugin entry", "plugin entries")} and ${counted(Object.keys(plan.edits.skillOverrides).length, "skill entry", "skill entries")} to their values before ${layered ? `profile ${rec.profile} was applied` : "the first apply"}`;
+  const head = f.adopted
+    ? `${file}: holds the entries profile ${rec.profile} wrote to its folder's root file, copied after that apply; reset ${what}.`
+    : `${file}: profile ${rec.profile}${rec.target === "initial" ? " (the initial profile)" : ""} applied ${localTime(rec.appliedAt)}; reset ${what}.`;
+  return {
+    ...row,
+    action: plan.removes ? "remove-file" : "restore",
+    plan,
+    overwrites: overwritesOf(plan),
+    lines: [
+      head,
+      ...overwriteLines(plan),
+      ...(row.unfinished ? [`  A switch to ${rec.profile} is unfinished in another session; after reset, that session's reload writes nothing.`] : []),
+    ],
+  };
+}
+
+/**
+ * Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone,
+ * leaves the file and the hash of the bytes reset left in it when those are its bytes before any profile.
+ */
+function resetOne(row, { chosen, kept, keepRecorded }) {
+  const { file, found: f } = row;
+  const leaves = (plan, path = file) => (plan.removes ? undefined : { file: path, hash: hashOf(plan.text) });
+  const yes = Boolean(row.ask) && chosen.has(realPath(row.ask.file));
+  const no = Boolean(row.ask) && kept.has(realPath(row.ask.file));
+  const changedUnder = (path) => ({ line: `Skipped ${path}: it changed during the reset and is left as the other writer left it; run reset again.`, ok: false });
+  const original = f.copies.find((c) => c.path === f.recordPath)?.text ?? null;
+  const dropCopies = (planned) => {
+    for (const c of f.copies) if (readText(c.path) === (c.path === f.recordPath ? planned : c.text)) deleteRecord(c.path);
+  };
+  const guarded = (write, line) => {
+    try {
+      write();
+      return { line, ok: true };
+    } catch (error) {
+      if (!(error instanceof SettingsConflict)) throw error;
+      return changedUnder(row.ask.file);
+    }
+  };
+  if (row.action === "remove-entries" && yes) {
+    const keys = ["enabledPlugins", "skillOverrides"];
+    const edits = Object.fromEntries(keys.map((key) => [key, Object.fromEntries(Object.keys(row.settings.doc[key] ?? {}).map((name) => [name, null]))]));
+    const text = editText(row.settings, edits, { dropEmpty: keys });
+    return guarded(() => writeSettings(file, row.settings.hash, text), `Removed the ${ownEntries(row.entries.length)} of ${file}, which had no record.`);
+  }
+  if (row.movedTo && yes) {
+    const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);
+    return { ...result, restored: result.ok, leaves: result.ok ? leaves(row.movedPlan, row.movedTo) : undefined };
+  }
+  const keptRecord = row.movedTo ? `, and the record of ${file} (profile ${f.record.profile}) is kept` : row.action === "finish-cut-off" ? ", and its record is kept" : "";
+  if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${keptRecord}.`, ok: true };
+  if (keepRecorded && RESTORES.includes(row.action)) return { line: `Skipped ${file}: you answered no, so it is left as it is${f.adopted ? "" : ", and its record is kept"}.`, ok: true };
+  if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
+  if (row.action === "skip" || (row.ask && !yes)) return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
+  if (row.action === "finish-restore") {
+    dropCopies(original);
+    if (row.reason) return { line: `Skipped ${file}: ${row.reason}; left as it is, and its record is removed.`, ok: true, restored: true };
+    const { settings } = row.plan;
+    return { line: `Finished an earlier reset of ${file}: its record is removed.`, ok: true, restored: true, leaves: settings.exists ? { file, hash: settings.hash } : undefined };
+  }
+  const { plan } = row;
+  const target = plan.removes ? hashOf(null) : hashOf(plan.text);
+  const already = { line: `Already restored by another reset: ${file}.`, ok: true, restored: true, leaves: leaves(plan) };
+  const changed = changedUnder(file);
+  const restoredElsewhere = () => {
+    try {
+      return readSettings(file).hash === target;
+    } catch {
+      return false;
+    }
+  };
+  const done = {
+    line: plan.removes
+      ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).`
+      : row.action === "finish-cut-off"
+        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec.profile)}, and left the entries changed by hand since as they are.`
+        : `Restored ${file} (profile ${plan.rec.profile}).`,
+    ok: true,
+    restored: !f.adopted,
+    leaves: leaves(plan),
+  };
+  if (f.adopted) {
+    try {
+      clearWrite(plan, () => {});
+      return done;
+    } catch (error) {
+      if (!(error instanceof SettingsConflict)) throw error;
+      return restoredElsewhere() ? { ...already, restored: false } : changed;
+    }
+  }
+  const restoring = recordText(restoringRecord(plan.rec, { restoredHash: target, fromHash: plan.settings.hash }));
+  if (!swapRecord(f.recordPath, original, restoring)) {
+    if (!restoredElsewhere()) return { line: `Skipped ${file}: its record changed during the reset; run reset again.`, ok: false };
+    dropCopies(original);
+    return already;
+  }
+  try {
+    clearWrite(plan, () => dropCopies(restoring));
+  } catch (error) {
+    swapRecord(f.recordPath, restoring, original);
+    if (!(error instanceof SettingsConflict)) throw error;
+    if (!restoredElsewhere()) return changed;
+    dropCopies(original);
+    return already;
+  }
+  return done;
+}
+
+/** Notes the bytes reset left in a file, in the home a record of it is saved in; without the note a later reset lists the file as it did before notes. */
+function noteLeft(where, { file, hash }) {
+  try {
+    noteRestored(homesOf(where, file)[0], file, hash);
+  } catch {}
+}
+
+/** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and records it was planned from. */
+const recordHash = (entry) => hashOf(entry?.copies.find((c) => c.path === entry.recordPath)?.text ?? null);
+const previewIdOf = (rows) =>
+  hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, recordHash(r.found)])));
+
+async function reset(opts, where, env, io) {
+  if (doesNotApply(where.surface)) throw new NotApplied(`not reset: ${refusal(where.surface, "folder")}`);
+  const { files, homes, counts } = machineFiles(where, env);
+  const covered = new Set(files.filter((f) => f.record && !f.adopted && !f.ignored && !f.missing).map((f) => realPath(f.settingsFile)));
+  const latest = new Map();
+  const moves = files.filter((f) => f.record && f.missing && f.movedTo && !f.ignored && !f.adopted && resetWrites(where, f.settingsFile));
+  for (const f of moves) {
+    const key = realPath(f.movedTo);
+    if (!latest.has(key) || String(latest.get(key).record.appliedAt) < String(f.record.appliedAt)) latest.set(key, f);
+  }
+  const waits = (f) => Boolean(f.movedTo) && (covered.has(realPath(f.movedTo)) || latest.get(realPath(f.movedTo)) !== f);
+  const behind = new Set(moves.filter(waits).map((f) => realPath(f.movedTo)));
+  const all = files.map((f) => resetRow(where, f, { waits: waits(f), layered: behind.has(realPath(f.settingsFile)) }));
+  const moved = new Set(all.filter((r) => r.movedTo).map((r) => realPath(r.movedTo)));
+  const shown = all.filter((r) => !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
+  const unchanged = shown.filter((r) => r.action === "unchanged").map((r) => r.file);
+  const rows = shown.filter((r) => r.action !== "unchanged");
+  const keeps = sessionProfile(env)
+    ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the reset; new sessions start from what their settings name.`
+    : null;
+  const one = unchanged.length === 1;
+  const lines = [
+    `Reset looked for profile records in user settings, this folder, ${counted(counts.dataDirs, "data folder")}, ${counted(counts.pointers, "repository pointer")}, ${counted(counts.projects, "folder")} Claude Code has opened, ${counted(counts.sessions, "one-session record")} and ${counted(counts.live, "live session")}.`,
+    rows.length ? `It found ${counted(rows.length, "settings file")}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
+    ...rows.flatMap((r) => r.lines),
+    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}.`] : []),
+    ...(keeps ? [keeps] : []),
+  ];
+  const covering = resetQuestion(rows);
+  const question = covering?.text ?? null;
+  if (opts.json && opts.dryRun) {
+    const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
+    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, questionRecommend: covering?.recommend ?? null, folders, unchangedSinceReset: unchanged, lines }, null, 2));
+  } else if (!opts.json) for (const line of lines) io.out(line);
+  if (opts.dryRun) return 0;
+  if (opts.previewId && opts.previewId !== previewIdOf(rows)) {
+    throw new NotApplied("not reset: what reset would write changed since that preview (a profile was applied, cleared or edited elsewhere); nothing was written. Look at the new preview: reset --dry-run");
+  }
+  const asks = rows.filter((r) => r.ask).map((r) => r.ask);
+  const answers = { chosen: new Set(), kept: new Set(), keepRecorded: opts.keepRecorded };
+  for (const { flag, file: named } of opts.answers) {
+    const file = realPath(resolve(named));
+    const a = asks.find((s) => realPath(s.file) === file);
+    if (!a) {
+      throw new NotApplied(`not reset: ${named} is not a file the preview asks about; it asks about ${asks.length ? asks.map((s) => s.file).join(", ") : "none"} (each row's ask.file in reset --dry-run --json); nothing was written`);
+    }
+    if (a.yes.flag !== flag && a.no.flag !== flag) throw new NotApplied(`not reset: ${named} is answered with ${a.yes.flag} or ${a.no.flag}, not ${flag}; nothing was written`);
+    answers[a.yes.flag === flag ? "chosen" : "kept"].add(file);
+  }
+  const unanswered = asks.filter((a) => !answers.chosen.has(realPath(a.file)) && !answers.kept.has(realPath(a.file)));
+  const terminal = opts.json ? null : (io.terminal ?? (interactive() ? {} : null));
+  if (((question && !opts.keepRecorded) || answers.chosen.size || unanswered.length) && !opts.yes && !terminal) {
+    const waits = [...new Set(unanswered.map((a) => kindOf(a).waits))].join("; ");
+    throw new NotApplied(`not reset: nobody to confirm, so nothing was written; ${question || answers.chosen.size ? "pass --yes to reset without a prompt" : waits}`);
+  }
+  const asker = terminal && lineAsker(terminal);
+  try {
+    if (question && !opts.yes && !answers.keepRecorded && asker) answers.keepRecorded = !(await asker.yes(question));
+    if (!opts.answers.length && asker) {
+      for (const a of asks) answers[(await asker.yes(a.question)) ? "chosen" : "kept"].add(realPath(a.file));
+    }
+  } finally {
+    asker?.close();
+  }
+  if (question && answers.keepRecorded && !answers.chosen.size) throw new NotApplied("not reset: nothing was written");
+  let failed = false;
+  const results = [];
+  const say = (line) => (opts.json ? results.push(line) : io.out(line));
+  const done = new Set();
+  for (const row of [...rows.filter((r) => !r.waitsFor), ...rows.filter((r) => r.waitsFor)]) {
+    let result;
+    try {
+      result = row.waitsFor && done.has(realPath(row.waitsFor)) ? { line: `Skipped ${row.file}: ${WAITED}.`, ok: true } : resetOne(row, answers);
+    } catch (error) {
+      if (typeof error.code !== "string") throw error;
+      result = { line: `Skipped ${row.file}: ${error.message}; run reset again.`, ok: false };
+    }
+    say(result.line);
+    if (!result.ok) failed = true;
+    if (result.restored) for (const restored of [row.file, row.movedTo].filter(Boolean)) done.add(realPath(restored));
+    if (result.leaves) noteLeft(where, result.leaves);
+  }
+  const unblocked = rows.filter((r) => r.waitsFor && done.has(realPath(r.waitsFor))).length;
+  for (const home of new Set(homes.map(realPath))) forgetStaleRestored(home, (file) => hashOf(readText(file)));
+  const back = new Set();
+  const ignored = new Set(rows.filter((r) => r.record).map((r) => realPath(r.record)));
+  for (const home of new Set(homes.map(realPath))) {
+    for (const { path, record } of listRecords(home)) {
+      const key = realPath(record.settingsFile);
+      if (done.has(key) && !back.has(key) && !ignored.has(realPath(path))) {
+        back.add(key);
+        say(`Another terminal applied a profile to ${record.settingsFile} during the reset; run reset again.`);
+        failed = true;
+      }
+    }
+  }
+  if (unblocked) {
+    say(`${unblocked} ${unblocked === 1 ? "record waits" : "records wait"} behind a file this reset put back; run reset again to offer ${unblocked === 1 ? "it" : "them"}.`);
+    failed = true;
+  }
+  if (opts.json) io.out(JSON.stringify({ lines: results }, null, 2));
+  return failed ? PARTLY_DONE : 0;
 }
 
 function listProfiles(opts, where, io) {
@@ -1191,6 +1754,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "launch") return launch(opts, where, env, io);
     if (opts.command === "status") return status(opts, where, env, io);
     if (opts.command === "clear") return await clear(opts, where, env, io);
+    if (opts.command === "reset") return await reset(opts, where, env, io);
     if (opts.command === "check") return check(opts, where, io);
     if (opts.command === "list") return listProfiles(opts, where, io);
     if (opts.command === "usage") return usage(opts, env, io);

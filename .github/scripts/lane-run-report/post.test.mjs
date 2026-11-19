@@ -338,7 +338,7 @@ test("a path renders as a template: known words stay, the repository is {repo}, 
 });
 
 test("planted text never reaches the comment", () => {
-  const key = "sk-ant-api03-AAAABBBBCCCCDDDD";
+  const key = "sk-ant-" + "api03-AAAABBBBCCCCDDDD";
   assert.equal(
     templatePath(`/repos/o/r/issues/${key}`),
     "/repos/{repo}/issues/*",

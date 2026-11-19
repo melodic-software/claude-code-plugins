@@ -2930,15 +2930,26 @@ human opens an issue that restates it, and the pull request links that one.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
-body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
-only for a pull request that closes it and only modifies the `docs/upstream` pages whose
-`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
-and those page paths, never from the issue's body, so an upstream path or name in its rows never
-reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
-still needs a listed human's issue. The same rule (`driftIssueId` in
+body line is one of the two leads `scripts/upstream-drift-issues.sh` writes for that id. With the
+hex-pin lead it counts only for a pull request that closes it and only modifies the
+`docs/upstream` pages whose `**Last audited upstream state:**` marker on main pins that id; with
+the vendored-copy lead (owner decision of 2026-11-19, #17518), only for one that closes it and
+whose every changed file, a rename's old path included, is inside the vendored scope of the plugin
+that id's row in main's `scripts/upstream-drift-vendored-report.sh` names: a markdown file under
+`plugins/<plugin>/skills/`, a `.md`, `.jsonc` or `LICENSE` file in a `vendor/` baseline there, or a
+fragment directly under `.changes/<plugin>/`. A path with a `scripts`, `hooks`, `lib`,
+`.claude-plugin`, `.mcp.json` or `evals` segment is outside it, and so are a skill's
+`actions/update.md` and the plugin's `update` skill outside `vendor/`. A `SKILL.md` outside
+`vendor/` may not be added, renamed or removed, and a modified one may change no frontmatter line
+but its `upstream-version`, `upstream-sha` and `synced` values and no `` !` `` line, with no
+```` ```! ```` block (`vendoredPath` and `skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`).
+Its spec text is built from the id (and the page
+paths, for the hex-pin lead), never from the issue's body, so an upstream path or name in its rows
+never reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other
+file still needs a listed human's issue. The same rule (`driftIssue` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
-and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
-the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+and admission accept it as its author, and the same template for its lead (`trustedDriftSpec`) is
+its done-when and the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md):
 an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
 no `size-split child` marker) reaches the verifier with its body as spec while no other account
@@ -3640,7 +3651,7 @@ Its scripts and tests are in
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a `pr-merge` hold still unbroken at the monitoring run has a reason that starts `rate limited` (a hold a later listing followed is not seen); or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | the merge queue removed pull requests for failed checks more than 2 times in the last 24 hours, read from the timelines of the pull requests whose merge groups failed (one GraphQL query per 25, at most 50 pull requests; more, over 100 failed merge-group runs, or a pull request with over 100 merge-queue and label items in the window, leaves the signal unread), each removal listed with its PR and the failing steps of its newest failed group. A failed group the queue rebuilt with no removal is not counted, nor is a removal a hold caused after the enqueue: a label `ci-status` holds on (`do-not-merge`, the human-gated label, `pr-verify-failed`, `security: outside-actor`) added while queued, or a failed group of that enqueue whose queue-hold step names the lanes kill switch, read for the newest 10 failed groups | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
-| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the weekly drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
+| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the daily drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
