@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.9] - 2026-11-18
+
+### Changed
+
+- Update `playwright` from 1.65.1 to 1.65.2, the version `lib/media-render` pins.
+
 ## [2.5.8] - 2026-11-18
 
 ### Security

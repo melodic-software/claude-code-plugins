@@ -3,6 +3,14 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.1] - 2026-11-18
+
+### Changed
+
+- The conventions lens shows the boundary-rule line it appends as a placeholder template
+  (`<rule>. Evidence: <path:line>[, <path:line>...]. Accepted <YYYY-MM-DD>.`) instead of a .NET
+  project example.
+
 ## [5.5.0] - 2026-11-18
 
 ### Added

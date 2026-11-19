@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the workspace root as the ledger-cli repository with no improvement config, plus a
-# committed src/generated/ tree of protoc output, which the bundled churn exclusions do not cover.
 set -euo pipefail
 
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/seed-ledger-cli.sh"

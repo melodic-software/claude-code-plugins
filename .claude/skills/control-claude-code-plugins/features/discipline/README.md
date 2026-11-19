@@ -7,6 +7,7 @@ The skills of `plugins/discipline`. Each one is driven with `<plugin-dir>` set t
 - `be-ambitious`: Raise a request before work and wait, or deepen finished work and redo it with an outside check. No plain-words entry.
 - `do-your-research`: Re-anchor research discipline, then audit and correct the current work.
 - `follow-our-standards`: Re-anchor to org engineering standards and audit the work in flight.
+- `follow-operating-procedures`: Reread the instruction files in force and audit the work in flight against them.
 - `hold-my-hand`: Standing posture. Phase the work, present one phase at a time, wait for the advancing reply.
 - `mind-your-maxims`: Re-anchor cooperative communication and audit recent responses for clarity.
 - `pick-for-the-problem`: Re-derive a tool or approach choice from the problem, not habit.

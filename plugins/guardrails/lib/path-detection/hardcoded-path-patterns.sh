@@ -343,7 +343,7 @@ hpp::resolve_scan_root() {
   if (($# > 1)); then
     toplevel=$2
   else
-    toplevel="$(exec git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+    toplevel="$(hook::git_untrusted_exec -C "$root" rev-parse --show-toplevel 2>/dev/null)"
   fi
   [[ -n "$toplevel" ]] || return 0
   hook::normalize_path_to tl_norm "$toplevel"
