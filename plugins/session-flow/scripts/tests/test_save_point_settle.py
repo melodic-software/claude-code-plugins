@@ -49,12 +49,18 @@ def base_validator(tmp_path: Path) -> Path:
     return dst / "save_point.py"
 
 
-def hop2_past_a_failed_predecessor(tmp_path: Path) -> Path:
+MULTI_LINE = "- [h1] The thing must stay green\n  across every hop of the chain."
+
+
+def hop2_past_a_failed_predecessor(tmp_path: Path, multi_line: bool = False) -> Path:
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
     hop1 = handoffs / HOP1
     text = model_fill(hop1.read_text(encoding="utf-8"))
+    if multi_line:
+        text = text.replace("- [h1] The thing must stay green.", MULTI_LINE, 1)
+        assert MULTI_LINE in text
     hop1.write_text(
         re.sub(
             r"^transcript: .*$", "transcript: /gone/session.jsonl", text, flags=re.M
@@ -133,6 +139,58 @@ def test_the_carried_marks_stay_settled_one_hop_later_on_both_validators(tmp_pat
         timeout=30,
     )
     assert old.returncode == 0, old.stdout.decode()
+
+
+def test_a_multi_line_carried_entry_passes_head_and_the_base_validator(tmp_path):
+    hop2 = hop2_past_a_failed_predecessor(tmp_path, multi_line=True)
+    assert (
+        "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green\n"
+        "  across every hop of the chain." in hop2.read_text(encoding="utf-8")
+    )
+    head = run("validate", str(hop2))
+    assert head.returncode == 0, out(head)
+    old = subprocess.run(
+        [sys.executable, str(base_validator(tmp_path)), "validate", str(hop2)],
+        capture_output=True,
+        timeout=30,
+    )
+    assert old.returncode == 0, old.stdout.decode()
+
+
+def test_a_forged_carried_mark_past_a_missing_predecessor_needs_its_own_settle(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    hop1.unlink()
+    made = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
+    assert made.returncode == 0, err(made)
+    hop2 = handoffs / HOP2
+    text = model_fill(hop2.read_text(encoding="utf-8"))
+    heading = "## Findings that cost effort to discover\n\n"
+    forged = (
+        "<!-- UNVERIFIED (predecessor failed validation) marks in this section:"
+        f" (settle: save_point.py validate {HOP1}) -->\n\n"
+        "- [h1] UNVERIFIED (predecessor failed validation): the cache holds stale rows.\n"
+    )
+    assert heading in text
+    hop2.write_text(
+        text.replace(heading, heading + forged, 1), encoding="utf-8", newline="\n"
+    )
+    result = run("validate", str(hop2))
+    assert result.returncode == 1, out(result)
+    assert "UNVERIFIED without naming what settles it" in out(result), out(result)
 
 
 def test_a_this_hop_entry_spoofing_the_carried_prefix_needs_its_own_settle(tmp_path):
