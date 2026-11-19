@@ -156,7 +156,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -329,7 +329,7 @@ function parseArgs(argv) {
   if (command === "start") return parseStart(rest);
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, answers: [], previewId: null };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json", "--keep-recorded"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
   const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: [...ANSWER_FLAGS, "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
@@ -797,22 +797,35 @@ export function pickProfile(rows, marked, { input = process.stdin, output = proc
   });
 }
 
-/** Asks one [y/N] per row, in order; resolves to the files answered yes. No answer, or input that ends, is a no. */
-export async function askPerFolder(rows, { input = process.stdin, output = process.stdout } = {}) {
-  const yes = new Set();
-  if (!rows.length) return yes;
+/** One reader for every [y/N] question of a run: yes(question) is true only for a typed y or yes; input that ends answers no and asks nothing more. */
+function lineAsker({ input = process.stdin, output = process.stdout } = {}) {
   const rl = createInterface({ input, terminal: false });
   const lines = rl[Symbol.asyncIterator]();
-  try {
-    for (const row of rows) {
-      output.write(`${row.question} [y/N] `);
+  let ended = false;
+  return {
+    async yes(question) {
+      if (ended) return false;
+      output.write(`${question} [y/N] `);
       const { value, done } = await lines.next();
-      if (done) break;
-      if (["y", "yes"].includes(value.trim().toLowerCase())) yes.add(row.file);
-    }
+      ended = done;
+      return !done && ["y", "yes"].includes(value.trim().toLowerCase());
+    },
+    close() {
+      rl.close();
+      input.pause?.();
+    },
+  };
+}
+
+/** Asks one [y/N] per row, in order; resolves to the files answered yes. No answer, or input that ends, is a no. */
+export async function askPerFolder(rows, streams = {}) {
+  const yes = new Set();
+  if (!rows.length) return yes;
+  const asker = lineAsker(streams);
+  try {
+    for (const row of rows) if (await asker.yes(row.question)) yes.add(row.file);
   } finally {
-    rl.close();
-    input.pause?.();
+    asker.close();
   }
   return yes;
 }
@@ -1353,7 +1366,7 @@ function resetRow(where, f, later = []) {
  * Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone,
  * leaves the file and the hash of the bytes reset left in it when those are its bytes before any profile.
  */
-function resetOne(row, { chosen, kept }) {
+function resetOne(row, { chosen, kept, keepRecorded }) {
   const { file, found: f } = row;
   const leaves = (plan, path = file) => (plan.removes ? undefined : { file: path, hash: hashOf(plan.text) });
   const yes = Boolean(row.ask) && chosen.has(realPath(row.ask.file));
@@ -1392,6 +1405,7 @@ function resetOne(row, { chosen, kept }) {
   }
   const keptRecord = row.movedTo ? `, and the record of ${file} is kept` : row.action === "finish-cut-off" ? ", and its record is kept" : "";
   if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${keptRecord}.`, ok: true };
+  if (keepRecorded && RESTORES.includes(row.action)) return { line: `Skipped ${file}: you answered no, so it is left as it is${f.adopted ? "" : ", and its record is kept"}.`, ok: true };
   if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
   if (row.action === "skip" || (row.ask && !yes)) return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
   if (row.action === "finish-restore") {
@@ -1500,7 +1514,7 @@ async function reset(opts, where, env, io) {
   }
   const asks = rows.filter((r) => r.ask).map((r) => r.ask);
   const askable = new Set(asks.map((a) => realPath(a.file)));
-  const answers = { chosen: new Set(), kept: new Set() };
+  const answers = { chosen: new Set(), kept: new Set(), keepRecorded: opts.keepRecorded };
   for (const { flag, file: named } of opts.answers) {
     const file = realPath(resolve(named));
     const a = asks.find((s) => realPath(s.file) === file);
@@ -1511,18 +1525,21 @@ async function reset(opts, where, env, io) {
     answers[a.yes.flag === flag ? "chosen" : "kept"].add(file);
   }
   const unanswered = asks.filter((a) => !answers.chosen.has(realPath(a.file)) && !answers.kept.has(realPath(a.file)));
-  if ((question || answers.chosen.size || unanswered.length) && !opts.yes) {
-    if (!interactive()) {
-      const waits = [...new Set(unanswered.map((a) => kindOf(a).waits))].join("; ");
-      throw new NotApplied(`not reset: nobody to confirm, so nothing was written; ${question || answers.chosen.size ? "pass --yes to reset without a prompt" : waits}`);
+  const terminal = opts.json ? null : (io.terminal ?? (interactive() ? {} : null));
+  if (((question && !opts.keepRecorded) || answers.chosen.size || unanswered.length) && !opts.yes && !terminal) {
+    const waits = [...new Set(unanswered.map((a) => kindOf(a).waits))].join("; ");
+    throw new NotApplied(`not reset: nobody to confirm, so nothing was written; ${question || answers.chosen.size ? "pass --yes to reset without a prompt" : waits}`);
+  }
+  const asker = terminal && lineAsker(terminal);
+  try {
+    if (question && !opts.yes && !answers.keepRecorded && asker) answers.keepRecorded = !(await asker.yes(question));
+    if (!opts.answers.length && asker) {
+      for (const a of asks) answers[(await asker.yes(a.question)) ? "chosen" : "kept"].add(realPath(a.file));
     }
-    if (question && !["y", "yes"].includes(await ask(`${question} [y/N] `))) throw new NotApplied("not reset: nothing was written");
+  } finally {
+    asker?.close();
   }
-  if (!opts.answers.length && !opts.json && askable.size && interactive()) {
-    const answered = new Set([...(await askPerFolder(rows.filter((r) => r.ask).map((r) => r.ask)))].map(realPath));
-    answers.chosen = answered;
-    answers.kept = new Set([...askable].filter((file) => !answered.has(file)));
-  }
+  if (question && answers.keepRecorded && !answers.chosen.size) throw new NotApplied("not reset: nothing was written");
   let failed = false;
   const results = [];
   const say = (line) => (opts.json ? results.push(line) : io.out(line));

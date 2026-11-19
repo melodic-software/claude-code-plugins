@@ -156,7 +156,7 @@ async function resetAll($: EngineInterface): Promise<string> {
       ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
       : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
-  if (preview.question && !(await confirmed($, preview.question))) return 'Not reset; nothing changed.'
+  const keepRecorded = Boolean(preview.question) && !(await confirmed($, preview.question as string))
   const yes: string[] = []
   const no: string[] = []
   for (const ask of askable) {
@@ -164,12 +164,13 @@ async function resetAll($: EngineInterface): Promise<string> {
     if (answer === ask.yes.label) yes.push(ask.yes.flag, ask.file)
     else no.push(ask.no.flag, ask.file)
   }
-  if (!preview.question && !yes.length) return 'Not reset; nothing changed.'
-  const answers = [...yes, ...no]
+  if ((!preview.question || keepRecorded) && !yes.length) return 'Not reset; nothing changed.'
+  const answers = [...(keepRecorded ? ['--keep-recorded'] : []), ...yes, ...no]
   const done = await cli($, ['reset', '--yes', '--json', '--preview-id', preview.previewId, ...answers])
   if (done.exitCode !== 0 && done.exitCode !== PARTLY_DONE) return failure(done)
   show($, (JSON.parse(done.stdout) as { lines: string[] }).lines)
   await update($, pending, (): Switch => ({ profile: RESET, phase: 'armed', kind: 'reset', keeps: preview.sessionProfile ?? undefined }))
+  if (done.exitCode === 0 && keepRecorded) return `Reset only the files you answered yes for; every file the one question covers keeps its profile. ${NEXT_STEP}`
   return done.exitCode === 0
     ? `Reset every profile this machine records. ${NEXT_STEP}`
     : `Reset did not finish every file; the lines above name each one skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`

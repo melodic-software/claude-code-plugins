@@ -2101,6 +2101,59 @@ async function resetDuring(w, args, onResult) {
   return { status, stdout: out.join("\n"), stderr: err.join("\n") };
 }
 
+/** Runs reset in this process as from a terminal: answer(prompt) gives the line typed at each [y/N] question; prompts lists the questions in order. */
+async function resetAtTerminal(w, answer, args = []) {
+  assert.ok(w.env.HOME.startsWith(w.root) && w.env.PATH.startsWith(STUB_BIN), "an in-process reset runs only against the test's HOME and stub claude");
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const prompts = [];
+  let shown = "";
+  output.on("data", (chunk) => {
+    shown += chunk;
+    const at = shown.lastIndexOf(" [y/N] ");
+    if (at === -1 || at !== shown.length - 7) return;
+    const prompt = shown.slice(0, at);
+    shown = "";
+    prompts.push(prompt);
+    input.write(`${answer(prompt)}\n`);
+  });
+  const out = [];
+  const err = [];
+  const io = { out: (line) => out.push(line), err: (line) => err.push(line), stdin: () => "", terminal: { input, output } };
+  const status = await main(["reset", ...args], { ...w.env }, elsewhere(w), io);
+  return { status, stdout: out.join("\n"), stderr: err.join("\n"), prompts };
+}
+const FIRST = /^Reset the \d+ files? above/;
+
+test("#17354: at a terminal, a no to the one question keeps the recorded files and still asks each file's own question", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  const loose = join(w.root, "loose");
+  writeTree(loose, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const looseFile = join(loose, ".claude", "settings.local.json");
+  knowFolders(w, w.project, loose);
+  const r = await resetAtTerminal(w, (prompt) => (FIRST.test(prompt) ? "n" : "y"));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.prompts.length, 2, r.prompts.join("\n"));
+  assert.match(r.prompts[0], FIRST);
+  assert.match(r.prompts[1], new RegExp(`^${esc(looseFile)} has no profile record\\.`));
+  assert.deepEqual(resultLines(r.stdout).sort(), [
+    `Removed the 2 plugin and skill entries of ${looseFile}, which had no record.`,
+    `Skipped ${w.localFile}: you answered no, so it is left as it is, and its record is kept.`,
+  ].sort());
+  assert.equal(w.read(), applied);
+  assert.equal(w.records().length, 1);
+  assert.deepEqual(JSON.parse(readFileSync(looseFile, "utf8")), withoutProfileKeys(LOCAL_BEFORE));
+  writeFileSync(looseFile, LOCAL_BEFORE);
+  const none = await resetAtTerminal(w, () => "n");
+  assert.equal(none.status, 1, none.stdout);
+  assert.equal(none.prompts.length, 2, "every question is asked before nothing is written");
+  assert.match(none.stderr, /^not reset: nothing was written$/m);
+  assert.deepEqual(resultLines(none.stdout), []);
+  assert.deepEqual([w.read(), readFileSync(looseFile, "utf8")], [applied, LOCAL_BEFORE]);
+});
+
 test("#17354: reset with nothing recorded says so and writes nothing", () => {
   const w = world();
   const r = reset(w, ["--dry-run"]);

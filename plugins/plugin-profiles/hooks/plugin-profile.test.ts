@@ -574,6 +574,24 @@ test('#17354: each folder without a record gets its own question, and only Remov
   expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json', '--keep-unrecorded', '/a/.claude/settings.local.json']])
 })
 
+/** One picker cell: the answers given at the one question and at a folder's own question, the reset it runs (none when no answer is a yes) and what it says. */
+const PICKED = '/a/.claude/settings.local.json'
+const PICK_ARGS = ['reset', '--yes', '--json', '--preview-id', 'preview-1']
+const ALL_RESET = `Reset every profile this machine records. ${NEXT_STEP}`
+const OWN_ONLY = `Reset only the files you answered yes for; every file the one question covers keeps its profile. ${NEXT_STEP}`
+const pickerCell = (first: string, own: string, runs: string[][], text: string) => async ($: any, on: any) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED }
+  const w = world(on, [first, own], { resetDry: resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]) })
+  expect(await runPicking($, w, 'Reset')).toBe(text)
+  expect(w.asks.map(a => a.question)).toEqual([QUESTION, ask.question])
+  expect(resets(w)).toEqual(runs)
+}
+
+test('#17354: picker cell: Apply, then Remove for the folder without a record', pickerCell('Apply', 'Remove', [[...PICK_ARGS, '--remove-unrecorded', PICKED]], ALL_RESET))
+test('#17354: picker cell: Apply, then Keep for the folder without a record', pickerCell('Apply', 'Keep', [[...PICK_ARGS, '--keep-unrecorded', PICKED]], ALL_RESET))
+test('#17354: picker cell: Cancel, then Remove for the folder without a record', pickerCell('Cancel', 'Remove', [[...PICK_ARGS, '--keep-recorded', '--remove-unrecorded', PICKED]], OWN_ONLY))
+test('#17354: picker cell: Cancel, then Keep for the folder without a record', pickerCell('Cancel', 'Keep', [], 'Not reset; nothing changed.'))
+
 test('#17354: a file whose earlier reset was cut off gets its own question with the answers the tool names, and each answer passes its own flag', async ($, on) => {
   const cut = (file: string) => ({
     file,
