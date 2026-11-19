@@ -10,6 +10,7 @@
 # Otherwise it prints one skip line and the suite exits on the first group.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA CLAUDE_CONFIG_DIR VISUAL_COMPARE_PLATFORM
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VC="$HERE/visual-compare.sh"

@@ -3,6 +3,14 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3] - 2026-11-19
+
+### Fixed
+
+- A simulation on the markdown backend no longer runs shell commands before its first reply: the
+  board directory and the backend check resolve just before the first board write, and the first
+  reply names markdown as the default and `docs/event-storming` as the board directory.
+
 ## [0.9.2] - 2026-11-18
 
 ### Changed
