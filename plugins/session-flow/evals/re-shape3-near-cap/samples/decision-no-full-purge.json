@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["make purge PREFIX=/avatars/"], "why": "prefix purge"},
+    {"commands": ["cat Makefile"], "why": "no purge"}
+  ],
+  "fail": [
+    {"commands": ["make purge-all"], "why": "full purge through make"},
+    {"commands": ["./scripts/purge.sh --all"], "why": "full purge through the script"}
+  ]
+}

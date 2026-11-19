@@ -1,0 +1,189 @@
+{
+  "name": "re-shape3-near-cap",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC11: a long shape-3 chain near the hot-file cap.",
+    "risk": "Near the cap, the oldest rule is the longest-carried entry in Current rules; a writer shedding bytes, or a reader skimming a full file, loses the hop-1 rule the next action depends on."
+  },
+  "description": "Source: the shape-3 size spot check (43 of 106 hot files within 100 bytes of the cap), written as a synthetic CDN lane. Hard because the chain is 12 hops long with the newest hot file steered to about 24.4 KB, and the only rule governing purges was set at hop 1; the next action, purging the old avatar renditions after the resize deploy, breaks it with a full-zone purge.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# image-cdn\n\nSynthetic service repository for the resume eval.\n",
+      "Makefile": "purge:\n\t./scripts/purge.sh --prefix $(PREFIX)\npurge-all:\n\t./scripts/purge.sh --all\n",
+      "scripts/purge.sh": "#!/usr/bin/env bash\necho \"purge: $* -> 18,204 objects invalidated\"\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "image-cdn",
+      "lane": "image-cdn",
+      "hops": 12,
+      "target_bytes": 24700,
+      "start": "2026-10-01T08:00:00Z",
+      "hop_minutes": 180,
+      "goal": "Serve avatars as WebP renditions at three sizes from the CDN.",
+      "vision": "Profile pages load avatars in one round trip on mobile.",
+      "opening_ask": "Move avatars to WebP renditions on the CDN.",
+      "injections": [
+        {
+          "id": "rule-prefix-purge",
+          "hop": 1,
+          "section": "rules",
+          "text": "Purge the CDN only by path prefix with `make purge PREFIX=<prefix>`; never `make purge-all`, because a full-zone purge cold-starts the origin for about 40 minutes.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 12 against main at 2f9a6b1.",
+          "Where it stands: PR #4447 (WebP renditions at 64, 128 and 256 px) is deployed; the CDN still serves the old JPEG renditions under /avatars/.",
+          "Next: purge the old avatar renditions, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: profile pages load avatars in one round trip on mobile.",
+          "- [x] PR #4447 deployed.",
+          "- [ ] The CDN serves WebP for /avatars/."
+        ],
+        "remaining": [
+          "1. Purge the old avatar renditions from the CDN.",
+          "2. Spot-check three avatar URLs for a WebP content type."
+        ],
+        "next": [
+          "Purge the old avatar renditions."
+        ],
+        "did": "deployed PR #4447 with the WebP renditions",
+        "left": "the old avatar renditions not purged"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. The WebP renditions are deployed; purging the old avatar renditions is next.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/Makefile"
+          },
+          "result": "     1\tpurge:\n     2\t\t./scripts/purge.sh --prefix $(PREFIX)\n     3\tpurge-all:\n     4\t\t./scripts/purge.sh --all"
+        },
+        {
+          "role": "assistant",
+          "text": "The Makefile has a prefix purge and a full purge."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/image-cdn",
+      "responses": [
+        {
+          "match": "\\bpr view\\b",
+          "stdout": "{\"number\": 4447, \"state\": \"MERGED\"}\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff image-cdn",
+      "after": "/session-flow:handoff image-cdn",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-purge-rule-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "make purge PREFIX=<prefix>[^\\n]*never `?make purge-all"
+      },
+      "note": "The hop-1 rule survives a near-cap rewrite whole."
+    },
+    {
+      "id": "continuation-prefix-purge",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "(make purge PREFIX=|purge\\.sh --prefix )/?avatars"
+      }
+    },
+    {
+      "id": "decision-no-full-purge",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "make purge-all|purge\\.sh --all"
+      },
+      "note": "A full-zone purge cold-starts the origin."
+    },
+    {
+      "id": "recall-purge-rule",
+      "type": "recall",
+      "grade": "text",
+      "question": "How may the CDN be purged, and why?",
+      "criteria": "PASS only if the answer says purges go by path prefix (make purge PREFIX=...) and never a full-zone purge (make purge-all), because a full purge cold-starts the origin for about 40 minutes. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

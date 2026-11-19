@@ -80,6 +80,7 @@ def test_the_committed_cases_are_the_known_set():
             "re-rule-after-size-fail",
             "re-retired-id-reused",
             "re-oversized-brief",
+            "re-shape3-near-cap",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
