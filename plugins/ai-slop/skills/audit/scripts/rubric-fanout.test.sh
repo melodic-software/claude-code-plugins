@@ -18,40 +18,11 @@ export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
-FAILED=0
-CASE_NUM=0
-SKIPPED=0
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
 EXPECTED_CASES=179
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-skip() {
-  SKIPPED=$((SKIPPED + 1))
-  printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
-  esac
-}
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }

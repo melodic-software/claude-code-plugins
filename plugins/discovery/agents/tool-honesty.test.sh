@@ -21,12 +21,8 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../lib/test-helpers.sh
+source ../lib/test-helpers.sh
 
 # frontmatter <file> — the YAML block between the first two `---` lines.
 frontmatter() {

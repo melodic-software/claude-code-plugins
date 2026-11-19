@@ -4,6 +4,8 @@
 One absence is keyed by the Claude Code session id and lives in `<plugin data>/away/<session>/`:
 `state.json` (replaced whole through a temp file), `refused.jsonl` (append-only, one refused
 action per line with its `R<n>` id) and a `lock` file that serializes every read-modify-write.
+`deliver` removes that directory, and `away/` once it is empty, keeping the report: one kept in
+the directory moves to `<plugin data>/away-reports/` first.
 
 CLI, every command keyed by `--session <id>`:
 
@@ -60,9 +62,11 @@ except ImportError:
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import plugin_paths  # noqa: E402
+from away_launch import launch_warnings  # noqa: E402
 
 DEFAULT_PLUGIN_ROOT = SCRIPT.parent.parent
 RULES = Path("skills") / "step-away" / "reference" / "rules.md"
+REPORTS_DIR = "away-reports"
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 LOCK_WAIT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 10
@@ -231,10 +235,10 @@ def valid_session(value: object) -> bool:
 
 
 @contextlib.contextmanager
-def locked(path: Path) -> Iterator[None]:
+def locked(path: Path, wait: float = LOCK_WAIT_SECONDS) -> Iterator[None]:
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        deadline = time.monotonic() + LOCK_WAIT_SECONDS
+        deadline = time.monotonic() + wait
         while True:
             try:
                 _try_lock(fd)
@@ -473,82 +477,6 @@ def choose_report_path(launch_root: Path | None, state_dir: Path, session: str) 
         if ignored is not None and ignored.returncode == 0:
             return launch_root / relative
     return state_dir / "report.md"
-
-
-
-def _setting(path: Path, *keys: str) -> object:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    for key in keys:
-        if not isinstance(value, dict):
-            return None
-        value = value.get(key)
-    return value
-
-
-def managed_base() -> Path:
-    """The managed-settings.json this platform reads, as lib/managed-scope.sh locates it."""
-    if sys.platform == "darwin":
-        return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
-    if sys.platform == "win32":
-        return Path(os.environ.get("PROGRAMFILES") or "C:\\Program Files") / "ClaudeCode" / "managed-settings.json"
-    return Path("/etc/claude-code/managed-settings.json")
-
-
-def managed_files(base: Path) -> list[Path]:
-    """The base file, then its managed-settings.d drop-ins in name order, hidden and non-JSON skipped."""
-    try:
-        dropins = sorted(
-            p for p in (base.parent / "managed-settings.d").iterdir() if p.suffix == ".json" and not p.name.startswith(".")
-        )
-    except OSError:
-        dropins = []
-    return [base, *dropins]
-
-
-def _managed_setting(files: list[Path], *keys: str) -> tuple[Path | None, object]:
-    """The last managed file that sets the key, and its value: a later drop-in replaces a single value."""
-    found: tuple[Path | None, object] = (None, None)
-    for path in files:
-        value = _setting(path, *keys)
-        if value is not None:
-            found = (path, value)
-    return found
-
-
-def launch_warnings(config_dir: Path, project: Path, managed: Path | None = None) -> list[str]:
-    """One line per launch warning; `managed` replaces this platform's managed-settings.json."""
-    user = config_dir / "settings.json"
-    local, shared = project / ".claude" / "settings.local.json", project / ".claude" / "settings.json"
-    managed_set = managed_files(managed or managed_base())
-    warnings = []
-    # A project or local file that sets the key turns the feature off when managed and user leave it
-    # unset: https://code.claude.com/docs/en/settings-reference#autocontinueatusagelimit
-    path, value = _managed_setting(managed_set, "autoContinueAtUsageLimit")
-    if value is None:
-        path, value = user, _setting(user, "autoContinueAtUsageLimit")
-    if value is not None:
-        off = path if value is False else None
-    else:
-        off = next((p for p in (local, shared) if _setting(p, "autoContinueAtUsageLimit") is not None), None)
-    if off is not None:
-        warnings.append(
-            f"autoContinueAtUsageLimit is off ({off}): a usage limit ends the run instead of waiting for the reset."
-        )
-    path, value = _managed_setting(managed_set, "sandbox", "enabled")
-    for candidate in (local, shared, user):
-        if value is not None:
-            break
-        path, value = candidate, _setting(candidate, "sandbox", "enabled")
-    if value is True:
-        warnings.append(
-            f"sandboxing is on ({path}): a sandboxed command's network prompt cannot be refused by a "
-            "hook and will wait for the person."
-        )
-    warnings.append("keep the machine awake: after a long sleep the usage-limit resume waits for Enter.")
-    return warnings
 
 
 
@@ -950,16 +878,74 @@ def cmd_end(args: argparse.Namespace, paths: Paths) -> int:
     return 0
 
 
-def cmd_deliver(args: argparse.Namespace, paths: Paths) -> int:
-    def change(state: dict) -> None:
-        move(state, Status.DELIVERED)
-        if status_of(state) is not Status.DELIVERED:
-            state["status"] = Status.DELIVERED.value
-            state["delivered"] = datetime.now().astimezone().isoformat()
+def _clear_held(paths: Paths, state: Mapping) -> Path:
+    """Remove a delivered absence's files while its lock is held; return where the report lasts.
 
-    require_state(paths)
-    update_state(paths, change)
-    print("status=delivered")
+    A report kept beside the state, or the end copy when the original is gone, moves to
+    `<data root>/away-reports/` first, its new path written to the state before the move so a
+    retried delivery reports where it went. On POSIX the lock file is unlinked while still held, so a
+    process waiting on it then finds no state.
+    """
+    report, beside = Path(state["report_path"]), paths.dir / "report.md"
+    inside = os.path.realpath(report.parent) == os.path.realpath(paths.dir)
+    if (inside or not report.exists()) and beside.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        lasting = paths.root / REPORTS_DIR / f"{stamp}-{paths.dir.name[:8]}.md"
+        lasting.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        write_state(paths, dict(state, report_path=str(lasting)))
+        os.replace(beside, lasting)
+        report = lasting
+    for path in (beside, paths.refused, paths.state, *(() if os.name == "nt" else (paths.lock,))):
+        with contextlib.suppress(FileNotFoundError):
+            path.unlink()
+    return report
+
+
+def _remove_dirs(paths: Paths) -> None:
+    """Remove the session dir, then `away/`, each only when empty, so the hooks' shell gate exits early."""
+    if os.name == "nt":
+        with contextlib.suppress(OSError):
+            paths.lock.unlink()
+    for directory in (paths.dir, paths.dir.parent):
+        with contextlib.suppress(OSError):
+            directory.rmdir()
+
+
+def sweep_delivered(root: Path, plugin_root: Path) -> None:
+    """Clear every other delivered absence whose lock is free, such as one an earlier version left."""
+    try:
+        entries = sorted((root / "away").iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if not valid_session(entry.name) or not (entry / "state.json").is_file():
+            continue
+        paths = session_paths(root, entry.name, plugin_root)
+        try:
+            with locked(paths.lock, wait=0):
+                state = read_state(paths)
+                if status_of(state) is not Status.DELIVERED:
+                    continue
+                _clear_held(paths, state)
+            _remove_dirs(paths)
+        except (OSError, ValueError) as exc:
+            _log(f"left {entry.name} in place", exc)
+
+
+def cmd_deliver(args: argparse.Namespace, paths: Paths) -> int:
+    if not paths.state.exists():
+        print("status=none")
+        return 0
+    with locked(paths.lock):
+        state = read_state(paths)
+        if state is None:
+            print("status=none")
+            return 0
+        move(state, Status.DELIVERED)
+        report = _clear_held(paths, state)
+    _remove_dirs(paths)
+    sweep_delivered(paths.root, paths.plugin_root)
+    print(f"status=delivered\nreport={report}")
     return 0
 
 

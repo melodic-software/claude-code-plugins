@@ -1,6 +1,6 @@
 ---
 name: formal-ci-lanes-carry-forward
-description: "TLA+ model of the `ci-lanes` commit status on one pull request head: full runs of PR Require Checks mark it pending and record the lanes verdict, and a contract-only run (a label flip or body edit) yields to a full run in flight or carries the recorded success forward. Use when a change touches .github/workflows/pr-require-checks.yml's mark-lanes job, the ci-status job's needs or its Aggregate lane results inputs, or repins the ci-workflows aggregate-results composite, or to ask whether a label flip can pass CI Status on an older verdict while a full run is in flight."
+description: "TLA+ model of the `ci-lanes` commit status on one pull request head: full runs of PR Require Checks mark it pending and record the lanes verdict, and a contract-only run (a label flip or body edit) yields to a full run in flight or carries the recorded success forward. Use when a change touches .github/workflows/pr-require-checks.yml's mark-lanes job, the ci-status job's needs or its Aggregate lane results inputs, or repins the ci-workflows report-ci-status composite, or to ask whether a label flip can pass CI Status on an older verdict while a full run is in flight."
 disable-model-invocation: true
 ---
 
@@ -9,10 +9,11 @@ disable-model-invocation: true
 ## Property
 
 Each rule is an INVARIANT in `model/CarryForward.tla`. `WF` is
-`.github/workflows/pr-require-checks.yml`; `RUN` is
+`.github/workflows/pr-require-checks.yml`; `REPORT` is
+`.github/actions/pr-require-checks/report-ci-status/action.yml`, `RUN` is
 `.github/actions/pr-require-checks/aggregate-results/run.sh` and `ACTION` its `action.yml`, in
 `melodic-software/ci-workflows` at the commit `WF` pins on the ci-status job's Aggregate lane
-results step.
+results step. `REPORT` runs `aggregate-results` at that same commit.
 
 | Rule | Plain sentence | Source |
 |---|---|---|
@@ -79,7 +80,7 @@ through an installed-plugin invocation of `/formal-verification:specify`.
   only compared, so states with the same order behave alike. Under it TLC's distinct-state count
   depends on exploration order; the chart command runs one worker, so its count is stable. The view
   does not decide the verdicts: without `VIEW`, `Yield.cfg` holds every rule at
-  c4fe439dfb47 (21,746,774 states, the chart command with one worker, 4 min 23 s). Rerun without
+  726f82db25b4 (21,746,774 states, the chart command with one worker, 3 min 34 s). Rerun without
   it after any change to `View` or to what holds a tick.
 - The seeded break in `sync.yaml` was run against this model: with `yield-to-full-run: 'false'`
   (`Yield = FALSE`), `NoStaleCarry` breaks after 5,056 distinct states in `Yield.cfg` and 7,972 in
@@ -111,10 +112,11 @@ One command per cfg; `Yield.cfg` takes about three minutes, `YieldNoHold.cfg` un
 /formal-verification:chart .claude/skills/formal-ci-lanes-carry-forward/model/CarryForward.tla --config .claude/skills/formal-ci-lanes-carry-forward/model/YieldNoHold.cfg --view .claude/skills/formal-ci-lanes-carry-forward/model/view.mjs --rerun-states 6000000
 ```
 
-`Yield.cfg` is the setting `WF` passes on an open pull request's label flip: `yield-to-full-run:
-'true'` (`Yield`) and a `yield-wait-seconds` of 600 (`Hold`). `YieldNoHold.cfg` is the draft's
-setting, `yield-wait-seconds` `0`, with the marker allowed to fail. `--rerun-states` must cover the
-whole space (4,788,560 and 880,975 states): after a rule breaks, the command rechecks the others
+`Yield.cfg` is the setting on an open pull request's label flip: `yield-to-full-run: 'true'`, which
+`REPORT` fixes (`Yield`), and the `yield-wait-seconds` of 600 `WF` passes (`Hold`).
+`YieldNoHold.cfg` is a `yield-wait-seconds` of `0` (a draft, or a contract-only run whose job,
+contract or draft step already failed), with the marker allowed to fail. `--rerun-states` must
+cover the whole space (4,788,560 and 880,975 states): after a rule breaks, the command rechecks the others
 under that bound, and a smaller bound leaves them not checked.
 
 Pass a new `--out` folder each run.
@@ -158,15 +160,17 @@ Known results at the sync commit (a run that shows only these has found nothing 
 
 When a covered file in `sync.yaml` changes, read the change against the model: a moved marker, a
 changed `needs`, a changed Aggregate lane results input, or a repin of the ci-workflows composite
-means the model may change. Read the pinned `run.sh` and `action.yml` at the new commit
+means the model may change. Read the pinned `report-ci-status/action.yml`, `run.sh` and
+`aggregate-results/action.yml` at the new commit
 (`gh api -H 'Accept: application/vnd.github.raw' 'repos/melodic-software/ci-workflows/contents/.github/actions/pr-require-checks/aggregate-results/run.sh?ref=<sha>'`)
 and re-cite the changed lines in the model's comments. The names the model reads, for a search of
 new code that touches the same state: in `WF`, the `ci-lanes` context, the `mark-lanes` job, the
 ci-status job's `needs` and `if:`, the contract-only predicate (`labeled`, `unlabeled`, `edited`),
-the `concurrency` group, and the Aggregate lane results step's `aggregate-results` pin and its
-`yield-to-full-run`, `yield-wait-seconds`, `carry-forward-wait-seconds` and
-`rerun-contract-only-siblings` inputs; in `RUN`, `write_status`, `list_in_flight_full_runs`,
-`read_newest_entry`, `read_carried_state`, `verify_carried_writer`, `verify_writer_step`,
+the `concurrency` group, and the Aggregate lane results step's `report-ci-status` pin and its
+`yield-wait-seconds`, `rerun-contract-only-siblings` and `step-name` inputs; in `REPORT`, the
+`continue-on-error` contract and draft steps and the `yield-to-full-run`,
+`carry-forward-wait-seconds` and `yield-wait-seconds` it passes to `aggregate-results`; in `RUN`,
+`write_status`, `list_in_flight_full_runs`, `read_newest_entry`, `read_carried_state`, `verify_carried_writer`, `verify_writer_step`,
 `gate_step_outcome`, `verify_no_newer_verdict`, `writer_attempt_wrote`, `carried_postdates`,
 `held_success_carries`, `yield_hold` and `fail_superseded`. A promise changed on purpose means a
 rule changes, and only with the owner's yes. Never weaken a rule to make it hold. Move `commit` forward

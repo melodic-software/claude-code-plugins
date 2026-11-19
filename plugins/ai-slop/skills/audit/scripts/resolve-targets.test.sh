@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One suite for every target-resolution entry form. Assertion helpers are local.
+# One suite for every target-resolution entry form.
 # shellcheck disable=SC2154,SC2034
 set -uo pipefail
 export LC_ALL=C
@@ -11,19 +11,8 @@ source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-FAILED=0
-SKIPPED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-# A case whose subject this host cannot build is neither a pass nor a failure:
-# it prints its own visible line and never routes through pass().
-skip() {
-  SKIPPED=$((SKIPPED + 1))
-  printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }

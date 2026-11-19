@@ -29,12 +29,8 @@ trap 'chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"' EXIT
 FAKE_HOME="$WORKROOT/home"
 mkdir -p "$FAKE_HOME"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../../../lib/test-pass-fail.sh
+source "$SCRIPT_DIR/../../../lib/test-pass-fail.sh"
 check() { # check <label> <command...>: pass when the command succeeds
   local label="$1"
   shift

@@ -20,19 +20,6 @@ TEST_TMPDIR="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 
-mkrepo() {
-  local repo
-  repo="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
-  git -C "$repo" init -q -b main >/dev/null 2>&1
-  git -C "$repo" config user.email t@t.t
-  git -C "$repo" config user.name t
-  git -C "$repo" config commit.gpgsign false
-  printf 'seed\n' >"$repo/README"
-  git -C "$repo" add README
-  git -C "$repo" commit -q -m seed
-  printf '%s' "$repo"
-}
-
 # wt_stanza <repo> <path-fragment> -> the `worktree list --porcelain` record of
 # the linked tree whose path carries <path-fragment>, on stdout.
 wt_stanza() {

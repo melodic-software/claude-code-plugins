@@ -8,13 +8,8 @@ SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/skill-version.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+# shellcheck source=../../../lib/test-helpers.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/test-helpers.sh"
 
 gitf() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
 repo="$TMP/repo"

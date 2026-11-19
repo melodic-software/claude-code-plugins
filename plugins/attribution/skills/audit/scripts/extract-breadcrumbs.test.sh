@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for extract-breadcrumbs.sh. Fixtures are built inline in
-# a tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
-#
 # The load-bearing case here is per-directory grouping: a neighbor's citation can
 # name an unfenced copy's source, so siblings have to travel together.
 # test-scope: docs/conventions/attribution.yaml
@@ -19,30 +16,9 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $3" "exit $2"; fi
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
 # --- Fixtures --------------------------------------------------------------------
 
 DIR_A="$TEST_TMPDIR/topic"

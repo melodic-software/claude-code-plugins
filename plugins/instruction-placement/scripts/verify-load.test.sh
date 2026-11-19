@@ -19,28 +19,13 @@ SCRIPT="$SCRIPT_DIR/verify-load.sh"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 SKIPPED=0
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP: %s\n  reason: %s\n' "$1" "$2"
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-assert_contains() {
-  if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
 }
 
 run() { bash "$SCRIPT" "$@" 2>&1; }

@@ -195,6 +195,33 @@ else
   bad "an entry missing its accepted day and reason fails as malformed" "rc=$RC err=$ERR"
 fi
 
+B=plugins/alpha/bin
+tree "$B/one" "$crossing" "$B/two" $'#!/usr/bin/env bash\nD="$(dirname "$0")"\n. "$D/../../beta/lib/x.sh"' \
+  "$B/three" "$crossing" "$A/a.sh" "$crossing"
+run_check
+single_rc=$RC single_err=$ERR
+RC=0
+OUT="$(cd "$f" && CHECK_PLUGIN_IMPORTS_SPEC_BYTES=1 bash scripts/check-plugin-imports.sh 2>"$f.err")" || RC=$?
+ERR="$(cat "$f.err")"
+rm -f "$f.err"
+if [[ $single_rc == 1 && $RC == 1 && -n $ERR && $ERR == "$single_err" &&
+  $ERR == *"$B/one:2"* && $ERR == *"$B/two:3"* && $ERR == *"$B/three:2"* && $ERR == *"$A/a.sh:2"* ]]; then
+  ok "pathspecs grepped in batches report the same findings as one call"
+else
+  bad "pathspecs grepped in batches report the same findings as one call" "single=$single_rc/$single_err batched=$RC/$ERR"
+fi
+
+mkdir -p "$f/fakebin"
+printf '#!/usr/bin/env bash\n[[ $1 == grep ]] && exit 128\nexec %q "$@"\n' "$(command -v git)" >"$f/fakebin/git"
+chmod +x "$f/fakebin/git"
+RC=0
+OUT="$(cd "$f" && PATH="$f/fakebin:$PATH" CHECK_PLUGIN_IMPORTS_SPEC_BYTES=1 bash scripts/check-plugin-imports.sh 2>&1)" || RC=$?
+if [[ $RC == 2 && $OUT == *"check-plugin-imports: git grep failed (exit 128)"* ]]; then
+  ok "a git grep failure in a batch exits 2"
+else
+  bad "a git grep failure in a batch exits 2" "rc=$RC out=$OUT"
+fi
+
 # --- could not run ----------------------------------------------------------------
 tree "$A/a.sh" 'true'
 RC=0

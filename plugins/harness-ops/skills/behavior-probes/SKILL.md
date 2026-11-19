@@ -39,7 +39,7 @@ top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
 |---|---|---|
 | `validate` | `<probe> validate` | none |
 | `dry-run` (default) | `<probe> run --dry-run` | none: scaffolds run, `claude` is replaced by a fake |
-| `live` | `<probe> run --live [--case <id>]... [--area <area>]... [--retries 1] [--real-setup]` | real model runs, capped |
+| `live` | `<probe> run --live [--case <id>]... [--area <area>]... [--retries 1] [--real-setup] [--state-issue <owner>/<repo>#<number>]` | real model runs, capped |
 | `recheck` | `<probe> recheck --changelog <file> --range <A..B>` | none |
 | `table` | `<probe> table <results.jsonl>` | none |
 | `rejudge` | `<probe> rejudge --out <dir of a live run>` | none: re-reads the saved streams after an `expect.json` fix; a verdict-only case keeps its row |
@@ -98,9 +98,16 @@ command prints the window with no model turn: a `<synthetic>` assistant message 
 `inconclusive`.
 
 The `cloud-routine` area checks state a cloud scheduled task (routine) keeps between runs. Its case
-uses `/schedule` to create a one-off task on this marketplace repository, starts one run at once and
-lets the scheduled fire be the second. Each run posts an issue comment on #8991, marked with an id the
-scaffold writes. The case then polls for 35 minutes at most and judges a final read of the second
+uses `/schedule` to create a one-off task on the repository of the configured `probe_state_issue`,
+starts one run at once and lets the scheduled fire be the second. Each run posts an issue comment on
+that issue, marked with an id the scaffold writes. A live run with no `--state-issue` resolves the
+issue itself from the project directory: the option, or `probe_state_issue` in the repository's
+`harness-ops.yaml`, kept only when shaped `<owner>/<repo>#<number>`.
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/probe-state-issue.mjs" --project "${CLAUDE_PROJECT_DIR}"`
+shows the value and the layer that set it; never copy a configured value into a command. With none, a live run
+skips the case, and `probe.py` refuses an explicit `--state-issue` of any other shape. The case's `needs_state_issue`
+marks it; `${PROBE_STATE_REPO}` and `${PROBE_STATE_ISSUE}` in its `prompt.md` take the repository
+and the number, and a dry run fills in a stand-in whose owner is no GitHub login. The case then polls for 35 minutes at most and judges a final read of the second
 run's comment. Each live run creates a routine on the operator's account and posts two public
 comments as the operator's GitHub login. The one-off turns itself off after it fires and stays on
 the account; delete it from its menu at [claude.ai/code/routines](https://claude.ai/code/routines).
@@ -199,7 +206,9 @@ permission denial); optional `reason_type` (the denial's `decision_reason_type`)
 case-insensitive substring of the denial reason or tool result); optional `permission_mode`, `cwd`,
 `env`, `max_turns`, `max_budget_usd`, `model`, `platforms`, `requires`; optional `timeout` (seconds,
 in place of the run's `--timeout`); optional `explicit` (`true` on a case with effects outside its
-temp directory: a live run skips it unless `--case` names it); optional `allowed_tools` and
+temp directory: a live run skips it unless `--case` names it); optional `needs_state_issue` (`true`
+on a case whose `prompt.md` uses `${PROBE_STATE_REPO}` and `${PROBE_STATE_ISSUE}`: a live run with no
+`--state-issue` skips it); optional `allowed_tools` and
 `disallowed_tools` (lists of permission rules, no rule holding a comma, `${PROBE_WORKDIR}`
 substituted) or `tool_rules` (a JSON file in `cases/lib/` holding both lists, for cases that share
 them; a list the case sets itself wins); optional `verdict_only` (`true` on a case whose failure would
