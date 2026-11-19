@@ -21,6 +21,7 @@ import {
   DETAIL_QUERY,
   DISARM_MUTATION,
   DISCUSSION_PAGE_QUERIES,
+  MERGE_QUEUE_QUERY,
   rotated,
   oldestFirst,
   HUMAN_VETO,
@@ -152,13 +153,14 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 // filesError: what every changed-files GET throws.
 // A pull request's `after` is its auto-merge state as the read-back sees it
 // (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
-function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null, dequeueError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null, dequeueError = null, mergeQueue = false } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const disarmThrows = Object.fromEntries(Object.entries(disarmErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
   const notes = [];
+  const merges = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
     // A pull request's own REST answers (`rest`, by path), such as the
@@ -253,6 +255,19 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       }
       return {};
     }
+    const ciRuns = /^\/repos\/melodic-software\/claude-code-plugins\/commits\/([0-9a-f]{40})\/check-runs\?check_name=CI%20Status&filter=latest&per_page=100$/.exec(path);
+    if (method === "GET" && ciRuns) {
+      return { check_runs: pulls.find((candidate) => candidate.headRefOid === ciRuns[1] && candidate.stack)?.ci ?? [] };
+    }
+    const mergeAsync = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/merge-async$/.exec(path);
+    if (method === "PUT" && mergeAsync) {
+      merges.push({ number: Number(mergeAsync[1]), body });
+      const error = pulls.find((candidate) => candidate.number === Number(mergeAsync[1]))?.mergeError;
+      if (error) {
+        throw error;
+      }
+      return { status: "pending" };
+    }
     // The lane lifting the human-gated label (approvalLift).
     if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
       notes.push({ method, path });
@@ -325,6 +340,9 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const found = pulls.find((candidate) => candidate.number === body.variables.pr);
       return { data: { repository: { pullRequest: { id: found?.id, mergeQueueEntry: found?.queued ? { id: `MQE_${found.number}` } : null } } } };
     }
+    if (body.query === MERGE_QUEUE_QUERY) {
+      return { data: { repository: { mergeQueue: mergeQueue ? { id: "MQ_main" } : null } } };
+    }
     if (body.query === DEQUEUE_MUTATION && dequeueError) {
       throw dequeueError;
     }
@@ -366,9 +384,9 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY, MERGE_QUEUE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : body.query === DEQUEUE_MUTATION ? "dequeue" : "?", ...body.variables }));
-  return { github, writes, verify, verified, calls, notes, pins };
+  return { github, writes, verify, verified, calls, notes, pins, merges };
 }
 
 // babysit_whole_review.py stood in for: each call in order, as
@@ -397,7 +415,7 @@ function wholeReview(options, notes) {
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
+  const { github, writes, verify, verified, calls, notes, pins, merges } = world(pulls, options);
   const whole = wholeReview(options, notes);
   const lines = [];
   const slept = [];
@@ -418,7 +436,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
     // A PR-scoped run's outcome line (WAKE_OUTPUT), if any.
     const outcome = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${WAKE_OUTPUT}=`))?.slice(WAKE_OUTPUT.length + 1);
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked, outcome };
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked, outcome, merges };
   } finally {
     console.log = log;
   }
@@ -4490,4 +4508,90 @@ test("pythonEvidence runs the post command and returns its outcome", () => {
   assert.equal(calls[0].env.BABYSIT_VERIFY_GH_TOKEN, "job");
   const failing = () => ({ status: 1, stdout: "", stderr: "Traceback\nRuntimeError: no gh\n" });
   assert.throws(() => pythonEvidence(env, failing)({ number: 7, headRefOid: HEAD }, "lanes[bot]"), /exited 1: RuntimeError: no gh/);
+});
+
+// Expected values from the owner's decision on #15410 (option B):
+// https://github.com/melodic-software/claude-code-plugins/issues/15410#issuecomment-6953991792
+const stackOf = (layers, baseRefName = "main") => ({
+  baseRefName,
+  entries: { totalCount: layers.length, nodes: layers.map(([number, position, state = "OPEN"]) => ({ position, pullRequest: { number, state } })) },
+});
+const ciRun = (id, status, conclusion = null) => ({ id, name: "CI Status", status, conclusion });
+const GREEN = [ciRun(1, "completed", "failure"), ciRun(2, "completed", "success")];
+const ASYNC_DIRECT = { sha: HEAD, merge_action: "direct_merge", merge_method: "squash", bypass_rules: false };
+
+test("a green stack bottom layer is merged through the async merge at its head, never armed; a pull request in no stack still arms", async () => {
+  const bottom = pull(7, { stack: stackOf([[7, 1], [8, 2]]), ci: GREEN });
+  const next = pull(9, { stack: stackOf([[6, 1, "MERGED"], [9, 2]]), ci: GREEN });
+  const { code, writes, merges, pins, statuses } = await run([bottom, next, pull(10)]);
+  assert.equal(code, 0);
+  assert.deepEqual(merges, [
+    { number: 7, body: ASYNC_DIRECT },
+    { number: 9, body: ASYNC_DIRECT },
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_10", head: HEAD }]);
+  assert.deepEqual(pins.map((pin) => pin.path), [`${ISSUES}/7/comments`, `${ISSUES}/9/comments`, `${ISSUES}/10/comments`]);
+  assert.ok(statuses.some((status) => status.description === "async merge requested for its stack's bottom layer"));
+});
+
+test("into a merge queue, the async merge enqueues the bottom layer with no merge method", async () => {
+  const { merges } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN })], {}, { mergeQueue: true });
+  assert.deepEqual(merges, [{ number: 7, body: { sha: HEAD, merge_action: "merge_queue", bypass_rules: false } }]);
+});
+
+test("a held stack bottom layer is not merged: a hold label, a body hold, a member veto, or a CI Status not green at its head", async () => {
+  const stack = stackOf([[1, 1]]);
+  const veto = said("kyle-sexton", "Please do not merge this yet.", "2026-10-23T09:00:00Z");
+  for (const held of [
+    pull(1, { stack, ci: GREEN, labels: labels("do-not-merge") }),
+    pull(1, { stack, ci: GREEN, body: "Closes #5\n\nHold: a human merges this\n" }),
+    pull(1, { stack, ci: GREEN, discussion: { comments: [veto] } }),
+    pull(1, { stack, ci: [ciRun(3, "in_progress")] }),
+    pull(1, { stack, ci: [ciRun(3, "completed", "failure")] }),
+    pull(1, { stack }),
+  ]) {
+    const { merges, writes } = await run([held]);
+    assert.deepEqual(merges, [], JSON.stringify(held.labels ?? held.body ?? held.ci));
+    assert.deepEqual(writes.filter((write) => write.mutation === "arm"), []);
+  }
+  assert.equal(decide(pull(1, { stack }), { bot: LANES.login, humanGated: "needs-human", holdPaths: [] }, { ...detail(), files: [], verify: PASSED, ciStatus: "in_progress" }).reason, "its CI Status at the head is in_progress, not success, and a stack layer is merged only once it passes");
+});
+
+test("a layer above the bottom is not merged, nor one of a stack into another branch or a stack not read whole", async () => {
+  const cut = { baseRefName: "main", entries: { totalCount: 3, nodes: [{ position: 2, pullRequest: { number: 8, state: "OPEN" } }] } };
+  for (const [stack, reason] of [
+    [stackOf([[7, 1], [8, 2]]), "it is a layer above the bottom of its stack (open below it: #7), and only the bottom layer is merged"],
+    [stackOf([[8, 1]], "release"), "it is a layer of a stack that does not target main"],
+    [cut, "its stack's layers could not all be read"],
+  ]) {
+    const { merges, writes, verified, lines } = await run([pull(8, { stack, ci: GREEN })]);
+    assert.deepEqual(merges, []);
+    assert.deepEqual(writes, []);
+    assert.deepEqual(verified, []);
+    assert.ok(lines.includes(`enable-auto-merge: #8 left: ${reason}`), reason);
+  }
+});
+
+test("a refused async merge leaves the layer unmerged with a person's explanatory comment, and the run goes on", async () => {
+  const refused = new GitHubError(403, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  const { code, merges, notes, writes } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeError: refused }), pull(10)]);
+  assert.equal(code, 0);
+  assert.equal(merges.length, 1);
+  const reason = "GitHub refused the async merge of this stack layer (status 403), so it stays unmerged; the lane adds no credential, and a person merges it or clears the cause";
+  assert.deepEqual(
+    notes.map(({ method, path, body }) => ({ method, path, body: body.body === undefined ? body : body.body.replaceAll("\n  ", " ") })),
+    [
+      { method: "POST", path: `${ISSUES}/7/comments`, body: personNote(reason) },
+      { method: "POST", path: `${ISSUES}/7/labels`, body: { labels: ["needs-human"] } },
+    ],
+  );
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_10", head: HEAD }]);
+});
+
+test("an async merge already pending is neither a refusal nor sent again", async () => {
+  const pending = new GitHubError(409, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  const { code, merges, notes } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeError: pending })]);
+  assert.equal(code, 0);
+  assert.equal(merges.length, 1);
+  assert.deepEqual(notes, []);
 });

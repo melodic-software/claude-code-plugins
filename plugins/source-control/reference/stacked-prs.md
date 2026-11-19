@@ -37,9 +37,10 @@ In this marketplace the review and run lanes accept a native stack layer whose s
 default branch, and still fail any other non-default base
 ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md),
 "The run job"; [#15400](https://github.com/melodic-software/claude-code-plugins/pull/15400)). The
-merge and issue lanes do not handle layers yet
-([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)), so an attended
-session may stack, and an unattended lane does not stack until that work lands.
+merge lane lands only a stack's bottom layer, through the async merge once its `CI Status` is green,
+and never a layer above it
+([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)). The issue lane
+does not stack yet, so an attended session may stack, and an unattended lane does not.
 
 - **Pointer**: for why and when GitHub recommends a stack, fetch
   [About stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#why-use-github-stacked-pull-requests)
