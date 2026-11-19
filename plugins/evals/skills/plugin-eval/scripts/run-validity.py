@@ -345,10 +345,14 @@ SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
 )
 NOT_FOUND = re.compile(
-    r"^[^\s:]+(?::\d+)?: (?:line \d+: )?"
-    r"(?:([^\s:'\"`]+): command not found|command not found: ([^\s'\"`]+))",
+    r"^(?P<prefix>[^\s:]+)(?::\d+)?: (?:line \d+: )?"
+    r"(?:(?P<bash>[^\s:'\"`]+): command not found|command not found: (?P<zsh>[^\s'\"`]+))",
     re.M,
 )
+# The prefixes a not-found line carries when the run's own shell printed it, for
+# a command the run typed. Any other prefix is a script path ("/p/lib/go.sh: line
+# 2: node: command not found"): a helper the skill ran needed the program.
+RUN_SHELLS = frozenset("bash /bin/bash /usr/bin/bash zsh /bin/zsh /usr/bin/zsh".split())
 INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )
@@ -2605,10 +2609,11 @@ def probe_split(case, runs, found, root):
 
 
 def start_failures(run):
-    """Each (program, failure, fatal, call) the run's trace shows, read from
-    every failed tool_result and every Bash result that is not a denial. A shim
-    error is fatal, and so is command not found for an interpreter; call is the
-    Bash command, or the name of another tool."""
+    """Each (program, failure, fatal, call, typed) the run's trace shows, read
+    from every failed tool_result and every Bash result that is not a denial. A
+    shim error is fatal, and so is command not found for an interpreter; call is
+    the Bash command, or the name of another tool; typed is true for a command
+    not found the run's own shell printed, false for one a script printed."""
     calls, found = {}, []
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -2625,10 +2630,11 @@ def start_failures(run):
             call = " ".join(str(call).split())
             text = result_text(block.get(CONTENT))
             for m in SHIM_ERROR.finditer(text):
-                found.append((m.group(1), "is not a valid shim", True, call))
+                found.append((m.group(1), "is not a valid shim", True, call, False))
             for m in NOT_FOUND.finditer(text):
-                program = m.group(1) or m.group(2)
-                found.append((program, "command not found", program in INTERPRETERS, call))
+                program = m.group("bash") or m.group("zsh")
+                typed = m.group("prefix") in RUN_SHELLS
+                found.append((program, "command not found", program in INTERPRETERS, call, typed))
     return found
 
 
@@ -2697,9 +2703,10 @@ def check_programs(runs, root=None):
     interpreter the case's skill names, could not run the skill's code, so its
     score measures the missing program: FAIL. An interpreter the skill does not
     name, read from its files and the case's allowed_tools, is one the run chose
-    and recovered from, so it warns; a skill that cannot be resolved names every
-    interpreter. Any other command not found warns, as a case may run a missing
-    command on purpose."""
+    and recovered from, so it warns, but only when the run's own shell printed
+    the line: a script that needed it is code the skill ran, so it still fails.
+    A skill that cannot be resolved names every interpreter. Any other command
+    not found warns, as a case may run a missing command on purpose."""
     failed, warned, named = [], [], {}
     for r in runs:
         found = start_failures(r)
@@ -2710,10 +2717,11 @@ def check_programs(runs, root=None):
             named[key] = skill_named_text(r.case, root)
         text = named[key]
         firsts = {}
-        for program, failure, fatal, call in found:
+        for program, failure, fatal, call, typed in found:
             unnamed = (
                 fatal
                 and failure == "command not found"
+                and typed
                 and text is not None
                 and not re.search(r"(?<![\w.-])%s(?![\w-])" % re.escape(program), text)
             )
