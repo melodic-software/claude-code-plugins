@@ -1876,9 +1876,31 @@ test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval rea
 test("main posts the eval hold comment once: a rerun finds the lanes App's", async () => {
   await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
     const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
-    const { fetch, calls } = fakeFetch(evalRoutes(prior));
+    const routes = evalRoutes(prior);
+    routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }]];
+    const { fetch, calls } = fakeFetch(routes);
     assert.equal(await main({ env: env(dir), fetch }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")));
+  });
+});
+
+test("main posts the eval hold comment again when the label had come off (a released hold restored)", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const routes = evalRoutes(prior);
+    routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [] }]];
+    const { fetch, calls } = fakeFetch(routes);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")).length, 1);
+  });
+});
+
+test("main fails the run when the eval hold comment cannot be posted, so a rerun posts it", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const routes = evalRoutes([]);
+    routes[8] = ["POST", /\/issues\/90\/comments$/, 500, {}];
+    const { fetch } = fakeFetch(routes);
+    assert.equal(await main({ env: env(dir), fetch }), 1);
   });
 });
 

@@ -2846,6 +2846,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         // A held PR carries the hold label from its opening; one the label
         // cannot reach is closed rather than left held by body text alone.
         const evalGated = issueLabels.includes(EVAL_GATED_LABEL);
+        const alreadyHeld = (pull.labels ?? []).some((label) => label?.name === HOLD_LABEL);
         const labeled =
           !(plan.hold || evalGated) ||
           (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
@@ -2857,14 +2858,14 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           ));
         if (labeled && evalGated) {
           const body = evalHoldComment(issueNumber);
-          const posted = await paginate(github, `${repo}/issues/${pull.number}/comments`).then(
-            (all) => all.some((comment) => comment?.user?.login === bot && comment.body === body),
-            () => false,
-          );
+          const posted =
+            alreadyHeld &&
+            (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(
+              (all) => all.some((comment) => comment?.user?.login === bot && comment.body === body),
+              () => false,
+            ));
           if (!posted) {
-            await github("POST", `${repo}/issues/${pull.number}/comments`, { body }).catch((error) => {
-              console.log(`::warning title=report-outcome::could not comment the eval hold on PR #${pull.number}: ${String(error?.message ?? error)}`);
-            });
+            await github("POST", `${repo}/issues/${pull.number}/comments`, { body });
           }
         }
         // A plan with a tip opens only at it: a PR whose head moved off the

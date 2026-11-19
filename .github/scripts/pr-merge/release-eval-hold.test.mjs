@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { decide, LABEL, main, ownLines, RELEASES_PER_RUN } from "./release-eval-hold.mjs";
+import { decide, LABEL, main, mayRelease, ownLines, RELEASES_PER_RUN } from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -228,6 +228,26 @@ test("main comments with the record's URL and head, then removes the label, and 
     [`/repos/${REPO}/issues/8/comments`],
   );
   assert.ok(lines.includes("release-eval-hold: held=2 released=1 kept=1 failed=0"));
+});
+
+test("mayRelease lets the lanes App's eval hold line through, and no one else's", () => {
+  const app = comment(holdLine("eval"), { user: APP, app: { id: 1, slug: "lanes" } });
+  assert.equal(mayRelease([app, recordComment()], HUMANS), null);
+  assert.equal(mayRelease([app], HUMANS), "no-record");
+  assert.equal(mayRelease([comment(holdLine("eval"), { user: STRANGER }), recordComment()], HUMANS), "no-eval-hold");
+});
+
+test("main releases a hold whose eval reason line is the lanes App's", async () => {
+  const app = comment(holdLine("eval"), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [app, recordComment()] } });
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: outputFile() }, github, now: () => Date.parse("2026-11-06T11:30:00Z") }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.path === `/repos/${REPO}/issues/7/labels/${LABEL}`));
 });
 
 test("main stops on the kill switch before any read, and names nothing to wake", async () => {

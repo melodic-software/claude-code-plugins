@@ -4,24 +4,6 @@
 // eval-pair record for its current head. No model. The hold convention is in
 // docs/contracts/loop-lane/README.md (Cross-lane PR hold).
 //
-// The label comes off only when all of these hold (decide):
-// - The pull request is open and carries `do-not-merge`, and its newest
-//   `labeled` event for that label is read (heldAt).
-// - Since heldAt, a listed human (trusted-actors.json kind human, by account
-//   id, a User not posting through an App) recorded the hold's reason as a
-//   line `<!-- pr-hold reason=eval -->`, and every line opening `<!-- pr-hold`
-//   since then, whoever wrote it, is such a line. No reason, another reason, a
-//   line of another shape or an eval line by anyone else keeps the label.
-// - Since heldAt, a listed human posted the record line
-//   `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->`, and the
-//   newest such comment names the pull request's current head. A comment
-//   with more than one record line counts as none.
-// - Both lines count only on a line of their own, outside a fenced code block
-//   and a block quote.
-// - No other hold stands: no body hold (merge-holds.mjs bodyHolds) and no
-//   member veto (merge-holds.mjs vetoers) in its comments or reviews.
-// The comments are read first, and a pull request with no listed human's eval
-// hold line and record line anywhere stops there (mayRelease).
 // The head and the label are read again before the comment and before the
 // removal. The comment comes first, carrying RELEASED_MARKER, so a failed
 // removal is retried by the next run without a second comment. At most
@@ -116,8 +98,6 @@ export function decide({ pull, comments, reviews = [], events, humans }) {
     return keep("no-label-event");
   }
   const recent = (comments ?? []).filter((comment) => String(comment?.created_at ?? "") >= since);
-  // Every hold line since the label, whoever wrote it: only a listed human's
-  // exact `reason=eval` line is an eval hold, and anything else keeps it.
   const holds = recent.flatMap((comment) => [...ownLines(comment.body)].filter((line) => line.trimStart().startsWith(HOLD_PREFIX)).map((line) => ({ comment, line })));
   if (holds.length === 0) {
     return keep("no-hold-reason");
@@ -159,8 +139,6 @@ export function decide({ pull, comments, reviews = [], events, humans }) {
 export const releasedComment = (head, record) =>
   `${releasedMarker(head, record.id)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and a listed human posted a VALID no-loss eval-pair record for \`${head}\`: ${record.html_url}. pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
 
-// Whether `comments` could release at all: a listed human's eval hold line and
-// record line, at any time. Most held pull requests stop here, on one read.
 export function mayRelease(comments, humans) {
   const human = (comments ?? []).filter((comment) => byHuman(comment, humans));
   if (!(comments ?? []).some((comment) => (byHuman(comment, humans) || byLanesApp(comment)) && markers(comment.body, HOLD).includes(EVAL_REASON))) {
