@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Reset found one folder with a profile record and would put back 1 plugin entry. Do you want me to go ahead and reset it?"
+    },
+    {
+      "answer": "Those are every file reset would change. Shall I reset them?"
+    },
+    {
+      "answer": "Should I proceed with the reset?"
+    },
+    {
+      "answer": "Here's what the reset preview shows.\n\n**Reset the 1 file above that a profile record covers?** (yes/no)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Done: every folder is back to before any profile."
+    },
+    {
+      "answer": "Restored the folder (profile build)."
+    }
+  ]
+}

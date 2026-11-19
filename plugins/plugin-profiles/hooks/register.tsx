@@ -10,6 +10,9 @@ const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
+const RESET = 'Reset'
+/** The tool's exit status for a reset that wrote what it could and named each file it skipped. */
+const PARTLY_DONE = 3
 const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
 const APPLY = 'Apply'
@@ -18,6 +21,7 @@ const CANCEL = 'Cancel'
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
 const NOT_CHOSEN = 'No profile chosen; nothing changed.'
+const NOTHING_TO_FINISH = 'Nothing to finish:'
 const PICK_OPEN = `A profile pick is already open in its pane; pick there, or press Cancel and run /${COMMAND} again.`
 
 type Profile = { name: string; description: string | null }
@@ -30,6 +34,19 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
+/** One answer to a file's own question: the button's label and the flag that passes it to reset. */
+type Answer = { label: string; flag: string }
+/** The answer the tool advises for one question and its one-sentence reason. */
+type Recommend = { answer: 'yes' | 'no'; reason: string }
+type ResetPreview = {
+  sessionProfile: string | null
+  previewId: string
+  question: string | null
+  questionRecommend?: { asked: Recommend; unasked: Recommend } | null
+  folders: { action: string; ask?: { file: string; question: string; yes: Answer; no: Answer; recommend?: Recommend } }[]
+  unchangedSinceReset?: string[]
+  lines: string[]
+}
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -63,6 +80,7 @@ const registerCommand = ($: EngineInterface) =>
 const entriesOf = (profiles: readonly Profile[]): PickerEntry[] => [
   ...profiles.map(p => ({ name: p.name, description: p.description ?? '' })),
   { name: CLEAR, description: "clear this folder's profile, back to your user and project settings" },
+  { name: RESET, description: 'put every folder and the initial profile back to before any profile' },
 ]
 const labelOf = (e: PickerEntry) => (e.description ? `${e.name}: ${e.description}` : e.name)
 
@@ -96,9 +114,18 @@ async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]):
   }
 }
 
-/** Asks Apply or Cancel; true only on the person's Apply, false when dismissed. */
-const confirmed = async ($: EngineInterface, question: string) =>
-  (await $.ui.ask(question, { options: [APPLY, CANCEL], header: 'Profile' }).catch(() => CANCEL)) === APPLY
+/**
+ * Every question this module asks: the answer that changes nothing is listed first, so it is the pre-selected one, and
+ * Esc or a failed prompt is that answer. The tool's recommendation, when it gives one, shows as a line just before the
+ * question. True only when the person picks the answer that writes.
+ */
+async function chose($: EngineInterface, question: string, safe: string, writes: string, header = 'Profile', recommend?: Recommend) {
+  if (recommend) $.ui.log(`Recommended: ${recommend.answer === 'yes' ? writes : safe}. ${recommend.reason}`)
+  return (await $.ui.ask(question, { options: [safe, writes], header }).catch(() => safe)) === writes
+}
+
+/** Asks Cancel or Apply; true only on the person's Apply. */
+const confirmed = ($: EngineInterface, question: string) => chose($, question, CANCEL, APPLY)
 
 /** Shows the preview and asks; true only on the person's Apply. */
 async function confirm($: EngineInterface, name: string, preview: Preview): Promise<boolean> {
@@ -136,6 +163,38 @@ async function clearProfile($: EngineInterface): Promise<string> {
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
+/** Previews the machine-wide reset, asks once for the recorded files and once per file the tool asks about on its own, then resets. */
+async function resetAll($: EngineInterface): Promise<string> {
+  const dry = await cli($, ['reset', '--dry-run', '--json'])
+  if (dry.exitCode !== 0) return failure(dry)
+  const preview = JSON.parse(dry.stdout) as ResetPreview
+  show($, preview.lines)
+  const askable = preview.folders.flatMap(f => (f.ask ? [f.ask] : []))
+  if (!preview.folders.length)
+    return preview.unchangedSinceReset?.length
+      ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
+      : 'Nothing to reset: no profile is recorded anywhere reset can find.'
+  if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
+  const pickedReset = preview.questionRecommend?.asked
+  const keepRecorded = Boolean(preview.question) && !(await chose($, preview.question as string, CANCEL, APPLY, RESET, pickedReset))
+  const yes: string[] = []
+  const no: string[] = []
+  for (const ask of askable) {
+    if (await chose($, ask.question, ask.no.label, ask.yes.label, RESET, ask.recommend)) yes.push(ask.yes.flag, ask.file)
+    else no.push(ask.no.flag, ask.file)
+  }
+  if ((!preview.question || keepRecorded) && !yes.length) return 'Not reset; nothing changed.'
+  const answers = [...(keepRecorded ? ['--keep-recorded'] : []), ...yes, ...no]
+  const done = await cli($, ['reset', '--yes', '--json', '--preview-id', preview.previewId, ...answers])
+  if (done.exitCode !== 0 && done.exitCode !== PARTLY_DONE) return failure(done)
+  show($, (JSON.parse(done.stdout) as { lines: string[] }).lines)
+  await update($, pending, (): Switch => ({ profile: RESET, phase: 'armed', kind: 'reset', keeps: preview.sessionProfile ?? undefined }))
+  if (done.exitCode === 0 && keepRecorded) return `Reset only the files you answered yes for; every file the one question covers keeps its profile. ${NEXT_STEP}`
+  return done.exitCode === 0
+    ? `Reset every profile this machine records. ${NEXT_STEP}`
+    : `Reset did not finish every file; the lines above name each one skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`
+}
+
 /** The line refusing a new switch while an earlier one waits for its reload, or undefined. */
 const waitingLine = async ($: EngineInterface) =>
   (await read($, pending)) ? `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.` : undefined
@@ -159,6 +218,7 @@ async function switchProfile($: EngineInterface, args: string): Promise<string> 
 
 async function switchTo($: EngineInterface, name: string): Promise<string> {
   if (name === CLEAR) return clearProfile($)
+  if (name === RESET) return resetAll($)
   const dry = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
   const preview = JSON.parse(dry.stdout) as Preview
@@ -174,7 +234,7 @@ async function switchTo($: EngineInterface, name: string): Promise<string> {
   return `Switched this folder to profile ${name}. ${NEXT_STEP}${preview.pending.length ? ` ${stayLoaded(preview.pending)}` : ''}`
 }
 
-/** Writes the off entries once the reload has run, finishing the switch's off-pending record. */
+/** Writes the off entries once the reload has run, only while the folder's record is still this switch's off-pending one. */
 async function finish($: EngineInterface): Promise<void> {
   const s = await read($, pending)
   if (s?.phase !== 'reloading') return
@@ -187,12 +247,22 @@ async function finish($: EngineInterface): Promise<void> {
     )
     return
   }
-  const r = await cli($, ['apply', s.profile, '--for', 'folder', '--yes'])
+  if (s.kind === 'reset') {
+    $.ui.log(
+      s.keeps
+        ? `The profiles on this machine are reset; this session keeps its one-session profile ${s.keeps}.`
+        : 'The profiles on this machine are reset; this session loaded the plugins its settings name now.',
+    )
+    return
+  }
+  const r = await cli($, ['apply', s.profile, '--for', 'folder', '--finish-pending'])
   const off = s.off ?? []
   $.ui.log(
     r.exitCode !== 0
       ? `The switch to ${s.profile} is unfinished (${failure(r)}); /${COMMAND} ${s.profile} finishes it.`
-      : `Profile ${s.profile} is in force.${off.length ? ` ${stayLoaded(off)}` : ''}`,
+      : r.stdout.startsWith(NOTHING_TO_FINISH)
+        ? `The switch to ${s.profile} was not finished: this folder's profile changed elsewhere since (a reset, a clear or another switch), so nothing was written.`
+        : `Profile ${s.profile} is in force.${off.length ? ` ${stayLoaded(off)}` : ''}`,
   )
 }
 

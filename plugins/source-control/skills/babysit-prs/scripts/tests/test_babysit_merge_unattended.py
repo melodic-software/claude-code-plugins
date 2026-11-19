@@ -2595,17 +2595,25 @@ class EachRefusalMakesNoMergeCall(Unattended):
             **fixtures._queue_read(required=True, failed_ejections=2),
             "failedRemovals": removals,
         }
-        for limited, enqueued in ((1, True), (0, False)):
+        excused = [{"at": removals[1], "causes": ["rate-limit"]}]
+        for limited, enqueued in ((excused, True), ([], False)):
             with (
-                self.subTest(limited=limited),
+                self.subTest(limited=bool(limited)),
                 mock.patch.object(
-                    merge, "rate_limited_removals", return_value=limited
+                    merge, "infra_removals", return_value=limited
                 ) as check,
                 mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]),
             ):
                 self.log.clear()
                 code, out = self.run_main()
-                check.assert_called_once_with("owner/repo", "main", PR, removals, 2)
+                check.assert_called_once_with(
+                    "owner/repo",
+                    "main",
+                    PR,
+                    removals,
+                    2,
+                    self.config.queue_ejection_infra_causes,
+                )
                 if enqueued:
                     self.assertEqual(code, 0, out["blockers"])
                     self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])

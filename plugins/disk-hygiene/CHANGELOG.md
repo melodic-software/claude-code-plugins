@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.44] - 2026-11-19
+
+### Changed
+
+- `/disk-hygiene:clean` drops the recheck trigger from the exec-form hook pointer record in its frontmatter comment. The named triggers on the declined user-scope `extraKnownMarketplaces` channel, the launch-shell `CLAUDE_PLUGIN_DATA` deferral and the `${user_config}` gate workaround stay.
+
 ## [1.0.43] - 2026-11-18
 
 ### Changed

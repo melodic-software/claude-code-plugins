@@ -435,7 +435,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 
 | Label | Meaning | Who lifts it |
 |---|---|---|
-| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering |
+| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering; on a pull request a lane escalated, also a session acting on a recorded owner decision (below the table) |
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push. Builder items are worked one at a time: interview, plan, implement (owner decision Q-host-run, 2026-11-04) | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
@@ -444,6 +444,30 @@ On an issue, the holds live on its Work status field: `needs-human`, `needs-owne
 [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml)). A hold label such as `needs-human` or
 `needs-owner-decision` still holds on top of the field, so a listed human lifts a hold by
 changing the field and removing any hold label.
+
+On a pull request, a recorded owner decision lifts a lane's escalation. When a lane put the
+human-gated label on with a trusted escalation marker
+([`escalation-marker.md`](../../../plugins/work-items/reference/escalation-marker.md)) and each
+reason the escalation names is an intent, vision or primary-design question (a disputed finding
+that turns on what the change is meant to do included), a session removes the label once a row in
+the owner-decisions record (`docs/owner-decisions.md` in `melodic-software/architecture`) or the
+owner's words quoted verbatim cover every one of those reasons. In the same pass it comments on the
+pull request with the row's line link or the quote and the escalation it answers, then takes the
+resume step the escalation comment names. Where no recorded decision covers a reason, the label
+stays the owner's to remove. The rule reaches no hold the owner keeps: an operator-parked item,
+which carries no marker; a review-lane hold
+([Review-lane holds](../../conventions/pr-pipeline/README.md#review-lane-holds)), whose
+`critical-security` lift stays a listed human's and whose `cost` hold clears only on
+[the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)'s own decision
+comment; a HIGH or CRITICAL security stop; an item carrying `security: outside-actor`; and the
+trust, credential, injection and pr-merge person holds above. ci-status cannot tell this removal from the owner's, since a session acts
+under the owner's GitHub login: the comment makes the lift auditable, not provable. Asked on
+2026-11-19 whether a session may remove a machine-escalated `needs-human` label from a pull request
+on such a record, with that recommended, the owner answered, recorded as a row in that record:
+
+<!-- spellchecker:off -->
+> go w/ recommendations
+<!-- spellchecker:on -->
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
@@ -736,7 +760,7 @@ check-the-hook signal, never as proof of health.
 
 Model selection is expressed as **capability tiers defined by order, never by family name**.
 Capability does not track family across generations (a current mid-tier model can equal a prior
-top-tier one), so a tier named for a family silently rots. Three ordered tiers, each bound to a
+top-tier one), so a tier named for a family goes wrong without anyone editing it. Three ordered tiers, each bound to a
 Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
@@ -1183,7 +1207,7 @@ bot cannot hold a drain open indefinitely.
 **Autonomous-pipeline reminder.** An autonomous lane carries standing clauses of its own against the
 two stopping failures a pipeline cannot recover from: a turn ending on unexecuted intent, and a turn
 stopping to ask permission nobody is there to give. In this repository those clauses are
-hand-authored inline in each autonomous lane's launch prompt, and **deliberately so**: a launch
+hand-authored inline in each autonomous lane's launch prompt, **deliberately**, because a launch
 prompt is pasted into a terminal that may have no plugin installed, so it stays self-contained.
 **Pointer-not-copy does not reach them**, the one place in this doc where that holds, because
 the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
@@ -1372,7 +1396,7 @@ and reports the window, its percentage and reset time, and the operator's option
 opt-in variable in the lane session's environment, for example through an `env` entry in
 `--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
 only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
-unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+unchanged, since there the API is refusing and no lane is choosing to stop. A default pause stopped every
 lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
 quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
 

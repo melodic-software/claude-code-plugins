@@ -1395,6 +1395,15 @@
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
+        "queue-ejection-infra-causes": {
+          "type": "array",
+          "items": {
+            "enum": ["rate-limit", "read-floor", "verify-unreadable", "kill-switch", "lost-runner", "main-red"]
+          },
+          "uniqueItems": true,
+          "default": ["rate-limit", "read-floor", "verify-unreadable", "kill-switch", "lost-runner", "main-red"],
+          "description": "Infra causes a merge-queue removal is not counted toward max-queue-ejections for: a GitHub rate limit, the API read or stop floor, a verify:unreadable refusal, the lanes kill switch, a lost runner, or a job that failed on the default branch at the same time. A removal counts unless every failed job of its merge-group run failed on these alone. Every cause excuses a removal only once its reset (or an hour) has passed. Absent is every cause; the gate keeps the causes both the base and the default branch name."
+        },
         "quarantine-days": {
           "type": "integer",
           "minimum": 1,
