@@ -175,7 +175,7 @@ A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it blocks the call only when
 that body carries a negated closing reference (`does not close #N`), which
 GitHub's parser still closes on merge, and names each one with the `Refs: #N`
-line to use instead. The rest of the check-contract step (a closing line and
+line to use instead. The rest of the repository's PR-body contract step (a closing line and
 non-empty `## Summary`, `## Fix`, `## Verification` and `## Related` sections)
 is advisory in CI, so a body missing any of it passes.
 `/source-control:pull-request create` already gates its own body; this covers

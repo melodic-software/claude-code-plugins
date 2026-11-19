@@ -493,7 +493,7 @@ linkage::blocking_problems() {
 # drift between the Bash and MCP surfaces.
 linkage::block_message() {
   local p
-  echo "BLOCKED: PR body fails the check-contract step in $1." >&2
+  echo "BLOCKED: PR body fails the repository's PR-body contract step in $1." >&2
   for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
   echo "Only a negated closer blocks; a missing closing line or ## Summary, ## Fix, ## Verification or ## Related section is advisory." >&2
 }
