@@ -3,8 +3,8 @@
 A lane's telemetry marker names its instance, so partitioning is correct only while instance ids
 are distinct; a collision is detected rather than assumed away. The lane's durable state block
 carries the four fields this reads: `writer_nonce`, generated once per session; `heartbeat_at`,
-rewritten every cycle; `lane_instance`; and `paused_until`. After re-reading the block through the
-lane's upsert script:
+rewritten every cycle; `lane_instance`; and `paused_until`. After re-reading the block the way the
+lane's own reference reads its state:
 
 - No block at all → the marker is unclaimed. **Claim it before any work**: upsert a cycle-0 block
   carrying my nonce and heartbeat, immediately re-read, and run the creation-race reconcile. If the
