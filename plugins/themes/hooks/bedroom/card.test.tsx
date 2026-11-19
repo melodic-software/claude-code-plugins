@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CHANGE_MS } from './register.tsx'
+import { CHANGE_MS, veilColor } from './register.tsx'
 import { bedroomSvg } from './scene.ts'
 import { DEFAULT_STATE, type State } from './scene/lib.ts'
 
@@ -193,7 +193,7 @@ test('a pressed switch moves the shader\'s number once, straight to the end, and
   await room.unmount()
 })
 
-test('with the ceiling light off, a dim step or a title never draws the lit room: the room shows as it stands, then the shader takes it over', async ($, on) => {
+test('a dim step darkens the veil over the running shader and sends no room; a title shows the room as it stands, then the shader takes it over', async ($, on) => {
   const placed: string[] = []
   const clock = engine(on, ['desktop'], placed)
 
@@ -203,36 +203,40 @@ test('with the ceiling light off, a dim step or a title never draws the lit room
 
   const room = await $.ui.mount(BACKDROP)
   const ui = await $.ui.mount(cardOf(placed[0]!))
-  const shown = async (): Promise<{ isShader: boolean; source: unknown }> => ({
+  const shown = async (): Promise<{ isShader: boolean; source: unknown; veil: unknown }> => ({
     isShader: (await room.find({ type: 'Shader' })) !== undefined,
     source: (await room.find({ type: 'Svg' }))?.props.source,
+    veil: (await room.find({ key: 'veil' }))?.props.backgroundColor,
   })
 
-  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0) })
+  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0), veil: '#07080f00' })
   await clock.advance(SETTLE_MS)
-  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0) })
+  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0), veil: '#07080f00' })
+  const sends = await roomSends($)
 
   await ui.press({ key: 'dim-up' })
-  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0.1) })
-  expect((await shown()).source).not.toBe(shaderRoom(0.1))
+  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0), veil: '#07080f1a' })
+  await bedroom($, 'dim 30')
+  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0), veil: '#07080f4d' })
+  expect(await roomSends($)).toBe(sends)
+
+  await ui.input({ key: 'title-console', text: 'Moth Hour' })
+  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0, { console: 'Moth Hour' }), veil: '#07080f4d' })
   await clock.advance(SETTLE_MS - 1)
   expect((await shown()).isShader).toBe(false)
   await clock.advance(1)
-  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0.1) })
-
-  await ui.input({ key: 'title-console', text: 'Moth Hour' })
-  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0.1, { console: 'Moth Hour' }) })
-  await clock.advance(SETTLE_MS)
-  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0.1, { console: 'Moth Hour' }) })
-
-  await bedroom($, 'dim 30')
-  expect(await shown()).toEqual({ isShader: false, source: wholeRoom({}, 0.3, { console: 'Moth Hour' }) })
-  await clock.advance(SETTLE_MS)
-  expect((await shown()).isShader).toBe(true)
+  expect(await shown()).toEqual({ isShader: true, source: shaderRoom(0, { console: 'Moth Hour' }), veil: '#07080f4d' })
 
   await bedroom($, 'title console')
   await ui.unmount()
   await room.unmount()
+})
+
+test('the veil is the room\'s night blue at dim\'s opacity, clear at 0', () => {
+  expect(veilColor(0)).toBe('#07080f00')
+  expect(veilColor(0.1)).toBe('#07080f1a')
+  expect(veilColor(0.8)).toBe('#07080fcc')
+  expect(veilColor(1)).toBe('#07080fff')
 })
 
 test('a switch sends no room while the shader runs; a title sends the room once', async ($, on) => {
