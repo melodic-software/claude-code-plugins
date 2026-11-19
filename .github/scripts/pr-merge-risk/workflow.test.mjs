@@ -92,9 +92,9 @@ test("each leg holds one credential, in its presence check and its rating step a
 // conditions before select-model-credential; this pins their shape.
 test("each leg starts only after the one before named it as the next leg, and a handoff is no failure", () => {
   assert.match(job(LEGS.subscription), /\n {4}needs: rate-merge-risk\n/);
-  assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& needs\.rate-merge-risk\.outputs\.next-leg == 'subscription'\n {4}runs-on:/);
+  assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& needs\.rate-merge-risk\.outputs\.next-leg == 'subscription'\n {4}environment:/);
   assert.match(job(LEGS.fallback), /\n {4}needs: rate-merge-risk-subscription\n/);
-  assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.result == 'success'\n {6}&& needs\.rate-merge-risk-subscription\.outputs\.next-leg == 'fallback'\n {4}runs-on:/);
+  assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.result == 'success'\n {6}&& needs\.rate-merge-risk-subscription\.outputs\.next-leg == 'fallback'\n {4}environment:/);
   for (const id of [LEGS.subscription, LEGS.fallback]) assert.match(job(id), /\n {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/, id);
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.checker\.outcome == 'success' && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);

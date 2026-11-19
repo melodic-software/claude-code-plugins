@@ -2376,14 +2376,46 @@ function ifTerms(condition) {
 // issue a listed human or the lanes App opened, in a run apply-verdict --check
 // admitted (intake-triage.yml's refine-issue).
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
+const SAME_REPO_PR = "github.event.pull_request.head.repo.full_name == github.repository";
+const DISPATCH = "github.event_name == 'workflow_dispatch'";
 const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
 const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
 const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@main$/;
+function orBranches(expression) {
+  const branches = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < expression.length; i++) {
+    const c = expression[i];
+    if (c === "'") quoted = !quoted;
+    else if (quoted) continue;
+    else if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (depth === 0 && expression.startsWith("||", i)) {
+      branches.push(expression.slice(start, i).trim());
+      start = i + 2;
+      i++;
+    }
+  }
+  return branches.length > 0 ? [...branches, expression.slice(start).trim()] : [];
+}
+function everyBranchSameRepo(expression) {
+  const branches = orBranches(expression);
+  return branches.length > 1 && branches.every((branch) => {
+    const terms = ifTerms(branch.replace(/^\((.*)\)$/, "$1"));
+    return terms.includes(DISPATCH) || terms.includes(SAME_REPO_PR);
+  });
+}
 function jobGates(doc, job) {
   const gates = new Set();
   const needs = [job.needs ?? []].flat();
+  if (typeof job.if === "string" && everyBranchSameRepo(job.if.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ").trim())) gates.add("same-repo");
   for (const term of ifTerms(job.if)) {
     if (term === SAME_REPO) gates.add("same-repo");
+    if (/^\(.*\)$/.test(term) && everyBranchSameRepo(term.slice(1, -1))) gates.add("same-repo");
+    const [, succeeded] = term.match(/^needs\.([\w-]+)\.(?:result == 'success'|outputs\.[\w-]+ == '[^']+')$/) ?? [];
+    if (needs.includes(succeeded) && doc.jobs?.[succeeded]) for (const gate of jobGates(doc, doc.jobs[succeeded])) gates.add(gate);
     const [, need, output] = term.match(/^needs\.([\w-]+)\.outputs\.([\w-]+) == 'true'$/) ?? [];
     if (!needs.includes(need)) continue;
     const gateJob = doc.jobs?.[need] ?? {};
@@ -2626,6 +2658,17 @@ test("the stray-reader check names an extra step and an env that reaches every s
   assert.deepEqual(check({}, { steps: [presence, launcher] }), [], "whether a secret is set is not the secret");
   const value = { ...presence, env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' && secrets.REVIEWS_CLAUDE_API_KEY }}" } };
   assert.deepEqual(check({}, { steps: [value, launcher] }), ["step presence"]);
+});
+
+test("an either-or gate shows same-repo only when every branch is a dispatch or holds the head repository", () => {
+  const prt = "(github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)";
+  const open = "(github.event_name == 'pull_request_target' && github.event.label.name == 'eval: run')";
+  const dispatch = "(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')";
+  assert.deepEqual(jobGates({}, { if: `${dispatch} || ${prt}` }), ["same-repo"]);
+  assert.deepEqual(jobGates({}, { if: `${dispatch} || ${open}` }), []);
+  const doc = { jobs: { gate: { if: `${dispatch} || ${prt}` }, open: { if: `${dispatch} || ${open}` } } };
+  assert.deepEqual(jobGates(doc, { needs: "gate", if: "needs.gate.outputs.next-leg == 'fallback'" }), ["same-repo"]);
+  assert.deepEqual(jobGates(doc, { needs: "open", if: "needs.open.result == 'success'" }), []);
 });
 
 test("each catalog lane names its workflow's triggers, and the gate its job shows", () => {
