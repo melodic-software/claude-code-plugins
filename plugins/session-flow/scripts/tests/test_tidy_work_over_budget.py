@@ -57,6 +57,7 @@ def test_a_marker_whose_handoff_is_gone_leaves_once_idle(env):
     items = report(env)
     assert items[idle.name]["kind"] == "orphan-marker"
     assert items[idle.name]["keep"] is False
+    assert items[recent.name]["kind"] == "orphan-marker"
     assert items[recent.name]["keep"] is True
     assert items[slots.name]["kind"] == "unknown"
     assert clean(env, "--apply").returncode == 0

@@ -410,7 +410,12 @@ def inventory(root: Path, label: str) -> list[Item]:
             path.with_name(marker[1])
         ):
             return
-        if marker and parent_kind != "concern" and _plain_file(path):
+        if (
+            marker
+            and parent_kind != "concern"
+            and _plain_file(path)
+            and not os.path.lexists(path.with_name(marker[1]))
+        ):
             add(path, "orphan-marker", None)
             return
         kind, link_file = _classify(path, parent_kind)
