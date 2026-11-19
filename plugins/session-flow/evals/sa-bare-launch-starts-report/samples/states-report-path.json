@@ -1,21 +1,33 @@
 {
   "pass": [
     {
-      "answer": "Away mode is on. The report is at `/tmp/ws/.work/away/20261118T221500Z-abc12345.md` and is due at 09:00.",
-      "why": "absolute path in a code span"
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 \\\"/plugins/session-flow/scripts/away.py\\\" start --session abc12345-0000 --data-root \\\"/data/session-flow-inline\\\" --kind bed\"}}]}}\n{\"type\":\"user\",\"uuid\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"status=active\\nreport=/ws/.work/away/20261118T221500Z-abc12345.md\\nreport_by=2026-11-19T09:00:00-05:00\\nwarning=keep the machine awake\"}]}}\n{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Away mode is on. The report is at `/ws/.work/away/20261118T221500Z-abc12345.md` and is due at 09:00.\"}]}}\n",
+      "why": "absolute path in the assistant's own text"
     },
     {
-      "answer": "Report: .work/away/20261118T221500Z-abc12345.md (until you are back).",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Report: .work/away/20261118T221500Z-abc12345.md (until you are back).\"}]}}\n",
       "why": "relative path"
     }
   ],
   "fail": [
     {
-      "answer": "Away mode is on; I will keep a report and show it when you are back.",
-      "why": "no path"
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 \\\"/plugins/session-flow/scripts/away.py\\\" start --session abc12345-0000 --data-root \\\"/data/session-flow-inline\\\" --kind bed\"}}]}}\n{\"type\":\"user\",\"uuid\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"status=active\\nreport=/ws/.work/away/20261118T221500Z-abc12345.md\\nreport_by=2026-11-19T09:00:00-05:00\\nwarning=keep the machine awake\"}]}}\n{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Away mode is on; I will keep a report and show it when you are back.\"}]}}\n",
+      "why": "the path is only in the start output"
     },
     {
-      "answer": "away.py start failed: no data root. The session is not armed.",
+      "answer": "{\"type\":\"user\",\"uuid\":\"u2\",\"message\":{\"role\":\"user\",\"content\":\"Away mode is on for this session: report due 2026-11-19T09:00:00-05:00, report at /ws/.work/away/20261118T221500Z-abc12345.md.\"}}\n{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Working on it.\"}]}}\n",
+      "why": "the path is only in the hook's prompt note"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Task list at /ws/.work/away/tasks-abc12345.md.\"}]}}\n",
+      "why": "the task file, not the report"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Checking the report.\"},{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat /ws/.work/away/20261118T221500Z-abc12345.md\"}}]}}\n",
+      "why": "the path is in a tool call, not the text"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"away.py start failed: no data root. The session is not armed.\"}]}}\n",
       "why": "launch failed, no report"
     }
   ]

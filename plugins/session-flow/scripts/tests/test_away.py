@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -322,8 +323,9 @@ def test_data_root_flag_wins(ctx):
 def test_data_root_flag_foreign_rejected(ctx):
     foreign = ctx.root / "flag-data" / "disk-hygiene-inline"
     result = ctx.cli("start", "--kind", "trip", "--data-root", str(foreign))
-    assert result.returncode != 0, "another plugin's data directory is refused"
+    assert result.returncode == 2, "another plugin's data directory is a usage error"
     assert "--data-root" in result.stderr, "the error names the flag"
+    assert "is not a session-flow data directory" in result.stderr, "the error says why the flag is refused"
     assert not foreign.exists(), "nothing is written under the refused directory"
     assert not ctx.state_dir.exists(), "a refused flag never falls back to another root"
 
@@ -359,6 +361,24 @@ def test_start_twice_reconciles(ctx):
     assert second["scope"] == "the widget"
     assert second["kind"] == "bed"
     assert "hand-written note" in report.read_text(encoding="utf-8"), "the report is not rewritten"
+
+
+def test_start_twice_rewrites_header(ctx):
+    first_task, second_task = ctx.repo / "tasks.md", ctx.repo / "later.md"
+    first_task.write_text("- [ ] one\n", encoding="utf-8")
+    second_task.write_text("- [ ] two\n", encoding="utf-8")
+    ctx.start("--kind", "trip", "--task-file", str(first_task), "--scope", "the widget")
+    report = ctx.report()
+    report.write_text(report.read_text(encoding="utf-8") + "\nhand-written note\n", encoding="utf-8")
+    ctx.start("--kind", "until", "--until", "2099-01-02T07:30:00+00:00", "--task-file", str(second_task), "--scope", "the gadget")
+    lines = report.read_text(encoding="utf-8").splitlines()
+    assert "- Report by: 2099-01-02T07:30:00+00:00" in lines, "the header shows the new report-by time"
+    assert "- Kind: until" in lines
+    assert "- Scope: the gadget" in lines
+    assert f"- Task file: {second_task}" in lines, "the header names the task file the second start gave"
+    assert "- Report by: until you are back" not in lines, "the stale report-by line is gone"
+    assert f"- Task file: {first_task}" not in lines, "the stale task-file line is gone"
+    assert "hand-written note" in lines, "the rest of the report is kept"
 
 
 def test_report_path_not_ignored(ctx):
@@ -679,12 +699,39 @@ def test_prompt_subagent_report_not_return(ctx):
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
 
 
-def test_hook_note_command_names_data_root(ctx):
+def _stop_note(ctx: Away) -> str:
+    started_with_tasks(ctx, "- [ ] write the docs\n")
+    return json.loads(ctx.hook("Stop", "stop"))["reason"]
+
+
+def _active_note(ctx: Away) -> str:
     ctx.start()
-    text = context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
-    assert f'end --session {SESSION} --data-root "{ctx.data}"' in text, (
-        "the printed command reaches the hooks' data root from a Bash tool that lacks CLAUDE_PLUGIN_DATA"
+    return context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
+
+
+def _back_note(ctx: Away) -> str:
+    ctx.start()
+    assert ctx.cli("end").returncode == 0
+    return context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
+
+
+@pytest.mark.parametrize(
+    ("note", "verb", "status_after"),
+    [(_stop_note, "refresh", "active"), (_active_note, "end", "ended"), (_back_note, "deliver", "delivered")],
+    ids=["stop-refresh", "active-end", "back-deliver"],
+)
+def test_hook_note_command_names_data_root(ctx, note, verb, status_after):
+    text = note(ctx)
+    command = f'python3 "{SCRIPT}" {verb} --session {SESSION} --data-root "{ctx.data}"'
+    assert f"`{command}`" in text, "the note prints the command with its data root double-quoted"
+    env = ctx.env()
+    env.pop("CLAUDE_PLUGIN_DATA")
+    argv = shlex.split(command)
+    result = subprocess.run(
+        [sys.executable, *argv[1:]], capture_output=True, text=True, cwd=str(ctx.repo), env=env, timeout=60
     )
+    assert result.returncode == 0, f"the printed command reaches the state without CLAUDE_PLUGIN_DATA: {result.stderr}"
+    assert ctx.state()["status"] == status_after
 
 
 def test_deliver_once(ctx):

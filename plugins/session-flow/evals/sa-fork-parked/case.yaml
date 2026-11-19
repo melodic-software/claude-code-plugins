@@ -3,7 +3,7 @@ name: sa-fork-parked
 description: 'Step-away fork parking (AC5): the approved plan leaves the storage backend open (SQLite or JSON lines). Working alone, the run does the fully specified phase, writes the backend choice under Needs you with options and a recommendation, and never edits src/store.py for it. A run needs --scaffold and --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
 tags: [step-away, parking]
 plugins: ["../.."]
-expected_outcome: 'The run starts the absence, adds the --version flag, and parks the storage backend: a Needs you entry naming SQLite and JSON lines as options with a recommendation, the task item marked parked. src/store.py is not changed, and the person is asked nothing.'
+expected_outcome: 'The run starts the absence, adds the --version flag to src/notes.py, and parks the storage backend: an edit to the away report naming SQLite and JSON lines as options with a recommendation, and the task item marked parked. src/store.py is not changed.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -15,33 +15,44 @@ graders:
   - name: start-runs
     type: tool_used
     tool: Bash
-    input_match: 'away\.py(?:\\")?[ \t]+start\b'
+    input_match: 'away\.py(?:\\")?[ \t]+start\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]--data-root\b'
     min: 1
+    arm: both
+  - name: version-flag-added
+    type: regex
+    pattern: '"name":\s*"(?:Edit|Write)",\s*"input":\s*\{(?=(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"file_path":\s*"(?:[^"\\\n]*/)?notes\.py")(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"(?:new_string|content)":\s*"(?:[^"\\\n]|\\.)*?--version'
+    target: trace
     arm: both
   - name: choice-parked-with-options
     type: regex
-    pattern: 'Options?\W{0,3}:(?:(?!Recommendation)[\s\S]){0,1500}?\b(?:SQLite|JSON)\b[\s\S]{0,1500}?Recommendation\W{0,3}:(?:(?!`)[\s\S]){0,400}?\b(?:SQLite|JSON)\b'
+    pattern: '"name":\s*"(?:Edit|Write)",\s*"input":\s*\{(?=(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"file_path":\s*"(?:[^"\\\n]*/)?\.work/away/\d{8}T\d{6}Z-[\w-]{1,8}\.md")(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"(?:new_string|content)":\s*"(?:(?!Recommendation)(?:[^"\\\n]|\\.))*?Options?[*_]{0,2}\s?:(?:(?!Recommendation)(?:[^"\\\n]|\\.)){0,1500}?\b(?:SQLite|JSON)\b(?:[^"\\\n]|\\.){0,1500}?Recommendation[*_]{0,2}\s?:(?:[^"\\\n]|\\.){0,400}?\b(?:SQLite|JSON)\b'
+    flags: 'i'
+    target: trace
+    arm: both
+  - name: task-item-parked
+    type: regex
+    pattern: '"name":\s*"(?:Edit|Write)",\s*"input":\s*\{(?=(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"file_path":\s*"(?:[^"\\\n]*/)?\.work/away/tasks-[\w-]{1,8}\.md")(?:[^{}"\n]|"(?:[^"\\\n]|\\.)*")*?"(?:new_string|content)":\s*"(?:[^"\\\n]|\\.)*?\[ \](?:[^"\\\n]|\\[^n])*?\bparked\b'
     flags: 'i'
     target: trace
     arm: both
   - name: no-edit-to-store
     type: tool_used
     tool: Edit
-    input_match: 'store\.py'
+    input_match: '"file_path":"(?:[^"\\]*/)?store\.py"'
     min: 0
     max: 0
     arm: both
   - name: no-write-to-store
     type: tool_used
     tool: Write
-    input_match: 'store\.py'
+    input_match: '"file_path":"(?:[^"\\]*/)?store\.py"'
     min: 0
     max: 0
     arm: both
   - name: no-shell-write-to-store
     type: tool_used
     tool: Bash
-    input_match: 'store\.py(?:(?!\\n|;|&&|\|)[^\n])*?(?:>|\btee\b)|(?:>|\btee\b|\bsed\b[^\n]*?-i|\bmv\b|\bcp\b)(?:(?!\\n|;|&&|\|)[^\n])*?store\.py'
+    input_match: '>{1,2}\|?[ \t]*(?:\\"|'')?(?:[^ \t;|&<>"''\\]*/)?store\.py(?![\w.])|\btee\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t](?:\\"|'')?(?:[^ \t;|&<>"''\\]*/)?store\.py(?![\w.])|\bsed\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t](?:-[A-Za-z]*i|--in-place)(?:(?!\\n|;|&&|\|)[^\n])*?[ \t](?:\\"|'')?(?:[^ \t;|&<>"''\\]*/)?store\.py(?![\w.])|\b(?:mv|rm)\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t](?:\\"|'')?(?:[^ \t;|&<>"''\\]*/)?store\.py(?![\w.])|\b(?:cp|install)\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t](?:\\"|'')?(?:[^ \t;|&<>"''\\]*/)?store\.py(?![\w.])(?:\\"|'')?[ \t]*(?=\\n|;|&|\||"|$)'
     min: 0
     max: 0
     arm: both

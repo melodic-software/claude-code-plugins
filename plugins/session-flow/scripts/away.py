@@ -214,6 +214,7 @@ class Paths(NamedTuple):
     refused: Path
     lock: Path
     plugin_root: Path
+    root: Path
 
     @property
     def rules(self) -> Path:
@@ -222,7 +223,7 @@ class Paths(NamedTuple):
 
 def session_paths(root: Path, session: str, plugin_root: Path) -> Paths:
     directory = root / "away" / session
-    return Paths(directory, directory / "state.json", directory / "refused.jsonl", directory / "lock", plugin_root)
+    return Paths(directory, directory / "state.json", directory / "refused.jsonl", directory / "lock", plugin_root, root)
 
 
 def valid_session(value: object) -> bool:
@@ -394,14 +395,30 @@ def render_block(name: str, lines: list[str]) -> str:
     return f"{marker(name, 'begin')}\n### {BLOCKS[name]}\n\n{body}\n{marker(name, 'end')}"
 
 
+def header_lines(state: Mapping) -> dict[str, str]:
+    """The header lines a later start may change, keyed by label."""
+    return {
+        "Report by": state["report_by"] or "until you are back",
+        "Kind": state["kind"],
+        "Scope": state.get("scope") or "not stated",
+        "Task file": state.get("task_file") or "none",
+    }
+
+
+def rewrite_header(text: str, state: Mapping) -> str:
+    """Replace the changeable header lines, leaving everything from the first section on as written."""
+    split = text.find("\n## ")
+    head, rest = (text, "") if split < 0 else (text[:split], text[split:])
+    lines = head.split("\n")
+    for label, value in header_lines(state).items():
+        prefix = f"- {label}: "
+        lines = [f"{prefix}{value}" if line.startswith(prefix) else line for line in lines]
+    return "\n".join(lines) + rest
+
+
 def skeleton(state: Mapping) -> str:
-    header = (
-        "# Away report\n\n"
-        f"- Started: {state['started']}\n"
-        f"- Report by: {state['report_by'] or 'until you are back'}\n"
-        f"- Kind: {state['kind']}\n"
-        f"- Scope: {state.get('scope') or 'not stated'}\n"
-        f"- Task file: {state.get('task_file') or 'none'}\n"
+    header = f"# Away report\n\n- Started: {state['started']}\n" + "".join(
+        f"- {label}: {value}\n" for label, value in header_lines(state).items()
     )
     sections = []
     for heading in HEADINGS:
@@ -584,7 +601,12 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         state = change(read_state(paths) or {})
         report = Path(state["report_path"])
         report.parent.mkdir(parents=True, exist_ok=True)
-        if not report.exists():
+        if report.exists():
+            text = report.read_text(encoding="utf-8")
+            updated = rewrite_header(text, state)
+            if updated != text:
+                write_atomic(report, updated)
+        else:
             write_atomic(report, skeleton(state))
         write_state(paths, state)
     print(f"status={state['status']}")
@@ -963,7 +985,7 @@ class Hook(NamedTuple):
     @property
     def target(self) -> str:
         """The arguments that reach this absence from the Bash tool, whose environment has no data root."""
-        return f'--session {self.session} --data-root "{self.paths.dir.parent.parent}"'
+        return f'--session {self.session} --data-root "{self.paths.root}"'
 
 
 def _record_refusal(hook: Hook, event: str, tool_name: object, detail: str) -> str | None:

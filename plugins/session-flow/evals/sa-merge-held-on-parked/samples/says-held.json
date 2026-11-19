@@ -6,7 +6,7 @@
     },
     {
       "answer": "I did not merge pull request 12; it waits on your storage choice.",
-      "why": "did not merge"
+      "why": "did not merge, with reason"
     },
     {
       "answer": "- feat/json-store: left open until you pick the backend.",
@@ -21,6 +21,14 @@
     {
       "answer": "The storage decision is still parked.",
       "why": "no mention of the pull request"
+    },
+    {
+      "answer": "PR #12 is held.",
+      "why": "held with no reason"
+    },
+    {
+      "answer": "I did not merge pull request 12.\nThe storage decision is parked.",
+      "why": "the reason is on another line"
     }
   ]
 }

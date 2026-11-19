@@ -11,7 +11,7 @@ hooks:
   # A skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT} (our
   # probe, PR #1014). These two hooks stay with the main session; the
   # PermissionRequest and Elicitation hooks live in hooks/hooks.json because
-  # frontmatter hooks do not reach subagents (probe Q-F).
+  # frontmatter hooks do not reach subagents (our probe of subagent hook reach).
   # Pointer: when checking how exec form spawns `command` with `args`, fetch
   # https://code.claude.com/docs/en/hooks#exec-form-and-shell-form and
   # https://code.claude.com/docs/en/hooks#command-hook-fields live.
@@ -43,13 +43,13 @@ getting more done. Everything below the launch is governed by
 whenever a hook note names it.
 
 The away script is `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py"`, called `away.py` below;
-every call carries `--session ${CLAUDE_SESSION_ID} --data-root ${CLAUDE_PLUGIN_DATA}`, the data
+every call carries `--session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`, the data
 root passed as a literal argument in double quotes, since the Bash tool's environment does not
 carry it and the hooks read state from there. Its `--help` lists the commands.
 
 ## Launch, while the person is still here
 
-Do these in order. Nothing else runs until `start` has succeeded, because a session with no away
+Do these in order. No work in scope starts until `start` has succeeded, because a session with no away
 state has silent hooks: prompts would wait all night and no report would exist.
 
 1. **Read the absence from the words and the clock.** Run `date` for the local time and weekday.
@@ -62,6 +62,8 @@ state has silent hooks: prompts would wait all night and no report would exist.
      window the report is due at the next report-by time; outside it the absence lasts until a
      message reads as the person being back. Relay the `report_by=` value it prints rather than
      computing your own.
+   - A short break with no return time ("grabbing lunch", "back soon"): `--kind break`, which the
+     script treats as `bed`.
    - Words that name an absence you cannot place on the clock ("for a while", "later"): ask now,
      one question with the choices, before `start`. This is the last question the person gets
      until they are back.
@@ -76,17 +78,20 @@ state has silent hooks: prompts would wait all night and no report would exist.
 3. **Start.** Run, with the kind from step 1:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" start --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --kind <kind> [--until <ISO>] [--scope "<scope words>"] --task-file <task file> --setting "away_night_start=${user_config.away_night_start}" --setting "away_report_by_workday=${user_config.away_report_by_workday}" --setting "away_report_by_day_off=${user_config.away_report_by_day_off}" --setting "away_days_off=${user_config.away_days_off}" --setting "away_watched_folders=${user_config.away_watched_folders}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" start --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --kind <kind> [--until <ISO>] [--scope "<scope words>"] --task-file <task file> --setting 'away_night_start=${user_config.away_night_start}' --setting 'away_report_by_workday=${user_config.away_report_by_workday}' --setting 'away_report_by_day_off=${user_config.away_report_by_day_off}' --setting 'away_days_off=${user_config.away_days_off}' --setting 'away_watched_folders=${user_config.away_watched_folders}'
    ```
 
+   Keep the settings in single quotes: an unset option arrives as a literal `${user_config.…}`,
+   which bash would reject inside double quotes, and the script treats it as unset.
+
    A non-zero exit stops the launch: tell the person it failed, quote the error, and say the
-   session is not armed. Do not start the work. Then run `away.py status` in a separate call: a
-   `"status": "none"` there means the state did not persist where the hooks read it (a Bash
-   sandbox can do this), which is the same failure.
+   session is not armed. Do not start the work. After every `start` that exits 0, run
+   `away.py status` in a separate call: any status other than `"active"` means the state did not
+   persist where the hooks read it (a Bash sandbox can do this), which is the same failure.
 4. **Tell the person, in one message:** the report path; the report-by time, or "until you are
    back"; every `warning=` line `start` printed, each in full; the context zone word from the
-   `mcp__context-usage__status` tool, with a warning when that plugin's reader contract counts it
-   heavy (when the tool is absent, one line says the zone check was skipped); and that the first turn's end may add one more warning,
+   `mcp__context-usage__status` tool, with a warning when the tool reports the zone as heavy (when
+   the tool is absent, one line says the zone check was skipped); and that the first turn's end may add one more warning,
    that the permission mode is not auto. Never hand off later because of the context level: the
    run continues in this session through compaction unless the person asked for a fresh session.
 5. **Propose the goal line** for the person to submit before leaving, filled in:
@@ -101,7 +106,8 @@ state has silent hooks: prompts would wait all night and no report would exist.
    background session launched from here starts on its `/goal` line, so this skill cannot arm it.
    When the words ask for a fresh session, say so while the person is here and let them choose:
    stay in this session armed (recommended: prompts are refused and the report is kept), or hand
-   off unarmed by invoking `/session-flow:continue-in-background` through the Skill tool with
+   off unarmed, where the background session runs in auto mode with no away rules, refusals or
+   report, by invoking `/session-flow:continue-in-background` through the Skill tool with
    their own words. Run no `start` for the hand-off.
 7. **Work.** Read [reference/rules.md](reference/rules.md), then work the task file.
 
@@ -126,7 +132,6 @@ evidence is checked.
 - While the absence is active the PermissionRequest hook answers every prompt, which changes what
   the bypass-permission modes do for the rest of it. Pointer:
   <https://code.claude.com/docs/en/permission-modes#skip-all-checks-with-bypasspermissions-mode>.
-- Keep the machine awake: a sleeping machine stops the run, and the resume after a usage limit
-  can wait for a keypress.
+- Keep the machine awake: a sleeping machine stops the run.
 - A second `/session-flow:step-away` during an active absence reconciles with it and keeps its
   report; one after the absence ended starts a new absence with a new report.

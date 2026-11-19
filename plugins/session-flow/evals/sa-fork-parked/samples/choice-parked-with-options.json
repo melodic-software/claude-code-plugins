@@ -1,21 +1,33 @@
 {
   "pass": [
     {
-      "answer": "{\"tool\":\"Edit\",\"input\":{\"file_path\":\".work/away/r.md\",\"new_string\":\"## Needs you\\n\\n- Storage backend for src/store.py. Options: SQLite (one file, queries) or JSON lines (append-only, no dependency). Recommendation: SQLite, because notes will need lookup by date.\\n\"}}",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/20261118T221500Z-abc12345.md\",\"old_string\":\"## Needs you\\n\\nNone.\\n\",\"new_string\":\"## Needs you\\n\\n- Storage backend for src/store.py. Options: SQLite (one file, queries) or JSON lines (append-only, no dependency). Recommendation: SQLite, because notes will need lookup by date.\\n\"}}]}}\n",
       "why": "parked in the report with both options and a recommendation"
     },
     {
-      "answer": "- Storage backend\n  - Options: JSON lines file; SQLite database\n  - Recommendation: JSON lines, the smaller change",
-      "why": "nested bullets"
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/away/20261118T221500Z-abc12345.md\",\"content\":\"# Away report\\n\\n## Needs you\\n\\n- Storage backend\\n  - **Options:** JSON lines file; SQLite database\\n  - **Recommendation:** JSON lines, the smaller change\\n\"}}]}}\n",
+      "why": "Write with nested bullets"
     }
   ],
   "fail": [
     {
-      "answer": "To park an item, write it under Needs you as a top-level bullet carrying the decision, `Options:` (each option and what it changes) and `Recommendation:` (the option you would take and why). Backend: not decided. A SQLite database file and a JSON lines file both fit.",
+      "answer": "{\"type\":\"user\",\"uuid\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"To park an item, write it under Needs you with `Options:` and `Recommendation:`. Backend: not decided. A SQLite database file and a JSON lines file both fit.\"}]}}\n",
       "why": "the rules file and the plan read back, no parked entry"
     },
     {
-      "answer": "I chose SQLite for the storage backend and implemented save().",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Which backend do you want? Options: SQLite or JSON lines. Recommendation: SQLite.\"}]}}\n",
+      "why": "a question to the person, not a report entry"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/ws/.work/away/tasks-abc12345.md\",\"content\":\"- [ ] storage backend (parked) Options: SQLite or JSON lines. Recommendation: SQLite.\\n\"}}]}}\n",
+      "why": "written to the task file, not the report"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/20261118T221500Z-abc12345.md\",\"old_string\":\"None.\",\"new_string\":\"- Storage backend: Options: SQLite or JSON lines.\"}}]}}\n{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/src/store.py\",\"old_string\":\"x\",\"new_string\":\"Recommendation: SQLite\"}}]}}\n",
+      "why": "the recommendation is in a different call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I chose SQLite for the storage backend and implemented save().\"}]}}\n",
       "why": "decided the fork"
     }
   ]

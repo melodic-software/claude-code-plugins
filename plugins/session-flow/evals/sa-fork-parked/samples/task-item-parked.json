@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/tasks-abc12345.md\",\"old_string\":\"- [ ] Phase 2: storage\",\"new_string\":\"- [ ] Phase 2: storage (parked: backend choice)\"}}]}}\n",
+      "why": "Edit marks the item parked"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/away/tasks-abc12345.md\",\"content\":\"- [x] Phase 1: --version\\n- [ ] Phase 2: storage, parked\\n\"}}]}}\n",
+      "why": "Write with the item parked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/ws/.work/away/tasks-abc12345.md\",\"content\":\"- [ ] Phase 1\\n- [x] Phase 2 parked\\n\"}}]}}\n",
+      "why": "parked sits on a checked line, the open line is not parked"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/20261118T221500Z-abc12345.md\",\"old_string\":\"None.\",\"new_string\":\"- [ ] storage backend parked\"}}]}}\n",
+      "why": "the report, not the task file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/ws/.work/away/tasks-abc12345.md\",\"content\":\"- [ ] Phase 1\\n- [ ] Phase 2\\n\"}}]}}\n",
+      "why": "nothing marked parked"
+    }
+  ]
+}

@@ -39,7 +39,8 @@ Park, never decide, each of these:
 
 To park an item, write it under **Needs you** in the report as a top-level bullet carrying the
 decision, `Options:` (each option and what it changes) and `Recommendation:` (the option you would
-take and why, with its evidence). Then mark its task-file line parked (the word `parked` in the
+take and why, with its evidence). Every top-level bullet under **Needs you** carries both fields,
+security stops and held pull requests included, since `away.py check` fails the report otherwise. Then mark its task-file line parked (the word `parked` in the
 item text), so the Stop check counts it closed, and carry on with any work that does not depend on
 it. Never ask the person a question while they are away: a question is a parked item.
 
@@ -63,12 +64,15 @@ Auto mode denials and MCP server questions are recorded the same way; treat them
 A critical security issue (an exposed secret or token, a compromised account, a change that
 publishes something private) stops the work it affects. Put it first under **Needs you**, stop
 that work, and send a phone push with the `PushNotification` tool when the session has it (when
-it does not, the report alone carries it). Unrelated work may continue.
+it does not, the report alone carries it). Unrelated work may continue. Name where a secret is and
+what it grants, never its value or any part of it, in the report, a push, a commit or a pull
+request.
 
 ## Merging
 
-Never merge a pull request that has a known high-severity review finding, or that depends on a
-parked decision. Leave it open, list it under **Needs you** with the reason (a parked dependency
+Never merge a pull request that has a known high-severity review finding, any open security
+finding, a security review not yet finished on its current head, or a dependency on a parked
+decision. Leave it open, list it under **Needs you** with the reason (a parked dependency
 names the parked item), and keep working. Other merges follow the repository's own merge rules.
 
 ## Keep the report current

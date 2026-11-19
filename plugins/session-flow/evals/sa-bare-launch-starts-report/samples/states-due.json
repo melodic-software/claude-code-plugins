@@ -1,26 +1,42 @@
 {
   "pass": [
     {
-      "answer": "The report is due at 09:00 tomorrow.",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The report is due at 09:00 tomorrow.\"}]}}\n",
       "why": "report-by time"
     },
     {
-      "answer": "No report-by time: the absence lasts until you're back.",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"No report-by time: the absence lasts until you're back.\"}]}}\n",
       "why": "until back, contraction"
     },
     {
-      "answer": "Report-by: 10:00 (day off).",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Report-by: 10:00 (day off).\"}]}}\n",
       "why": "label then time"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Report by 2026-11-19T09:00 local.\"}]}}\n",
+      "why": "an ISO time"
     }
   ],
   "fail": [
     {
-      "answer": "Away mode is on. The report is at .work/away/x.md.",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Away mode is on. The report is at .work/away/x.md.\"}]}}\n",
       "why": "no due time and no until-back"
     },
     {
-      "answer": "Started at 22:15.",
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Started at 22:15.\"}]}}\n",
       "why": "a time that is not the due time"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 \\\"/plugins/session-flow/scripts/away.py\\\" start --session abc12345-0000 --data-root \\\"/data/session-flow-inline\\\" --kind bed\"}}]}}\n{\"type\":\"user\",\"uuid\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"status=active\\nreport=/ws/.work/away/20261118T221500Z-abc12345.md\\nreport_by=2026-11-19T09:00:00-05:00\\nwarning=keep the machine awake\"}]}}\n{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Armed.\"}]}}\n",
+      "why": "the due time is only in the start output"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"uuid\":\"u2\",\"message\":{\"role\":\"user\",\"content\":\"Away mode is on for this session: report due 2026-11-19T09:00:00-05:00.\"}}\n{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Armed.\"}]}}\n",
+      "why": "the due time is only in the hook's prompt note"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The report is ready.\\nStarted at 22:15.\"}]}}\n",
+      "why": "the time is on another line than the word report"
     }
   ]
 }
