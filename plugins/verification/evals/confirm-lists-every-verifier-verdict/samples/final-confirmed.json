@@ -8,6 +8,10 @@
     },
     {
       "answer": "| Final verdict | CONFIRMED |"
+    },
+    {
+      "answer": "## Verdicts returned on this head\n\n| Run | Verifier | Inputs | Verdict | Criteria result |\n|-----|----------|--------|---------|-----------------|\n| 1 | First verifier | Acceptance criteria, change diff, evidence folder | NEEDS WORK | 1 to 3 COMPLETE; 4 PARTIAL |\n| 2 | Second verifier | Same inputs and the Constraints scope quote | **CONFIRMED (final)** | 1 to 4 COMPLETE |",
+      "why": "verdicts table: a Verdict header, then CONFIRMED marked final in a later row's cell"
     }
   ],
   "fail": [
@@ -18,6 +22,14 @@
     {
       "answer": "Verifier verdicts: NEEDS WORK, CONFIRMED.",
       "why": "lists both but states no final verdict"
+    },
+    {
+      "answer": "## Verdicts returned on this head\n\n| Run | Verifier | Inputs | Verdict | Criteria result |\n|-----|----------|--------|---------|-----------------|\n| 1 | First verifier | Acceptance criteria, change diff, evidence folder | CONFIRMED | 1 to 4 COMPLETE |\n| 2 | Second verifier | Same inputs and the Constraints scope quote | **NEEDS WORK (final)** | 1 to 3 COMPLETE; 4 PARTIAL |",
+      "why": "verdicts table whose final verdict is NEEDS WORK; CONFIRMED only for an earlier verdict"
+    },
+    {
+      "answer": "## Verdicts returned on this head\n\n| Run | Verifier | Inputs | Verdict | Criteria result |\n|-----|----------|--------|---------|-----------------|\n| 1 | First verifier | Acceptance criteria, change diff, evidence folder | NEEDS WORK | 1 to 3 COMPLETE; 4 PARTIAL |\n| 2 | Second verifier | Same inputs and the Constraints scope quote | **NEEDS WORK (final)** | 1 to 3 COMPLETE; 4 PARTIAL |",
+      "why": "verdicts table whose final verdict is NEEDS WORK"
     }
   ]
 }

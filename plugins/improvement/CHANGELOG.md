@@ -3,6 +3,18 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-19
+
+### Added
+
+- `/improvement:find` and `/improvement:improve` accept the target-scope contract's forms
+  (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run
+  once per repository with its root anchored. `find` ranks every repository's candidates on one
+  scale; `improve` ships at most one small PR per repository, takes each repository's own recent
+  files when no target is given, and leaves each PR a draft unless the request authorized the
+  ready flip. With no target form, both run as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
 ## [0.7.0] - 2026-11-18
 
 ### Changed

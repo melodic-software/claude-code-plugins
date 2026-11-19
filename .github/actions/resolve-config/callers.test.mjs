@@ -10039,7 +10039,8 @@ test("every checkout of this repository takes a SHA, and main's tip comes only f
       assert.ok(["main", DEFAULT_BRANCH].includes(tip.env.TIP_BRANCH), where);
       assert.equal(tip.env.GIT_TERMINAL_PROMPT, "0", where);
       assert.equal(tip.uses, undefined, where);
-      assert.equal(tip.run, TIP_RUN, `${where}: the one tip script`);
+      const carries = steps.some((s) => String(s.env?.PR_MERGE_MAIN_TIP ?? "").includes("steps.tip.outputs.carry-tip"));
+      assert.equal(tip.run, carries ? TIP_RUN_CARRY : TIP_RUN, `${where}: the one tip script`);
     }
   }
   assert.ok(tips >= 70, `only ${tips} tip steps found`);
@@ -10052,6 +10053,22 @@ const TIP_RUN = [
   '  sleep "$((RANDOM % (2 * i + 1)))"',
   "done",
   'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "",
+].join("\n");
+
+const TIP_RUN_CARRY = [
+  'until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&',
+  "    sha=$(awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }' <<<\"$refs\") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
+  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  '  sleep "$((RANDOM % (2 * i + 1)))"',
+  "done",
+  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "# The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only",
+  "# while no tag is named main, which they refuse: with it, no reader",
+  "# process reads git/ref/tags/main or git/ref/heads/main again.",
+  "if ! awk '$2 == \"refs/tags/main\" || $2 == \"refs/tags/main^{}\" { found = 1 } END { exit !found }' <<<\"$refs\"; then",
+  '  echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"',
+  "fi",
   "",
 ].join("\n");
 
