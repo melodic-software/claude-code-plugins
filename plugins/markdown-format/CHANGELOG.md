@@ -3,6 +3,12 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.6] - 2026-11-19
+
+### Fixed
+
+- The commit-time lint resolves each config's packages the way the real tree does. Before, when a config above a nested `node_modules` named a package that the nested `node_modules` also held, lint loaded the nested copy for both configs. The lint mirror now links each untracked, git-ignored `node_modules` directory on the file's path, so the upper config loads its own copy.
+
 ## [2.1.5] - 2026-11-18
 
 ### Security
