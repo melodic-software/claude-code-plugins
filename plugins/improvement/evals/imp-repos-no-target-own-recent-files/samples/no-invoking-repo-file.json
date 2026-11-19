@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Dry run, 1 repository: peer/ledger-cli.\n\n**Target**: `src/report.js`, the most recently changed source file in ledger-cli. Proposed diff above. No branch, commit or PR."
+    },
+    {
+      "answer": "peer/ledger-cli: the target meets the standard checked (README.md). No change.",
+      "why": "names no file at all from invoice-service"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "peer/ledger-cli: no resolvable surface. The recent files (src/discount.js, src/late-fee.js) do not exist in that repository.",
+      "why": "pre-fix: the invoking repository's list applied to the named one"
+    },
+    {
+      "answer": "Target: `src/currency.js` in peer/ledger-cli. Proposed diff: replace var with const.",
+      "why": "invoking repository's file treated as the named repository's target"
+    }
+  ]
+}

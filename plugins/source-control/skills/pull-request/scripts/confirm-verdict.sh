@@ -4,9 +4,10 @@
 # confirm-verdict.sh: record a /verification:confirm or /verification:measure verdict for the head
 # commit it judged, and show the one recorded for a head.
 #
-# `record` runs at the end of /verification:confirm and stores its verdict and each MISSING or
-# PARTIAL plan item for one head commit; with `--of measure` it runs at the end of a
-# /verification:measure compare and stores that verdict and the improvement claim it judged.
+# `record` runs at the end of /verification:confirm and stores its verdict, each MISSING or
+# PARTIAL plan item and one row per criterion for one head commit; with `--of measure` it runs at
+# the end of a /verification:measure compare and stores that verdict and the improvement claim it
+# judged.
 # `show` runs in the pull-request `ready` report and prints the verdict recorded for that exact
 # head, or for confirm says none is; for measure, a head with no record prints nothing. A verdict
 # recorded for another head never counts, so a commit after the run voids it. `show` is advisory:
@@ -14,7 +15,8 @@
 #
 # Usage:
 #   confirm-verdict.sh record --head <sha> --verdict CONFIRMED|'NEEDS WORK'|'NOT VERIFIED'
-#                             [--missing <item>]... [--partial <item>]... [--dir <checkout>]
+#                             [--missing <item>]... [--partial <item>]... [--row <row>]...
+#                             [--dir <checkout>]
 #   confirm-verdict.sh record --of measure --head <sha>
 #                             --verdict CONFIRMED|MIXED|INCONCLUSIVE|'NOT CONFIRMED'|DEGRADED|'CANNOT QUANTIFY'
 #                             [--claim <text>] [--dir <checkout>]
@@ -25,7 +27,11 @@
 # agree whichever checkout the shell sits in; or under $CONFIRM_VERDICT_DIR when set. --dir names
 # any checkout of the repository to read that directory from (default: the current directory);
 # $CONFIRM_VERDICT_DIR still wins over it. Its first line is `verdict: <verdict>`; each later line
-# is `MISSING: <item>`, `PARTIAL: <item>` or `CLAIM: <text>`, in the order given.
+# is `MISSING: <item>`, `PARTIAL: <item>`, `ROW: <row>` or `CLAIM: <text>`, in the order given.
+# A row is one acceptance criterion as four cells, `<criterion> | <files> | <test or check> |
+# <result>`, with a `|` inside a cell written `\|`; the pull-request evidence comment renders the
+# rows as its criteria table, step 4 of
+# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/evidence.md
 #
 # Exit codes:
 #   0  record: stored; show: printed the verdict, that none is recorded or readable, or nothing
@@ -61,7 +67,7 @@ while (($# > 0)); do
     CHECKOUT="$2"
     shift 2
     ;;
-  --of | --head | --verdict | --missing | --partial | --claim)
+  --of | --head | --verdict | --missing | --partial | --row | --claim)
     (($# >= 2)) || die 1 "$1 needs a value"
     case "$1" in
     --of) OF="$2" ;;
@@ -101,9 +107,9 @@ if [[ "$CMD" == show ]]; then
 else
   for item in ${items[@]+"${items[@]}"}; do
     case "$OF:$item" in
-    confirm:MISSING:* | confirm:PARTIAL:* | measure:CLAIM:*) ;;
+    confirm:MISSING:* | confirm:PARTIAL:* | confirm:ROW:* | measure:CLAIM:*) ;;
     confirm:*) die 1 "--claim needs --of measure" ;;
-    *) die 1 "--of measure takes --claim, not --missing or --partial" ;;
+    *) die 1 "--of measure takes --claim, not --missing, --partial or --row" ;;
     esac
   done
 fi
@@ -154,7 +160,7 @@ else
 fi
 for line in "${lines[@]:1}"; do
   case "$OF:$line" in
-  'confirm:MISSING: '?* | 'confirm:PARTIAL: '?* | 'measure:CLAIM: '?*) printf '  %s\n' "$line" ;;
+  'confirm:MISSING: '?* | 'confirm:PARTIAL: '?* | 'confirm:ROW: '?* | 'measure:CLAIM: '?*) printf '  %s\n' "$line" ;;
   *) ;;
   esac
 done

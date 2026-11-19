@@ -173,10 +173,10 @@ posture keeps shared content portable: subtree conventions go in a nested `AGENT
 the generated index lives in the root `AGENTS.md` when one exists.
 
 One semantic difference is deliberately not papered over: the plugin assumes other agents resolve
-`AGENTS.md` nearest-wins while Claude loads the whole ancestor chain (for Claude's order, see
-<https://code.claude.com/docs/en/memory#how-claude-md-files-load>). Subtree content is therefore written as additive
-and self-contained, and a candidate that only makes sense as an override is reported rather than
-moved.
+`AGENTS.md` nearest-wins, and Claude's load order may differ (read it at
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load>). Subtree content is therefore
+written as additive and self-contained, so it reads the same under either order, and a candidate
+that only makes sense as an override is reported rather than moved.
 
 ## Scope boundary: what this plugin does not own
 

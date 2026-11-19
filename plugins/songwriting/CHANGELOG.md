@@ -3,6 +3,13 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.13] - 2026-11-18
+
+### Fixed
+
+- The genre-fusion sources mark the sunopromptpro.com guide as a dead pointer, keeping its
+  quotes as read on 2026-08-12, and the recheck trigger names its recovery.
+
 ## [2.0.12] - 2026-11-18
 
 ### Removed

@@ -57,31 +57,64 @@ export function movePin(packageText, lockText, name = PACKAGE) {
   return { text, from: from.slice(name.length + 1), to };
 }
 
+/** One [kind, line] per line by longest common subsequence: kind " " kept, "-" removed or "+" added. */
+function editScript(a, b) {
+  const width = b.length + 1;
+  const common = new Uint32Array((a.length + 1) * width);
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      common[i * width + j] = a[i] === b[j] ? common[(i + 1) * width + j + 1] + 1 : Math.max(common[(i + 1) * width + j], common[i * width + j + 1]);
+    }
+  }
+  const ops = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      ops.push([" ", a[i]]);
+      i += 1;
+      j += 1;
+    } else if (i < a.length && (j === b.length || common[(i + 1) * width + j] >= common[i * width + j + 1])) {
+      ops.push(["-", a[i]]);
+      i += 1;
+    } else {
+      ops.push(["+", b[j]]);
+      j += 1;
+    }
+  }
+  return ops;
+}
+
 // A git unified diff of `path` from `before` to `after`, with three lines of
 // context per hunk; both texts end with a newline.
 export function unifiedDiff(path, before, after) {
   if (!before.endsWith("\n") || !after.endsWith("\n")) throw new Error(`${path} does not end with a newline`);
-  const a = before.slice(0, -1).split("\n");
-  const b = after.slice(0, -1).split("\n");
-  if (a.length !== b.length) throw new Error("the edit changes the line count");
-  const changed = a.flatMap((line, i) => (line === b[i] ? [] : [i]));
+  const ops = editScript(before.slice(0, -1).split("\n"), after.slice(0, -1).split("\n"));
+  const changed = ops.flatMap(([kind], i) => (kind === " " ? [] : [i]));
   if (changed.length === 0) return "";
+  const at = [];
+  let old = 1;
+  let now = 1;
+  for (const [kind] of ops) {
+    at.push([old, now]);
+    if (kind !== "+") old += 1;
+    if (kind !== "-") now += 1;
+  }
   const lines = [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`];
   let i = 0;
   while (i < changed.length) {
     const start = Math.max(0, changed[i] - 3);
-    let end = Math.min(a.length, changed[i] + 4);
+    let end = Math.min(ops.length, changed[i] + 4);
     let j = i + 1;
     while (j < changed.length && changed[j] - 3 <= end) {
-      end = Math.min(a.length, changed[j] + 4);
+      end = Math.min(ops.length, changed[j] + 4);
       j += 1;
     }
-    const count = end - start;
-    lines.push(`@@ -${start + 1},${count} +${start + 1},${count} @@`);
-    for (let k = start; k < end; k += 1) {
-      if (a[k] === b[k]) lines.push(` ${a[k]}`);
-      else lines.push(`-${a[k]}`, `+${b[k]}`);
-    }
+    const hunk = ops.slice(start, end);
+    const oldCount = hunk.filter(([kind]) => kind !== "+").length;
+    const newCount = hunk.filter(([kind]) => kind !== "-").length;
+    lines.push(`@@ -${at[start][0] - (oldCount ? 0 : 1)},${oldCount} +${at[start][1] - (newCount ? 0 : 1)},${newCount} @@`);
+    for (const [kind, line] of hunk) lines.push(`${kind}${line}`);
     i = j;
   }
   return `${lines.join("\n")}\n`;

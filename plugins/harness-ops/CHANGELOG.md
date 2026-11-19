@@ -3,6 +3,31 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.0] - 2026-11-19
+
+### Added
+
+- `control-claude-code`: `launch --cwd <dir>` starts Claude Code in a directory the person names.
+
+### Changed
+
+- `control-claude-code`: a local `launch` starts Claude Code in `<session>.cwd` under the runtime directory, emptied and made private on each launch, instead of the caller's shell directory, so the launched session's file tools cannot reach the caller's checkout. A launch under `--in-sandbox` keeps the caller's directory. `launch` and its `--dry-run` print the directory.
+- `control-claude-code`: the default `stepMs` wait is 90000 ms, up from 15000, and SKILL.md says a longer step passes its own `wait-for --timeout`.
+- `control-claude-code`: Cleanup runs the `## Mask` post-check before `stop`, while the session it reads still runs.
+- `control-claude-code`: SKILL.md states the 1 to 32 character `<session>` limit, where a local drive writes, that Ready and `logs` still run in the run's starting directory, that config isolation is the pr-verify capture's sandbox, and that a local drive cannot load a plugin's declared dependencies.
+
+### Fixed
+
+- `control-claude-code`: under `--real-setup`, the print-mode turns of the driver's `ready` and `log` keep `--strict-mcp-config` (why: <https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder>). The interactive `launch --real-setup` session still drops both isolating flags.
+
+- control-claude-code: when `--launcher` starts the session, a launcher word missing from `PATH` and a session that exits at once are now reported under that word, where both messages named `claude`.
+
+## [10.3.1] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [10.3.0] - 2026-11-18
 
 ### Added

@@ -121,7 +121,6 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `color.triage.light_surface_min_l` | `0.6` | OKLCH lightness above which a surface reads as light |
 | `color.triage.near_black_l` | `0.25`, `0.75`, `0.3` | three lightnesses: a near-black surface's highest, the lowest for text on it, the bottom of the mid-tone band |
 | `color.triage.near_white_l` | `0.85`, `0.45` | two lightnesses: a near-white surface's lowest, the highest for text on it |
-| `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
 | `icon.filled_below_px` | `12` | px under which an outline icon swaps to filled |
 | `icon.label_gap_px` | `6`, `8` | two numbers in px, low then high: the gap between an icon and its label |
 | `icon.label_gap_em` | `0.5` | em: the gap between an icon and its label when it scales with the text |

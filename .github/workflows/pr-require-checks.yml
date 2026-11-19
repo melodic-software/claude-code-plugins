@@ -1676,6 +1676,24 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
         run: scripts/check-comment-lint.sh
 
+      - name: Check no changed file crosses the size reference
+        id: size_check
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        shell: bash scripts/run-hygiene-gate.sh size-check {0}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+          pull_request) base="origin/$BASE_REF" ;;
+          merge_group) base="$GROUP_BASE_SHA" ;;
+          *)
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no change to compare with a base."
+            exit 0
+            ;;
+          esac
+          bash plugins/code-metrics/skills/audit/scripts/audit-size.sh --check --base "$base"
+
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its
       # safety properties — one resolution, an output table whose unset values
@@ -2162,6 +2180,7 @@ jobs:
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             stale-base-overlap=${{ steps.stale_base.outcome }}
             comment-lint=${{ steps.comment_lint.outcome }}
+            size-check=${{ steps.size_check.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
             test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
@@ -3716,6 +3735,8 @@ jobs:
           # explainer-video carries lib/media-render, so both must pin the same playwright.
           pins=$(grep -hoE '^playwright==[^ ]+' lib/media-render/requirements.in plugins/explainer-video/requirements.in | sort -u)
           [ "$(wc -l <<<"$pins")" -eq 1 ] || { echo "::error::lib/media-render and plugins/explainer-video pin different playwright versions: $(paste -sd ' ' <<<"$pins")"; exit 1; }
+          # Every dependabot.yml dependency-name group the pr-unblock relock reads agrees too.
+          node .github/scripts/pr-unblock/dependency-relock.mjs check
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -5330,7 +5351,7 @@ jobs:
       # tail. Each one also gets a `cancelled-after-success` annotation, which the
       # check-run annotations API returns, so the count can be compared over time.
       - name: Record each job's runner tail
-        if: github.event_name == 'merge_group'
+        if: github.event_name == 'merge_group' && endsWith(github.run_id, '0')
         env:
           GH_TOKEN: ${{ github.token }}
           TAIL_ROWS: >-
@@ -5362,6 +5383,7 @@ jobs:
           # linkage check and their pull requests draw no advisory label or
           # comment. Exact-login matches, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot],melodic-release[bot]'
+          rate-limit-wait-seconds: '60'
       # A RESOLVE-CONFIG DEPENDENCY CHANGE NAMES ITS BROKER DEPLOY PULL REQUEST.
       # The lanes token broker in melodic-software/azure-iac loads resolve-config's
       # modules from main's tip, but imports ajv and yaml from its own deployed
@@ -5597,6 +5619,9 @@ jobs:
             /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json
             /plugins/source-control/lib/parse-concern-value.sh
             /plugins/source-control/lib/yaml-subset.awk
+            /.github/standards/trusted-actors/trusted-actors.json
+            /.github/actions/resolve-config/admission-rules.json
+            /docs/conventions/pr-pipeline.yaml
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
             /.github/scripts/pr-merge/rotation.mjs
@@ -6891,7 +6916,7 @@ jobs:
           # hold config checkout when its HEAD is that commit, the default
           # branch from the event, and the pull request from the record this
           # step read (written below) when it is the same number and head.
-          BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+          BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config:{0}/.base', github.workspace) || format('{0}/.base', github.workspace) }}
           BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json
           API_BUDGET_TOKEN: github-token
@@ -7416,6 +7441,7 @@ jobs:
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
+          rate-limit-wait-seconds: '60'
           token: ${{ github.token }}
       # After the aggregate, so a contract-only run that holds for a full run
       # reaches this check once that run has finished; before it, a review
