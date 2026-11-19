@@ -352,7 +352,14 @@ NOT_FOUND = re.compile(
 # The prefixes a not-found line carries when the run's own shell printed it, for
 # a command the run typed. Any other prefix is a script path ("/p/lib/go.sh: line
 # 2: node: command not found"): a helper the skill ran needed the program.
-RUN_SHELLS = frozenset("bash /bin/bash /usr/bin/bash zsh /bin/zsh /usr/bin/zsh".split())
+# - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/17351
+#   is the run that needs this; zsh 5.9 prints "(eval):1: command not found: x"
+#   for a missing name in an eval'd command line (`zsh -c 'eval x'`).
+# - As of: 2026-11-19
+# - Recheck trigger: a shell rewording its not-found message.
+RUN_SHELLS = frozenset(
+    "bash /bin/bash /usr/bin/bash zsh /bin/zsh /usr/bin/zsh (eval)".split()
+)
 INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )

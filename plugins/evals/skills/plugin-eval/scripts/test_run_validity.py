@@ -740,6 +740,18 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_an_unnamed_interpreter_zsh_printed_for_an_evald_line_warns(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("zsh-eval-python.jsonl", [
+            (True, "Exit code 127\n(eval):1: command not found: python", "python -m pytest"),
+        ])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: python command not found,"
+            " first in `python -m pytest`, not named by the case's skill (%s)" % trace,
+            proc.stdout,
+        )
+
     def test_an_interpreter_the_skill_names_still_fails(self):
         for skill, case_yaml in (
             ("Run `node scripts/resolve.mjs` first.\n", None),
