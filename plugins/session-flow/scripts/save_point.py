@@ -84,6 +84,7 @@ the U+2500 rails survive a cp1252 pipe on Windows.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -92,8 +93,10 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -106,6 +109,7 @@ HANDOFF_SHAPE = 3
 # Shapes `new --shape` writes and `fill` fills; shape 2 stays writable so a
 # shape-2 chain can still be generated (eval predecessors, size projections).
 WRITABLE_SHAPES = (2, 3)
+CHECKS = 2
 
 # Shape 3: a hot file in this fixed order, `Original goal` first and
 # `Resume prompt` last, plus one immutable archive file per hop.
@@ -207,6 +211,7 @@ CARRIED_3 = ("Prior sessions", "Resume prompt")
 FRONTMATTER_KEYS_3 = (
     "type",
     "handoff_shape",
+    "checks",
     "date",
     "topic",
     "session_id",
@@ -762,25 +767,55 @@ def parse_entries(body: list[str]) -> list[Entry]:
 # --- Findings -------------------------------------------------------------------
 
 
+class CheckKind(Enum):
+    SIZE = "size"
+    SLOT_SIZE = "slot_size"
+    ORDER = "order"
+    CARRY = "carry"
+    ID_REUSE = "id_reuse"
+    POINTER = "pointer"
+    UNVERIFIED = "unverified"
+    MALFORMED = "malformed"
+    TRANSCRIPT = "transcript"
+    OVER_CAP_BINDING = "over_cap_binding"
+
+
+CONTENT_KINDS = frozenset({CheckKind.ORDER, CheckKind.MALFORMED})
+SIZE_KINDS = frozenset(
+    {CheckKind.SIZE, CheckKind.SLOT_SIZE, CheckKind.OVER_CAP_BINDING}
+)
+
+
+@dataclass(frozen=True)
+class Finding:
+    level: str
+    kind: CheckKind
+    text: str
+
+
 class Findings:
     def __init__(self) -> None:
-        self.items: list[tuple[str, str]] = []
+        self.items: list[Finding] = []
         # A shape-3 core alone over the byte cap: exit 0, labeled UNVALIDATED.
         self.unvalidated = False
 
-    def warn(self, message: str) -> None:
-        self.items.append(("WARN", message))
+    def carry(self, soft: bool) -> Callable[[str], None]:
+        """The reporter for a predecessor-derived check: WARN when `soft`."""
+        return functools.partial(self.warn if soft else self.fail, kind=CheckKind.CARRY)
 
-    def fail(self, message: str) -> None:
-        self.items.append(("FAIL", message))
+    def warn(self, message: str, kind: CheckKind = CheckKind.MALFORMED) -> None:
+        self.items.append(Finding("WARN", kind, message))
+
+    def fail(self, message: str, kind: CheckKind = CheckKind.MALFORMED) -> None:
+        self.items.append(Finding("FAIL", kind, message))
+
+    @property
+    def fails(self) -> list[Finding]:
+        return [x for x in self.items if x.level == "FAIL"]
 
     @property
     def failed(self) -> bool:
-        return any(level == "FAIL" for level, _ in self.items)
-
-    @property
-    def first_fail(self) -> str:
-        return next((msg for level, msg in self.items if level == "FAIL"), "")
+        return bool(self.fails)
 
 
 # --- validate -------------------------------------------------------------------
@@ -1092,7 +1127,7 @@ def _check_cumulative(
             if match is not None:
                 pointers.pop(match)
             else:
-                (f.warn if pred_soft else f.fail)(
+                f.carry(pred_soft)(
                     f"{title}: predecessor entry dropped (keep it in place or under "
                     f"'Superseded:', never delete): {entry.text[:60]!r}"
                 )
@@ -1230,11 +1265,17 @@ def validate_doc(
                         f"; present now at {found} (the file still says unresolved)"
                     )
             if strict_transcript:
-                f.fail(f"transcript: {transcript}{located} (--strict-transcript)")
+                f.fail(
+                    f"transcript: {transcript}{located} (--strict-transcript)",
+                    CheckKind.TRANSCRIPT,
+                )
             else:
-                f.warn(f"transcript: {transcript}{located}")
+                f.warn(f"transcript: {transcript}{located}", CheckKind.TRANSCRIPT)
         elif not Path(transcript).is_file():
-            f.fail(f"transcript: stated path does not exist: {transcript}")
+            f.fail(
+                f"transcript: stated path does not exist: {transcript}",
+                CheckKind.TRANSCRIPT,
+            )
 
     for i, line in enumerate(doc.lines, 1):
         for pattern, marker in SECRET_SHAPES:
@@ -1277,11 +1318,11 @@ def _validate_shape2(
 
     if pred is not None:
         if pred.shape not in (None, 1):
-            pred_soft = _pred_failed(pred, previous, projects_root, f)
+            pred_soft = _pred_failed(doc, pred, previous, projects_root, f)
             expected_chain = pred.chain + [doc.basename]
             if doc.chain != expected_chain:
                 message = f"frontmatter: chain must be the predecessor's chain plus this file ({expected_chain})"
-                (f.warn if pred_soft else f.fail)(message)
+                f.carry(pred_soft)(message)
         else:
             # The two-entry form is what `new` wrote before it walked a shape-1
             # predecessor's pointers; files already written that way stay valid.
@@ -1309,7 +1350,7 @@ def _validate_shape2(
                 )
             if pred is not None:
                 pred_rows = _parse_prior_rows(pred.section("Prior sessions"))
-                report = f.warn if pred_soft else f.fail
+                report = f.carry(pred_soft)
                 if rows[: len(pred_rows)] != pred_rows:
                     report(
                         "Prior sessions: the predecessor's rows must be copied verbatim as a prefix"
@@ -1341,7 +1382,8 @@ def _validate_shape2(
 
     if len(doc.lines) > MAX_READABLE_LINES:
         f.warn(
-            f"size: {len(doc.lines)} lines exceeds {MAX_READABLE_LINES}; a single Read may truncate it (cumulative sections are carried verbatim, so trim by moving resolved entries under Superseded or promoting them to a committed doc)"
+            f"size: {len(doc.lines)} lines exceeds {MAX_READABLE_LINES}; a single Read may truncate it (cumulative sections are carried verbatim, so trim by moving resolved entries under Superseded or promoting them to a committed doc)",
+            CheckKind.SIZE,
         )
 
 
@@ -1352,12 +1394,14 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
             found = titles[i] if i < len(titles) else "<missing>"
             if found != want:
                 f.fail(
-                    f"headings: expected '## {want}' at position {i + 1}, found '## {found}' ({len(expected)} sections in order, '## Resume prompt' last)"
+                    f"headings: expected '## {want}' at position {i + 1}, found '## {found}' ({len(expected)} sections in order, '## Resume prompt' last)",
+                    CheckKind.ORDER,
                 )
                 break
         else:
             f.fail(
-                f"headings: extra section(s) after '## Resume prompt': {titles[len(expected) :]}"
+                f"headings: extra section(s) after '## Resume prompt': {titles[len(expected) :]}",
+                CheckKind.ORDER,
             )
     # A section with nothing to report reads 'None.' plus a half-line of reason,
     # so a cold reader can tell it from a forgotten one (reference/structure.md).
@@ -1368,15 +1412,29 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
             f.fail(f"{title}: empty; write 'None.' plus a reason")
 
 
+def _downgrading_fail(findings: Findings, checks: int) -> Finding | None:
+    """The predecessor FAIL that downgrades its successor's carry checks: any
+    FAIL for a successor stamped below `CHECKS`, a content-kind FAIL otherwise."""
+    return next(
+        (x for x in findings.fails if checks < CHECKS or x.kind in CONTENT_KINDS),
+        None,
+    )
+
+
 def _pred_failed(
-    pred: Doc, previous: str | None, projects_root: Path | None, f: Findings
+    doc: Doc,
+    pred: Doc,
+    previous: str | None,
+    projects_root: Path | None,
+    f: Findings,
 ) -> bool:
-    findings, code = validate_doc(pred, projects_root, False, shallow=True)
-    if code != 0:
+    findings, _ = validate_doc(pred, projects_root, False, shallow=True)
+    culprit = _downgrading_fail(findings, _fm_int(doc, "checks") or 0)
+    if culprit is not None:
         f.warn(
-            f"predecessor {previous!r} failed validation ({findings.first_fail}); predecessor-derived checks downgraded to WARN"
+            f"predecessor {previous!r} failed validation ({culprit.text}); predecessor-derived checks downgraded to WARN"
         )
-    return code != 0
+    return culprit is not None
 
 
 # --- shape 3 ----------------------------------------------------------------------
@@ -1653,7 +1711,8 @@ def _check_retired_entries(
         m = CODIFIED_RE.search(reason)
         if m and int(m.group(1)) not in rules:
             f.fail(
-                f"archive: a retirement in {rel} reads 'codified in [R{m.group(1)}]', but [R{m.group(1)}] is not in this file"
+                f"archive: a retirement in {rel} reads 'codified in [R{m.group(1)}]', but [R{m.group(1)}] is not in this file",
+                CheckKind.POINTER,
             )
     retired_rules = {
         rid: reason
@@ -1913,16 +1972,19 @@ def _validate_shape3(
     rel = own.relative_to(handoffs).as_posix()
     archived: str | None = None
     if not own.is_file():
-        f.fail(f"archive: this hop's file {rel} is missing")
+        f.fail(f"archive: this hop's file {rel} is missing", CheckKind.POINTER)
     elif hop_text is not None:
         archived = hop_text
     else:
         try:
             archived = own.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
-            f.fail(f"archive: this hop's file {rel} is unreadable: {exc}")
+            f.fail(
+                f"archive: this hop's file {rel} is unreadable: {exc}",
+                CheckKind.POINTER,
+            )
 
-    report = f.fail
+    report = f.carry(False)
     if previous is None:
         if (root, hop, start) != (doc.basename, 1, 1):
             f.fail(
@@ -1930,9 +1992,9 @@ def _validate_shape3(
             )
     elif pred is not None:
         if pred.shape not in (None, 1) and _pred_failed(
-            pred, previous, projects_root, f
+            doc, pred, previous, projects_root, f
         ):
-            report = f.warn
+            report = f.carry(True)
         want = _chain_position(pred, doc.basename)
         if (root, hop, start) != want:
             report(
@@ -1948,10 +2010,10 @@ def _validate_shape3(
         return
     level, message = verdict
     if level == "FAIL":
-        f.fail(message)
+        f.fail(message, CheckKind.SIZE)
     else:
         f.unvalidated = True
-        f.warn(f"UNVALIDATED: {message}")
+        f.warn(f"UNVALIDATED: {message}", CheckKind.SIZE)
 
 
 def _check_carry_3(
@@ -2057,7 +2119,8 @@ def _check_retire_pointers(
         listed = _retired_listings(archived or "", heading)
         if listed and not any(name in line and heading in line for line in review):
             f.fail(
-                f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'"
+                f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'",
+                CheckKind.POINTER,
             )
     if pred is None or pred.shape != 3:
         return
@@ -2074,7 +2137,8 @@ def _check_hop_path(f: Findings, pred: Doc, start: int) -> None:
     for cursor, path in _chain_hop_paths(pred, start):
         if not path.is_file():
             f.fail(
-                f"archive: hop file {path.relative_to(cursor.path.parent).as_posix()} of predecessor {cursor.basename!r} is missing"
+                f"archive: hop file {path.relative_to(cursor.path.parent).as_posix()} of predecessor {cursor.basename!r} is missing",
+                CheckKind.POINTER,
             )
 
 
@@ -2174,8 +2238,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
-    for level, message in findings.items:
-        print(f"{level}: {message}")
+    for x in findings.items:
+        print(f"{x.level}: {x.text}")
     if code == 3:
         label = "UNSUPPORTED-SHAPE"
     elif code != 0:
@@ -2648,11 +2712,9 @@ def _fail_key(message: str) -> str:
 
 
 def _fail_keys(findings: Findings) -> Counter[str]:
-    """Every FAIL's key; a size FAIL never counts."""
+    """Every FAIL's key; a size-kind FAIL never counts."""
     return Counter(
-        _fail_key(message)
-        for level, message in findings.items
-        if level == "FAIL" and not message.startswith("size:")
+        _fail_key(x.text) for x in findings.fails if x.kind not in SIZE_KINDS
     )
 
 
@@ -3007,9 +3069,9 @@ def cmd_amend(args: argparse.Namespace) -> int:
     findings, code = validate_doc(built, None, False, hop_text=_universal(new_hop))
     introduced = _fail_keys(findings) - _fail_keys(old_findings)
     if introduced:
-        for level, message in findings.items:
-            if level == "FAIL" and _fail_key(message) in introduced:
-                print(f"FAIL: {message}", file=sys.stderr)
+        for x in findings.fails:
+            if _fail_key(x.text) in introduced:
+                print(f"FAIL: {x.text}", file=sys.stderr)
         return _die(
             1,
             f"the amend adds a FAIL the file did not have; nothing written: {_posix(path)}",
@@ -3338,6 +3400,7 @@ def build_skeleton(
         "---",
         "type: handoff",
         "handoff_shape: 2",
+        f"checks: {CHECKS}",
         f"date: {date}",
         f"topic: {slug}",
         f"session_id: {session_id}",
@@ -3522,6 +3585,7 @@ def build_skeleton_3(
         "---",
         "type: handoff",
         "handoff_shape: 3",
+        f"checks: {CHECKS}",
         f"date: {date}",
         f"topic: {slug}",
         f"session_id: {session_id}",
@@ -3910,8 +3974,8 @@ def cmd_new(args: argparse.Namespace) -> int:
                 f"predecessor is shape 3; a shape-3 chain is never continued as shape {args.shape}",
             )
         if pred.shape not in (None, 1):
-            _, code = validate_doc(pred, projects_root, False, shallow=True)
-            pred_failed = code != 0
+            findings, _ = validate_doc(pred, projects_root, False, shallow=True)
+            pred_failed = _downgrading_fail(findings, CHECKS) is not None
             pred_transcript = (
                 pred.frontmatter.get("transcript")
                 or "unresolved (predecessor recorded none)"

@@ -4415,3 +4415,73 @@ def test_new_refuses_to_rewrite_a_hop_file_holding_amend_output(tmp_path, throug
     assert "save_point.py amend" in err(retry), err(retry)
     assert archived.read_bytes() == before
     assert not (repo / ".work" / "handoffs" / HOP3).exists()
+
+
+DOWNGRADED = "predecessor-derived checks downgraded to WARN"
+
+
+def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
+    oversized = strict(hop1)
+    assert oversized.returncode == 1, out(oversized)
+    assert "hot-file cap" in out(oversized), out(oversized)
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    edit(hop2, "- [R1] The thing must stay green.\n", "")
+    dropped = strict(hop2)
+    assert dropped.returncode == 1, out(dropped)
+    assert "[R1] left this file without a retirement" in out(dropped), out(dropped)
+    assert DOWNGRADED not in out(dropped), out(dropped)
+    edit(hop2, "checks: 2\n", "")
+    unstamped = strict(hop2)
+    assert unstamped.returncode == 0, out(unstamped)
+    assert DOWNGRADED in out(unstamped), out(unstamped)
+
+
+def test_shape2_carry_stays_verified_after_a_transcript_only_predecessor_failure(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    text = model_fill(hop1.read_text(encoding="utf-8"))
+    text = re.sub(
+        r"^transcript: .*$", "transcript: /gone/session.jsonl", text, flags=re.M
+    )
+    hop1.write_text(text, encoding="utf-8", newline="\n")
+    gone = run("validate", str(hop1))
+    assert gone.returncode == 1, out(gone)
+    assert "transcript: stated path does not exist" in out(gone), out(gone)
+    made = run(
+        *new_args(
+            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+        )
+    )
+    assert made.returncode == 0, err(made)
+    hop2 = handoffs / HOP2
+    carried = hop2.read_text(encoding="utf-8")
+    assert "UNVERIFIED (predecessor failed validation)" not in carried
+    assert "- [h1] The thing must stay green.\n" in carried
+    hop2.write_text(
+        model_fill(carried).replace(
+            "- [h1] The thing must stay green.\n", "- [h2] A different rule.\n"
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    dropped = run("validate", str(hop2))
+    assert dropped.returncode == 1, out(dropped)
+    assert "predecessor entry dropped" in out(dropped), out(dropped)
+    edit(hop2, "checks: 2\n", "")
+    unstamped = run("validate", str(hop2))
+    assert unstamped.returncode == 0, out(unstamped)
+    assert DOWNGRADED in out(unstamped), out(unstamped)
+
+
+def test_amend_keeps_the_checks_stamp(tmp_path):
+    hot, _ = amend_hop1(make_repo(tmp_path), tmp_path)
+    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+    result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
+    assert result.returncode == 0, err(result)
+    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
