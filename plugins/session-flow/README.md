@@ -464,7 +464,8 @@ plus any exceptions you state in plain words, after a full evidence check (throu
 pending recommendations). A recommendation that changed or cannot be confirmed comes back with
 the old value, the new value and why, instead of being carried out. During an absence it accepts
 recommendations parked in the report, never a refused action, which waits for your return. A bare
-accept never approves a refused action or a permission change.
+accept never approves a refused action, a permission change or an action that could cost money;
+name such an item as an exception to approve it.
 
 ```shell
 /session-flow:go-with-recommendations                       # accept the latest recommendations

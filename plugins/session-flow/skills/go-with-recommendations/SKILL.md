@@ -75,7 +75,9 @@ An accept with no exception naming the item never approves:
 
 - an action the permission system or an away hook refused;
 - a permission or trust-boundary change, such as a new allow rule, a loosened security control or
-  a change to who or what can act.
+  a change to who or what can act;
+- an action that could cost money, judged against the person's own cost rules where they have
+  written them, such as one the away report parked for that reason.
 
 List each such item as still waiting on the person, with what it unblocks; an exception that names
 it is the go-ahead, except for a refused action during an absence.
