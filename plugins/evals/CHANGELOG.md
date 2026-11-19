@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.19.6] - 2026-11-18
+
+### Changed
+
+- `design`, `methodology` and `plugin-eval` no longer restate upstream behavior on how the eval arms run and which graders are scored, the effort-curve guidance, which errored runs are graded, or a usage limit's zero scores. Each of those passages is now this repository's rule with its reason plus an anchored pointer to read live, and the blog correlate in `methodology/reference/local-decisions.md` no longer states the blog's rubric position ([#16837](https://github.com/melodic-software/claude-code-plugins/issues/16837)).
+
 ## [0.19.5] - 2026-11-18
 
 ### Removed

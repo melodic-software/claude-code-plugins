@@ -1,0 +1,98 @@
+{
+  "skill": "discipline:follow-operating-procedures",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/follow-operating-procedures",
+  "ranking_note": "Authored with the skill's first description; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the standards sibling, the batch sweep, the instruction-audit skill and the memory-layer audit, which read the same files for a different job.",
+  "competitors": [
+    "discipline:follow-our-standards",
+    "discipline:sweep-all",
+    "harness-config:audit-instructions",
+    "harness-memory:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Just a reminder: reread my CLAUDE.md, this is how I want you to operate."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You've drifted from my instructions over this long session. Go back to them and check what you've done."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Follow your operating procedures. Reread them from the files, not from memory."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I get the feeling you're working outside what my instruction files say. Check the work against them."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Remind yourself how we work here before you go on, then tell me if anything you did breaks it."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "After that handoff you seem to have forgotten my standing instructions. Reread them and correct course."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Re-read the user and project instructions in force and audit this branch against them."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hi, new session. Let's start on the login bug in the auth module."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether our CLAUDE.md contains stale or conflicting instructions."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Does this PR match our team's engineering standards docs?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a rule to CLAUDE.md that tests must run before every commit."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Good morning. Pick up the next issue on the board."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run every discipline corrector as one batch to set posture."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "My CLAUDE.md is too long; audit the memory layer and prune it."
+    }
+  ]
+}
