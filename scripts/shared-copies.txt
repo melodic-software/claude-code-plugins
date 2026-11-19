@@ -127,6 +127,7 @@ docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/ai-slop/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/attribution/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
