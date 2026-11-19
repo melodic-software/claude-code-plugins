@@ -26,3 +26,10 @@ bump: minor
   capability-tier-labels.md and the schema run parse-concern-value.sh from
   <plugin-root>, as ai-disclaimer.md does. The morning brief's record field
   list names v and the credential fields it reads.
+
+- read label_as_code_repo wherever a declared label-as-code owner decides
+
+  label-taxonomy.md defines a declared label-as-code owner as the
+  label_as_code_repo key, and setup (apply, check, unattended apply),
+  track labels and capability-tier-labels.md's Migration step read it
+  instead of an undefined declaration.

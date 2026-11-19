@@ -44,7 +44,8 @@ When an item genuinely needs the frontier quota guard and lacks the label:
 Repos adopting the frontier-tier quota guard need `capability-tier: frontier` present **before**
 triage stamps it.
 
-1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`
+1. **Label-as-code owner declared** (`label_as_code_repo`, as
+   [label-taxonomy.md](label-taxonomy.md) defines it). Route provisioning to that repository; `/work-items:setup`
    validates presence only and never writes labels ad hoc.
 2. **No label-as-code owner.** `/work-items:setup apply` may create the label with an
    interactive user present, using the same mechanics as the provenance label migration. An
