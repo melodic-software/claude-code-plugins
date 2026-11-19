@@ -1,9 +1,9 @@
 export const PREFIXES = Object.freeze({
-  "pr-merge.yml": Object.freeze(["pr-merge", "PR Merge"]),
-  "pr-rate-merge-risk.yml": Object.freeze(["merge-risk", "PR Rate Merge Risk"]),
-  "pr-refine.yml": Object.freeze(["pr-refine", "PR Refine"]),
-  "pr-unblock.yml": Object.freeze(["pr-unblock", "PR Unblock"]),
-  "pr-verify-capture.yml": Object.freeze(["pr-verify-capture", "PR Verify Capture"]),
+  "pr-merge.yml": Object.freeze(["PR Merge", "pr-merge"]),
+  "pr-rate-merge-risk.yml": Object.freeze(["PR Rate Merge Risk", "merge-risk"]),
+  "pr-refine.yml": Object.freeze(["PR Refine", "pr-refine"]),
+  "pr-unblock.yml": Object.freeze(["PR Unblock", "pr-unblock"]),
+  "pr-verify-capture.yml": Object.freeze(["PR Verify Capture", "pr-verify-capture"]),
 });
 
 const each = (workflow, rest) => PREFIXES[workflow].map((prefix) => `${prefix}${rest}`);
