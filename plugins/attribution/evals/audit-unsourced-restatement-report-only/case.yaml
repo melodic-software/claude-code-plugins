@@ -6,7 +6,7 @@ graders:
   - name: 'no-write'
     type: 'tool_used'
     tool: 'Write'
-    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/(?:[^"\\]|\\.)*?attribution\.md)"'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:docs/env/widget-env|notes/concurrency)\.md"'
     min: 0
     max: 0
     arm: 'both'
@@ -44,7 +44,7 @@ graders:
     type: 'llm'
     criteria: 'Legacy expectation: "Reports that the file was examined, so a clean file is visible as coverage rather than absent from the report". PASS only if the reply names notes/concurrency.md as examined (in the corpus, scanned, clean, or no finding). FAIL if the file is absent from the reply.'
     focus: 'last_message'
-  - name: 'report-only-both-rungs'
+  - name: 'contract-from-bundled-copy'
     type: 'llm'
-    criteria: 'The review plugin is not loaded and there is no network, so the producer contract cannot be resolved. Legacy expectations: "Reports findings to the human normally despite the unreachable contract", "Writes no findings file and names report-only as the outcome", "Does NOT invent a destination or write to a guessed default path", "Names both rungs it tried, the bundled review copy and the publisher URL". PASS only if the reply reports its findings, says no findings file was written and the run is report-only, claims no findings-file path as written, and names both rungs: the review plugin''s bundled copy (or /review:fanout not resolving) and the publisher''s contract URL. FAIL if it claims a findings file was written or omits either rung.'
+    criteria: 'The review plugin is not loaded and there is no network, so rung 1 does not apply and the producer contract resolves from this plugin''s own bundled copy, reference/detector-findings.md (rung 2 of context/persist-findings.md). PASS only if the reply reports its findings, says the contract was read from the attribution plugin''s bundled copy because the review plugin is unavailable, and states the persist outcome: the findings file it wrote under .work/reviews/<branch-slug>/, or a reason from persist-findings.md other than the contract being unreadable for writing none. FAIL if it says the producer contract could not be resolved or the run is report-only for that reason, names a publisher URL as a rung it tried, or claims a findings-file path it did not write.'
     focus: 'last_message'

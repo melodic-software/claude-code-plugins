@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.12] - 2026-11-19
+
+### Fixed
+
+- `/ai-slop:audit` reads the detector-findings contract from the copy bundled at
+  `reference/detector-findings.md` before writing a findings file, instead of fetching it from the
+  publisher's repository, so persisting works offline.
+
 ## [0.19.11] - 2026-11-18
 
 ### Removed

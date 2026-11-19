@@ -88,7 +88,7 @@ One action; the author's hand-edits from audit output cover the sweep workflow.
 **`--persist-findings`** (off by default) additionally writes the run's `negation` findings as a
 `type: review-findings` file for `review:fanout`'s `fix` relay, per
 [context/persist-findings.md](context/persist-findings.md), which owns every mechanic (destination
-resolution, the fetch-and-refuse gate, the self-ignore guard, which findings enter the file, and
+resolution, the read-and-refuse gate, the self-ignore guard, which findings enter the file, and
 what each cell says). A bare invocation reports and stops. `negation` is the only shape with a
 severity-crosswalk row; every other shape `audit_noise_detect_shapes_into` in
 [`scripts/lib/noise-shapes.sh`](scripts/lib/noise-shapes.sh) appends stays in the human report and

@@ -1,0 +1,130 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.files[]' /tmp/run/corpus.json > /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat notes/concurrency.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads a vendored file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-attr linguist-vendored -- notes/concurrency.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads an attribute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.files[]' /tmp/run/corpus.json > /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .work/reviews 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lists the reviews directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'See upstream.\\n' > notes/concurrency.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "overwrites a vendored file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/branch/topic branch/' docs/env/widget-env.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "edits the guide in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x | tee -a notes/concurrency.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee into a vendored file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/run/findings.md > /ws/.work/reviews/main/20261107T100000Z-attribution.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "writes the findings file through a redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "tee /ws/.work/reviews/main/20261107T100000Z-attribution.md < /tmp/run/findings.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "writes the findings file with tee"
+    }
+  ]
+}

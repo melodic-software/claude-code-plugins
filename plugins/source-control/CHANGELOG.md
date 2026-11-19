@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.1] - 2026-11-19
+
+### Fixed
+
+- `/source-control:pull-request` prep and ready read the pre-PR ordering contract from the copy
+  bundled at `reference/pre-pr-ordering.md` instead of the publisher's raw URL.
+
 ## [12.0.0] - 2026-11-19
 
 ### Added
