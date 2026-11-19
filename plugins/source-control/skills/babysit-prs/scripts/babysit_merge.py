@@ -4448,9 +4448,6 @@ INFRA_CAUSE_LINES = {
     ),
 }
 MAIN_RED = "main-red"
-WAITING_CAUSES = frozenset(
-    {"rate-limit", "read-floor", "verify-unreadable", "kill-switch", "lost-runner", MAIN_RED}
-)
 MAIN_RED_WINDOW = timedelta(hours=3)
 ISO_STAMP_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 # The reset assumed when no annotation names one: GitHub's primary limit
@@ -4642,10 +4639,10 @@ def _infra_removal(
     `REMOVAL_RUN_WINDOW` of it. Each failed job of that entry's failed runs
     must have failed on `causes` alone (`_job_causes`), or, with `MAIN_RED`
     among them, be a job other than the gate that main failed at the time
-    too (`_red_on_main`): on main the gate fails whenever any job does. A
-    waiting cause (`WAITING_CAUSES`) excuses it only once its reset passed:
-    the latest its lines name, or `DEFAULT_RESET` after the removal when
-    they name none. Any doubt counts it."""
+    too (`_red_on_main`): on main the gate fails whenever any job does.
+    Every cause excuses it only once its reset passed: the latest its lines
+    name, or `DEFAULT_RESET` after the removal when they name none. Any
+    doubt counts it."""
     removed = parse_github_timestamp(at)
     if removed is None:
         return None
@@ -4682,10 +4679,9 @@ def _infra_removal(
         return None
     resets = [
         max(filter(None, map(parse_github_timestamp, stamps)), default=removed + DEFAULT_RESET)
-        for cause, stamps in found.items()
-        if cause in WAITING_CAUSES
+        for stamps in found.values()
     ]
-    if resets and _now() < max(resets):
+    if _now() < max(resets):
         return None
     return sorted(found)
 
