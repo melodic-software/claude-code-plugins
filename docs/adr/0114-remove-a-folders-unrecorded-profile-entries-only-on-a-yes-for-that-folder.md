@@ -29,6 +29,14 @@ gave for the recorded files.
    a record, saying why.
 4. **User settings are never offered.** User `settings.json` without a record is left alone, and a
    committed `.claude/settings.json` is never written.
+5. **A file reset put back is not offered again while unchanged.** Each time reset leaves a file
+   at its bytes before any profile, it notes their hash beside where that file's record is saved,
+   under the same rule for which homes may hold it. A later reset skips a file whose bytes still
+   match its note: no row, no question, no write, and one preview line counting such files. An
+   edit makes the note stale, so the file is listed under 1 and 2 again and the next reset that
+   writes removes the note; an apply removes it, and a record always wins over a note. Owner
+   decision of 2026-11-19 (Q9, option b): without it a second reset offered to delete the
+   entries the first had just put back.
 
 ## Considered options
 
@@ -36,6 +44,8 @@ gave for the recorded files.
   that leaves profile entries it can see is not a reset.
 - **Remove them under the single yes.** Rejected by the owner: one yes for recorded files would then
   also delete entries a person wrote, which no record shows a profile wrote.
+- **Keep listing a file reset just put back, with "may be your own" wording only.** Rejected by the
+  owner (Q9): it still offered a person's own entries for deletion after a complete reset.
 
 ## Consequences
 

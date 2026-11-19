@@ -103,7 +103,25 @@ import { readText, replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
-import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, recordPath, recordText, restoreEdits, restoringRecord, saveRecord, swapRecord } from "../lib/record.mjs";
+import {
+  ABSENT,
+  baseline,
+  deleteRecord,
+  findRecord,
+  forgetRestored,
+  forgetStaleRestored,
+  holdsEveryEntry,
+  nextRecord,
+  noteRestored,
+  realPath,
+  recordPath,
+  recordText,
+  restoreEdits,
+  restoredHashOf,
+  restoringRecord,
+  saveRecord,
+  swapRecord,
+} from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
@@ -507,6 +525,7 @@ function commit(p, opts, where) {
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);
+  forgetRestored(homesOf(where, p.file), p.file);
 }
 
 async function apply(opts, where, env, io) {
@@ -1186,6 +1205,7 @@ function resetRow(where, f) {
       if (!(error instanceof SettingsError)) throw error;
       return skip(`${error.message}; left as it is`, [`${file}: ${error.message}; reset leaves it.`]);
     }
+    if (restoredHashOf(homesOf(where, file), file) === settings.hash) return { ...row, action: "unchanged", lines: [] };
     return {
       ...row,
       action: "remove-entries",
@@ -1249,9 +1269,13 @@ function resetRow(where, f) {
   };
 }
 
-/** Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone. */
+/**
+ * Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone,
+ * leaves the file and the hash of the bytes reset left in it when those are its bytes before any profile.
+ */
 function resetOne(row, { chosen, kept }) {
   const { file, found: f } = row;
+  const leaves = (plan, path = file) => (plan.removes ? undefined : { file: path, hash: hashOf(plan.text) });
   const yes = Boolean(row.ask) && chosen.has(realPath(row.ask.file));
   const no = Boolean(row.ask) && kept.has(realPath(row.ask.file));
   const changedUnder = (path) => ({ line: `Skipped ${path}: it changed during the reset and is left as the other writer left it; run reset again.`, ok: false });
@@ -1276,19 +1300,20 @@ function resetOne(row, { chosen, kept }) {
   }
   if (row.movedTo && yes) {
     const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);
-    return { ...result, restored: result.ok };
+    return { ...result, restored: result.ok, leaves: result.ok ? leaves(row.movedPlan, row.movedTo) : undefined };
   }
   if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${row.movedTo ? `, and the record of ${file} is kept` : ""}.`, ok: true };
   if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
   if (row.action === "skip" || row.action === "remove-entries") return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
   if (row.action === "finish-restore") {
     dropCopies(original);
-    const line = row.reason ? `Skipped ${file}: ${row.reason}; left as it is, and its record is removed.` : `Finished an earlier reset of ${file}: its record is removed.`;
-    return { line, ok: true, restored: true };
+    if (row.reason) return { line: `Skipped ${file}: ${row.reason}; left as it is, and its record is removed.`, ok: true, restored: true };
+    const { settings } = row.plan;
+    return { line: `Finished an earlier reset of ${file}: its record is removed.`, ok: true, restored: true, leaves: settings.exists ? { file, hash: settings.hash } : undefined };
   }
   const { plan } = row;
   const target = plan.removes ? hashOf(null) : hashOf(plan.text);
-  const already = { line: `Already restored by another reset: ${file}.`, ok: true, restored: true };
+  const already = { line: `Already restored by another reset: ${file}.`, ok: true, restored: true, leaves: leaves(plan) };
   const changed = changedUnder(file);
   const restoredElsewhere = () => {
     try {
@@ -1301,6 +1326,7 @@ function resetOne(row, { chosen, kept }) {
     line: plan.removes ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).` : `Restored ${file} (profile ${plan.rec.profile}).`,
     ok: true,
     restored: !f.adopted,
+    leaves: leaves(plan),
   };
   if (f.adopted) {
     try {
@@ -1329,6 +1355,13 @@ function resetOne(row, { chosen, kept }) {
   return done;
 }
 
+/** Notes the bytes reset left in a file, in the home a record of it is saved in; without the note a later reset lists the file as it did before notes. */
+function noteLeft(where, { file, hash }) {
+  try {
+    noteRestored(homesOf(where, file)[0], file, hash);
+  } catch {}
+}
+
 /** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and record it was planned from. */
 const previewIdOf = (rows) =>
   hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, hashOf(r.found.copies.find((c) => c.path === r.found.recordPath)?.text ?? null)])));
@@ -1338,20 +1371,24 @@ async function reset(opts, where, env, io) {
   const { files, homes, counts } = machineFiles(where, env);
   const all = files.map((f) => resetRow(where, f));
   const moved = new Set(all.filter((r) => r.movedTo).map((r) => realPath(r.movedTo)));
-  const rows = all.filter((r) => !(r.action === "remove-entries" && moved.has(realPath(r.file))));
+  const shown = all.filter((r) => !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
+  const unchanged = shown.filter((r) => r.action === "unchanged").map((r) => r.file);
+  const rows = shown.filter((r) => r.action !== "unchanged");
   const keeps = sessionProfile(env)
     ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the reset; new sessions start from what their settings name.`
     : null;
+  const one = unchanged.length === 1;
   const lines = [
     `Reset looked for profile records in user settings, this folder, ${counted(counts.dataDirs, "data folder")}, ${counted(counts.pointers, "repository pointer")}, ${counted(counts.projects, "folder")} Claude Code has opened, ${counted(counts.sessions, "one-session record")} and ${counted(counts.live, "live session")}.`,
     rows.length ? `It found ${counted(rows.length, "settings file")}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
     ...rows.flatMap((r) => r.lines),
+    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}.`] : []),
     ...(keeps ? [keeps] : []),
   ];
   const question = resetQuestion(rows);
   if (opts.json && opts.dryRun) {
     const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
-    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, lines }, null, 2));
+    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, unchangedSinceReset: unchanged, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
   if (opts.previewId && opts.previewId !== previewIdOf(rows)) {
@@ -1389,7 +1426,9 @@ async function reset(opts, where, env, io) {
     say(result.line);
     if (!result.ok) failed = true;
     if (result.restored) done.add(realPath(row.file));
+    if (result.leaves) noteLeft(where, result.leaves);
   }
+  for (const home of new Set(homes.map(realPath))) forgetStaleRestored(home, (file) => hashOf(readText(file)));
   const back = new Set();
   const ignored = new Set(rows.filter((r) => r.record).map((r) => realPath(r.record)));
   for (const home of new Set(homes.map(realPath))) {

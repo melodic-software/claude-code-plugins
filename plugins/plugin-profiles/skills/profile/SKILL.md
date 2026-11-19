@@ -77,7 +77,8 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   the user to run `/plugin-profile` and pick **No profile**, which also reloads the session.
 - **reset**: puts every settings file a profile changed on this machine back, every folder and user
   settings, when the user wants all profiles gone. Run `reset --dry-run --json` and show its
-  `lines` as printed. When `question` is set, ask it as worded: one yes covers the files with a
+  `lines` as printed. Files in `unchangedSinceReset` are ones an earlier reset put back and nobody
+  changed since: reset leaves them, so ask nothing about them. When `question` is set, ask it as worded: one yes covers the files with a
   record, and a no ends the reset. Then ask each `folders[].ask.question` on its own: that row's
   `ask.file` changes only on a yes for it. Run `reset --yes --json --preview-id <previewId>` with
   `--remove-unrecorded <ask.file>` for each yes and `--keep-unrecorded <ask.file>` for each no, the

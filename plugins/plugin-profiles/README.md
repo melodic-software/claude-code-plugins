@@ -206,6 +206,9 @@ skill entries but no record is listed with those entries, which may be the perso
 only after a yes for that folder. In a terminal reset asks each such folder, `--yes` or not, and
 the default is no; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
 that asked already; with nobody at a terminal, `--yes` alone leaves each such folder as it is.
+A file reset put back is not listed that way again while it holds the bytes reset left: reset notes
+their hash beside where that file's record is saved, and the preview counts such files in one
+line. An edit to the file, or an apply, ends that, and a record always wins over the note.
 Inside a session, `/plugin-profile` and **Reset** do the same and reload the session; the profile
 skill's reset action previews and asks the same way. Both pass the preview's `previewId` with
 `--preview-id`, and the write refuses, writing nothing, when what it would write no longer matches

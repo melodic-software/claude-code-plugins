@@ -17,7 +17,7 @@
 // A before or after value of "absent" means the file held no entry. off-pending marks a switch cut
 // off after its first write: pending holds the entries the second write still has to switch off.
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { readText, removeFile, replaceFile } from "./atomic-file.mjs";
 
@@ -70,6 +70,46 @@ export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
 export const saveRecord = (path, record) => replaceFile(path, recordText(record));
 export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });
 export const deleteRecord = (path) => removeFile(path);
+
+/** Where reset notes a file it restored, beside where a record of that file would sit in the same home. */
+const restoredPath = (home, settingsFile) => join(home, "restored", basename(recordPath(home, settingsFile)));
+
+/** The hash of the bytes reset left in settingsFile, from the first of homes holding a note of it; null with none. */
+export function restoredHashOf(homes, settingsFile) {
+  for (const home of homes) {
+    try {
+      const hash = JSON.parse(readFileSync(restoredPath(home, settingsFile), "utf8")).restoredHash;
+      if (typeof hash === "string") return hash;
+    } catch {}
+  }
+  return null;
+}
+
+/** Notes that reset left settingsFile holding the bytes whose hash is restoredHash, in the home where a record of it is saved. */
+export const noteRestored = (home, settingsFile, restoredHash) => replaceFile(restoredPath(home, settingsFile), recordText({ schema: SCHEMA, settingsFile, restoredHash }));
+
+/** Removes every note of settingsFile from homes. */
+export const forgetRestored = (homes, settingsFile) => {
+  for (const home of homes) removeFile(restoredPath(home, settingsFile));
+};
+
+/** Removes each note in home whose file no longer holds the noted bytes; hashOfFile(path) gives a file's hash now. */
+export function forgetStaleRestored(home, hashOfFile) {
+  let names;
+  try {
+    names = readdirSync(join(home, "restored")).filter((name) => name.endsWith(".json") && !name.startsWith("."));
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const path = join(home, "restored", name);
+    let note = null;
+    try {
+      note = JSON.parse(readFileSync(path, "utf8"));
+    } catch {}
+    if (typeof note?.settingsFile !== "string" || hashOfFile(note.settingsFile) !== note.restoredHash) removeFile(path);
+  }
+}
 
 class RecordChanged extends Error {}
 

@@ -36,7 +36,7 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
-type ResetPreview = { sessionProfile: string | null; previewId: string; question: string | null; folders: { action: string; ask?: { file: string; question: string } }[]; lines: string[] }
+type ResetPreview = { sessionProfile: string | null; previewId: string; question: string | null; folders: { action: string; ask?: { file: string; question: string } }[]; unchangedSinceReset?: string[]; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -151,7 +151,10 @@ async function resetAll($: EngineInterface): Promise<string> {
   const preview = JSON.parse(dry.stdout) as ResetPreview
   show($, preview.lines)
   const askable = preview.folders.flatMap(f => (f.ask ? [f.ask] : []))
-  if (!preview.folders.length) return 'Nothing to reset: no profile is recorded anywhere reset can find.'
+  if (!preview.folders.length)
+    return preview.unchangedSinceReset?.length
+      ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
+      : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
   if (preview.question && !(await confirmed($, preview.question))) return 'Not reset; nothing changed.'
   const remove: string[] = []

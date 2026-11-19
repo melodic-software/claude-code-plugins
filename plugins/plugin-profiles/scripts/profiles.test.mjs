@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
@@ -2659,4 +2659,125 @@ test("#17354: a record kept in a folder that cannot hold it is listed as ignored
   assert.equal(readFileSync(userFile, "utf8"), userBefore);
   assert.equal(readFileSync(p2File, "utf8"), LOCAL_BEFORE);
   for (const path of paths) assert.ok(existsSync(path), path);
+});
+
+/** Where reset notes a file of a folder outside git that it restored: the data folder's restored/, keyed as records are. */
+const noteOf = (w, file, home = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline")) => join(home, "restored", `${sha(realpathSync(file))}.json`);
+const UNCHANGED_LINE = (n) => new RegExp(`^${n} ${n === 1 ? "file that reset restored earlier is" : "files that reset restored earlier are"} unchanged since; reset leaves ${n === 1 ? "it" : "them"}\\.$`, "m");
+
+test("#17354: after a reset, the files it restored that hold hand-written entries are not listed again and no question is asked", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project, p2.dir);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders, []);
+  assert.equal(preview.question, null);
+  assert.deepEqual([...preview.unchangedSinceReset].sort(), [w.localFile, p2.file].sort());
+  assert.match(preview.lines.join("\n"), UNCHANGED_LINE(2));
+  assert.doesNotMatch(preview.lines.join("\n"), /may be your own/);
+  const again = reset(w);
+  assert.equal(again.status, 0, again.stderr);
+  assert.deepEqual(resultLines(again.stdout), []);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: reset notes a file it restores by every path: a finished earlier reset, a worktree copy adopted from the root's record and a moved repository's file", () => {
+  const cut = world();
+  assert.equal(cut.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(cut, cut.project);
+  cutOff(cut, cut.localFile, { written: true });
+  assert.equal(reset(cut, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(cut).folders, [], "a finished earlier reset");
+
+  const wt = world();
+  gitInit(wt);
+  assert.equal(wt.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(wt, JSON.parse(wt.read()));
+  knowFolders(wt, t.wt);
+  assert.equal(reset(wt, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(wt).unchangedSinceReset.sort(), [rootLocal(wt.project), t.file].sort(), "the adopted copy and the root file");
+
+  const mv = world();
+  gitInit(mv);
+  assert.equal(mv.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const moved = join(mv.root, "moved");
+  renameSync(mv.project, moved);
+  knowFolders(mv, moved);
+  assert.equal(reset(mv, ["--yes", "--remove-unrecorded", rootLocal(moved)]).status, 0);
+  assert.equal(readFileSync(rootLocal(moved), "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(resetJson(mv).folders, [], "a moved repository's file");
+});
+
+test("#17354: a file reset restored and then edited by hand is listed again as having no record, and the next reset removes the stale note", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(w).folders, []);
+  const edited = JSON.parse(w.read());
+  edited.enabledPlugins["widget@vendor"] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.file, f.action, f.ask?.file]), [[w.localFile, "remove-entries", w.localFile]]);
+  assert.match(preview.folders[0].lines[0], /may be your own/);
+  assert.deepEqual(preview.unchangedSinceReset, []);
+  assert.ok(existsSync(noteOf(w, w.localFile)), "a preview writes nothing");
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(existsSync(noteOf(w, w.localFile)), false, "the next reset that writes removes the stale note");
+});
+
+test("#17354: an apply to a file reset restored removes its note, a record always wins over a note, and the next reset restores the file as usual", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  const note = JSON.parse(readFileSync(noteOf(w, w.localFile), "utf8"));
+  assert.deepEqual(note, { schema: 1, settingsFile: w.localFile, restoredHash: sha(LOCAL_BEFORE) });
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(existsSync(noteOf(w, w.localFile)), false, "an apply removes the note");
+  writeTree(dirname(noteOf(w, w.localFile)), { [basename(noteOf(w, w.localFile))]: { ...note, restoredHash: sha(w.read()) } });
+  assert.deepEqual(resetJson(w).folders.map((f) => [f.file, f.action]), [[w.localFile, "restore"]], "a note matching a recorded file's bytes never hides it");
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile} (profile review).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(JSON.parse(readFileSync(noteOf(w, w.localFile), "utf8")).restoredHash, sha(LOCAL_BEFORE));
+});
+
+test("#17354: a restored note in a home that cannot hold its file is ignored", () => {
+  const w = world();
+  gitInit(w);
+  const p2 = secondRepository(w);
+  knowFolders(w, w.project, p2);
+  const file = rootLocal(w.project);
+  const note = { schema: 1, settingsFile: file, restoredHash: sha(LOCAL_BEFORE) };
+  const name = basename(noteOf(w, file));
+  for (const home of [join(p2, ".git", "plugin-profiles"), join(w.home, ".claude", "plugin-profiles-state")]) writeTree(join(home, "restored"), { [name]: note });
+  const own = (preview) => preview.folders.filter((f) => f.file === file).map((f) => f.action);
+  assert.deepEqual(own(resetJson(w)), ["remove-entries"], "notes in another repository's home and the user-settings home are ignored");
+  writeTree(join(w.project, ".git", "plugin-profiles", "restored"), { [name]: note });
+  assert.deepEqual(own(resetJson(w)), [], "the same note in the repository's own home is read");
+});
+
+test("#17354: a folder with entries and no record that reset never restored is still listed and needs its own yes, beside one it restored", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  knowFolders(w, w.project, p2.dir);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.file, f.action, f.ask?.file]), [[w.localFile, "remove-entries", w.localFile]]);
+  assert.deepEqual(preview.unchangedSinceReset, [p2.file]);
+  const plain = reset(w, ["--yes"]);
+  assert.deepEqual(resultLines(plain.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 2 plugin and skill entries of ${w.localFile}, which had no record.`]);
 });

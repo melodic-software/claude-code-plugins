@@ -591,6 +591,15 @@ test('#17354: a reset that skipped a file shows each result line and reloads', a
   expect(w.commands).toEqual(['reload-plugins'])
 })
 
+test('#17354: after a complete reset, picking Reset says there is nothing to reset and asks nothing', async ($, on) => {
+  const done = JSON.parse(resetPreview([]).stdout as string)
+  const resetDry = { exitCode: 0, stdout: JSON.stringify({ ...done, question: null, unchangedSinceReset: ['/p/.claude/settings.local.json'] }) }
+  const w = world(on, [], { resetDry })
+  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: each file reset restored earlier is unchanged since.')
+  expect(w.asks).toEqual([])
+  expect(resets(w)).toEqual([])
+})
+
 test('#17354: with nothing recorded the picker says so, asks nothing and resets nothing', async ($, on) => {
   const w = world(on, [], { resetDry: resetPreview([]) })
   expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: no profile is recorded anywhere reset can find.')
