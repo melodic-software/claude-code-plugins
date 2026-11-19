@@ -842,6 +842,25 @@ def test_deliver_moves_a_report_kept_beside_the_state(ctx):
     assert not (ctx.data / "away").exists(), "the empty away dir goes, so the hook's shell gate exits early"
 
 
+def test_retried_deliver_reports_where_an_interrupted_one_moved_the_report(ctx, monkeypatch):
+    ctx.start()
+    fill_report(ctx.report(), "the person's note\n")
+    assert ctx.cli("end").returncode == 0
+    paths = away.session_paths(ctx.data, SESSION, SCRIPTS.parent)
+
+    def interrupted(self, missing_ok=False):
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", interrupted)
+        with pytest.raises(KeyboardInterrupt), away.locked(paths.lock):
+            away._clear_held(paths, away.read_state(paths))
+    assert not (ctx.state_dir / "report.md").exists(), "interrupted after the move, before any unlink"
+    report = delivered_report(ctx.cli("deliver"))
+    assert "the person's note" in report.read_text(encoding="utf-8"), "the retry names the moved report"
+    assert not ctx.state_dir.exists()
+
+
 def test_deliver_keeps_a_git_ignored_report_in_place(ctx):
     ignored = Away(ctx.root / "ignored")
     (ignored.repo / ".gitignore").write_text(".work/\n", encoding="utf-8")

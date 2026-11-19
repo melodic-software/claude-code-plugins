@@ -882,7 +882,8 @@ def _clear_held(paths: Paths, state: Mapping) -> Path:
     """Remove a delivered absence's files while its lock is held; return where the report lasts.
 
     A report kept beside the state, or the end copy when the original is gone, moves to
-    `<data root>/away-reports/` first. On POSIX the lock file is unlinked while still held, so a
+    `<data root>/away-reports/` first, its new path written to the state before the move so a
+    retried delivery reports where it went. On POSIX the lock file is unlinked while still held, so a
     process waiting on it then finds no state.
     """
     report, beside = Path(state["report_path"]), paths.dir / "report.md"
@@ -891,6 +892,7 @@ def _clear_held(paths: Paths, state: Mapping) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         lasting = paths.root / REPORTS_DIR / f"{stamp}-{paths.dir.name[:8]}.md"
         lasting.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        write_state(paths, dict(state, report_path=str(lasting)))
         os.replace(beside, lasting)
         report = lasting
     for path in (beside, paths.refused, paths.state, *(() if os.name == "nt" else (paths.lock,))):
