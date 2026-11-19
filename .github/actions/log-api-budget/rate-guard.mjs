@@ -11,7 +11,7 @@
 // a stop whose reset is within the latch's budget (SERVER_RETRY_BUDGET_MS, or
 // waitBudgetMs's longer one) of the process's waits, summed, waits for it and
 // goes out; a refused answer its client will send again after that wait
-// (RESEND), and a stop-floor answer GitHub served, fail nothing. Past that budget the call is refused: an
+// (RESEND), and under a longer budget a stop-floor answer GitHub served, fail nothing. Past that budget the call is refused: an
 // error names the reset and the process exits red, or, when the step holds
 // (API_BUDGET_HOLD=1, outage posture element 2), a notice names it and the
 // exit is the caller's. The stop also goes in the
@@ -808,7 +808,7 @@ export function createRateLimitLatch({
       }
       // A stop later steps cannot see is a fault, not a limit to hold on.
       const resent = !unrecorded && resend && waits(url) && refused;
-      const outwaits = !unrecorded && floored && waits(url);
+      const outwaits = patient && !unrecorded && floored && waits(url);
       const holds = resent || outwaits || (hold && !unrecorded);
       const then = resent
         ? "it is sent again after the reset"
