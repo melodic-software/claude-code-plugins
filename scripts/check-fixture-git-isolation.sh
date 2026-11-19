@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Fail when a test suite that BUILDS a git fixture can have that fixture's
-# identity land in the caller's repository.
+# identity land in the caller's repository, or when a suite that RUNS git can
+# read the host's global or system git config (SECOND RULE below).
 #
 #   scripts/check-fixture-git-isolation.sh            report violations, exit 1 if any
 #   scripts/check-fixture-git-isolation.sh --check    same (explicit form, matches sibling gates)
@@ -117,6 +118,45 @@
 # the debt it records. A declared scope is not a baseline entry: the baseline
 # records debt to be drained, the declaration records a permanent property of
 # the file.
+#
+# SECOND RULE: GLOBAL AND SYSTEM CONFIG. Every suite that RUNS git (shell,
+# Python, and JS `*.test.{mjs,js,cjs,ts}`), fixture-building or not, must have
+# GIT_CONFIG_GLOBAL exported and GIT_CONFIG_NOSYSTEM=1 (or GIT_CONFIG_SYSTEM)
+# set before its first git command (git-config ENVIRONMENT,
+# https://git-scm.com/docs/git-config#ENVIRONMENT). Otherwise that command reads the host's
+# ~/.gitconfig and system config (signing, hooks, url rewrites, identity) and
+# the suite passes or fails by machine. The test runners export both
+# (scripts/lib/test-git-env.sh); a suite run directly gets only what it sets.
+#
+# The verdict is ORDERED, not per file: a set that comes after the first git
+# command, or a later `unset` (a loop over GIT_CONFIG_* names included), fails
+# the suite and names the line. Shell is read top to bottom; a sourced harness
+# grants both at its `source` line when it leaves both set, resolved by path
+# (suite directory, its ancestors, then the repository root) and, when the
+# path cannot be resolved, only if every tracked file of that basename sets
+# both. Python and JS module-level code is read in order too, but a call in an
+# indented (function or test) body runs after the module loads, so it is
+# judged against the end-of-file state. A git call handed an `env=` (Python)
+# or `env:` (JS) dict is judged by that dict: one naming both passes, one
+# that spreads the process environment inherits it, and one built fresh, or
+# filtered of GIT_*, without both fails outright.
+#
+# Known limits: a set inside a shell function body counts at its line whether
+# or not the function is ever called, and an env dict is tracked by name,
+# file-wide, so two functions binding the same name share the latest binding.
+# Fix a suite with a top-level export, never by relying on either.
+#
+# The same `fixture-isolation-scope:` declaration (`#` or `//` comment)
+# exempts a suite from this rule, for a suite that must read the host config;
+# scripts/fixture-git-global-baseline.txt, when present, is this rule's
+# baseline, with the same exact-path and stale-entry semantics.
+#
+# Implementation: the awk scan emits `G` events per file, in order (S/U set
+# or unset GIT_CONFIG_GLOBAL or GIT_CONFIG_NOSYSTEM, R a git command, F one in
+# a function body, B one handed a dict that drops both, D one handed a named
+# dict, C a sourced file, K a dict's end-of-file class). g_eval replays them
+# to the first offending line; g_resolve maps a `source` token to a tracked
+# file without forking; g_harness memoizes each harness's verdict.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
@@ -125,6 +165,7 @@ cd "$SCRIPT_DIR/.." || exit 1
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 BASELINE="scripts/fixture-git-isolation-baseline.txt"
+GBASELINE="scripts/fixture-git-global-baseline.txt"
 mode="check"
 case "${1:-}" in
 "" | --check) ;;
@@ -193,6 +234,226 @@ scan() {
       # the scan below steps over spans instead of matching into them.
       QSPAN = "\"[^\"]*\"|" SQ "[^" SQ "]*" SQ
       HD_HEAD = 1
+      # GLOBAL RULE patterns. QB adds the JS template-literal quote. ASSIGN
+      # is one leading `NAME=value` word of a shell command.
+      QB = "[\"" SQ "`]"
+      ASSIGN = "^[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|" SQ "[^" SQ "]*" SQ "|[^ \t]*)[ \t]+"
+      NOSYS_ON = "(GIT_CONFIG_NOSYSTEM" QB "?[ \t]*[=:][ \t]*" QB "?(1|true|yes)|GIT_CONFIG_SYSTEM" QB "?[ \t]*[=:])"
+    }
+
+    # ---- GLOBAL RULE --------------------------------------------------------
+    # Events, in file order, for the second rule (see the header): S/U set or
+    # unset GIT_CONFIG_GLOBAL (G) or GIT_CONFIG_NOSYSTEM (N), R a git command
+    # run under the inherited environment, B a git command handed an env dict
+    # that drops both, C a sourced file. Consecutive R events collapse: bash
+    # only needs the first git command after each state change.
+    function g_ev(kind, ln, arg) {
+      if ((kind == "R" || kind == "F") && G_LAST == kind) return
+      G_LAST = kind
+      print "G\t" cur "\t" kind "\t" ln "\t" arg
+    }
+
+    # A shell statement whose command word is git, after stripping grouping,
+    # keywords, NAME=value prefixes and an `env` wrapper; or a command
+    # substitution that starts with git.
+    function sh_runs_git(seg, data,   t, prev) {
+      if (!index(seg, "git")) return 0
+      if (!data && (seg ~ /\$\([ \t]*git([ \t)]|$)/ || seg ~ /`[ \t]*git[ \t]/)) return 1
+      t = seg
+      while (1) {
+        prev = t
+        sub(/^[ \t]+/, "", t)
+        sub(/^[({!][ \t]*/, "", t)
+        sub(/^(if|then|do|else|elif|while|until|time|command|exec|builtin|eval)[ \t]+/, "", t)
+        sub(ASSIGN, "", t)
+        sub(/^env[ \t]+((-[^ \t]+|[A-Za-z_][A-Za-z0-9_]*=[^ \t]*)[ \t]+)*/, "", t)
+        if (t == prev) break
+      }
+      return t ~ /^git([ \t]|$)/
+    }
+
+    # One shell statement: its sets and unsets, skipped in a heredoc body (data).
+    function sh_global_env(seg, ln) {
+      if (!index(seg, "GIT_CONFIG_")) return
+      if (seg ~ /^[ \t]*(export|(declare|typeset)[ \t]+-[A-Za-z]*x[A-Za-z]*)[ \t]/) {
+        if (seg ~ /[ \t]GIT_CONFIG_GLOBAL(=|[ \t]|$)/) g_ev("S", ln, "G")
+        if (seg ~ ("[ \t]" NOSYS_ON)) g_ev("S", ln, "N")
+      }
+      if (seg ~ /^[ \t]*unset[ \t]/) {
+        if (seg ~ /GIT_CONFIG_GLOBAL/) g_ev("U", ln, "G")
+        if (seg ~ /GIT_CONFIG_NOSYSTEM/) g_ev("U", ln, "N")
+      }
+    }
+
+    # The git commands of one shell logical line. Quoted text is dropped
+    # first so a `|`, `;` or the word git inside a message or a `bash -c`
+    # string is not read as a command: single-quoted spans always, and
+    # double-quoted spans that hold no command substitution. Heredoc bodies
+    # still count (conscription is the safe direction), but only a command
+    # word: a backtick in a markdown body is not command substitution.
+    function sh_global_git(s, ln, data,   t, parts, np, k, m) {
+      if (!index(s, "git")) return
+      t = s
+      gsub(/\\[$`"]/, "", t)
+      while (match(t, QSPAN)) {
+        m = substr(t, RSTART, RLENGTH)
+        if (substr(m, 1, 1) == SQ || (m !~ /\$\(/ && m !~ /`/)) m = "_"
+        else m = "\001" substr(m, 2, RLENGTH - 2) "\001"
+        t = substr(t, 1, RSTART - 1) m substr(t, RSTART + RLENGTH)
+      }
+      # A quote left open is text the comment strip cut short (`# 9` inside
+      # a string); the rest of the line is that string, not code.
+      if (match(t, ("[\"" SQ "]"))) t = substr(t, 1, RSTART - 1)
+      np = split(t, parts, /[ \t]*(\|\|?|&&|;)[ \t]*/)
+      for (k = 1; k <= np; k++)
+        if (sh_runs_git(parts[k], data) && !(parts[k] ~ /GIT_CONFIG_GLOBAL=/ && parts[k] ~ NOSYS_ON))
+          g_ev("R", ln, "")
+    }
+
+    # Classify an environment-dict expression: "inherit" keeps the process
+    # environment (and with it the runner exports), "fresh" builds a new one
+    # (or filters GIT_* out of it), "" is not an environment expression.
+    function env_rhs(r) {
+      sub(/^[ \t]+/, "", r)
+      if (r ~ /\*\*[ \t]*(os[ \t]*\.[ \t]*)?environ/ || r ~ /\.\.\.[ \t]*process[ \t]*\.[ \t]*env/ ||
+          r ~ /^(os[ \t]*\.[ \t]*)?environ[ \t]*\.[ \t]*copy/ || r ~ /^dict[ \t]*\([ \t]*(os[ \t]*\.[ \t]*)?environ[ \t]*[,)]/)
+        return "inherit"
+      if (r ~ /environ|process[ \t]*\.[ \t]*env/)
+        return (r ~ /GIT_/ ? "fresh" : "inherit")
+      if (r ~ /^[{]/ || r ~ /^dict[ \t]*\(/) return "fresh"
+      return ""
+    }
+
+    function env_class(nm) {
+      if (nm ~ /^(os\.)?environ$|^process\.env$/) return "inherit"
+      if (!(nm in ENVK)) return ""
+      return (ENVG[nm] && ENVN[nm]) ? "full" : ENVK[nm]
+    }
+
+    # The env a git call is handed: "none", "full" (names both variables),
+    # "inherit", "fresh", or "defer:NAME" for a name bound later in the file
+    # (a helper defined above the dict it uses), resolved against the final
+    # binding at end of file.
+    function call_env(s, js,   v, nm, cls, t, c, best) {
+      if (js) { if (!match(s, /[{,][ \t]*env[ \t]*(:|[,}])/)) return "none"
+        if (substr(s, RSTART + RLENGTH - 1, 1) != ":") { s = "env"; RSTART = 1; RLENGTH = 0 } }
+      else if (!match(s, /[(,][ \t]*env[ \t]*=[^=]/)) return "none"
+      v = substr(s, RSTART + RLENGTH - (js ? 0 : 1))
+      sub(/^[ \t]+/, "", v)
+      if (v ~ /^[{]/ || v ~ /^dict[ \t]*\(/) {
+        if (index(v, "GIT_CONFIG_GLOBAL") && v ~ NOSYS_ON) return "full"
+        # A spread of a bound dict carries that dict: `{ ...baseEnv, x }`.
+        best = ""; t = v
+        while (match(t, /(\.\.\.|\*\*)[ \t]*[A-Za-z_][A-Za-z0-9_.]*/)) {
+          nm = substr(t, RSTART, RLENGTH); t = substr(t, RSTART + RLENGTH)
+          sub(/^(\.\.\.|\*\*)[ \t]*/, "", nm)
+          c = env_class(nm)
+          if (c == "full") return "full"
+          if (c == "") { if (best == "") best = "defer:" nm }
+          else if (c == "inherit" && best !~ /^defer/) best = "inherit"
+        }
+        if (best != "") return best
+        cls = env_rhs(v)
+        return cls == "" ? "fresh" : cls
+      }
+      if (match(v, /^((self|this)\.)?[A-Za-z_][A-Za-z0-9_]*/)) {
+        nm = substr(v, 1, RLENGTH)
+        c = env_class(nm)
+        return c == "" ? "defer:" nm : c
+      }
+      return "inherit"
+    }
+
+    # End of file: the final env-dict bindings, for the deferred lookups.
+    function g_flush(   nm) {
+      if (cur == "") return
+      for (nm in ENVK) print "G\t" cur "\tK\t0\t" nm "=" env_class(nm)
+    }
+
+    function py_runs_git(s,   t) {
+      if (!index(s, "git")) return 0
+      t = s
+      gsub(("([A-Za-z]*(Error|Exception|Expired)|which|assert[A-Za-z]*|skipTest|startswith|endswith|get|index|count|find|split|join|print)[ \t]*\\([ \t]*" Q "git" Q), "", t)
+      return t ~ ("\\[[ \t]*" Q "git" Q "[ \t]*[],]") || t ~ ("\\([ \t]*" Q "git" Q "[ \t]*,") ||
+             t ~ ("(run|call|check_output|check_call|Popen|system|popen|getoutput|getstatusoutput)[ \t]*\\([ \t]*" Q "git[ \t]")
+    }
+
+    function js_runs_git(s) {
+      if (!index(s, "git")) return 0
+      return s ~ ("(execFileSync|execFile|spawnSync|spawn|execa|execaSync|execFileAsync)[ \t]*\\([ \t]*" QB "git" QB "[ \t]*[,)]") ||
+             s ~ ("(execSync|exec|execAsync)[ \t]*\\([ \t]*" QB "git[ \t]")
+    }
+
+    # One Python or JS logical line, in that order: process-environment sets
+    # and unsets, env-dict bindings, then any git call.
+    function pj_global(s, ln, js,   nm, rhs, cls, v, i, t) {
+      # The process environment updated from a bound dict that names both:
+      # `Object.assign(process.env, gitEnv)`, `os.environ.update(GIT_ENV)`.
+      if (match(s, /(Object[ \t]*\.[ \t]*assign[ \t]*\([ \t]*process[ \t]*\.[ \t]*env|environ[ \t]*\.[ \t]*update[ \t]*\()[ \t]*,?[ \t]*[A-Za-z_][A-Za-z0-9_.]*[ \t]*\)/)) {
+        nm = substr(s, RSTART, RLENGTH)
+        sub(/^.*[(,][ \t]*/, "", nm); sub(/[ \t]*\)$/, "", nm)
+        if (env_class(nm) == "full") { g_ev("S", ln, "G"); g_ev("S", ln, "N") }
+      }
+      if (index(s, "GIT_CONFIG_")) {
+        if (js) {
+          if (s ~ ("process[ \t]*\\.[ \t]*env[ \t]*(\\.[ \t]*GIT_CONFIG_GLOBAL|\\[[ \t]*" QB "GIT_CONFIG_GLOBAL" QB "[ \t]*\\])[ \t]*(\\?\\?|\\|\\|)?=[^=]") ||
+              (s ~ /Object[ \t]*\.[ \t]*assign[ \t]*\([ \t]*process[ \t]*\.[ \t]*env/ && index(s, "GIT_CONFIG_GLOBAL"))) g_ev("S", ln, "G")
+          if (s ~ ("process[ \t]*\\.[ \t]*env[ \t]*(\\.[ \t]*GIT_CONFIG_NOSYSTEM|\\[[ \t]*" QB "GIT_CONFIG_NOSYSTEM" QB "[ \t]*\\])[ \t]*(\\?\\?|\\|\\|)?=[ \t]*" QB "?(1|true|yes)") ||
+              (s ~ /Object[ \t]*\.[ \t]*assign[ \t]*\([ \t]*process[ \t]*\.[ \t]*env/ && s ~ NOSYS_ON)) g_ev("S", ln, "N")
+          if (s ~ /delete[ \t]+process[ \t]*\.[ \t]*env[^;]*GIT_CONFIG_GLOBAL/) g_ev("U", ln, "G")
+          if (s ~ /delete[ \t]+process[ \t]*\.[ \t]*env[^;]*GIT_CONFIG_NOSYSTEM/) g_ev("U", ln, "N")
+        } else {
+          if (s ~ ("environ[ \t]*\\[[ \t]*" Q "GIT_CONFIG_GLOBAL" Q "[ \t]*\\][ \t]*=[^=]") ||
+              s ~ ("(environ[ \t]*\\.[ \t]*setdefault|setenv|putenv)[ \t]*\\([ \t]*" Q "GIT_CONFIG_GLOBAL" Q) ||
+              ((s ~ /environ[ \t]*\.[ \t]*update[ \t]*\(/ || s ~ /patch[ \t]*\.[ \t]*dict[ \t]*\([ \t]*(os[ \t]*\.[ \t]*)?environ/) && index(s, "GIT_CONFIG_GLOBAL"))) g_ev("S", ln, "G")
+          if (s ~ ("environ[ \t]*\\[[ \t]*" Q "GIT_CONFIG_NOSYSTEM" Q "[ \t]*\\][ \t]*=[ \t]*" Q "?(1|true|yes)") ||
+              s ~ ("(environ[ \t]*\\.[ \t]*setdefault|setenv|putenv)[ \t]*\\([ \t]*" Q "GIT_CONFIG_NOSYSTEM" Q "[ \t]*,[ \t]*" Q "?(1|true|yes)") ||
+              ((s ~ /environ[ \t]*\.[ \t]*update[ \t]*\(/ || s ~ /patch[ \t]*\.[ \t]*dict[ \t]*\([ \t]*(os[ \t]*\.[ \t]*)?environ/) && s ~ NOSYS_ON)) g_ev("S", ln, "N")
+          if (pops_literal(s, "GIT_CONFIG_GLOBAL")) g_ev("U", ln, "G")
+          if (pops_literal(s, "GIT_CONFIG_NOSYSTEM")) g_ev("U", ln, "N")
+          for (v in LOOPVAR)
+            if (pops_var(s, v)) {
+              if (LOOPG[v]) g_ev("U", ln, "G")
+              if (LOOPN[v]) g_ev("U", ln, "N")
+            }
+        }
+        # A later update of a tracked env dict that names the variables.
+        for (nm in ENVK)
+          if (index(s, nm ".update") || index(s, nm "[") || index(s, nm ".setdefault") || index(s, nm ".GIT_CONFIG")) {
+            if (index(s, "GIT_CONFIG_GLOBAL")) ENVG[nm] = 1
+            if (s ~ NOSYS_ON || s ~ ("GIT_CONFIG_NOSYSTEM" Q "?[ \t]*\\][ \t]*=[ \t]*" Q "?(1|true|yes)")) ENVN[nm] = 1
+          }
+      }
+      # An assignment to a name binds (or drops) its env-dict class.
+      if (js ? match(s, /^[ \t]*((const|let|var)[ \t]+)?((this)\.)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=[^=]/) \
+             : match(s, /^[ \t]*((self)\.)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=[^=]/)) {
+        nm = substr(s, RSTART, RLENGTH - 1)
+        rhs = substr(s, RSTART + RLENGTH - 1)
+        sub(/^[ \t]*((const|let|var)[ \t]+)?/, "", nm)
+        sub(/[ \t]*=$/, "", nm)
+        cls = env_rhs(rhs)
+        if (cls != "") {
+          ENVK[nm] = cls
+          ENVG[nm] = (index(rhs, "GIT_CONFIG_GLOBAL") > 0)
+          ENVN[nm] = (rhs ~ NOSYS_ON)
+          # A spread of a bound dict that names both carries them.
+          t = rhs
+          while (match(t, /(\.\.\.|\*\*)[ \t]*[A-Za-z_][A-Za-z0-9_.]*/)) {
+            v = substr(t, RSTART, RLENGTH); t = substr(t, RSTART + RLENGTH)
+            sub(/^(\.\.\.|\*\*)[ \t]*/, "", v)
+            if (v != nm && env_class(v) == "full") { ENVG[nm] = 1; ENVN[nm] = 1 }
+          }
+        } else delete ENVK[nm]
+      }
+      # An indented call sits in a function or test body, which runs after
+      # the whole module has loaded: it is judged (F) against the state at
+      # end of file, not at its line. Module-level code is judged in order.
+      if (js ? js_runs_git(s) : py_runs_git(s)) {
+        cls = call_env(s, js)
+        if (cls == "fresh") { G_LAST = "B"; print "G\t" cur "\tB\t" ln "\t" }
+        else if (cls ~ /^defer:/) { G_LAST = "D"; print "G\t" cur "\tD\t" ln "\t" substr(cls, 7) (s ~ /^[ \t]/ ? ":F" : "") }
+        else if (cls != "full") g_ev(s ~ /^[ \t]/ ? "F" : "R", ln, "")
+      }
     }
 
     function ncount(s, re,   t) { t = s; return gsub(re, "", t) }
@@ -368,6 +629,8 @@ scan() {
         for (i = 1; i <= NREQ; i++) delete BOUND[v, REQ[i]]
         for (i = 1; i <= NREQ; i++)
           if (s ~ (Q REQ[i] Q)) BOUND[v, REQ[i]] = 1
+        LOOPG[v] = (s ~ (Q "GIT_CONFIG_GLOBAL" Q))
+        LOOPN[v] = (s ~ (Q "GIT_CONFIG_NOSYSTEM" Q))
       } else if (match(s, /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) {
         # `for _v in LEAKED:` — the iterable is a name, not a literal. Copy
         # whatever that name currently binds; a rebound constant has already
@@ -382,6 +645,7 @@ scan() {
         for (i = 1; i <= NREQ; i++) delete BOUND[v, REQ[i]]
         for (i = 1; i <= NREQ; i++)
           if (CONST[cname, REQ[i]]) BOUND[v, REQ[i]] = 1
+        LOOPG[v] = 0; LOOPN[v] = 0
       }
       for (i = 1; i <= NREQ; i++)
         if (pops_literal(s, REQ[i])) CLEARED[REQ[i]] = 1
@@ -389,10 +653,15 @@ scan() {
         if (pops_var(s, v))
           for (i = 1; i <= NREQ; i++)
             if (BOUND[v, REQ[i]]) CLEARED[REQ[i]] = 1
+      pj_global(s, pstart, 0)
     }
 
     function py_drain() {
-      if (pending != "") { py_logical(pending); pending = ""; depth = 0; joined = 0 }
+      if (pending != "") {
+        if (isjs) pj_global(pending, pstart, 1)
+        else py_logical(pending)
+        pending = ""; depth = 0; joined = 0
+      }
     }
 
     function flush_py(   i) {
@@ -442,7 +711,15 @@ scan() {
       # is two commands: the wrap applies only to the first (GNU env:
       # removals apply while it runs COMMAND). A file-wide name presence
       # test on the joined string would credit the unwrapped write.
+      # GLOBAL RULE: a loop that unsets every GIT_CONFIG_* name the
+      # environment holds (`for v in $(env | sed … GIT_CONFIG_…); do unset`)
+      # spans statements, so it is matched on the whole logical line.
       n = split(s, segs, /[ \t]*(\|\||&&|;)[ \t]*/)
+      if (!SH_DATA_ONLY && s ~ /GIT_CONFIG_([^A-Za-z0-9_]|$)/)
+        for (i = 1; i <= n; i++)
+          if (segs[i] ~ /^[ \t]*(do[ \t]+)?unset[ \t]/) { g_ev("U", SH_LN, "G"); g_ev("U", SH_LN, "N"); break }
+      if (!SH_DATA_ONLY) for (i = 1; i <= n; i++) sh_global_env(segs[i], SH_LN)
+      sh_global_git(s, SH_LN, SH_DATA_ONLY)
       for (i = 1; i <= n; i++) {
         fixture = is_fixture(segs[i])
         if (fixture) print "FIXTURE\t" FILENAME
@@ -472,6 +749,7 @@ scan() {
         # entirely — an under-selection, which is the unsafe direction here.
         if (match(rest, /[^ \t"();|&]*\.sh/)) {
           path = substr(rest, RSTART, RLENGTH)
+          g_ev("C", SH_LN, path)
           sub(/.*\//, "", path)
           if (path != "") print "SOURCE\t" FILENAME "\t" path
         }
@@ -479,7 +757,7 @@ scan() {
     }
 
     function sh_drain() {
-      if (sh_pending != "") { sh_logical(sh_pending); sh_pending = ""; sh_joined = 0 }
+      if (sh_pending != "") { SH_LN = sstart; sh_logical(sh_pending); sh_pending = ""; sh_joined = 0 }
     }
 
     function sh_flush() {
@@ -488,7 +766,7 @@ scan() {
     }
 
     FILENAME != cur {
-      py_drain(); flush_py(); sh_flush()
+      py_drain(); flush_py(); sh_flush(); g_flush()
       cur = FILENAME
       split("", CLEARED); split("", BOUND); split("", LOOPVAR); split("", CONST)
       pending = ""; depth = 0; joined = 0
@@ -496,16 +774,37 @@ scan() {
       SH_UNSET = 0; SH_ENV = 0; SH_ENV_GAP = 0
       split("", HD_DELIM); split("", HD_STRIP)
       HD_N = 0; HD_HEAD = 1; HD_ACTIVE = 0; hd_line = 0; SH_DATA_ONLY = 0
+      G_LAST = ""; split("", ENVK); split("", ENVG); split("", ENVN); split("", LOOPG); split("", LOOPN)
       ispy = (FILENAME ~ /\.py$/)
+      isjs = (FILENAME ~ /\.(mjs|cjs|js|ts)$/)
     }
     {
-      line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code)
+      line = $0; gsub(/\r/, "", line); code = line
+      # JS comments are `//`; a `#` there is a private field, not a comment.
+      if (isjs) sub(/(^|[ \t])\/\/.*/, "", code)
+      else sub(/#.*/, "", code)
       # Python has no heredocs, so the state machine runs for shell only and
       # hd_line stays 0 there. (A triple-quoted Python string is the analogous
       # data region; the Python arm credits only os.environ pops, so that is
       # tracked separately if it ever proves reachable.)
       hd_line = 0
-      if (!ispy) hd_step(line, code)
+      if (!ispy && !isjs) hd_step(line, code)
+    }
+    # JS ARM: the global rule only. A line is joined with the next ones only
+    # when it ends inside an argument list, array or object literal (`(`,
+    # `[`, `,`, or `{` after `=`, `:`, `(` or `,`). A block brace (`=> {`,
+    # `) {`) never starts a join: test callbacks open one on almost every
+    # line, and joining a whole callback body would hide the assignments
+    # inside it from the line-start matching below.
+    isjs {
+      if (line ~ /^[ \t]*\/\/[ \t]*fixture-isolation-scope:[ \t]*[^ \t]/) print "SCOPE\t" FILENAME
+      if (pending == "" && code !~ /([[(,]|[=:(,][ \t]*\{)[ \t]*$/) { pstart = FNR; pending = code; py_drain(); next }
+      if (pending == "") pstart = FNR
+      pending = (pending == "" ? code : pending " " code)
+      depth += ncount(code, OPEN) - ncount(code, CLOSE)
+      joined++
+      if (depth <= 0 || joined >= MAXJOIN) py_drain()
+      next
     }
     # Whole-file scope declaration. Anchored at the start of the comment CONTENT
     # so that prose mentioning the token, or a detector holding it as a string
@@ -523,6 +822,7 @@ scan() {
     # while bracket depth is open, which is also what keeps the wrapped
     # `for _v in ("GIT_DIR", …):` clear idiom recognizable.
     ispy {
+      if (pending == "") pstart = FNR
       pending = (pending == "" ? code : pending " " code)
       depth += ncount(code, OPEN) - ncount(code, CLOSE)
       joined++
@@ -535,6 +835,7 @@ scan() {
     hd_line {
       sh_drain()
       SH_DATA_ONLY = 1
+      SH_LN = FNR
       sh_logical(code)
       SH_DATA_ONLY = 0
       next
@@ -548,21 +849,29 @@ scan() {
       piece = code
       cont = is_cont(code)
       if (cont) sub(/[ \t]*\\[ \t]*$/, "", piece)
+      if (sh_pending == "") sstart = FNR
       sh_pending = (sh_pending == "" ? piece : sh_pending " " piece)
       sh_joined++
       if (!cont || sh_joined >= MAXJOIN) sh_drain()
     }
-    END { py_drain(); flush_py(); sh_flush() }
+    END { py_drain(); flush_py(); sh_flush(); g_flush() }
   ' "$@"
 }
 
 declare -A ISOLATING_BASENAME=() IS_FIXTURE=() CLEARS_FILE=() SCOPED=() SOURCES=()
+declare -A GEV=() BYBASE=() GHARNESS=()
 
 mapfile -t tracked < <(git ls-files '*.sh' '*.py' 2>/dev/null)
 ((${#tracked[@]} > 0)) || {
   echo "error: no tracked *.sh or *.py files found — run from inside the repository" >&2
   exit 2
 }
+mapfile -t js_suites < <(git ls-files '*.test.mjs' '*.test.js' '*.test.cjs' '*.test.ts' 2>/dev/null)
+declare -A IS_TRACKED=()
+for f in "${tracked[@]}"; do
+  IS_TRACKED["$f"]=1
+  [[ "$f" == *.sh ]] && BYBASE["${f##*/}"]+=" $f"
+done
 
 while IFS=$'\t' read -r kind file extra; do
   case "$kind" in
@@ -573,9 +882,102 @@ while IFS=$'\t' read -r kind file extra; do
   FIXTURE) IS_FIXTURE["$file"]=1 ;;
   SCOPE) SCOPED["$file"]=1 ;;
   SOURCE) SOURCES["$file"]="${SOURCES["$file"]:-} $extra" ;;
+  G) GEV["$file"]+=" ${extra//$'\t'/:}" ;;
   *) ;;
   esac
-done < <(scan "${tracked[@]}")
+done < <(scan "${tracked[@]}" ${js_suites[@]+"${js_suites[@]}"})
+
+g_eval() {
+  local ev kind rest ln arg state=0 bad="" bit late="" deferred
+  local -A fin=()
+  for ev in ${GEV["$1"]:-}; do
+    [[ "$ev" == K:* ]] || continue
+    arg="${ev#K:*:}"
+    fin["${arg%%=*}"]="${arg#*=}"
+  done
+  for ev in ${GEV["$1"]:-}; do
+    kind="${ev%%:*}" rest="${ev#*:}"
+    ln="${rest%%:*}" arg="${rest#*:}"
+    bit=1
+    [[ "$arg" == N ]] && bit=2
+    case "$kind" in
+    S) state=$((state | bit)) ;;
+    U) state=$((state & ~bit)) ;;
+    D)
+      deferred=0
+      [[ "$arg" == *:F ]] && arg="${arg%:F}" deferred=1
+      case "${fin[$arg]:-inherit}" in
+      full) ;;
+      fresh) [[ -n "$bad" ]] || bad="$ln" ;;
+      *)
+        if ((deferred)); then
+          [[ -n "$late" ]] || late="$ln"
+        else
+          ((state == 3)) || [[ -n "$bad" ]] || bad="$ln"
+        fi
+        ;;
+      esac
+      ;;
+    F) [[ -n "$late" ]] || late="$ln" ;;
+    R) ((state == 3)) || [[ -n "$bad" ]] || bad="$ln" ;;
+    B) [[ -n "$bad" ]] || bad="$ln" ;;
+    C) (($2 < 4)) && g_harness "$1" "$arg" $(($2 + 1)) && state=3 ;;
+    *) ;;
+    esac
+  done
+  ((state == 3)) || [[ -n "$bad" || -z "$late" ]] || bad="$late"
+  G_STATE=$state G_BAD=$bad
+}
+
+g_resolve() {
+  local tail="${2##*[\})]}" dir="" base seg
+  local -a segs out
+  [[ "$tail" =~ ^\$[A-Za-z_][A-Za-z0-9_]* ]] && tail="${tail:${#BASH_REMATCH[0]}}"
+  tail="${tail#/}"
+  [[ "$1" == */* ]] && dir="${1%/*}"
+  local -a bases=()
+  while [[ -n "$dir" ]]; do
+    bases+=("$dir")
+    [[ "$dir" == */* ]] && dir="${dir%/*}" || dir=""
+  done
+  G_RES=""
+  for base in ${bases[@]+"${bases[@]}"} ""; do
+    IFS=/ read -ra segs <<<"${base:+$base/}$tail"
+    out=()
+    for seg in "${segs[@]}"; do
+      case "$seg" in
+      "" | .) ;;
+      ..) ((${#out[@]})) && unset 'out[${#out[@]}-1]' ;;
+      *) out+=("$seg") ;;
+      esac
+    done
+    G_RES=""
+    for seg in ${out[@]+"${out[@]}"}; do G_RES+="${G_RES:+/}$seg"; done
+    [[ -n "${IS_TRACKED[$G_RES]:-}" ]] && return
+  done
+  G_RES=""
+}
+
+g_harness() {
+  local f key files
+  g_resolve "$1" "$2"
+  f="$G_RES"
+  if [[ -n "$f" ]]; then key="$f" files="$f"; else key="${2##*/}" files="${BYBASE[${2##*/}]:-}"; fi
+  if [[ -z "${GHARNESS[$key]:-}" ]]; then
+    GHARNESS["$key"]=0
+    if [[ -n "$files" ]]; then
+      GHARNESS["$key"]=1
+      for f in $files; do
+        g_eval "$f" "$3"
+        ((G_STATE == 3)) || {
+          GHARNESS["$key"]=0
+          break
+        }
+      done
+    fi
+  fi
+  ((GHARNESS[$key] == 1))
+}
 
 sources_isolating_harness() {
   local b
@@ -638,13 +1040,77 @@ done
 stale=()
 read_list::stale_to stale BASELINE_ENTRIES
 
+declare -A GBASELINED=()
+GBASELINE_ENTRIES=()
+if [[ -f "$GBASELINE" ]]; then
+  read_list::into GBASELINE_ENTRIES "$GBASELINE" --comments inline || exit 2
+  for line in ${GBASELINE_ENTRIES[@]+"${GBASELINE_ENTRIES[@]}"}; do
+    GBASELINED["$line"]=1
+  done
+fi
+read_list::reset_used
+gviolations=()
+gchecked=0
+for t in "${suites[@]}" ${js_suites[@]+"${js_suites[@]}"}; do
+  [[ -n "${GEV[$t]:-}" && -z "${SCOPED[$t]:-}" ]] || continue
+  g_eval "$t" 0
+  [[ -z "$G_BAD" && " ${GEV[$t]}" == *" "[RFBD]:* ]] && gchecked=$((gchecked + 1))
+  [[ -n "$G_BAD" ]] || continue
+  read_list::mark_used "$t"
+  if [[ -n "${GBASELINED[$t]:-}" ]]; then
+    [[ "$mode" == "list" ]] && printf 'baselined   %s (global config)\n' "$t"
+    continue
+  fi
+  gviolations+=("$t:$G_BAD")
+  [[ "$mode" == "list" ]] && printf 'VIOLATION   %s:%s (global config)\n' "$t" "$G_BAD"
+done
+gstale=()
+read_list::stale_to gstale GBASELINE_ENTRIES
+
 if [[ "$mode" == "list" ]]; then
   printf '\n%d isolated, %d baselined, %d violating\n' \
     "${#covered[@]}" "$((${#BASELINED[@]} - ${#stale[@]}))" "${#violations[@]}"
+  printf 'global config: %d baselined, %d violating\n' \
+    "$((${#GBASELINED[@]} - ${#gstale[@]}))" "${#gviolations[@]}"
   exit 0
 fi
 
 rc=0
+
+if ((${#gviolations[@]} > 0)); then
+  rc=1
+  {
+    printf 'GIT GLOBAL CONFIG ISOLATION: %d suite(s) run git while reading the host global or system git config.\n\n' "${#gviolations[@]}"
+    printf '  %s\n' "${gviolations[@]}"
+    cat <<EOF
+
+Each names the line of the first git command that runs with GIT_CONFIG_GLOBAL
+not exported or GIT_CONFIG_NOSYSTEM=1 not set: never set, set only after that
+line, unset again before it, or replaced by an env= dict that drops both. Such
+a command reads the host's ~/.gitconfig and system config (signing, hooks,
+url rewrites, identity), so the suite passes or fails by machine. The test
+runners export both (scripts/lib/test-git-env.sh); a suite run directly does not.
+
+Fix by exporting both before the first git command, at the top of the suite:
+
+    export GIT_CONFIG_GLOBAL="\${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
+(Python: os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull) and
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"; JS: process.env.GIT_CONFIG_GLOBAL ??=
+"/dev/null" and process.env.GIT_CONFIG_NOSYSTEM = "1"), or by sourcing a
+harness that does (scripts/test-git-helpers.sh), and keep both in any env dict.
+A suite that must read the host config declares "# fixture-isolation-scope: <reason>".
+Do not add a new suite to $GBASELINE.
+EOF
+  } >&2
+fi
+
+if ((${#gstale[@]} > 0)); then
+  rc=1
+  while IFS= read -r s; do
+    read_list::stale_line "$GBASELINE" "$s" 'no longer shadows a violation'
+  done < <(printf '%s\n' "${gstale[@]}" | sort)
+fi
 
 if ((${#violations[@]} > 0)); then
   rc=1
@@ -680,6 +1146,7 @@ if ((${#stale[@]} > 0)); then
 fi
 
 if ((rc == 0)); then
-  printf 'fixture git isolation: OK (%d isolated, %d baselined)\n' "${#covered[@]}" "${#BASELINED[@]}"
+  printf 'fixture git isolation: OK (%d isolated, %d baselined; %d git-running suites read no host config, %d baselined)\n' \
+    "${#covered[@]}" "${#BASELINED[@]}" "$gchecked" "${#GBASELINED[@]}"
 fi
 exit "$rc"

@@ -16,6 +16,9 @@ import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 // Children that call mktemp (the verify-script wrapper) write here, outside the checkout fixtures.
 const childTmp = tempDir("collect-base-children-");
 process.env.TMPDIR = childTmp;

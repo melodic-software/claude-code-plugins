@@ -17,7 +17,7 @@ fail() {
 
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
-export HOME="$T/home" GIT_CONFIG_NOSYSTEM=1
+export HOME="$T/home" GIT_CONFIG_GLOBAL="$T/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1
 mkdir -p "$HOME"
 git config --global user.name fixture
 git config --global user.email fixture@example.invalid

@@ -754,7 +754,7 @@ test("a diff touching the security review skill or the risk scorer changes a hol
 test("the scan stops a release whose planned branch changes a hold path, naming no path, and passes an ordinary one", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "uac-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
   const git = (...args) => execFileSync("git", ["-C", dir, ...args], { env, encoding: "utf8" }).trim();
   const commitFile = (path, from) => {
     git("checkout", "-q", "--detach", from);
@@ -871,7 +871,7 @@ test("a built tree that is not the planned head's, or an empty change, makes no 
 test("the net change reads each file once at its head content, whatever the commits in between", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "uac-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
   const git = (...args) => execFileSync("git", ["-C", dir, ...args], { env, encoding: "utf8" }).trim();
   git("init", "-q", "-b", "main");
   writeFileSync(join(dir, "keep.md"), "k");
@@ -908,7 +908,7 @@ test("the net change reads each file once at its head content, whatever the comm
 test("the scanned bundle holds one fixed commit per head with its tree, and no blob a merge added then removed", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "uac-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "model", GIT_AUTHOR_EMAIL: "m@m", GIT_COMMITTER_NAME: "model", GIT_COMMITTER_EMAIL: "m@m" };
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "model", GIT_AUTHOR_EMAIL: "m@m", GIT_COMMITTER_NAME: "model", GIT_COMMITTER_EMAIL: "m@m" };
   const repo = join(dir, "repo");
   const fresh = join(dir, "fresh");
   const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { env, encoding: "utf8" }).trim();

@@ -92,6 +92,7 @@ new_repo
 r="$REPO"
 cat >"$r/clean.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 d="$(mktemp -d)"
 git -C "$d" init -q
@@ -154,6 +155,7 @@ mkdir -p "$r/lib"
 cat >"$r/lib/harness.sh" <<'SH'
 # shellcheck shell=bash
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 SH
 cat >"$r/sourced.test.sh" <<'SH'
 #!/usr/bin/env bash
@@ -198,6 +200,7 @@ new_repo
 r="$REPO"
 cat >"$r/leaky.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 d="$(mktemp -d)"
 git -C "$d" init -q
 git -C "$d" config user.email test@example.com
@@ -237,6 +240,7 @@ new_repo
 r="$REPO"
 cat >"$r/pure.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 [[ "$(printf 'a')" == "a" ]] || exit 1
 git status --short >/dev/null 2>&1
 SH
@@ -313,6 +317,7 @@ new_repo
 r="$REPO"
 cat >"$r/read-ident.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 git config --get-all user.name >/dev/null 2>&1
 git config --get user.email >/dev/null 2>&1
 SH
@@ -350,6 +355,7 @@ new_repo
 r="$REPO"
 cat >"$r/local-read.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 git config --local --get user.email >/dev/null 2>&1
 SH
 commit_all "$r"
@@ -408,6 +414,8 @@ new_repo
 r="$REPO"
 cat >"$r/test_clean.py" <<'PY'
 import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG"):
     os.environ.pop(_v, None)
 def make(d):
@@ -523,6 +531,8 @@ cat >"$r/test_wrapped_clean.py" <<'PY'
 import os
 import subprocess
 
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -710,6 +720,7 @@ new_repo
 r="$REPO"
 cat >"$r/continued-unset.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset GIT_DIR \
       GIT_WORK_TREE \
       GIT_CONFIG
@@ -826,6 +837,8 @@ new_repo
 r="$REPO"
 cat >"$r/test_const_clear.py" <<'PY'
 import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 LEAKED = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG")
 for _v in LEAKED:
     os.environ.pop(_v, None)
@@ -1058,6 +1071,7 @@ new_repo
 r="$REPO"
 cat >"$r/hd_after.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 d="$(mktemp -d)"
 cat >"$d/generated.test.sh" <<'INNER'
 echo data
@@ -1082,6 +1096,7 @@ new_repo
 r="$REPO"
 cat >"$r/hd_herestring.test.sh" <<'SH'
 #!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 d="$(mktemp -d)"
 grep -q x <<<"a <<NOPE b" || true
 echo "redirect with << to open a heredoc"
@@ -1122,8 +1137,241 @@ else
   fail "heredoc fixture-only: rc=$rc out='$out'"
 fi
 
-# The live corpus against its baseline is the "Check fixture git isolation"
-# step of lint-shell, which runs whenever a shell or Python file changes; run
-# here, it read every shell and Python file of the tree.
+global_case() {
+  local label="$1" want="$2" file="$3" needle="${4:-$3}" r out rc
+  new_repo
+  r="$REPO"
+  mkdir -p "$r/$(dirname "$file")"
+  cat >"$r/$file"
+  [[ -n "${GC_EXTRA:-}" ]] && "$GC_EXTRA" "$r"
+  commit_all "$r"
+  out="$(run_gate "$r")"
+  rc=$?
+  if [[ "$want" == pass ]]; then
+    if [[ $rc -eq 0 ]]; then ok "global: $label"; else fail "global: $label: rc=$rc out='$out'"; fi
+  elif [[ $rc -eq 1 && "$out" == *"GIT GLOBAL CONFIG ISOLATION"*"$needle"* ]]; then
+    ok "global: $label"
+  else
+    fail "global: $label: rc=$rc out='$out'"
+  fi
+}
+
+global_case "a shell suite that sets neither fails at its first git line" fail g-none.test.sh g-none.test.sh:3 <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" status
+SH
+global_case "exporting both before the first git command passes" pass g-both.test.sh <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+git -C "$(mktemp -d)" status
+SH
+global_case "GIT_CONFIG_GLOBAL alone still reads the system config" fail g-half.test.sh <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null
+git -C "$(mktemp -d)" status
+SH
+global_case "GIT_CONFIG_SYSTEM stands in for GIT_CONFIG_NOSYSTEM" pass g-sys.test.sh <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+git -C "$(mktemp -d)" status
+SH
+global_case "a set after the first git command fails at that command" fail g-late.test.sh g-late.test.sh:2 <<'SH'
+#!/usr/bin/env bash
+REPO_TOP="$(git rev-parse --show-toplevel)"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git -C "$REPO_TOP" status
+SH
+global_case "a later unset fails the next git command" fail g-unset.test.sh g-unset.test.sh:5 <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git -C "$(mktemp -d)" status
+unset GIT_CONFIG_GLOBAL
+git -C "$(mktemp -d)" status
+SH
+global_case "an unset loop over GIT_CONFIG_* after the export fails" fail g-loop.test.sh g-loop.test.sh:5 <<'SH'
+#!/usr/bin/env bash
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+for v in $(env | sed -n 's/^\(GIT_CONFIG_[A-Z_0-9]*\)=.*/\1/p'); do unset "$v"; done
+git -C "$(mktemp -d)" status
+SH
+global_case "the same loop before the export passes" pass g-loop-fixed.test.sh <<'SH'
+#!/usr/bin/env bash
+for v in $(env | sed -n 's/^\(GIT_CONFIG_[A-Z_0-9]*\)=.*/\1/p'); do unset "$v"; done
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git -C "$(mktemp -d)" status
+SH
+global_case "an export inside a heredoc body earns no credit" fail g-heredoc.test.sh <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+cat >"$d/inner.sh" <<'INNER'
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+INNER
+git -C "$d" status
+SH
+global_case "both set as a command prefix credit that command" pass g-prefix.test.sh <<'SH'
+#!/usr/bin/env bash
+GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$(mktemp -d)" status
+SH
+global_case "git inside a quoted message is not a command" pass g-quoted.test.sh <<'SH'
+#!/usr/bin/env bash
+echo "run: a | git status ; then git log"
+printf '%s\n' 'git log' | wc -l
+SH
+
+gc_harness_exports() { printf '# shellcheck shell=bash\nexport GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1\n' >"$1/lib/h.sh"; }
+gc_harness_silent() { printf '# shellcheck shell=bash\nunset GIT_DIR GIT_WORK_TREE GIT_CONFIG\n' >"$1/lib/h.sh"; }
+gc_baseline() { printf 'g-base.test.sh # pre-existing\n' >"$1/scripts/fixture-git-global-baseline.txt"; }
+GC_EXTRA=gc_harness_exports
+global_case "a harness that exports both, sourced before git, passes" pass lib/g-src.test.sh <<'SH'
+#!/usr/bin/env bash
+. "$(dirname "$0")/h.sh"
+git -C "$(mktemp -d)" status
+SH
+global_case "the same harness sourced after the first git command fails" fail lib/g-src-late.test.sh lib/g-src-late.test.sh:2 <<'SH'
+#!/usr/bin/env bash
+git -C "$(mktemp -d)" status
+. "$(dirname "$0")/h.sh"
+SH
+GC_EXTRA=gc_harness_silent
+global_case "a harness that exports nothing grants nothing" fail lib/g-src-none.test.sh <<'SH'
+#!/usr/bin/env bash
+. "$(dirname "$0")/h.sh"
+git -C "$(mktemp -d)" status
+SH
+GC_EXTRA=''
+
+global_case "python: a suite that sets neither fails" fail test_g_none.py <<'PY'
+import subprocess
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True)
+PY
+global_case "python: setdefault plus NOSYSTEM at module level passes" pass test_g_set.py <<'PY'
+import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True)
+PY
+global_case "python: a module-level git call before the set fails" fail test_g_late.py test_g_late.py:2 <<'PY'
+import os, subprocess
+TOP = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+PY
+global_case "python: a function body runs after the module, so a later set covers it" pass test_g_body.py <<'PY'
+import os, subprocess
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+PY
+global_case "python: popping GIT_CONFIG_GLOBAL after the set fails" fail test_g_pop.py <<'PY'
+import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+os.environ.pop("GIT_CONFIG_GLOBAL", None)
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True)
+PY
+global_case "python: an env= dict filtered of GIT_* drops the isolation" fail test_g_envdrop.py test_g_envdrop.py:6 <<'PY'
+import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True, env=ENV)
+PY
+global_case "python: the same dict updated with both passes" pass test_g_envfix.py <<'PY'
+import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+ENV.update(GIT_CONFIG_GLOBAL=os.environ["GIT_CONFIG_GLOBAL"], GIT_CONFIG_NOSYSTEM="1")
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], check=True, env=ENV)
+PY
+global_case "python: an env= literal naming both passes on its own" pass test_g_envlit.py <<'PY'
+import os, subprocess
+def check(d):
+    subprocess.run(
+        ["git", "-C", d, "status"],
+        env={"PATH": os.environ["PATH"], "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
+    )
+PY
+
+global_case "js: a suite that sets neither fails" fail g-none.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+test("x", () => {
+  execFileSync("git", ["status"]);
+});
+JS
+global_case "js: process.env set at module level passes" pass g-set.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+test("x", () => {
+  execFileSync("git", ["status"]);
+});
+JS
+global_case "js: a fresh env dict without GIT_CONFIG_GLOBAL fails" fail g-fresh.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+const env = { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: "1" };
+test("x", () => {
+  execFileSync("git", ["status"], { env });
+});
+JS
+global_case "js: a bound env dict naming both passes, even bound after its helper" pass g-bound.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+const git = (...args) => execFileSync("git", args, { env, encoding: "utf8" });
+const env = { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+JS
+global_case "js: deleting the variable after the set fails" fail g-delete.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+delete process.env.GIT_CONFIG_GLOBAL;
+test("x", () => {
+  execFileSync("git", ["status"]);
+});
+JS
+
+global_case "a declared scope exempts a shell suite" pass g-scope.test.sh <<'SH'
+#!/usr/bin/env bash
+# fixture-isolation-scope: reads the host git config on purpose
+git config --global --get user.name
+SH
+global_case "a declared scope exempts a JS suite" pass g-scope.test.mjs <<'JS'
+// fixture-isolation-scope: reads the host git config on purpose
+import { execFileSync } from "node:child_process";
+execFileSync("git", ["config", "--global", "--get", "user.name"]);
+JS
+
+GC_EXTRA=gc_baseline
+global_case "a global-baseline entry grandfathers its suite" pass g-base.test.sh <<'SH'
+#!/usr/bin/env bash
+git -C "$(mktemp -d)" status
+SH
+GC_EXTRA=''
+new_repo
+r="$REPO"
+cat >"$r/g-base.test.sh" <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git -C "$(mktemp -d)" status
+SH
+gc_baseline "$r"
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"STALE BASELINE"*"fixture-git-global-baseline.txt"*"g-base.test.sh"* ]]; then
+  ok "global: a stale global-baseline entry fails"
+else
+  fail "global: stale global baseline: rc=$rc out='$out'"
+fi
+GC_EXTRA=''
 
 test_harness::report
