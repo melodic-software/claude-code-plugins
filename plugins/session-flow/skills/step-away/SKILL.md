@@ -86,13 +86,23 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
    Without it the Stop hook holds the same condition. The person typing this line, or a last
    instruction before leaving, is part of the launch and never reads as being back.
-6. **Fresh session.** When the words ask for a fresh session, ask one short question: hand off to
-   a fresh background session (recommended, as asked) or stay here, armed either way. Settle any
-   absence step 1 would ask about first; nobody can answer it later. To hand off, invoke
-   `/session-flow:continue-in-background` through the Skill tool with
-   `--step-away "<absence words> <scope>"`, the "fresh session" words removed, so the background
-   session runs this skill first and arms under its own id. Run no `start` here; tell the person
-   whether the arming was confirmed. A session launched this way never hands off again.
+6. **Fresh session.** When the words ask for a fresh session, launch it and arm it from here while
+   the person is present; `claude --bg` picks the new session's id, so `start` runs after the
+   launch:
+   1. Settle the absence (step 1, asking now if needed) and write the task file (step 2), named
+      for this session's id. It needs the ignored `.work/` path, since `start` cannot run first.
+   2. Invoke `/session-flow:continue-in-background` through the Skill tool with the scope words
+      and `done when every item in <task file> is done or marked parked`, which its gate arms as
+      the goal without a draft. It hands back the background session's full `sessionId`.
+   3. Run step 3's `start` at once with `--session <that sessionId>` in place of
+      `${CLAUDE_SESSION_ID}`, then `status` for that id, failures handled as step 3 says.
+   4. End with step 4's message, naming the background session and `claude attach <short id>`,
+      and saying that what it did before `start` (seconds, by the probe) is outside the report.
+      Skip step 5 and step 7 here; the background session does the work.
+
+   No `sessionId` back (no launch, or no listing) → the background session is not armed: say so
+   and offer to arm this session instead. Pointer: probe 4 in
+   [continue-in-background's goal-probe.md](../continue-in-background/reference/goal-probe.md).
 7. **Work**, from the turn after the launch message (the Stop hook's note or the person's `/goal`
    line starts it): read [reference/rules.md](reference/rules.md), then work the task file.
 
