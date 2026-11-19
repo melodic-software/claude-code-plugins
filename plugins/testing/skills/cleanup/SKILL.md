@@ -94,17 +94,19 @@ What differs here:
   repository's `findings.md`.
 - **Batches run in that repository's session.** `/mutation-testing:audit` and the `test-weaken`
   hook read the session's own project, so steps 0 to 7 for a repository run in a session whose
-  project is its `<root>`; this session runs them only for its own repository. For each other
-  repository, list its chosen batches with the `/testing:cleanup <folder>` command to run there,
-  one repository at a time. Under a target form, this session's own script calls name the root:
-  `resolve-config.sh --root <root>`, and `read-verification.sh` with `CLAUDE_PROJECT_DIR=<root>`.
+  project is its `<root>`. This session's project is the checkout it started in, never a `<root>`
+  created above, the invoking repository's own included, so under a target form this session runs
+  the plans and no batch. For every repository, this one included, list its chosen batches with
+  the `/testing:cleanup <folder>` command to run in a session opened in that repository's
+  `<root>`, one repository at a time; that session runs them with no target form.
 - **State per repository.** `<work>`, `.work/testing-cleanup-plan/` and the step 7 findings file
   live under that repository's `<root>`, never the invoking repository's.
 - **Pull requests per repository.** A repository's committed batches go to its own pull request,
   sized by the PR scope budget, still only when the user asks.
 - **Merged report.** Show one plan table across the repositories, each row carrying its
   `owner/name`, ordered by finding count as plan step 3 orders one repository.
-- **Unattended.** Each repository runs only its first `pending` batch whose kind is not `unknown`.
+- **Unattended.** This session still runs no batch. Each repository's list names only its first
+  `pending` batch whose kind is not `unknown`, the one plan step 4 lets an unattended run take.
 
 ## Steps
 
