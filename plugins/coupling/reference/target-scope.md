@@ -113,6 +113,7 @@ at it, in their own pull requests.
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
 | `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
 | `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
+| `/harness-memory:audit` | Points here through its plugin-shipped copy; flags one rule repeated across repositories for user scope or the standards repository |
 
 ## Plugin-shipped copies
 
