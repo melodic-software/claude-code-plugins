@@ -165,7 +165,7 @@ If the project has session-start setup hooks, they run on the next SessionStart,
 | Check | Command | Fix hint |
 |-------|---------|----------|
 | Local settings/secrets present | e.g. `test -f .claude/settings.local.json` (when the project uses one) | The helper already copied `.worktreeinclude`-matched gitignored files at creation; for anything not covered by `.worktreeinclude`, copy from the main repo checkout (or add it to `.worktreeinclude`) |
-| Git hooks installed | The project's hook manager's own status or list command, named in its setup docs or project instructions | Run the project's hook-install command |
+| Git hooks installed | The project's hook manager's own status or list command, named in its setup docs or project instructions | Run the project's hook-install command, except in a worktree [Workspace environment setup](#workspace-environment-setup) step 1 skips, where no hook command runs; with none stated, report the check as not run |
 | Dependencies installed | The project's own install or restore step, from the Workspace environment `setup` above or its setup docs; for a `package-lock.json` the helper already provisioned `node_modules` (check its stderr warning) | Run the project's install command, except in a worktree [Workspace environment setup](#workspace-environment-setup) step 1 skips; with none stated, report the check as not run |
 
 Gitignored files (secrets, installed dependencies, build output) do not propagate to a fresh worktree; these checks catch that.
