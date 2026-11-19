@@ -801,6 +801,7 @@ jobs:
           LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
           POLL_SECONDS: '60'
           POLL_LIMIT_SECONDS: '600'
+          RATE_WAIT_SECONDS: '720'
           RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
@@ -863,12 +864,14 @@ jobs:
           # (403 or 429) waits retry-after seconds, else, with
           # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
           # both read from the refused response's headers, when the wait fits
-          # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
-          # A wait past it ends the job with a notice naming the reset and
-          # leaves the stale ci-status to maintenance-reconcile-lost-runs,
-          # which re-runs a red only on a pending or missing review, at
-          # attempt 1, after its PENDING_BACKOFF_MINUTES: the same hand-off
-          # this job makes for a lanes App PR while the kill switch is on.
+          # in what is left of RATE_WAIT_SECONDS, counted with the poll's
+          # waits: twelve minutes fit the job's timeout, and the brake holds
+          # the pool a median 12 minutes (7 days to 2026-11-19). A wait past
+          # it fails the job, naming the reset: no other run here
+          # re-runs a ci-status this job leaves stale (a later lane's
+          # completion exists only while the other lane is running), and
+          # maintenance-reconcile-lost-runs re-runs one red only on a pending
+          # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
           # Should both re-run it, the read_at check below ends this job on
           # an attempt that started after the lanes finished. What overlap
           # remains is two POSTs inside check-then-act gaps, which GitHub
@@ -914,9 +917,9 @@ jobs:
                 wait=
               fi
               if [ -n "$wait" ]; then
-                if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
-                  echo "::notice::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; ci-status on $HEAD_SHA is left to the lost-run reconciler."
-                  exit 0
+                if [ $((waited + wait)) -gt "$RATE_WAIT_SECONDS" ]; then
+                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${RATE_WAIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+                  exit 1
                 fi
                 echo "Rate limited reading $2; waiting ${wait}s for the reset."
                 sleep "$wait"
