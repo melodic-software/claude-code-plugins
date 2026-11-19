@@ -1596,7 +1596,26 @@ class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
         self.annotations[2] = KILL_SWITCH_GATE
         self.assert_counted(causes=("rate-limit", "read-floor"))
 
-    def _main(self, conclusion: str, created: str = "2026-11-19T07:30:00Z") -> None:
+    def test_a_lane_assertion_quoting_a_cause_is_counted(self) -> None:
+        self.jobs[9].append(_job(3, "Test Bash"))
+        self.annotations |= {
+            2: KILL_SWITCH_GATE,
+            3: [
+                EXIT,
+                _annotation(
+                    "failure",
+                    "AssertionError: 'the lanes kill switch is on' not found in output",
+                ),
+            ],
+        }
+        self.assert_counted()
+
+    def _main(
+        self,
+        conclusion: str,
+        created: str = "2026-11-19T07:30:00Z",
+        main_lines: list[dict[str, str]] = LANE_FAILURE,
+    ) -> None:
         self.main_runs = [
             {
                 "id": 20,
@@ -1615,11 +1634,20 @@ class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
         ]
         self.jobs[20] = [_job(30, "Test Bash"), _job(31, GATE)]
         self.jobs[9] = [_job(2, GATE), _job(3, "Test Bash")]
-        self.annotations |= {2: [EXIT], 3: LANE_FAILURE}
+        self.annotations |= {2: [EXIT], 3: LANE_FAILURE, 30: main_lines}
 
     def test_a_job_main_failed_at_the_same_time_is_not_counted(self) -> None:
         self._main("failure")
         self.assert_excused("main-red")
+
+    def test_a_job_main_failed_on_other_lines_is_counted(self) -> None:
+        self._main("failure", main_lines=[EXIT, _annotation("failure", "AssertionError: 3 != 4")])
+        self.assert_counted()
+
+    def test_a_job_failing_on_its_exit_line_alone_is_not_main_red(self) -> None:
+        self._main("failure", main_lines=[EXIT])
+        self.annotations[3] = [EXIT]
+        self.assert_counted()
 
     def test_the_gate_s_own_refusal_while_main_is_red_is_counted(self) -> None:
         self._main("failure")

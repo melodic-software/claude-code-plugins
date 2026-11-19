@@ -4469,7 +4469,11 @@ HYGIENE_HEADLINE_RE = re.compile(
     r"Hygiene check \S+ finished with outcome: \w+\. (?:Last lines of its "
     r"output:|This gate runs as a composite action;[^\n]*:)\s*"
 )
-LINE_WRAPPER_RE = re.compile(r"^(?:::error::|[\w./-]+:(?:\d+:)? )+")
+LINE_WRAPPER_RE = re.compile(r"^(?:::error::|[\w-]*[./][\w./-]*:(?:\d+:)? )+")
+PRODUCER_LINE_RE = re.compile(
+    r"gh: |could not read [^:;]+: |'gh api [^']*' |(?:GET|POST|PUT|PATCH|DELETE) https://\S+ "
+    r"|#\d+: |The (?:self-hosted )?runner\b"
+)
 INFRA_CAUSE_LINES = {
     "rate-limit": re.compile(
         rf"{RATE_LIMIT_ANNOTATION_RE.pattern}|\bAPI rate limit exceeded\b"
@@ -4501,11 +4505,36 @@ def _diagnostic_lines(message: str) -> list[str]:
     return [line for line in lines if line] or [message]
 
 
-def _failure_line(message: str) -> dict[str, Any]:
+def _annotation_lines(repo: str, check_run: Any) -> list[str] | None:
+    """The diagnostic lines of a check run's failure annotations, or None
+    when a full page may hide more."""
+    annotations = json_array(
+        _verdict_read(f"repos/{repo}/check-runs/{check_run}/annotations?per_page=100")
+    )
+    if len(annotations) >= 100:
+        return None
+    return [
+        line
+        for a in map(json_object, annotations)
+        if a.get("annotation_level") == "failure"
+        for line in _diagnostic_lines(str(a.get("message") or ""))
+    ]
+
+
+def _failure_line(message: str, gate: bool = True) -> dict[str, Any]:
     """One diagnostic line: the infra causes it names, whether it is a
-    generic or consequence line, and the reset times a hold line names."""
+    generic or consequence line, and the reset times a hold line names.
+    Outside the gate, whose lines are the gate's own, a cause line must
+    start as a producer writes it (`PRODUCER_LINE_RE`) or with the cause, so
+    a test's output quoting a cause names none."""
+    shaped = gate or bool(PRODUCER_LINE_RE.match(message))
     return {
-        "causes": [c for c, rx in INFRA_CAUSE_LINES.items() if rx.search(message)],
+        "text": message,
+        "causes": [
+            c
+            for c, rx in INFRA_CAUSE_LINES.items()
+            if (m := rx.search(message)) and (shaped or m.start() == 0)
+        ],
         "generic": bool(GENERIC_FAILURE_RE.fullmatch(message)),
         "consequence": bool(CONSEQUENCE_RE.fullmatch(message)),
         "stamps": ISO_STAMP_RE.findall(message) if HOLD_RESET_RE.search(message) else [],
@@ -4542,20 +4571,14 @@ def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
             name = job.get("name")
             if job.get("conclusion") in PASSING_JOB_CONCLUSIONS or name == merge_policy.GATE_ALIAS:
                 continue
-            annotations = json_array(
-                _verdict_read(f"repos/{repo}/check-runs/{job.get('id')}/annotations?per_page=100")
-            )
+            lines = _annotation_lines(repo, job.get("id"))
+            gate = name == merge_policy.GATE_CHECK
             found.append(
                 {
                     "name": name,
                     "lines": None
-                    if len(annotations) >= 100
-                    else [
-                        _failure_line(line)
-                        for a in map(json_object, annotations)
-                        if a.get("annotation_level") == "failure"
-                        for line in _diagnostic_lines(str(a.get("message") or ""))
-                    ],
+                    if lines is None
+                    else [_failure_line(line, gate) for line in lines],
                 }
             )
     if run.get("status") == "completed":
@@ -4590,11 +4613,21 @@ def _job_causes(
 
 
 def _red_on_main(
-    repo: str, branch: str, run: dict[str, Any], job: str, removed: datetime
+    repo: str, branch: str, run: dict[str, Any], job: dict[str, Any], removed: datetime
 ) -> bool:
-    """Whether `job` also failed on `branch` at the time of the removal: in
-    the newest completed run of the merge-group run's workflow on `branch`
-    that started within `MAIN_RED_WINDOW` before it."""
+    """Whether `job` also failed on `branch` at the time of the removal, on
+    the same lines: in the newest completed run of the merge-group run's
+    workflow on `branch` that started within `MAIN_RED_WINDOW` before it, a
+    job of its name failed with every line `job` failed with that is
+    neither generic nor a consequence, and there is one."""
+    own = job.get("lines")
+    if not is_json_array(own):
+        return False
+    wanted = {
+        str(line.get("text"))
+        for line in map(json_object, own)
+        if not (line.get("generic") or line.get("consequence"))
+    }
     workflow = run.get("workflow_id")
     if not workflow:
         return False
@@ -4625,11 +4658,12 @@ def _red_on_main(
     main = max(at_the_time, key=lambda pair: pair[0])[1]
     if main.get("conclusion") != "failure":
         return False
-    jobs = _attempt_jobs(repo, main) or []
-    return any(
-        j.get("name") == job and j.get("conclusion") not in PASSING_JOB_CONCLUSIONS
-        for j in map(json_object, jobs)
-    )
+    for j in map(json_object, _attempt_jobs(repo, main) or []):
+        if j.get("name") == job.get("name") and j.get("conclusion") not in PASSING_JOB_CONCLUSIONS:
+            lines = _annotation_lines(repo, j.get("id"))
+            if wanted and lines is not None and wanted <= set(lines):
+                return True
+    return False
 
 
 def _infra_removal(
@@ -4676,7 +4710,7 @@ def _infra_removal(
             if named is None and not (
                 MAIN_RED in causes
                 and name != merge_policy.GATE_CHECK
-                and _red_on_main(repo, branch, run, name, removed)
+                and _red_on_main(repo, branch, run, job, removed)
             ):
                 return None
             for cause, stamps in ({MAIN_RED: []} if named is None else named).items():

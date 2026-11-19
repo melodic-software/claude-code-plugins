@@ -1800,9 +1800,10 @@ the rules that only tighten in
   At the cap, a removal whose merge-group run failed on infra alone is not counted:
   `merge.queue-ejection-infra-causes` (default every cause) names which. Every failed job's failure
   annotations must name a cause (`rate-limit`, `read-floor`, `verify-unreadable`, `kill-switch`,
-  `lost-runner`), apart from lines that only report it, each line of an annotation judged alone,
-  or the job, other than `CI Status`, must have failed on main's run of that workflow at the time
-  too (`main-red`). The budget causes and `main-red` excuse a removal only once each one's named
+  `lost-runner`), apart from lines that only report it, each line of an annotation judged alone;
+  outside `CI Status` a cause line must start as its producer writes it. Or the job, other than
+  `CI Status`, must have failed on main's run of that workflow at the time too, on every line it
+  failed with beyond the exit line, and there must be one (`main-red`). The budget causes and `main-red` excuse a removal only once each one's named
   reset, or an hour when it names none, has passed. Each excused removal gets a
   `::notice title=queue-ejection::` line. A removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
