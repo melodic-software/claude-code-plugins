@@ -104,6 +104,15 @@ on:
         required: false
         type: number
         default: 30
+      rate-limit-wait-seconds:
+        description: >-
+          The run job's rate-limit wait budget (rate-guard.mjs waitBudgetMs):
+          a GitHub API stop whose reset comes within it is waited out instead
+          of failing the job. 0 keeps the guard's 60 s; the run job's timeout
+          must hold the wait.
+        required: false
+        type: number
+        default: 0
       issue-dimensions:
         description: >-
           Issue mode: the dimensions the caller resolved when it set
@@ -609,6 +618,8 @@ jobs:
       # Set after the script ran, so forgeable: post.mjs checks every row.
       api-failures: ${{ steps.api-failures.outputs.api-failures }}
       act-outcome: ${{ steps.act-script.outcome }}
+    env:
+      API_BUDGET_WAIT_SECONDS: ${{ inputs.rate-limit-wait-seconds }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch

@@ -8,9 +8,10 @@
 // (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).
 // So once a response shows a pool exhausted, the latch sends no further call
 // to that pool before its reset for the rest of the process. A call that meets
-// a stop whose reset is within SERVER_RETRY_BUDGET_MS of the process's waits,
-// summed, waits for it and goes out, and a refused answer its client will send
-// again after that wait (RESEND) fails nothing. Past that budget the call is refused: an
+// a stop whose reset is within the latch's budget (SERVER_RETRY_BUDGET_MS, or
+// waitBudgetMs's longer one) of the process's waits, summed, waits for it and
+// goes out; a refused answer its client will send again after that wait
+// (RESEND), and a stop-floor answer GitHub served, fail nothing. Past that budget the call is refused: an
 // error names the reset and the process exits red, or, when the step holds
 // (API_BUDGET_HOLD=1, outage posture element 2), a notice names it and the
 // exit is the caller's. The stop also goes in the
@@ -55,6 +56,14 @@ const MAX_RESET = 999_999_999_999;
 // The 60 s wait budget: a client's 5xx retries (retryServerErrors) and,
 // counted apart, a latch's rate-limit waits.
 export const SERVER_RETRY_BUDGET_MS = 60_000;
+
+// A step whose failure would drop finished work takes a longer wait
+// (https://github.com/melodic-software/claude-code-plugins/issues/16642): whole
+// seconds over 60, up to a primary window's hour; its timeout must hold it.
+export function waitBudgetMs(value = process.env.API_BUDGET_WAIT_SECONDS) {
+  const seconds = /^\d{1,4}$/.test(String(value ?? "")) ? Number(value) : 0;
+  return seconds * 1000 > SERVER_RETRY_BUDGET_MS && seconds <= 3600 ? seconds * 1000 : SERVER_RETRY_BUDGET_MS;
+}
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
@@ -647,7 +656,9 @@ export function createRateLimitLatch({
   stopFile = STOP_FILE,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   hold = process.env.API_BUDGET_HOLD === "1",
+  budgetMs = waitBudgetMs(),
 } = {}) {
+  const patient = budgetMs > SERVER_RETRY_BUDGET_MS;
   const stops = readStops(stopFile, log);
   const causeFile = stopFile ? join(dirname(stopFile), "cause") : null;
   const causes = readCauses(causeFile);
@@ -692,7 +703,7 @@ export function createRateLimitLatch({
   // Whether a call to url would wait out its pool's stop rather than be refused.
   const waits = (url) => {
     const reset = resetMs(url);
-    return reset !== null && waited + reset <= SERVER_RETRY_BUDGET_MS;
+    return reset !== null && waited + reset <= budgetMs;
   };
 
   async function waitOut(url, method, wait = sleep) {
@@ -797,8 +808,13 @@ export function createRateLimitLatch({
       }
       // A stop later steps cannot see is a fault, not a limit to hold on.
       const resent = !unrecorded && resend && waits(url) && refused;
-      const holds = resent || (hold && !unrecorded);
-      const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
+      const outwaits = !unrecorded && floored && waits(url);
+      const holds = resent || outwaits || (hold && !unrecorded);
+      const then = resent
+        ? "it is sent again after the reset"
+        : outwaits
+          ? "the next call waits for the reset"
+          : `this step ${holds ? "holds" : "fails"}`;
       const what = floored
         ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor} (status ${response.status})`
         : server
@@ -848,14 +864,20 @@ export function createRateLimitLatch({
     guard: (fetchImpl, { token, sleep: wait } = {}) => {
       const send = countRequests(fetchImpl, { token });
       return countsRequests(async function guarded(url, init = {}) {
-        await waitOut(url, init.method ?? "GET", wait);
-        check(url, init.method);
-        if (isContentWrite(url, init.method, init.body)) {
-          recordContentWrite({ at: Math.floor(now() / 1000) });
+        const method = String(init.method ?? "GET").toUpperCase();
+        for (let again = patient && method === "GET" && init[RESEND] !== true; ; again = false) {
+          await waitOut(url, init.method ?? "GET", wait);
+          check(url, init.method);
+          if (isContentWrite(url, init.method, init.body)) {
+            recordContentWrite({ at: Math.floor(now() / 1000) });
+          }
+          const response = await send(url, init);
+          await observe(url, response, init.method, token, init[RESEND] === true || again);
+          if (!again || !waits(url) || !(await refusedForLimit(response))) {
+            return response;
+          }
+          await response.body?.cancel().catch(() => {});
         }
-        const response = await send(url, init);
-        await observe(url, response, init.method, token, init[RESEND] === true);
-        return response;
       });
     },
   };

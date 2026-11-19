@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -224,7 +224,7 @@ function fakeGitHub(answers) {
 }
 
 // A latch on a fake clock: each wait moves the clock on instead of sleeping.
-function latchFor({ now = NOW, hold = false } = {}) {
+function latchFor({ now = NOW, hold = false, budgetMs } = {}) {
   const lines = [];
   const waits = [];
   let failed = 0;
@@ -242,6 +242,7 @@ function latchFor({ now = NOW, hold = false } = {}) {
       clock.now += ms;
     },
     hold,
+    ...(budgetMs === undefined ? {} : { budgetMs }),
   });
   return { latch, lines, clock, waits, failed: () => failed };
 }
@@ -309,6 +310,69 @@ test("a holding latch refuses a stop past the budget with a notice and fails not
   assert.equal(failed(), 0);
   assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
   assert.equal(lines.filter((line) => line.startsWith("::notice::") && line.includes("2026-10-23T10:33:20Z") && line.endsWith("this step holds")).length, 2);
+});
+
+test("API_BUDGET_WAIT_SECONDS sets the latch's budget only for whole seconds over 60 and up to an hour", () => {
+  assert.equal(waitBudgetMs("1200"), 1_200_000);
+  assert.equal(waitBudgetMs("3600"), 3_600_000);
+  for (const value of [undefined, "", "60", "0", "3601", "12.5", "-900", "1200s"]) {
+    assert.equal(waitBudgetMs(value), 60_000, `${value} keeps the 60 s budget`);
+  }
+});
+
+const BUDGET_1200 = 1_200_000;
+const floored = (remaining, resetIn) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }];
+const refused = (resetIn) => [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }];
+
+test("a patient latch keeps a stop-floor answer, fails nothing, and sends the next call after the reset", async () => {
+  const gh = fakeGitHub([floored(33, 952), [200]]);
+  const { latch, lines, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 200);
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.deepEqual(waits, [953_000], "the reset plus a second");
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
+  assert.ok(lines.some((line) => line.startsWith("::notice::") && line.endsWith("the next call waits for the reset")));
+});
+
+test("the 60 s latch still fails the step on that stop-floor answer and refuses the next call", async () => {
+  const gh = fakeGitHub([floored(33, 952), [200]]);
+  const { latch, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+  assert.ok(failed() >= 1);
+});
+
+test("a patient latch sends a refused GET again after the reset, so the step does not fail", async () => {
+  const gh = fakeGitHub([refused(896), [200, {}, { id: 1 }]]);
+  const { latch, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = latch.guard(gh.fetch);
+  const response = await fetch(URL_A);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { id: 1 });
+  assert.deepEqual(gh.sent, [`GET ${URL_A}`, `GET ${URL_A}`]);
+  assert.deepEqual(waits, [897_000]);
+  assert.equal(failed(), 0);
+});
+
+test("a patient latch never resends a refused write, and refuses a reset past its budget", async () => {
+  const write = fakeGitHub([refused(896), [201]]);
+  const one = latchFor({ budgetMs: BUDGET_1200 });
+  assert.equal((await one.latch.guard(write.fetch)(URL_A, { method: "POST", body: "{}" })).status, 403);
+  assert.equal(write.sent.length, 1);
+  assert.ok(one.failed() >= 1);
+  const late = fakeGitHub([refused(1300), [200]]);
+  const two = latchFor({ budgetMs: BUDGET_1200 });
+  const fetch = two.latch.guard(late.fetch);
+  assert.equal((await fetch(URL_A)).status, 403);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(late.sent.length, 1);
+  assert.deepEqual(two.waits, []);
+  assert.ok(two.failed() >= 1);
 });
 
 test("a primary limit on core leaves graphql open; a secondary one stops every pool", async () => {

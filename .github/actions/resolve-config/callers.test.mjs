@@ -3943,6 +3943,51 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
 });
 
+test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read within rate-limit-wait-seconds", async (t) => {
+  const root = tempDir("scan-wait-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const step = scanSteps().find((s) => s.id === "leak-scan");
+  assert.equal(step.env.WAIT_SECONDS, "${{ inputs.rate-limit-wait-seconds }}");
+  const run = async (env, answers) => {
+    const notices = [];
+    const branches = [];
+    const file = join(root, "scan-leak-calls");
+    rmSync(file, { force: true });
+    const github = {
+      rest: {
+        repos: {
+          getBranch: async () => {
+            branches.push(answers.length);
+            const answer = answers.shift();
+            if (answer instanceof Error) throw answer;
+            return answer;
+          },
+          getContent: async () => {
+            throw new Error("stop after the gate read");
+          },
+        },
+      },
+    };
+    const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {}, notice: (line) => notices.push(line) };
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { HEAD_SHA: "a".repeat(40), CALLS_FILE: file, ...env },
+    }).catch(() => {});
+    return { calls: existsSync(file) ? readFileSync(file, "utf8") : null, notices, reads: branches.length };
+  };
+  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
+  const tip = { data: { commit: { sha: GATE_TIP } } };
+  const waited = await run({ WAIT_SECONDS: "1200" }, [limited(), tip]);
+  assert.equal(waited.reads, 2, "getBranch is read again after the wait");
+  assert.equal(waited.calls, "3\n", "both getBranch reads and the gate's getContent");
+  assert.equal(waited.notices.length, 1);
+  const unset = await run({}, [limited(), tip]);
+  assert.equal(unset.reads, 1, "no budget: no second read");
+  assert.equal(unset.calls, "1\n");
+  const other = await run({ WAIT_SECONDS: "1200" }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
+  assert.equal(other.reads, 1, "a 404 is not a rate limit");
+});
+
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.

@@ -386,7 +386,10 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    script waits for `retry-after` when the header is present. For a primary rate limit it waits
    until `x-ratelimit-reset`, and for a secondary limit at least 60 s. Otherwise it uses capped
    exponential backoff with full jitter. A wait longer than a small per-step budget counts as
-   unknown under element 2 instead of a sleep. Non-idempotent writes are never retried.
+   unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
+   the model ran: their `rate-limit-wait-seconds` budget of 1200 s waits out a reset that comes
+   within it, inside raised timeouts, since failing there drops finished work (#16642).
+   Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
