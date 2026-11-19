@@ -150,7 +150,7 @@ GATE_FILE=""
 # ci-workflows' own local dogfood (`./.github/actions/<path>`), where <path> is
 # `pr-require-checks/check-contract`. The trailing class keeps a longer sibling
 # directory (`check-contract-foo`) out.
-gate_re='\.github/actions/pr-require-checks/check-contract([@[:space:]]|$)'
+gate_re='\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
   # An unmatched glob stays literal; skipped here rather than leaking
   # `shopt -s nullglob` out of the hook.
