@@ -50,6 +50,8 @@ import {
   requiredSections,
   withRequiredSections,
   HOLD_LINE,
+  EVAL_GATED_LABEL,
+  evalHoldComment,
   HOLD_LABEL,
   linkageLines,
   trustedLabeler,
@@ -1840,6 +1842,44 @@ test("main on done opens a ready PR from the branch, labels it do-not-merge when
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
     },
   );
+});
+
+const evalIssue = [/./, 200, { number: 77, created_at: "2026-10-01T00:00:00Z", labels: [{ name: "agent-ready" }, { name: EVAL_GATED_LABEL }] }];
+const evalRoutes = (comments) => [
+  ["GET", /\/issues\/77$/, ...evalIssue.slice(1)],
+  branchTip(),
+  ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+  ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+  ["GET", /\/pulls$/, 200, []],
+  ["POST", /\/pulls$/, 201, { number: 90, html_url: "https://example/o/r/pull/90" }],
+  ["POST", /\/issues\/90\/labels$/, 200, []],
+  ["GET", /\/issues\/90\/comments$/, 200, comments],
+  ["POST", /\/issues\/90\/comments$/, 201, {}],
+];
+
+test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval reason comment", async () => {
+  assert.equal(
+    evalHoldComment(16803),
+    "Held for the before-and-after eval that cut item #16803 needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->",
+  );
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const { fetch, calls } = fakeFetch(evalRoutes([]));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+    assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+      ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+      ["/repos/o/r/issues/90/comments", { body: evalHoldComment(77) }],
+    ]);
+  });
+});
+
+test("main posts the eval hold comment once: a rerun finds the lanes App's", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const { fetch, calls } = fakeFetch(evalRoutes(prior));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")));
+  });
 });
 
 // #7497: an outcome file that says done with nothing left undone opens no PR

@@ -108,6 +108,15 @@ test("a hold line any account posted counts: an App's other reason keeps the hol
   assert.equal(run({ comments: [strangerEval, recordComment()] }).reason, "hold-reason-unlisted-author");
 });
 
+test("the lanes App's eval hold line is a hold reason; the record is still a listed human's", () => {
+  const app = comment(`Held for the eval.\n\n${holdLine("eval")}`, { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  assert.equal(run({ comments: [app, recordComment()] }).release, true);
+  const appRecord = comment(recordLine(HEAD), { user: APP, app: { id: 1, slug: "lanes" } });
+  assert.equal(run({ comments: [app, appRecord] }).reason, "no-record");
+  const imposter = comment(holdLine("eval"), { user: { ...APP, login: "other[bot]" }, at: "2026-11-06T10:01:00Z" });
+  assert.equal(run({ comments: [imposter, recordComment()] }).reason, "hold-reason-unlisted-author");
+});
+
 test("a hold with no recorded reason is kept", () => {
   assert.equal(run({ comments: [recordComment()] }).reason, "no-hold-reason");
 });

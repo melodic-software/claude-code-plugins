@@ -87,6 +87,8 @@ export const markers = (body, pattern) => [...ownLines(body)].map((line) => patt
 const byHuman = (comment, humans) =>
   comment?.user?.type === "User" && Number.isSafeInteger(comment.user.id) && humans.has(comment.user.id) && comment.performed_via_github_app == null;
 
+const byLanesApp = (comment) => comment?.user?.type === "Bot" && comment.user.login === LANES_APP_LOGIN;
+
 // The newest `labeled` event of LABEL, as its time, or null.
 export function heldAt(events) {
   const times = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === LABEL).map((event) => String(event.created_at ?? ""));
@@ -128,7 +130,7 @@ export function decide({ pull, comments, reviews = [], events, humans }) {
     if (reason !== EVAL_REASON) {
       return keep(`hold-reason-${reason}`);
     }
-    if (!byHuman(comment, humans)) {
+    if (!byHuman(comment, humans) && !byLanesApp(comment)) {
       return keep("hold-reason-unlisted-author");
     }
   }
@@ -161,7 +163,7 @@ export const releasedComment = (head, record) =>
 // record line, at any time. Most held pull requests stop here, on one read.
 export function mayRelease(comments, humans) {
   const human = (comments ?? []).filter((comment) => byHuman(comment, humans));
-  if (!human.some((comment) => markers(comment.body, HOLD).includes(EVAL_REASON))) {
+  if (!(comments ?? []).some((comment) => (byHuman(comment, humans) || byLanesApp(comment)) && markers(comment.body, HOLD).includes(EVAL_REASON))) {
     return "no-eval-hold";
   }
   return human.some((comment) => markers(comment.body, RECORD).length > 0) ? null : "no-record";
