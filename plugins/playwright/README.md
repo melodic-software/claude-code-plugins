@@ -31,10 +31,8 @@ when a prerequisites report lists `playwright-cli` as missing. It never installs
 - **Progressive disclosure**. A hub SKILL.md routes to topic reference files
   (commands, sessions, snapshots, storage/auth, tracing/video, network
   mocking, run-code, test generation) so only the relevant slice loads.
-- **Original overlays**: empirically-verified Windows/Git Bash quirks (focus
-  stealing, CWD-relative artifacts, anti-bot captchas) and a recipe for E2E
-  against locally-orchestrated stacks (.NET Aspire, docker-compose, tilt),
-  including Blazor hydration gotchas.
+- **Original overlay**: empirically-verified Windows/Git Bash quirks (focus
+  stealing, CWD-relative artifacts, anti-bot captchas).
 - **Vendored upstream baseline**. The skill directory Microsoft ships inside
   the npm package is bundled verbatim for drift detection.
 
@@ -98,7 +96,7 @@ marketplace follows:
 - Six of its ten reference files run past 100 lines (up to 433) with no
   contents list.
 
-This wrapper is a 163-line hub with trigger phrases, routes to eleven
+This wrapper is a 163-line hub with trigger phrases, routes to ten
 topic files that each carry a contents list when long, and adds gotchas
 observed in the marketplace's browser-tools benchmark. Recheck when the
 upstream version moves: if its skill closes these gaps, plan the switch

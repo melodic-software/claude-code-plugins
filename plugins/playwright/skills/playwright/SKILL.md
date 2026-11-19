@@ -106,7 +106,6 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 | `run-code` for geolocation, permissions, media emulation, waits, frames, animation capture, local files | [reference/running-code.md](reference/running-code.md) |
 | Generating Playwright test files from CLI sessions | [reference/test-generation.md](reference/test-generation.md) |
 | Windows-specific behavior (focus, CWD reset, captcha, artifacts) | [reference/windows-quirks.md](reference/windows-quirks.md) |
-| E2E against a locally-orchestrated app stack (Aspire, docker-compose, tilt) + framework gotchas | [reference/e2e-orchestrator-recipe.md](reference/e2e-orchestrator-recipe.md) |
 
 ## Defaults (accept, don't override)
 
@@ -161,4 +160,4 @@ it into a brief; never hand a `${…}` token from those files to the Bash tool.
 
 ## Source attribution
 
-Distilled from Microsoft's official `@playwright/cli` skill shipped inside the npm package, which is licensed Apache-2.0. The upstream license text ships at `vendor/LICENSE`. The reference files reshape upstream content for progressive disclosure, one topic per file, and add original Windows and orchestrator-recipe material.
+Distilled from Microsoft's official `@playwright/cli` skill shipped inside the npm package, which is licensed Apache-2.0. The upstream license text ships at `vendor/LICENSE`. The reference files reshape upstream content for progressive disclosure, one topic per file, and add original Windows material.
