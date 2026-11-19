@@ -474,7 +474,7 @@ jobs:
     needs: [check-admission, pick-slot, resolve-issue]
     if: ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -517,6 +517,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
       # Whether the third call can run, never the token.
@@ -547,7 +548,7 @@ jobs:
     needs: [resolve-issue]
     if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -586,6 +587,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue
+          API_BUDGET_WAIT_SECONDS: "1200"
           HANDOFF_EVIDENCE_LAG: notice
         run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
 
@@ -671,7 +673,7 @@ jobs:
     needs: [resolve-issue-handoff, resolve-issue-subscription]
     if: ${{ !cancelled() && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -710,6 +712,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue-subscription
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
       - name: Log the API budget at the end
@@ -773,7 +776,7 @@ jobs:
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') != 'true'
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') == '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -812,6 +815,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue resolve-issue-subscription resolve-issue-fallback
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh stale
 
       - name: Log the API budget at the end

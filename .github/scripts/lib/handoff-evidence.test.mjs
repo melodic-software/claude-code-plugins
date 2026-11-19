@@ -302,6 +302,40 @@ test("a rate limit holds fix-docs under the gh wrapper: one request, a notice an
   assert.equal(other.status, 1);
   assert.equal(other.args.length, 1);
   assert.match(other.stderr, /^::error::.*hit GitHub's core API rate limit/m);
+  assert.match(other.stdout, /^::error::handoff evidence for fix-ci still missing after \d+ reads: the jobs read failed: GitHub's core API rate limit holds until /m, "the error names the rate limit");
+});
+
+const limitedUntil = (reset) => [
+  answer("403 Forbidden", { "X-Ratelimit-Limit": 1000, "X-Ratelimit-Remaining": 0, "X-Ratelimit-Reset": reset, "X-Ratelimit-Resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }),
+  1,
+];
+const LANE_POSTED = { name: "Resolve Issue Subscription / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
+
+test("with API_BUDGET_WAIT_SECONDS set, a read the rate limit refused waits for the reset and reads again", () => {
+  const reset = Math.floor(Date.now() / 1000) + 2;
+  const out = run([limitedUntil(reset), [answer("200 OK", {}, listing(LANE_POSTED)), 0]], "0 0 0 0 0", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    env: { API_BUDGET_WAIT_SECONDS: "1200" },
+  });
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.equal(out.args.length, 2, "one refused read, one after the reset");
+  assert.match(out.stdout, /^::notice::GET \/repos\/o\/r\/actions\/runs\/7\/jobs waits \d+s for GitHub's rate limit to reset/m);
+  assert.equal(out.output, "posted=true\n");
+});
+
+test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget ends the reads at once and names the rate limit", () => {
+  const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 3000)], "0 0 0 0 0", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    env: { API_BUDGET_WAIT_SECONDS: "1200" },
+  });
+  assert.equal(out.status, 1);
+  assert.equal(out.args.length, 1);
+  assert.doesNotMatch(out.stdout, /waits \d+s/);
+  assert.match(out.stdout, /^::error::handoff evidence for resolve-issue-subscription still missing after 1 reads: the jobs read failed: GitHub's core API rate limit holds until /m);
+  assert.doesNotMatch(out.stdout, /^Read 2/m, "no read follows the refusal");
+  assert.equal(out.output, "");
 });
 
 const lagged = () => [
