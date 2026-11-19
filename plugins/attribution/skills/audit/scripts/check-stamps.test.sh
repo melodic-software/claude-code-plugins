@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for check-stamps.sh. Fixtures are built inline in a
-# tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
-#
 # The load-bearing cases here are the declined ones. The live corpus carries
 # stamp dates in a long tail of prose forms — "verified <ISO>" dominates, but
 # "as of April 2022", "As of August 23, 2024" and bare years all appear — and a
@@ -27,30 +24,8 @@ export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $3" "exit $2"; fi
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 # --- Fixtures --------------------------------------------------------------------
 #

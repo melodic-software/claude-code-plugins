@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for instruction-files.sh (skill-script shape, per
-# docs/contracts/shell-test-helpers/README.md: per-plugin assertion
-# primitives are duplicated on purpose, never shared across plugins).
-#
 # Every fixture is a throwaway git repository built under mktemp and torn down
 # on exit. Nothing here reads or writes a real repository, and the script under
 # test takes its root as an explicit argument, so a run from any directory
@@ -19,18 +15,9 @@ SCRIPT="$SCRIPT_DIR/instruction-files.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
 assert_equals() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$2]"; fi
 }

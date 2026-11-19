@@ -13,16 +13,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPIN="$HERE/repin.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=../lib/test-ok-fail.sh
+source "$HERE/../lib/test-ok-fail.sh"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/repin-test.XXXXXX")" || exit 1
 trap 'rm -rf "$WORK"' EXIT

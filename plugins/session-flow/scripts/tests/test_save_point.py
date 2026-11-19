@@ -1459,7 +1459,12 @@ def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
 def _install_in_cache(version_dir):
     scripts = version_dir / "scripts"
     scripts.mkdir(parents=True)
-    for name in ("save_point.py", "io_streams.py", "handoff_chain.py"):
+    for name in (
+        "save_point.py",
+        "io_streams.py",
+        "handoff_chain.py",
+        "plugin_paths.py",
+    ):
         shutil.copy2(SCRIPT.parent / name, scripts / name)
 
 

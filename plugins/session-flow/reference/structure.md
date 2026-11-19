@@ -809,7 +809,7 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
 - **Our decision.** We treat the plugin data dir as keyed to the plugin identifier and nothing else
   (no project, checkout or session), and we rely only on the substitution the page documents: a
   SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a script run through Bash
-  derives the dir itself (`save_point.py` `_plugin_data_root`), never reading the variable from
+  derives the dir itself (`plugin_paths.py` `data_root`), never reading the variable from
   its environment or a `${CLAUDE_PLUGIN_DATA:-default}` form.
 - **Pointer**: [Plugin manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),

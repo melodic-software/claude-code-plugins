@@ -7,8 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import plugin_paths  # noqa: E402
 
@@ -70,14 +68,3 @@ def test_run_git_reports_failure_as_none(tmp_path, monkeypatch):
 
     monkeypatch.setattr(plugin_paths.subprocess, "run", slow)
     assert plugin_paths.run_git(tmp_path, "status", timeout=1) is None
-
-
-@pytest.mark.parametrize("value", ["", "/d/disk-hygiene-mkt", "/d/session-flow", "/d/session-flow-inline/"])
-def test_matches_save_point_rule(value, monkeypatch):
-    import away
-    import save_point
-
-    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", value)
-    expected = save_point._plugin_data_root()
-    assert plugin_paths.data_root(os.environ, save_point._SCRIPTS_DIR.parent) == expected
-    assert away.data_root(os.environ, away.DEFAULT_PLUGIN_ROOT) == expected
