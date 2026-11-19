@@ -389,7 +389,9 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
    the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
    `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
-   within it, inside raised timeouts, since failing there drops finished work (#16642).
+   within it, inside raised timeouts, since failing there drops finished work (#16642). So does
+   ci-status's merge-queue verdict reader after a read it did not send below the read floor,
+   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417).
    Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.

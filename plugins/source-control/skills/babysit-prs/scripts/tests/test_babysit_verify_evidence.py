@@ -2716,10 +2716,15 @@ class UnreadableReadsBlock(unittest.TestCase):
         fake.fail = {"/compare/"}
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
-    def test_a_pass_whose_run_cannot_be_read_is_missing(self) -> None:
+    def test_a_pass_whose_run_cannot_be_read_is_unreadable(self) -> None:
         fake = passing()
-        del fake.runs[1]
-        self.assertEqual(read(fake).refusal, "verify:missing")
+        fake.fail = {"actions/runs/1"}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_beside_a_counted_pass_an_unread_one_still_allows(self) -> None:
+        fake = passing(artifact(named(HEAD, "pass-notes"), 5))
+        fake.fail = {"actions/runs/5"}
+        self.assertIsNone(read(fake).refusal)
 
     def test_an_unreadable_listing_commits_or_cap_refuses(self) -> None:
         for kind in ("actions/artifacts", "/commits"):
@@ -2730,6 +2735,90 @@ class UnreadableReadsBlock(unittest.TestCase):
         capped = passing()
         capped.commits = [f"{i:040x}" for i in range(250)]
         self.assertEqual(read(capped).refusal, "verify:unreadable")
+
+
+class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
+    """Owner decision D417: under BABYSIT_READ_FLOOR_STOP a read babysit_gh
+    did not send below github-token's read floor refuses verify:unreadable;
+    with BABYSIT_READ_FLOOR_WAIT_SECONDS the judgment is made again after the
+    pool's reset when it comes within that wait. gh is faked at the
+    subprocess seam under the real rate guard; each `gh api -i` answer
+    carries GitHub's rate-limit headers: 1 of 5000 left until the wait,
+    4990 after it (github-token plans to its 1000 limit-cap)."""
+
+    CLOCK = 1_800_000_000
+
+    def judge(self, fake: FakeGitHub, *, reset_in: int, wait: str) -> tuple[Any, list[float], str]:
+        slept: list[float] = []
+        low = [True]
+
+        def run_command(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+            args = argv[1:]
+            include = args[:2] == ["api", "-i"]
+            if include:
+                args = ["api", *args[2:]]
+            kwargs.pop("allowed_executables", None)
+            kwargs.pop("check", None)
+            proc = fake(args, **kwargs)
+            if include and proc.returncode == 0:
+                remaining = "1" if low[0] else "4990"
+                block = (
+                    "HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\n"
+                    f"X-Ratelimit-Remaining: {remaining}\r\n"
+                    f"X-Ratelimit-Reset: {self.CLOCK + reset_in}\r\n"
+                    "X-Ratelimit-Resource: core\r\n\r\n"
+                )
+                proc = subprocess.CompletedProcess(argv, 0, block + proc.stdout, proc.stderr)
+            return proc
+
+        def sleep(seconds: float) -> None:
+            slept.append(seconds)
+            low[0] = False
+
+        def judged() -> dict[str, Any]:
+            return ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull()).report()
+
+        gh.reset_rate_guard()
+        self.addCleanup(gh.reset_rate_guard)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(gh, "run_command", run_command),
+            mock.patch.object(gh, "_is_paged_read", return_value=False),
+            mock.patch.object(ve, "_floor_sleep", sleep),
+            mock.patch.object(ve, "_floor_clock", return_value=self.CLOCK),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "API_BUDGET_TOKEN": "github-token",
+                    "GITHUB_ACTIONS": "true",
+                    "RUNNER_TEMP": tmp.name,
+                    gh.READ_FLOOR_STOP_ENV: "1",
+                    gh.READ_FLOOR_WAIT_ENV: wait,
+                },
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            return ve._after_the_read_floor(judged), slept, stderr.getvalue()
+
+    def test_a_reset_within_the_wait_is_waited_for_and_the_pass_allows(self) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="900")
+        self.assertIsNone(report["refusal"], report)
+        self.assertEqual(slept, [301])
+        self.assertEqual(gh.read_floor_refusals(), {})
+
+    def test_a_reset_past_the_wait_leaves_the_head_unreadable(self) -> None:
+        report, slept, stderr = self.judge(passing(), reset_in=2000, wait="900")
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertIn("below its read-floor share", report["detail"])
+        self.assertEqual(slept, [])
+        self.assertIn("its reset is 2001 s away, past the 900 s", stderr)
+
+    def test_with_no_wait_set_the_refusal_stands_as_before(self) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="")
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertEqual(slept, [])
 
 
 class AFailedReadRefusesWithoutAHuman(unittest.TestCase):

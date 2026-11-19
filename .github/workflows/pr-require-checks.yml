@@ -4162,11 +4162,16 @@ jobs:
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
     # reads at 0.7 s, plus the whole listings' shared timeout, at most 300 s,
     # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
-    timeout-minutes: 20
+    # 35: those 20, and the verdict reader's wait for a pool's reset
+    # (BABYSIT_READ_FLOOR_WAIT_SECONDS on the lanes-hold step,
+    # https://github.com/melodic-software/claude-code-plugins/issues/16642).
+    timeout-minutes: 35
     env:
       # gh_read's wait budget: a rate-limit wait must end by
-      # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
-      # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
+      # GH_READ_JOB_SECONDS (timeout-minutes in seconds, less the verdict
+      # reader's wait,
+      # https://github.com/melodic-software/claude-code-plugins/issues/16642)
+      # less GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 375 s for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 120 s of own-gate retries, 7 s
       # of status writes and the 90 s rerun wait, plus retry sleeps. It does not
@@ -6478,10 +6483,14 @@ jobs:
       # public reads, and one that does not read refuses verify:unreadable,
       # which holds. Its gh calls go to the gh binary, outside this step's
       # gh_read wait; babysit_gh.py's own rate guard shares this job's stop
-      # file, so a stop either side records holds the other (this checkout
-      # has no pr-pipeline.yaml, so only a rate-limit signal stops it, with no
-      # writer-pause or read-floor margin), and it records
-      # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
+      # file, so a stop either side records holds the other, and it records
+      # its rate-limit readings under API_BUDGET_TOKEN. With
+      # BABYSIT_READ_FLOOR_STOP it sends no read below github-token's read
+      # floor (pr-pipeline.yaml limits.api, in this checkout); a judgment
+      # that refuses verify:unreadable for such a read waits for the pool's
+      # reset and is made again, when the reset is at most
+      # BABYSIT_READ_FLOOR_WAIT_SECONDS away (owner decision D417,
+      # https://github.com/melodic-software/claude-code-plugins/issues/16642). A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
       # before listing (an unread config or commit list) reaches
@@ -6870,7 +6879,7 @@ jobs:
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
             fi
             rm -f "$BABYSIT_VERIFY_LISTING"
-            report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+            report=$(BABYSIT_READ_FLOOR_WAIT_SECONDS=900 BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }
@@ -6886,7 +6895,9 @@ jobs:
             if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
               if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
                 listed=false
-                echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
+                when="before listing artifacts"
+                [ "$index_mode" = false ] || when="in FAIL index mode, which saves no listing"
+                echo "::notice::the verdict reader refused #$pr $when; merge-holds.mjs judges its refusal with no pass."
               elif [ "$index_mode" = true ]; then
                 # FAIL index mode: the reader reads by exact name and saves no
                 # listing, so the head's pass names are read the same way.

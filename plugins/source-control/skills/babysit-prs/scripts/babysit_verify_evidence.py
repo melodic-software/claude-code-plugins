@@ -121,6 +121,8 @@ failed read, a list cut short or no such run keeps the FAIL.
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
   for a new head;
+- otherwise, with a PASS or PASS-NOTES at the head whose run cannot be read:
+  `verify:unreadable`;
 - otherwise, on a pull request created more than `TOO_OLD_DAYS` ago,
   `verify:too-old`: its verdicts may have expired, and the lost-run
   reconciler re-runs the head's checks so pr-verify judges it, whose fresh
@@ -309,12 +311,16 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    READ_FLOOR_WAIT_ENV,
     RUN_SEARCH_CAP,
     fetch_paginated_api,
     flatten_paginated_items,
+    forget_read_floor,
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    read_floor_refusals,
+    read_floor_wait_seconds,
     single_attempt,
     split_created_window,
 )
@@ -4018,6 +4024,10 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
+        # A pass at the head whose run did not read: it may be the pass that
+        # allows, so with no counted one the head is unreadable, not missing
+        # (https://github.com/melodic-software/claude-code-plugins/issues/17377).
+        unread_pass: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
         # with a FAIL whose run cannot be read, for the cap's other pull
         # requests (`_elsewhere`).
@@ -4069,10 +4079,14 @@ class Reader:
                         (run_id, name, item.get("id"))
                     )
                     continue
-                if self._run_state(run_id) == COUNTED:
+                state = self._run_state(run_id)
+                if state == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
                     passes.append((run_id, name, item.get("id")))
                 else:
+                    unread_pass = unread_pass or (
+                        f"run of {name}" if state == UNREAD else None
+                    )
                     ignored += 1
                 continue
             state = self._run_state(run_id, shared=True)
@@ -4194,6 +4208,8 @@ class Reader:
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
                     None,
                 )
+        elif unread_pass:
+            refusal, detail = UNREADABLE, unread_pass
         elif too_old:
             refusal = TOO_OLD
             detail = f"created {created.isoformat()}"
@@ -6519,7 +6535,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
     enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
     at the head it read. Exit 0 whenever the line is printed, a refusal
-    included.
+    included. A `verify:unreadable` that a read-floor refusal caused is judged
+    again after the pool's reset when that falls within `READ_FLOOR_WAIT_ENV`
+    (`_after_the_read_floor`).
 
     `--base-sha` is required: the FAIL cap is the gate's, `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
@@ -6674,12 +6692,63 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
-    reader = Reader(args.repo, args.branch, now=now)
-    if args.shared_listing:
-        reader.listing_max_age = None
+
+    def judged() -> dict[str, Any]:
+        reader = Reader(args.repo, args.branch, now=now)
+        if args.shared_listing:
+            reader.listing_max_age = None
+        return _evidence_report(args, reader)
+
     with merge_policy.base_tips_remembered():
-        print(json.dumps(_evidence_report(args, reader)))
+        print(json.dumps(_after_the_read_floor(judged)))
         return 0
+
+
+def _floor_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _floor_clock() -> float:
+    return time.time()
+
+
+def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """`judge()`, judged once more by a fresh reader when it refused
+    `verify:unreadable` with a read refused below its pool's read floor and
+    every such pool's reset falls within `READ_FLOOR_WAIT_ENV`: the process
+    waits for the reset, then reads again. Otherwise the first judgment stands
+    (owner decision D417,
+    https://github.com/melodic-software/claude-code-plugins/issues/16642)."""
+    report = judge()
+    refused = read_floor_refusals()
+    budget = read_floor_wait_seconds()
+    if report.get("refusal") != UNREADABLE or not refused or budget <= 0:
+        return report
+    pools = ", ".join(sorted(refused))
+    resets = [reset for reset in refused.values() if reset is not None]
+    if len(resets) < len(refused):
+        why = "no reset was read for it"
+    else:
+        wait = max(0.0, max(resets) + 1 - _floor_clock())
+        if wait <= budget:
+            print(
+                f"babysit-verify-evidence: a read was not sent below the {pools} "
+                f"read floor; waiting {wait:.0f} s for its reset, then judging again",
+                file=sys.stderr,
+                flush=True,
+            )
+            _floor_sleep(wait)
+            forget_read_floor(refused)
+            return judge()
+        why = f"its reset is {wait:.0f} s away"
+    print(
+        f"babysit-verify-evidence: a read was not sent below the {pools} read "
+        f"floor and {why}, past the {budget} s {READ_FLOOR_WAIT_ENV}; "
+        "the judgment stands",
+        file=sys.stderr,
+        flush=True,
+    )
+    return report
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:

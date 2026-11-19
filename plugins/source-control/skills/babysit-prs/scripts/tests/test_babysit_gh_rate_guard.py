@@ -561,6 +561,28 @@ class HeadroomShares(GuardCase):
         gh.gh_capture(["api", "repos/o/r/pulls/3"])
         self.assertEqual(len(self.sent), 2)
 
+    def test_a_read_floor_refusal_names_its_reset_and_forgetting_it_reads_again(
+        self,
+    ) -> None:
+        self.answer(0, head(200, **core(1)) + "{}")
+        self.answer(0, head(200, **core(4990)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        with mock.patch.dict(os.environ, {gh.READ_FLOOR_STOP_ENV: "1"}):
+            with self.assertRaises(gh.ReadsFloored):
+                gh.gh_capture(["api", "repos/o/r/pulls/2"])
+            self.assertEqual(gh.read_floor_refusals(), {"github-token": 4102444800})
+            gh.forget_read_floor(gh.read_floor_refusals())
+            self.assertEqual(gh.read_floor_refusals(), {})
+            gh.gh_capture(["api", "repos/o/r/pulls/2"])
+        self.assertEqual(len(self.sent), 2)
+
+    def test_the_read_floor_wait_is_whole_seconds_or_none(self) -> None:
+        for value, seconds in (("900", 900), ("", 0), ("15m", 0), ("-5", 0), ("9.5", 0)):
+            with self.subTest(value), mock.patch.dict(
+                os.environ, {gh.READ_FLOOR_WAIT_ENV: value}
+            ):
+                self.assertEqual(gh.read_floor_wait_seconds(), seconds)
+
 
 class AShallowInstallPath(unittest.TestCase):
     """A copy of the scripts too shallow for the repository root (fewer than
