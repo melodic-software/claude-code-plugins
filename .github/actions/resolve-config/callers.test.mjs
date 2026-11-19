@@ -2809,6 +2809,8 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   }
 });
 
+const STATUS_WRITE_RETRY_SECONDS = 7;
+
 test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
   const job = workflow("pr-require-checks.yml").jobs["ci-status"];
   const composite = ".github/actions/pr-require-checks/report-ci-status";
@@ -2829,9 +2831,15 @@ test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step e
   for (const [name, seconds] of Object.entries(waits)) {
     assert.ok(seconds <= WAIT_BUDGET_SECONDS.step, `${name}'s rate-limit-wait-seconds at ${pin} is ${seconds}, over WAIT_BUDGET_SECONDS.step ${WAIT_BUDGET_SECONDS.step}`);
   }
+  const delays = (await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/run.sh")).match(/^OWN_GATE_RETRY_DELAYS='([0-9 ]+)'$/m)?.[1];
+  assert.ok(delays, `aggregate-results/run.sh at ${pin} sets OWN_GATE_RETRY_DELAYS`);
+  const ownGate = delays.split(" ").reduce((sum, seconds) => sum + Number(seconds), 0);
   const margin = job.env.GH_READ_MARGIN_SECONDS;
-  const total = Object.values(waits).reduce((sum, seconds) => sum + seconds, rerun);
-  assert.ok(total <= margin, `report-ci-status's rate-limit waits ${JSON.stringify(waits)} and ${rerun} s rerun wait at ${pin} total ${total} s, over GH_READ_MARGIN_SECONDS ${margin}`);
+  const total = Object.values(waits).reduce((sum, seconds) => sum + seconds, rerun + ownGate + STATUS_WRITE_RETRY_SECONDS);
+  assert.ok(
+    total <= margin,
+    `report-ci-status's rate-limit waits ${JSON.stringify(waits)}, ${rerun} s rerun wait, ${ownGate} s own-gate retries and ${STATUS_WRITE_RETRY_SECONDS} s status writes at ${pin} total ${total} s, over GH_READ_MARGIN_SECONDS ${margin}`,
+  );
 });
 
 // Each launcher leg is followed by a check that the CLI's init message
