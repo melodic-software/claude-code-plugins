@@ -33,7 +33,7 @@ check "a caller-set GIT_CONFIG_GLOBAL is kept" "$WORK/chosen" "$out"
 
 mkdir -p "$WORK/home"
 printf '[user]\n\tname = machine-global-name\n' >"$WORK/home/.gitconfig"
-out="$(env -u GIT_CONFIG_GLOBAL HOME="$WORK/home" bash -c 'source "$1"; git config --get user.name; echo "rc=$?"' _ "$LIB")"
+out="$(env -u GIT_CONFIG_GLOBAL HOME="$WORK/home" bash -c 'source "$1"; git config --global --get user.name; echo "rc=$?"' _ "$LIB")"
 check "the machine's global git config is not read" "rc=1" "$out"
 
 out="$(in_helper 'ok a >/dev/null; ok b >/dev/null; bad c 2>/dev/null; report >/dev/null; echo "$PASS/$FAIL/$?"')"
