@@ -1,0 +1,19 @@
+name: Probe Claude Lanes Env
+
+on:
+  push:
+    branches: [probe/claude-lanes-env-policy]
+
+permissions: {}
+
+jobs:
+  probe:
+    name: Probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    environment:
+      name: claude-lanes
+      deployment: false
+    steps:
+      - name: Report reaching the runner
+        run: echo "a non-main ref reached the claude-lanes environment"
