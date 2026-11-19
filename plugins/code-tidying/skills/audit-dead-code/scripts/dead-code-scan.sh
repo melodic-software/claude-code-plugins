@@ -10,9 +10,6 @@
 #   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
 #      audit must never fail its caller, so -e is omitted and no detector's
 #      exit code is ever propagated.
-#   2  usage error: unknown argument, missing option value, non-numeric --max,
-#      unknown --lane, a --root that is not a directory, or an unusable temp
-#      directory.
 #
 # Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
 # findings and hard errors; vulture exits 3 for findings and 1 for an input
