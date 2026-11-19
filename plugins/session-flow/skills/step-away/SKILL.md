@@ -100,6 +100,10 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
 When a message reads as the person being back, run `away.py end`, show the report once leading
 with Needs you, then run `away.py deliver`. Who counts as the person is in rules.md "Coming back".
+A parked Needs-you item runs only once the person accepts it, by naming it or through
+`/session-flow:go-with-recommendations`; until then, answer the person and wait, ending each
+answer with the open Needs-you items and their `Recommendation:` lines, so that skill finds them in
+your latest message.
 
 ## Next
 
