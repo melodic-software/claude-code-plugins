@@ -2996,7 +2996,13 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       console.log(`label-unblocked: #${item.number} budget-stop re-fire deferred: the issue lane's queue is at its budget-stop re-fire target`);
       return false;
     }
-    if (!paced(item) || room-- > 0) {
+    if (!paced(item)) {
+      return true;
+    }
+    if (room-- > 0) {
+      if (!budgeted(item)) {
+        budgetRoom--;
+      }
       return true;
     }
     console.log(`label-unblocked: #${item.number} re-fire deferred: the issue lane's queue is at its kill-switch re-fire target`);

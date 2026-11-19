@@ -4033,6 +4033,21 @@ test("a deferred budget-stop re-fire leaves its room to switch trips, which stil
   assert.deepEqual(restarts(switches.calls), ["RESTART 46", "RESTART 47", "RESTART 48", "RESTART 49"], "switch trips alone keep two per slot: 6 less 2 unfinished leaves 4");
 });
 
+test("switch trips that sort ahead of budget stops spend the budget-stop room, so no budget stop re-fires behind them", async (t) => {
+  const older = [
+    [46, "2026-10-16T11:40:00Z"],
+    [47, "2026-10-16T11:41:00Z"],
+    [48, "2026-10-16T11:42:00Z"],
+  ];
+  const fake = inWindow({ budget: BUDGET_ISSUES.slice(0, 3), switches: older });
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 46", "RESTART 47", "RESTART 48"], "three switch trips fill the budget room of 3, so every budget stop waits");
+  for (const number of [43, 41, 45]) {
+    assert.ok(lines.some((line) => line.startsWith(`label-unblocked: #${number} budget-stop re-fire deferred`)), lines.join("\n"));
+  }
+});
+
 test("limits.refire-budget-per-slot sets the budget-stop target: at 2, 2 x 3 less 2 unfinished re-fires four of five under a room of 7", async () => {
   const fake = inWindow({ unfinished: 2 });
   assert.equal(await sweep({ github: fake.github, actions: fake.github }, clearLimits({ "refire-budget-per-slot": 2, "refire-queue-per-slot": 3 })), 0);
