@@ -1,6 +1,6 @@
 {
   "name": "session-flow",
-  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, audit-friction, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), recommend-skills, tidy-work (.work tiers), step-away (run unattended, refuse prompts, report on return), go-with-recommendations (accept the latest recommendations after an evidence check), check, setup.",
+  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after a stall), find-handoff, clean-stop, retro and running-retro, audit-sessions, audit-friction, orient (where the session stands), orchestrate, reanchor (verify assumptions), reconcile (retire finished work), recommend-skills, tidy-work (.work tiers), step-away (run unattended, report on return), go-with-recommendations (accept after an evidence check), check, setup.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

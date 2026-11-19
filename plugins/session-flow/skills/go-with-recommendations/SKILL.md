@@ -1,6 +1,6 @@
 ---
 description: "Accept the recommendations in the agent's latest message after a full evidence check: each is re-grounded in the affected code and current sources, changed or unconfirmable ones come back as old, new and why, and plain-word exceptions override single items. Use when: 'go with recommendations', 'go with your recommendations', 'approve', 'accept all', 'do what you recommended'."
-argument-hint: "[exceptions in plain words, e.g. except Q3: use the queue]"
+argument-hint: "[exception ...]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Accept the latest recommendations after a full evidence check
 ---
 
-**Arguments.** Optional exceptions in plain words. e.g., /go-with-recommendations,
+**Arguments.** `[exception ...]`, each in plain words. e.g., /go-with-recommendations,
 /go-with-recommendations except Q3: use the queue, /go-with-recommendations skip the rename
 
 Accepting is the person's decision; this skill makes sure what they accept still stands on current
