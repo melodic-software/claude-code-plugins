@@ -84,7 +84,7 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
   resume prompt"), the box that is never satisfied by having written the file; on the tracker
   short form, its two lines stand in for the railed prompt
-- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead)
+- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead; a sibling-session offer, "Delivery" below, carries it as its fallback)
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
@@ -250,9 +250,9 @@ reason stated. Never a hand-written handoff file when the script could have run.
 
 ## Delivery: `/clear`-then-paste
 
-This skill's delivery step is the engine's default exit: the rails resume prompt with the
-"`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
-types `/clear` and pastes; nothing is launched on their behalf. A forked side task: a new session.
+This skill's delivery step is the engine's default exit: the rails resume prompt with the "`/clear`, then copy
+everything between the dashed lines" instruction above the top rail. The user types `/clear` and pastes; nothing is
+launched on their behalf. A forked side task: a new session. When this session has a tool that starts another session (the Claude desktop app's Code tab), read [`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md) and offer that delivery, with this one as its fallback; without such a tool, skip that file.
 
 ## Late events after emit
 
