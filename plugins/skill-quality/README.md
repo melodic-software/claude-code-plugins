@@ -31,14 +31,14 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
   A plain (unquoted, non-block) `description` that contains `": "` or a line ending in `:` on any
-  line FAILs: that is a YAML mapping indicator, and a frontmatter block that does not parse costs
-  the skill its fields. A quoted or block scalar may contain the indicator. `compatibility`, when
+  line FAILs: that is a YAML mapping indicator, and this check holds every skill's frontmatter to
+  parsing. A quoted or block scalar may contain the indicator. `compatibility`, when
   present, is held to the Agent Skills spec's length range and FAILs outside it. Absence is
   success. The effective name (the declared field, else the directory leaf) is held to the spec's
   `name` length cap (FAIL) and WARNs when it carries `anthropic` or `claude`, a Skills API upload
   rule rather than a spec rule. Claude Code enforces neither name rule, so both are portability
   findings.
-  - **Record**: the parse-failure behavior is recorded in the unquoted-description comment under
+  - **Record**: the pointer for parse-failure behavior is in the unquoted-description comment under
     the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
     `NAME_MAX_LEN=` there (a script, so no section anchor).
   - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
@@ -64,14 +64,13 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
-- `SKILL.md` under 500 lines, counted over the whole file: this check's stricter reading of
-  official guidance that sets the number.
+- `SKILL.md` within the line cap (`LINE_HARD_CAP` in `scripts/check-skill.sh`), counted over the
+  whole file: this check's stricter reading of official guidance on `SKILL.md` length.
   - **Record**: the comment under the `# --- Check 4` header of `scripts/check-skill.sh` (a
     script, so no section anchor). **As of**: 2026-10-11. **Recheck trigger**: that header or
     `LINE_HARD_CAP` being renamed or moved, or that comment's pointer changing.
   - **Pointer**: for the number and what it covers, fetch
-    <https://code.claude.com/docs/en/skills#add-supporting-files> live. **As of**: 2026-10-11.
-    **Recheck trigger**: that section moving the number or its scope.
+    <https://code.claude.com/docs/en/skills#add-supporting-files> live.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify

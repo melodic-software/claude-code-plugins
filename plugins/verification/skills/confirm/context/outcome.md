@@ -104,6 +104,11 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```
 
+**Criterion rows.** The `--row` lines the verdict record stores (SKILL.md, "Record the verdict for
+the head it judged") come from this report, one per Plan Coverage item: the plan item, its Files
+cell, the strongest Test or check the Evidence table gives it (`none ran` when it has none), and its
+Status.
+
 ### 6. Verdict
 
 - **CONFIRMED** if all plan items are COMPLETE, deviations are justified, no load-bearing or captured assumption is falsified, the stated problem is solved, and Stage 1 left no environment skip

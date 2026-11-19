@@ -188,6 +188,18 @@ else
   bad "a nested markdownlint config is check tooling" "exit $RC; stderr: $ERR"
 fi
 
+git_test_config "$fixture" checkout -q -b size-check origin/main
+mkdir -p "$fixture/plugins/code-metrics/skills/audit/scripts"
+echo 'exit 0' >"$fixture/plugins/code-metrics/skills/audit/scripts/audit-size.sh"
+git_test_config "$fixture" add plugins
+git_test_config "$fixture" commit -q -m size-check
+run_hook "$fixture" 'git push origin size-check' 0
+if [[ "$RC" == 0 && "$ERR" == *"changes check tooling (plugins/code-metrics/skills/audit/scripts/audit-size.sh)"* ]]; then
+  ok "a code-metrics plugin file is check tooling"
+else
+  bad "a code-metrics plugin file is check tooling" "exit $RC; stderr: $ERR"
+fi
+
 git_test_config "$fixture" checkout -q docs-only
 mkdir -p "$fixture/scripts/lib"
 echo 'touch /dev/null' >"$fixture/scripts/lib/helper.sh"

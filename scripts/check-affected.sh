@@ -681,6 +681,9 @@ else
   run_check machine-specific-paths "scripts/check-affected.sh --base $base" machine_paths_check
 fi
 
+run_check size-check "bash plugins/code-metrics/skills/audit/scripts/audit-size.sh --check --base $base" \
+  env -u CLAUDE_PLUGIN_ROOT bash "$tools/plugins/code-metrics/skills/audit/scripts/audit-size.sh" --check --base "$base"
+
 run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
   "$tools/scripts/check-spoke-plugin-root.sh" --check
 

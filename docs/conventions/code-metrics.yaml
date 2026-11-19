@@ -23,3 +23,5 @@ scope:
   # helpers per file on purpose, and no sync script declares them, so the
   # registry above carries no cluster line for them and the audit cannot
   # exclude them. Decided in #4125; reopen through that convention, not here.
+size:
+  check: crossing
