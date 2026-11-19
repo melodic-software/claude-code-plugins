@@ -96,8 +96,6 @@ else
   fail "missing registry: fixture build failed"
 fi
 
-bash "$SUT_SRC" --bogus >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then ok "unknown mode exits 2"; else fail "unknown mode should exit 2 (rc=$rc)"; fi
+test_harness::assert_unknown_mode "$SUT_SRC"
 
 test_harness::report
