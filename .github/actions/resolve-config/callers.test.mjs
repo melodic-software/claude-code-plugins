@@ -5039,7 +5039,7 @@ function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KE
 function transcriptRecord(t, runOutputs) {
   const temp = tempDir("transcript-record-");
   t.after(() => rmSync(temp, { recursive: true, force: true }));
-  const step = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find((s) => s.id === "record");
+  const step = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find((s) => s.id === "record");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
     const output = NEEDS_RUN_OUTPUT.exec(expression)?.[1];
@@ -5070,7 +5070,7 @@ test("pr-run-activity-read.yml: the transcript job uploads the run job's leg tra
     const { status, log, record } = transcriptRecord(t, carried.runOutputs);
     assert.equal(status, 0, log);
     assert.deepEqual(openTranscript(record, jobId), LEG_MESSAGES, jobId);
-    const upload = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find(isUpload);
+    const upload = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find(isUpload);
     assert.equal(expand(upload.with.name, { ...carried.context, "github.run_attempt": "2" }), `lane-transcript-${jobId}-2`, "the artifact name the puller lists for this job-id");
     assert.throws(() => openTranscript(record, "resolve-conflicts"), undefined, "bound to its job-id");
   }
@@ -5212,7 +5212,7 @@ test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript 
   }
   assert.equal(evaluate(seal.if, { "steps.seal-check.outcome": "success", "steps.transcript-carry.outputs.staged": "true" }), true);
   assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /transcript-/);
-  const job = jobs.transcript;
+  const job = jobs["upload-transcript"];
   assert.deepEqual(job.needs, "run");
   assert.deepEqual(job.permissions, {});
   assert.equal(job.environment, undefined);
