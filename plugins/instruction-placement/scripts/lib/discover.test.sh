@@ -19,14 +19,10 @@ trap 'rm -rf "$TMP"' EXIT
 # shellcheck source=./discover.sh
 . "$SCRIPT_DIR/discover.sh"
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../lib/test-helpers.sh"
 SKIPPED=0
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
 # A case whose subject this host cannot build is neither a pass nor a failure:
 # it never routes through pass(), so the summary cannot count it as run.
 skip() {
@@ -45,14 +41,6 @@ host_makes_symlinks() {
     rc=0
   fi
   return "$rc"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
 assert_lists() {
   # $1 label, $2 newline-separated expected, $3 actual
