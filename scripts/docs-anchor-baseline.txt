@@ -33,7 +33,6 @@ plugins/discovery/skills/research/context/artifact-shape.md 1
 plugins/discovery/skills/setup/SKILL.md 2
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 5
 plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md 1
-plugins/evals/skills/design/SKILL.md 1
 plugins/evals/skills/methodology/SKILL.md 1
 plugins/evals/skills/methodology/reference/eval-design.md 1
 plugins/evals/skills/plugin-eval/SKILL.md 1

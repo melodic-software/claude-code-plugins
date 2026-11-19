@@ -12,8 +12,8 @@ scope, when one was named. On a whole-repo scan, grep the symbols of the highest
 
 | Shape | How to find it | Disconnected when |
 |---|---|---|
-| Defined but unreferenced code | When `code-tidying:audit-dead-code` ran as a scan input (SKILL.md "Lane delegation as scan input"), take its dead and uncertain candidates. Otherwise list exported or imported symbols (`export`, `module.exports`, `import`, `require`, `def`, `pub fn`, `public`) and grep each name across the scope | The symbol is imported but never called, or exported and never imported, outside its own file. A symbol whose only callers are tests is disconnected; say so in the citation |
-| Written but unread store | List the stores the code writes: tables (`INSERT INTO`, `UPDATE`), files, cache or queue keys, metrics, events. Grep each name for a read (`SELECT ... FROM`, `JOIN`, a reader call, a consumer) | Writes exist and no read does |
+| Defined but unreferenced code | When `code-tidying:audit-dead-code` ran as a scan input (SKILL.md "Lane delegation as scan input"), take its dead and uncertain candidates. Otherwise list the symbols the scope exports or imports, using the export and import forms of each language the repository uses (resolved per "Language forms" below), and grep each name across the scope | The symbol is imported but never called, or exported and never imported, outside its own file. A symbol whose only callers are tests is disconnected; say so in the citation |
+| Written but unread store | List the stores the code writes: tables (the statements that insert or update rows), files, cache or queue keys, metrics, events. Grep each name for a read (a query that selects from or joins it, a reader call, a consumer) | Writes exist and no read does |
 | Dark feature flag | Read the flag config (`flags.json`, settings files, `.env.example`) for flags that are off or default to off, then grep each flag name for the code it gates. In other `.env*` files, grep for the flag key only and never quote a value | The flag is off and is the only way to reach a route, job or UI the code already holds |
 
 Entry points are referenced from outside the scope, so mark them uncertain rather than
@@ -21,12 +21,22 @@ disconnected: a package's `main` or `exports`, a framework-registered handler, a
 API. Generated files count as neither callers nor candidates. A target that itself sits under a
 `test` or `fixtures` path is scanned as ordinary code.
 
+## Language forms
+
+The languages come from the repository, never from a list this plugin ships. Identify each
+language in scope from the scoped files themselves (their extensions, then the build and manifest
+files beside them), resolving a tie through the plugin's copy of the ecosystem-resolution steps,
+[`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md). The export and
+import forms follow from the language. The scan asks nothing and writes no record. When a file's
+language cannot be identified, skip the defined-but-unreferenced probe for it and record a `gap:`
+line naming the files and what was read.
+
 ## Citation shape
 
 Put the name and its state on one line, so the reader sees both together:
 
 - `formatInvoicePdf` (`src/billing/routes.ts:2`): imported, never called, so `src/billing/pdf.ts` is unused (rung 3)
-- `audit_log` table (`db/schema.sql:12`): written by `src/jobs/sync.js:40`, never read: no `SELECT` or join names it (rung 3)
+- `audit_log` table (`db/schema.sql:12`): written by `src/jobs/sync.js:40`, never read: no query selects from or joins it (rung 3)
 - `newCheckout` flag (`config/flags.json:4`): `false`, gates `POST /checkout/v2` (rung 3)
 
 A grep finds no reader only within what it searched, so the confidence is the rung 3 label from
