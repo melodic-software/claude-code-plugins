@@ -113,7 +113,7 @@ export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).fl
 
 /**
  * A reusable has no runs of its own: its uploads ride on its callers' runs.
- * pull.test.mjs reads the workflows and fails when a caller is missing here.
+ * pull-listing.test.mjs reads the workflows and fails when a caller is missing here.
  */
 export const TRANSCRIPT_CALLERS = {
   "pr-run-activity-read.yml": ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
