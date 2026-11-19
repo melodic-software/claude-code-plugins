@@ -70,12 +70,9 @@ Discovery dimensions to probe. Not all apply on every host. The point is to noti
 Seed the inventory pass with these dimensions. For each, discovery determines presence via a read-only probe and, if present-but-not-in-catalog, considers a check proposal.
 
 - **Hyper-V and WSL distros.** Presence: `Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online` (needs admin, so probe gracefully), `wsl --list --verbose`. Proposed check: per-distro update status (`wsl -d <distro> -- cat /etc/os-release` + vendor EOL lookup if allowlisted).
-- **Docker Desktop image disk usage.** Presence: `docker --version`. Proposed check: `docker system df --format json` → flag WARN if images + volumes exceed a user-set threshold (default 50 GB).
-- **Dev-tool version skew.** Presence: VS via `Get-ItemProperty HKLM:\SOFTWARE\Microsoft\VisualStudio\Setup\*`, VS Code via `code --version` if on PATH, SSMS via registry, Rider via `%LOCALAPPDATA%\JetBrains\Toolbox\apps`, .NET SDKs via `dotnet --list-sdks`, Node via `fnm ls` or `node --version`. Proposed checks: per-tool "behind latest LTS by ≥N minor versions" severity.
 - **Domain secure channel.** Presence: `(Get-WmiObject Win32_ComputerSystem).PartOfDomain`. Proposed check: `Test-ComputerSecureChannel`, WARN on false.
 - **TPM + BitLocker.** Presence: `Get-Tpm` (needs admin). Proposed check: TPM present/enabled/owned; BitLocker volume status. Needs admin → UNKNOWN path required.
 - **Vendor health CLIs.** Presence: Dell Command Update (`dcu-cli.exe`), Lenovo System Update (`TVSU_Launcher.exe`), HP Image Assistant, Surface UEFI (`Microsoft.Surface.IT.Toolkit`). Proposed check: last known vendor health status, firmware update availability. Often needs admin.
-- **SDK / runtime EOL.** Presence: `dotnet --list-sdks`, `node --version`, `python --version`. Proposed check: is this LTS, when does support end (local EOL table shipped with skill).
 - **Expiring user certs.** Presence: `Get-ChildItem Cert:\CurrentUser\My`. Proposed check: WARN on any cert within 30 days of expiry, CRIT within 7.
 - **Windows Terminal profile drift.** Presence: `settings.json` at `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_*\LocalState\`. Proposed check: parse last-modified, surface if updated outside a known window (low priority, INFO at best).
 - **Package manager health.** `winget source list`: WARN if sources are disabled; `choco --version` if Chocolatey is installed.

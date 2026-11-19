@@ -56,10 +56,18 @@ run compare --baseline "$T/b" --after "$T/a" --tolerance 0 --diff-dir "$T/d" --d
 assert_eq "compare --dry-run exits 0" 0 "$rc"
 assert_contains "compare --dry-run prints the install directory" "$out" "install_dir=$T/deps/visual-compare/$LOCK_HASH"
 if [[ -e "$T/deps" || -e "$T/d" ]]; then fail "compare --dry-run writes nothing" "a directory was created"; else pass "compare --dry-run writes nothing"; fi
-CLAUDE_PLUGIN_DATA="$T/data/testing-melodic-software" run install --dry-run
-assert_contains "CLAUDE_PLUGIN_DATA naming testing is the base" "$out" "install_dir=$T/data/testing-melodic-software/visual-compare/$LOCK_HASH"
-CLAUDE_PLUGIN_DATA="$T/data/harness-ops-melodic-software" run install --dry-run
+CLAUDE_PLUGIN_DATA="$T/data/testing-acme" run install --dry-run
+assert_contains "CLAUDE_PLUGIN_DATA naming testing is the base" "$out" "install_dir=$T/data/testing-acme/visual-compare/$LOCK_HASH"
+CLAUDE_PLUGIN_DATA="$T/data/harness-ops-acme" run install --dry-run
 assert_not_contains "CLAUDE_PLUGIN_DATA naming another plugin is not the base" "$out" "$T/data/harness-ops"
+for copy in "$T/cfg/plugins/cache/acme.co/testing/1.0.0" "$T/plain/testing"; do
+  mkdir -p "$copy/skills/check-visual-parity"
+  cp -R "$HERE" "$copy/skills/check-visual-parity/scripts"
+done
+out="$(CLAUDE_CONFIG_DIR="$T/cfg" "$BASH" "$T/cfg/plugins/cache/acme.co/testing/1.0.0/skills/check-visual-parity/scripts/visual-compare.sh" install --dry-run 2>&1)"
+assert_contains "a cached install's data id names its marketplace" "$out" "install_dir=$T/cfg/plugins/data/testing-acme-co/visual-compare/$LOCK_HASH"
+out="$(CLAUDE_CONFIG_DIR="$T/cfg" "$BASH" "$T/plain/testing/skills/check-visual-parity/scripts/visual-compare.sh" install --dry-run 2>&1)"
+assert_contains "a copy outside the cache is an inline plugin" "$out" "install_dir=$T/cfg/plugins/data/testing-inline/visual-compare/$LOCK_HASH"
 
 # shim <dir> <command...>: a PATH directory holding only the named commands.
 shim() {

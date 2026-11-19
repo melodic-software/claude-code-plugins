@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.9.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [15.9.2] - 2026-11-19
+
+### Changed
+
+- The tracker contract's state-history and `label-provenance` body-edit records are pointer records and no longer carry a recheck trigger. The `set-fields` record names the `read:org` permission and the option-name write, so it is a stored value and gets back its as-of date, 2026-10-18.
+
+## [15.9.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
 ## [15.9.0] - 2026-11-19
 
 ### Added

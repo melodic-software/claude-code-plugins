@@ -34,9 +34,7 @@
         }
       ],
       "why": "another agent whose prompt names the reviewer"
-    }
-  ],
-  "fail": [
+    },
     {
       "answer": [
         {
@@ -48,7 +46,7 @@
           }
         }
       ],
-      "why": "dispatched the plan-reviewer"
+      "why": "dispatched the plan-reviewer, which a MEDIUM blast radius runs"
     }
   ]
 }

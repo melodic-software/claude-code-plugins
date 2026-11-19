@@ -1799,9 +1799,15 @@ the rules that only tighten in
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
   wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
   head last changed; the queue would eject it again on the same commits. A push resets the count.
-  At the cap, a removal whose merge-group run failed only `CI Status` (and its `ci-status` alias)
-  on a GitHub rate limit alone, by its failure annotations, is not counted once that limit has
-  reset; a removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
+  At the cap, a removal whose merge-group run failed on infra alone is not counted:
+  `merge.queue-ejection-infra-causes` (default every cause) names which. Every failed job's failure
+  annotations must name a cause (`rate-limit`, `read-floor`, `verify-unreadable`, `kill-switch`,
+  `lost-runner`), apart from lines that only report it, each line of an annotation judged alone;
+  outside `CI Status` a cause line must start as its producer writes it. Or the job, other than
+  `CI Status`, must have failed on main's run of that workflow at the time too, on every line it
+  failed with beyond the exit line, and there must be one (`main-red`). Every cause excuses a removal only once each one's named
+  reset, or an hour when it names none, has passed. Each excused removal gets a
+  `::notice title=queue-ejection::` line. A removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
   failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
   same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
@@ -3204,7 +3210,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-Once the legacy FAILs file (`verify-legacy-fails.json` beside the reader) is committed, the gate
+Once the legacy FAILs file (`.github/verify-legacy-fails.json`, named by `BABYSIT_VERIFY_LEGACY_FAILS`) loads, the gate
 reads no listing at all: each FAIL's run uploads index artifacts first (`pr-verify-index-pr-<n>`,
 `-sha-<head>`, `-ref-<digest>`, `-issue-<i>`; `.github/actions/upload-fail-index`), the FAIL only
 after every index did, and a judgment reads those exact names for the pull request's number, its
