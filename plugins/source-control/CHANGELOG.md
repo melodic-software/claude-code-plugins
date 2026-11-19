@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.2] - 2026-11-19
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pr-merge sweep's one whole-review request is now spent only by a pull request that passes the rate-limit and running-jobs limits. A candidate refused on a limit no longer leaves every later candidate in the sweep answered `sweep-limit`. The limits themselves and the one request per sweep are unchanged.
+
 ## [11.22.1] - 2026-11-19
 
 ### Added
