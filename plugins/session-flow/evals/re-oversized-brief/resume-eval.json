@@ -1,0 +1,424 @@
+{
+  "name": "re-oversized-brief",
+  "task_relation": "boundary",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC11 and AC3: oversized session-written text passes as UNVALIDATED.",
+    "risk": "A Resumption brief over the hot-file cap validates as UNVALIDATED (exit 0) instead of a size FAIL naming the slot, so the writer copies or cuts it unchecked and the one fact stated only at its end is lost."
+  },
+  "description": "Source: a reproduced validator result (core sections alone over the cap gave UNVALIDATED, exit 0), rewritten as a synthetic backfill lane. Hard because the newest predecessor's brief is about 26 KB of per-batch status lines and the only statement that warehouse 7 must backfill from 2026-10-01 is its last status line; Remaining actions says only to backfill warehouse 7, so a writer that trims the brief from the end drops the bound and the reader doubles the hand-reconciled rows.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# ledger-backfill\n\nSynthetic service repository for the resume eval.\n",
+      "Makefile": "backfill:\n\t./scripts/backfill.sh --warehouse $(WAREHOUSE) $(if $(SINCE),--since $(SINCE),)\n",
+      "scripts/backfill.sh": "#!/usr/bin/env bash\necho \"backfill: $* -> 3,912 rows written\"\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "ledger-backfill",
+      "lane": "ledger-backfill",
+      "hops": 4,
+      "start": "2026-10-20T08:00:00Z",
+      "hop_minutes": 360,
+      "goal": "Backfill every warehouse's ledger rows from the legacy system into the new ledger.",
+      "vision": "Finance closes October from the new ledger alone.",
+      "opening_ask": "Backfill all seven warehouses into the new ledger.",
+      "injections": [
+        {
+          "id": "rule-dry-run",
+          "hop": 1,
+          "section": "rules",
+          "text": "Every backfill command prints its row count; paste it into the run log before the next warehouse starts.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 4 against main at 7d21c4e.",
+          "PR #4362 added the SINCE option to the backfill target; it is on main.",
+          "Where it stands, batch by batch:",
+          "Warehouse 1 batch 01: 4,248 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 02: 4,459 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 03: 4,670 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 04: 4,881 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 05: 4,192 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 06: 4,403 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 07: 4,614 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 08: 4,825 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 09: 4,136 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 10: 4,347 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 11: 4,558 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 12: 4,769 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 13: 4,080 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 14: 4,291 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 15: 4,502 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 16: 4,713 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 17: 4,024 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 18: 4,235 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 19: 4,446 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 20: 4,657 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 21: 4,868 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 22: 4,179 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 23: 4,390 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 24: 4,601 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 25: 4,812 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 26: 4,123 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 27: 4,334 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 28: 4,545 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 29: 4,756 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 30: 4,067 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 31: 4,278 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 32: 4,489 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 33: 4,700 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 34: 4,011 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 35: 4,222 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 36: 4,433 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 37: 4,644 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 38: 4,855 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 39: 4,166 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 1 batch 40: 4,377 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 01: 4,285 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 02: 4,496 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 03: 4,707 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 04: 4,018 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 05: 4,229 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 06: 4,440 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 07: 4,651 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 08: 4,862 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 09: 4,173 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 10: 4,384 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 11: 4,595 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 12: 4,806 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 13: 4,117 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 14: 4,328 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 15: 4,539 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 16: 4,750 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 17: 4,061 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 18: 4,272 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 19: 4,483 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 20: 4,694 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 21: 4,005 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 22: 4,216 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 23: 4,427 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 24: 4,638 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 25: 4,849 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 26: 4,160 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 27: 4,371 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 28: 4,582 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 29: 4,793 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 30: 4,104 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 31: 4,315 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 32: 4,526 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 33: 4,737 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 34: 4,048 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 35: 4,259 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 36: 4,470 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 37: 4,681 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 38: 4,892 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 39: 4,203 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 2 batch 40: 4,414 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 01: 4,322 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 02: 4,533 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 03: 4,744 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 04: 4,055 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 05: 4,266 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 06: 4,477 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 07: 4,688 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 08: 4,899 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 09: 4,210 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 10: 4,421 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 11: 4,632 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 12: 4,843 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 13: 4,154 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 14: 4,365 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 15: 4,576 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 16: 4,787 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 17: 4,098 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 18: 4,309 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 19: 4,520 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 20: 4,731 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 21: 4,042 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 22: 4,253 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 23: 4,464 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 24: 4,675 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 25: 4,886 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 26: 4,197 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 27: 4,408 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 28: 4,619 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 29: 4,830 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 30: 4,141 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 31: 4,352 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 32: 4,563 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 33: 4,774 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 34: 4,085 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 35: 4,296 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 36: 4,507 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 37: 4,718 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 38: 4,029 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 39: 4,240 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 3 batch 40: 4,451 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 01: 4,359 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 02: 4,570 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 03: 4,781 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 04: 4,092 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 05: 4,303 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 06: 4,514 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 07: 4,725 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 08: 4,036 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 09: 4,247 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 10: 4,458 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 11: 4,669 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 12: 4,880 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 13: 4,191 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 14: 4,402 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 15: 4,613 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 16: 4,824 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 17: 4,135 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 18: 4,346 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 19: 4,557 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 20: 4,768 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 21: 4,079 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 22: 4,290 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 23: 4,501 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 24: 4,712 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 25: 4,023 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 26: 4,234 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 27: 4,445 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 28: 4,656 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 29: 4,867 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 30: 4,178 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 31: 4,389 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 32: 4,600 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 33: 4,811 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 34: 4,122 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 35: 4,333 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 36: 4,544 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 37: 4,755 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 38: 4,066 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 39: 4,277 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 4 batch 40: 4,488 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 01: 4,396 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 02: 4,607 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 03: 4,818 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 04: 4,129 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 05: 4,340 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 06: 4,551 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 07: 4,762 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 08: 4,073 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 09: 4,284 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 10: 4,495 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 11: 4,706 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 12: 4,017 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 13: 4,228 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 14: 4,439 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 15: 4,650 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 16: 4,861 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 17: 4,172 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 18: 4,383 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 19: 4,594 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 20: 4,805 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 21: 4,116 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 22: 4,327 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 23: 4,538 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 24: 4,749 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 25: 4,060 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 26: 4,271 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 27: 4,482 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 28: 4,693 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 29: 4,004 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 30: 4,215 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 31: 4,426 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 32: 4,637 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 33: 4,848 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 34: 4,159 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 35: 4,370 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 36: 4,581 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 37: 4,792 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 38: 4,103 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 39: 4,314 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 5 batch 40: 4,525 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 01: 4,433 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 02: 4,644 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 03: 4,855 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 04: 4,166 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 05: 4,377 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 06: 4,588 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 07: 4,799 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 08: 4,110 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 09: 4,321 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 10: 4,532 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 11: 4,743 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 12: 4,054 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 13: 4,265 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 14: 4,476 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 15: 4,687 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 16: 4,898 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 17: 4,209 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 18: 4,420 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 19: 4,631 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 20: 4,842 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 21: 4,153 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 22: 4,364 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 23: 4,575 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 24: 4,786 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 25: 4,097 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 26: 4,308 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 27: 4,519 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 28: 4,730 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 29: 4,041 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 30: 4,252 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 31: 4,463 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 32: 4,674 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 33: 4,885 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 34: 4,196 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 35: 4,407 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 36: 4,618 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 37: 4,829 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 38: 4,140 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 39: 4,351 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 6 batch 40: 4,562 rows backfilled from the legacy ledger, counts matched the source export, no retries needed.",
+          "Warehouse 7 is the only one left, and its backfill must run with `--since 2026-10-01` (`make backfill WAREHOUSE=7 SINCE=2026-10-01`): its rows before October were reconciled by hand in the finance sheet, and a full backfill would double them.",
+          "Next: backfill warehouse 7, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: finance closes October from the new ledger alone.",
+          "- [x] Warehouses 1 to 6 backfilled.",
+          "- [ ] Warehouse 7 backfilled."
+        ],
+        "remaining": [
+          "1. Backfill warehouse 7.",
+          "2. Hand the row counts to finance."
+        ],
+        "next": [
+          "Backfill warehouse 7."
+        ],
+        "did": "backfilled warehouses 1 to 6",
+        "left": "warehouse 7 not backfilled"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. Warehouses 1 to 6 are done; warehouse 7 is next.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/Makefile"
+          },
+          "result": "     1\tbackfill:\n     2\t\t./scripts/backfill.sh --warehouse $(WAREHOUSE) $(if $(SINCE),--since $(SINCE),)"
+        },
+        {
+          "role": "assistant",
+          "text": "The backfill target takes WAREHOUSE and an optional SINCE."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/ledger-backfill",
+      "responses": [],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff ledger-backfill",
+      "after": "/session-flow:handoff ledger-backfill",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-since-bound-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "(?i)warehouse 7[^\\n]*(--since|SINCE=)\\s*2026-10-01"
+      },
+      "note": "The bound stated only at the end of the oversized brief survives the rewrite."
+    },
+    {
+      "id": "continuation-bounded-backfill",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "(?=[^\\n]*(WAREHOUSE=7|--warehouse 7))(?=[^\\n]*(SINCE=|--since )2026-10-01)"
+      }
+    },
+    {
+      "id": "decision-no-unbounded-backfill",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "^(?=[^\\n]*(make backfill|backfill\\.sh))(?![^\\n]*(SINCE=|--since )2026-10-01)[^\\n]*(WAREHOUSE=7|--warehouse 7)"
+      },
+      "note": "A warehouse 7 backfill without the bound doubles the hand-reconciled rows."
+    },
+    {
+      "id": "recall-warehouse-7-bound",
+      "type": "recall",
+      "grade": "text",
+      "question": "How must warehouse 7's backfill run, and why?",
+      "criteria": "PASS only if the answer says it runs from 2026-10-01 (--since or SINCE) because the earlier rows were reconciled by hand and a full backfill would double them. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}
