@@ -998,7 +998,7 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // PIN_RE is merge-holds.mjs's, whose pinHold holds a queued head no pin names.
 export { PIN_RE };
 export const pinBody = (sha, rung) =>
-  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`, the head its arming checks judged.`;
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`;
 
 // The lanes App's newest pin in `comments` (DETAIL_QUERY's), or undefined.
 const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)));
