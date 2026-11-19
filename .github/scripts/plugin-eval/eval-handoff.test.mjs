@@ -16,6 +16,8 @@ import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { contractFilesAtPin, fetchAtPin } from "../lib/ci-workflows-at-pin.mjs";
 import { CONTRACT_FILES, erroredTraces, judgeLegStreams, loadContract, withPartials } from "./eval-handoff.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const workflowPins = ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"].flatMap((name) => [
   ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),

@@ -35,6 +35,11 @@ still stops on its own. A reading that cannot project, or a value that cannot be
 with a warning. The notice names the projected share, the horizon and the threshold. work-unblock's
 sweep re-fires a budget stop after the reset it names, as for a low budget.
 
+A start nothing re-fires sets `wait-seconds` (intake's refine-select alone): a budget stop whose
+reset is within it sleeps to a second past the reset and reads the budget once more, deciding
+again on that reading. It logs `started after the reset` when the start then goes ahead. The value
+follows rate-guard's `waitBudgetMs` rule, and the job's timeout must hold it.
+
 The repository switch has its own name because a repository variable named
 `CLAUDE_LANES_DISABLED` replaces the org value in `vars`, so it could re-enable lanes under an
 org-wide stop. This gate cannot see such a shadow. The token broker denies a write lane's mint,
@@ -48,6 +53,7 @@ and a read lane's broker check, while one exists.
 | `repo-value` | empty | The repository switch, normally `${{ vars.CLAUDE_LANES_REPO_DISABLED }}` |
 | `budget` | `false` | `true` also reads the GITHUB_TOKEN budget |
 | `project` | `false` | `true`, with `budget`, also stops on the window's projected spend at the run's expected end |
+| `wait-seconds` | empty | With `budget`, a budget stop whose reset is within this many seconds waits for it and reads once more |
 | `token` | `${{ github.token }}` | The token whose GET /rate_limit answer is the budget reading |
 
 Set `budget: "true"` only on a gate that starts new work: the read runner's `check-broker` on the

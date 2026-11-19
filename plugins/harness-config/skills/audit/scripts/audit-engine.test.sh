@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for audit-engine.sh (no external test lib; ships with the plugin).
-#
 # Fixture JSON carries "$schema" keys and ${CLAUDE_PLUGIN_ROOT} placeholders
 # that must reach the file unexpanded, so single quotes are the correct spelling.
 # shellcheck disable=SC2016
@@ -38,30 +36,9 @@ export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TEST_TMPDIR/cache" XDG_CONFIG_HOME="$TEST_TMPDIR/config"
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
   exit 0
@@ -1959,9 +1936,4 @@ done
 assert_eq "case 55: stderr carries a progress line for every category" "" "$missing"
 assert_eq "case 55: PROGRESS=0 silences stderr" "" "$(run "$small" --json --docs-dir "$DOCS" 2>&1 >/dev/null)"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

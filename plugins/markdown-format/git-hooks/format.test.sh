@@ -22,17 +22,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() {
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=markdown-format-test-helpers.sh
+source "$HERE/markdown-format-test-helpers.sh"
 
 n=0
 new_repo() {
@@ -47,14 +38,6 @@ new_repo() {
   printf '# Seed\n' >"$REPO/seed.md"
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
-}
-
-check() {
-  local repo="$1" out rc
-  shift
-  out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
-  rc=$?
-  printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
 FIXED=$'# T\n\ntext\n'

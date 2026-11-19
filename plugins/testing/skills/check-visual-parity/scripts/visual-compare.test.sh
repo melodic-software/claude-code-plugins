@@ -10,22 +10,13 @@
 # Otherwise it prints one skip line and the suite exits on the first group.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA CLAUDE_CONFIG_DIR VISUAL_COMPARE_PLATFORM
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VC="$HERE/visual-compare.sh"
 MJS="$HERE/visual-compare.mjs"
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi; }
+# shellcheck source=../../../lib/test-pass-fail.sh
+source "$HERE/../../../lib/test-pass-fail.sh"
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "expected to contain [$3] in [$2]"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "expected not to contain [$3] in [$2]"; fi; }
 
