@@ -96,7 +96,8 @@ import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
-import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, restoreEdits, saveRecord } from "../lib/record.mjs";
+import { repositoryHome, writePointer } from "../lib/machine-records.mjs";
+import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, recordPath, restoreEdits, saveRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
@@ -203,11 +204,22 @@ function otherDataDirs(where) {
   }
 }
 
+const stateHome = (where) => join(where.configDir, "plugin-profiles-state");
+
+/** The record home of a settings file in a repository: its git common folder's plugin-profiles, else null. */
+const gitHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? null : repositoryHome(dirname(dirname(file)), { home: where.home }));
+
 /** Where a settings file's record lives first: the repository's git common folder, the config folder for user settings, else null. */
-function primaryHome(where, file) {
-  if (realPath(file) === realPath(where.paths.user)) return join(where.configDir, "plugin-profiles-state");
-  const level = folderLevel(dirname(dirname(file)), { home: where.home });
-  return level.recordInGit ? join(level.commonDir, "plugin-profiles") : null;
+const primaryHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? stateHome(where) : gitHome(where, file));
+
+/** Records that a repository holds records, so reset finds it from any folder; never fails the caller. */
+function notePointer(where, file) {
+  const home = gitHome(where, file);
+  try {
+    if (home && existsSync(recordPath(home, file))) writePointer(where.configDir, home);
+  } catch {
+    return;
+  }
 }
 
 /** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
@@ -461,6 +473,7 @@ function commit(p, opts, where) {
     installed: [...p.inv.keys()],
   });
   saveRecord(p.recPath, record);
+  notePointer(where, p.file);
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
@@ -948,6 +961,7 @@ function writeRootPointer(where) {
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
     writeRootPointer(where);
+    if (!doesNotApply(where.surface)) for (const file of [where.paths.local, where.paths.earlier].filter(Boolean)) notePointer(where, file);
     const input = hookInput(io);
     const resumed = (() => {
       try {

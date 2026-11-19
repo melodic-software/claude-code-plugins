@@ -1913,3 +1913,111 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
 });
+
+const pointersDir = (w) => join(w.home, ".claude", "plugin-profiles-state", "repositories");
+const pointers = (w) => (existsSync(pointersDir(w)) ? readdirSync(pointersDir(w)) : []);
+/** A folder outside every repository, so a reset run there finds folders only through what the machine records. */
+const elsewhere = (w) => {
+  const dir = join(w.root, "elsewhere");
+  mkdirSync(dir, { recursive: true });
+  return dir;
+};
+const reset = (w, args = [], extra = {}) => runIn(w, elsewhere(w), ["reset", ...args], extra);
+const resetJson = (w, extra = {}) => {
+  const r = reset(w, ["--dry-run", "--json"], extra);
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+};
+const recordedFiles = (preview) => preview.folders.filter((f) => f.recorded).map((f) => f.file).sort();
+/** Claude Code's ~/.claude.json naming the folders it has opened, as its projects map does. */
+const knowFolders = (w, ...folders) => writeTree(w.home, { ".claude.json": { projects: Object.fromEntries(folders.map((f) => [f, { allowedTools: [] }])) } });
+const rootLocal = (dir) => join(realpathSync(dir), ".claude", "settings.local.json");
+/** A second main checkout beside w.project, holding LOCAL_BEFORE. */
+function secondRepository(w, name = "project2") {
+  const dir = join(w.root, name);
+  writeTree(dir, { ".git/HEAD": "ref: refs/heads/main\n", ".claude/settings.local.json": LOCAL_BEFORE });
+  return dir;
+}
+
+test("#17354: an apply in git writes one pointer per repository, and the pointer alone finds its records", () => {
+  const w = world();
+  gitInit(w);
+  const p2 = secondRepository(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, p2, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(pointers(w).length, 2, "one pointer per repository, however many applies");
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project), rootLocal(p2)].sort());
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), [], "with no pointer and no known folder, a repository's records are not found");
+});
+
+test("#17354: a folder applied before reset shipped, with no repository pointer, is found through ~/.claude.json and restored", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  knowFolders(w, w.project);
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(gitRecords(w), []);
+});
+
+test("#17354: a folder known only from a one-session record is found", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  writeTree(byIdDir(w), { "s1.json": { sessionId: "s1", profile: "review", file: join(w.root, "gone.json"), folder: w.project, at: "2026-11-01T00:00:00.000Z" } });
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+});
+
+test("#17354: a folder known only from a live session is found", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  const agents = join(w.root, "agents.json");
+  writeFileSync(agents, JSON.stringify([{ cwd: join(w.project, "src"), sessionId: "a", name: "live", kind: "interactive" }]));
+  mkdirSync(join(w.project, "src"));
+  assert.deepEqual(recordedFiles(resetJson(w)), []);
+  assert.deepEqual(recordedFiles(resetJson(w, { PP_STUB_AGENTS: agents })), [rootLocal(w.project)]);
+});
+
+test("#17354: a session start in a repository applied before reset shipped writes its pointer, so reset finds it after the worktree it was applied from is gone", () => {
+  const w = world();
+  gitInit(w);
+  installOnDisk(w);
+  const t = linkedWorktree(w);
+  assert.equal(t.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  const started = t.run(["status", "--session-start"], { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli" });
+  assert.equal(started.status, 0, started.stderr);
+  assert.equal(pointers(w).length, 1, "the session start wrote the repository's pointer");
+  rmSync(t.wt, { recursive: true });
+  knowFolders(w, t.wt);
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: a submodule's record is found through its pointer", () => {
+  const w = world();
+  gitInit(w);
+  const sub = join(w.project, "sub");
+  writeTree(w.project, { ".git/modules/sub/HEAD": "ref: refs/heads/main\n", "sub/.git": "gitdir: ../.git/modules/sub\n", "sub/.claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, sub, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.ok(existsSync(join(w.project, ".git", "modules", "sub", "plugin-profiles", "records")));
+  knowFolders(w, w.project);
+  assert.equal(pointers(w).length, 1);
+  const [name] = pointers(w);
+  const text = readFileSync(join(pointersDir(w), name), "utf8");
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), [], "the superproject's folder never reaches the submodule's record");
+  writeTree(pointersDir(w), { [name]: text });
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(sub)]);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(join(sub, ".claude", "settings.local.json"), "utf8"), LOCAL_BEFORE);
+});
