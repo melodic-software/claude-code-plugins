@@ -96,7 +96,8 @@ where a `/clear` between the two skills cannot lose it:
 - the session-shorthand glossary.
 
 The recommendation block names the ledger path, so a fresh session that runs
-`/planning:wayfind chart` finds it.
+`/planning:wayfind chart` finds it, whether the user reaches it by `/clear` or, with
+`session-flow` enabled, through `/session-flow:handoff`'s new-session delivery on the desktop app.
 
 ## Small after all: ship it
 
