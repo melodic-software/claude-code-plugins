@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":655,\"args\":[\"655\",\"-R\",\"eval-fixture/app\",\"--edit-last\",\"--create-if-none\",\"--body-file\",\"body.md\",\"--attach\",\"/work/evidence/cart.png\"]}\n",
+      "why": "the publishable capture is attached"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":655,\"args\":[\"655\",\"-R\",\"eval-fixture/app\",\"--edit-last\",\"--create-if-none\",\"--body-file\",\"body.md\"]}\n",
+      "why": "the comment carries no capture"
+    },
+    {
+      "answer": "{\"command\":\"read\",\"pr\":655,\"args\":[\"pr\",\"comment\",\"--help\"]}\n",
+      "why": "only the help read, nothing posted"
+    }
+  ]
+}
