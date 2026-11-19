@@ -1041,6 +1041,13 @@ test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => 
   assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
 });
 
+test("rerun-ci-status's rate-limit waits are WAIT_BUDGET_SECONDS.rerunCiStatusRate, and its timeout holds them", () => {
+  const job = jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status");
+  assert.deepEqual(setting(job, "RATE_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatusRate]);
+  const [minutes] = setting(job, "timeout-minutes");
+  assert.ok(minutes * 60 >= WAIT_BUDGET_SECONDS.rerunCiStatusRate + 120, "the timeout holds the waits and two minutes for the rest");
+});
+
 test("work-resolve-issue's waits after the model ran, and the leak scan's cap, are WAIT_BUDGET_SECONDS.workResolveIssue", () => {
   const most = WAIT_BUDGET_SECONDS.workResolveIssue;
   const lane = workflow("work-resolve-issue.yml");

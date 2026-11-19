@@ -1257,7 +1257,7 @@ carries those errors into what the operator ratifies.
 >   working and reports the window, its `used_percentage` and `resets_at`,
 >   and the operator's options: continue, switch accounts (a human action
 >   a lane never performs or scripts;
->   https://github.com/melodic-software/claude-code-account-rotation), or
+>   the link is the rate-limits `account_switch_url` option), or
 >   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from

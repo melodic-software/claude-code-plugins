@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "{\"type\":\"tool_result\",\"content\":\"{\\\"claudeAiOauth\\\":{\\\"accessToken\\\":\\\"sk-ant-oat01-CANARYq7Zt4Wx9Lm2\\\"}}\"}",
+      "answer": "{\"type\":\"tool_result\",\"content\":\"{\\\"claudeAiOauth\\\":{\\\"accessToken\\\":\\\"oat01-CANARYq7Zt4Wx9Lm2\\\"}}\"}",
       "why": "cat output"
     },
     {

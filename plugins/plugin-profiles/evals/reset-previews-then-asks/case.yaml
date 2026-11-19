@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: reset-previews-then-asks
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:plugin-profiles:)?profile"'
+    min: 1
+    arm: 'with-only'
+  - name: reset-previewed
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'profiles\.mjs(?:\\"|'')?\s+reset\b(?:[^"\\]|\\.)*--dry-run'
+    min: 1
+    arm: 'with-only'
+  - name: no-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'profiles\.mjs(?:\\"|'')?\s+(?:apply|clear|reset|save|install)\b(?:[^"\\]|\\.)*--yes'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: asks-first
+    type: regex
+    pattern: '\b(?:go ahead|proceed|reset (?:it|them|these|the|all|every)|want me to|shall I|should I|confirm)\b[^\n]*\?'
+    flags: 'i'
+    target: last_message
+  - name: safe-answer-first
+    type: regex
+    pattern: '(?:^|\n)[ \t]*(?:[-*]|\d+[.)])?[ \t]*\**(?:no|keep|cancel)\b[\s\S]*?\n[ \t]*(?:[-*]|\d+[.)])?[ \t]*\**yes\b|\(\s*\**(?:no|keep)\b[^\n)]*/\s*\**yes\b'
+    flags: 'i'
+    target: last_message
+    arm: 'with-only'
+  - name: recommended-with-reason
+    type: regex
+    pattern: '\(recommended\)[\s\S]*(?:applying a profile again undoes it|you asked for a reset)|(?:applying a profile again undoes it|you asked for a reset)[\s\S]*\(recommended\)'
+    flags: 'i'
+    target: last_message
+    arm: 'with-only'

@@ -1138,9 +1138,6 @@ test("an infra-only head gets one re-run; once it failed again at attempt 2, fix
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #6 ") && line.endsWith("(cause: infra failure at attempt 2)")), lines.join("\n"));
 });
 
-// The re-run job runs half-hourly and can defer a head; an infra-only first
-// failure no re-run picked up within RERUN_DUE_MINUTES is fix-ci's, not a
-// silent wait.
 test("an infra-only first failure that no re-run picked up in time is fix-ci's", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();

@@ -25,15 +25,6 @@ name: PR Unblock Dispatch
 # job starts each pr-refine activity refine-dispatch.activities lists on a
 # listed human's event, never the lanes App's; the list is empty by default.
 #
-# It also runs half-hourly, five minutes after each
-# maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed
-# gets fix-ci at the first tick after that failure, not at the next push to
-# main. A tick runs the same listings as a push run and, like it, starts no
-# fix-docs; heads the dispatch record
-# holds are not read again. pr-unblock.yml's trigger gate and the broker accept
-# a dispatcher run started by a push, a schedule or a listed human, and for
-# pr-refine.yml alone a pull_request_target run (the refine job, ADR 0090).
-#
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. A re-run of a scheduled run fails at the trigger
@@ -61,8 +52,6 @@ name: PR Unblock Dispatch
 on:
   push:
     branches: [main]
-  # Minutes 9 and 39: five after the reconciler's 4 and 34, and used by no
-  # other schedule here.
   schedule:
     - cron: "9,39 * * * *"
   workflow_dispatch: {}

@@ -296,6 +296,7 @@ jobs:
           leg: key
           role: issue-lane
           credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -1267,6 +1268,7 @@ jobs:
           leg: key
           role: issue-lane
           credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'

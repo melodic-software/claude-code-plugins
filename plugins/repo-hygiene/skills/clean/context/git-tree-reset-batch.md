@@ -117,7 +117,7 @@ branches only:
 
 ```bash
 ghq list -p | bash <skill-dir>/scripts/git-tree-reset-batch.sh \
-  --repos-from - --skip melodic-software/standards
+  --repos-from - --skip <owner>/<repo>
 ```
 
 Apply across an explicit set that is on default branches (fresh-clone reset),

@@ -1137,6 +1137,7 @@ jobs:
           leg: key
           role: reviews
           credential-set: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.

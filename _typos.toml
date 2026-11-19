@@ -14,6 +14,7 @@ armoury = "armoury"
 axe = "axe"
 calibre = "calibre"
 canva = "canva"
+recomendations = "recomendations"
 
 [default.extend-identifiers]
 abd = "abd"

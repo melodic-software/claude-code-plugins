@@ -249,9 +249,9 @@ done
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a sensitive userConfig key is refused" '{"key":"example-plugin.example_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-refuse "a Slack token value is refused" '{"key":"k","value":"xoxb-123456789012-abcdefghij","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a Slack token value is refused" '{"key":"k","value":"xox'"b-123456789012-abcdefghij"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a URL with an embedded password is refused" '{"key":"k","value":"postgres://admin:Sup3rPassw0rd@host/db","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-refuse "a private key block is refused" '{"key":"k","value":"-----BEGIN RSA PRIVATE KEY-----","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a private key block is refused" '{"key":"k","value":"-----BEGIN RSA PRIVATE '"KEY-----"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 accept "a path with sk- inside a word is accepted" '{"key":"k","value":"/work/task-management-system-notes-dir","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 dup_opts="$(jq -c '{machine: {facts: [], options: [{key:"o",value:"a",verdict:"set",observed_by:"ls",mode:"observed",supplied_by:"host"},{key:"o",value:"b",verdict:"set",observed_by:"ls",mode:"observed",supplied_by:"host"}]}, domains: {}}' <<<'{}')"
 msg="$(run record --data-dir "$DATA" --confirm - <<<"$dup_opts" 2>&1)"

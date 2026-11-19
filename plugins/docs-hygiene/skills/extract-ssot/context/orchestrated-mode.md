@@ -98,7 +98,7 @@ installed plugin cannot read a sibling plugin's files at runtime.
   lowers its model, effort, or review depth: it keeps working and reports the window, its
   `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
   human action a lane never performs or scripts;
-  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
+  the link is the rate-limits `account_switch_url` option), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it

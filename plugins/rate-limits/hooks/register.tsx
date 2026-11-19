@@ -46,6 +46,7 @@ type Config = {
   data: Set<string>
   band: boolean
   toast: boolean
+  switchUrl: string | undefined
 }
 // An operator notice offers held lines and shows on every surface; a crossing notice stands in for
 // the toast where toasts may not draw, so it shows only off the terminal.
@@ -120,6 +121,9 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     reject('rate_limit_line_data', `${shown}, not a list of ${DATA_ITEMS.join(', ')}`, DEFAULT_DATA.join(','))
   }
   const data = new Set(known ? items : DEFAULT_DATA)
+  const url = typeof options.account_switch_url === 'string' ? options.account_switch_url.trim() : ''
+  const switchUrl = /^https?:\/\/\S+$/.test(url) ? url : undefined
+  if (url !== '' && switchUrl === undefined) reject('account_switch_url', 'not one http(s) URL', 'no link')
   return {
     bad,
     writes: options.rate_limits_enabled !== false,
@@ -130,6 +134,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     data,
     band: options.rate_limits_band === true,
     toast: options.rate_limits_toast !== false,
+    switchUrl,
   }
 }
 
@@ -296,15 +301,15 @@ const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } |
 
 // Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
 // and to move work to a smaller model, so the options are stated and lowering quality is not one of them.
-const OPTIONS =
-  "rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+const optionsLine = (cfg: Config) =>
+  `rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts${cfg.switchUrl ? ` (${cfg.switchUrl})` : ''}; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.`
 
 const dueLines = (st: State, cfg: Config): string[] => {
   const due = dueEvents(st, cfg).sort(([a], [b]) => order(a) - order(b))
   const voided = voidedLine(st, cfg)
   const lines = [...(voided ? [voided.line] : []), ...due.map(([kind, d]) => `rate-limits: ${clause(kind, d.event, d.limit, cfg)}.`)]
   const events: Event[] = [...(voided?.levels ?? []), ...due.map(([, d]) => d.event)]
-  return events.some(e => e === 'approach' || e === 'edge') ? [...lines, OPTIONS] : lines
+  return events.some(e => e === 'approach' || e === 'edge') ? [...lines, optionsLine(cfg)] : lines
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
