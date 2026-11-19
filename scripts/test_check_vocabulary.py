@@ -506,12 +506,6 @@ ALLOWLIST = [
     ),
     path(
         "tier-precedence",
-        "plugins/*/reference/detector-findings.md",
-        "plugins/testing/reference/detector-findings.md",
-        TIER_LINE,
-    ),
-    path(
-        "tier-precedence",
         "plugins/review/context/severity.md",
         "plugins/review/context/severity.md",
         TIER_LINE,
