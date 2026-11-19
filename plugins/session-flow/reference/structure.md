@@ -46,7 +46,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [Resume prompt](#resume-prompt)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
-  - [Frontmatter shape 3](#frontmatter-shape-3)
+  - [Frontmatter shape 4](#frontmatter-shape-4)
   - [Frontmatter shape 2](#frontmatter-shape-2)
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
@@ -608,12 +608,14 @@ to, never authored:
 | 2026-09-01T10:00:00Z | <UUID> | /home/<user>/.claude/projects/<slug>/<UUID>.jsonl | did: … · left: … | 20260901T100000Z-handoff-<topic>.md |
 ```
 
-`new` copies the predecessor's rows unchanged and appends the predecessor's own row: its `date`,
+`new` copies the predecessor's rows unchanged (on shapes 3 and 4 only the newest, so that with the
+new row the table holds at most `PRIOR_ROWS_KEPT` rows, per `save_point.py`; older rows stay in the
+hop files) and appends the predecessor's own row: its `date`,
 `session_id`, and `transcript` from its frontmatter, its `## This session` line as `did/left`, its
 filename. A shape-1 predecessor has no `This session` line, so its cell reads
 `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)`. Hop 1 writes the
 literal line `None (first hop).` instead of a table. The validator checks that the predecessor's
-rows are a prefix of this file's and that exactly one row was added.
+rows (its newest ones, on shapes 3 and 4) come first, verbatim, and that exactly one row was added.
 
 This table plus the frontmatter `chain:` is how a fresh session sees the whole chain from one
 file: high-resolution for the last session (the sections above), one pointer-backed line per
@@ -757,7 +759,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 # 6. Slot values, then one fill. Read the slot names out of $FILE itself: the set
 #    is branch-dependent (goal, intent, vision, opening-ask and the bare rules
 #    and preferences slots only on a first hop; goal-new and the <section>-new
-#    slots only after a shape-3 predecessor),
+#    slots only after a shape-3 or shape-4 predecessor),
 #    so a remembered template hits fill's unknown-key refusal. Write ONE JSON
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
@@ -836,7 +838,7 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
 | 14 | Observations | session-wide observations, summarized |
 | 15 | Suggested skills | which skills to invoke for the remaining work |
-| 16 | Prior sessions | the predecessor's last rows, then one row describing the predecessor |
+| 16 | Prior sessions | the predecessor's newest rows, then one row describing the predecessor, the table holding at most `PRIOR_ROWS_KEPT` rows (`save_point.py`) |
 | 17 | Resume prompt | the rails block; always last |
 
 Without a script, the hand-writer owns the carry that `new`, `fill` and `retire` own otherwise:
@@ -862,15 +864,19 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
 - **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
   add `- Retired entries: <hop file> § <heading>` to Review before you continue, and keep every
   such line the predecessor holds: a dropped one leaves earlier retirements unreachable, and no
-  check catches it.
+  check runs without an interpreter to catch it.
+- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
+  `next_decision_id` from the predecessor's frontmatter, then raise each past every id this hop
+  added. Never lower one, even when the highest id was retired: the next hop would offer that id
+  again.
 
-### Frontmatter shape 3
+### Frontmatter shape 4
 
 ```yaml
 ---
 type: handoff
-handoff_shape: 3
-checks: 2                                 # rule-set version the file was written under
+handoff_shape: 4
+checks: <CHECKS in save_point.py>         # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
 session_id: <UUID>
@@ -881,6 +887,8 @@ hop: <N>                                  # counted from the chain root, every s
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
 archive_from: <M>                         # first hop-file hop (shape 3 or 4); hop files exist from M on
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
+next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
+next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered
 repo: <the Handoff origin: line's first slot>
 ---
 ```
@@ -962,7 +970,7 @@ until many hops later. The prior file is on disk and one read away. A writer tha
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
 `TaskList` call in a session that has the task tools: the check is that the read happened, not that the result looks right. The
 validator checks the copy: whatever the predecessor held must survive in the hot file or this
-hop's file (shape 3), or in the successor in place or under `Superseded:` (shape 2); its FAIL
+hop's file (shapes 3 and 4), or in the successor in place or under `Superseded:` (shape 2); its FAIL
 lines name what went missing.
 
 ### Legacy predecessors and unfinished skeletons
