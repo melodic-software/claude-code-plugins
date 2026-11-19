@@ -38,11 +38,22 @@ computer, the ceiling light switch by the door, the desk lamp and the lava lamp 
 off. The cat purrs. If clicks land in the wrong place, run `/bedroom calibrate` and click the
 bottom-left corner of the front of the dresser.
 
+### The settings card
+
+`/bedroom` alone shows a card in the conversation, so you need not know the words: a button for
+each switch showing whether it is on, steps for dim, glass and blur, a text field for each title
+(Enter sets it; empty puts the default back), and reset, calibrate and the theme on or off. Each
+button runs the same `/bedroom` command you would type, so it costs what that command costs: a
+switch changes in the shader, and only a title or dim sends the room again. The card follows
+changes made by clicks in the room and by typed commands. Close puts it away; `/bedroom` shows it
+again at the end of the conversation. Away from the desktop app, `/bedroom` answers in text alone.
+
 ### The `/bedroom` command
 
 | Command | Does |
 |---|---|
-| `/bedroom` | Says what is on and off |
+| `/bedroom` | Says what is on and off; in the desktop app, also shows the settings card |
+| `/bedroom status` | Says what is on and off |
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips |
 | `/bedroom dim <0-80>` | Lays a dark veil over the room |
 | `/bedroom glass <0-95>`, `/bedroom blur <0-40>` | How solid the panels over the room are, and how much they blur it |
@@ -62,7 +73,7 @@ pennant, are made up, as are the posters.
 
 `hooks/register.tsx` is the module `hooks.json` loads; it registers each theme. The bedroom's own
 files are in `hooks/bedroom/`: `register.tsx` its hooks, `scene/` draws the room, `lights.ts` is
-the shader. `hooks/make-colors.js` and `hooks/make-colors.d.ts` are the color helper the built-in
+the shader. `types/index.d.ts` declares what the settings card keeps in the session's state. `hooks/make-colors.js` and `hooks/make-colors.d.ts` are the color helper the built-in
 `plugin-authoring` skill tells a theme mod to copy unchanged. The bedroom writes no files: its render
 counts and timings are kept in memory for `/bedroom stats`.
 

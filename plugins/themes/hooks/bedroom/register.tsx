@@ -1,10 +1,19 @@
-import type { Register, ThemeSetArgs } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 
+import type { BedroomCard } from '../../types'
 import { makeColors } from '../make-colors.js'
 import { bedroomSvg } from './scene.ts'
 import { DEFAULT_STATE, HITS, type State, type Titles } from './scene/lib.ts'
 
 const SCENE = 'bedroom'
+/** The settings card's rows are named this, then a count: a new row for each `/bedroom`, so the card stands at the transcript's end. */
+const CARD_ROW = 'bedroom-card'
+const card = atom({ plugin: 'themes', key: 'bedroom-card' } as const, {}, { shape: 'bedroom-card-1' })
+/** Whether a card is up, kept beside the atom so a click in the room with no card up writes nothing more than before. */
+let isCardOpen = false
+/** Whether the theme is set: the card's theme button shows it. */
+let isThemeOn = false
 /** The key the bedroom's settings are stored under in the themes plugin's store, named for the theme so another theme's cannot collide. */
 const STORE_KEY = 'bedroom:saved'
 const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as const
@@ -45,7 +54,7 @@ let isInstant = true
 const stats = { renders: 0, roomSends: 0, valueOnly: 0, buildMs: 0, maxBuildMs: 0, askMs: 0, chars: 0 }
 let askedAt: number | undefined
 /** The build /bedroom stats names, so a tester can tell which one the app loaded. */
-const BUILD = 'wave1-nocursor-36'
+const BUILD = 'settings-card-1'
 /** The switches the shader answers by itself in instant mode: every one, since the shader computes the dusk light. */
 const INSTANT: readonly string[] = SWITCHES
 let sent: Record<string, number> = {}
@@ -125,11 +134,249 @@ function describe(): string {
   return `on: ${on.join(', ') || 'nothing'}. off: ${off.join(', ') || 'nothing'}. posters: ${saved.state.posters}. dim: ${Math.round(saved.dim * 100)}`
 }
 
+/** Sets the bedroom's look and notes that the theme is on: a set stands for the session whether or not a surface draws it. */
+async function setLook($: EngineInterface): Promise<Awaited<ReturnType<EngineInterface['theme']['set']>>> {
+  const set = await $.theme.set(look())
+
+  isThemeOn = true
+
+  return set
+}
+
+/** What `/bedroom WORDS` does and answers. The settings card's buttons call it with the words a person would type, so a button and its command cannot differ. */
+async function bedroomCommand($: EngineInterface, args: string): Promise<string> {
+  const [word = '', value = ''] = args.trim().toLowerCase().split(/ +/)
+  const rest = args.trim().split(/ +/).slice(2).join(' ')
+
+  if (word === '' || word === 'status') {
+    return describe()
+  }
+  if (word === 'off') {
+    const cleared = await $.theme.clear()
+
+    isThemeOn = false
+
+    return cleared.isDrawn ? 'the theme is cleared' : 'cleared'
+  }
+  if (word === 'on') {
+    const set = await setLook($)
+
+    return set.isDrawn ? 'the room is on' : `not drawn: ${set.reason}`
+  }
+  if (word === 'instant') {
+    isInstant = value === '' ? !isInstant : value === 'on'
+    askedAt = performance.now()
+    $.ui.invalidate('ui.render')
+
+    return isInstant ? 'instant switching is on: the television changes without sending the room again' : 'instant switching is off: every change sends the room again'
+  }
+  if (word === 'glass' || word === 'blur') {
+    const amount = Number(value)
+    const most = word === 'glass' ? 95 : 40
+
+    if (value === '' || !Number.isFinite(amount) || amount < 0 || amount > most) {
+      return `give a number from 0 to ${most}, as in /bedroom ${word} ${word === 'glass' ? 30 : 4}. glass is how solid the panels over the room are (now ${Math.round(saved.glass * 100)}); blur is how much they blur it (now ${saved.blur})`
+    }
+    saved = word === 'glass' ? { ...saved, glass: amount / 100 } : { ...saved, blur: amount }
+    await $.store.set(STORE_KEY, saved)
+    const set = await setLook($)
+
+    return set.isDrawn ? `glass ${Math.round(saved.glass * 100)}, blur ${saved.blur}` : `not drawn: ${set.reason}`
+  }
+  if (word === 'title') {
+    if (!(TITLE_KEYS as string[]).includes(value)) {
+      return `say which: /bedroom title console|tape|pennant|pennant-top <text>; with no text it goes back to the default. Now: ${TITLE_KEYS.map(key => `${key} "${saved.titles[key] ?? 'default'}"`).join(', ')}`
+    }
+    const key = value as TitleKey
+    const titles = withTitle(saved.titles, key, rest)
+
+    saved = { ...saved, titles }
+    askedAt = performance.now()
+    $.ui.invalidate('ui.render')
+    await $.store.set(STORE_KEY, saved)
+
+    return `the ${key} title is ${titles[key] === undefined ? 'the default' : `"${titles[key]}"`}; this sends the room once`
+  }
+  if (word === 'stats') {
+    return `renders: ${stats.renders}. room sent: ${stats.roomSends}. changed by numbers only: ${stats.valueOnly}. last render asked ${stats.askMs.toFixed(1)} ms after the change, built in ${stats.buildMs.toFixed(1)} ms (slowest ${stats.maxBuildMs.toFixed(1)} ms). room size: ${stats.chars} of 131072 characters. instant: ${isInstant ? 'on' : 'off'}. build: ${BUILD}`
+  }
+  if (word === 'calibrate') {
+    isCalibrating = true
+
+    return 'click the bottom-left corner of the front of the dresser'
+  }
+  if (word === 'reset') {
+    saved = { state: { ...DEFAULT_STATE }, dim: 0, aspect: saved.aspect, glass: DEFAULT_GLASS, blur: DEFAULT_BLUR, titles: saved.titles }
+    sendAll()
+    await setLook($)
+  } else if (word === 'dim') {
+    const percent = Number(value)
+
+    if (!Number.isFinite(percent) || percent < 0 || percent > 80) {
+      return 'give a number from 0 to 80, as in /bedroom dim 30'
+    }
+    saved = { ...saved, dim: percent / 100 }
+  } else if (word === 'posters') {
+    if (value !== 'plain') {
+      return 'posters is plain'
+    }
+    saved = { ...saved, state: { ...saved.state, posters: value } }
+  } else if ((SWITCHES as readonly string[]).includes(word)) {
+    const key = word as Switch
+
+    if (value !== '' && value !== 'on' && value !== 'off') {
+      return `say on or off, as in /bedroom ${word} off; with neither, it flips`
+    }
+    saved = { ...saved, state: { ...saved.state, [key]: value === '' ? !saved.state[key] : value === 'on' } }
+    const place = saved.state[key] ? 1 : 0
+
+    sent = { ...sent, [key]: 0.5 }
+    $.clock.after(700, () => {
+      sent = { ...sent, [key]: place }
+      $.ui.invalidate('ui.render')
+    })
+  } else {
+    return `no such setting. The switches are ${SWITCHES.join(', ')}; also status, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off`
+  }
+  askedAt = performance.now()
+  $.ui.invalidate('ui.render')
+  await $.store.set(STORE_KEY, saved)
+
+  return describe()
+}
+
+/** How far the card's buttons move dim, glass and blur, inside the range each command takes. */
+const STEPS = { dim: { by: 10, most: 80 }, glass: { by: 10, most: 95 }, blur: { by: 4, most: 40 } } as const
+type Stepped = keyof typeof STEPS
+const STEPPED = Object.keys(STEPS) as Stepped[]
+
+/** A stepped setting as its command takes it: dim and glass in percent, blur as is. */
+function amountOf(name: Stepped): number {
+  return name === 'dim' ? Math.round(saved.dim * 100) : name === 'glass' ? Math.round(saved.glass * 100) : saved.blur
+}
+
+/** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. */
+async function refreshCard($: EngineInterface, said?: string): Promise<void> {
+  await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, ...(said !== undefined && { said }) }))
+}
+
+/** A press on the card: the command with those words, its answer shown on the card. */
+async function press($: EngineInterface, words: string): Promise<void> {
+  let said: string
+
+  try {
+    said = await bedroomCommand($, words)
+  } catch (error) {
+    said = `/bedroom ${words} failed: ${error instanceof Error ? error.message : String(error)}`
+  }
+  await refreshCard($, said)
+}
+
+/** Moves a stepped setting one step, through the same command; a step past either end does nothing. */
+async function step($: EngineInterface, name: Stepped, way: 1 | -1): Promise<void> {
+  const now = amountOf(name)
+  const next = Math.min(STEPS[name].most, Math.max(0, now + way * STEPS[name].by))
+
+  if (next !== now) {
+    await press($, `${name} ${next}`)
+  }
+}
+
+/** Places a new card row at the transcript's end; where no surface draws it, the card shows above the prompt. */
+async function openCard($: EngineInterface): Promise<void> {
+  const count = ((await read($, card)).placed ?? 0) + 1
+  const row = `${CARD_ROW}-${count}`
+
+  await update($, card, was => ({ ...was, row, placed: count, inBand: false, isAway: false, said: undefined }))
+  isCardOpen = true
+  const placed = await $.ui.place({ id: row })
+
+  if (!placed.isPlaced) {
+    await update($, card, was => ({ ...was, inBand: true }))
+  }
+}
+
+async function closeCard($: EngineInterface): Promise<void> {
+  isCardOpen = false
+  await update($, card, was => ({ ...was, inBand: false, isAway: true }))
+}
+
+type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'Input'>
+
+/**
+ * The settings card. The desktop draws a button's `label`, not its children, so each label carries the state it
+ * changes. Every press runs `bedroomCommand` with the words the command takes; the card reads the settings afresh
+ * at each draw, so it shows a change made by a click in the room or a typed command too.
+ */
+function settingsCard($: EngineInterface, { Box, Text, Button, Input }: CardElements, now: BedroomCard) {
+  const themeLabel = isThemeOn ? 'theme: on' : 'theme: off'
+
+  return (
+    <Box flexDirection="column" borderStyle="round" paddingX={1} gap="md">
+      <Box flexDirection="row" justifyContent="space-between" gap={1}>
+        <Text bold>Bedroom settings</Text>
+        <Button key="close" label="Close" role="dismiss" onPress={() => closeCard($)}>
+          Close
+        </Button>
+      </Box>
+      <Text dimColor>{describe()}</Text>
+      <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
+        {SWITCHES.map(name => {
+          const label = `${name}: ${saved.state[name] ? 'on' : 'off'}`
+
+          return (
+            <Button key={`switch-${name}`} label={label} onPress={() => press($, name)}>
+              {label}
+            </Button>
+          )
+        })}
+      </Box>
+      {STEPPED.map(name => (
+        <Box key={`step-${name}`} flexDirection="row" gap={1}>
+          <Text>{`${name} ${amountOf(name)}`}</Text>
+          <Button key={`${name}-down`} label={`-${STEPS[name].by}`} onPress={() => step($, name, -1)}>
+            {`-${STEPS[name].by}`}
+          </Button>
+          <Button key={`${name}-up`} label={`+${STEPS[name].by}`} onPress={() => step($, name, 1)}>
+            {`+${STEPS[name].by}`}
+          </Button>
+        </Box>
+      ))}
+      <Box flexDirection="column" gap="xs">
+        <Text bold>Titles</Text>
+        {TITLE_KEYS.map(key => (
+          <Input
+            key={`title-${key}`}
+            label={`${key} (up to ${TITLE_CAPS[key]})`}
+            placeholder="default"
+            value={saved.titles[key] ?? ''}
+            submitLabel="set"
+            onSubmit={text => void press($, `title ${key} ${text}`)}
+          />
+        ))}
+        <Text dimColor>Enter sets a title and sends the room once; an empty one puts the default back. Typed: /bedroom title console|tape|pennant|pennant-top TEXT</Text>
+      </Box>
+      <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
+        <Button key="reset" label="reset" onPress={() => press($, 'reset')}>
+          reset
+        </Button>
+        <Button key="calibrate" label="calibrate" onPress={() => press($, 'calibrate')}>
+          calibrate
+        </Button>
+        <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn ? 'off' : 'on')}>
+          {themeLabel}
+        </Button>
+      </Box>
+      {now.said === undefined ? [] : [<Text key="said" dimColor>{now.said}</Text>]}
+    </Box>
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'bedroom',
-      description: 'The bedroom theme of the themes plugin: tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, off',
+      description: 'The bedroom theme of the themes plugin: alone it shows the settings card; status, tv, tape, console, pc, light, lamp, lava (on or off), posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off',
     })
     const stored = (await $.store.get(STORE_KEY)) as Partial<Saved> | undefined
 
@@ -149,7 +396,10 @@ export const register: Register = on => {
     if (unpainted !== undefined) {
       $.ui.toast(unpainted)
     }
-    const set = await $.theme.set(look())
+    const set = await setLook($)
+    const shown = await read($, card)
+
+    isCardOpen = shown.row !== undefined && shown.isAway !== true
     const tick = (): void => {
       $.clock.after(60_050 - (Date.now() % 60_000), () => {
         $.ui.invalidate('ui.render')
@@ -231,6 +481,9 @@ export const register: Register = on => {
       saved = { ...saved, aspect: Math.min(4, Math.max(0.5, aspect)) }
       await $.store.set(STORE_KEY, saved)
       $.ui.toast(`bedroom: clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
+      if (isCardOpen) {
+        await refreshCard($, `clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
+      }
 
       return {}
     }
@@ -254,108 +507,51 @@ export const register: Register = on => {
       }
     }
     void $.store.set(STORE_KEY, saved).catch(() => undefined)
+    if (isCardOpen) {
+      await refreshCard($)
+    }
 
     return {}
   })
 
   on('command.run', { command: 'bedroom' }, async ($, e) => {
-    const [word = '', value = ''] = e.args.trim().toLowerCase().split(/ +/)
-    const rest = e.args.trim().split(/ +/).slice(2).join(' ')
+    const text = await bedroomCommand($, e.args)
 
-    if (word === '') {
-      return { text: describe() }
+    if (e.args.trim() === '' && (await $.session.surfaces()).includes('desktop')) {
+      await openCard($)
+
+      return { text: `${text}. The settings card is below.` }
     }
-    if (word === 'off') {
-      const cleared = await $.theme.clear()
-
-      return { text: cleared.isDrawn ? 'the theme is cleared' : 'cleared' }
+    if (isCardOpen) {
+      await refreshCard($)
     }
-    if (word === 'on') {
-      const set = await $.theme.set(look())
 
-      return { text: set.isDrawn ? 'the room is on' : `not drawn: ${set.reason}` }
+    return { text }
+  })
+
+  on('ui.render', { component: 'Placed' }, async ($, e, next) => {
+    if (e.props.plugin !== $.plugin.name || !e.props.id.startsWith(CARD_ROW) || e.surface !== 'desktop') {
+      return next(e)
     }
-    if (word === 'instant') {
-      isInstant = value === '' ? !isInstant : value === 'on'
-      askedAt = performance.now()
-      $.ui.invalidate('ui.render')
+    const now = await read($, card)
 
-      return { text: isInstant ? 'instant switching is on: the television changes without sending the room again' : 'instant switching is off: every change sends the room again' }
+    if (now.isAway === true || now.row !== e.props.id) {
+      return next(e)
     }
-    if (word === 'glass' || word === 'blur') {
-      const amount = Number(value)
-      const most = word === 'glass' ? 95 : 40
 
-      if (value === '' || !Number.isFinite(amount) || amount < 0 || amount > most) {
-        return { text: `give a number from 0 to ${most}, as in /bedroom ${word} ${word === 'glass' ? 30 : 4}. glass is how solid the panels over the room are (now ${Math.round(saved.glass * 100)}); blur is how much they blur it (now ${saved.blur})` }
-      }
-      saved = word === 'glass' ? { ...saved, glass: amount / 100 } : { ...saved, blur: amount }
-      await $.store.set(STORE_KEY, saved)
-      const set = await $.theme.set(look())
+    return settingsCard($, $.ui.resolve(e), now)
+  })
 
-      return { text: set.isDrawn ? `glass ${Math.round(saved.glass * 100)}, blur ${saved.blur}` : `not drawn: ${set.reason}` }
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.surface !== 'desktop') {
+      return next(e)
     }
-    if (word === 'title') {
-      if (!(TITLE_KEYS as string[]).includes(value)) {
-        return { text: `say which: /bedroom title console|tape|pennant|pennant-top <text>; with no text it goes back to the default. Now: ${TITLE_KEYS.map(key => `${key} "${saved.titles[key] ?? 'default'}"`).join(', ')}` }
-      }
-      const key = value as TitleKey
-      const titles = withTitle(saved.titles, key, rest)
+    const now = await read($, card)
 
-      saved = { ...saved, titles }
-      askedAt = performance.now()
-      $.ui.invalidate('ui.render')
-      await $.store.set(STORE_KEY, saved)
-
-      return { text: `the ${key} title is ${titles[key] === undefined ? 'the default' : `"${titles[key]}"`}; this sends the room once` }
+    if (now.inBand !== true || now.isAway === true) {
+      return next(e)
     }
-    if (word === 'stats') {
-      return {
-        text: `renders: ${stats.renders}. room sent: ${stats.roomSends}. changed by numbers only: ${stats.valueOnly}. last render asked ${stats.askMs.toFixed(1)} ms after the change, built in ${stats.buildMs.toFixed(1)} ms (slowest ${stats.maxBuildMs.toFixed(1)} ms). room size: ${stats.chars} of 131072 characters. instant: ${isInstant ? 'on' : 'off'}. build: ${BUILD}`,
-      }
-    }
-    if (word === 'calibrate') {
-      isCalibrating = true
 
-      return { text: 'click the bottom-left corner of the front of the dresser' }
-    }
-    if (word === 'reset') {
-      saved = { state: { ...DEFAULT_STATE }, dim: 0, aspect: saved.aspect, glass: DEFAULT_GLASS, blur: DEFAULT_BLUR, titles: saved.titles }
-      sendAll()
-      await $.theme.set(look())
-    } else if (word === 'dim') {
-      const percent = Number(value)
-
-      if (!Number.isFinite(percent) || percent < 0 || percent > 80) {
-        return { text: 'give a number from 0 to 80, as in /bedroom dim 30' }
-      }
-      saved = { ...saved, dim: percent / 100 }
-    } else if (word === 'posters') {
-      if (value !== 'plain') {
-        return { text: 'posters is plain' }
-      }
-      saved = { ...saved, state: { ...saved.state, posters: value } }
-    } else if ((SWITCHES as readonly string[]).includes(word)) {
-      const key = word as Switch
-
-      if (value !== '' && value !== 'on' && value !== 'off') {
-        return { text: `say on or off, as in /bedroom ${word} off; with neither, it flips` }
-      }
-      saved = { ...saved, state: { ...saved.state, [key]: value === '' ? !saved.state[key] : value === 'on' } }
-      const place = saved.state[key] ? 1 : 0
-
-      sent = { ...sent, [key]: 0.5 }
-      $.clock.after(700, () => {
-        sent = { ...sent, [key]: place }
-        $.ui.invalidate('ui.render')
-      })
-    } else {
-      return { text: `no such setting. The switches are ${SWITCHES.join(', ')}; also posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off` }
-    }
-    askedAt = performance.now()
-    $.ui.invalidate('ui.render')
-    await $.store.set(STORE_KEY, saved)
-
-    return { text: describe() }
+    return settingsCard($, $.ui.resolve(e), now)
   })
 }
