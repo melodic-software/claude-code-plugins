@@ -82,8 +82,8 @@ Parse `$ARGUMENTS` with `overengineering:audit`'s vocabulary and **pass it throu
   non-interactive defaults. The bare word `unattended` is not this flag and not a hint: stop and
   name `--unattended`.
 - **A target form** (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request
-  in words) with its value: selects several repositories ("Over several repositories"). It is not
-  forwarded as received: each repository's audit gets `--repo <root>` alone.
+  in words) with its value: selects several repositories ("Over several repositories"). It is never
+  forwarded: each repository's audit runs with its root anchored and no target form.
 - Anything else is a free-text hint. **Do not forward it**: it would make this cycle's walk
   incomparable with the baseline's. Report it as declined, with the reason.
 
@@ -102,8 +102,10 @@ whole of "The run", steps 1 to 7, with its root anchored. What differs here:
   environment-supplied ref. A cycle never compares one repository's spine against another's
   baseline, and a repository's run state (bootstrap, no baseline, branch mismatch, no branch
   identity) is its own.
-- **The composed audit runs once per repository**, invoked for that repository alone (`--repo
-  <root>`) with the layer scope and `--unattended` forwarded as received.
+- **The composed audit runs once per repository**, inside that repository's subagent, as the
+  audit's single-repository procedure ("Before the walk" through "The report") with the root
+  anchored and no target form, so it never resolves, fans out or merges again; the layer scope and
+  `--unattended` are forwarded as received.
 - **One merged delta view.** Every listed row and queued row carries its repository; the counts
   table, the volume cap and the quiet-cycle line cover all repositories together, the cap's last
   tie-break is the repository's `owner/name`, since one path in two repositories derives one id,
