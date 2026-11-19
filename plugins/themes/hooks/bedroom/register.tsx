@@ -523,10 +523,10 @@ export const register: Register = on => {
   on('command.run', { command: 'bedroom' }, async ($, e) => {
     const text = await bedroomCommand($, e.args)
 
-    if (e.args.trim() === '' && (await $.session.surfaces()).includes('desktop')) {
+    if (e.args.trim() === '') {
       await openCard($)
 
-      return { text: `${text}. The settings card is below.` }
+      return { text }
     }
     if (isCardOpen) {
       await refreshCard($)

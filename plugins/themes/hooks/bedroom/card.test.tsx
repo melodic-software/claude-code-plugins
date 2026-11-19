@@ -46,7 +46,7 @@ test('/bedroom alone keeps its answer and shows a card listing every switch with
   const status = await bedroom($, 'status')
 
   expect(status).toBe('on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0')
-  expect(await bedroom($, '')).toBe(`${status}. The settings card is below.`)
+  expect(await bedroom($, '')).toBe(status)
   expect(placed).toHaveLength(1)
 
   const ui = await $.ui.mount(cardOf(placed[0]!))
@@ -173,7 +173,7 @@ test('a title typed and not yet set survives a redraw of the card, and a typed /
   await ui.unmount()
 })
 
-test('away from the desktop /bedroom answers with text alone and draws no card', async ($, on) => {
+test('away from the desktop /bedroom answers with text alone and its row draws no card', async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['terminal'], placed)
@@ -181,10 +181,23 @@ test('away from the desktop /bedroom answers with text alone and draws no card',
   await bedroom($, 'reset')
 
   expect(await bedroom($, '')).toBe('on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0')
-  expect(placed).toHaveLength(0)
+  expect(placed).toHaveLength(1)
 
-  const ui = await $.ui.mount({ ...cardOf('bedroom-card-1'), surface: 'terminal' })
+  const ui = await $.ui.mount({ ...cardOf(placed[0]!), surface: 'terminal' })
 
   expect(await ui.find({ type: 'Button' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the desktop draws the card whatever the session says of its surfaces', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, [], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, '')
+
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+
+  expect((await ui.find({ key: 'switch-tv' }))?.type).toBe('Button')
   await ui.unmount()
 })
