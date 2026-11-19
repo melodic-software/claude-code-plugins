@@ -185,7 +185,12 @@ one line per check, detail lines indented under it:
 
 The last line is `verdict: VALID` or `verdict: INVALID` with its reasons. A
 FAIL, or a check that could not run (UNCHECKED), makes the run INVALID; a WARN
-does not. The line before it counts the runs that ran Bash, decides nothing,
+does not. A permission-denials FAIL names the calls it counted, each its tool
+and its target (a path, a command or the denied hosts), on one line: the target
+redacted by the plugin's vendored gitleaks redactor (scripts/redact.py), its
+whitespace collapsed and cut to TARGET_CHARS, a call repeated across runs named
+once with its count, at most DENIED_SHOWN of them; with no redactor loaded, or
+one failing closed, it names the tools only. The line before it counts the runs that ran Bash, decides nothing,
 and names no case, command or trace text, so it may be published:
 `bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>]`. A run ran Bash
 when a Bash call got a tool_result that is neither a permission denial nor a
@@ -210,6 +215,7 @@ Exit codes:
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import posixpath
@@ -218,6 +224,13 @@ import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
+
+DENIED_SHOWN = 10
+TARGET_CHARS = 120
+REDACT_PY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "scripts", "redact.py"
+)
+UNPRINTABLE = re.compile(r"[\s\x00-\x1f\x7f-\x9f]+")
 
 FULL_SCORE = 1.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
@@ -2660,6 +2673,47 @@ def check_programs(runs):
     return PASS, "no trace shows a shim error or command not found", [], None
 
 
+def load_redactor(path=REDACT_PY):
+    """The plugin's vendored redactor, or None when it cannot load or fails closed."""
+    try:
+        spec = importlib.util.spec_from_file_location("plugin_eval_redact", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        redactor = module.load_redactor()
+    except (OSError, ImportError, SyntaxError, AttributeError):
+        return None
+    finally:
+        sys.modules.pop("plugin_eval_redact", None)
+    return None if redactor.fail_closed else redactor
+
+
+def named_calls(found, redactor):
+    """The denied calls in found, in trace order, as one line: each its tool and
+    its redacted, collapsed and cut target, a repeat counted, at most DENIED_SHOWN;
+    the tools only when redactor is None."""
+    counts = {}
+    for d in found:
+        name, target = d[4]
+        if name == "network-outbound":
+            name, target = BASH_TOOL, "network-outbound " + ", ".join(target)
+        else:
+            target = json.loads(target)
+            if not isinstance(target, str):
+                target = json.dumps(target, sort_keys=True)
+        text = ""
+        if redactor is not None:
+            text = UNPRINTABLE.sub(" ", redactor.redact(target)).strip().replace("`", "'")
+            if len(text) > TARGET_CHARS:
+                text = text[: TARGET_CHARS - 3] + "..."
+        call = "%s `%s`" % (name or "tool", text) if text else name or "tool"
+        counts[call] = counts.get(call, 0) + 1
+    shown = [c if n == 1 else "%s x%d" % (c, n) for c, n in counts.items()]
+    if len(shown) > DENIED_SHOWN:
+        shown = shown[:DENIED_SHOWN] + ["+%d more" % (len(shown) - DENIED_SHOWN)]
+    return ", ".join(shown)
+
+
 def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=()):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
@@ -2836,8 +2890,9 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             )
         )
     if failed:
-        reason = "%s in the traces" % plural(
-            sum(len(found[r]) for r in failed), "permission denial"
+        reason = "%s in the traces: %s" % (
+            plural(sum(len(found[r]) for r in failed), "permission denial"),
+            named_calls([d for r in failed for d in found[r]], load_redactor()),
         )
         if warned:
             reason += " (warnings only, not counted: case %s)" % ", ".join(warned_cases)
