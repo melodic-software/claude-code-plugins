@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" reset --dry-run",
+            "description": "Preview the reset"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" reset --dry-run --json",
+            "description": "Preview the reset"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" clear --dry-run",
+            "description": "Preview one folder's clear"
+          }
+        }
+      ],
+      "why": "one folder's clear is not the machine-wide reset"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" reset --yes",
+            "description": "Reset"
+          }
+        }
+      ],
+      "why": "a reset with no preview"
+    }
+  ]
+}

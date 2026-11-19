@@ -6,7 +6,7 @@
 //
 // Windows can refuse a rename while another process holds the target open (EPERM, EBUSY,
 // EACCES), so the rename is retried a few times before the failure is passed on.
-import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
@@ -36,6 +36,15 @@ export function replaceFile(path, text, { beforeRename = () => {} } = {}) {
   } catch (error) {
     rmSync(temp, { force: true });
     throw error;
+  }
+}
+
+/** A file's text, or null when it cannot be read. */
+export function readText(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
   }
 }
 

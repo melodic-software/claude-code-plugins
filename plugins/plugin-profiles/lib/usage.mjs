@@ -20,13 +20,22 @@ function counts(section) {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-export function readUsage(path, read = (p) => readFileSync(p, "utf8")) {
-  let doc;
+function readDoc(path, read) {
   try {
-    doc = JSON.parse(read(path));
+    return JSON.parse(read(path));
   } catch {
-    return { source: null, skills: [], plugins: [] };
+    return null;
   }
+}
+
+export function knownFolders(path, read = (p) => readFileSync(p, "utf8")) {
+  const projects = readDoc(path, read)?.projects;
+  return projects !== null && typeof projects === "object" && !Array.isArray(projects) ? Object.keys(projects) : [];
+}
+
+export function readUsage(path, read = (p) => readFileSync(p, "utf8")) {
+  const doc = readDoc(path, read);
+  if (doc === null) return { source: null, skills: [], plugins: [] };
   const skills = counts(doc?.skillUsage);
   const plugins = counts(doc?.pluginUsage);
   return { source: skills.length || plugins.length ? path : null, skills, plugins };
