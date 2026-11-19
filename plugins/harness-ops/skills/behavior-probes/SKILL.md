@@ -100,12 +100,12 @@ command prints the window with no model turn: a `<synthetic>` assistant message 
 The `cloud-routine` area checks state a cloud scheduled task (routine) keeps between runs. Its case
 uses `/schedule` to create a one-off task on the repository of the configured `probe_state_issue`,
 starts one run at once and lets the scheduled fire be the second. Each run posts an issue comment on
-that issue, marked with an id the scaffold writes. Resolve the issue before a live run that selects
-the case:
-`node "${CLAUDE_PLUGIN_ROOT}/scripts/probe-state-issue.mjs" --project "${CLAUDE_PROJECT_DIR}" --user-value '${user_config.probe_state_issue}'`
-prints it with the layer that set it (the option, or `probe_state_issue` in the repository's
-`harness-ops.yaml`); pass a non-null value as `--state-issue <owner>/<repo>#<number>`. With none, a
-live run skips the case, and `probe.py` refuses any other shape. The case's `needs_state_issue`
+that issue, marked with an id the scaffold writes. A live run with no `--state-issue` resolves the
+issue itself through `scripts/probe-state-issue.mjs`, run from the project directory: the option, or
+`probe_state_issue` in the repository's `harness-ops.yaml`, kept only when shaped
+`<owner>/<repo>#<number>`. Run that script with `--project "${CLAUDE_PROJECT_DIR}"` to see the value
+and the layer that set it; never copy a configured value into a command. With none, a live run
+skips the case, and `probe.py` refuses an explicit `--state-issue` of any other shape. The case's `needs_state_issue`
 marks it; `${PROBE_STATE_REPO}` and `${PROBE_STATE_ISSUE}` in its `prompt.md` take the repository
 and the number, and a dry run fills in a stand-in whose owner is no GitHub login. The case then polls for 35 minutes at most and judges a final read of the second
 run's comment. Each live run creates a routine on the operator's account and posts two public

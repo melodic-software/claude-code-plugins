@@ -13,7 +13,7 @@
     },
     "probe_state_issue": {
       "type": "string",
-      "description": "The issue, as <owner>/<repo>#<number>, the cloud-routine behavior probe creates its routine on and posts its state comments to. Beats the probe_state_issue userConfig option; the personal override beats it. Unset: the case is skipped. Resolved by scripts/probe-state-issue.mjs; scripts/probe.py refuses any other shape."
+      "description": "The issue, as <owner>/<repo>#<number>, the cloud-routine behavior probe creates its routine on and posts its state comments to. Beats the probe_state_issue userConfig option; the personal override beats it. Unset: the case is skipped. Resolved by scripts/probe-state-issue.mjs, which drops a value of any other shape so the case is skipped."
     },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],

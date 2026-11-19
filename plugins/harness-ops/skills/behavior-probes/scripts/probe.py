@@ -35,9 +35,11 @@ Subcommands (standard library only):
       A case marked explicit runs live only when --case names it; otherwise
       it is reported skipped.
       --state-issue OWNER/REPO#N is the issue a needs_state_issue case works
-      against (scripts/probe-state-issue.mjs resolves it); empty or an
-      unrendered ${user_config.*} placeholder is unset, and such a case is
-      then skipped live. A dry run fills in DRY_RUN_STATE_ISSUE.
+      against; without it a live run takes the value
+      scripts/probe-state-issue.mjs prints for the current directory. Empty,
+      an unrendered ${user_config.*} placeholder or an unresolvable value is
+      unset, and such a case is then skipped live. A dry run fills in
+      DRY_RUN_STATE_ISSUE.
 
   table RESULTS
       Print a results.jsonl file as a Markdown outcome table for the records.
@@ -75,6 +77,7 @@ MIN_PYTHON = (3, 10)
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CASES = SKILL_DIR / "cases"
 CHANGELOG_PARSER = SKILL_DIR.parent.parent / "scripts" / "changelog-releases.sh"
+STATE_ISSUE_RESOLVER = SKILL_DIR.parent.parent / "scripts" / "probe-state-issue.mjs"
 
 PRINTS = "prints"
 OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS)
@@ -373,6 +376,27 @@ def state_issue(value: str | None) -> str | None:
             f"error: --state-issue must be <owner>/<repo>#<number>: {value!r}"
         )
     return value
+
+
+def resolved_state_issue(project: Path) -> str | None:
+    """probe_state_issue as the resolver prints it; None when unset or unresolvable."""
+    try:
+        done = subprocess.run(
+            ["node", str(STATE_ISSUE_RESOLVER), "--project", str(project)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        out = json.loads(done.stdout) if done.returncode == 0 else {}
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+    if not isinstance(out, dict):
+        return None
+    for error in out.get("errors") or []:
+        print(f"probe_state_issue: {error}", file=sys.stderr)
+    value = out.get("probe_state_issue")
+    return value if isinstance(value, str) and STATE_ISSUE.fullmatch(value) else None
 
 
 def state_substitute(text: str, issue: str) -> str:
@@ -1275,6 +1299,12 @@ def main(argv: list[str] | None = None) -> int:
     if not chosen:
         print("error: no case selected", file=sys.stderr)
         return 2
+    if (
+        args.live
+        and args.state_issue is None
+        and any(c.get("needs_state_issue") for c in chosen)
+    ):
+        args.state_issue = resolved_state_issue(Path.cwd())
     if args.max_runs is None:
         args.max_runs = DEFAULT_SUITE_RUNS if args.live else len(chosen)
     out = args.out or Path(tempfile.mkdtemp(prefix="cc-probe-results-"))

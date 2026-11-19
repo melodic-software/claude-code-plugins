@@ -742,6 +742,28 @@ class SuiteTests(unittest.TestCase):
             with self.assertRaises(SystemExit, msg=bad):
                 probe.state_issue(bad)
 
+    def _resolve_with(self, body):
+        fake = self.tmp / "resolver.mjs"
+        fake.write_text(body)
+        saved = probe.STATE_ISSUE_RESOLVER
+        probe.STATE_ISSUE_RESOLVER = fake
+        try:
+            return probe.resolved_state_issue(self.tmp)
+        finally:
+            probe.STATE_ISSUE_RESOLVER = saved
+
+    def test_the_resolved_state_issue_is_used_only_when_well_shaped(self):
+        if not shutil.which("node"):
+            self.skipTest("node is not on PATH")
+        say = "console.log(JSON.stringify({probe_state_issue: %s, errors: []}));"
+        self.assertEqual(
+            self._resolve_with(say % '"acme/widgets#42"'), "acme/widgets#42"
+        )
+        for value in ("\"acme/w';touch x;'#1\"", "null", "7"):
+            self.assertIsNone(self._resolve_with(say % value), value)
+        self.assertIsNone(self._resolve_with("process.exit(1);"))
+        self.assertIsNone(self._resolve_with('console.log("not json");'))
+
     def test_the_cloud_routine_case_names_no_repository_of_its_own(self):
         c = next(
             c

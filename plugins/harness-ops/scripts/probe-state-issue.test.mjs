@@ -45,6 +45,22 @@ test("the team file beats the option, and the personal file beats the team file"
   assert.equal(run(personal).layer, "local");
 });
 
+test("a value with a quote or any other off-shape character prints as null from every layer", () => {
+  const bad = "acme/w';touch x;'#1";
+  const yaml = `probe_state_issue: "${bad.replaceAll('"', '\\"')}"\n`;
+  for (const [label, out] of [
+    ["option", run(repo(), "--user-value", bad)],
+    ["team", run(repo({ team: yaml }))],
+    ["personal", run(repo({ team: "probe_state_issue: acme/team#1\n", personal: yaml }))],
+    ["option zero", run(repo(), "--user-value", "acme/widgets#07")],
+  ]) {
+    assert.equal(out.probe_state_issue, null, label);
+    assert.equal(out.layer, "default", label);
+    assert.match(out.errors.join("\n"), /is not <owner>\/<repo>#<number>/, label);
+    assert.doesNotMatch(JSON.stringify(out), /touch x/, label);
+  }
+});
+
 test("a team value that is not a string is named and dropped", () => {
   const out = run(repo({ team: "probe_state_issue: [a, b]\n" }));
   assert.equal(out.probe_state_issue, null);
