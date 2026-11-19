@@ -1,6 +1,6 @@
 ---
 description: "Improve one thing in any target, from a method or a doc to a whole feature, measured against the repo's written standards and, when a focus asks for it, current upstream guidance. Ships the smallest complete improvement as one small PR. With no arguments it reads the conversation for a target and focus and confirms both with the user before acting. Use when: 'improve this', 'improve X', 'make this faster', 'fix one thing', 'make this match our standards', 'bring this up to current upstream guidance', 'find something small and fix it', or a scheduled improve-one-thing run. Skip: a ranked list of options ('what should we improve') is /improvement:find; a structure-only lane sweep is code-tidying:tidy; an observed failure is debugging:debug."
-argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended]"
+argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -41,13 +41,38 @@ piling up review debt.
 | `--focus <lens>` | What "better" means this run: `performance`, `naming`, `readability`, `standards`, `currency` (match current upstream guidance, such as a new framework release), or the user's own words. Optional; defaults to `standards`. |
 | `dry-run` | Find and present the improvement, with the proposed diff, and stop. No branch, commit, or PR. |
 | `--unattended` | The caller declares there is no user to answer. See Unattended mode. Never inferred. |
+| `--repo <repo>` (and the other target forms) | Run in several repositories. See Several repositories. Optional; default is the current repository. |
+
+## Several repositories
+
+With no target form, the run covers the current repository only. The target forms (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) select several,
+which resolve, count and fan out as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+"Resolving repositories" and "Fan-out" say.
+
+- **Step 1 runs once, before the fan-out, for the focus and any explicit target.** A target form
+  alone is not a target. With none, Step 1 offers no file list: an interactive run confirms the
+  focus once and says each repository takes its own recent files. Each repository's run then
+  applies the recent-files fallback and the shallow-clone stop to itself, as
+  `git -C <root> log origin/HEAD --since=30.days ...` and
+  `git -C <root> rev-parse --is-shallow-repository`.
+- **Each repository then runs Steps 2 to 4** against its own standards, with that repository as
+  the working directory of every skill the steps invoke and of the throttle count. No step asks
+  inside a repository's run: each ask takes its recommended default, except Step 4's ready flip,
+  which leaves the PR as a draft unless the user's request authorized the flip, as in Unattended
+  mode.
+- **Writes stay per repository** (that section there): at most one improvement each, in a new
+  worktree on `<type>/improve-<slug>` from that repository's remote default branch, and one small
+  PR. The unattended throttle and the overflow work item apply per repository.
+- **The run report** lists each repository's PR, or why it opened none.
 
 ## Step 1. Resolve target and focus
 
 **Arguments given.** Use them. Map the target to its concrete surfaces (files, symbols, config,
 docs) before reading further. A target with no resolvable surface is reported, not guessed at.
 
-**No arguments, interactive.** Read the conversation for what the user was working on or
+**No arguments, interactive** (several repositories: see Several repositories). Read the conversation for what the user was working on or
 pointing at: the files edited, the symbol or doc under discussion, a complaint ("this is slow",
 "this name is wrong"). Then ask once, in one message, before touching anything:
 
@@ -60,7 +85,7 @@ pointing at: the files edited, the symbol or doc under discussion, a complaint (
 Wait for the answer. The aim is shared intent before any work: a confirmed target and focus is
 cheaper than a PR built on the wrong reading.
 
-**No arguments, unattended.** No question is possible. Take the caller's target from the
+**No arguments, unattended** (several repositories: see Several repositories). No question is possible. Take the caller's target from the
 invocation prompt; if it gives none, take the most recently changed files per the command above.
 On a shallow clone (`git rev-parse --is-shallow-repository` prints `true`), recent history is
 unreliable: stop and report that rather than pick at random.

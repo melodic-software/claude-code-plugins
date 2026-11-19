@@ -7,7 +7,7 @@ graders:
     target: 'last_message'
   - name: 'final-confirmed'
     type: 'regex'
-    pattern: '[Vv]erdict(?:\*\*|__)?\W{1,8}CONFIRMED'
+    pattern: '(?:[Vv]erdict(?:\*\*|__)?\W{1,8}CONFIRMED|CONFIRMED(?:\*\*|__)?\s?\([Ff]inal\))'
     target: 'last_message'
   - name: 'records-confirmed-once'
     type: 'tool_used'

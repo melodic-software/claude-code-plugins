@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.6] - 2026-11-19
+
+### Fixed
+
+- When the inherited `GIT_CONFIG_COUNT` is not a number, the end-of-turn check still blocks the turn end, and now prints one stderr line saying why instead of an empty message.
+
 ## [2.1.5] - 2026-11-18
 
 ### Security

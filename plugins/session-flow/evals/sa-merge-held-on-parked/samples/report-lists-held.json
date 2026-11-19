@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/20261118T221500Z-abc12345.md\",\"old_string\":\"## Needs you\\n\\nNone.\\n\",\"new_string\":\"## Needs you\\n\\n- PR #12 held: depends on the parked storage decision. Options: merge after the choice, or close. Recommendation: wait for the choice.\\n\"}}]}}\n",
+      "why": "report Edit names #12"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/away/20261118T221500Z-abc12345.md\",\"content\":\"## Needs you\\n\\n- feat/json-store held on the parked backend choice.\\n\"}}]}}\n",
+      "why": "report Write names the branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"PR #12 is held on the storage decision.\"}]}}\n",
+      "why": "said, not written to the report"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/ws/.work/away/tasks-abc12345.md\",\"content\":\"- [ ] PR #12 (parked)\\n\"}}]}}\n",
+      "why": "the task file, not the report"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/.work/away/20261118T221500Z-abc12345.md\",\"old_string\":\"None.\",\"new_string\":\"- Storage backend parked.\"}}]}}\n",
+      "why": "the report entry does not name the pull request"
+    }
+  ]
+}

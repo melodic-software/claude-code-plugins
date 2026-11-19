@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.38] - 2026-11-19
+
+### Changed
+
+- `worktree-root-resolve.sh` states again, in its header, the order in which it picks the git it runs. No behavior change.
+
 ## [0.28.37] - 2026-11-18
 
 ### Changed

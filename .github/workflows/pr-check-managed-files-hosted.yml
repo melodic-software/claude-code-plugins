@@ -53,6 +53,7 @@ on:
       - .github/standards/pyright/pyrightconfig.json
       - .github/standards/runner-policy/package-lock.json
       - .github/standards/runner-policy/package.json
+      - .github/standards/runner-policy/policy-input.mjs
       - .github/standards/runner-policy/policy.json
       - .github/standards/runner-policy/policy.schema.json
       - .github/standards/runner-policy/repository-policy.schema.json
