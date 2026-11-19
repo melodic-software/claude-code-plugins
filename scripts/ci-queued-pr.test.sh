@@ -90,11 +90,11 @@ expect() {
 
 expect "head commit comes from the pull request, not the ref's base sha" 0 \
   "gh-readonly-queue/main/pr-7492-$BASE" "$PR" \
-  "author=dependabot[bot] head_ref=dependabot/npm head_sha=$HEAD" "git fetch --no-tags origin $HEAD"
+  "author=dependabot[bot] head_ref=dependabot/npm head_sha=$HEAD waited=0" "git fetch --no-tags origin $HEAD"
 expect "the pull request number is read from the ref" 0 \
   "gh-readonly-queue/main/pr-7492-$BASE" "$PR" - "api -i repos/o/r/pulls/7492"
 expect "a fork's head branch is not passed" 0 \
-  "gh-readonly-queue/main/pr-12-$BASE" "$FORK" "author=someone head_ref= head_sha=$HEAD"
+  "gh-readonly-queue/main/pr-12-$BASE" "$FORK" "author=someone head_ref= head_sha=$HEAD waited=0"
 expect "a non-queue ref fails" 1 "refs/heads/main" "$PR" ""
 expect "a short sha in the ref fails" 1 "gh-readonly-queue/main/pr-7492-abc123" "$PR" ""
 
@@ -102,8 +102,13 @@ calls() { grep -cxF "api -i repos/o/r/pulls/7492" "$TMP_ROOT/log"; }
 LIMITED="$TMP_ROOT/limited"
 echo $(($(date +%s) + 1)) >"$LIMITED"
 expect "a rate limit whose reset is inside the budget is waited out" 0 \
-  "gh-readonly-queue/main/pr-7492-$BASE" "$PR" \
-  "author=dependabot[bot] head_ref=dependabot/npm head_sha=$HEAD" "git fetch --no-tags origin $HEAD"
+  "gh-readonly-queue/main/pr-7492-$BASE" "$PR" - "git fetch --no-tags origin $HEAD"
+slept=$(sed -n 's/^sleep //p' "$TMP_ROOT/log" | awk '{ s += $1 } END { print s + 0 }')
+if grep -qxF "waited=$slept" "$TMP_ROOT/output"; then
+  ok "the step outputs the seconds its read waited"
+else
+  fail "expected waited=$slept in '$(paste -sd' ' "$TMP_ROOT/output")'"
+fi
 if [[ $(calls) -eq 2 ]] && grep -q '^sleep ' "$TMP_ROOT/log"; then
   ok "the read is sent again after one wait"
 else

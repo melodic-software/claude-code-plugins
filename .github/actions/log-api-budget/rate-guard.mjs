@@ -71,23 +71,24 @@ const MAX_RESET = 999_999_999_999;
  *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
  *   leak scan's wait, and its jobs' API_BUDGET_WAIT_SECONDS. It is
  *   waitBudgetMs's cap.
- * - `ciStatusVerify`: ci-status's merge-queue verdict reader, its
- *   BABYSIT_READ_FLOOR_WAIT_SECONDS: how long it waits for a pool's reset
- *   after a read it did not send below the read floor, then judges again
- *   (owner decision D417). The job's timeout-minutes holds it on top of
- *   GH_READ_JOB_SECONDS. With the merge queue's 30-minute
- *   check_response_timeout_minutes and merge-group runs of up to about 12
- *   minutes, a longer wait would time the entry out
- *   (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch).
- * - `queuedPr`: check-plugins' read of the queued pull request in a merge
- *   group, its QUEUED_PR_WAIT_SECONDS: how long a rate-limited read waits for
- *   the reset before the bump, fragment, release and vendor gates refuse and
- *   eject the group. The job's timeout-minutes holds it on top of its 9. The
- *   merge queue's 30-minute check_response_timeout_minutes must still hold the
- *   wait, the job's other work and ci-status after it, so it stays at 15
- *   minutes.
+ * - `mergeGroup`: one merge-group run's waits for a pool's reset, together.
+ *   check-plugins' read of the queued pull request waits first, up to all of
+ *   it (QUEUED_PR_WAIT_SECONDS), before the bump, fragment, release and
+ *   vendor gates refuse and eject the group; ci-status's verdict reader,
+ *   whose job needs check-plugins, waits only what that left
+ *   (MERGE_GROUP_WAIT_SECONDS less the job's queued-pr-waited output, as
+ *   BABYSIT_READ_FLOOR_WAIT_SECONDS) for a reset after a read it did not send
+ *   below the read floor, then judges again (owner decision D417), and with
+ *   nothing left its refusal stands. Each job's timeout-minutes holds the
+ *   whole wait, on top of check-plugins' 9 and ci-status's
+ *   GH_READ_JOB_SECONDS. The merge queue's check_response_timeout_minutes,
+ *   30 (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch),
+ *   must hold the wait and the run's work. ci-status starts after the slowest
+ *   lane, so a reader's wait adds to the whole run: the longest of 100 recent
+ *   merge-group runs took 1,002 s (ci-status from 303 s, for 696 s), so 10
+ *   minutes of waiting leaves about 3 to spare.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, mergeGroup: 600 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
