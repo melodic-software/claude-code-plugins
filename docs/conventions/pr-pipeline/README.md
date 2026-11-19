@@ -956,7 +956,11 @@ activity's dispatcher, under the cap it already keeps: `limit-stops-per-head` fo
 `resolve-conflicts`, `fix-ci-restarts` and the per-head cap for `fix-ci`,
 `SWEEP_HEAD_CAP` for `address-feedback`. A `fix-ci` or `address-feedback` retry runs one model
 rung up (`escalate-to`), read in the run from the head's own stop record, never from a dispatch
-input; the others retry as a fresh session. A retry that acts and does not stop posts success over the
+input; the others retry as a fresh session. A `resolve-conflicts` push job that stops
+`unresolved-conflict` records its pinned base and the round's unmerged paths in its check
+(`conflict-record`), and the dispatcher sends that head again only once a main commit since that
+base changes one of those paths, read in one compare call per base move; a stop with no record, a
+failed read, or a new head sends as before. A retry that acts and does not stop posts success over the
 failing status (`report-escalation.sh clear`); one that ends on a skip, such as a reply job with no
 model turn, leaves it. A select job that finds the stop gone on its head also posts success
 and skips `stop-resolved`: `address-feedback` once no hold and no unresolved review thread is left,
@@ -2335,7 +2339,9 @@ pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(to
 pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
 1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
-read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+read floor (`limits.api` `read-floor` of the header's limit, inlined in the job env), left. The
+reader plans its own floor to that live limit too, not github-token's `limit-cap` (owner decision
+D418).
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the

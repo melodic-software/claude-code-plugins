@@ -1,0 +1,2 @@
+# yaml-language-server: $schema=../../plugins/harness-ops/schemas/harness-ops.schema.json
+probe_state_issue: "melodic-software/claude-code-plugins#8991"

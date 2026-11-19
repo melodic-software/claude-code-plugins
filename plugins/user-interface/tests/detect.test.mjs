@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "../scripts/lib/yaml-subset.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
 const PLUGIN = join(TESTS, "..");

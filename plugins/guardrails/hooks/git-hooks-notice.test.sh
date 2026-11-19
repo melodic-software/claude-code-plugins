@@ -12,23 +12,15 @@
 # test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=../lib/git-hooks-test-helpers.sh
+source "$ROOT/lib/git-hooks-test-helpers.sh"
 
 expect "prerequisites.json opts into the session probe behind GIT_HOOKS_NOTICE_ENABLED" GIT_HOOKS_NOTICE_ENABLED \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$ROOT/prerequisites.json" | tr -d '\r')"

@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","model":"claude-sonnet-5-5","tools":["Skill","Read","Glob","Grep"]}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a1","name":"Bash","input":{"command":"git rev-parse --show-toplevel"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"a1","is_error":true,"content":"<tool_use_error>Error: No such tool available: Bash. Bash is disabled for this session, in subagents as well as here.</tool_use_error>"}]}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":4,"permission_denials":[]}

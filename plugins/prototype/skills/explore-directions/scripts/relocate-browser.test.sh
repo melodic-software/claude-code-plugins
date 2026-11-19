@@ -14,35 +14,9 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 skill=$(cd "$here/.." && pwd)
 bridge=$(cd "$skill/../../notes-bridge" && pwd)
-for tool in playwright-cli node python3 curl; do # prereq-ok: test-only
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "SKIP: $tool not installed"
-    exit 0
-  fi
-done
-
-if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/ed-relocate.XXXXXX") || [[ ! -d "$tmp" ]]; then
-  echo "FAIL: mktemp gave no scratch dir"
-  exit 1
-fi
-d="$tmp/run"
-mkdir -m 700 "$d" "$tmp/b"
-session="edr-$$"
-pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only
-finish() {
-  # shellcheck disable=SC2310  # cleanup on exit: a browser that is already gone is fine
-  pw close >/dev/null 2>&1 || true
-  bash "$bridge/notes-bridge.sh" --dir "$d" stop >/dev/null 2>&1 || true
-  case "$tmp" in
-    */ed-relocate.*) rm -rf -- "$tmp" ;;
-    *) ;;
-  esac
-}
-trap finish EXIT
-
-fails=0
-ok() { echo "PASS: $1"; }
-bad() { echo "FAIL: $1"; fails=$((fails + 1)); }
+# shellcheck source=../../../lib/browser-test-helpers.sh
+source "$here/../../../lib/browser-test-helpers.sh"
+browser_setup ed-relocate edr playwright-cli node python3 curl
 
 # The mockup: two variants with two screen states each, and in B's empty state a demo and a worst
 # content set, each with the call to action. The worst one is solid green and sits under the
@@ -91,31 +65,9 @@ HTML
 worst='      <div data-content-set="worst"><div class="cta worst" data-testid="shipments-empty-cta"></div></div>'
 page "$worst" >"$d/explore-directions.html"
 
-started=$(bash "$bridge/notes-bridge.sh" --dir "$d" ensure-running --page explore-directions.html)
-port=$(printf '%s' "$started" | sed -n 's/.*"url": "http:\/\/127\.0\.0\.1:\([0-9]*\)\/".*/\1/p')
-[[ -n "$port" ]] || {
-  echo "FAIL: ensure-running printed no url: $started"
-  exit 1
-}
+browser_serve
 url="http://127.0.0.1:$port/"
 
-native() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
-# The value a run-code script returned: playwright-cli prints it as a JSON string literal.
-result() {
-  python3 -c '
-import json, sys
-for line in sys.stdin:
-    line = line.strip()
-    if line.startswith("\""):
-        print(json.loads(line))
-        break
-'
-}
-code() { # script; a failed run prints no result, which the checks below count as a failure
-  local path
-  path=$(native "$1")
-  (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" run-code --filename "$path" 2>&1) || true # prereq-ok: test-only
-}
 
 pw open >/dev/null 2>&1
 sed "s/__PORT__/$port/" "$here/relocate-browser-take.js" >"$tmp/take.js"
@@ -175,9 +127,6 @@ print("async page => { await page.goto(\"about:blank\"); return page.evaluate(as
       " return JSON.stringify({ w: bmp.width, h: bmp.height, green: green / n, magenta: magenta / n, dark: dark / n, light: light / n }); }, " + json.dumps(b64) + "); }")
 ' "$1" >"$tmp/pixels.js"
   code "$tmp/pixels.js" | result
-}
-check() { # name python-assertions json
-  if python3 -c "import json, sys; r = json.loads(sys.argv[1]); $2" "$3"; then ok "$1"; else bad "$1: $3"; fi
 }
 
 out=$(relocate)

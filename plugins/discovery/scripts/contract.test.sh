@@ -26,12 +26,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # surface — every shipped instruction file in the plugin, minus the changelog.
 # Content lives in markdown and in the evals JSON; both are read by a model, so

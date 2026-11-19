@@ -60,8 +60,8 @@ const MAX_RESET = 999_999_999_999;
  * this module, so each literal below is pinned to it by rate-guard.test.mjs:
  * - `step`: one process's waits, summed. The latch's budget for rate-limit
  *   waits and, counted apart, a client's 5xx retries (retryServerErrors), and
- *   the `rate-limit-wait-seconds` ci-status passes each pinned ci-workflows
- *   composite.
+ *   the `rate-limit-wait-seconds` default of check-contract and
+ *   aggregate-results, which ci-status's report-ci-status composite keeps.
  * - `ciStatusReads`: ci-status's reads, from the job's start: its
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
@@ -80,7 +80,7 @@ const MAX_RESET = 999_999_999_999;
  *   minutes, a longer wait would time the entry out
  *   (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch).
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 825, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 

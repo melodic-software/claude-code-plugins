@@ -53,6 +53,23 @@ check 'its outputs' "conflicted||$T0" "$(out merge-state)|$(out escalation-reaso
 check 'no skip reason' '' "$(out skip-reason)"
 if [[ $LOG == *'::stop-commands::'* ]]; then ok 'workflow commands stop while prepare.sh runs'; else not_ok 'workflow commands stop while prepare.sh runs'; fi
 
+check 'no unmerged-paths file gives no conflict paths' '' "$(out conflict-paths)"
+
+mkdir -p "$TMP/out"
+printf 'docs/contract.md\0src/a b.mjs\0' >"$TMP/out/unmerged-paths"
+run "$CONFLICTED"
+check 'the unmerged paths are one JSON array line' '["docs/contract.md","src/a b.mjs"]' "$(out conflict-paths)"
+printf 'a\nb.md\0' >"$TMP/out/unmerged-paths"
+run "$CONFLICTED"
+check 'a newline in a path stays inside the one line' '["a\nb.md"]' "$(out conflict-paths)"
+head -c 20000 /dev/zero | tr '\0' x >"$TMP/out/unmerged-paths"
+run "$CONFLICTED"
+check 'paths past 16,384 characters give none' 0/ "$RC/$(out conflict-paths)"
+printf 'bad\xffname\0' >"$TMP/out/unmerged-paths"
+run "$CONFLICTED"
+check 'a path that is not UTF-8 gives none' 0/ "$RC/$(out conflict-paths)"
+rm -f "$TMP/out/unmerged-paths"
+
 run "merge-state=escalate
 escalation-reason=repeat-cap
 conflict-tree="

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/audit-retention/interview-checklist.md", "content": "| Q1 | open | Retention rule? |"}}], "why": "writes the interview ledger, not source"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "src/jobs/purge-audit-log.ts", "content": "export const RETENTION_DAYS = 30;\n"}}], "why": "rewrites the job file"}
+  ]
+}

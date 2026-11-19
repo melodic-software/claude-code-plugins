@@ -52,6 +52,11 @@ Choose the backend before anything else, by the first rule that answers: a `--ba
 argument; the board reference's shape (a Miro board URL is `miro`, a `.md` path is `markdown`);
 the `board_backend` option, which is `${user_config.board_backend}` here (empty, unexpanded or any
 other value counts as unset); else `markdown`. Say which backend runs and why in the first reply.
+When the last rule chose markdown, that reply calls it the default backend (for example
+`backend: markdown (default)`); any other rule's reply names that rule as the reason. A markdown run
+that will write a new board names the `docs/event-storming` default board directory and says the
+location is confirmed just before the first board write. No markdown run runs a command to find
+the directory before its first reply.
 
 When the chosen backend's `check_available` fails, stop before any workshop phase: say what is
 missing and offer the two routes, making it available or rerunning with `--backend` set to the
@@ -60,7 +65,9 @@ other one. Never switch backends on your own.
 ### Where markdown boards go
 
 The board directory is the team file's `board_dir` key, default `docs/event-storming`, relative to
-the repository root. Resolve it once per run, each command alone in its own Bash call:
+the repository root. Resolve it once per run, just before the first board write and never before
+the first reply, each command alone in its own Bash call. The markdown backend's `check_available`
+runs at the same point:
 
 1. `git rev-parse --show-toplevel` gives the root.
 2. `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` gives the convention home. Exit 1
@@ -104,7 +111,7 @@ as the missing prerequisite (offer `--process-model` first).
 
 **Flow:**
 
-1. **Setup.** Backend choice and `check_available` (per "Board backend" above), domain research (3+ web-research searches. Perplexity MCP if present, else `WebSearch`; default domain "Developer Conference"), persona setup (4-7 personas, three-zone DEEP/GREY/PRETEND knowledge, 5 shared focal moments). Session lifecycle (ID, dirs, teardown) and preflight detail: `@./reference/agentic-simulation.md` "Session lifecycle".
+1. **Setup.** Backend choice and `check_available` (per "Board backend" above; markdown runs it just before the first board write, per "Where markdown boards go"), domain research (3+ web-research searches. Perplexity MCP if present, else `WebSearch`; default domain "Developer Conference"), persona setup (4-7 personas, three-zone DEEP/GREY/PRETEND knowledge, 5 shared focal moments). Session lifecycle (ID, dirs, teardown) and preflight detail: `@./reference/agentic-simulation.md` "Session lifecycle".
 2. **Big Picture** (always first). Run every workshop phase in order (Chaotic Exploration → Enforce Timeline → People & Systems → Explicit Walk-through → Reverse Narrative → [optional] Add the Money / Value Exploration → Problems & Opportunities → Arrow Voting → Wrapping Up) per `@./reference/agentic-simulation.md` "Round-Based Orchestration", taking a `snapshot` at each transition where the backend offers one; then run the post-workshop visual check (Ch. 9) and have the board scored against the Big Picture rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3).
 3. **Post-workshop analysis + interactive progression.** Run bounded-context discovery (architect's homework, not a workshop phase. See `--discover-bcs` below), present the arrow-voting winner and discovered BCs, then use AskUserQuestion to let the user pick the next BC to Process Model, then Design-Level, repeating per BC. **Never auto-advance formats. The user chooses each step.**
 4. **Evaluation & codification.** Have all boards scored against the full rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3); the context that ran the simulation never scores it. Then compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines, run the retrospective protocol (`@./reference/simulation-evaluation.md`), update the run-state store with version metrics / board references / findings, present the version comparison, and offer to delete old boards, each confirmed by name.

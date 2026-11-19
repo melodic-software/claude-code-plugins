@@ -208,6 +208,7 @@ cat >"$TMP_ROOT/reader.py" <<'EOF'
 import json, os, sys
 with open(os.environ["STUB_LOG"], "a") as log:
     log.write("reader " + " ".join(sys.argv[1:]) + "\n")
+    log.write("reader-env header-limit=" + os.environ.get("BABYSIT_READ_FLOOR_HEADER_LIMIT", "") + "\n")
 if os.environ.get("STUB_READER_RC"):
     sys.exit(int(os.environ["STUB_READER_RC"]))
 if not os.environ.get("STUB_NO_LISTING"):
@@ -887,6 +888,14 @@ if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --repo o/r --base-sha 
 else
   fail "the verdict reader ran as: '$(grep '^reader ' "$TMP_ROOT/log")'"
 fi
+# Owner decision D418: the queue's reader plans its read floor to the token's
+# live header limit, not github-token's limit-cap
+# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
+if grep -qxF "reader-env header-limit=1" "$TMP_ROOT/log"; then
+  ok "the queue's verdict reader plans its read floor to the header's limit"
+else
+  fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+fi
 if [[ "$(maps)" -eq 1 ]] && grep -qxF "head-ref-map read" "$TMP_ROOT/log" &&
   [[ "$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log" | cut -d' ' -f1 | paste -sd' ')" == "head-ref-map reader" ]]; then
   ok "the head-ref map is read once, before the reader"
@@ -940,29 +949,33 @@ rm -f "$TMP_ROOT/verify-legacy-fails.json"
 # incremental reads, then the top-ups) 24 pages near expiry read again
 # and 34 artifacts read by id. By default 7,522
 # artifacts (77 pages) and 264 FAILs: 77 for the step's own listing, plus
-# 792 + 39 + 1 + 3 x (3 x 77 + 7) + 2 x (24 + 34) = 1739, so 1739 x 1 + 0.1 x min(limit, 1000) = 1839 here.
+# 792 + 39 + 1 + 3 x (3 x 77 + 7) + 2 x (24 + 34) = 1739, so 1739 x 1 + 0.1 x 5000 = 2239 here. The floor is a share
+# of the header's limit (owner decision D418,
+# https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 1839)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 1838)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1838 requests left, under the 1839 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 2238)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 2238 requests left, under the 2239 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 # 10,450 artifacts (105 pages, as on 2026-10-30, so 106) and 300 FAILs:
-# 106 + 900 + 39 + 1 + 3 x (3 x 106 + 7) + 2 x (24 + 34) = 2137, plus the floor's 100.
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2237)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2237"
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2236)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2236 requests left, under the 2237 a cold read needs (2137 for each of the 1 entries"
+# 106 + 900 + 39 + 1 + 3 x (3 x 106 + 7) + 2 x (24 + 34) = 2137, plus the floor's 500
+# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2637)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2637"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2636)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2636 requests left, under the 2637 a cold read needs (2137 for each of the 1 entries"
 # 150 artifacts (2 pages, so 3) and 10 FAILs: 3 + 30 + 39 + 1 + 3 x (3 x 3 + 7) + 2 x (24 + 34) = 237.
-STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 337)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 337"
+STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 737)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 737"
 STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread listing is never started"; else fail "a cold reader with an unread listing ran"; fi
 # Every entry the queue builds at once goes cold together on a missing cache,
-# so the need scales with max_entries_to_build: 1739 x 5 + 100 = 8795.
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8795)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8794)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 8794 requests left, under the 8795 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3577)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3578 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 8795)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+# so the need scales with max_entries_to_build: 1739 x 5 + 500 = 9195
+# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9195)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9194)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 9194 requests left, under the 9195 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3977)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3978 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 9195)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
 STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
@@ -1089,6 +1102,11 @@ for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:u
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
 STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
+if grep -qxF "reader-env header-limit=" "$TMP_ROOT/log"; then
+  ok "an owner pull request's reader, whose refusals other than a FAIL hold nothing, keeps the limit-cap"
+else
+  fail "an owner pull request's reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+fi
 STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"

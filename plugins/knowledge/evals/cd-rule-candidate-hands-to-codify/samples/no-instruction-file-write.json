@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/courses/teachable/robust-http-apis-hale/analysis/action-items.md", "content": "## Rule candidates\n\n- [ ] Hand to `/corrections:codify \"Add the rule to CLAUDE.md\"`."}}], "why": "the Phase 5 file, CLAUDE.md only in its content"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/robust-http-apis-hale/course-digest-checklist.md", "content": "- [x] Phase 5"}}], "why": "the checklist"},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/CLAUDE.md", "content": "# orders-api\n\nValidate request bodies at the boundary."}}], "why": "writes the rule into CLAUDE.md"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.claude/rules/request-validation.md", "content": "Validate request bodies at the boundary."}}], "why": "writes a rules file"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/AGENTS.md", "content": "Validate request bodies."}}], "why": "writes AGENTS.md"}
+  ]
+}
