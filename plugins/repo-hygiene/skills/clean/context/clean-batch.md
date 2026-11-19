@@ -215,7 +215,7 @@ gated plan after confirming:
 
 ```bash
 ghq list -p | bash <skill-dir>/scripts/clean-batch.sh \
-  --tier caches --repos-from - --skip melodic-software/standards --data-dir "<plugin-data>"
+  --tier caches --repos-from - --skip <owner>/<repo> --data-dir "<plugin-data>"
 # → BatchPlan: <plan-path>  — confirm, then:
 CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan <plan-path>

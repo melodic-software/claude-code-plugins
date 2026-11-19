@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.0.1] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
 ## [13.0.0] - 2026-11-19
 
 ### Added

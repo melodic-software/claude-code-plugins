@@ -880,6 +880,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                         "comment": None,
                         "readError": None,
                         "commentError": None,
+                        "excludedRemovals": [],
                     },
                 )
 
@@ -920,22 +921,32 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                         "comment": None,
                         "readError": why,
                         "commentError": None,
+                        "excludedRemovals": [],
                     },
                 )
 
     def test_a_rate_limited_removal_at_the_cap_lifts_the_refusal(self) -> None:
         removals = ["2026-11-12T03:00:00Z", "2026-11-12T04:40:05Z"]
         read = {"readError": None, "failedEjections": 2, "failedRemovals": removals}
-        for limited, refusal in ((1, None), (0, EJECTED)):
+        excused = [{"at": removals[1], "causes": ["rate-limit"]}]
+        for limited, refusal in ((excused, None), ([], EJECTED)):
             with (
                 self.subTest(limited=limited),
                 mock.patch.object(
-                    babysit_merge, "rate_limited_removals", return_value=limited
+                    babysit_merge, "infra_removals", return_value=limited
                 ) as check,
             ):
                 queue = self.cli(read)["queue"]
-                check.assert_called_once_with(REPO, "main", 41, removals, 2)
+                check.assert_called_once_with(
+                    REPO,
+                    "main",
+                    41,
+                    removals,
+                    2,
+                    babysit_merge.merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
+                )
                 self.assertEqual(queue["refusal"], refusal)
+                self.assertEqual(queue["excludedRemovals"], limited)
 
     def test_a_failed_runs_read_still_refuses_and_names_its_error(self) -> None:
         queue = self.cli(

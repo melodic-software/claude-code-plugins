@@ -182,6 +182,6 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 
 | Condition | Action |
 |---|---|
-| The rubric is proven over real audits | Route it upstream to `melodic-software/standards` as shared doc-value policy (deferred; ledger E-a) |
+| The rubric is proven over real audits | Route it upstream to the shared standards repository as doc-value policy (deferred; ledger E-a) |
 | Demand surfaces for applying verdicts, not just classifying | Revisit the deferred remediation/apply action (deferred; ledger E-b) |
 | A native "regenerate this doc from source" mechanism ships | Strengthen the `keep-as-derivation-cache` drift-control test to prefer regeneration over a recorded recheck trigger |
