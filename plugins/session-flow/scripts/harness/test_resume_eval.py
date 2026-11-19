@@ -1334,7 +1334,6 @@ def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
     import resume_cases
 
     bad = (
-        {"target_bytes": 20_000},
         {"injections": [{"id": "x", "hop": 1, "section": "constraints", "text": "t"}]},
         {
             "injections": [

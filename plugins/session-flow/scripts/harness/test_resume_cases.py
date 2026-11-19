@@ -444,6 +444,149 @@ def test_generated_lines_never_name_a_trap_number(built, name):
             ), line
 
 
+def _stub_copy(root: Path, body: str) -> Path:
+    script = root / "scripts" / "save_point.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(body, encoding="utf-8")
+    return script
+
+
+def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path):
+    spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
+    three = _stub_copy(tmp_path / "three", "HANDOFF_SHAPE = 3\n")
+    assert resume_cases.seed_shape(spec, three) == 3
+    spec["seed"]["predecessor"]["shape"] = 2
+    assert resume_cases.seed_shape(spec, three) == 2
+
+
+def test_shape_4_is_an_unsupported_seed_shape(tmp_path):
+    spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
+    four = _stub_copy(tmp_path / "four", "X = 1\nHANDOFF_SHAPE = 4\n")
+    repo = tmp_path / "repo"
+    with pytest.raises(ValueError, match="unsupported seed shape 4"):
+        resume_cases.build_predecessor_chain(spec, repo, save_point=four)
+    assert not (repo / ".work" / "handoffs").exists()
+
+
+def test_the_chain_is_built_by_the_pinned_save_point(tmp_path):
+    spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
+    spec["seed"]["predecessor"]["shape"] = 2
+    stub = _stub_copy(
+        tmp_path / "stub",
+        "import sys\nHANDOFF_SHAPE = 3\nprint('pinned stub ran')\nsys.exit(1)\n",
+    )
+    with pytest.raises(SystemExit, match="pinned stub ran"):
+        resume_cases.build_predecessor_chain(spec, tmp_path / "repo", save_point=stub)
+
+
+@pytest.mark.parametrize("name", ["re-stale-github-fact", "re-retired-amendment"])
+def test_the_seed_hash_ignores_where_the_run_lives_and_sees_any_content_change(
+    tmp_path, name
+):
+    spec = resume_cases.load_case(EVALS / name)
+    here, there = tmp_path / "runs" / "0" / "repo", tmp_path / "elsewhere" / "repo"
+    resume_cases.build_predecessor_chain(spec, here)
+    resume_cases.build_predecessor_chain(spec, there)
+    assert resume_cases.seed_hash(here) == resume_cases.seed_hash(there)
+    changed = copy.deepcopy(spec)
+    changed["seed"]["predecessor"]["goal"] += " Then stop."
+    other = tmp_path / "changed" / "repo"
+    resume_cases.build_predecessor_chain(changed, other)
+    assert resume_cases.seed_hash(other) != resume_cases.seed_hash(here)
+
+
+def _shape3_target_spec(target: int) -> dict:
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
+    spec["seed"]["predecessor"].update(hops=8, target_bytes=target)
+    return spec
+
+
+def test_a_shape3_chain_is_steered_to_its_target_hot_file_size(tmp_path):
+    target = 20_000
+    chain = resume_cases.build_predecessor_chain(
+        _shape3_target_spec(target), tmp_path / "repo"
+    )
+    newest = chain[-1]
+    assert "handoff_shape: 3" in newest.read_text(encoding="utf-8")
+    assert abs(newest.stat().st_size - target) <= 0.10 * target
+
+
+def test_a_steered_shape3_build_is_deterministic(tmp_path):
+    spec = _shape3_target_spec(20_000)
+    repo = tmp_path / "repo"
+    first = {
+        p.name: p.read_bytes() for p in resume_cases.build_predecessor_chain(spec, repo)
+    }
+    shutil.rmtree(repo)
+    again = {
+        p.name: p.read_bytes() for p in resume_cases.build_predecessor_chain(spec, repo)
+    }
+    assert first == again and len(first) == 8
+
+
+def test_a_case_tag_is_same_or_boundary(tmp_path):
+    spec = json.loads((EVALS / "re-stale-github-fact" / "resume-eval.json").read_text())
+    for value in ("same", "boundary", "compaction"):
+        case_dir = tmp_path / value
+        case_dir.mkdir()
+        tagged = {**spec, "task_relation": value}
+        (case_dir / "resume-eval.json").write_text(json.dumps(tagged), encoding="utf-8")
+        if value == "compaction":
+            with pytest.raises(ValueError, match="task_relation"):
+                resume_cases.load_case(case_dir)
+        else:
+            assert resume_cases.load_case(case_dir)["task_relation"] == value
+
+
+OVERSIZE_DECISION = "Cap the drain at the measured batch size. " * 700
+
+
+def _oversize_spec(expected_fail: list[dict] | None) -> dict:
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
+    pred = spec["seed"]["predecessor"]
+    pred["injections"] = [
+        {
+            "id": "oversize",
+            "hop": 2,
+            "section": "decisions",
+            "text": OVERSIZE_DECISION.strip(),
+            "retire": {"hop": 3, "reason": "moved to docs/lane-runbook.md"},
+        }
+    ]
+    pred["final"] = {}
+    if expected_fail is not None:
+        pred["expected_fail"] = expected_fail
+    return spec
+
+
+def test_a_hop_stated_to_fail_builds_on_when_it_fails_as_stated(tmp_path):
+    spec = _oversize_spec([{"hop": 2, "fail": r"^size: \d+ bytes is over"}])
+    chain = resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+    assert len(chain) == spec["seed"]["predecessor"]["hops"]
+    assert chain[1].stat().st_size > 24_600
+    assert chain[-1].stat().st_size < 24_600
+
+
+def test_an_unstated_failing_hop_still_stops_the_build(tmp_path):
+    with pytest.raises(SystemExit, match="hop 2 does not validate"):
+        resume_cases.build_predecessor_chain(_oversize_spec(None), tmp_path / "repo")
+
+
+def test_a_hop_failing_other_than_stated_stops_the_build(tmp_path):
+    spec = _oversize_spec([{"hop": 2, "fail": r"^order:"}])
+    with pytest.raises(SystemExit, match="hop 2 was stated to FAIL"):
+        resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+
+
+def test_a_hop_stated_to_fail_that_validates_stops_the_build(tmp_path):
+    spec = _oversize_spec([{"hop": 3, "fail": r"^size:"}])
+    spec["seed"]["predecessor"]["expected_fail"].append(
+        {"hop": 2, "fail": r"^size: \d+ bytes is over"}
+    )
+    with pytest.raises(SystemExit, match="hop 3 was stated to FAIL"):
+        resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+
+
 def test_a_steered_build_is_deterministic(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-superseded-rule")
     repo = tmp_path / "repo"

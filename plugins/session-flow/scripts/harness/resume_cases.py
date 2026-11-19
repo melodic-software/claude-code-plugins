@@ -28,6 +28,7 @@ import contextvars
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -40,12 +41,15 @@ if str(HERE) not in sys.path:
 
 from hop_chain import (  # noqa: E402
     FILL_RE,
+    SAVE_POINT,
     between_rails,
     frontmatter_value,
-    run_save_point,
 )
 
 CASE_FILE = "resume-eval.json"
+SEED_SHAPES = (2, 3)
+TASK_RELATIONS = ("same", "boundary")
+HANDOFF_SHAPE_RE = re.compile(r"^HANDOFF_SHAPE = (\d+)$", re.MULTILINE)
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
 
 # Entries written per hop into each cumulative slot, with each slot's share of the
@@ -446,6 +450,7 @@ SHAPE3_SECTIONS = ("amendment", "trail", "rules", "open-questions", "decisions")
 ID_PREFIX = {"rules": "R", "open-questions": "Q", "decisions": "D"}
 SHAPE3_RULES = 3
 SHAPE3_RULE_WIDTH = 200
+SHAPE3_STEERED_RULES = 2
 SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (optional:)?")
 
 
@@ -503,10 +508,20 @@ def _ordinal(lines: list[str], body, text: str, what: str) -> int:
     return hits[0]
 
 
-def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
-    """Fill a shape-3 skeleton through `save_point.py fill`. `live` carries, hop to hop,
-    the id-carrying lines of Open questions and Decisions in force and the ref each
-    injection was given."""
+def _fill_3(
+    path: Path,
+    pred: dict,
+    hop: int,
+    lane: str,
+    live: dict,
+    script: Path,
+    steer_count: int = 0,
+) -> int:
+    """Fill a shape-3 skeleton through `save_point.py fill`; return the characters of
+    generated rule text. `live` carries, hop to hop, the id-carrying lines of Open
+    questions and Decisions in force and the ref each injection was given. A hop after
+    the first adds `steer_count` generated rules; rules stay in the hot file, so their
+    count steers its size."""
     from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
 
     final = _final(pred, hop)
@@ -570,19 +585,18 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         f"- [h{hop}] {text}" for text in [*first, *trail, *last]
     )
 
-    rules = (
-        [
+    if hop == 1:
+        rules = [
             _entry(
-                "constraints",
-                f"{pred['topic']}/1/rules/{i}",
-                lane,
-                SHAPE3_RULE_WIDTH,
+                "constraints", f"{pred['topic']}/1/rules/{i}", lane, SHAPE3_RULE_WIDTH
             )
             for i in range(SHAPE3_RULES)
         ]
-        if hop == 1
-        else []
-    )
+    else:
+        rules = [
+            _entry("constraints", f"{pred['topic']}/{hop}/rules/{i}", lane, BASE_WIDTH)
+            for i in range(steer_count)
+        ]
     rule_lines = id_lines("rules", rules)
     if hop == 1:
         values["rules"] = "\n".join(rule_lines)
@@ -597,6 +611,7 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         if hop == 1
         else []
     )
+
     def put(section: str, added: list[str]) -> None:
         """A section `new` carried off disk takes only this hop's new lines."""
         live[section] += added
@@ -713,39 +728,104 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
     with tempfile.TemporaryDirectory(prefix="resume-fill-") as tmp:
         slots_file = Path(tmp) / "slots.json"
         slots_file.write_text(json.dumps(values), encoding="utf-8")
-        filled = run_save_point(["fill", str(path), "--slots", str(slots_file)])
+        filled = _run(script, ["fill", str(path), "--slots", str(slots_file)])
     if filled.returncode != 0:
         raise SystemExit(f"`fill` failed at hop {hop}: {filled.stdout}{filled.stderr}")
+    return sum(map(len, rules)) if hop > 1 else 0
+
+
+def copy_shape(save_point: Path) -> int:
+    """The `HANDOFF_SHAPE` a plugin copy's `save_point.py` writes, read from its source
+    so a second copy never shadows the imported one."""
+    match = HANDOFF_SHAPE_RE.search(Path(save_point).read_text(encoding="utf-8"))
+    if match is None:
+        raise ValueError(f"{save_point}: no `HANDOFF_SHAPE = <n>` line")
+    return int(match.group(1))
+
+
+def seed_shape(case_spec: dict, save_point: Path | None) -> int:
+    """The case's explicit `shape`, else the shape `save_point` writes, else 2."""
+    explicit = case_spec["seed"]["predecessor"].get("shape")
+    if explicit is not None:
+        return int(explicit)
+    return 2 if save_point is None else copy_shape(save_point)
+
+
+def seed_hash(out_dir: Path, memory_dir: Path | None = None) -> str:
+    """sha256 over every file the chain build wrote under `<memory>/handoffs`, with
+    `out_dir` written as `{repo}`, so two runs of one case and arm compare equal."""
+    root = Path(out_dir)
+    handoffs = (Path(memory_dir) if memory_dir else root / ".work") / "handoffs"
+    digest = hashlib.sha256()
+    for path in sorted(p for p in handoffs.rglob("*") if p.is_file()):
+        text = path.read_text(encoding="utf-8").replace(str(root), "{repo}")
+        digest.update(path.relative_to(handoffs).as_posix().encode("utf-8") + b"\0")
+        digest.update(text.encode("utf-8") + b"\0")
+    return digest.hexdigest()
+
+
+def _expected_fail(pred: dict, case: str, hops: int) -> dict[int, re.Pattern[str]]:
+    """`expected_fail` as {hop: pattern}: that hop must FAIL `validate`, and every one
+    of its FAIL lines must match the pattern."""
+    stated: dict[int, re.Pattern[str]] = {}
+    for item in pred.get("expected_fail", []):
+        hop, pattern = int(item["hop"]), str(item.get("fail") or "")
+        if not 1 <= hop <= hops or not pattern.strip() or hop in stated:
+            raise ValueError(
+                f"{case}: expected_fail {item!r} needs one entry per hop in 1..{hops} with a non-empty `fail` pattern"
+            )
+        stated[hop] = re.compile(pattern)
+    return stated
+
+
+def _run(script: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-X", "utf8", str(script), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
 
 
 def build_predecessor_chain(
-    case_spec: dict, out_dir: Path, memory_dir: Path | None = None
+    case_spec: dict,
+    out_dir: Path,
+    memory_dir: Path | None = None,
+    *,
+    save_point: Path | None = None,
 ) -> list[Path]:
-    """Write the case's predecessor chain into `out_dir` (the run's repository) and
-    return the hop files, oldest first. Raises SystemExit when `new` or `validate`
-    refuses a hop."""
+    """Write the case's predecessor chain into `out_dir` (the run's repository) with
+    `save_point` (an arm copy's script; this checkout's when None) and return the hop
+    files, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
     token = _RESERVED.set(reserved_numbers(case_spec))
     try:
-        return _build(case_spec, Path(out_dir), memory_dir)
+        return _build(case_spec, Path(out_dir), memory_dir, save_point)
     finally:
         _RESERVED.reset(token)
 
 
-def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path]:
+def _build(
+    case_spec: dict, out_dir: Path, memory_dir: Path | None, save_point: Path | None
+) -> list[Path]:
     pred = case_spec["seed"]["predecessor"]
     case = case_spec["name"]
     hops = int(pred["hops"])
     target = pred.get("target_bytes")
     lane = pred.get("lane", pred["topic"])
-    # The audited chains are shape 2, so the cases rebuild that shape unless one opts
-    # into shape 3.
-    shape = int(pred.get("shape", 2))
-    if shape not in (2, 3):
-        raise ValueError(f"{case}: predecessor shape {shape} is not 2 or 3")
+    shape = seed_shape(case_spec, save_point)
+    script = Path(save_point) if save_point else SAVE_POINT
+
+    def run_save_point(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return _run(script, args)
+
+    if shape not in SEED_SHAPES:
+        raise ValueError(
+            f"{case}: unsupported seed shape {shape}; the seeder builds {SEED_SHAPES}"
+        )
     if shape == 3:
-        if target:
-            raise ValueError(f"{case}: target_bytes steers shape-2 chains only")
         _check_shape3_spec(pred, hops)
+    expected_fail = _expected_fail(pred, case, hops)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -759,6 +839,7 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
     sizes: list[int] = []
     overheads: list[int] = []
     width = BASE_WIDTH
+    rule_count = SHAPE3_STEERED_RULES if target else 0
     base_chars = 0
     previous: Path | None = None
     for hop in range(1, hops + 1):
@@ -791,8 +872,7 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             )
         path = Path(made.stdout.strip())
         if shape == 3:
-            _fill_3(path, pred, hop, lane, live)
-            generated = 0
+            generated = _fill_3(path, pred, hop, lane, live, script, rule_count)
         else:
             generated = _fill(path, pred, hop, width, lane)
         checked = run_save_point(
@@ -804,8 +884,22 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
                 "--strict-transcript",
             ]
         )
-        if checked.returncode != 0:
+        stated = expected_fail.get(hop)
+        if stated is None and checked.returncode != 0:
             raise SystemExit(f"{case}: hop {hop} does not validate:\n{checked.stdout}")
+        fails = [
+            line.removeprefix("FAIL: ")
+            for line in checked.stdout.splitlines()
+            if line.startswith("FAIL: ")
+        ]
+        if stated is not None and (
+            checked.returncode == 0
+            or not fails
+            or not all(stated.search(text) for text in fails)
+        ):
+            raise SystemExit(
+                f"{case}: hop {hop} was stated to FAIL matching {stated.pattern!r}, but validate printed:\n{checked.stdout}"
+            )
         files.append(path)
         sizes.append(path.stat().st_size)
         previous = path
@@ -817,8 +911,12 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             overheads.append(sizes[-1] - sizes[-2] - generated)
             overhead = sorted(overheads)[len(overheads) // 2]
             need = (int(target) - sizes[-1]) / (hops - hop)
-            scale = (need - overhead) / max(base_chars, 1)
-            width = max(MIN_WIDTH, min(MAX_WIDTH, int(BASE_WIDTH * scale)))
+            if shape == 3:
+                per_rule = generated / rule_count if rule_count else BASE_WIDTH
+                rule_count = max(0, round((need - overhead) / per_rule))
+            else:
+                scale = (need - overhead) / max(base_chars, 1)
+                width = max(MIN_WIDTH, min(MAX_WIDTH, int(BASE_WIDTH * scale)))
     return files
 
 
@@ -999,5 +1097,10 @@ def load_case(case_dir: Path) -> dict:
     """The case's `resume-eval.json`, with its directory recorded as `case_dir`."""
     case_dir = Path(case_dir)
     spec = json.loads((case_dir / CASE_FILE).read_text(encoding="utf-8"))
+    relation = spec.get("task_relation")
+    if relation is not None and relation not in TASK_RELATIONS:
+        raise ValueError(
+            f"{case_dir.name}: task_relation {relation!r} is not one of {TASK_RELATIONS}"
+        )
     spec["case_dir"] = str(case_dir)
     return spec
