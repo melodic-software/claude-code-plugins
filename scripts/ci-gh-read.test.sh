@@ -43,10 +43,11 @@ job="$(awk '/^  ci-status:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/ci-status/ { e
 timeout="$(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$job")"
 job_seconds="$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
 margin="$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
-if [[ -n "$timeout" && "$job_seconds" == $((timeout * 60)) ]]; then
-  ok "GH_READ_JOB_SECONDS ($job_seconds) is ci-status's timeout-minutes ($timeout) in seconds"
+floor_wait="$(grep -oE 'BABYSIT_READ_FLOOR_WAIT_SECONDS=[0-9]+' <<<"$job" | head -n1 | cut -d= -f2)"
+if [[ -n "$timeout" && -n "$floor_wait" && "$job_seconds" == $((timeout * 60 - floor_wait)) ]]; then
+  ok "GH_READ_JOB_SECONDS ($job_seconds) is ci-status's timeout-minutes ($timeout) in seconds less the ${floor_wait}s read-floor wait"
 else
-  fail "GH_READ_JOB_SECONDS '$job_seconds' is not ci-status's timeout-minutes '$timeout' in seconds"
+  fail "GH_READ_JOB_SECONDS '$job_seconds' is not ci-status's timeout-minutes '$timeout' in seconds less the read-floor wait '$floor_wait'"
 fi
 if [[ -n "$margin" && "$margin" -ge 240 && "$margin" -lt "${job_seconds:-0}" ]]; then
   ok "the ${margin}s margin leaves room for aggregate-results' 202 s of waits and the setup"
@@ -60,11 +61,10 @@ if [[ "$got" -ge $((want - 5)) && "$got" -le "$want" ]]; then
 else
   fail "the step set the deadline '$got', want about '$want'"
 fi
-composite_waits="$(sed -nE "s/^          rate-limit-wait-seconds: '([0-9]+)'$/\1/p" <<<"$job" | paste -sd+ -)"
-if [[ "$(grep -c 'rate-limit-wait-seconds:' <<<"$job")" == 2 && -n "$composite_waits" && $((composite_waits)) -le 120 ]]; then
-  ok "the two pinned composites wait at most the 120 s ci-status's timeout holds for them"
+if [[ "$(grep -c 'rate-limit-wait-seconds:' <<<"$job")" == 0 && "$(grep -c 'pr-require-checks/report-ci-status@' <<<"$job")" == 1 ]]; then
+  ok "ci-status runs report-ci-status once and leaves its two inner waits at their 60 s defaults, the 120 s its timeout holds"
 else
-  fail "ci-status passes its composites rate-limit-wait-seconds of '$composite_waits', over the 120 s its timeout holds, or not as two quoted numbers"
+  fail "ci-status passes a rate-limit-wait-seconds the composite does not take, or does not call report-ci-status exactly once"
 fi
 first="$(grep -m1 '^      - name: ' <<<"$job")"
 if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; then

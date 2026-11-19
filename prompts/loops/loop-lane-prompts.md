@@ -578,7 +578,9 @@ variable that sets it).
 > dispatches land on the strong tier structurally: the `implementation`
 > plugin's `implementer` / `phase-verifier` agent definitions carry the
 > binding in `model` frontmatter, so pass no `model` for those and never
-> one that undercuts the binding. Pass an explicit per-invocation `model`
+> one that undercuts the binding. A phase the plan routes `sonnet` as
+> well-scoped goes to `scoped-implementer` with an explicit `model: sonnet`
+> instead; unrouted or complex phases stay on `implementer`. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry:
 > `opus` for conflict resolution and any security-surface work,
 > unconditionally (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
@@ -631,8 +633,8 @@ variable that sets it).
 > the class used for admission." Never apply or change a `work-class:`
 > label, **and never write a `Work-class: C<n>` trailer into an item body.**
 > Your standing authorization to triage and classify does not reach these:
-> the merge partition reads the class from the label, so writing one is you
-> manufacturing merge eligibility for a PR you authored, and the trailer is
+> the `provenance: untrusted` label holds a PR from merging, so writing or
+> removing one is you deciding your own merge hold, and the trailer is
 > the operator's own record of the class they label from, so writing that
 > fabricates their evidence one step back. That is the single thing this lane
 > must never do. It is a self-certifying producer, and it is why the
@@ -663,13 +665,12 @@ variable that sets it).
 > `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
 > you cannot prove a path inert, classify to the higher class.
 >
-> **A missing label is a missing class.** The merge partition reads the
-> recorded class from the `work-class:` label only: a `Work-class: C<n>`
-> body trailer is operator context and a proposal, never an eligibility
-> input, because the item's own author can write it. Report an item as
-> unstamped whenever the label is absent, naming any body trailer you found,
-> so the operator can label from it instead of re-deciding. List genuinely
-> unclassified items in your cycle report.
+> **A missing label is a missing record, not a hold.** No merge rung reads a
+> work class, so an item with no `work-class:` label partitions like any
+> other; a `Work-class: C<n>` body trailer is operator context and a
+> proposal. Report an item as unstamped whenever the label is absent, naming
+> any body trailer you found, so the operator can label from it instead of
+> re-deciding.
 >
 > **Worktrees are not yours to remove.** The worker's worktree persists
 > through the whole PR lifecycle and is cleaned up only by whoever merges,
@@ -705,7 +706,7 @@ wakeup ceiling for days rather than finishing.
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
 > merge within whatever rung resolves after `{{MERGE}}` caps it, never
-> above. The goal is to merge more classes autonomously as each class's
+> above. The goal is to merge autonomously at higher rungs as each rung's
 > promotion evidence accrues; today the lane merges only within the rung
 > it resolves at run time. You never claim backlog items and never author
 > work-item PRs. That is the worker lane's authority.
@@ -781,16 +782,13 @@ wakeup ceiling for days rather than finishing.
 >
 > **Work classes are not yours to set, in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
-> trailer into an item body**, to make a PR merge-eligible. You read the
-> partition class from the label alone, so writing one is you authoring the
-> input to your own merge decision, and the trailer is the operator's record
-> of the class they label from, so writing that fabricates their evidence
-> instead. A PR whose close-linked item carries no `work-class:` label is not
-> eligible at any rung, including full-autonomy, however its body is stamped.
-> That is the correct outcome, not an obstacle: report it, naming any body
-> trailer you found so the operator can label from it, and move on.
-> Manufacturing your own merge eligibility is the one thing this lane must
-> never do.
+> trailer into an item body**. The `provenance: untrusted` label holds a PR
+> from merging, so removing or withholding one is you authoring the input to
+> your own merge decision, and the trailer is the operator's record of the
+> class they label from, so writing that fabricates their evidence instead.
+> No rung reads any other class: a PR whose close-linked item carries no
+> `work-class:` label partitions like any other. Manufacturing your own
+> merge eligibility is the one thing this lane must never do.
 >
 > **Contention.** A worker lane authoring PRs here is expected and is not
 > contention. Apply the skill's own per-PR foreign-activity suppression:
@@ -907,13 +905,13 @@ Letting one "primary" shard write it records a partial pass as the whole.
 > session and use what it returns, mapping C1 through C5 onto the five
 > members in ascending risk order.
 >
-> **If that returns nothing, do not stop.** The merge partition reads the
-> `work-class:` label only, so a repository with no label axis has an empty
-> merge-eligible set. Everything there is human-merge, which is the shipped
-> baseline, not a breakage. Report the absence once, then keep working the
-> queue: grep the trailers, propose classes for untrailered items, escalate,
-> and triage. The trailers still record the classes I ratified; the label
-> axis is what turns a recorded class into merge-partition input.
+> **If that returns nothing, do not stop.** No merge rung reads a work
+> class, so a repository with no label axis merges exactly as one with it.
+> Report the absence once, then keep working the queue: grep the trailers,
+> propose classes for untrailered items, escalate, and triage. The trailers
+> still record the classes I ratified.
+>
+> Untrusted provenance is marked with `provenance: untrusted`, not a `work-class:` label.
 >
 > For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
@@ -1217,7 +1215,8 @@ carries those errors into what the operator ratifies.
 > **Work classes: you propose, I apply. Labels and body trailers alike.**
 > Never write a `work-class:` label or a `Work-class: C<n>` body trailer
 > yourself, not even to transcribe a class I already ratified. Both are
-> agent-writable: the label is what the merge lane partitions on, and the
+> agent-writable: the `provenance: untrusted` label is the merge lane's one
+> class hold, and the
 > trailer is the record I label from, so writing either is an agent authoring
 > its own admission input. Resolve the live
 > label strings first (`gh label list --limit 200 | grep -i work-class`,
@@ -1384,8 +1383,8 @@ This file stays repository-agnostic. A filled instance lives in its own file nex
 
 - [`loop-lane-profile-claude-code-plugins.md`](loop-lane-profile-claude-code-plugins.md). Read it
   when launching a lane against `melodic-software/claude-code-plugins`, or as a worked example of a
-  completed profile. It carries the filled variable table and the ready-to-paste launch blocks for
-  that repository only.
+  completed profile. It carries that repository's variable values and launch notes only; each launch
+  block is this file's block with those values filled in.
 
 Adopting a different repository: follow "Adopting a new repository" above, then write a sibling
-profile file rather than editing this one.
+profile file of values and notes rather than editing this one.

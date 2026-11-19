@@ -53,11 +53,11 @@ Course content that doesn't fit our context (documented so we don't revisit):
 
 Concrete next steps derived from course analysis. Each item maps to a repo mechanism.
 
-## CLAUDE.md / .claude/rules/ candidates
+## Rule candidates
 
-Rules or conventions worth codifying:
+Rules or conventions worth codifying, each handed to `/corrections:codify` when it is among the available skills, else given the skill's fallback proposal:
 
-- [ ] **{Rule description}** — Add to `{target file}`.
+- [ ] **{Rule}** — Hand to `/corrections:codify "{Rule}"`. {When codify was not available: the proposed mechanism, and that it is unproven.}
   Rationale from course: {why the instructor advocates this}
   - Source: "{lesson title}"
 

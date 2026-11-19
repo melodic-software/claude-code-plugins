@@ -231,7 +231,7 @@
           "properties": {
             "github-token": {
               "$ref": "#/$defs/api-pool",
-              "description": "GITHUB_TOKEN. GitHub documents 1,000 requests per hour per repository for it (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions), so its default limit-cap plans to that and a higher header limit is headroom, never a target."
+              "description": "GITHUB_TOKEN. GitHub documents 1,000 requests per hour per repository for it (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions), so its default limit-cap plans to that and a higher header limit is headroom, never a target. The one exception is ci-status's merge-group verdict reader, run with BABYSIT_READ_FLOOR_HEADER_LIMIT=1: its read floor is a share of the live header limit (owner decision D418)."
             },
             "lanes-app": { "$ref": "#/$defs/api-pool" },
             "graphql": { "$ref": "#/$defs/api-pool" },
@@ -1045,7 +1045,7 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback, verify-map); a value is a key of profiles. The config reader rejects any other key or value."
+          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback, verify-map, verify-capture); a value is a key of profiles. The config reader rejects any other key or value."
         },
         "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" },
         "issue-status": { "$ref": "#/$defs/issue-status" }

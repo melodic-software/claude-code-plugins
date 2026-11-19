@@ -121,6 +121,8 @@ failed read, a list cut short or no such run keeps the FAIL.
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
   for a new head;
+- otherwise, with a PASS or PASS-NOTES at the head whose run cannot be read:
+  `verify:unreadable`;
 - otherwise, on a pull request created more than `TOO_OLD_DAYS` ago,
   `verify:too-old`: its verdicts may have expired, and the lost-run
   reconciler re-runs the head's checks so pr-verify judges it, whose fresh
@@ -309,12 +311,17 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    READ_FLOOR_REFUSAL,
+    READ_FLOOR_WAIT_ENV,
     RUN_SEARCH_CAP,
     fetch_paginated_api,
     flatten_paginated_items,
+    forget_read_floor,
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    read_floor_refusals,
+    read_floor_wait_seconds,
     single_attempt,
     split_created_window,
 )
@@ -1876,7 +1883,9 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
-                if self._overcount_mine:
+                if self._overcount_mine and READ_FLOOR_REFUSAL in self._listing_error:
+                    self._release_overcount()
+                elif self._overcount_mine:
                     self._note_overcount(self._listing_error)
                 if self._whole_paged and (
                     isinstance(exc, _CutShort) or not isinstance(exc, _Transient)
@@ -2518,6 +2527,15 @@ class Reader:
         self._overcount_mine = True
         return True
 
+    def _release_overcount(self) -> None:
+        """Best effort: drop this Reader's claim on the job's over-count whole
+        listing (`_claim_overcount`), so a later Reader may take it."""
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
+        if path is not None:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        self._overcount_mine = False
+
     def _note_overcount(self, outcome: str) -> None:
         """Best effort: how the job's over-count whole listing ended, so a
         later Reader's refusal carries a caller-limit refusal's prefix."""
@@ -2528,10 +2546,15 @@ class Reader:
 
     def _note_failed_listing(self, error: str) -> None:
         """Best effort: a failed write leaves the next Reader to list. A
-        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
-        noted: a later caller may have the time."""
+        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) or
+        below a pool's read floor (`READ_FLOOR_REFUSAL`) is not noted: a later
+        caller may have the time, or find the pool reset."""
         path = self._beside(FAILED_LISTING_SUFFIX)
-        if path is not None and not error.startswith(DEADLINE_UNREADABLE):
+        if (
+            path is not None
+            and not error.startswith(DEADLINE_UNREADABLE)
+            and READ_FLOOR_REFUSAL not in error
+        ):
             with contextlib.suppress(OSError):
                 note = f"{error} (an earlier listing in this job)"
                 path.write_text(note, encoding="utf-8")
@@ -2790,7 +2813,7 @@ class Reader:
         try:
             record = self._record(run_id, name, artifact_id)
         except _Unreadable as exc:
-            if shared:
+            if shared and READ_FLOOR_REFUSAL not in str(exc):
                 run_cache.put(UNREAD_RECORD_SECTION, key, str(exc))
             raise
         if shared:
@@ -4018,6 +4041,10 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
+        # A pass at the head whose run did not read: it may be the pass that
+        # allows, so with no counted one the head is unreadable, not missing
+        # (https://github.com/melodic-software/claude-code-plugins/issues/17377).
+        unread_pass: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
         # with a FAIL whose run cannot be read, for the cap's other pull
         # requests (`_elsewhere`).
@@ -4069,10 +4096,14 @@ class Reader:
                         (run_id, name, item.get("id"))
                     )
                     continue
-                if self._run_state(run_id) == COUNTED:
+                state = self._run_state(run_id)
+                if state == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
                     passes.append((run_id, name, item.get("id")))
                 else:
+                    unread_pass = unread_pass or (
+                        f"run of {name}" if state == UNREAD else None
+                    )
                     ignored += 1
                 continue
             state = self._run_state(run_id, shared=True)
@@ -4194,6 +4225,8 @@ class Reader:
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
                     None,
                 )
+        elif unread_pass:
+            refusal, detail = UNREADABLE, unread_pass
         elif too_old:
             refusal = TOO_OLD
             detail = f"created {created.isoformat()}"
@@ -5054,7 +5087,7 @@ def _when(value: Any) -> datetime | None:
     return when if when.tzinfo is not None else None
 
 
-UNATTRIBUTED_UNMOVED = "unattributed-unmoved"
+UNMOVED_PROBES = ("unattributed", "reruns")
 
 
 def _settle(
@@ -5077,12 +5110,13 @@ def _settle(
     quarantine issues and pins after it. The report checks run again last,
     so their clock is never earlier than it was with the room's rule first.
     With `unmoved` (`--probe-unmoved`), an idle report that lists unattributed
-    runs but that every other part keeps refuses as `UNATTRIBUTED_UNMOVED`:
-    such a run stops counting only once a newer commit passes
-    (`postmerge._recovered`), which the verifying runs test sees, so a fresh
-    check would list it again and pr-merge.yml's PR-scoped wake runs none.
-    Without it that refusal reads nothing, as the sweep runs its check
-    anyway. With `fresh` as well, this job's own check just made the report from the
+    runs, or reruns, but that every other part keeps refuses as
+    `unattributed-unmoved` or `reruns-unmoved`: an unattributed run stops
+    counting only once a newer commit passes (`postmerge._recovered`), and a
+    pending rerun only once it completes, which the verifying runs test sees,
+    so a fresh check would list it again and pr-merge.yml's PR-scoped wake
+    runs none. Without it that refusal reads nothing, as the sweep runs its
+    check anyway. With `fresh` as well, this job's own check just made the report from the
     verifying runs as they are, so their two reads are skipped, as a sweep
     arms on the report dispatch-post-merge-runs just made with no idle rule; the
     report checks and the quarantine and pin reads still apply.
@@ -5125,12 +5159,12 @@ def _settle_reason(
         return refusal and f"idle tick {refusal}"
 
     if idle and (refused := postmerge.idle_report_refusal(shared)):
-        if refused == "unattributed" and unmoved:
-            report = {**shared.gate.report, "unattributed": []}
+        if refused in UNMOVED_PROBES and unmoved:
+            report = {**shared.gate.report, refused: []}
             cleared = replace(shared, gate=replace(shared.gate, report=report))
             with contextlib.suppress(RuntimeError, ValueError, OSError):
                 if _settle_reason(repo, cleared, idle=True, outcome={}) is None:
-                    return idle_tick(UNATTRIBUTED_UNMOVED)
+                    return idle_tick(f"{refused}-unmoved")
         return idle_tick(refused)
     default = merge_policy._default_branch(repo, shared=True)
     config = merge_policy._default_branch_config(repo, default)
@@ -6519,7 +6553,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
     enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
     at the head it read. Exit 0 whenever the line is printed, a refusal
-    included.
+    included. A `verify:unreadable` that a read-floor refusal caused is judged
+    again after the pool's reset when that falls within `READ_FLOOR_WAIT_ENV`
+    (`_after_the_read_floor`).
 
     `--base-sha` is required: the FAIL cap is the gate's, `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
@@ -6674,12 +6710,63 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
-    reader = Reader(args.repo, args.branch, now=now)
-    if args.shared_listing:
-        reader.listing_max_age = None
+
+    def judged() -> dict[str, Any]:
+        reader = Reader(args.repo, args.branch, now=now)
+        if args.shared_listing:
+            reader.listing_max_age = None
+        return _evidence_report(args, reader)
+
     with merge_policy.base_tips_remembered():
-        print(json.dumps(_evidence_report(args, reader)))
+        print(json.dumps(_after_the_read_floor(judged)))
         return 0
+
+
+def _floor_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _floor_clock() -> float:
+    return time.time()
+
+
+def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """`judge()`, judged once more by a fresh reader when it refused
+    `verify:unreadable` with a read refused below its pool's read floor and
+    every such pool's reset falls within `READ_FLOOR_WAIT_ENV`: the process
+    waits for the reset, then reads again. Otherwise the first judgment stands
+    (owner decision D417,
+    https://github.com/melodic-software/claude-code-plugins/issues/16642)."""
+    report = judge()
+    refused = read_floor_refusals()
+    budget = read_floor_wait_seconds()
+    if report.get("refusal") != UNREADABLE or not refused or budget <= 0:
+        return report
+    pools = ", ".join(sorted(refused))
+    resets = [reset for reset in refused.values() if reset is not None]
+    if len(resets) < len(refused):
+        why = "no reset was read for it"
+    else:
+        wait = max(0.0, max(resets) + 1 - _floor_clock())
+        if wait <= budget:
+            print(
+                f"babysit-verify-evidence: a read was not sent below the {pools} "
+                f"read floor; waiting {wait:.0f} s for its reset, then judging again",
+                file=sys.stderr,
+                flush=True,
+            )
+            _floor_sleep(wait)
+            forget_read_floor(refused)
+            return judge()
+        why = f"its reset is {wait:.0f} s away"
+    print(
+        f"babysit-verify-evidence: a read was not sent below the {pools} read "
+        f"floor and {why}, past the {budget} s {READ_FLOOR_WAIT_ENV}; "
+        "the judgment stands",
+        file=sys.stderr,
+        flush=True,
+    )
+    return report
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:

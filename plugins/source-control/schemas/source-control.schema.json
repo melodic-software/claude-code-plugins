@@ -210,6 +210,25 @@
       "default": "dossier/",
       "description": "The prefix of an owning work item's dossier branch, <prefix><key>-<slug>, where <key> is the bound tracker adapter's branch_ref for the item. The branch holds the item's docs, exploration notes and draft plan. One dossier per owning item: a parent or spec container gets its own, and a child item adds its own only when it needs one. Unset means dossier/."
     },
+    "linkage_gate_uses_pattern": {
+      "type": "string",
+      "description": "A POSIX ERE matched against each .github/workflows/*.yml and *.yaml file; the PR-body linkage hooks (pr-body-linkage-gate, pr-linkage-mcp-gate) run only in a repository where one matches, usually the uses: line of the step that checks PR bodies in CI. Wins over the userConfig value of the same name. Unset or empty gates no repository; a pattern bash cannot compile gates none and says so."
+    },
+    "runner_policy_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Repository-relative files that record the approved runner labels. /source-control:babysit-prs routes a wrong organization-owned runs-on label to them. Unset: the repository's own CI documentation."
+    },
+    "org_settings_repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "description": "owner/repo of the repository that manages organization settings as code (runner pools, branch protection, rulesets). /source-control:babysit-prs names it when it escalates an organization-settings finding. Unset: the escalation names the setting and its owner without a repository."
+    },
+    "review_lane_producer_repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "description": "owner/repo of the repository whose reusable workflows the CI review lanes call. /source-control:babysit-prs reads the lanes' job names there when a rollup's lane check name does not match the gate's. Unset: read the caller workflows in the repository itself."
+    },
     "worktree_branch_naming": {
       "enum": ["verbatim", "conventional-commits"],
       "default": "verbatim",

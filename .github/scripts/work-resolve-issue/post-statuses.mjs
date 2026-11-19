@@ -105,7 +105,7 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
 // Every call goes through the rate guard (rate-guard.mjs). A read, and a
 // write marked safeToResend, is sent again after a network error or a 5xx
 // (retry-fetch.mjs), each attempt through the rate guard.
-export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch), sleep } = {}) {
+export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch), sleep, log = (line) => console.log(line) } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
       throw new Error("ISSUE_NUMBER is not an issue number");
@@ -145,6 +145,11 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
       }
     }
     const branch = reuse || ran || (checkedTip ? resumed : "");
+    if (branch && env.REPORT_RESULT !== "success") {
+      log(
+        `::notice title=post-statuses::${branch} holds this run's work and report-outcome did not finish (${env.REPORT_RESULT || "no result"}), so it may have no pull request; while no outcome of this run names it, the issue's next run reuses it and opens one`,
+      );
+    }
     // On a reuse, an outcome this run cannot read counts as none, as in
     // report-outcome: the earlier run's statuses on the branch stand.
     const own = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));

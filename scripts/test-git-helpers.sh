@@ -32,6 +32,7 @@
 # this harness does it once, at source time, for the whole suite that sources
 # it. scripts/check-fixture-git-isolation.sh keeps that true.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 # TMPDIR INSIDE A REPOSITORY. fixture_tree::build and git_init_safe refuse such a
 # root, and a suite that runs raw `git -C "$fixture" ...` on the empty path that

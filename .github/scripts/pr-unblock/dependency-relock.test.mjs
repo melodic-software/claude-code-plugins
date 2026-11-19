@@ -9,6 +9,8 @@ import { fixContentRefusal } from "./dependency-classify.mjs";
 import { COMPILE_COMMAND, main, movePipPin, parseGroups, relockPatch, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { unifiedDiff } from "./install-script-pin.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const COMMAND = "uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 -o requirements.txt";

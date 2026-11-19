@@ -1,5 +1,65 @@
 # Changelog: session-flow plugin
 
+## [9.13.0] - 2026-11-19
+
+### Changed
+
+- step-away: during an absence the Stop hook rewrites the away report's refused-actions and external-actions blocks itself, so the session no longer runs `away.py refresh` from a Bash command, which the Bash sandbox kept from writing the state. go-with-recommendations no longer runs `refresh` during an absence either.
+- step-away: the watched-folder file scan runs only at `end` and on `refresh --files`; the first `refresh` after the report-by time no longer scans, so a report read before `end` has no files list yet.
+
+### Security
+
+- step-away: `away.py` refuses to rewrite the report when its folder resolves elsewhere than at `start` or the report is not a regular file, so a link planted by a sandboxed command cannot redirect the hook's write or copy a linked file into the report.
+
+## [9.12.0] - 2026-11-19
+
+### Added
+
+- **`handoff` and the `workflow` router offer a new session on the desktop app.** When the session has a tool that starts another session (the Claude desktop app's Code tab), the rails resume prompt becomes the brief of a fresh session the user starts, instead of `/clear` and paste. The rules (the user starts it, the session runs in this checkout because the handoff file is gitignored, the `/loop` stays armed here, the `/clear` fallback) live in `reference/sibling-session-delivery.md`, read only in that case; without such a tool nothing changes.
+- **`continue-in-background` starts a desktop session instead of `claude --bg` on the desktop app.** The started session gets the same `/goal` payload, runs in this checkout, and shows under this session in the sidebar, where a `claude --bg` agent does not appear; a refused start falls back to `claude --bg`. `--cloud` is unchanged.
+- **`orient` and `reconcile` read the desktop app's session list.** With a tool that lists the user's other sessions, they take desktop sessions' state from it and keep transcript mtime for the sessions it does not show (CLI, VS Code, cloud); `reference/desktop-session-list.md`, read only in that case.
+
+## [9.11.2] - 2026-11-19
+
+### Changed
+
+- clear a delivered absence's away state
+
+  deliver now removes the session's away state and then away/ itself
+  when it is empty, so the away hooks' shell gate exits before Python
+  again in later sessions. A report kept inside the state dir moves to
+  <plugin data>/away-reports/ first, and deliver prints where it lasts.
+
+## [9.11.1] - 2026-11-19
+
+### Fixed
+
+- wait for the person before acting on parked items after a return
+
+  After the return report is shown and delivered, a parked Needs-you item,
+  its recommended command included, now runs only once the person accepts
+  it by naming it or through /session-flow:go-with-recommendations. Until
+  then the session answers the person and waits, ending each answer with
+  the open items and their recommendations so go-with-recommendations
+  still finds them.
+
+## [9.11.0] - 2026-11-19
+
+### Added
+
+- `/session-flow:step-away` arms a session to run while you are away: prompts are refused and listed in a return report, your decisions are parked with options and a recommendation, and the report is shown once when you are back.
+- session-flow now registers PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks in every session; each does nothing unless a step-away absence is active.
+- `/session-flow:go-with-recommendations` accepts the latest recommendations after a full evidence check, returning any that changed with old, new and why.
+
+## [9.10.1] - 2026-11-19
+
+### Fixed
+
+- `save_point.py validate` no longer lets a successor drop a carried rule, decision or question
+  because its predecessor failed only on size: handoffs written from now on carry a `checks: 2`
+  stamp, and for them the predecessor downgrade applies only to content failures. Older files
+  validate as before.
+
 ## [9.10.0] - 2026-11-19
 
 ### Added

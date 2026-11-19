@@ -9,6 +9,7 @@
 # test-scope: plugins/discovery/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -23,12 +24,8 @@ READER="$SCRIPT_DIR/parse-concern-value.sh"
 WORKROOT="$(mktemp -d)"
 trap 'rm -rf "$WORKROOT"' EXIT
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 new_repo() {
   local dir

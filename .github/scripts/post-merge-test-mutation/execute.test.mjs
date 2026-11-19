@@ -13,6 +13,8 @@ import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { assemble } from "./assemble.mjs";
 import { applyProblem, execute, globPattern, inScope, readConfig, stateOf } from "./execute.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const CONFIG = 'tool: manual\nmutate:\n  - "**/*.sh"\n  - "**/*.mjs"\n  - "!**/*.test.*"\n  - "!docs/conventions/**"\noperators: default\ntimeout-ms: 115000\n';
 

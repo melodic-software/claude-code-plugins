@@ -321,7 +321,7 @@ jobs:
         if: steps.wip.outputs.capped == 'false'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: resolve-issue
@@ -439,6 +439,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       start-gate: true
       lane: work-resolve-issue
       role: issue-lane
@@ -474,7 +475,7 @@ jobs:
     needs: [check-admission, pick-slot, resolve-issue]
     if: ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true' && (needs.resolve-issue.result != 'skipped' || needs.pick-slot.result == 'success' && needs.pick-slot.outputs.skip-key == 'true') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -517,6 +518,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
       # Whether the third call can run, never the token.
@@ -642,6 +644,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       start-gate: true
       lane: work-resolve-issue
       role: issue-lane
@@ -671,7 +674,7 @@ jobs:
     needs: [resolve-issue-handoff, resolve-issue-subscription]
     if: ${{ !cancelled() && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -710,6 +713,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue-subscription
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
       - name: Log the API budget at the end
@@ -744,6 +748,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -773,7 +778,7 @@ jobs:
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') != 'true'
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') == '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -812,6 +817,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue resolve-issue-subscription resolve-issue-fallback
+          API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh stale
 
       - name: Log the API budget at the end
@@ -853,6 +859,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: report-outcome
@@ -948,6 +955,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: apply-issue-patch
@@ -1045,12 +1053,18 @@ jobs:
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # 10 minutes of work plus the API_BUDGET_WAIT_SECONDS wait below
+    # (rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue, which
+    # rate-guard.test.mjs pins every wait in this file to), which held every
+    # end-of-run stop of https://github.com/melodic-software/claude-code-plugins/issues/16642's
+    # 2026-11-18 runs (409-987 s from the reset); run-checks matches.
+    timeout-minutes: 30
     permissions:
       contents: read
       statuses: write
     env:
       API_BUDGET_TOKEN: github-token
+      API_BUDGET_WAIT_SECONDS: "1200"
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1125,7 +1139,7 @@ jobs:
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-outcome-uploaded || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     cache-mode: read
     permissions:
       contents: read
@@ -1136,6 +1150,7 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      API_BUDGET_WAIT_SECONDS: "1200"
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1374,6 +1389,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: report-outcome

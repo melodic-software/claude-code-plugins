@@ -169,14 +169,7 @@ If the project has session-start setup hooks, they run on the next SessionStart,
 | Check | Command | Fix hint |
 |-------|---------|----------|
 | Local settings/secrets present | e.g. `test -f .claude/settings.local.json` (when the project uses one) | The helper already copied `.worktreeinclude`-matched gitignored files at creation; for anything not covered by `.worktreeinclude`, copy from the main repo checkout (or add it to `.worktreeinclude`) |
-| Git hooks installed | Depends on the project's hook manager (e.g. `lefthook list`, `husky` install state) | Run the project's hook-install command |
+| Git hooks installed | The project's hook manager's own status or list command, named in its setup docs or project instructions | Run the project's hook-install command, except in a worktree [Workspace environment setup](#workspace-environment-setup) step 1 skips, where no hook command runs; with none stated, report the check as not run |
+| Dependencies installed | The project's own install or restore step, from the Workspace environment `setup` above or its setup docs; for a `package-lock.json` the helper already provisioned `node_modules` (check its stderr warning) | Run the project's install command, except in a worktree [Workspace environment setup](#workspace-environment-setup) step 1 skips; with none stated, report the check as not run |
 
-**Ecosystem checks** (each gated on a trigger glob: skip silently if no matching files exist in the worktree root):
-
-| Ecosystem | Trigger glob | Check | Command |
-|-----------|--------------|-------|---------|
-| .NET | `*.sln`, `*.slnx` | dependencies restored | `dotnet restore` |
-| Node | `package.json` | dependencies installed | the helper already provisioned `node_modules` for a `package-lock.json` (check its stderr warning); otherwise the project's package manager install |
-| Python | `pyproject.toml` | environment synced | `uv sync` / `pip install -e .` |
-
-Gitignored files (secrets, `.venv/`, `node_modules/`, build output) do not propagate to a fresh worktree; these checks catch that.
+Gitignored files (secrets, installed dependencies, build output) do not propagate to a fresh worktree; these checks catch that.

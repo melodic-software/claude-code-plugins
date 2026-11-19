@@ -190,6 +190,24 @@ test("main posts each status on the lane branch's head SHA with the run as its t
   );
 });
 
+test("main names the lane branch a run left when report-outcome did not finish, and only then", async () => {
+  await withOutcome({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) }, async (dir) => {
+    const routes = [
+      ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: SHA } }],
+      ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+    ];
+    const notices = async (reportResult) => {
+      const lines = [];
+      assert.equal(await main({ env: { ...env(dir), REPORT_RESULT: reportResult }, fetch: fakeFetch(routes).fetch, log: (line) => lines.push(line) }), 0);
+      return lines.filter((line) => line.startsWith("::notice title=post-statuses::"));
+    };
+    const failed = await notices("failure");
+    assert.equal(failed.length, 1);
+    assert.ok(failed[0].includes(BRANCH) && failed[0].includes("(failure)") && failed[0].includes("reuses it"));
+    assert.deepEqual(await notices("success"), []);
+  });
+});
+
 // A status post repeats to the same state, so it is sent again like a read.
 test("main survives a dropped socket on the branch read and on a status post", async () => {
   await withOutcome(

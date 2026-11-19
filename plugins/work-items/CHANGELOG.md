@@ -3,6 +3,64 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.8.0] - 2026-11-19
+
+### Added
+
+- configure lane workflows, the lane-record contract and the label-as-code owner
+
+  /work-items:morning-brief reads its lane workflow list from the
+  lane_workflows key under morning_brief: (the files the repo has); unset,
+  the lanes are the workflows whose file uses a Claude action, and a file
+  that cannot be read makes the Lanes section UNREADABLE. The
+  lane_outcome_contract_ref key names where the lane-outcome record is
+  documented and prints under the Lanes heading; unset, the skill lists
+  the record fields the brief reads. label_as_code_repo in
+  docs/conventions/work-items.yaml names the repository that owns the
+  tracker's labels. The plugin no longer ships an organization's lane
+  workflow list, lane-outcome links or label-as-code repository; this
+  repository sets its own values in docs/conventions/work-items.yaml.
+
+### Fixed
+
+- give label_as_code_repo a runnable read and name only its reader
+
+  capability-tier-labels.md and the schema run parse-concern-value.sh from
+  <plugin-root>, as ai-disclaimer.md does. The morning brief's record field
+  list names v and the credential fields it reads.
+
+- skip a workflow whose file is gone when the brief finds lanes
+
+  With lane_workflows unset, a workflow the Actions list names but whose
+  file is deleted or on another branch is not a lane; it no longer makes
+  the Lanes section UNREADABLE.
+
+- read label_as_code_repo wherever a declared label-as-code owner decides
+
+  label-taxonomy.md defines a declared label-as-code owner as the
+  label_as_code_repo key, and setup (apply, check, unattended apply),
+  track labels and capability-tier-labels.md's Migration step read it
+  instead of an undefined declaration.
+
+## [15.7.0] - 2026-11-19
+
+### Added
+
+- **`ship` offers one session per ready item on the desktop app.** In the `per-item PRs` shape, when two or more independent items are ready and the session has a tool that starts another session, `ship` offers a session per item, each in its own worktree with a brief that claims the item first; `context/parallel-sessions.md` holds the rules and is read only in that case. The integration-branch shape never gets it.
+
+## [15.6.7] - 2026-11-19
+
+### Changed
+
+- **One contract for `scripts/lane-telemetry-upsert.sh`.** Its arguments, writes, checks and exit codes now live once in `reference/lane-telemetry-upsert.md`; the work-loop and attend-queue `reference/telemetry-upsert.md` files keep only each lane's invocation and what it adds. The attend-queue copy had drifted (a shorter read-back description, no compound-command gotcha); both lanes now read the fuller text.
+- **The work loop's instance-collision check is a generated copy of the shared `lib/lane-instance-collision-check.md`,** the same copy the babysit loop carries; no change to the check itself.
+
+### Fixed
+
+- `/work-items:decompose`: a spec container's Brief copy names every section of the interview's
+  Brief template, including Intent, Work size and the optional ADR verdicts, so the container keeps
+  the decisions no ADR records.
+
 ## [15.6.6] - 2026-11-18
 
 ### Fixed

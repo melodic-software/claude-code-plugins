@@ -57,6 +57,7 @@
 # leave every sourcer of this file uncredited and re-open the incident the gate
 # exists to stop. The list below is the full seven.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/fixture-tree.sh is sourced-only\n' >&2

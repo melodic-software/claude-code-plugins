@@ -10,6 +10,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, wr
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { WAIT_BUDGET_SECONDS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./handoff-evidence.sh", import.meta.url));
@@ -48,6 +49,11 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, 
         `exit "$(cat "${dir}/status-$n" 2>/dev/null || echo 1)"\n`,
     );
     chmodSync(join(bin, "gh"), 0o755);
+    writeFileSync(
+      join(bin, "node"),
+      `#!/usr/bin/env bash\n[[ $* != *createRateLimitLatch* ]] || echo latch >>"${dir}/latches"\nexec "${process.execPath}" "$@"\n`,
+    );
+    chmodSync(join(bin, "node"), 0o755);
     if (draw !== undefined) {
       writeFileSync(
         join(bin, "shuf"),
@@ -77,7 +83,7 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, 
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
     const lines = (name) => read(name).split("\n").filter(Boolean);
-    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number), marker: read("lane-hold/pr-refine") };
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number), latches: lines("latches").length, marker: read("lane-hold/pr-refine") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -302,6 +308,53 @@ test("a rate limit holds fix-docs under the gh wrapper: one request, a notice an
   assert.equal(other.status, 1);
   assert.equal(other.args.length, 1);
   assert.match(other.stderr, /^::error::.*hit GitHub's core API rate limit/m);
+  assert.match(other.stdout, /^::error::handoff evidence for fix-ci still missing after \d+ reads: the jobs read failed: GitHub's core API rate limit holds until /m, "the error names the rate limit");
+});
+
+const limitedUntil = (reset) => [
+  answer("403 Forbidden", { "X-Ratelimit-Limit": 1000, "X-Ratelimit-Remaining": 0, "X-Ratelimit-Reset": reset, "X-Ratelimit-Resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }),
+  1,
+];
+const LANE_POSTED = { name: "Resolve Issue Subscription / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
+
+test("with API_BUDGET_WAIT_SECONDS set, a read the rate limit refused waits for the reset and reads again", () => {
+  const reset = Math.floor(Date.now() / 1000) + 2;
+  const out = run([limitedUntil(reset), [answer("200 OK", {}, listing(LANE_POSTED)), 0]], "0 0 0 0 0", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    env: { API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) },
+  });
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.equal(out.args.length, 2, "one refused read, one after the reset");
+  assert.match(out.stdout, /^::notice::GET \/repos\/o\/r\/actions\/runs\/7\/jobs waits \d+s for GitHub's rate limit to reset/m);
+  assert.equal(out.output, "posted=true\n");
+});
+
+test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget but inside the reads' window keeps reading on the delays", () => {
+  const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 90)], "60 60", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    draw: 0,
+    env: { API_BUDGET_WAIT_SECONDS: "60" },
+  });
+  assert.doesNotMatch(out.stdout, /waits \d+s/, "90 s is past the guard's 60 s budget");
+  assert.match(out.stdout, /^Read 1: the jobs read failed: GitHub's core API rate limit holds until \S+; reading again in 0s$/m);
+  assert.match(out.stdout, /^Read 2: /m);
+  assert.ok(out.latches >= 2, `a wait that did not happen is not spent, so read 2 tries it again (${out.latches} tries)`);
+});
+
+test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget ends the reads at once and names the rate limit", () => {
+  const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 3000)], "0 0 0 0 0", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    env: { API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) },
+  });
+  assert.equal(out.status, 1);
+  assert.equal(out.args.length, 1);
+  assert.doesNotMatch(out.stdout, /waits \d+s/);
+  assert.match(out.stdout, /^::error::handoff evidence for resolve-issue-subscription still missing after 1 reads: the jobs read failed: GitHub's core API rate limit holds until /m);
+  assert.doesNotMatch(out.stdout, /^Read 2/m, "no read follows the refusal");
+  assert.equal(out.output, "");
 });
 
 const lagged = () => [

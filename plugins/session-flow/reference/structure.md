@@ -809,7 +809,7 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
 - **Our decision.** We treat the plugin data dir as keyed to the plugin identifier and nothing else
   (no project, checkout or session), and we rely only on the substitution the page documents: a
   SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a script run through Bash
-  derives the dir itself (`save_point.py` `_plugin_data_root`), never reading the variable from
+  derives the dir itself (`plugin_paths.py` `data_root`), never reading the variable from
   its environment or a `${CLAUDE_PLUGIN_DATA:-default}` form.
 - **Pointer**: [Plugin manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
@@ -843,6 +843,7 @@ the hand-written file needs no slots JSON.
 ---
 type: handoff
 handoff_shape: 3
+checks: 2                                 # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
 session_id: <UUID>
@@ -867,6 +868,7 @@ same `hop` and two sibling hop files, told apart by their session prefix.
 ---
 type: handoff
 handoff_shape: 2
+checks: 2                                 # rule-set version the file was written under
 date: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 topic: <kebab>
 session_id: <UUID>                        # REQUIRED — CLAUDE_CODE_SESSION_ID at write time
@@ -951,11 +953,14 @@ placeholder-shaped (settle the goal with the user, then fill it); the `Opening a
 `(shape-1 root, no verbatim ask recorded)`; its `## Prior sessions` row carries the
 `UNVERIFIED (shape-1 predecessor; brief: …)` cell.
 
-**A predecessor that fails shape-2 validation** (or a hand-written Python-absent file) is still
+**A predecessor that fails validation** (or a hand-written Python-absent file) is still
 copied forward: in a shape-2 successor every carried entry is prefixed
-`UNVERIFIED (predecessor failed validation):`, and `validate` on the successor downgrades the predecessor-derived checks (chain prefix, Prior
-sessions prefix) to WARN naming the predecessor's failure, so one bad hop never blocks every later
-hop. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
+`UNVERIFIED (predecessor failed validation):`, whatever the predecessor failed on. For a successor
+stamped `checks: 2`, `validate` downgrades the predecessor-derived checks (chain prefix, Prior
+sessions prefix, carried entries) to WARN only on an order or malformed FAIL in the predecessor,
+naming that failure, so one bad hop never blocks every later hop. A predecessor that failed only
+on size, its transcript or its archive leaves the successor's carry checks at FAIL, so a dropped
+rule never passes. A successor without the stamp downgrades on any predecessor FAIL. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
 predecessors' frontmatter to find their hop files.
 
 **Unfinished skeletons stay on disk and are never a save-point.** A `new` run that was never
