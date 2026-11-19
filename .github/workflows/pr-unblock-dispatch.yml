@@ -61,8 +61,6 @@ name: PR Unblock Dispatch
 on:
   push:
     branches: [main]
-  # Minutes 9 and 39: five after the reconciler's 4 and 34, and used by no
-  # other schedule here.
   schedule:
     - cron: "9,39 * * * *"
   workflow_dispatch: {}

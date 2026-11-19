@@ -197,8 +197,8 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly five minutes after each lost-run reconciler tick, and on
-a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
+reconciler tick), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -2221,7 +2221,7 @@ the `enable-auto-merge` job arms them in both modes.
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
-Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (hourly) re-runs the
 failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
 its first attempt, at most three per run, merge-critical first; while the switch is on it reads
 nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `kill-switch`, which no
