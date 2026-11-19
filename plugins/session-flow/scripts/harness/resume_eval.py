@@ -953,7 +953,7 @@ def seed_run(
         path.write_text(content, encoding="utf-8")
         seeded[rel] = content.encode("utf-8")
     chain = resume_cases.build_predecessor_chain(
-        case, repo, save_point=seed_save_point(cfg.copies, arm)
+        case, repo, save_point=seed_save_point(cfg.copies, arm), arm=arm
     )
     seed_hash = resume_cases.seed_hash(repo)
     _git(call, repo, env, "add", "-A")

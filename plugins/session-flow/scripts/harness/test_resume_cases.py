@@ -601,6 +601,14 @@ def test_a_hop_stated_to_fail_that_validates_stops_the_build(tmp_path):
         resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
 
 
+def test_a_stated_failure_naming_arms_holds_only_for_those_arms(tmp_path):
+    spec = _oversize_spec([{"hop": 2, "fail": r"^size:", "arms": ["after"]}])
+    chain = resume_cases.build_predecessor_chain(spec, tmp_path / "after", arm="after")
+    assert len(chain) == spec["seed"]["predecessor"]["hops"]
+    with pytest.raises(SystemExit, match="hop 2 does not validate"):
+        resume_cases.build_predecessor_chain(spec, tmp_path / "before", arm="before")
+
+
 def _reuse_spec(retire_hop: int) -> dict:
     spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
     pred = spec["seed"]["predecessor"]

@@ -42,9 +42,9 @@ if str(HERE) not in sys.path:
 from hop_chain import (  # noqa: E402
     FILL_RE,
     SAVE_POINT,
-    between_rails,
     frontmatter_value,
 )
+from resume_history import _section_span, read_turns, seed_history  # noqa: E402,F401
 
 CASE_FILE = "resume-eval.json"
 SEED_SHAPES = (2, 3)
@@ -105,14 +105,6 @@ HOT_SLOTS = (
     "skills",
     "next",
 )
-
-# Read patterns (AUDIT.md Q2): files up to WHOLE_MAX are read in one Read, up to
-# PAGED_MAX in pages, larger ones partially.
-WHOLE_MAX = 60_000
-PAGED_MAX = 100_000
-PAGE_LINES = 150
-TOP_LINES = 100
-TAIL_LINES = 80
 
 # --- deterministic choice ----------------------------------------------------------
 
@@ -774,11 +766,15 @@ def seed_hash(out_dir: Path, memory_dir: Path | None = None) -> str:
     return digest.hexdigest()
 
 
-def _expected_fail(pred: dict, case: str, hops: int) -> dict[int, re.Pattern[str]]:
+def _expected_fail(
+    pred: dict, case: str, hops: int, arm: str | None
+) -> dict[int, re.Pattern[str]]:
     """`expected_fail` as {hop: pattern}: that hop must FAIL `validate`, and every one
-    of its FAIL lines must match the pattern."""
+    of its FAIL lines must match the pattern. An entry naming `arms` holds only there."""
     stated: dict[int, re.Pattern[str]] = {}
     for item in pred.get("expected_fail", []):
+        if "arms" in item and arm not in item["arms"]:
+            continue
         hop, pattern = int(item["hop"]), str(item.get("fail") or "")
         if not 1 <= hop <= hops or not pattern.strip() or hop in stated:
             raise ValueError(
@@ -804,19 +800,24 @@ def build_predecessor_chain(
     memory_dir: Path | None = None,
     *,
     save_point: Path | None = None,
+    arm: str | None = None,
 ) -> list[Path]:
     """Write the case's predecessor chain into `out_dir` (the run's repository) with
-    `save_point` (an arm copy's script; this checkout's when None) and return the hop
-    files, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
+    `save_point` (an arm copy's script; this checkout's when None) for `arm` and return
+    the hop files, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
     token = _RESERVED.set(reserved_numbers(case_spec))
     try:
-        return _build(case_spec, Path(out_dir), memory_dir, save_point)
+        return _build(case_spec, Path(out_dir), memory_dir, save_point, arm)
     finally:
         _RESERVED.reset(token)
 
 
 def _build(
-    case_spec: dict, out_dir: Path, memory_dir: Path | None, save_point: Path | None
+    case_spec: dict,
+    out_dir: Path,
+    memory_dir: Path | None,
+    save_point: Path | None,
+    arm: str | None,
 ) -> list[Path]:
     pred = case_spec["seed"]["predecessor"]
     case = case_spec["name"]
@@ -835,7 +836,7 @@ def _build(
         )
     if shape == 3:
         _check_shape3_spec(pred, hops)
-    expected_fail = _expected_fail(pred, case, hops)
+    expected_fail = _expected_fail(pred, case, hops, arm)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -928,179 +929,6 @@ def _build(
                 scale = (need - overhead) / max(base_chars, 1)
                 width = max(MIN_WIDTH, min(MAX_WIDTH, int(BASE_WIDTH * scale)))
     return files
-
-
-# --- the seeded session -----------------------------------------------------------
-
-
-def _numbered(lines: list[str], start: int) -> str:
-    """Lines in the Read tool's `cat -n` form, numbered from `start` (1-based)."""
-    return "\n".join(f"{start + i:>6}\t{line}" for i, line in enumerate(lines))
-
-
-def _read(
-    path: Path, lines: list[str], offset: int | None = None, limit: int | None = None
-) -> dict:
-    start = offset or 1
-    end = len(lines) if limit is None else min(len(lines), start - 1 + limit)
-    tool_input: dict = {"file_path": str(path)}
-    if offset is not None:
-        tool_input["offset"] = offset
-    if limit is not None:
-        tool_input["limit"] = limit
-    return {
-        "role": "tool",
-        "name": "Read",
-        "input": tool_input,
-        "result": _numbered(lines[start - 1 : end], start),
-    }
-
-
-def _grep(
-    path: Path,
-    lines: list[str],
-    fixed: list[str] | None,
-    heading: bool,
-    description: str,
-) -> dict:
-    if heading:
-        command = f"grep -n '^## ' {path}"
-        hits = [(i, line) for i, line in enumerate(lines, 1) if line.startswith("## ")]
-    else:
-        command = (
-            "grep -nF " + " ".join(f"-e '{tag}'" for tag in fixed or []) + f" {path}"
-        )
-        hits = [
-            (i, line)
-            for i, line in enumerate(lines, 1)
-            if any(t in line for t in fixed or [])
-        ]
-    return {
-        "role": "tool",
-        "name": "Bash",
-        "input": {"command": command, "description": description},
-        "result": "\n".join(f"{i}:{line}" for i, line in hits),
-    }
-
-
-def _section_span(
-    lines: list[str], title: str, until: str | None = None
-) -> tuple[int, int]:
-    """1-based start line of `## title` and the line count up to the next heading
-    (or up to `## until`)."""
-    start = lines.index(f"## {title}") + 1
-    ends = (
-        i
-        for i in range(start, len(lines))
-        if (lines[i] == f"## {until}" if until else lines[i].startswith("## "))
-    )
-    return start, next(ends, len(lines)) - start + 1
-
-
-def read_turns(path: Path, pattern: str | None = None) -> list[dict]:
-    """The reads a real resume makes of one handoff (AUDIT.md Q2): a small file in one
-    Read, a mid-size one in pages, a large one partially (a heading grep, the top 100
-    lines, the hot block from Remaining actions to Prior sessions, the tail, and a
-    grep for the two newest hop tags); `partial+constraints` adds a full read of
-    Constraints, as the audited superseded-rule resume made."""
-    text = path.read_text(encoding="utf-8")
-    lines = text.split("\n")
-    if lines and lines[-1] == "":
-        lines = lines[:-1]
-    size = len(text.encode("utf-8"))
-    pattern = pattern or (
-        "whole" if size <= WHOLE_MAX else "paged" if size <= PAGED_MAX else "partial"
-    )
-    if pattern == "whole":
-        return [_read(path, lines)]
-    if pattern == "paged":
-        return [
-            _read(path, lines, offset=start, limit=PAGE_LINES)
-            for start in range(1, len(lines) + 1, PAGE_LINES)
-        ]
-    if pattern not in ("partial", "partial+constraints"):
-        raise ValueError(f"unknown read pattern {pattern!r}")
-    hops = [int(h) for h in re.findall(r"\[h(\d+)\]", text)]
-    newest = max(hops) if hops else 1
-    tags = [f"[h{newest - 1}]", f"[h{newest}]"] if newest > 1 else [f"[h{newest}]"]
-    turns = [
-        _grep(path, lines, None, True, "List the handoff's section headings"),
-        _read(path, lines, limit=TOP_LINES),
-    ]
-    if pattern == "partial+constraints":
-        start, count = _section_span(lines, "Constraints that must hold")
-        turns.append(_read(path, lines, offset=start, limit=count))
-    start, count = _section_span(
-        lines, "Remaining actions, in order", until="Prior sessions"
-    )
-    turns.append(_read(path, lines, offset=start, limit=count))
-    turns.append(_read(path, lines, offset=max(1, len(lines) - TAIL_LINES + 1)))
-    turns.append(_grep(path, lines, tags, False, "Find the newest hop entries"))
-    return turns
-
-
-def _expand(value, subs: dict):
-    if isinstance(value, str):
-        for key, sub in subs.items():
-            value = value.replace("{" + key + "}", sub)
-        return value
-    if isinstance(value, list):
-        return [_expand(v, subs) for v in value]
-    if isinstance(value, dict):
-        return {k: _expand(v, subs) for k, v in value.items()}
-    return value
-
-
-def seed_history(
-    case_spec: dict, chain: list[Path], repo_root: Path | None = None
-) -> list[dict]:
-    """The session every arm's writer resumes from, as `resume_eval.render_history`
-    turns. It opens with the newest handoff's pasted resume prompt, then the reads,
-    then the case's work turns, and ends on an assistant turn; the harness sends
-    `writer.interrupt` next. `{repo}` and `{handoff}` in work turns expand to the
-    repository and the newest handoff's paths.
-
-    Raises ValueError when an injection's `visible_in_reads` disagrees with the read
-    slices, or when a turn the reads did not produce restates a hidden injection."""
-    newest = Path(chain[-1])
-    repo = Path(repo_root) if repo_root else newest.parents[2]
-    seed = case_spec["seed"]
-    paste = between_rails(newest.read_text(encoding="utf-8"))
-    if paste is None:
-        raise ValueError(f"{newest.name}: no resume region between rails")
-    reads = read_turns(newest, (seed.get("reads") or {}).get("pattern"))
-    subs = {"repo": str(repo), "handoff": str(newest)}
-    history = seed.get("history") or {}
-    work = _expand(list(history.get("work", [])), subs)
-    turns = [{"role": "user", "text": paste}, *reads]
-    turns.append({"role": "assistant", "text": _expand(history["after_reads"], subs)})
-    turns += work
-    if turns[-1]["role"] != "assistant":
-        raise ValueError(f"{case_spec['name']}: history must end on an assistant turn")
-
-    seen = "\n".join(turn["result"] for turn in reads)
-    said = "\n".join(
-        turn.get("text") or json.dumps(turn.get("input")) + str(turn.get("result"))
-        for turn in turns
-        if turn not in reads
-    )
-    for item in seed["predecessor"].get("injections", []):
-        visible = item.get("visible_in_reads")
-        if visible is None:
-            continue
-        # Read results number each line, so a multi-line entry is seen line by line.
-        lines = item["text"].split("\n")
-        shown = all(line in seen for line in lines)
-        if shown != bool(visible):
-            raise ValueError(
-                f"{case_spec['name']}: injection {item['id']!r} visible_in_reads={visible} "
-                f"but the read slices {'show' if shown else 'miss'} it"
-            )
-        if not visible and any(line in said for line in lines):
-            raise ValueError(
-                f"{case_spec['name']}: a work turn restates hidden injection {item['id']!r}"
-            )
-    return turns
 
 
 def load_case(case_dir: Path) -> dict:
