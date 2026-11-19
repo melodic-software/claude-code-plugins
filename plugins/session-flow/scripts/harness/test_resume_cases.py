@@ -585,6 +585,41 @@ def test_a_hop_stated_to_fail_builds_on_when_it_fails_as_stated(tmp_path):
     assert chain[-1].stat().st_size < 24_600
 
 
+REFUSING_FILL = f"""import json
+import runpy
+import sys
+from pathlib import Path
+
+REAL = {str(SAVE_POINT)!r}
+argv = sys.argv[1:]
+if argv[:1] == ["fill"] and "{OVERSIZE_DECISION[:20]}" in Path(argv[3]).read_text(encoding="utf-8"):
+    marker = Path(__file__).with_name(Path(argv[1]).name + ".refused")
+    if not marker.exists():
+        marker.write_text("1", encoding="utf-8")
+        print("error: slot 'brief' is 9 bytes, 8 bytes over its 1-byte budget; nothing written.")
+        sys.exit(1)
+sys.argv = [REAL, *argv]
+runpy.run_path(REAL, run_name="__main__")
+"""
+
+
+def test_a_stated_hop_whose_fill_refuses_on_budget_writes_on_the_second_call(tmp_path):
+    spec = _oversize_spec([{"hop": 2, "fail": r"^size: \d+ bytes is over"}])
+    stub = _stub_copy(tmp_path / "stub", REFUSING_FILL)
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", save_point=stub
+    )
+    assert len(chain) == spec["seed"]["predecessor"]["hops"]
+    assert chain[1].stat().st_size > 24_600
+
+
+def test_an_unstated_hop_whose_fill_refuses_on_budget_stops_the_build(tmp_path):
+    spec = _oversize_spec(None)
+    stub = _stub_copy(tmp_path / "stub", REFUSING_FILL)
+    with pytest.raises(SystemExit, match="`fill` failed at hop 2"):
+        resume_cases.build_predecessor_chain(spec, tmp_path / "repo", save_point=stub)
+
+
 def test_an_unstated_failing_hop_still_stops_the_build(tmp_path):
     with pytest.raises(SystemExit, match="hop 2 does not validate"):
         resume_cases.build_predecessor_chain(_oversize_spec(None), tmp_path / "repo")

@@ -517,6 +517,7 @@ def _fill_3(
     live: dict,
     script: Path,
     steer_count: int = 0,
+    stated: bool = False,
 ) -> int:
     """Fill a shape-3 skeleton through `save_point.py fill`; return the characters of
     generated rule text. `live` carries, hop to hop, the id-carrying lines of Open
@@ -730,7 +731,15 @@ def _fill_3(
     with tempfile.TemporaryDirectory(prefix="resume-fill-") as tmp:
         slots_file = Path(tmp) / "slots.json"
         slots_file.write_text(json.dumps(values), encoding="utf-8")
-        filled = _run(script, ["fill", str(path), "--slots", str(slots_file)])
+        fill = ["fill", str(path), "--slots", str(slots_file)]
+        filled = _run(script, fill)
+        if (
+            filled.returncode != 0
+            and stated
+            and "over its" in filled.stdout + filled.stderr
+            and "budget" in filled.stdout + filled.stderr
+        ):
+            filled = _run(script, fill)
     if filled.returncode != 0:
         raise SystemExit(f"`fill` failed at hop {hop}: {filled.stdout}{filled.stderr}")
     return sum(map(len, rules)) if hop > 1 else 0
@@ -883,7 +892,9 @@ def _build(
             )
         path = Path(made.stdout.strip())
         if shape == 3:
-            generated = _fill_3(path, pred, hop, lane, live, script, rule_count)
+            generated = _fill_3(
+                path, pred, hop, lane, live, script, rule_count, hop in expected_fail
+            )
         else:
             generated = _fill(path, pred, hop, width, lane)
         if hop == hops and pred.get("amend"):
