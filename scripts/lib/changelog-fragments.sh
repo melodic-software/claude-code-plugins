@@ -304,7 +304,9 @@ changelog_fragments::dependabot_only() {
   while IFS=$'\t' read -r sha an ae ce; do
     CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
     [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
+    CF_DEPENDABOT_BLOCKER=""
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
+    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} carries Dependabot's name but no signature GitHub verified"
     [[ "$verified" == true ]] || return 1
   done <<<"$commits"
   CF_DEPENDABOT_BLOCKER=""

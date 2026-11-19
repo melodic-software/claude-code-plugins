@@ -203,8 +203,13 @@ if [[ "$mode" == --check-required ]]; then
     echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     findings=$((findings + 1))
     if [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' ]]; then
-      echo "  Dependabot opened this pull request, but it is not Dependabot's alone (${CF_DEPENDABOT_BLOCKER:-its commits could not be checked})." >&2
-      echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
+      if [[ -n "${CF_DEPENDABOT_BLOCKER:-}" ]]; then
+        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_DEPENDABOT_BLOCKER)." >&2
+        echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
+      else
+        echo "  Dependabot opened this pull request, but its commits could not be checked: the git or GitHub API lookup failed." >&2
+        echo "  Do not add a fragment: re-run this job once the GitHub API answers, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
+      fi
       continue
     fi
     echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2

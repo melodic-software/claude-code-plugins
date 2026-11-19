@@ -518,8 +518,8 @@ printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
 run_dependabot "--check-required exempts a pull request of verified Dependabot commits" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
 run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
-run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'dependabot[bot]' false 0
-run_dependabot "--check-required does not exempt when the signature lookup fails" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 1
+run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "no signature GitHub verified" 'dependabot[bot]' false 0
+run_dependabot "--check-required does not exempt when the signature lookup fails, and advises a re-run" 1 "could not be checked: the git or GitHub API lookup failed" 'dependabot[bot]' true 1
 # The merge queue checks out its own squash commit; CHANGELOG_PR_HEAD names the
 # queued pull request's head, whose commits are the ones the exemption reads.
 dependabot_head="$(git -C "$f" rev-parse HEAD)"
