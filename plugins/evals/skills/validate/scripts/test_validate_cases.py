@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/evals/skills/*/SKILL.md
 # test-scope: plugins/evals/evals/*
 """Fixture suite for validate-cases.py.
 

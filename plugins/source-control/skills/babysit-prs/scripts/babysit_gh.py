@@ -1332,16 +1332,6 @@ def _api_budget_trace(token: str, stderr: str) -> str:
     return text + "\n" if text and stderr.endswith("\n") else text
 
 
-# A reading's route, for the job-end api-routes notice: rate-guard.mjs's
-# routeOf, whose REST_PATH_WORDS this list is (test_babysit_gh_api_budget.py
-# checks both against rate-guard.vectors.json's routes). A URL on a host other
-# than api.github.com and uploads.github.com is other, unless its path starts
-# with /api/ (GHES); scheme, host, /api/v3, query and fragment go; a GraphQL
-# path is graphql; repos/<owner>/<repo> is repos/{repo}; a number is {n}; hex
-# of 7 or more characters {sha}; the segment after one that names a thing
-# (labels/<name>) and every segment after one that starts a path or ref
-# (contents/<path>) is {x} unless a number; a REST path word stays; any other
-# segment is {x}; a route over 80 characters is other.
 REST_PATH_WORDS = frozenset(
     "api v3 repos orgs users user installation app graphql pulls issues comments"
     " reviews requested_reviewers git refs ref heads tags trees blobs commits"
@@ -1366,11 +1356,14 @@ _ROUTE_URL = re.compile(r"([a-z][a-z0-9+.-]*://)([^/?#]*)([^?#]*)", re.IGNORECAS
 _ROUTE_API_HOST = re.compile(r"(api|uploads)\.github\.com", re.IGNORECASE)
 _ROUTE_NUMBER = re.compile(r"[0-9]+")
 _ROUTE_SHA = re.compile(r"[0-9a-fA-F]{7,}")
+_ROUTE_WORKFLOW_FILE = re.compile(r"[a-z0-9][a-z0-9_-]*\.ya?ml")
 
 
 def api_route(url: str) -> str:
     """A request's URL or `gh api` path as a route that holds no query, name
-    or token (the rules above)."""
+    or token. Twin of rate-guard.mjs `routeOf` and api-budget.bash
+    `API_BUDGET_ROUTE`: change all of them together; rate-guard.vectors.json
+    holds the rules, and test_babysit_gh_api_budget.py checks this against it."""
     url = str(url)
     host = _ROUTE_URL.match(url)
     if host:
@@ -1386,10 +1379,20 @@ def api_route(url: str) -> str:
     segments = path.split("/")
     out: list[str] = []
     tail = name = False
+    file = -1
     index = 0
     while index < len(segments):
         seg = segments[index]
-        if tail or name:
+        if (
+            name
+            and not tail
+            and segments[index - 1] == "workflows"
+            and _ROUTE_WORKFLOW_FILE.fullmatch(seg)
+        ):
+            file = len(out)
+            out.append(seg)
+            name = False
+        elif tail or name:
             out.append(
                 "{n}"
                 if _ROUTE_NUMBER.fullmatch(seg)
@@ -1412,6 +1415,8 @@ def api_route(url: str) -> str:
         else:
             out.append("{x}")
         index += 1
+    if file >= 0 and len("/".join(out)) > 80:
+        out[file] = "{x}"
     route = "/".join(out)
     return "other" if len(route) > 80 else route
 

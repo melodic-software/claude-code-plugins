@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json
 """Post-merge demotion by affected set (`babysit_postmerge`, owner decision
 Q645 with Q651): a red full run demotes only for a failing suite in the
 affected set of the merges since the branch's last green full run. A suite

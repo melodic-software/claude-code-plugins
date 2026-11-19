@@ -529,7 +529,13 @@
     { "url": "repos/o/r/git/ref/heads/feature/fix-it", "route": "repos/{repo}/git/ref/{x}/{x}/{x}", "absent": ["feature","fix-it"] },
     { "url": "repos/o/r/branches/main/protection", "route": "repos/{repo}/branches/{x}/protection", "absent": ["main"] },
     { "url": "users/SomeLogin/repos", "route": "users/{x}/repos", "absent": ["SomeLogin"] },
-    { "url": "repos/o/r/actions/workflows/pr-verify.yml/runs", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["pr-verify"] },
+    { "url": "repos/o/r/actions/workflows/pr-verify.yml/runs", "route": "repos/{repo}/actions/workflows/pr-verify.yml/runs", "absent": ["o/r"] },
+    { "url": "repos/o/r/actions/workflows/deploy.yaml", "route": "repos/{repo}/actions/workflows/deploy.yaml", "absent": ["o/r"] },
+    { "url": "repos/o/r/actions/workflows/161335/dispatches", "route": "repos/{repo}/actions/workflows/{n}/dispatches", "absent": ["161335"] },
+    { "url": "repos/o/r/actions/workflows/Secret%20Name.yml/runs", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["Secret","Name"] },
+    { "url": "repos/o/r/actions/workflows/build.sh/runs", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["build.sh"] },
+    { "url": "repos/o/r/actions/workflows/release-generate-dependabot-changelog-fragments.yml/dispatches", "route": "repos/{repo}/actions/workflows/{x}/dispatches", "absent": ["dependabot"] },
+    { "url": "repos/o/r/contents/.github/workflows/ci.yml", "route": "repos/{repo}/contents/{x}/{x}/{x}", "absent": ["ci.yml",".github"] },
     { "url": "repos/o/r/issues/1/comments#frag", "route": "repos/{repo}/issues/{n}/comments", "absent": ["frag"] },
     { "url": "repos/o/r/hello world", "route": "repos/{repo}/{x}", "absent": ["hello"] },
     { "url": "/repos/o/r/rules/branches/stale-feature-name", "route": "repos/{repo}/rules/branches/{x}", "absent": ["stale-feature-name"] },
@@ -547,7 +553,7 @@
     { "url": "https://api.github.com/", "route": "other", "absent": [] },
     { "url": "repos/o/r/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/comments", "route": "other", "absent": [] },
     { "url": "repos/o/r/commits/ABCDEF0123/statuses", "route": "repos/{repo}/commits/{sha}/statuses", "absent": ["ABCDEF0123"] },
-    { "url": "repos/o/r/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["pr-require-checks","event","main"] },
+    { "url": "repos/o/r/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20", "route": "repos/{repo}/actions/workflows/pr-require-checks.yml/runs", "absent": ["event","main","per_page"] },
     { "url": "repos/o/r/merge-async", "route": "repos/{repo}/{x}", "absent": ["merge-async"] }
   ]
 }
