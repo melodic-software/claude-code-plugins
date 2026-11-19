@@ -2679,6 +2679,18 @@ test("#17354: the reset preview's questions say what each yes covers, and stay s
   assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?");
 });
 
+test("#17354: the one question says once that folders without a record and files whose earlier reset was cut off each get their own question", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  secondFolder(w);
+  const loose = join(w.root, "loose");
+  writeTree(loose, { ".claude/settings.local.json": LOCAL_BEFORE });
+  knowFolders(w, loose);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => f.action).sort(), ["finish-cut-off", "remove-entries", "restore"]);
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record and files whose earlier reset was cut off are not covered: each gets its own question.");
+});
+
 test("#17354: the reset preview gives each apply's time in the machine's time zone", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);

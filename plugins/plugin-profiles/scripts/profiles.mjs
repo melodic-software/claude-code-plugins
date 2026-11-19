@@ -176,12 +176,14 @@ const ASKS = {
     yes: { label: "Remove", flag: "--remove-unrecorded" },
     no: { label: "Keep", flag: "--keep-unrecorded" },
     covers: "Folders without a record are not covered: each gets its own question.",
+    some: "folders without a record",
     waits: "a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change",
   },
   cutOff: {
     yes: { label: "Put back", flag: "--finish-cut-off" },
     no: { label: "Keep", flag: "--keep-cut-off" },
     covers: "A file whose earlier reset was cut off is not covered: each gets its own question.",
+    some: "files whose earlier reset was cut off",
     waits: "a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back",
   },
 };
@@ -1245,7 +1247,9 @@ function resetQuestion(rows) {
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
-  return [covers, ...asked.map((kind) => kind.covers)].join(" ");
+  if (asked.length < 2) return [covers, ...asked.map((kind) => kind.covers)].join(" ");
+  const kinds = asked.map((kind) => kind.some).join(" and ");
+  return `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`;
 }
 
 /** The preview lines naming each entry edited since the apply that a restore changes again. */
