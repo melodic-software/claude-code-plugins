@@ -4340,8 +4340,9 @@ def _lifted_by_person(
         return False, f"{type(exc).__name__}: {exc}"
 
 
-MERGE_GROUP_FAILURES_SECTION = "merge-group-failures"
-RATE_LIMITED_ENTRY_SECTION = "rate-limited-queue-entry"
+MERGE_GROUP_FAILURES_SECTION = "merge-group-failures-paged"
+INFRA_ENTRY_SECTION = "infra-queue-entry"
+MAIN_RUNS_SECTION = "main-workflow-runs"
 # The run fields the gate reads; the run cache keeps only these.
 MERGE_GROUP_RUN_FIELDS = (
     "id",
@@ -4352,7 +4353,9 @@ MERGE_GROUP_RUN_FIELDS = (
     "html_url",
     "created_at",
     "updated_at",
+    "workflow_id",
 )
+MERGE_GROUP_FAILURE_PAGES = 5
 
 
 def _verdict_read(path: str) -> Any:
@@ -4364,28 +4367,51 @@ def _verdict_read(path: str) -> Any:
 
 
 def _merge_group_failures(
-    repo: str, branch: str, number: int
+    repo: str, branch: str, number: int, since: datetime | None = None
 ) -> list[dict[str, Any]] | None:
     """The pull request's failed merge_group runs among the repository's
-    newest 100, newest first, or None when they cannot be read. The listing
-    is shared through the run cache for `run_cache.MAX_AGE`."""
-    runs = run_cache.get(MERGE_GROUP_FAILURES_SECTION, repo, run_cache.MAX_AGE)
-    if not is_json_array(runs):
+    newest 100, newest first, or None when they cannot be read. With `since`,
+    further pages (up to `MERGE_GROUP_FAILURE_PAGES`) are read until one
+    holds a run created before it. The listing is shared through the run
+    cache for `run_cache.MAX_AGE`."""
+    listing = json_object(
+        run_cache.get(MERGE_GROUP_FAILURES_SECTION, repo, run_cache.MAX_AGE)
+    )
+    runs, pages, done = listing.get("runs"), listing.get("pages"), listing.get("done")
+    if not is_json_array(runs) or type(pages) is not int:
+        runs, pages, done = [], 0, False
+
+    def reached() -> bool:
+        oldest = parse_github_timestamp(str(json_object(runs[-1]).get("created_at") or "")) if runs else None
+        return oldest is not None and since is not None and oldest < since
+
+    read = False
+    while not done and pages < MERGE_GROUP_FAILURE_PAGES and (
+        pages == 0 or (since is not None and not reached())
+    ):
         try:
-            runs = json_object(
+            page = json_object(
                 _verdict_read(
-                    f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100"
+                    "repos/"
+                    f"{repo}/actions/runs?event=merge_group&status=failure&per_page=100"
+                    + (f"&page={pages + 1}" if pages else "")
                 )
             ).get("workflow_runs")
         except (RuntimeError, ValueError):
             return None
-        if not is_json_array(runs):
+        if not is_json_array(page):
             return None
-        runs = [
+        runs = runs + [
             {field: json_object(run).get(field) for field in MERGE_GROUP_RUN_FIELDS}
-            for run in runs
+            for run in page
         ]
-        run_cache.put(MERGE_GROUP_FAILURES_SECTION, repo, runs)
+        pages, done, read = pages + 1, len(page) < 100, True
+    if read:
+        run_cache.put(
+            MERGE_GROUP_FAILURES_SECTION,
+            repo,
+            {"runs": runs, "pages": pages, "done": done},
+        )
     prefix = f"gh-readonly-queue/{branch}/pr-{number}-"
     return [
         run
@@ -4426,12 +4452,37 @@ RATE_LIMIT_ANNOTATION_RE = re.compile(
     rf"|{SERVER_ERROR_HOLD}"
 )
 # An annotation whose times are a hold's reset.
-HOLD_RESET_RE = re.compile(rf"rate.limit|{SERVER_ERROR_HOLD}", re.IGNORECASE)
+HOLD_RESET_RE = re.compile(
+    rf"rate.limit|floor share|{SERVER_ERROR_HOLD}", re.IGNORECASE
+)
 # Failure lines that name no cause of their own: the runner's exit line, and
 # a read that failed, which the gate words as "...; re-run this run.".
 GENERIC_FAILURE_RE = re.compile(
     r"Process completed with exit code \d+\.|.*; re-run this run\.", re.DOTALL
 )
+CONSEQUENCE_RE = re.compile(
+    r"#\d+: pr-verify has not passed this head; .*"
+    r"|Cannot verify the merge group's managed files \(\d+ problem\(s\) above\)\."
+    r"|(?:Hygiene check \S+ finished with outcome: failure\. Last lines of its "
+    r"output:\s+(?:::error::)?)?The queued pull request could not be resolved; "
+    r"refusing to pass the .*",
+    re.DOTALL,
+)
+INFRA_CAUSE_LINES = {
+    "rate-limit": re.compile(
+        rf"{RATE_LIMIT_ANNOTATION_RE.pattern}|\bAPI rate limit exceeded\b"
+    ),
+    "read-floor": re.compile(r"\b(?:read|stop)-floor share\b"),
+    "verify-unreadable": re.compile(r"\bverify:unreadable\b"),
+    "kill-switch": re.compile(r"\bthe lanes kill switch is on\b"),
+    "lost-runner": re.compile(
+        r"lost communication with the server|runner has received a shutdown signal",
+        re.IGNORECASE,
+    ),
+}
+MAIN_RED = "main-red"
+WAITING_CAUSES = frozenset({"rate-limit", "read-floor", "verify-unreadable", MAIN_RED})
+MAIN_RED_WINDOW = timedelta(hours=3)
 ISO_STAMP_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 # The reset assumed when no annotation names one: GitHub's primary limit
 # window is an hour.
@@ -4439,41 +4490,19 @@ DEFAULT_RESET = timedelta(hours=1)
 PASSING_JOB_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 
 
-def _gate_rate_limit_reset(annotations: list[Any]) -> str | None:
-    """The time a gate job's rate limit resets, when its annotations show it
-    failed on a rate limit alone: every failure line is a rate-limit line
-    (`RATE_LIMIT_ANNOTATION_RE`) or a generic one (`GENERIC_FAILURE_RE`), and
-    at least one is a rate-limit line. The reset is the latest time any
-    rate-limit annotation names, "" when none names one; None otherwise."""
-    failures = [
-        str(a.get("message") or "")
-        for a in map(json_object, annotations)
-        if a.get("annotation_level") == "failure"
-    ]
-    limited = [m for m in failures if RATE_LIMIT_ANNOTATION_RE.search(m)]
-    if not limited or any(
-        not RATE_LIMIT_ANNOTATION_RE.search(m) and not GENERIC_FAILURE_RE.fullmatch(m)
-        for m in failures
-    ):
-        return None
-    stamps = [
-        stamp
-        for a in map(json_object, annotations)
-        if HOLD_RESET_RE.search(str(a.get("message") or ""))
-        for stamp in ISO_STAMP_RE.findall(str(a.get("message") or ""))
-    ]
-    return max(stamps, default="")
+def _failure_line(message: str) -> dict[str, Any]:
+    """One failure annotation: the infra causes it names, whether it is a
+    generic or consequence line, and the reset times a hold line names."""
+    return {
+        "causes": [c for c, rx in INFRA_CAUSE_LINES.items() if rx.search(message)],
+        "generic": bool(GENERIC_FAILURE_RE.fullmatch(message)),
+        "consequence": bool(CONSEQUENCE_RE.fullmatch(message)),
+        "stamps": ISO_STAMP_RE.findall(message) if HOLD_RESET_RE.search(message) else [],
+    }
 
 
-def _run_rate_limit_reset(repo: str, run: dict[str, Any]) -> str | None:
-    """`_gate_rate_limit_reset` for a failed merge_group run whose only failed
-    jobs are the gate (`merge_policy.GATE_CHECK`) and its alias, read from
-    that attempt's jobs and the gate's annotations; None for any other run.
-    A completed attempt cannot change, so its answer is kept for the run."""
-    key = f"{repo}/{run.get('id')}/{run.get('run_attempt') or 1}"
-    cached = run_cache.get(RATE_LIMITED_ENTRY_SECTION, key, None)
-    if is_json_object(cached):
-        return cached.get("reset")
+def _attempt_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """A run attempt's jobs, or None when the listing is not whole."""
     jobs = json_object(
         _verdict_read(
             f"repos/{repo}/actions/runs/{run.get('id')}/attempts/"
@@ -4481,42 +4510,136 @@ def _run_rate_limit_reset(repo: str, run: dict[str, Any]) -> str | None:
         )
     )
     listed = json_array(jobs.get("jobs"))
-    failed = [
-        job
-        for job in map(json_object, listed)
-        if job.get("conclusion") not in PASSING_JOB_CONCLUSIONS
-    ]
-    gates = [job for job in failed if job.get("name") == merge_policy.GATE_CHECK]
-    reset = None
-    if (
-        jobs.get("total_count") == len(listed)
-        and len(gates) == 1
-        and all(
-            job.get("name") in (merge_policy.GATE_CHECK, merge_policy.GATE_ALIAS)
-            for job in failed
-        )
-    ):
-        annotations = json_array(
-            _verdict_read(
-                f"repos/{repo}/check-runs/{gates[0].get('id')}/annotations?per_page=100"
+    return listed if jobs.get("total_count") == len(listed) else None
+
+
+def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Each failed job of a failed merge_group run attempt, with its failure
+    lines (`_failure_line`; None when a full page may hide more), or None
+    when the jobs cannot be listed whole. The gate's alias mirrors the gate,
+    so its lines are not read. A completed attempt cannot change, so its
+    answer is kept for the run."""
+    key = f"{repo}/{run.get('id')}/{run.get('run_attempt') or 1}"
+    cached = run_cache.get(INFRA_ENTRY_SECTION, key, None)
+    if is_json_object(cached):
+        return cached.get("jobs")
+    listed = _attempt_jobs(repo, run)
+    found: list[dict[str, Any]] | None = None
+    if listed is not None:
+        found = []
+        for job in map(json_object, listed):
+            name = job.get("name")
+            if job.get("conclusion") in PASSING_JOB_CONCLUSIONS or name == merge_policy.GATE_ALIAS:
+                continue
+            annotations = json_array(
+                _verdict_read(f"repos/{repo}/check-runs/{job.get('id')}/annotations?per_page=100")
             )
-        )
-        # A full page may hide a failure line on the next one.
-        reset = _gate_rate_limit_reset(annotations) if len(annotations) < 100 else None
+            found.append(
+                {
+                    "name": name,
+                    "lines": None
+                    if len(annotations) >= 100
+                    else [
+                        _failure_line(str(a.get("message") or ""))
+                        for a in map(json_object, annotations)
+                        if a.get("annotation_level") == "failure"
+                    ],
+                }
+            )
     if run.get("status") == "completed":
-        run_cache.put(RATE_LIMITED_ENTRY_SECTION, key, {"reset": reset})
-    return reset
+        run_cache.put(INFRA_ENTRY_SECTION, key, {"jobs": found})
+    return found
 
 
-def _rate_limited_removal(repo: str, runs: list[dict[str, Any]], at: str) -> bool:
-    """Whether the merge queue's removal at `at` came from the gate failing on
-    a GitHub rate limit that has since reset. The removal is charged to the
-    one queue entry (merge-group commit) whose failed run among `runs` ended
-    within `REMOVAL_RUN_WINDOW` of it; every failed run of that entry must
-    have failed only its gate, on a rate limit alone. Any doubt is False."""
+def _job_causes(
+    job: dict[str, Any], causes: tuple[str, ...]
+) -> tuple[set[str], list[str]] | None:
+    """The `causes` a failed job's lines name and their reset times, or None
+    when the job failed on its own: a line that is neither one of `causes`,
+    generic nor a consequence, no cause line at all (the gate alone may fail
+    on generic lines, as it does when a lane failed on a cause), or lines
+    that could not all be read."""
+    lines = job.get("lines")
+    if not is_json_array(lines):
+        return None
+    named: set[str] = set()
+    stamps: list[str] = []
+    for line in map(json_object, lines):
+        hit = set(json_array(line.get("causes"))) & set(causes)
+        if hit:
+            named |= hit
+            stamps += [str(s) for s in json_array(line.get("stamps"))]
+        elif not (line.get("generic") or line.get("consequence")):
+            return None
+    if not named and not (
+        job.get("name") == merge_policy.GATE_CHECK
+        and all(json_object(line).get("generic") for line in lines)
+    ):
+        return None
+    return named, stamps
+
+
+def _red_on_main(
+    repo: str, branch: str, run: dict[str, Any], job: str, removed: datetime
+) -> bool:
+    """Whether `job` also failed on `branch` at the time of the removal: in
+    the newest completed run of the merge-group run's workflow on `branch`
+    that started within `MAIN_RED_WINDOW` before it."""
+    workflow = run.get("workflow_id")
+    if not workflow:
+        return False
+    key = f"{repo}/{workflow}/{branch}"
+    runs = run_cache.get(MAIN_RUNS_SECTION, key, run_cache.MAX_AGE)
+    if not is_json_array(runs):
+        runs = json_array(
+            json_object(
+                _verdict_read(
+                    f"repos/{repo}/actions/workflows/{workflow}/runs?branch={branch}"
+                    "&status=completed&per_page=100"
+                )
+            ).get("workflow_runs")
+        )
+        runs = [
+            {f: json_object(r).get(f) for f in ("id", "run_attempt", "status", "conclusion", "created_at")}
+            for r in runs
+        ]
+        run_cache.put(MAIN_RUNS_SECTION, key, runs)
+    at_the_time = [
+        (created, r)
+        for r in map(json_object, runs)
+        if (created := parse_github_timestamp(str(r.get("created_at") or "")))
+        and removed - MAIN_RED_WINDOW <= created <= removed
+    ]
+    if not at_the_time:
+        return False
+    main = max(at_the_time, key=lambda pair: pair[0])[1]
+    if main.get("conclusion") != "failure":
+        return False
+    jobs = _attempt_jobs(repo, main) or []
+    return any(
+        j.get("name") == job and j.get("conclusion") not in PASSING_JOB_CONCLUSIONS
+        for j in map(json_object, jobs)
+    )
+
+
+def _infra_removal(
+    repo: str,
+    branch: str,
+    runs: list[dict[str, Any]],
+    at: str,
+    causes: tuple[str, ...],
+) -> list[str] | None:
+    """The infra `causes` the merge queue's removal at `at` is excused for,
+    sorted, or None when it counts. The removal is charged to the one queue
+    entry (merge-group commit) whose failed run among `runs` ended within
+    `REMOVAL_RUN_WINDOW` of it. Each failed job of that entry's failed runs
+    must have failed on `causes` alone (`_job_causes`), or, with `MAIN_RED`
+    among them, be a job main failed at the time too (`_red_on_main`). A
+    waiting cause (`WAITING_CAUSES`) excuses it only once its reset passed.
+    Any doubt counts it."""
     removed = parse_github_timestamp(at)
     if removed is None:
-        return False
+        return None
     near: set[Any] = set()
     for run in runs:
         created = parse_github_timestamp(str(run.get("created_at") or ""))
@@ -4529,41 +4652,70 @@ def _rate_limited_removal(repo: str, runs: list[dict[str, Any]], at: str) -> boo
         ):
             near.add(run.get("head_sha"))
     if len(near) != 1 or not next(iter(near)):
-        return False
-    resets = [
-        _run_rate_limit_reset(repo, run) for run in runs if run.get("head_sha") in near
-    ]
-    if any(reset is None for reset in resets):
-        return False
-    named = [t for t in (parse_github_timestamp(str(r)) for r in resets) if t]
-    # Before the limit resets a re-enqueue only fails again on it.
-    return _now() >= (max(named) if named else removed + DEFAULT_RESET)
+        return None
+    found: set[str] = set()
+    stamps: list[str] = []
+    for run in (r for r in runs if r.get("head_sha") in near):
+        jobs = _entry_jobs(repo, run)
+        if jobs is None:
+            return None
+        for job in map(json_object, jobs):
+            named = _job_causes(job, causes)
+            if named is not None:
+                found |= named[0]
+                stamps += named[1]
+            elif MAIN_RED in causes and _red_on_main(
+                repo, branch, run, str(job.get("name")), removed
+            ):
+                found.add(MAIN_RED)
+            else:
+                return None
+    if not found:
+        return None
+    if found & WAITING_CAUSES:
+        named_resets = [t for t in map(parse_github_timestamp, stamps) if t]
+        if _now() < (max(named_resets) if named_resets else removed + DEFAULT_RESET):
+            return None
+    return sorted(found)
 
 
-def rate_limited_removals(
-    repo: str, branch: str, number: int, removals: list[str], limit: int
-) -> int:
-    """How many of the head's failed-check `removals` (`_failed_removals`)
-    came from a GitHub rate limit (`_rate_limited_removal`), newest first,
-    stopping once `limit` others make the gate's refusal certain. Any read
-    that fails counts the removal, as before this check."""
+def infra_removals(
+    repo: str,
+    branch: str,
+    number: int,
+    removals: list[str],
+    limit: int,
+    causes: tuple[str, ...] = merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
+) -> list[dict[str, Any]]:
+    """The head's failed-check `removals` (`_failed_removals`) an infra cause
+    among `causes` excuses (`_infra_removal`), newest first, each as
+    `{"at", "causes"}`, stopping once `limit` others make the gate's refusal
+    certain. Any read that fails counts the removal."""
+    if not causes:
+        return []
+    oldest = [t for t in map(parse_github_timestamp, removals) if t]
     try:
-        runs = _merge_group_failures(repo, branch, number)
+        runs = _merge_group_failures(
+            repo, branch, number, min(oldest) - timedelta(hours=1) if oldest else None
+        )
     except Exception:  # noqa: BLE001 -- any failure counts every removal
-        return 0
+        return []
     if not runs:
-        return 0
-    limited = counted = 0
+        return []
+    excused: list[dict[str, Any]] = []
+    counted = 0
     for at in reversed(removals):
         if counted >= limit:
             break
         try:
-            hit = _rate_limited_removal(repo, runs, at)
+            hit = _infra_removal(repo, branch, runs, at, causes)
         except Exception:  # noqa: BLE001 -- any failure counts the removal
-            hit = False
-        limited += hit
-        counted += not hit
-    return limited
+            hit = None
+        if hit is None:
+            counted += 1
+        else:
+            excused.append({"at": at, "causes": hit})
+    return excused
 
 
 def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str | None:
@@ -4590,15 +4742,29 @@ def queue_ejection_hold(
     ejections: int | None,
     limit: int,
     removals: list[str] | None = None,
+    *,
+    causes: tuple[str, ...] = merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
+    excluded: list[dict[str, Any]] | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """The gate's refusal of `head` (`queue_ejection_refusal`), its marked
     comment body at the cap (`queue_ejection_body`, naming the failing
     merge_group runs), and the error when the runs read raised, which leaves
-    no body. At the cap, a removal among `removals` (`_failed_removals`) a
-    reset GitHub rate limit caused is not counted (`rate_limited_removals`).
+    no body. At the cap, a removal among `removals` (`_failed_removals`) an
+    infra cause among `causes` excuses is not counted (`infra_removals`);
+    each is appended to `excluded` and logged, so they can be counted.
     The unattended enqueue and `evidence --lane-queue` both use it."""
     if ejections is not None and ejections >= limit and removals:
-        ejections -= rate_limited_removals(repo, branch, number, removals, limit)
+        excused = infra_removals(repo, branch, number, removals, limit, causes)
+        ejections -= len(excused)
+        for item in excused:
+            print(
+                f"::notice title=queue-ejection::#{number} removal at {item['at']} "
+                f"not counted toward merge.max-queue-ejections: infra "
+                f"({', '.join(item['causes'])})",
+                file=sys.stderr,
+            )
+        if excluded is not None:
+            excluded += excused
     refusal = queue_ejection_refusal(ejections, limit, head)
     if refusal is None or ejections is None:
         return refusal, None, None
@@ -5120,6 +5286,7 @@ def unattended_enqueue(
     # same commits; only a push (which resets the count) can change that.
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
+    step["excludedRemovals"] = []
     ejected, body, error = queue_ejection_hold(
         repo,
         branch,
@@ -5128,6 +5295,8 @@ def unattended_enqueue(
         ejections,
         inputs["config"].max_queue_ejections,
         queue.get("failedRemovals"),
+        causes=inputs["config"].queue_ejection_infra_causes,
+        excluded=step["excludedRemovals"],
     )
     if error is not None:
         step["ejectionComment"] = error

@@ -2395,6 +2395,9 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         if (typeof evidence?.queue?.readError === "string") {
           console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
         }
+        for (const item of Array.isArray(evidence?.queue?.excludedRemovals) ? evidence.queue.excludedRemovals : []) {
+          console.log(`::notice title=queue-ejection::#${pull.number} removal at ${escapeCommand(String(item?.at))} not counted toward merge.max-queue-ejections: infra (${escapeCommand((Array.isArray(item?.causes) ? item.causes : []).join(", "))})`);
+        }
         answered = evidence !== null && !decided;
         if (!decided) {
           ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, judging, { ...detail, verify: evidence }));

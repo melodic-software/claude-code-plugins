@@ -2610,6 +2610,19 @@ test("an unreadable ejection count is warned with the read's error", async () =>
   assert.equal(lines.filter((line) => line.startsWith("::warning")).length, 1, lines.join("\n"));
 });
 
+test("each infra removal the cap did not count gets a notice, and the head arms", async () => {
+  const excused = { failedEjections: 2, limit: 2, refusal: null, comment: null, excludedRemovals: [{ at: "2026-11-19T06:09:16Z", causes: ["read-floor", "verify-unreadable"] }, { at: "2026-11-19T02:49:02Z", causes: ["kill-switch"] }] };
+  const { writes, lines } = await run([pull(1, { verdict: { ...PASSED, queue: excused } })]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::notice title=queue-ejection::")),
+    [
+      "::notice title=queue-ejection::#1 removal at 2026-11-19T06:09:16Z not counted toward merge.max-queue-ejections: infra (read-floor, verify-unreadable)",
+      "::notice title=queue-ejection::#1 removal at 2026-11-19T02:49:02Z not counted toward merge.max-queue-ejections: infra (kill-switch)",
+    ],
+  );
+});
+
 test("report-only writes no ejection comment", async () => {
   const { notes, lines } = await run([pull(1, { verdict: EJECTED })], { REPORT_ONLY: "true" });
   assert.deepEqual(notes, []);

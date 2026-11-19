@@ -1310,9 +1310,321 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.assertEqual(sum("/jobs" in p for p in self.paths), 2)
 
 
-# Each guard's line for a server error hold, as it read before it was named a
-# server error (the rate-limit wording) and as it reads now: the gate verdict
-# _gate_rate_limit_reset gives must not change with the wording.
+GATE = merge.merge_policy.GATE_CHECK
+EXIT = _annotation("failure", "Process completed with exit code 1.")
+UNREADABLE_GATE = [
+    EXIT,
+    _annotation(
+        "failure",
+        "#5: pr-verify's reader refuses this head (verify:unreadable: #5 commits: "
+        "gh api repos/o/r/pulls/5/commits?per_page=100 not sent: the github-token "
+        "pool is below its read-floor share); push a new head for pr-verify to "
+        "judge, after which enable-auto-merge arms it again, or an approving "
+        "review of this head by a person on the trusted-actor list lifts it, "
+        "then re-queue.",
+    ),
+    _annotation(
+        "failure",
+        "#5: pr-verify has not passed this head; wait for pr-verify to pass it, "
+        "after which enable-auto-merge arms it again, or an approving review of "
+        "this head by a person on the trusted-actor list lifts it, then re-queue.",
+    ),
+]
+KILL_SWITCH_GATE = [
+    EXIT,
+    EXIT,
+    _annotation(
+        "failure",
+        "#5: the lanes kill switch is on (CLAUDE_LANES_DISABLED or "
+        "CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request "
+        "merges; it merges once both read 'false' and ci-status is re-run, which "
+        "the lost-runs reconciler does when this is the run's only failure.",
+    ),
+]
+RATE_LIMITED_PLUGINS = [
+    EXIT,
+    _annotation(
+        "failure",
+        "Hygiene check vendor-version-bump finished with outcome: failure. Last "
+        "lines of its output:\n::error::The queued pull request could not be "
+        "resolved; refusing to pass the vendor gate without knowing its author.",
+    ),
+    _annotation(
+        "failure",
+        "Hygiene check queued-pr finished with outcome: failure. Last lines of its "
+        "output: gh: API rate limit exceeded for installation. If you reach out to "
+        "GitHub Support for help, please include the request ID E018",
+    ),
+    EXIT,
+    _annotation(
+        "failure",
+        "The queued pull request could not be resolved; refusing to pass the "
+        "vendor gate without knowing its author.",
+    ),
+    _annotation(
+        "failure",
+        "'gh api repos/o/r/pulls/5' hit GitHub's core API rate limit: no call to "
+        "it before 2026-11-19T07:47:00Z (x-ratelimit-reset); the call returns 1",
+    ),
+]
+RATE_LIMITED_MANAGED = [
+    _annotation(
+        "failure",
+        "Cannot verify the merge group's managed files (1 problem(s) above).",
+    ),
+    _annotation(
+        "failure",
+        "could not read pull request #5: API rate limit exceeded for installation.",
+    ),
+]
+STOP_FLOOR_GATE = [
+    EXIT,
+    _annotation("failure", "could not read the files of #5; re-run this run."),
+    _annotation(
+        "failure",
+        "GET https://api.github.com/repos/o/r/actions/workflows/pr-merge.yml/runs "
+        "left GitHub's core API 59 of 5000 requests, at or under its stop-floor "
+        "share 0.02 (status 200): no call to it before 2026-11-19T07:47:00Z",
+    ),
+]
+LANE_FAILURE = [EXIT, _annotation("failure", "AssertionError: 1 != 2")]
+INFRA_REMOVED_AT = "2026-11-19T07:51:30Z"
+
+
+class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
+    """A merge-queue removal whose merge-group run failed on infra alone (a
+    rate limit, the read floor, verify:unreadable, the kill switch, a lost
+    runner, or a job main failed too) does not count toward
+    `merge.max-queue-ejections`, whichever jobs failed; a real check failure
+    does, and so does any doubt."""
+
+    def setUp(self) -> None:
+        self.runs: list[dict[str, Any]] = [self._run(9, ENTRY_SHA)]
+        self.jobs: dict[int, Any] = {
+            9: [_job(1, "test-python", "success"), _job(2, GATE)]
+        }
+        self.annotations: dict[int, Any] = {2: UNREADABLE_GATE}
+        self.main_runs: list[dict[str, Any]] = []
+        self.now = merge.parse_github_timestamp("2026-11-19T12:00:00Z")
+        self.paths: list[str] = []
+
+    @staticmethod
+    def _run(
+        run_id: int,
+        sha: str,
+        created: str = "2026-11-19T07:43:48Z",
+        updated: str = INFRA_REMOVED_AT,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        return {
+            "id": run_id,
+            "run_attempt": 1,
+            "status": "completed",
+            "head_branch": f"gh-readonly-queue/main/pr-5-{sha}",
+            "head_sha": sha,
+            "html_url": f"https://github.com/owner/repo/actions/runs/{run_id}",
+            "created_at": created,
+            "updated_at": updated,
+            "workflow_id": 7,
+            **extra,
+        }
+
+    def _read(self, path: str) -> Any:
+        self.paths.append(path)
+        if "actions/workflows/7/runs?" in path:
+            return {"workflow_runs": self.main_runs}
+        if "actions/runs?" in path:
+            return {"workflow_runs": self.runs}
+        if "/jobs" in path:
+            jobs = self.jobs[int(path.split("/actions/runs/")[1].split("/")[0])]
+            return {"total_count": len(jobs), "jobs": jobs}
+        found = self.annotations[int(path.split("/check-runs/")[1].split("/")[0])]
+        if isinstance(found, Exception):
+            raise found
+        return found
+
+    def hold(
+        self,
+        removals: list[str],
+        causes: tuple[str, ...] = merge.merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
+    ) -> tuple[tuple[str | None, str | None, str | None], list[dict[str, Any]]]:
+        excluded: list[dict[str, Any]] = []
+        with (
+            mock.patch.object(merge, "_verdict_read", side_effect=self._read),
+            mock.patch.object(merge, "_now", return_value=self.now),
+        ):
+            gate = merge.queue_ejection_hold(
+                "owner/repo",
+                "main",
+                5,
+                HEAD,
+                len(removals),
+                2,
+                removals,
+                causes=causes,
+                excluded=excluded,
+            )
+        return gate, excluded
+
+    def assert_excused(self, *causes: str) -> None:
+        gate, excluded = self.hold([INFRA_REMOVED_AT, INFRA_REMOVED_AT])
+        self.assertEqual(gate, (None, None, None))
+        self.assertEqual(
+            excluded, [{"at": INFRA_REMOVED_AT, "causes": list(causes)}] * 2
+        )
+
+    def assert_counted(self, **kwargs: Any) -> None:
+        (refusal, _, _), excluded = self.hold(
+            [INFRA_REMOVED_AT, INFRA_REMOVED_AT], **kwargs
+        )
+        self.assertTrue(refusal and refusal.startswith("queue-ejected:2 "), refusal)
+        self.assertEqual(excluded, [])
+
+    def test_a_verify_unreadable_refusal_at_the_read_floor_is_not_counted(
+        self,
+    ) -> None:
+        self.assert_excused("read-floor", "verify-unreadable")
+
+    def test_rate_limits_in_lanes_beside_a_kill_switch_stop_are_not_counted(
+        self,
+    ) -> None:
+        self.jobs[9] = [_job(2, GATE), _job(3, "Check Plugins"), _job(4, "Check Managed Files")]
+        self.annotations |= {
+            2: KILL_SWITCH_GATE,
+            3: RATE_LIMITED_PLUGINS,
+            4: RATE_LIMITED_MANAGED,
+        }
+        self.assert_excused("kill-switch", "rate-limit")
+
+    def test_a_gate_stopped_at_the_stop_floor_is_not_counted(self) -> None:
+        self.annotations[2] = STOP_FLOOR_GATE
+        self.assert_excused("read-floor")
+
+    def test_a_kill_switch_stop_does_not_wait_an_hour(self) -> None:
+        self.annotations[2] = KILL_SWITCH_GATE
+        self.now = merge.parse_github_timestamp("2026-11-19T07:55:00Z")
+        self.assert_excused("kill-switch")
+
+    def test_a_budget_cause_is_counted_until_its_reset_passes(self) -> None:
+        self.now = merge.parse_github_timestamp("2026-11-19T08:30:00Z")
+        self.assert_counted()
+
+    def test_a_lost_runner_is_not_counted(self) -> None:
+        self.jobs[9].append(_job(3, "Test Bash"))
+        self.annotations |= {
+            2: [EXIT],
+            3: [_annotation("failure", "The self-hosted runner lost communication with the server.")],
+        }
+        self.assert_excused("lost-runner")
+
+    def test_pr_verify_not_passing_without_an_unreadable_line_is_counted(
+        self,
+    ) -> None:
+        self.annotations[2] = [EXIT, UNREADABLE_GATE[2]]
+        self.assert_counted()
+
+    def test_a_real_lane_failure_beside_an_infra_line_is_counted(self) -> None:
+        self.jobs[9].append(_job(3, "Test Bash"))
+        self.annotations[3] = LANE_FAILURE
+        self.assert_counted()
+
+    def test_a_lane_failing_with_no_cause_of_its_own_is_counted(self) -> None:
+        self.jobs[9] = [_job(2, GATE), _job(3, "Check Plugins"), _job(4, "Test Bash")]
+        self.annotations |= {2: [EXIT], 3: RATE_LIMITED_PLUGINS, 4: [EXIT]}
+        self.assert_counted()
+
+    def test_a_hygiene_check_s_own_failure_is_counted(self) -> None:
+        self.jobs[9].append(_job(3, "Check Plugins"))
+        self.annotations[3] = [
+            *RATE_LIMITED_PLUGINS,
+            _annotation(
+                "failure",
+                "Hygiene check changelog-fragments-required finished with outcome: "
+                "failure. Last lines of its output:\n::error::plugins/x has no "
+                "changelog fragment.",
+            ),
+        ]
+        self.assert_counted()
+
+    def test_a_cause_the_config_leaves_out_is_counted(self) -> None:
+        self.annotations[2] = KILL_SWITCH_GATE
+        self.assert_counted(causes=("rate-limit", "read-floor"))
+
+    def _main(self, conclusion: str, created: str = "2026-11-19T07:30:00Z") -> None:
+        self.main_runs = [
+            {
+                "id": 20,
+                "run_attempt": 1,
+                "status": "completed",
+                "conclusion": conclusion,
+                "created_at": created,
+            },
+            {
+                "id": 21,
+                "run_attempt": 1,
+                "status": "completed",
+                "conclusion": "failure",
+                "created_at": "2026-11-19T08:30:00Z",
+            },
+        ]
+        self.jobs[20] = [_job(30, "Test Bash"), _job(31, GATE)]
+        self.jobs[9] = [_job(2, GATE), _job(3, "Test Bash")]
+        self.annotations |= {2: [EXIT], 3: LANE_FAILURE}
+
+    def test_a_job_main_failed_at_the_same_time_is_not_counted(self) -> None:
+        self._main("failure")
+        self.assert_excused("main-red")
+
+    def test_a_job_main_passed_at_the_time_is_counted(self) -> None:
+        self._main("success")
+        self.assert_counted()
+
+    def test_a_main_run_long_before_the_removal_is_not_main_red(self) -> None:
+        self._main("failure", created="2026-11-19T01:00:00Z")
+        self.assert_counted()
+
+    def test_main_red_is_counted_when_the_config_leaves_it_out(self) -> None:
+        self._main("failure")
+        self.assert_counted(causes=("rate-limit",))
+
+    def test_unreadable_annotations_count_the_removal(self) -> None:
+        self.annotations[2] = RuntimeError("HTTP 403")
+        self.assert_counted()
+
+    def test_older_removals_are_read_past_the_first_page(self) -> None:
+        others = [
+            {**self._run(100 + i, "7" * 40), "head_branch": "gh-readonly-queue/main/pr-6-x",
+             "created_at": "2026-11-19T11:00:00Z"}
+            for i in range(100)
+        ]
+        pages = {1: others, 2: self.runs}
+
+        def read(path: str) -> Any:
+            if "actions/runs?" in path:
+                self.paths.append(path)
+                page = int(path.split("page=")[-1]) if "&page=" in path else 1
+                return {"workflow_runs": pages.get(page, [])}
+            return self._read(path)
+
+        excluded: list[dict[str, Any]] = []
+        with (
+            mock.patch.object(merge, "_verdict_read", side_effect=read),
+            mock.patch.object(merge, "_now", return_value=self.now),
+        ):
+            gate = merge.queue_ejection_hold(
+                "owner/repo", "main", 5, HEAD, 2, 2, [INFRA_REMOVED_AT] * 2,
+                excluded=excluded,
+            )
+        self.assertEqual(gate, (None, None, None))
+        self.assertEqual(len(excluded), 2)
+
+    def test_every_configurable_cause_has_a_classifier(self) -> None:
+        self.assertEqual(
+            set(merge.INFRA_CAUSE_LINES) | {merge.MAIN_RED},
+            set(merge.merge_policy.QUEUE_EJECTION_INFRA_CAUSES),
+        )
+
+
 WORDINGS = {
     "api-budget.bash, on the answer": (
         "'gh api repos/o/r/pulls/1' hit GitHub's API rate limit: no call to it "
@@ -1370,12 +1682,17 @@ WORDINGS = {
 
 class AServerErrorHoldsWordingLeavesTheGateVerdictAsItWas(unittest.TestCase):
     def verdict(self, line: str) -> str | None:
-        return merge._gate_rate_limit_reset(
-            [
-                _annotation("failure", "Process completed with exit code 75."),
-                _annotation("failure", line),
-            ]
-        )
+        """The reset a gate failing on `line` alone waits for, or None when
+        the line does not excuse it."""
+        job = {
+            "name": merge.merge_policy.GATE_CHECK,
+            "lines": [
+                merge._failure_line("Process completed with exit code 75."),
+                merge._failure_line(line),
+            ],
+        }
+        named = merge._job_causes(job, ("rate-limit",))
+        return max(named[1], default="") if named else None
 
     def test_each_guard_s_old_and_new_wording_give_the_same_verdict(self) -> None:
         for producer, (old, new) in WORDINGS.items():
