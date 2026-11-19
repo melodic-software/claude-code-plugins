@@ -57,7 +57,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
-  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
+  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" "RATE_WAIT_SECONDS: '1800'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
   'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
   'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
@@ -291,7 +291,7 @@ expect() {
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
     REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
-    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=1800 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -599,13 +599,16 @@ echo 1 >"$STUB_LIMIT_FILE"
 STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
 check_reran 1 "the read after retry-after goes on to the re-run"
 echo 1 >"$STUB_LIMIT_FILE"
-STUB_RESET=1700 expect "a reset past the cap fails, naming the reset" 1 "::error::the token's rate limit blocks reading the pull_request runs on $HEAD until"
+STUB_RESET=1700 expect "a reset past the poll's cap still waits, then re-runs" 0 "waiting 701s for the reset."
+check_reran 1 "the read after a long reset wait goes on to the re-run"
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_RESET=3000 expect "a reset past the cap fails, naming the reset" 1 "::error::the token's rate limit blocks reading the pull_request runs on $HEAD until"
 check_reran 0 "nothing is re-run when the reset is past the cap"
 if grep -q '^sleep' "$TMP_ROOT/log"; then fail "it waited for a reset past the cap"; else ok "a reset past the cap is not waited for"; fi
 echo 1 >"$STUB_LIMIT_FILE"
 STUB_RUNS="$(runs "$(run 9 in_progress)")" STUB_JOBS="$(cijob in_progress)" STUB_RUN_SEQ="$(run 9 in_progress)"
-expect "the reset wait counts toward the poll cap" 1 "has not finished after 600s"
-if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 8 ]]; then ok "a 120 s reset wait leaves 8 polls"; else fail "polls: $(grep -c '^sleep 60$' "$TMP_ROOT/log")"; fi
+expect "the reset wait leaves the poll its own cap" 1 "has not finished after 600s"
+if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 10 ]]; then ok "a 120 s reset wait leaves all 10 polls"; else fail "polls: $(grep -c '^sleep 60$' "$TMP_ROOT/log")"; fi
 # With the listing cut short, the per-file reads take the rate limit's wait too.
 STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
 echo 1 >"$STUB_LIMIT_FILE"
@@ -614,7 +617,7 @@ STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 expect "a rate-limited per-file read aft
 check_reran 1 "the per-file read after the reset goes on to the re-run"
 if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 && "$(listings head) $(listings file)" == "1 3" ]]; then ok "the refused per-file read is sent again after one wait"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
 echo 1 >"$STUB_LIMIT_FILE"
-STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 STUB_RESET=1700 expect "a rate-limited per-file read with its reset past the cap fails" 1 \
+STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 STUB_RESET=3000 expect "a rate-limited per-file read with its reset past the cap fails" 1 \
   "::error::the token's rate limit blocks reading the pr-review-security-hosted.yml runs on $HEAD until"
 check_reran 0 "nothing is re-run when a per-file read's reset is past the cap"
 unset STUB_LIMIT_FILE STUB_RESET

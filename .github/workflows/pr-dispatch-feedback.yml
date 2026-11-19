@@ -721,7 +721,7 @@ jobs:
       && github.event.workflow_run.repository.full_name == github.repository
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     permissions:
       contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
@@ -801,6 +801,7 @@ jobs:
           LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
           POLL_SECONDS: '60'
           POLL_LIMIT_SECONDS: '600'
+          RATE_WAIT_SECONDS: '1800'
           RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
@@ -862,9 +863,12 @@ jobs:
           # read_api <var> <what> <path>: GET <path> into <var>. A rate limit
           # (403 or 429) waits retry-after seconds, else, with
           # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
-          # both read from the refused response's headers, when the wait fits
-          # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
-          # A wait past it fails the job, naming the reset: no other run here
+          # both read from the refused response's headers, when the wait
+          # fits in what is left of RATE_WAIT_SECONDS,
+          # its own budget apart from the poll's POLL_LIMIT_SECONDS: the brake
+          # holds the pool a median 12 minutes and at most 28 (7 days to
+          # 2026-11-19), past the poll's 10. A wait past it fails the job,
+          # naming the reset: no other run here
           # re-runs a ci-status this job leaves stale (a later lane's
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
@@ -882,7 +886,7 @@ jobs:
           # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
           # 200's body back, as request-budget.mjs does. Its reading is kept,
           # so the notice shows whether GitHub counted it.
-          waited=0 etag_path='' etag='' etag_body=''
+          waited=0 rate_waited=0 etag_path='' etag='' etag_body=''
           read_api() {
             local attempt out hdr status left reset after wait cond
             for attempt in 1 2 3; do
@@ -914,13 +918,13 @@ jobs:
                 wait=
               fi
               if [ -n "$wait" ]; then
-                if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
-                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+                if [ $((rate_waited + wait)) -gt "$RATE_WAIT_SECONDS" ]; then
+                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${RATE_WAIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
                   exit 1
                 fi
                 echo "Rate limited reading $2; waiting ${wait}s for the reset."
                 sleep "$wait"
-                waited=$((waited + wait))
+                rate_waited=$((rate_waited + wait))
                 continue
               fi
               [ "$attempt" -lt 3 ] || { [ -z "${read_soft:-}" ] || return 1; echo "::error::could not read $2; re-run this run." >&2; exit 1; }
