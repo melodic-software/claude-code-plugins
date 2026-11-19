@@ -21,8 +21,7 @@ reference. The two compose: a per-concern doc declares its keys and points here 
 layers merge and which expression form the surface uses.
 
 The distinction is what keeps this doc from colliding with the one-owner-doc-per-shared-concern rule.
-Layering and expression form are genuinely cross-cutting axes every plugin's config shares; keys
-are not.
+Layering and expression form are cross-cutting axes every plugin's config shares; keys are not.
 
 ## The layers
 
