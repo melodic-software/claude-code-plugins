@@ -789,10 +789,21 @@ def _limited(lines: list[str], limit: int) -> list[str]:
     return lines if len(lines) <= limit else [*lines[:limit], f"- … and {len(lines) - limit} more"]
 
 
+def find_transcript(env: Mapping[str, str], session: str) -> Path | None:
+    """The session's main transcript under the config dir's projects folder. A background session
+    armed from another session gets no prompt after `start`, and its Stop events do not record
+    the path, so the hooks never learn it."""
+    found = sorted((config_dir(env) / "projects").glob(f"*/{session}.jsonl"))
+    return found[0] if found else None
+
+
 def refresh(state: dict, paths: Paths, files: bool) -> None:
     """Regenerate the refused and external-action blocks, and with `files` the files block too."""
     started = parse_instant(state["started"])
-    transcript = Path(state["transcript_path"]) if state.get("transcript_path") else None
+    if state.get("transcript_path"):
+        transcript = Path(state["transcript_path"])
+    else:
+        transcript = find_transcript(os.environ, state["session_id"])
     externals: list[str]
     if transcript is not None and transcript.is_file():
         scan = scan_transcripts(transcript, started)
