@@ -5029,12 +5029,18 @@ def lane_risk_refusal(
 
 
 def lane_queue(
-    repo: str, branch: str, number: int, head: str, limit: int
+    repo: str,
+    branch: str,
+    number: int,
+    head: str,
+    limit: int,
+    causes: tuple[str, ...] = merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
 ) -> dict[str, Any]:
     """The merge queue's failed-check removals of `head` and whether pr-merge's
     gate would enqueue it again under `merge.max-queue-ejections` `limit`
-    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
-    the cap refuses. A read that fails refuses as the gate's unreadable hold,
+    (`babysit_merge.queue_ejection_hold`, excusing infra `causes`), with the
+    gate's marked comment when the cap refuses and the removals it excused
+    (`excludedRemovals`). A read that fails refuses as the gate's unreadable hold,
     with no comment, and names why in `readError`; a failed runs read keeps
     the refusal, with no comment and its error in `commentError`."""
     # Imported here: babysit_merge imports this module.
@@ -5051,6 +5057,7 @@ def lane_queue(
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
     removals = None if read_error else queue.get("failedRemovals")
+    excluded: list[dict[str, Any]] = []
     refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
         repo,
         branch,
@@ -5059,6 +5066,8 @@ def lane_queue(
         count,
         limit,
         removals if isinstance(removals, list) else None,
+        causes=causes,
+        excluded=excluded,
     )
     return {
         "failedEjections": count,
@@ -5067,6 +5076,7 @@ def lane_queue(
         "comment": comment,
         "readError": str(read_error) if read_error else None,
         "commentError": comment_error,
+        "excludedRemovals": excluded,
     }
 
 
@@ -6836,6 +6846,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                 args.number,
                 args.head,
                 config.max_queue_ejections,
+                config.queue_ejection_infra_causes,
             )
     return evidence.report() | link
 
