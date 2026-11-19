@@ -5747,7 +5747,16 @@ class AnchorUpload(unittest.TestCase):
         upload = body.split(f"name: {pm.ANCHOR_ARTIFACT}", 1)[1]
         self.assertIn("retention-days: 7\n", upload.split("- name:", 1)[0])
         self.assertIn(pm.ANCHOR_ENV, body)
-        body = body.replace("apply-claude-managed-settings", "")
+        dropin = re.compile(
+            r"      - name: Write the source-control trust settings\n"
+            r"        uses: melodic-software/ci-workflows/\.github/actions/"
+            r"apply-claude-managed-settings@[0-9a-f]{40} # v[0-9.]+\n"
+            r"        with:\n"
+            r"          drop-in-file: \.base/\.github/source-control-settings\.json\n"
+            r"          drop-in-name: 50-source-control\n"
+        )
+        self.assertEqual(len(dropin.findall(body)), 1)
+        body = dropin.sub("", body)
         for forbidden in ("checks: write", "statuses: write", "create-github-app-token", "claude"):
             self.assertNotIn(forbidden, body)
 

@@ -5229,6 +5229,7 @@ jobs:
             /plugins/source-control/skills/babysit-prs/scripts/*.py
             /.github/verify-legacy-fails.json
             /.github/source-control-settings.json
+            /plugins/source-control/.claude-plugin/plugin.json
             /plugins/source-control/lib/parse-concern-value.sh
             /plugins/source-control/lib/yaml-subset.awk
             /.github/standards/trusted-actors/trusted-actors.json
@@ -5251,7 +5252,7 @@ jobs:
             /plugins/formal-verification/schemas/formal-verification.schema.json
           sparse-checkout-cone-mode: false
       - name: Write the source-control trust settings
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' && hashFiles('.base/.github/source-control-settings.json') != '' }}
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
