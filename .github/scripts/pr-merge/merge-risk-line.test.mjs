@@ -18,6 +18,8 @@ import {
   recordMergeRisk,
   unratedLine,
 } from "./merge-risk-line.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);

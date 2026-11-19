@@ -53,6 +53,19 @@ physical_dir() {
   (cd "$d" && pwd -P)
 }
 
+mkrepo() {
+  local repo
+  repo="$(mktemp -d "${TEST_TMPDIR:?}/repoXXXXXX")"
+  git -C "$repo" init -q -b main >/dev/null 2>&1
+  git -C "$repo" config user.email t@t.t
+  git -C "$repo" config user.name t
+  git -C "$repo" config commit.gpgsign false
+  printf 'seed\n' >"$repo/README"
+  git -C "$repo" add README
+  git -C "$repo" commit -q -m seed
+  printf '%s' "$repo"
+}
+
 # pass <label>
 pass() {
   CASE_NUM=$((CASE_NUM + 1))

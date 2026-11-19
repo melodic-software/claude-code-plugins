@@ -6,7 +6,11 @@ description: >
   transcript puller. An empty public key skips with a notice; a missing or
   empty execution file uploads nothing; a malformed key or job-id fails the
   step. The plaintext is scanned first (../scan-upload), and a credential in
-  it fails the step with nothing sealed. Needs node 18 or later on PATH,
+  it fails the step with nothing sealed. With otel-file, the leg's telemetry
+  travels in the same artifact as otel.jsonl.gz.sealed, scanned and sealed the
+  same way; telemetry that fails its scan, cannot be sealed, or would take the
+  artifact past the puller's size limit is left out with an annotation, and
+  the transcript still uploads. Needs node 18 or later on PATH,
   ../seal-lane-output and ../scan-upload beside it, and lib/publish-gate.mjs.
 
 inputs:
@@ -19,6 +23,10 @@ inputs:
   job-id:
     description: A fixed key for the leg, unique in the run, that the puller reads back from the artifact name.
     required: true
+  otel-file:
+    description: The leg's telemetry, run-claude-cli's otel-file output; empty (the default) uploads the transcript alone.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -42,12 +50,35 @@ runs:
         JOB_ID: ${{ inputs.job-id }}
       run: node "$GITHUB_ACTION_PATH/seal-transcript.mjs"
 
+    - name: Scan the telemetry for credentials
+      id: scan-otel
+      if: inputs.otel-file != '' && steps.seal.outputs.file != ''
+      continue-on-error: true
+      shell: bash
+      env:
+        SCAN_PATHS: ${{ inputs.otel-file }}
+        SCAN_WITHHOLDS: the telemetry is left out and the transcript still uploads
+      run: node "$GITHUB_ACTION_PATH/../scan-upload/scan-upload.mjs"
+
+    - name: Seal the telemetry
+      id: seal-otel
+      if: steps.scan-otel.outputs.clean == 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        OTEL_FILE: ${{ inputs.otel-file }}
+        PUBLIC_KEY: ${{ inputs.public-key }}
+        JOB_ID: ${{ inputs.job-id }}
+      run: node "$GITHUB_ACTION_PATH/seal-transcript.mjs" telemetry
+
     - name: Upload the sealed transcript
       if: steps.seal.outputs.file != ''
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: lane-transcript-${{ inputs.job-id }}-${{ github.run_attempt }}
-        path: ${{ steps.seal.outputs.file }}
+        path: |
+          ${{ steps.seal.outputs.file }}
+          ${{ steps.seal-otel.outputs.file }}
         retention-days: 7
         # Ciphertext does not compress.
         compression-level: 0

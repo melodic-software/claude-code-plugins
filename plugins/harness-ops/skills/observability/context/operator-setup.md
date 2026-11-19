@@ -25,10 +25,9 @@ Claude Code → OTLP `http://127.0.0.1:4318` → OTel Collector → fan-out:
 - `otlp_grpc/cc_dashboard` → Aspire standalone dashboard (**all three signals**, optional live UI;
   in-memory, bounded by the dashboard's built-in telemetry caps; restart resets it)
 
-The machine-owned receiver/exporter configuration is
-[`common/otel-collector.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/otel-collector.yaml),
-and the dashboard stack is
-[`common/local-otel-dashboards.compose.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/local-otel-dashboards.compose.yaml).
+The machine-owned receiver/exporter configuration and the dashboard stack are provisioning's
+files, named by the `otel_collector_config_ref` and `otel_dashboards_compose_ref` options
+(`SKILL.md` shows their values).
 
 ## Detail (by concern)
 

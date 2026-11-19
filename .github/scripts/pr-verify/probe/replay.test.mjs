@@ -11,6 +11,8 @@ import { test } from "node:test";
 
 import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, replayedTree, scoreRun, sh, summarize, untilModelOutcome, UPSTREAM_JOBS, writeData } from "./replay.mjs";
 import { tempDir } from "../../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const CASES = loadCases();
 const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json");
