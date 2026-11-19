@@ -2269,6 +2269,22 @@ test("#17354: a file edited after a reset was cut off is reported as edited, not
   assert.deepEqual(w.records(), []);
 });
 
+test("#17354: a reset cut off before a file's write, then a hand edit of one profile entry, keeps the record and restores the file, naming the edit it overwrites", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.action, "restore");
+  assert.deepEqual(row.overwrites, [{ name: `implementation@${M}`, current: false, before: "absent" }]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
 test("#17354: a stray temp file beside an untouched file is ignored", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);

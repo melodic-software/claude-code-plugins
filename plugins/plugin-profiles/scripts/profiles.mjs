@@ -1202,7 +1202,7 @@ function resetRow(where, f) {
   if (rec.phase === "restoring" && plan.settings.hash === rec.restoredHash) {
     return { ...row, action: "finish-restore", lines: [`${file}: an earlier reset restored it and was cut off before removing its record; reset removes the record.`] };
   }
-  if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc)) {
+  if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc) && !plan.overwrites.length) {
     return { ...row, action: "finish-restore", reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
   }
   const what = plan.removes
