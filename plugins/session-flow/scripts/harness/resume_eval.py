@@ -1452,8 +1452,7 @@ def run_once(
     and grade it. Copies traces to `out_dir`; removes run dirs and project keys. Returns one
     graded run per reader (`error` set when it must be excluded)."""
     run_dir = cfg.root / "runs" / case["name"] / arm / str(index)
-    if run_dir.exists():
-        shutil.rmtree(run_dir)
+    remove_run_dirs(run_dir)
     start = time.monotonic()
     results = []
     run = written = None

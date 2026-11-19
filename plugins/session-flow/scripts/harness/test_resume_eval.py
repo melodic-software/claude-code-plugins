@@ -846,6 +846,8 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
         python=sys.executable,
     )
     home = tmp_path / "home"
+    killed_attempt_reader_copy = cfg.root / "runs" / case["name"] / "before" / "0-codex"
+    (killed_attempt_reader_copy / "stale").mkdir(parents=True)
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(home)
     try:
