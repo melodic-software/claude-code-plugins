@@ -1,6 +1,6 @@
 ---
 description: "Module-boundary check set up in the repository it runs in: each rule recorded under `## Boundary rules` gets the strongest mechanism the repository supports, proven to fail on an injected violation and to pass once it is removed. Use when 'enforce our boundary rules', 'set up a boundary check', 'add an architecture test', 'make this layering rule fail the build', or a confirmed boundary finding needs a check."
-argument-hint: "[boundaries findings file]"
+argument-hint: "[boundaries findings file ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,14 +8,31 @@ metadata:
   summary: Set up a check for each recorded boundary rule and prove it on an injected violation
 ---
 
-**Arguments.** `[boundaries findings file]`. Optional path to a findings file the boundaries lens
-wrote, in `$ARGUMENTS`; its rules that `## Boundary rules` does not hold yet are offered for
-recording in Phase 1.
+**Arguments.** `[boundaries findings file ...] [--repo <repo> ...]`. Optional path to a findings file
+the boundaries lens wrote, in `$ARGUMENTS`; its rules that `## Boundary rules` does not hold yet are
+offered for recording in Phase 1. `--repo` and the other target forms in
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md)
+run the skill in several repositories ("Several repositories" below); the default stays this
+repository. With several, the findings file argument may repeat, and each file applies only to the
+repository whose memory root holds it.
 
 This skill ships no tool, config, template or per-language file. It brings the process and the
-rule vocabulary; the mechanism is the one the repository already has, or one researched at run
+rule vocabulary; the mechanism is the one each repository already has, or one researched at run
 time. The check's config and tests are the repository's own files, and `## Boundary rules` stays
 the tool-neutral source they are derived from.
+
+## Several repositories
+
+With no target form, the skill runs in this repository, exactly as the phases below say. A target
+form resolves, counts and fans out the repositories as target-scope.md says. The subagents run
+Phases 1 to 3 read-only, once per repository with its root anchored: that repository's rules, its
+own mechanism and its own plan, each rule row carrying its repository (`owner/name`). A rule
+Phase 1 would append is only proposed there. The questions are then asked once, from the merged
+plans, and the yes in "Consent" is given per repository, for that repository's plan and appends.
+The writes (the Phase 1 appends, then Phases 4 to 7) run in one repository at a time, as
+target-scope.md "Writes stay per repository" says: for a repository other than the session's own,
+in a worktree that repository's convention creates, never its main checkout. Each repository's
+change is its own pull request, when the user asks for one.
 
 ## Consent
 

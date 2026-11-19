@@ -9,6 +9,17 @@ Four phases. Each has a gate before the next. The steps every lens shares are in
 [../../../reference/improvement-steps.md](../../../reference/improvement-steps.md), cited here by
 section name.
 
+Choose the repositories first ("Scope and fan-out"). With no target form, the lens covers this
+repository, exactly as the phases below say. With several, Phases 1 to 3 run once per repository
+with its root anchored: that repository's rules, its `<home>`, and its own graph (Phase 2, with
+`<root>` passed to `/architecture:map-dependencies` as the path and `<root>/<memory_dir>` as the
+memory root). The subagents collect and match; the questions Phase 3 asks are asked once, from the
+merged rows, each naming its repository. Each rule and each crossing carries its repository
+(`owner/name`). A rule limiting references between repositories is reported as
+`not checkable from manifests`: a reference to another repository is a package edge or an
+`unresolved` project edge, and this lens matches neither. Phase 4 writes one findings file per
+repository, in that repository's memory root, holding only its own rules.
+
 ## Phase 1: Collect the recorded boundary rules
 
 Read the list of places boundary rules live from the "Where boundary rules live" section of
