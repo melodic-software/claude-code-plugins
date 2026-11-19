@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.39] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [0.21.38] - 2026-11-18
 
 ### Changed
