@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.13.1] - 2026-11-19
+
+### Fixed
+
+- Whole-review request: a pull request refused on the running-jobs or rate-limit floors leaves the run's one toggle to the next candidate instead of spending it.
+
 ## [10.13.0] - 2026-11-19
 
 ### Added
