@@ -16,7 +16,7 @@ graders:
   - name: no-write
     type: tool_used
     tool: 'Bash'
-    input_match: 'profiles\.mjs(?:\\"|'')?\s+(?:apply|clear|save|install)\b(?:[^"\\]|\\.)*--yes'
+    input_match: 'profiles\.mjs(?:\\"|'')?\s+(?:apply|clear|reset|save|install)\b(?:[^"\\]|\\.)*--yes'
     min: 0
     max: 0
     arm: 'both'

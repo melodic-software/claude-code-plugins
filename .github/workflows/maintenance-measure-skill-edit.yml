@@ -473,6 +473,7 @@ jobs:
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'

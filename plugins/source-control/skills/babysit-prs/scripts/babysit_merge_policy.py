@@ -1946,7 +1946,7 @@ CANARY_RUNS = (
 # The pull request a read-back record names, as `babysit_postmerge._issue_body`
 # writes it.
 RECORD_PULL = re.compile(r"^- Pull request: (?:https://\S+/pull/|#)([1-9][0-9]*)$")
-PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$")
 # A pull request's merge and the agent identity's pin read-back over its first
 # 100 comments; a longer thread proves no read-back.
 LIFT_PULL = (
