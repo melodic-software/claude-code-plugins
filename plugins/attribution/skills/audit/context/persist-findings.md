@@ -18,8 +18,8 @@ Resolve it in this order:
    skill listing is the whole availability test: never glob, list or search outside this
    plugin's root to find `review`. The plugin ships `reference/findings-file-shape.md`, which owns
    the shape the fix action consumes, and `/review:fanout` owns the merge-set rules and, in its
-   "Shared inputs" section, **where the file goes**; the detector-findings contract points there
-   and `findings-file-shape.md` does not restate it. Read those exact files from the `review`
+   "Shared inputs" section, **where the file goes**, which the bundled contract in rung 2 also
+   states for a producer. Read those exact files from the `review`
    plugin's root when this session already knows it, for example from a loaded `review` skill's
    base directory. When `/review:fanout` does not resolve, the root is not known, or a read
    fails, go to rung 2.
