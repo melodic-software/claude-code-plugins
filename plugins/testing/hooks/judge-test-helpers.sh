@@ -7,6 +7,7 @@
 
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG TEST_JUDGE_ACTIVE CLAUDE_CODE_SESSION_ATTENDED
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=../lib/test-ok-fail.sh

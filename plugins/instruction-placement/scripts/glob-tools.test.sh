@@ -8,6 +8,7 @@
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 set -uo pipefail
 

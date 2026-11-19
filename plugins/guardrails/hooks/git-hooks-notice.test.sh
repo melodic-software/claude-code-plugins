@@ -12,6 +12,7 @@
 # test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"

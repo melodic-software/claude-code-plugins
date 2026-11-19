@@ -24,6 +24,8 @@ import pytest
 
 for _leaked_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG", "GIT_INDEX_FILE"):
     os.environ.pop(_leaked_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_var
 
 SCRIPTS = Path(__file__).resolve().parents[1]

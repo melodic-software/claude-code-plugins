@@ -12,6 +12,7 @@
 # test-scope: plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md .claude/settings.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INVENTORY="$SCRIPT_DIR/inventory.sh"
