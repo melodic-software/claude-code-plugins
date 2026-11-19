@@ -318,7 +318,7 @@ to share, so the diff driver tests them on the tool token instead.
 
   The narration `Ignoring dangerous permission <rule> from <path> (bypasses classifier)` delimits
   **neither field**, and both sides may legitimately contain the separator: a rule
-  (`Bash(git log --grep from *)`) and a directory (`notes from work`). No fixed choice of first-
+  (`Bash(<interpreter> <arg> from <arg> *)`) and a directory (`notes from work`). No fixed choice of first-
   or last-separator is right for both, so the split is resolved by which candidate leaves a
   well-formed tool token on the left. A line that resolves to zero candidates or several is
   **announced as unresolvable**, never silently split, because a wrong rule name in a divergence
