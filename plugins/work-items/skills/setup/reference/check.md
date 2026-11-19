@@ -144,7 +144,9 @@ check.
    [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
    exists. Absent is FAIL. Triage cannot mark an untrusted item until the
    label is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,
-   or the repo's declared label-as-code owner when one exists (never `gh label create` ad hoc there).
+   or the repo's declared label-as-code owner when one exists (`label_as_code_repo`, as
+   [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md) defines it; never
+   `gh label create` ad hoc there).
    Providers without a label listing (`local-markdown`, read-only `jira`) → INFO: verify at triage
    time via the item store. When probe 2 is INFO (no binding) or FAIL (malformed binding), skip this
    probe, there is no addressable provider yet.
@@ -154,8 +156,8 @@ check.
    [`reference/capability-tier-labels.md`](../../../reference/capability-tier-labels.md)
    exists. Absent is FAIL. Triage cannot stamp frontier-tier quota guard and the work-loop reader
    fails closed to general tier until the label exists; remediation is `/work-items:setup apply` on
-   repos without label-as-code, or the repo's declared label-as-code owner when one exists (never
-   `gh label create` ad hoc there). Providers without a label listing (`local-markdown`, read-only
+   repos without label-as-code, or the repo's declared label-as-code owner when one exists
+   (`label_as_code_repo`; never `gh label create` ad hoc there). Providers without a label listing (`local-markdown`, read-only
    `jira`) → INFO: verify at triage time via the item store. When probe 2 is INFO (no binding) or
    FAIL (malformed binding), skip this probe. There is no addressable provider yet.
 9. **Jira resolution classification**, only when probe 2 found a present, shape-valid `jira`
