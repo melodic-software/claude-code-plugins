@@ -66,10 +66,6 @@ const MAX_RESET = 999_999_999_999;
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
  *   its POLL_LIMIT_SECONDS.
- * - `rerunCiStatusRate`: that step's rate-limit waits, apart from the poll,
- *   its RATE_WAIT_SECONDS: past the brake's longest hold (28 minutes in the
- *   7 days to 2026-11-19), since no other run re-runs a ci-status it leaves
- *   stale. The job's timeout-minutes holds both budgets.
  * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
  *   failure drops finished work: the `rate-limit-wait-seconds` it passes
  *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
@@ -91,7 +87,7 @@ const MAX_RESET = 999_999_999_999;
  *   wait, the job's other work and ci-status after it, so it stays at 15
  *   minutes.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, rerunCiStatusRate: 1800, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 

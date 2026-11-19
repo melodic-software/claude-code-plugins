@@ -3200,7 +3200,7 @@ const MISSING_LINE = (check = "pr-review / claude-review-status", file = "pr-rev
   `'${check}' is missing: no ${file} run on ${head} yet. ${tail}`;
 const pendingJobs = (notes = [PENDING_LINE()]) => stopJobs({ notes });
 // Both hosted reviews' runs on the head, completed at `updated` unless `status` says otherwise.
-const reviewRuns = ({ updated = new Date(NOW - (PENDING_BACKOFF_MINUTES + 10) * 60_000).toISOString(), status = "completed" } = {}) => [
+const reviewRuns = ({ updated = "2026-10-19T19:30:00Z", status = "completed" } = {}) => [
   run(201, sha(1), { path: REVIEW, conclusion: "success", updated }),
   run(202, sha(1), { path: SECURITY_REVIEW, conclusion: status === "completed" ? "success" : null, status, updated }),
 ];
