@@ -579,8 +579,17 @@ jobs:
           sparse-checkout: |
             .github/scripts/lib/handoff-evidence.sh
             .github/actions/log-api-budget
+            .github/actions/scan-upload
+            .github/actions/setup-pinned-node
+            .node-version
+            lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
 
       - name: Read whether resolve-issue's key hit a credit stop
         id: credit-stop-resolve-issue
@@ -601,8 +610,17 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-issue"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-issue/run-id"
 
-      - name: Upload resolve-issue's credit-stop marker
+      - name: Scan resolve-issue's credit-stop marker for credentials
+        id: credit-marker-scan-resolve-issue
         if: steps.credit-marker-resolve-issue.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-resolve-issue/run-id
+
+      - name: Upload resolve-issue's credit-stop marker
+        if: (steps.credit-marker-resolve-issue.outcome == 'success') && steps.credit-marker-scan-resolve-issue.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

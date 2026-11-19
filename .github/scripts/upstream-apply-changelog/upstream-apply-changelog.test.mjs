@@ -516,7 +516,7 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   assert.match(upload, /^ {10}retention-days: 1$/m);
   const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[MARKER];
   assert.equal(row["retention-days"], 1);
-  assert.equal(row.scan, "none");
+  assert.equal(row.scan, "upload");
 });
 
 // A step condition of the shapes this workflow uses (string compares joined
