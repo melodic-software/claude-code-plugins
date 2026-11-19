@@ -148,6 +148,26 @@ test('the titles row: a field a title, Enter setting it as /bedroom title does',
   await ui.unmount()
 })
 
+test('a title typed and not yet set survives a redraw of the card, and a typed /bedroom title replaces it', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, '')
+
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+
+  await ui.input({ key: 'title-console', text: 'Half Typed', kind: 'change' })
+  await ui.press({ key: 'switch-lamp' })
+  expect((await ui.find({ key: 'title-console' }))?.props.value).toBe('Half Typed')
+
+  await bedroom($, 'title console Set By Command')
+  expect((await ui.find({ key: 'title-console' }))?.props.value).toBe('Set By Command')
+
+  await bedroom($, 'title console')
+  await ui.unmount()
+})
+
 test('away from the desktop /bedroom answers with text alone and draws no card', async ($, on) => {
   const placed: string[] = []
 

@@ -26,6 +26,8 @@ type Saved = { state: State; dim: number; aspect: number; glass: number; blur: n
 export const TITLE_CAPS = { console: 24, tape: 24, pennant: 12, 'pennant-top': 16 } as const
 type TitleKey = keyof typeof TITLE_CAPS
 const TITLE_KEYS = Object.keys(TITLE_CAPS) as TitleKey[]
+/** Text typed into a title field and not yet set, so a redraw of the card (the minute's tick, another press) keeps it. */
+const drafts: Partial<Record<TitleKey, string>> = {}
 
 /** The titles after /bedroom title KEY TEXT: TEXT capped to fit (the pennant's in capitals, as it is lettered); no TEXT puts the default back. */
 export function withTitle(titles: Titles, key: TitleKey, text: string): Titles {
@@ -190,6 +192,7 @@ async function bedroomCommand($: EngineInterface, args: string): Promise<string>
     const key = value as TitleKey
     const titles = withTitle(saved.titles, key, rest)
 
+    delete drafts[key]
     saved = { ...saved, titles }
     askedAt = performance.now()
     $.ui.invalidate('ui.render')
@@ -349,8 +352,11 @@ function settingsCard($: EngineInterface, { Box, Text, Button, Input }: CardElem
             key={`title-${key}`}
             label={`${key} (up to ${TITLE_CAPS[key]})`}
             placeholder="default"
-            value={saved.titles[key] ?? ''}
+            value={drafts[key] ?? saved.titles[key] ?? ''}
             submitLabel="set"
+            onInput={text => {
+              drafts[key] = text
+            }}
             onSubmit={text => void press($, `title ${key} ${text}`)}
           />
         ))}
