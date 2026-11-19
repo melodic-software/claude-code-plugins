@@ -99,8 +99,11 @@ repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../refere
 and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several
 repositories". With no path, each repository's corpus is rule 1's below, minus the offer. Under
 `--persist-findings`, each repository gets its own findings file, resolved and guarded in that
-repository's memory slice, with the branch the pass read (`origin/HEAD`'s, unless it is the
-session's own checkout) as the file's branch.
+repository's memory slice under the clone's own root (`git -C <clone root>`), never under a
+scratch worktree the pass ran in, which is removed after the pass. Call `emit-findings.sh` with
+`--out` set to that path and `--branch` set to the branch the pass read (`origin/HEAD`'s, unless
+it is the session's own checkout): a detached scratch worktree has no current branch, so the
+script's default refuses to write.
 
 ## Auto-detect default
 

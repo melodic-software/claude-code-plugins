@@ -50,7 +50,9 @@ What every docs-hygiene skill adds:
 - **Settings and state stay per repository**: each repository's
   `docs/conventions/docs-hygiene.yaml` and verification level are read at its
   own root, and each findings file, ledger, roster or report is written per
-  repository, never merged into one file.
+  repository, never merged into one file. None is written inside a scratch
+  worktree, which is removed after the pass: a findings file goes in the
+  memory slice under that repository's clone root (`git -C <clone root>`).
 
 ## Who participates
 
