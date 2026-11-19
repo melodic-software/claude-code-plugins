@@ -8,6 +8,7 @@ copied into any plugin: add a row here, and register the plugin's own copy of `R
 |---|---|
 | `/architecture:improve` (deepening and conventions lenses) | Through `improvement-steps.md` "Scope and fan-out" and its plugin-shipped copy |
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
+| `/code-metrics:audit`, `audit-coverage`, `audit-duplication`, `audit-suppressions` | Through `reference/several-repositories.md` and the plugin-shipped copy; one report per repository, and only `--findings` writes |
 | `/docs-naming:audit-file-names` | Points here through its plugin-shipped copy; one plan per repository, audited in that repository's worktree |
 | `/docs-naming:realign-file-names` | Points here through its plugin-shipped copy; applies one repository's plan at a time |
 | `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
