@@ -1,6 +1,6 @@
 ---
 description: "Read-only progressive-disclosure audit of agent-facing instruction markdown: grades each file against always-loaded, invocation-loaded, and on-demand tiers and flags split and disclosure defects. Use when: 'progressive disclosure', 'split this file', 'this file is too long', 'too much context', 'mixed concerns', 'hub and spoke', 'is my CLAUDE.md too big', 'audit context loading', 'what should always be loaded'. In-page noise is /docs-hygiene:audit-noise; frontmatter QA is /skill-quality:check."
-argument-hint: "[audit] [target]"
+argument-hint: "[audit] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
@@ -74,6 +74,7 @@ single-file skill is never flagged for lacking spokes.
 |---|---|---|
 | `<target>` (default) | empty → uncommitted `.md` files from git; file path → single file; dir path → recursive batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on the targets; map its facts onto the shapes table via the judgment rules below |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
+| `--repo <repo>` (and the other target forms) | beside either action | that action once per repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories"; with no path, each repository's corpus is rule 1's below, minus the offer |
 
 One action; the author hand-edits from the audit output.
 

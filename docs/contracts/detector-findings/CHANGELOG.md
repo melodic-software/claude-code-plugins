@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.11.0] - 2026-11-19
+
+**Minor, additive.** Each detector plugin now reads its own bundled copy of this contract, so "Where
+the file goes" states what a producer needs without the `review` plugin: the findings directory and
+branch slug, the self-ignore guard, the file name and no-overwrite rule, and what the consumer
+admits (`type:`, `branch:`, the `## Findings` header, cell escaping, repo-relative paths). The
+consumer's statement stays in `review`'s `change-set.md` and `findings-file-shape.md`, and this
+contract must agree with it. Adopter wording now says a producer reads its bundled copy rather than
+fetching the contract. Two crosswalk-adjacent sentences are reworded with no change in meaning. No
+producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.10.0] - 2026-11-17
 
 **Minor, additive.** "A candidate that is not a finding" lets a producer write the evidence for

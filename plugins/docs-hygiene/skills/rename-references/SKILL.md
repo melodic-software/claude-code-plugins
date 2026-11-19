@@ -1,6 +1,6 @@
 ---
 description: "Sweep stale references after a rename, including forms token-only grep misses (slash-tokens, paths, chain prose, table rows, frontmatter globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. A whole tree against a casing rule is docs-naming:audit-file-names, if enabled."
-argument-hint: "[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier|--include-historical…]"
+argument-hint: "[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier…] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Sweep stale references after renames, including forms grep misses
 ---
 
-**Arguments.** `[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier|--include-historical…]`. Full form: [audit [blast|half-rename|orphans]|preview|blocklist] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)
+**Arguments.** `[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier…] [--repo <repo> ...]`. Full form: [audit [blast|half-rename|orphans]|preview|blocklist] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] [--repo <repo> ...|--repos-from <file|->|--owner <owner>|--fleet] [--skip <entry> ...] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)
 
 ## Repository context. Gather first
 
@@ -76,6 +76,8 @@ Six flags. Four widen the sweep; two override the rename-mode resolution. Defaul
 | `--identifier` | Force identifier-rename mode | OK |
 
 Multiple flags compose. Unknown flags raise an error. Detail in [audit-modes.md](context/audit-modes.md) "Override flags" section.
+
+**Several repositories.** A target form (`--repo <repo>` and the others) is accepted by every action except `blocklist`, and sweeps the one rename pair in each repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories": one subagent per repository runs Phases 2-3, the Grep sweep with its path set to that repository's root and the triage, and hits are reported per repository. The pair comes from the arguments, or from the Smart default run in the session's own repository. The main session runs Phase 4 over the merged report, so every confirmation is asked there. Apply edits the session's own repository in place, as without a target form, and each other repository in its own worktree with its own pull request; Phase 6's re-sweep runs per repository.
 
 ### Auto-memory location
 

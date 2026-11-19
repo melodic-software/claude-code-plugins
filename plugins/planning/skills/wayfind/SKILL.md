@@ -154,10 +154,10 @@ Parse the first token of `$ARGUMENTS`.
 
 ## Chart mode
 
-Charting needs a human in the loop, and a session cannot detect that on its own, so the caller
-declares it (the same rule `/planning:interview` applies): when the invocation says the run is
-unattended (a loop, a spawned worker, a `claude -p` run, another skill's chain), stop and report
-that charting needs an interactive session. Do not fabricate a map.
+Charting needs a human in the loop, and the caller declares whether one is there, since the caller
+knows and the skill would only be guessing (the same rule `/planning:interview` applies): when the
+invocation says the run is unattended (a loop, a spawned worker, a `claude -p` run, another
+skill's chain), stop and report that charting needs an interactive session. Do not fabricate a map.
 
 1. **Survey, interview, fog test.** Read the repository's glossary and work-item conventions
    first, when it has them, so questions use its terms and items follow its tracker rules (the

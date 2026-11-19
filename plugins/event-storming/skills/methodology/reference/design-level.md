@@ -320,9 +320,9 @@ A common CQRS + DDD shape looks like:
 | EventStorming Element | Tactical Pattern (typical implementation) |
 |----------------------|---------------------|
 | Aggregate (pale yellow) | Aggregate Root class (consistency boundary) |
-| Command (blue) | Command message + command handler (`ICommand<T>` or equivalent) |
+| Command (blue) | Command message + command handler |
 | Domain Event (orange) | Domain event type raised by the aggregate |
-| Query/Read Model (green/yellow) | Query message + read-model projection (`IQuery<T>` or equivalent) |
+| Query/Read Model (green/yellow) | Query message + read-model projection |
 | Policy (lilac) | Domain event handler or process manager / saga |
 | External System (pink) | Infrastructure adapter behind an abstraction |
 

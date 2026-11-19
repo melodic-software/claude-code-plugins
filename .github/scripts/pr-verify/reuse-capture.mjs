@@ -24,6 +24,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { PR_VERIFY_CAPTURE_TITLE } from "../lib/run-title.mjs";
 import { artifactName, CAPTURE_PATH } from "./find-capture.mjs";
 
 const ID = /^[1-9][0-9]{0,19}$/;
@@ -49,7 +50,7 @@ const isFinishedCapture = (run, { repository, headSha }) =>
   run.repository?.full_name === repository &&
   run.status === "completed" &&
   run.conclusion === "success" &&
-  new RegExp(`^pr-verify-capture [1-9][0-9]{0,19} ${headSha}$`).test(String(run.display_title)) &&
+  PR_VERIFY_CAPTURE_TITLE.exec(String(run.display_title))?.[2] === headSha &&
   ID.test(String(run.id));
 
 /**

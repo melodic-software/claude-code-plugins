@@ -382,6 +382,14 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
     ],
   });
   assert.deepEqual(numbers(api), ["51"]);
+  const titled = await run({
+    pages: [[pr(50), pr(51)]],
+    workflowRuns: [
+      { id: 1, status: "in_progress", display_title: "PR Refine fix-docs #50" },
+      { id: 3, status: "queued", display_title: "PR Unblock fix-docs #51" },
+    ],
+  });
+  assert.deepEqual(numbers(titled.api), ["51"], "the Title Case run-name holds as the old one does, and pr-unblock's does not");
 });
 
 const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `pr-refine fix-docs #${number}` });

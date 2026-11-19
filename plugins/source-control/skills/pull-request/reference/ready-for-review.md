@@ -7,7 +7,8 @@ This is not [readiness.md](readiness.md), which holds the gates that decide whet
 **merge**. This file covers the flip alone.
 
 **The order the skill runs follow is the fleet's pre-PR order**, owned by
-[`docs/contracts/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pre-pr-ordering/README.md).
+the pre-pr-ordering contract, bundled at
+[`<plugin-root>/reference/pre-pr-ordering.md`](../../../reference/pre-pr-ordering.md).
 Read it there; this phase cites it and never states a different one.
 
 ## 2.5.1 Refuse without a pull request
