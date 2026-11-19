@@ -220,6 +220,16 @@ skill's reset action previews and asks the same way. Both pass the preview's `pr
 that preview. Reset exits 0 when every file is done, 3 when it skipped some and named each, and 1
 when it wrote nothing.
 
+Every question lists the answer that changes nothing first, so the picker pre-selects it (Cancel,
+Keep) and Esc is that answer; the terminal's `[y/N]` takes anything but `y` or `yes` as no. Each
+question also comes with a recommendation from `reset --dry-run --json`: `ask.recommend` per file
+and `questionRecommend` for the one question, each an answer and a one-sentence reason. A folder
+without a record is recommended Keep, since reset did not write its entries; a cut-off file or a
+moved repository's older record is recommended a yes only while no entry the profile wrote was
+changed by hand to another value; the one question is recommended a yes for a person who asked
+for a reset, since applying a profile again undoes it. The picker shows that advice as a line
+before each question, and the skill marks that answer `(Recommended)` with the reason.
+
 Reset finds a repository through a pointer file under `~/.claude/plugin-profiles-state/repositories/`,
 written at each apply there and each session start there, and through the folders Claude Code has
 opened, the one-session records, the live sessions and the folder it runs in. It cannot find a
@@ -238,8 +248,9 @@ file, default no (`--finish-cut-off <file>`, `--keep-cut-off <file>`); the yes p
 entries still at the profile's values and leaves every entry changed by hand. A file with no entry
 left at the profile's value is left as it is and its record removed. One reset writes each file
 from one record only. When a profile was applied at a moved repository's new place, reset first
-puts back that newest record and keeps the older one waiting, saying so; it exits 3 and says to run
-reset again, and the next run offers the file from the older record. A repository moved more than
+puts back that newest record, to the values from before that profile was applied, and keeps the
+older one waiting, saying so; it exits 3 and says to run reset again, and the next run offers the
+file from the older record. A repository moved more than
 once goes back the same way, one layer per run, newest first, until the file holds what it held
 before the first apply; a no at any layer leaves the file and every record. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's

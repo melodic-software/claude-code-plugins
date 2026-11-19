@@ -43,6 +43,23 @@ gave for the recorded files.
    writes removes the note; an apply removes it, and a record always wins over a note. Owner
    decision of 2026-11-19 (Q9, option b): without it a second reset offered to delete the
    entries the first had just put back.
+6. **The answer that changes nothing comes first.** Every question the `/plugin-profile` picker and
+   the profile skill ask (reset's single question, each per-file question, and the picker's apply,
+   switch and clear confirms) lists Cancel, Keep or No first and the answer that writes second,
+   so the picker pre-selects the safe answer and Esc or a failed prompt is that answer. The
+   picker's one ask helper holds the order; the terminal's `[y/N]` already reads anything but `y`
+   or `yes` as no. Owner, 2026-11-19 live try: "we need the dangerous answer to not be
+   preselected", "should be less dangerous option always".
+7. **The tool recommends, the caller presents.** The `--json` preview carries one recommendation
+   per question, an answer and a one-sentence reason from the row's facts: `ask.recommend` on each
+   per-file question and `questionRecommend` (`asked`, `unasked`) for the single question. A folder
+   without a record: keep, since reset did not write its entries. A cut-off file or a moved
+   repository's older record: yes only while no entry the profile wrote was changed by hand to
+   another value, else keep, naming those entries. The single question: yes for a person who asked
+   for a reset, naming what goes back and that applying a profile again undoes it; no otherwise.
+   The skill marks that answer `(Recommended)` wherever it sits and gives the reason, never one of
+   its own; the picker, which has no agent, shows it as a line before the question. Owner, same
+   try: "if you could have the agent (AI) provide recomendations".
 
 ## Considered options
 
@@ -52,6 +69,10 @@ gave for the recorded files.
   also delete entries a person wrote, which no record shows a profile wrote.
 - **Keep listing a file reset just put back, with "may be your own" wording only.** Rejected by the
   owner (Q9): it still offered a person's own entries for deletion after a complete reset.
+- **List the recommended answer first.** Rejected by the owner: the pre-selected answer would then
+  be the one that writes whenever yes is recommended.
+- **Let the skill's agent word its own recommendation.** Rejected: the picker could not show the
+  same advice, and two sources would drift.
 
 ## Consequences
 
