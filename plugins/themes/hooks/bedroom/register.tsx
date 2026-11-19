@@ -97,8 +97,8 @@ function wholeRoom(): string {
 }
 
 /**
- * The colour of the dark veil a dim lays over the whole backdrop, the room's own night blue at dim's opacity:
- * `#rrggbbaa`. The veil stays in the tree at every dim, clear at 0, so a dim step changes one colour and nothing else.
+ * The color of the dark veil a dim lays over the whole backdrop, the room's own night blue at dim's opacity:
+ * `#rrggbbaa`. The veil stays in the tree at every dim, clear at 0, so a dim step changes one color and nothing else.
  */
 export function veilColor(dim: number): string {
   const alpha = Math.round(Math.min(1, Math.max(0, dim)) * 255)
