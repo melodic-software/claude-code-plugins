@@ -2800,6 +2800,7 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
 /** The settings file each applied-profile record on the test machine names, sorted. */
 const recordFiles = (w) => allRecords(w).map((rel) => JSON.parse(readFileSync(join(w.root, rel), "utf8")).settingsFile).sort();
 const WAITS_SKIP = (file) => `Skipped ${file}: folder not found; record kept until reset puts back the later record of its repository's file.`;
+const WAITS_DONE = (file) => `Skipped ${file}: folder not found; record kept. This reset put back a later record of its repository's file; run reset again to be offered the next record, newest first.`;
 const WAITS_LINE = (n) => `${n} ${n === 1 ? "record waits" : "records wait"} behind a file this reset put back; run reset again to offer ${n === 1 ? "it" : "them"}.`;
 const waitsRow = (old, file) => `${old}: folder not found; record kept. The repository is now at ${dirname(dirname(file))}, and ${file} has a later record that reset handles first; running reset again afterwards offers this one.`;
 
@@ -2874,7 +2875,7 @@ test("#17354: a moved repository with a profile applied at its new place is put 
   const first = await resetAtTerminal(w, () => "y");
   assert.equal(first.status, 3, first.stdout + first.stderr);
   assert.deepEqual(first.prompts.map((p) => FIRST.test(p)), [true], "one question, covering the newer record's file");
-  assert.deepEqual(resultLines(first.stdout).sort(), [`Restored ${m.file} (profile review).`, WAITS_SKIP(m.old)].sort());
+  assert.deepEqual(resultLines(first.stdout).sort(), [`Restored ${m.file} (profile review).`, WAITS_DONE(m.old)].sort());
   assert.equal(first.stdout.split("\n").at(-1), WAITS_LINE(1));
   assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
   assert.deepEqual(recordFiles(w), [m.old]);
@@ -2891,6 +2892,17 @@ test("#17354: a moved repository with a profile applied at its new place is put 
   assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
 });
 
+test("#17354: the newest layer's row says it puts entries back to before that layer's profile while an older record waits, and to before the first apply only when none waits", () => {
+  const w = world();
+  const m = movedRepository(w);
+  const row = resetJson(w).folders.find((f) => f.file === m.file);
+  assert.match(row.lines[0], /; reset puts back \d+ plugin entr(y|ies) and \d+ skill entr(y|ies) to their values before profile review was applied\.$/, row.lines[0]);
+  const plain = world();
+  assert.equal(plain.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [only] = resetJson(plain).folders;
+  assert.match(only.lines[0], /; reset puts back \d+ plugin entr(y|ies) and \d+ skill entr(y|ies) to their values before the first apply\.$/, only.lines[0]);
+});
+
 test("#17354: a moved repository with a profile applied at its new place, given --yes alone, puts back the newer layer, keeps the older record until a yes for its file, and a reset cut off before or after the newer layer's write is finished first", () => {
   for (const cut of [null, "before the write", "after the write"]) {
     const w = world();
@@ -2905,7 +2917,7 @@ test("#17354: a moved repository with a profile applied at its new place, given 
     const r = reset(w, ["--yes"]);
     assert.equal(r.status, 3, r.stdout + r.stderr);
     const done = cut === "after the write" ? `Finished an earlier reset of ${m.file}: its record is removed.` : `Restored ${m.file} (profile review).`;
-    assert.deepEqual(resultLines(r.stdout).sort(), [done, WAITS_SKIP(m.old)].sort(), `cut ${cut}`);
+    assert.deepEqual(resultLines(r.stdout).sort(), [done, WAITS_DONE(m.old)].sort(), `cut ${cut}`);
     assert.equal(r.stdout.trim().split("\n").at(-1), WAITS_LINE(1));
     assert.equal(readFileSync(m.file, "utf8"), m.left[0], `cut ${cut}`);
     assert.deepEqual(recordFiles(w), [m.old], `cut ${cut}`);
@@ -2959,14 +2971,14 @@ test("#17354: a repository moved twice, with a profile applied at each place, is
   assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.file, "restore", null, null], [m.first, "skip", null, m.file], [m.second, "skip", null, m.file]].sort());
   const one = reset(w, ["--yes"]);
   assert.equal(one.status, 3, one.stdout + one.stderr);
-  assert.deepEqual(resultLines(one.stdout).sort(), [`Restored ${m.file} (profile build).`, WAITS_SKIP(m.first), WAITS_SKIP(m.second)].sort());
+  assert.deepEqual(resultLines(one.stdout).sort(), [`Restored ${m.file} (profile build).`, WAITS_DONE(m.first), WAITS_DONE(m.second)].sort());
   assert.equal(one.stdout.trim().split("\n").at(-1), WAITS_LINE(2));
   assert.equal(readFileSync(m.file, "utf8"), m.afterReview);
   const next = resetJson(w).folders;
   assert.deepEqual(next.map((f) => [f.file, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.first, null, m.file], [m.second, m.file, null]].sort(), "the record applied latest is offered, the earlier one waits");
   const two = reset(w, ["--yes", "--remove-unrecorded", m.file]);
   assert.equal(two.status, 3, two.stdout + two.stderr);
-  assert.deepEqual(resultLines(two.stdout).sort(), [`Restored ${m.file} from the record of ${m.second} (profile review).`, WAITS_SKIP(m.first)].sort());
+  assert.deepEqual(resultLines(two.stdout).sort(), [`Restored ${m.file} from the record of ${m.second} (profile review).`, WAITS_DONE(m.first)].sort());
   assert.equal(readFileSync(m.file, "utf8"), m.afterBuild);
   assert.deepEqual(resetLayers(w), [0]);
   assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
@@ -3368,7 +3380,7 @@ const fill = (text, vars) => text.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
 const RESTORED = "Restored {F} (profile build).";
 const NOTHING = [];
 const ANSWERED_NO = "Skipped {F}: you answered no, so it is left as it is, and its record is kept.";
-const WAITS = WAITS_SKIP("{O}");
+const WAITS = WAITS_DONE("{O}");
 
 /**
  * One row per cell: row kind, way of answering, each file's content after the run (same: as before the run; before: as before

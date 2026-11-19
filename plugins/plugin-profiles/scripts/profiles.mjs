@@ -1258,12 +1258,13 @@ const overwriteLines = (plan) =>
 const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) => ({ name, current, before }));
 
 const WAITS = "folder not found; record kept until reset puts back the later record of its repository's file";
+const WAITED = "folder not found; record kept. This reset put back a later record of its repository's file; run reset again to be offered the next record, newest first";
 
 /**
  * One file's row in the reset preview: what reset does to it and the lines that say so. A moved record waits, offered for
- * nothing, while a later record covers the file at the repository's new place.
+ * nothing, while a later record covers the file at the repository's new place; that later record is layered over it.
  */
-function resetRow(where, f, waits = false) {
+function resetRow(where, f, { waits = false, layered = false } = {}) {
   const file = f.settingsFile;
   const rec = f.record;
   const row = { file, recorded: Boolean(rec) && !f.adopted, adopted: f.adopted, unfinished: rec?.phase === "off-pending", overwrites: [], found: f };
@@ -1349,7 +1350,7 @@ function resetRow(where, f, waits = false) {
   }
   const what = plan.removes
     ? "removes the file, which the first apply created"
-    : `puts back ${Object.keys(plan.edits.enabledPlugins).length} plugin entries and ${Object.keys(plan.edits.skillOverrides).length} skill entries to their values before the first apply`;
+    : `puts back ${counted(Object.keys(plan.edits.enabledPlugins).length, "plugin entry", "plugin entries")} and ${counted(Object.keys(plan.edits.skillOverrides).length, "skill entry", "skill entries")} to their values before ${layered ? `profile ${rec.profile} was applied` : "the first apply"}`;
   const head = f.adopted
     ? `${file}: holds the entries profile ${rec.profile} wrote to its folder's root file, copied after that apply; reset ${what}.`
     : `${file}: profile ${rec.profile}${rec.target === "initial" ? " (the initial profile)" : ""} applied ${localTime(rec.appliedAt)}; reset ${what}.`;
@@ -1475,14 +1476,14 @@ async function reset(opts, where, env, io) {
   const { files, homes, counts } = machineFiles(where, env);
   const covered = new Set(files.filter((f) => f.record && !f.adopted && !f.ignored && !f.missing).map((f) => realPath(f.settingsFile)));
   const latest = new Map();
-  for (const f of files.filter((f) => f.record && f.missing && f.movedTo && !f.ignored && !f.adopted && resetWrites(where, f.settingsFile))) {
+  const moves = files.filter((f) => f.record && f.missing && f.movedTo && !f.ignored && !f.adopted && resetWrites(where, f.settingsFile));
+  for (const f of moves) {
     const key = realPath(f.movedTo);
     if (!latest.has(key) || String(latest.get(key).record.appliedAt) < String(f.record.appliedAt)) latest.set(key, f);
   }
-  const all = files.map((f) => {
-    const key = f.movedTo && realPath(f.movedTo);
-    return resetRow(where, f, Boolean(key) && (covered.has(key) || latest.get(key) !== f));
-  });
+  const waits = (f) => Boolean(f.movedTo) && (covered.has(realPath(f.movedTo)) || latest.get(realPath(f.movedTo)) !== f);
+  const behind = new Set(moves.filter(waits).map((f) => realPath(f.movedTo)));
+  const all = files.map((f) => resetRow(where, f, { waits: waits(f), layered: behind.has(realPath(f.settingsFile)) }));
   const moved = new Set(all.filter((r) => r.movedTo).map((r) => realPath(r.movedTo)));
   const shown = all.filter((r) => !(["remove-entries", "unchanged"].includes(r.action) && moved.has(realPath(r.file))));
   const unchanged = shown.filter((r) => r.action === "unchanged").map((r) => r.file);
@@ -1538,10 +1539,10 @@ async function reset(opts, where, env, io) {
   const results = [];
   const say = (line) => (opts.json ? results.push(line) : io.out(line));
   const done = new Set();
-  for (const row of rows) {
+  for (const row of [...rows.filter((r) => !r.waitsFor), ...rows.filter((r) => r.waitsFor)]) {
     let result;
     try {
-      result = resetOne(row, answers);
+      result = row.waitsFor && done.has(realPath(row.waitsFor)) ? { line: `Skipped ${row.file}: ${WAITED}.`, ok: true } : resetOne(row, answers);
     } catch (error) {
       if (typeof error.code !== "string") throw error;
       result = { line: `Skipped ${row.file}: ${error.message}; run reset again.`, ok: false };
