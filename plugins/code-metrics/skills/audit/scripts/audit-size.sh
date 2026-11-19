@@ -1,24 +1,36 @@
 #!/usr/bin/env bash
-# /code-metrics:audit size entry point: lines per file, comment-aware when
-# `scc` resolves, comment-agnostic from the bundled counter otherwise.
-#
-#   audit-size.sh [--json] [--all] [--base <ref>] [--file-lines <n>] [--commits-since <date>] [--config <resolved.json>] [<path>...]
-#
-# `--file-lines <n>` replaces the resolved `size.file_lines` reference for this
-# run, and the report names the option as the layer that supplied it.
-# `--commits-since <date>` adds, for each file at or above the reference, the
-# commits since <date> that touched it, automation authors left out.
-#
-# Prints the markdown report; `--json` prints the `code-metrics/v2` document
-# instead. Scope, lanes, and the collector ladder are the dispatcher's
-# (scripts/dispatch.sh in the plugin root); this script owns its own options
-# and the size mode: `size.mode: file-lines` (default) measures `file_lines`;
-# `size.mode: iso-8.2.115` adds `function_lines`, the ISO/IEC 5055 §8.2.115
-# form, each function's non-empty lines as a percentage of the file's, from
-# a collector that reports function ranges. Exit codes are the dispatcher's:
-# 0 report produced, 2 usage error, 3 a collector ran and produced nothing
-# parseable.
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+/code-metrics:audit size entry point: lines per file, comment-aware when
+`scc` resolves, comment-agnostic from the bundled counter otherwise.
+
+  audit-size.sh [--json] [--all] [--base <ref>] [--file-lines <n>] [--commits-since <date>] [--check] [--config <resolved.json>] [<path>...]
+
+`--file-lines <n>` replaces the resolved `size.file_lines` reference for this
+run, and the report names the option as the layer that supplied it.
+`--commits-since <date>` adds, for each file at or above the reference, the
+commits since <date> that touched it, automation authors left out.
+`--check` applies the resolved `size.check` rule to the change against its
+base and sets the exit code: `report` (the default) fails nothing, `crossing`
+fails a changed file below `size.file_lines` at the base and at or above it
+now, and `crossing-or-growth` also fails a file already at or above it that
+grew. It needs the change scope, so it takes no `--all` and no paths.
+
+Prints the markdown report; `--json` prints the `code-metrics/v2` document
+instead. Scope, lanes, and the collector ladder are the dispatcher's
+(scripts/dispatch.sh in the plugin root); this script owns its own options
+and the size mode: `size.mode: file-lines` (default) measures `file_lines`;
+`size.mode: iso-8.2.115` adds `function_lines`, the ISO/IEC 5055 §8.2.115
+form, each function's non-empty lines as a percentage of the file's, from
+a collector that reports function ranges. Exit codes are the dispatcher's:
+0 report produced, 2 usage error, 3 a collector ran and produced nothing
+parseable. Under `--check`, 1 means a changed file failed the rule, and 2
+also means the check could not decide, as when a collector produced nothing
+parseable under a rule other than `report`.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -26,7 +38,7 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
-cm_entry_args "${BASH_SOURCE[0]}" 16 "$@"
+cm_entry_args --usage "$USAGE" "$@"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
