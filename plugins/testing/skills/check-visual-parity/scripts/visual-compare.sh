@@ -16,8 +16,8 @@
 #           through a sibling directory and a rename. The base is --deps-dir,
 #           else $CLAUDE_PLUGIN_DATA when its last segment names testing, else
 #           .work/testing in a marketplace checkout, else
-#           <config dir>/plugins/data/testing-melodic-software. compare
-#           installs the same way on first use.
+#           <config dir>/plugins/data/<plugin data id> (https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data).
+#           compare installs the same way on first use.
 # config    Prints `pixel_tolerance=<n> source=<layer> reason=<text>`. Layers:
 #           the team docs/conventions/testing.yaml read from origin's default
 #           branch (the working tree only when there is no origin),
@@ -49,7 +49,6 @@ MJS="$SCRIPT_DIR/visual-compare.mjs"
 PKG="$SCRIPT_DIR/package.json"
 LOCK="$SCRIPT_DIR/package-lock.json"
 PCV="$SCRIPT_DIR/../../../scripts/parse-concern-value.sh"
-DATA_ID="testing-melodic-software"
 NPM_FLAGS=(--ignore-scripts --no-audit --no-fund)
 
 USAGE='usage: visual-compare.sh install [--deps-dir <base>] [--dry-run]
@@ -99,6 +98,21 @@ lock_hash() {
   printf '%s' "$h"
 }
 
+# plugin_data_id: the data directory name Claude Code gives this plugin, its id
+# testing@<marketplace> (testing@inline outside <config>/plugins/cache/) with
+# characters outside A-Za-z0-9_- replaced by -:
+# https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data
+plugin_data_id() {
+  local root market=inline m n v extra id
+  root="$(cd "$SCRIPT_DIR/../../.." && pwd)" || root=""
+  if [[ "$root" == */plugins/cache/* ]]; then
+    IFS=/ read -r m n v extra <<<"${root##*/plugins/cache/}"
+    [[ -n "$m" && -n "$n" && -n "$v" && -z "$extra" ]] && market="$m"
+  fi
+  id="testing@$market"
+  printf '%s' "${id//[^A-Za-z0-9_-]/-}"
+}
+
 # checkout_root: the marketplace checkout this script runs from, when its .work/
 # is gitignored.
 checkout_root() {
@@ -129,7 +143,7 @@ resolve_base() {
   elif root="$(checkout_root)"; then
     BASE="$root/.work/testing" RULE="checkout .work/"
   else
-    BASE="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/plugins/data/$DATA_ID" RULE="plugin data directory"
+    BASE="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/plugins/data/$(plugin_data_id)" RULE="plugin data directory"
   fi
 }
 

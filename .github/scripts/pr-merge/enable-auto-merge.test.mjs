@@ -1473,6 +1473,16 @@ test("a failed arm fails the run and still reaches the next pull request", async
   assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm")));
 });
 
+test("a pin whose arm fails on a moved head does not say auto-merge was armed", async () => {
+  const moved = new Error("POST /graphql (GraphQL errors) failed with status 200: Head sha didn't match expected head oid");
+  const { code, writes, pins } = await run([pull(7)], {}, { armErrors: { PR_7: [moved] } });
+  assert.equal(code, 1);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  assert.equal(pins.length, 1);
+  assert.equal(pins[0].body.split("\n")[0], pinLine("C2"));
+  assert.doesNotMatch(pins[0].body, /\barmed\b/i);
+});
+
 // undici's shape for a dropped socket: a "fetch failed" TypeError whose cause
 // carries the code and the socket's message.
 const reset = () => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
@@ -2608,6 +2618,19 @@ test("an unreadable ejection count is warned with the read's error", async () =>
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
   assert.ok(lines.includes("::warning title=enable-auto-merge::#1 its merge-queue ejections could not be read: could not read the merge queue: gh: HTTP 502"), lines.join("\n"));
   assert.equal(lines.filter((line) => line.startsWith("::warning")).length, 1, lines.join("\n"));
+});
+
+test("each infra removal the cap did not count gets a notice, and the head arms", async () => {
+  const excused = { failedEjections: 2, limit: 2, refusal: null, comment: null, excludedRemovals: [{ at: "2026-11-19T06:09:16Z", causes: ["read-floor", "verify-unreadable"] }, { at: "2026-11-19T02:49:02Z", causes: ["kill-switch"] }] };
+  const { writes, lines } = await run([pull(1, { verdict: { ...PASSED, queue: excused } })]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::notice title=queue-ejection::")),
+    [
+      "::notice title=queue-ejection::#1 removal at 2026-11-19T06:09:16Z not counted toward merge.max-queue-ejections: infra (read-floor, verify-unreadable)",
+      "::notice title=queue-ejection::#1 removal at 2026-11-19T02:49:02Z not counted toward merge.max-queue-ejections: infra (kill-switch)",
+    ],
+  );
 });
 
 test("report-only writes no ejection comment", async () => {
