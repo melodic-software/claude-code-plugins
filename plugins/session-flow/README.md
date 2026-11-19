@@ -445,7 +445,8 @@ delivered, which removes the absence's state and keeps the report. Bare, started
 started outside it, the absence lasts until you return. Launch words override the settings, and an unclear absence
 is asked about at launch. Launch warns when the context is heavy or auto mode is off, and
 proposes a `/goal` line; the Stop hook holds the same condition without one. Asked for a fresh
-session, it offers to stay in this session armed or hand off to a background session unarmed. Opt-in
+session, it hands off to a background session that starts armed by running step-away first, or
+stays armed here if the person prefers. Opt-in
 only: the plugin's PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks run in every
 session but do nothing until an absence is started, and exit before Python starts while none
 exists. The settings are the five `away_*` options in "Options reference";

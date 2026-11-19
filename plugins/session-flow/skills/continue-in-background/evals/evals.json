@@ -251,6 +251,20 @@
         "The save-point is still written and the exit is the /clear-then-paste instruction",
         "The message does not tell the user to type `/goal <condition>` in this session"
       ]
+    },
+    {
+      "id": 20,
+      "name": "step-away-lead-arms-the-launched-session",
+      "prompt": "/continue-in-background --step-away \"until 2026-11-20T07:00 finish the parser plan\" prompt parser-plan — clean tree apart from the save-points. No /goal is set in this session.",
+      "expected_output": "The `--step-away` value is a single double-quoted string with no newline or quote, so it is accepted. The prompt file written with the Write tool starts with the line `/session-flow:step-away until 2026-11-20T07:00 finish the parser plan`, the command name written by the skill, followed by a line break and the save-point text that would otherwise follow `/goal `. No goal is drafted and no confirmation is asked, because step-away arms the launched session and its Stop hook holds the completion condition. The launch runs `claude --bg ... --permission-mode auto` with that file, the report does not claim a `/goal` is armed, and the skill stops.",
+      "files": [],
+      "expectations": [
+        "The prompt file's first line is exactly `/session-flow:step-away until 2026-11-20T07:00 finish the parser plan`",
+        "The prompt file does not start with `/goal`, and the report does not say a `/goal` was armed in the launched session",
+        "No goal condition is drafted and no confirmation question is asked before the launch",
+        "The payload is written to a temporary file with the Write tool and passed to `claude --bg` with `--permission-mode auto`, not inlined in the command",
+        "The launch result is reported and the skill STOPS"
+      ]
     }
   ]
 }

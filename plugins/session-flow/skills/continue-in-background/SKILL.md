@@ -1,6 +1,6 @@
 ---
 description: "Hand the task to a fresh detached background agent (claude --bg or --cloud) that continues it now from a save-point. Use when the user is going AFK and explicitly asks to 'continue in the background'. Launches only on that request, never self-elected."
-argument-hint: "[--unattended] [--cloud] [file|prompt] [topic] [purpose...]"
+argument-hint: "[--unattended] [--cloud] [--step-away <words>] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-**Arguments.** `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
+**Arguments.** `[--unattended] [--cloud] [--step-away <words>] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
 
 ## Context. Gather first
 
@@ -46,7 +46,10 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 `$ARGUMENTS` carries `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`, all optional,
 the non-flag tokens positional. `--unattended`, anywhere in the arguments, is the caller declaring
 that nobody is present (it governs the offer under "Boundary") and is consumed first; the bare word
-in a purpose is purpose text. A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
+in a purpose is purpose text. A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. `--step-away "<words>"`, consumed next, makes the
+launched session start armed for an absence ("Leading step-away command" below); its value is one
+double-quoted string with no newline and no double quote inside, and any other value is refused
+with no launch. The
 rest has the same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
 otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
 everything after the topic token is optional natural-language purpose text ("what will the next
@@ -56,7 +59,7 @@ tailors emphasis only"). Parse purpose from `$ARGUMENTS` in place, never pre-com
 resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only,
 strip or replace every other character, so a crafted slug cannot smuggle quotes or extra flags
 into the launch command. Purpose text is never embedded in the launch command at all. It shapes
-the save-point's content, and the agent receives only the `/goal` payload.
+the save-point's content, and the agent receives only the launch payload.
 
 ## Produce the save-point
 
@@ -120,6 +123,18 @@ observed.
 
 - **Pointer**: the probe record in [reference/goal-probe.md](reference/goal-probe.md); the docs
   section for non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
+
+### Leading step-away command
+
+With `--step-away "<words>"`, the payload is the line `/session-flow:step-away <words>`, a line
+break, then the text that would follow `/goal` and its space above. The skill writes the command
+name, so a caller supplies only the words. A first prompt runs one slash command, so no `/goal`
+arms: step-away arms the launched session under its own id, and its Stop hook holds the condition
+(every task file item done or parked, and `away.py check` exits 0). The person's choice in
+step-away to hand off is the launch approval, so no goal is drafted or confirmed. With `--cloud`,
+do not launch: a cloud session's first-prompt arming is unprobed. We rely on a typed step-away
+first prompt arming the session, which our probe observed; whether lines after the first reach
+step-away as arguments is unprobed. Pointer: probe 4 in [reference/goal-probe.md](reference/goal-probe.md).
 
 ## Delivery: background-agent launch
 
@@ -198,7 +213,7 @@ fallback), then:
    Managed file and drop-in merging:
    <https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources>
    and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
-2. Launch from the consuming project's root, passing the `/goal` payload verbatim as one argument.
+2. Launch from the consuming project's root, passing the payload verbatim as one argument.
    First write it, as the completion condition gate defines it, to a temporary file with the
    Write tool (never inline it in the command: prompt content is
    untrusted session text, and any inline embedding, a heredoc, an escaped string, hands crafted
@@ -410,6 +425,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   is in its transcript and `claude logs`, not promised in the final hand-off), or the non-zero
   exit reported with fallback to
   `/clear`-then-paste
+- [ ] `--step-away` only: payload's first line `/session-flow:step-away <words>` written by this
+  skill, no `/goal` claimed armed, no goal drafted or confirmed; a value with a newline or double
+  quote, or `--cloud` given too → no launch, reason stated
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level

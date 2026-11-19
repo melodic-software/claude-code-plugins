@@ -86,13 +86,13 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
    Without it the Stop hook holds the same condition. The person typing this line, or a last
    instruction before leaving, is part of the launch and never reads as being back.
-6. **Fresh session.** The away state and hooks belong to the session that ran `start`, and a
-   background session launched from here starts on its `/goal` line, so this skill cannot arm it.
-   When the words ask for a fresh session, say so while the person is here and let them choose:
-   stay in this session armed (recommended: prompts are refused and the report is kept), or hand
-   off unarmed, where the background session runs in auto mode with no away rules, refusals or
-   report, by invoking `/session-flow:continue-in-background` through the Skill tool with
-   their own words. Run no `start` for the hand-off.
+6. **Fresh session.** When the words ask for a fresh session, ask one short question: hand off to
+   a fresh background session (recommended, as asked) or stay here, armed either way. Settle any
+   absence step 1 would ask about first; nobody can answer it later. To hand off, invoke
+   `/session-flow:continue-in-background` through the Skill tool with
+   `--step-away "<absence words> <scope>"`, the "fresh session" words removed, so the background
+   session runs this skill on its first prompt and arms under its own id. Run no `start` here. A
+   session launched this way never hands off again.
 7. **Work**, from the turn after the launch message (the Stop hook's note or the person's `/goal`
    line starts it): read [reference/rules.md](reference/rules.md), then work the task file.
 
