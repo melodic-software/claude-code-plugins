@@ -435,7 +435,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 
 | Label | Meaning | Who lifts it |
 |---|---|---|
-| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering |
+| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering; on a pull request a lane escalated, also a session acting on a recorded owner decision (below the table) |
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push. Builder items are worked one at a time: interview, plan, implement (owner decision Q-host-run, 2026-11-04) | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
@@ -444,6 +444,30 @@ On an issue, the holds live on its Work status field: `needs-human`, `needs-owne
 [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml)). A hold label such as `needs-human` or
 `needs-owner-decision` still holds on top of the field, so a listed human lifts a hold by
 changing the field and removing any hold label.
+
+On a pull request, a recorded owner decision lifts a lane's escalation. When a lane put the
+human-gated label on with a trusted escalation marker
+([`escalation-marker.md`](../../../plugins/work-items/reference/escalation-marker.md)) and each
+reason the escalation names is an intent, vision or primary-design question (a disputed finding
+that turns on what the change is meant to do included), a session removes the label once a row in
+the owner-decisions record (`docs/owner-decisions.md` in `melodic-software/architecture`) or the
+owner's words quoted verbatim cover every one of those reasons. In the same pass it comments on the
+pull request with the row's line link or the quote and the escalation it answers, then takes the
+resume step the escalation comment names. Where no recorded decision covers a reason, the label
+stays the owner's to remove. The rule reaches no hold the owner keeps: an operator-parked item,
+which carries no marker; a review-lane hold
+([Review-lane holds](../../conventions/pr-pipeline/README.md#review-lane-holds)), whose
+`critical-security` lift stays a listed human's and whose `cost` hold clears only on
+[the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)'s own decision
+comment; a HIGH or CRITICAL security stop; an item carrying `security: outside-actor`; and the
+trust, credential, injection and pr-merge person holds above. ci-status cannot tell this removal from the owner's, since a session acts
+under the owner's GitHub login: the comment makes the lift auditable, not provable. The owner's
+answer on 2026-11-19, recorded as a row in that record, asked whether a session may remove a machine-escalated
+`needs-human` label from a pull request on such a record, with that recommended:
+
+<!-- spellchecker:off -->
+> go w/ recommendations
+<!-- spellchecker:on -->
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
