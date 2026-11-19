@@ -44,7 +44,7 @@ bottom-left corner of the front of the dresser.
 each switch showing whether it is on, steps for dim, glass and blur, a text field for each title
 (Enter sets it; empty puts the default back), and reset, calibrate and the theme on or off. Each
 button runs the same `/bedroom` command you would type, so it costs what that command costs: a
-switch changes in the shader, and only a title or dim sends the room again. The card follows
+switch changes in the shader without the room being sent again. The card follows
 changes made by clicks in the room and by typed commands. Close puts it away; `/bedroom` shows it
 again at the end of the conversation. Away from the desktop app, `/bedroom` answers in text alone.
 

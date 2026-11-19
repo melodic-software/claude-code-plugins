@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava']
@@ -9,7 +10,7 @@ function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: s
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
   on('theme.set', () => ({ value: { isDrawn: true, requestId: 'backdrop' } }))
-  on('theme.clear', () => ({ value: { isDrawn: true } }))
+  on('theme.clear', () => ({ value: { isDrawn: true, requestId: 'theme' } }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('ui.place', (_, e) => {
     placed.push(e.id)
@@ -20,8 +21,13 @@ function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: s
   mock.clock(on)
 }
 
-async function bedroom($: Parameters<Parameters<typeof test>[1]>[0], args: string): Promise<string> {
-  const answer = await $.command.run({ command: 'bedroom', args })
+async function bedroom($: Engine, args: string): Promise<string> {
+  const answer = await $.command.run({
+    command: 'bedroom',
+    args,
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
 
   return 'text' in answer ? String(answer.text) : ''
 }
@@ -83,7 +89,7 @@ test('a press flips the same state the command flips, and a typed command shows 
 })
 
 /** How many times the room has been sent, from /bedroom stats. */
-async function roomSends($: Parameters<Parameters<typeof test>[1]>[0]): Promise<number> {
+async function roomSends($: Engine): Promise<number> {
   return Number(/room sent: (\d+)/.exec(await bedroom($, 'stats'))?.[1])
 }
 

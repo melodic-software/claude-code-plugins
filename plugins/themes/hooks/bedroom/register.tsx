@@ -255,9 +255,9 @@ function amountOf(name: Stepped): number {
   return name === 'dim' ? Math.round(saved.dim * 100) : name === 'glass' ? Math.round(saved.glass * 100) : saved.blur
 }
 
-/** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. */
+/** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. An answer that is the status line already on the card clears the last one. */
 async function refreshCard($: EngineInterface, said?: string): Promise<void> {
-  await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, ...(said !== undefined && { said }) }))
+  await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, ...(said !== undefined && { said: said === describe() ? undefined : said }) }))
 }
 
 /** A press on the card: the command with those words, its answer shown on the card. */
@@ -482,7 +482,7 @@ export const register: Register = on => {
       await $.store.set(STORE_KEY, saved)
       $.ui.toast(`bedroom: clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
       if (isCardOpen) {
-        await refreshCard($, `clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
+        void refreshCard($, `clicks calibrated (window shape ${saved.aspect.toFixed(2)})`).catch(() => undefined)
       }
 
       return {}
@@ -508,7 +508,7 @@ export const register: Register = on => {
     }
     void $.store.set(STORE_KEY, saved).catch(() => undefined)
     if (isCardOpen) {
-      await refreshCard($)
+      void refreshCard($).catch(() => undefined)
     }
 
     return {}
