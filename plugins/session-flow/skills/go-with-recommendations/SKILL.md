@@ -60,14 +60,15 @@ Before acting, show each item once: unchanged with why, or `old → new → why`
 moved it, each with its `Basis:` line. A withheld item is flagged and does not run; it is
 restated in full at the end of the reply as an open question with its options and recommendation.
 
-Then carry out every accepted item: unchanged ones, moved ones in their new form, and exceptions in
-the person's words. During an active absence, mark each accepted Needs you item `Accepted:` in the
-report and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" refresh --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`.
-Last, leave the absence active only while `report_by` is set and has not passed, where an early
-accept from afar is plausible. Otherwise follow the step-away rules' "Coming back": this command
-is the person's own, so end the absence with
+Then, during an absence, decide whether it ends: it stays active only while `report_by` is set and
+has not passed, where an early accept from afar is plausible. Otherwise follow the step-away rules'
+"Coming back": this command is the person's own, so end the absence with
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" end --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`,
-show the report once and deliver it, before acting on the accepted items.
+and show the report once and deliver it.
+
+Then carry out every accepted item: unchanged ones, moved ones in their new form, and exceptions in
+the person's words. While the absence stays active, mark each accepted Needs you item `Accepted:` in
+the report and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" refresh --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`.
 
 ## What a bare accept never approves
 

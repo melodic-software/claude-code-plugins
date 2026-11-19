@@ -1051,7 +1051,6 @@ def on_stop(hook: Hook) -> dict | None:
         warn = isinstance(mode, str) and mode != "auto" and not state.get("mode_warned")
         if warn:
             state["mode_warned"] = True
-            state["last_block_digest"] = now_digest
         return warn, state.get("last_block_digest")
 
     warn, last_digest = update_state(paths, first_look)

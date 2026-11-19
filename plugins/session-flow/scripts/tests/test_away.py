@@ -730,6 +730,15 @@ def test_stop_warns_not_auto_once(ctx):
     assert ctx.state()["mode_warned"] is True
 
 
+def test_stop_after_mode_warning_still_holds_open_items(ctx):
+    started_with_tasks(ctx, "- [ ] write the docs\n")
+    first = json.loads(ctx.hook("Stop", "stop", permission_mode="default"))
+    assert "auto" in first["reason"].lower(), "the first Stop warns about the mode"
+    second = ctx.hook("Stop", "stop", permission_mode="default", stop_hook_active=True)
+    assert second, "the continuation after the warning still checks the task file"
+    assert "write the docs" in json.loads(second)["reason"]
+
+
 def test_stop_blocks_on_unlisted_refusal(ctx):
     started_with_tasks(ctx, "- [x] done\n")
     ctx.hook("PermissionRequest", "permission_request_bash")
