@@ -126,7 +126,6 @@ plugins/testing/skills/run-e2e/context/e2e.md 2
 plugins/testing/skills/setup/SKILL.md 4
 plugins/testing/skills/test-value/SKILL.md 1
 plugins/testing/skills/write/context/characterization.md 1
-plugins/user-interface/skills/audit/reference/launch-scope.md 1
 plugins/user-interface/skills/glossary/reference/rendering-performance.md 1
 plugins/visualization/skills/visualize/context/claude-design-tool.md 1
 plugins/x/skills/read/context/sources.md 1

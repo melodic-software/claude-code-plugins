@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":655,\"args\":[\"pr\",\"ready\",\"655\",\"-R\",\"eval-fixture/app\"]}\n{\"command\":\"read\",\"pr\":655,\"args\":[\"api\",\"user\",\"--jq\",\".login\"]}\n{\"command\":\"pr comment\",\"pr\":655,\"args\":[\"655\",\"-R\",\"eval-fixture/app\",\"--edit-last\",\"--create-if-none\",\"--body-file\",\"body.md\",\"--attach\",\"evidence/cart.png\"]}\n",
+      "why": "the flip, then the evidence comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":655,\"args\":[\"655\",\"--body-file\",\"body.md\"]}\n{\"command\":\"read\",\"pr\":655,\"args\":[\"pr\",\"ready\",\"655\"]}\n",
+      "why": "commented before the flip"
+    },
+    {
+      "answer": "{\"command\":\"read\",\"pr\":655,\"args\":[\"pr\",\"ready\",\"655\"]}\n",
+      "why": "flipped and posted nothing"
+    }
+  ]
+}

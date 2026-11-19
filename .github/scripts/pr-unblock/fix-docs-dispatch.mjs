@@ -342,7 +342,23 @@ export async function dispatchDocsFixes({
   candidates.sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;
-  if (candidates.length === 0) {
+  const unsettled = [];
+  for (const node of candidates) {
+    try {
+      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName, earlierCheckName });
+      log(`fix-docs history #${node.number}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
+      if (historyHasRun(pullRequest)) {
+        markHandled(record, checkName, node.headRefOid);
+        log(`skip fix-docs #${node.number}: an earlier commit already has a ${checkName} check run`);
+        continue;
+      }
+    } catch (error) {
+      log(`::warning::#${node.number}: could not read fix-docs history or holds: ${error.message}; skipped, a later run retries`);
+      continue;
+    }
+    unsettled.push(node);
+  }
+  if (unsettled.length === 0) {
     return { dispatched, failed };
   }
   let runs;
@@ -353,11 +369,11 @@ export async function dispatchDocsFixes({
     return { dispatched, failed };
   }
   let sent = 0;
-  for (const node of candidates) {
+  for (const node of unsettled) {
     const title = runTitle(workflow, activity, node.number);
     let runEnded;
     try {
-      runEnded = await docsRunsEnded(runs, title, (id) => api.readRunJobs(id), activity, maxRunsPerHead);
+      runEnded = await docsRunsEnded(runs, title, (id) => api.readLatestJobs(id), activity, maxRunsPerHead);
     } catch (error) {
       log(`::warning::#${node.number}: a ${workflow} run's jobs ${error.rateLimited ? "are rate limited" : "could not be read"} (${error.message}); no fix-docs dispatched, a later run retries`);
       continue;
@@ -378,13 +394,6 @@ export async function dispatchDocsFixes({
       continue;
     }
     try {
-      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName, earlierCheckName });
-      log(`fix-docs history #${node.number}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
-      if (historyHasRun(pullRequest)) {
-        markHandled(record, checkName, node.headRefOid);
-        log(`skip fix-docs #${node.number}: an earlier commit already has a ${checkName} check run`);
-        continue;
-      }
       // Then the human-gated label holds unless a lane escalation put it on;
       // a held PR is not done, so it is not recorded.
       const { held, why } = await prHold({

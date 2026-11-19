@@ -6400,24 +6400,38 @@ def _full_history_root(checkout: Path) -> Path | None:
     return root
 
 
-# A checkout whose HEAD is a base commit, shallow or sparse, that config reads
-# at exactly that commit take files from (ci-status's base-config checkout).
 CONFIG_CHECKOUT_ENV = "BABYSIT_CONFIG_CHECKOUT"
 
 
 def _config_checkout(sha: str) -> Path | None:
-    """The top of `CONFIG_CHECKOUT_ENV`'s checkout when its HEAD is `sha`,
-    else None. A file it cannot answer (a symlink, a blob a sparse partial
-    checkout lacks, which is never fetched) is read through the API."""
-    raw = os.environ.get(CONFIG_CHECKOUT_ENV, "").strip()
-    if not raw or not Path(raw).is_dir():
+    """The top of the first `CONFIG_CHECKOUT_ENV` checkout (`os.pathsep`-
+    separated, shallow or sparse: ci-status's base-config and .base) whose
+    HEAD is `sha`, else None. A file it cannot answer (a symlink, a blob a
+    sparse partial checkout lacks, which is never fetched) is read through the
+    API."""
+    for raw in os.environ.get(CONFIG_CHECKOUT_ENV, "").split(os.pathsep):
+        raw = raw.strip()
+        if not raw or not Path(raw).is_dir():
+            continue
+        root = Path(raw).resolve()
+        top = _git(root, "rev-parse", "--show-toplevel")
+        head = _git(root, "rev-parse", "--verify", "HEAD^{commit}")
+        if top and Path(top.strip()).resolve() == root and head and head.strip() == sha:
+            return root
+    return None
+
+
+def checkout_file_at(path: str, sha: str) -> str | None:
+    """The file's text at `sha` from a `CONFIG_CHECKOUT_ENV` checkout whose
+    HEAD is `sha` (`_config_checkout`), or None when no checkout holds it, so
+    the caller reads it through the API."""
+    root = _config_checkout(sha) if SHA_RE.fullmatch(sha or "") else None
+    if root is None:
         return None
-    root = Path(raw).resolve()
-    top = _git(root, "rev-parse", "--show-toplevel")
-    head = _git(root, "rev-parse", "--verify", "HEAD^{commit}")
-    if not top or Path(top.strip()).resolve() != root or not head or head.strip() != sha:
+    try:
+        return _git_file_at(root, path, sha)
+    except PolicyReadError:
         return None
-    return root
 
 
 def _clones_holding(sha: str) -> Iterator[Path]:

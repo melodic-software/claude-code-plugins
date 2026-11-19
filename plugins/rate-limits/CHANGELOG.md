@@ -3,6 +3,12 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.2] - 2026-11-19
+
+### Changed
+
+- The README no longer restates when Claude Code reloads a module after its options change; it points at the `Register` doc comment instead.
+
 ## [4.1.1] - 2026-11-18
 
 ### Changed

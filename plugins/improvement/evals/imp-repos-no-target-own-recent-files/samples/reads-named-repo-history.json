@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C peer/ledger-cli log origin/HEAD --since=30.days --name-only --format="
+          }
+        }
+      ],
+      "why": "recent files read from the named repository"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/tmp/ws/peer/ledger-cli\" rev-parse --is-shallow-repository"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/tmp/ws/peer/ledger-cli\" log --since=30.days --name-only --format= | sort | uniq -c | sort -rn | head -10"
+          }
+        }
+      ],
+      "why": "absolute quoted root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=30.days --name-only --format= | sort | uniq -c | sort -rn | head -10"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "peer/ledger-cli/src/discount.js"
+          }
+        }
+      ],
+      "why": "recent files taken from the invoking repository, as the pre-fix Step 1 did"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C peer/ledger-cli rev-parse --is-shallow-repository"
+          }
+        }
+      ],
+      "why": "anchored, but never reads the named repository's history"
+    },
+    {
+      "answer": []
+    }
+  ]
+}
