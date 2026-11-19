@@ -71,7 +71,9 @@ gate still decides whether there is a request at all.
 - **Permissions**: when the start offers a permission mode, choose auto, as that skill does for
   `claude --bg`.
 - **Report**: the started session's name and that it shows under this session in the sidebar,
-  in place of the `claude agents` hint, then stop as that skill's step 5 says.
+  in place of the `claude agents` hint, then stop as that skill's step 5 says. Whether a
+  desktop-started session arms a `/goal` from its brief has not been probed, so the report says so
+  and tells the user to confirm `◎ /goal active` when they open the session.
 
 ## Fallback
 
