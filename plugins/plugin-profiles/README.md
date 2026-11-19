@@ -200,12 +200,17 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" reset
 `reset` clears every settings file on the machine that holds a record: each folder's, each
 worktree's or subdirectory's own file, and user settings for the initial profile. One preview
 names each file, what it goes back to, and each entry edited since the apply that it would
-overwrite; one yes, typed or `--yes`, restores them, and reset prints one line per file. A folder
-whose `.claude/settings.local.json` holds plugin or skill entries but no record is listed with
-those entries, which go only after a yes for that folder: a terminal asks, and
-`--remove-unrecorded <file>` answers for a caller that asked already. `--yes` alone leaves it.
+overwrite; one yes, typed or `--yes`, restores them, and reset prints one line per file. That yes
+covers only the files with a record. A folder whose `.claude/settings.local.json` holds plugin or
+skill entries but no record is listed with those entries, which may be the person's own; they go
+only after a yes for that folder. In a terminal reset asks each such folder, `--yes` or not, and
+the default is no; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
+that asked already; with nobody at a terminal, `--yes` alone leaves each such folder as it is.
 Inside a session, `/plugin-profile` and **Reset** do the same and reload the session; the profile
-skill's reset action previews and asks the same way.
+skill's reset action previews and asks the same way. Both pass the preview's `previewId` with
+`--preview-id`, and the write refuses, writing nothing, when what it would write no longer matches
+that preview. Reset exits 0 when every file is done, 3 when it skipped some and named each, and 1
+when it wrote nothing.
 
 Reset finds a repository through a pointer file under `~/.claude/plugin-profiles-state/repositories/`,
 written at each apply there and each session start there, and through the folders Claude Code has

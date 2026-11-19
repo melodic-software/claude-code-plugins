@@ -77,11 +77,11 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   the user to run `/plugin-profile` and pick **No profile**, which also reloads the session.
 - **reset**: puts every settings file a profile changed on this machine back, every folder and user
   settings, when the user wants all profiles gone. Run `reset --dry-run --json` and show its
-  `lines` as printed. Ask one yes for the files it restores. Then ask each `folders[].ask.question`
-  on its own: that row's `ask.file` changes only on a yes for it. On the yes, run
-  `reset --yes --json --preview-id <previewId>` with `--remove-unrecorded <ask.file>` for each row
-  the user said yes to, the file exactly as `ask.file` names it; `--yes` alone leaves those files as
-  they are. Relay its `lines`. When it refuses because the preview changed, nothing was written:
+  `lines` as printed. When `question` is set, ask it as worded: one yes covers the files with a
+  record, and a no ends the reset. Then ask each `folders[].ask.question` on its own: that row's
+  `ask.file` changes only on a yes for it. Run `reset --yes --json --preview-id <previewId>` with
+  `--remove-unrecorded <ask.file>` for each yes and `--keep-unrecorded <ask.file>` for each no, the
+  file exactly as `ask.file` names it. Relay its `lines`. When it refuses because the preview changed, nothing was written:
   start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
   **Reset** do the same and reload the session.
 - **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay

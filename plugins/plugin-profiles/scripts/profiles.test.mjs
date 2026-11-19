@@ -2490,6 +2490,42 @@ test("#17354: a folder with plugin entries and no record is listed with each ent
   assert.deepEqual(after, withoutProfileKeys(LOCAL_BEFORE));
 });
 
+test("#17354: the reset preview's questions say what each yes covers, and stay short for a folder with many entries", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  const many = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`p${i}@${M}`, true]));
+  writeFileSync(w.localFile, `${JSON.stringify({ enabledPlugins: many }, null, 2)}\n`);
+  knowFolders(w, w.project, p2.dir);
+  const preview = resetJson(w);
+  assert.equal(preview.question, "Reset the 1 file above that has a record? Folders without a record are not covered: each gets its own question.");
+  const loose = preview.folders.find((f) => f.file === w.localFile);
+  assert.equal(loose.ask.question, `${w.localFile} has no profile record. Remove its 10 plugin and skill entries (p0@${M}, p1@${M}, p2@${M} and 7 more, listed above)?`);
+  assert.equal(loose.lines[0], `${w.localFile}: no profile record, and its 10 plugin and skill entries may be your own: ${Object.keys(many).join(", ")}. Reset removes them only after a yes for this folder.`);
+  assert.match(preview.lines[0], /this folder, 1 data folder, 0 repository pointers, 2 folders Claude Code has opened, 0 one-session records and 0 live sessions\.$/);
+  knowFolders(w, p2.dir);
+  assert.equal(resetJson(w).question, "Reset the 1 file above that has a record?");
+});
+
+test("#17354: the reset preview gives each apply's time in the machine's time zone", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = w.records();
+  const path = join(dataRecordsDir(w), name);
+  writeFileSync(path, `${JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), appliedAt: "2026-11-01T00:00:00.000Z" }, null, 2)}\n`);
+  const [row] = resetJson(w, { TZ: "America/New_York" }).folders;
+  assert.match(row.lines[0], /: profile build applied Oct 31, 2026, 8:00\sPM EDT; reset puts back /);
+});
+
+test("#17354: a folder answered no is reported as kept at that answer, not as waiting for a yes", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const r = reset(w, ["--yes", "--keep-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is.`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(reset(w, ["--yes", "--keep-unrecorded", join(w.root, "x.json")]).status, 1, "a kept file the preview does not ask about is refused too");
+});
+
 test("#17354: askPerFolder removes only the folders answered yes", async () => {
   const input = new PassThrough();
   const output = new PassThrough();

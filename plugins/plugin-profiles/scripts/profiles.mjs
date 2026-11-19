@@ -136,7 +136,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -286,15 +286,15 @@ function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (command === "start") return parseStart(rest);
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, removeUnrecorded: [], previewId: null };
+  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, removeUnrecorded: [], keepUnrecorded: [], previewId: null };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: ["--remove-unrecorded", "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: ["--remove-unrecorded", "--keep-unrecorded", "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (values.includes(arg)) {
       if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
-      if (arg === "--remove-unrecorded") opts.removeUnrecorded.push(rest[++i]);
+      if (["--remove-unrecorded", "--keep-unrecorded"].includes(arg)) opts[camel(arg)].push(rest[++i]);
       else opts[arg === "--for" ? "target" : camel(arg)] = rest[++i];
     }
     else if (flags.includes(arg)) opts[camel(arg)] = true;
@@ -1160,6 +1160,22 @@ function machineFiles(where, env) {
 }
 
 const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
+const RESTORES = ["restore", "remove-file", "finish-restore"];
+const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** The first few ids, and how many more the preview line lists. */
+const fewOf = (ids, shown = 3) => (ids.length > shown ? `${ids.slice(0, shown).join(", ")} and ${ids.length - shown} more, listed above` : list(ids));
+/** An apply's time in this machine's time zone; the recorded text when it is not a date. */
+const localTime = (iso) => {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? String(iso) : at.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+};
+/** The one question that covers every recorded file, or null when no file has a record to restore. */
+function resetQuestion(rows) {
+  const n = rows.filter((r) => RESTORES.includes(r.action)).length;
+  if (!n) return null;
+  const covers = `Reset the ${counted(n, "file")} above that ${n === 1 ? "has" : "have"} a record?`;
+  return rows.some((r) => r.ask) ? `${covers} Folders without a record are not covered: each gets its own question.` : covers;
+}
 
 /** One file's row in the reset preview: what reset does to it and the lines that say so. */
 function resetRow(where, f) {
@@ -1184,8 +1200,8 @@ function resetRow(where, f) {
       reason: NO_RECORD,
       entries: f.entries,
       settings,
-      ask: { file, question: `${file} has no record of a profile apply. Remove its ${f.entries.length} plugin and skill entries (${list(f.entries)})?` },
-      lines: [`${file}: no record of a profile apply, and it holds ${f.entries.length} plugin and skill entries: ${list(f.entries)}. Reset removes them only after a yes for this folder.`],
+      ask: { file, question: `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries)})?` },
+      lines: [`${file}: no profile record, and its ${f.entries.length} plugin and skill entries may be your own: ${list(f.entries)}. Reset removes them only after a yes for this folder.`],
     };
   }
   if (!resetWrites(where, file)) {
@@ -1227,7 +1243,7 @@ function resetRow(where, f) {
     : `puts back ${Object.keys(plan.edits.enabledPlugins).length} plugin entries and ${Object.keys(plan.edits.skillOverrides).length} skill entries to their values before the first apply`;
   const head = f.adopted
     ? `${file}: holds the entries profile ${rec.profile} wrote to its folder's root file, copied after that apply; reset ${what}.`
-    : `${file}: profile ${rec.profile}${rec.target === "initial" ? " (the initial profile)" : ""} applied ${rec.appliedAt}; reset ${what}.`;
+    : `${file}: profile ${rec.profile}${rec.target === "initial" ? " (the initial profile)" : ""} applied ${localTime(rec.appliedAt)}; reset ${what}.`;
   return {
     ...row,
     action: plan.removes ? "remove-file" : "restore",
@@ -1242,9 +1258,10 @@ function resetRow(where, f) {
 }
 
 /** Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone. */
-function resetOne(row, chosen) {
+function resetOne(row, { chosen, kept }) {
   const { file, found: f } = row;
   const yes = Boolean(row.ask) && chosen.has(realPath(row.ask.file));
+  const no = Boolean(row.ask) && kept.has(realPath(row.ask.file));
   const changedUnder = (path) => ({ line: `Skipped ${path}: it changed during the reset and is left as the other writer left it; run reset again.`, ok: false });
   const original = f.copies.find((c) => c.path === f.recordPath)?.text ?? null;
   const dropCopies = (planned) => {
@@ -1269,6 +1286,7 @@ function resetOne(row, chosen) {
     const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);
     return { ...result, restored: result.ok };
   }
+  if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${row.movedTo ? `, and the record of ${file} is kept` : ""}.`, ok: true };
   if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
   if (row.action === "skip" || row.action === "remove-entries") return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
   if (row.action === "finish-restore") {
@@ -1334,14 +1352,15 @@ async function reset(opts, where, env, io) {
     ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the reset; new sessions start from what their settings name.`
     : null;
   const lines = [
-    `Reset looked for profile records in user settings, this folder, ${counts.dataDirs} data folders, ${counts.pointers} repository pointers, ${counts.projects} folders Claude Code has opened, ${counts.sessions} one-session records and ${counts.live} live sessions.`,
-    rows.length ? `It found ${rows.length} settings ${rows.length === 1 ? "file" : "files"}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
+    `Reset looked for profile records in user settings, this folder, ${counted(counts.dataDirs, "data folder")}, ${counted(counts.pointers, "repository pointer")}, ${counted(counts.projects, "folder")} Claude Code has opened, ${counted(counts.sessions, "one-session record")} and ${counted(counts.live, "live session")}.`,
+    rows.length ? `It found ${counted(rows.length, "settings file")}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
     ...rows.flatMap((r) => r.lines),
     ...(keeps ? [keeps] : []),
   ];
+  const question = resetQuestion(rows);
   if (opts.json && opts.dryRun) {
     const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
-    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), folders, lines }, null, 2));
+    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), question, folders, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
   if (opts.previewId && opts.previewId !== previewIdOf(rows)) {
@@ -1349,20 +1368,20 @@ async function reset(opts, where, env, io) {
   }
   const asked = rows.filter((r) => r.ask).map((r) => r.ask.file);
   const askable = new Set(asked.map(realPath));
-  for (const named of opts.removeUnrecorded) {
+  for (const named of [...opts.removeUnrecorded, ...opts.keepUnrecorded]) {
     if (!askable.has(realPath(resolve(named)))) {
       throw new NotApplied(`not reset: ${named} is not a file the preview asks about; it asks about ${asked.length ? asked.join(", ") : "none"} (each row's ask.file in reset --dry-run --json); nothing was written`);
     }
   }
-  let chosen = new Set(opts.removeUnrecorded.map((named) => realPath(resolve(named))));
-  const restores = rows.some((r) => ["restore", "remove-file", "finish-restore"].includes(r.action));
-  if ((restores || chosen.size) && !opts.yes) {
+  const answers = { chosen: new Set(opts.removeUnrecorded.map((named) => realPath(resolve(named)))), kept: new Set(opts.keepUnrecorded.map((named) => realPath(resolve(named)))) };
+  if ((question || answers.chosen.size) && !opts.yes) {
     if (!interactive()) throw new NotApplied("not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt");
-    if (restores && !["y", "yes"].includes(await ask("Reset every file above? [y/N] "))) throw new NotApplied("not reset: nothing was written");
+    if (question && !["y", "yes"].includes(await ask(`${question} [y/N] `))) throw new NotApplied("not reset: nothing was written");
   }
-  if (!opts.removeUnrecorded.length && !opts.json && askable.size && interactive()) {
-    const answered = await askPerFolder(rows.filter((r) => r.ask).map((r) => r.ask));
-    chosen = new Set([...answered].map(realPath));
+  if (!opts.removeUnrecorded.length && !opts.keepUnrecorded.length && !opts.json && askable.size && interactive()) {
+    const answered = new Set([...(await askPerFolder(rows.filter((r) => r.ask).map((r) => r.ask)))].map(realPath));
+    answers.chosen = answered;
+    answers.kept = new Set([...askable].filter((file) => !answered.has(file)));
   }
   let failed = false;
   const results = [];
@@ -1371,7 +1390,7 @@ async function reset(opts, where, env, io) {
   for (const row of rows) {
     let result;
     try {
-      result = resetOne(row, chosen);
+      result = resetOne(row, answers);
     } catch (error) {
       if (typeof error.code !== "string") throw error;
       result = { line: `Skipped ${row.file}: ${error.message}; run reset again.`, ok: false };
