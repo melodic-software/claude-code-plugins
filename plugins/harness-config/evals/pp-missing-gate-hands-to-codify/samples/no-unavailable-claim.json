@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "P7: MISSING\nPROPOSAL: `/corrections:codify \"confirm before purge-builds deletes build/ and dist/\"`; codify picks and proves the gate.",
+      "why": "names the call with codify present"
+    },
+    {
+      "answer": "P7: MISSING\nPROPOSAL: a fenced diff adding a confirmation step before the rm -rf",
+      "why": "no claim about codify at all (picks-no-mechanism judges this)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`/corrections:codify` was not available, so the proposal is unproven.\n\nP7: MISSING\nPROPOSAL: a permissions.deny rule for rm -rf (unproven)",
+      "why": "takes the fallback although codify is loaded"
+    },
+    {
+      "answer": "Since corrections:codify isn't installed here, the audit proposes the gate itself.",
+      "why": "contracted form of the fallback sentence"
+    }
+  ]
+}

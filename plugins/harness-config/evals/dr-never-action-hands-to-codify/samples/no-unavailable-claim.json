@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "SECTION: hard_deny\nPROPOSAL: run `/corrections:codify \"never force-push to main\"`; codify picks and proves the mechanism.",
+      "why": "names the call with codify present"
+    },
+    {
+      "answer": "SECTION: hard_deny\nPROPOSAL: add a PreToolUse hook that blocks git push --force to main",
+      "why": "no claim about codify at all (picks-no-mechanism judges this)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`/corrections:codify` was not available, so the proposal is unproven.\n\nSECTION: hard_deny\nPROPOSAL: a PreToolUse hook (unproven)",
+      "why": "takes the fallback although codify is loaded"
+    },
+    {
+      "answer": "Since corrections:codify isn't installed here, I recommend the mechanism myself.",
+      "why": "contracted form of the fallback sentence"
+    }
+  ]
+}
