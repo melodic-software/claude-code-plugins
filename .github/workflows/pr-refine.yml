@@ -25,9 +25,10 @@ name: PR Refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): only select-passes's changed-files read
-# and fix-docs-head's head read and hold check set it, since an unread file
-# list, head or hold holds green and starts nothing. handoff-evidence.sh sets
+# API_BUDGET_HOLD (outage posture element 2,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/outage-posture-audit.md): only
+# select-passes's changed-files read, head read and hold check set it, since
+# an unread file list, head or hold holds green and starts nothing. handoff-evidence.sh sets
 # it itself for the fix-docs reads.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
@@ -62,31 +63,56 @@ concurrency:
 
 jobs:
   # A dispatcher that ran an older copy of its file than the tip sent a run the
-  # broker refuses every write token (workflow-modified), so this job compares
-  # the two before anything else. On a difference the select-passes job does not start,
-  # nor any job after it: no model turn and no check; the run ends green and
-  # the next dispatcher, on the tip's file, finds the head unhandled and sends
-  # it again. Here and not in the read runner, because the jobs after a
-  # fix-docs-head that proceeded mint a token whatever the model call did.
-  # Only base code and a read-only token; a dispatch with no dispatcher run
-  # skips the steps.
-  check-dispatcher-current:
-    name: Check Dispatcher Current
+  # broker refuses every write token, so the compare step runs first; on a
+  # difference no later step or job starts and the run ends green (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#runs-that-post-no-check).
+  #
+  # Plans the Refine passes from the PR's changed files
+  # (.github/scripts/pr-refine/plan-passes.mjs; https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review).
+  # A file list at the REST cap of 3000 may be cut off, so it plans every pass
+  # and each runner's own applies-when decides.
+  #
+  # On a planned fix-docs it reads the PR head fix-docs's report posts its
+  # check on, and whether the human-gated label holds fix-docs (lane-hold.mjs).
+  # A head or hold it cannot read holds green with unread=true, so nothing
+  # after it starts but fix-docs-head-held (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/outage-posture-audit.md).
+  select-passes:
+    name: Select Passes
+    if: >-
+      inputs.dispatcher-run-id != ''
+      || inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       contents: read # check out main; the dispatcher file at its run's head
       actions: read # the dispatcher run's file and head
+      pull-requests: read
     outputs:
       stale: ${{ steps.current.outputs.stale }}
+      passes: ${{ steps.plan.outputs.passes }}
+      batches: ${{ steps.plan.outputs.batches }}
+      files: ${{ steps.plan.outputs.files }}
+      started-at: ${{ steps.start.outputs.at }}
+      held: ${{ steps.files.outputs.held }}
+      fix-docs: ${{ steps.plan.outputs.fix-docs }}
+      plan-result: ${{ steps.start.outcome != 'success' && 'skipped' || (steps.files.outputs.held == 'true' || steps.plan.outcome == 'success') && 'success' || 'failure' }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      unread: ${{ steps.head.outputs.unread || steps.hold.outputs.unread }}
+      hold-unread: ${{ steps.hold.outputs.unread }}
+      hold-held: ${{ steps.hold.outputs.held }}
+      lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
+      head-result: ${{ steps.plan.outputs.fix-docs != 'true' && 'skipped' || (steps.head.outputs.unread == 'true' || steps.hold.outcome == 'success') && 'success' || 'failure' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
         id: tip
-        if: inputs.dispatcher-run-id != ''
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -98,7 +124,6 @@ jobs:
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch tip
-        if: inputs.dispatcher-run-id != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.tip.outputs.sha }}
@@ -113,80 +138,18 @@ jobs:
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
 
-      - name: Log the API budget at the end
-        if: always() && inputs.dispatcher-run-id != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
-  # Plans the Refine passes (.github/scripts/pr-refine/plan-passes.mjs): each
-  # enabled leaf of the base config's pr-refine slots, as resolve.mjs
-  # laneSlots expands them, with `stage: refine` and predicates whose paths
-  # and paths-ignore let one of the PR's changed files through (for a pass
-  # taking changed-paths, one resolve.mjs slotTargets keeps, as its runner
-  # does), in batches by order and group. A pass's first job starts only on
-  # its plan output, so a PR that matches no pass ends here, every later job
-  # skipped, with no model turn. Only base code and a read-only token. A file
-  # list at the REST cap of 3000 may be cut off, so it plans every pass and
-  # each runner's own applies-when decides. A file list it cannot read holds
-  # (outage posture element 2): one notice, held=true and no passes, and
-  # fix-docs-head-held logs the hold the dispatcher reads to send the PR again.
-  select-passes:
-    name: Select Passes
-    needs: check-dispatcher-current
-    if: >-
-      inputs.pr-number != '' && inputs.activity == 'fix-docs'
-      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read # check out main
-      pull-requests: read # the PR's changed files
-    outputs:
-      passes: ${{ steps.plan.outputs.passes }}
-      batches: ${{ steps.plan.outputs.batches }}
-      files: ${{ steps.plan.outputs.files }}
-      started-at: ${{ steps.start.outputs.at }}
-      held: ${{ steps.files.outputs.held }}
-      fix-docs: ${{ steps.plan.outputs.fix-docs }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
-    env:
-      API_BUDGET_TOKEN: github-token
-      npm_config_audit: "false"
-      npm_config_fetch_timeout: "60000"
-      npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
-      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-    steps:
       - name: Note the start
         id: start
+        if: >-
+          !cancelled() && (inputs.dispatcher-run-id == '' || steps.current.outcome == 'success')
+          && steps.current.outputs.stale != 'true'
+          && inputs.pr-number != '' && inputs.activity == 'fix-docs'
+          && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
         run: echo "at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Resolve main's tip
-        id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
 
       - name: List the PR's changed files
         id: files
+        if: steps.start.outcome == 'success'
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
@@ -238,71 +201,9 @@ jobs:
           TRUNCATED: ${{ steps.files.outputs.truncated }}
         run: node .base/.github/scripts/pr-refine/write-pass-plan.mjs
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
-  # The PR head fix-docs's report posts its check on, read by a job that runs
-  # no head code, as fix-ci-context's is for fix-ci. Without it the report
-  # trusts only the head read at report time, so a push mid-run posts failure
-  # on the new head.
-  # It also reads whether the human-gated label holds fix-docs: only when a
-  # lane escalation did not put it on (lane-hold.mjs); a held PR runs nothing.
-  # A head it cannot read (a failed read, a rate limit past the guard's budget,
-  # or an answer with no SHA) holds (outage posture element 2): one notice,
-  # unread=true, no head-sha, so nothing after it starts but fix-docs-head-held.
-  # A hold whose reads meet a GitHub fault holds the same way, with no held.
-  # It starts only when the select-passes job planned fix-docs.
-  fix-docs-head:
-    name: Fix Docs Head
-    needs: [check-dispatcher-current, select-passes]
-    if: >-
-      inputs.pr-number != '' && inputs.activity == 'fix-docs'
-      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
-      && needs.select-passes.outputs.fix-docs == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      actions: read # the review lanes' comment records
-      contents: read # check out main
-      pull-requests: read
-    outputs:
-      head-sha: ${{ steps.head.outputs.sha }}
-      unread: ${{ steps.head.outputs.unread || steps.hold.outputs.unread }}
-      hold-unread: ${{ steps.hold.outputs.unread }}
-      held: ${{ steps.hold.outputs.held }}
-      lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
-    env:
-      API_BUDGET_TOKEN: github-token
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
-
       - name: Read the PR's head SHA
         id: head
+        if: steps.plan.outputs.fix-docs == 'true'
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
@@ -330,13 +231,6 @@ jobs:
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
-      - name: Set up Node
-        if: steps.head.outputs.sha != ''
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          package-manager-cache: false
-
       - name: Check the human-gated hold
         id: hold
         if: steps.head.outputs.sha != ''
@@ -360,18 +254,16 @@ jobs:
         with:
           tokens: github-token
 
-  # Job-level evidence that fix-docs-head held on an unread head or hold, or
-  # select-passes on unread changed files: the run ends green, and
-  # fix-docs-dispatch.mjs (heldHead) reads this job's conclusion, as it reads a
-  # handoff hold, to dispatch the PR again until limit-stops-per-head runs went
-  # red or held. Monitor signal 13 counts its titled notice (signals.mjs
-  # HOLD_LANES). It needs select-passes and fix-docs-head alone, jobs that run no head
-  # code, so nothing forges it.
+  # Job-level evidence that select-passes held on an unread head, hold or
+  # changed-files list: the run ends green, and fix-docs-dispatch.mjs (heldHead)
+  # reads this job's conclusion to dispatch the PR again; monitor signal 13
+  # counts its titled notice (signals.mjs HOLD_LANES). select-passes runs no
+  # head code, so nothing forges it (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review).
   fix-docs-head-held:
     name: Fix Docs Head Held
-    needs: [select-passes, fix-docs-head]
+    needs: select-passes
     if: >-
-      ${{ !cancelled() && (needs.fix-docs-head.outputs.unread == 'true'
+      ${{ !cancelled() && (needs.select-passes.outputs.unread == 'true'
       || needs.select-passes.outputs.held == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -380,7 +272,7 @@ jobs:
       - name: Note the hold
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
-          HOLD_UNREAD: ${{ needs.fix-docs-head.outputs.hold-unread }}
+          HOLD_UNREAD: ${{ needs.select-passes.outputs.hold-unread }}
           PLAN_HELD: ${{ needs.select-passes.outputs.held }}
         run: |
           what="head"
@@ -407,14 +299,15 @@ jobs:
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the pr-unblock
   # role's API key alone. Drafts and do-not-merge PRs skip in the config's
-  # applies-when, a human-gated hold in fix-docs-head, before any model turn.
+  # applies-when, a human-gated hold in select-passes (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review),
+  # before any model turn.
   fix-docs:
     name: Fix Docs
-    needs: fix-docs-head
+    needs: select-passes
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.fix-docs-head.outputs.held == 'false'
+      && needs.select-passes.outputs.hold-held == 'false'
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
@@ -434,7 +327,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      head-sha: ${{ needs.select-passes.outputs.head-sha }}
       post-decline: false
       timeout-minutes: 30
     secrets:
@@ -455,7 +348,7 @@ jobs:
   # ends the PR. A failed fix-docs still reds its own jobs and the run.
   fix-docs-handoff:
     name: Fix Docs Handoff
-    needs: [fix-docs-head, fix-docs]
+    needs: [select-passes, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -621,7 +514,7 @@ jobs:
   # fix-docs posts nothing on a decline (post-decline: false), so the broker's
   # allow keeps a kill switch or a refusal from starting a second leg, and the
   # handoff keeps a trigger decline or a supersede (the PR head moved after
-  # fix-docs-head read it, so a second leg would supersede too) from starting
+  # select-passes read it (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review), so a second leg would supersede too) from starting
   # one: their scan job runs. Its start reads no fix-docs output, only
   # fix-docs-handoff's, and it holds the OAuth token alone. fallback: handoff
   # labels the lane record without reading a fix-docs output: only the run job
@@ -629,7 +522,7 @@ jobs:
   # forge that.
   fix-docs-subscription:
     name: Fix Docs Subscription
-    needs: [fix-docs-head, fix-docs, fix-docs-handoff]
+    needs: [select-passes, fix-docs, fix-docs-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-docs.result != 'skipped'
       && needs.fix-docs-handoff.outputs.posted != 'true'
@@ -655,7 +548,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      head-sha: ${{ needs.select-passes.outputs.head-sha }}
       post-decline: false
       timeout-minutes: 30
     secrets:
@@ -742,7 +635,7 @@ jobs:
   # 402). It is the last leg and never hands off.
   fix-docs-fallback:
     name: Fix Docs Fallback
-    needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
+    needs: [select-passes, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
@@ -763,7 +656,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      head-sha: ${{ needs.select-passes.outputs.head-sha }}
       post-decline: false
       timeout-minutes: 30
     secrets:
@@ -778,11 +671,11 @@ jobs:
   # as for pr-unblock.yml's apply-patch: the fallback call when it ran, else
   # the subscription call when it ran, else the first, and every input is that
   # leg's scan job's, never a run job's, since the run job runs head code. The
-  # head is fix-docs-head's, read by a job that ran no head code; apply-patch
+  # head is select-passes's, read by a job that ran no head code (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review); apply-patch
   # still applies onto the head its own gate reads.
   apply-docs-patch:
     name: Apply Docs Patch
-    needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]
+    needs: [select-passes, fix-docs, fix-docs-subscription, fix-docs-fallback]
     if: >-
       ${{ !cancelled()
       && (needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '') == 'written' }}
@@ -812,10 +705,10 @@ jobs:
       # The write runner's own default, set here so the job's limit is
       # visible at its caller (pr-run-activity-write.yml inputs).
       timeout-minutes: 30
-      patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      patch-head-sha: ${{ needs.select-passes.outputs.head-sha }}
       # lane-escalation drops the human-gated label from the holds while the
       # write runner reads it again as a lane escalation (lane-hold.mjs).
-      patch-human-gate: ${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
+      patch-human-gate: ${{ needs.select-passes.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}
 
   # One refine-pass notice per planned pass (log-pass-records.mjs): its name,
@@ -829,10 +722,10 @@ jobs:
   # but a read-only one for the checkout.
   record-passes:
     name: Record Passes
-    needs: [select-passes, fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
+    needs: [select-passes, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
     if: >-
-      ${{ !cancelled() && (needs.select-passes.result == 'failure'
-      || needs.select-passes.result == 'success' && needs.select-passes.outputs.held != 'true' && needs.select-passes.outputs.passes != '[]') }}
+      ${{ !cancelled() && ((needs.select-passes.outputs.plan-result || needs.select-passes.result) == 'failure'
+      || (needs.select-passes.outputs.plan-result || needs.select-passes.result) == 'success' && needs.select-passes.outputs.held != 'true' && needs.select-passes.outputs.passes != '[]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -863,13 +756,13 @@ jobs:
 
       - name: Record each pass
         env:
-          PLAN_RESULT: ${{ needs.select-passes.result }}
+          PLAN_RESULT: ${{ needs.select-passes.outputs.plan-result || needs.select-passes.result }}
           PASSES: ${{ needs.select-passes.outputs.passes }}
           FILES: ${{ needs.select-passes.outputs.files }}
           STARTED_AT: ${{ needs.select-passes.outputs.started-at }}
           # fix-docs's jobs and their results, and its push job's outputs.
           FIX_DOCS_RESULTS: >-
-            {"fix-docs-head": "${{ needs.fix-docs-head.result }}",
+            {"fix-docs-head": "${{ needs.select-passes.outputs.head-result }}",
             "fix-docs": "${{ needs.fix-docs.result }}",
             "fix-docs-handoff": "${{ needs.fix-docs-handoff.result }}",
             "fix-docs-subscription": "${{ needs.fix-docs-subscription.result }}",

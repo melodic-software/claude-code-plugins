@@ -3177,7 +3177,7 @@ test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-
 // call ran the activity.
 const PATCH_LANES = [
   ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }, "apply-patch"],
-  ["pr-refine.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
+  ["pr-refine.yml", "fix-docs", "fix-docs-subscription", ["select-passes"], {}, "apply-docs-patch"],
   // report-escalation takes no escalation from apply-feedback-patch: every
   // refusal leaves no fix commit, and publish-feedback escalates
   // feedback-not-landed (publish-feedback.test.mjs). It reads only its
@@ -3223,13 +3223,9 @@ const APPLY_ACTIVITY = {
   "resolve-conflicts": "apply-conflict-patch",
 };
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
-// The head apply-patch holds the patch to, per producer. fix-ci's push job
-// takes the head fix-ci-context gated, and fix-docs's the head fix-docs-head
-// read, each from a job that ran no head code; apply-patch applies onto the
-// head its own gate reads either way.
 const PATCH_HEAD = {
   "fix-ci": { needs: ["fix-ci-context"], value: "${{ needs.fix-ci-context.outputs.head-sha }}" },
-  "fix-docs": { needs: ["fix-docs-head"], value: "${{ needs.fix-docs-head.outputs.head-sha }}" },
+  "fix-docs": { needs: ["select-passes"], value: "${{ needs.select-passes.outputs.head-sha }}" },
   "address-feedback": { needs: ["address-feedback-select"], value: "${{ needs.address-feedback-select.outputs.head-sha }}" },
   "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
   "resolve-conflicts": { needs: ["resolve-conflicts-select"], value: "${{ needs.resolve-conflicts-select.outputs.head-sha }}" },
@@ -3485,16 +3481,15 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
-      "needs.fix-docs-head.outputs.held": held,
+      "needs.select-passes.outputs.hold-held": held,
     });
   assert.equal(starts(), true);
-  // fix-docs-head's lane-hold.mjs step: a human-gated hold, or no answer, runs nothing.
-  assert.equal(starts({ held: "true" }), false);
-  assert.equal(starts({ held: "" }), false);
-  const hold = jobs["fix-docs-head"].steps.find((step) => step.id === "hold");
+  assert.equal(starts({ held: "true" }), false, "select-passes's lane-hold.mjs step found a human-gated hold");
+  assert.equal(starts({ held: "" }), false, "select-passes's lane-hold.mjs step gave no answer");
+  const hold = jobs["select-passes"].steps.find((step) => step.id === "hold");
   assert.equal(hold.run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
   assert.equal(hold.env.ACTIVITY, "fix-docs");
-  assert.equal(jobs["apply-docs-patch"].with["patch-human-gate"], "${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
+  assert.equal(jobs["apply-docs-patch"].with["patch-human-gate"], "${{ needs.select-passes.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
   assert.equal(jobs["apply-docs-patch"].with["patch-prepare"], "docs", "the markdown-only patch-rules.json row");
   assert.equal(starts({ activity: "fix-ci" }), false);
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
@@ -3531,9 +3526,9 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-rate-merge-risk.yml rate-merge-risk-fallback: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk-subscription: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
-    "pr-refine.yml fix-docs-head: Check the human-gated hold",
-    "pr-refine.yml fix-docs-head: Read the PR's head SHA",
+    "pr-refine.yml select-passes: Check the human-gated hold",
     "pr-refine.yml select-passes: List the PR's changed files",
+    "pr-refine.yml select-passes: Read the PR's head SHA",
     "pr-review-hosted.yml wait-for-refine: Wait for this head's refine run",
     "pr-review-security-hosted.yml wait-for-refine: Wait for this head's refine run",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
@@ -3547,13 +3542,9 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   ]);
 });
 
-// fix-docs-head's head-SHA read retries a transient fault once (outage posture
-// element 1; read-pr-head.bash), and a head it still cannot read holds green
-// (element 2): run with a stub gh that fails `failures` times with `failure`,
-// then answers the head, and a stub sleep that only records each wait.
-test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault once, never a rate limit, and holds green on a head it cannot read", () => {
+test("pr-refine.yml: select-passes's head-SHA read retries a transient fault once, never a rate limit, and holds green on a head it cannot read", () => {
   const head = "a".repeat(40);
-  const step = workflow("pr-refine.yml").jobs["fix-docs-head"].steps.find((s) => s.id === "head");
+  const step = workflow("pr-refine.yml").jobs["select-passes"].steps.find((s) => s.id === "head");
   const readHead = (failures, { body = head, failure = "HTTP 502: Bad Gateway", prNumber = "7" } = {}) => {
     const dir = tempDir("refine-head-");
     try {
@@ -3599,23 +3590,16 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   const bad = readHead(0, { prNumber: "7; x" });
   assert.deepEqual([bad.status, bad.output, bad.calls], [1, "", 0]);
   assert.match(bad.stdout, /^::error::pr-number is not a PR number$/m);
-  // Nothing after the read runs on an unread head but the hold marker job,
-  // which needs only jobs that run no head code (plan, whose unread changed
-  // files it also marks, and fix-docs-head), holds no grant, and logs signal
-  // 13's notice.
   const { jobs } = workflow("pr-refine.yml");
   // lane-hold.mjs's fault hold sets unread too, and hold-unread names it.
-  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread || steps.hold.outputs.unread }}");
-  assert.equal(jobs["fix-docs-head"].outputs["hold-unread"], "${{ steps.hold.outputs.unread }}");
-  assert.equal(jobs["fix-docs-head"].steps.find((s) => s.id === "hold").env.API_BUDGET_HOLD, "1");
-  for (const id of ["setup-node", "hold"]) {
-    const later = jobs["fix-docs-head"].steps.find((s) => s.id === id || (id === "setup-node" && s.name === "Set up Node"));
-    assert.equal(later.if, "steps.head.outputs.sha != ''", id);
-  }
+  assert.equal(jobs["select-passes"].outputs.unread, "${{ steps.head.outputs.unread || steps.hold.outputs.unread }}");
+  assert.equal(jobs["select-passes"].outputs["hold-unread"], "${{ steps.hold.outputs.unread }}");
+  assert.equal(jobs["select-passes"].steps.find((s) => s.id === "hold").env.API_BUDGET_HOLD, "1");
+  assert.equal(jobs["select-passes"].steps.find((s) => s.id === "hold").if, "steps.head.outputs.sha != ''");
   const held = jobs["fix-docs-head-held"];
-  assert.deepEqual(held.needs, ["select-passes", "fix-docs-head"]);
+  assert.equal(held.needs, "select-passes", "the hold marker job needs only select-passes, which runs no head code");
   assert.deepEqual(held.permissions, {});
-  const holds = (unread, planHeld) => evaluate(held.if, { "needs.fix-docs-head.outputs.unread": unread, "needs.select-passes.outputs.held": planHeld });
+  const holds = (unread, planHeld) => evaluate(held.if, { "needs.select-passes.outputs.unread": unread, "needs.select-passes.outputs.held": planHeld });
   assert.equal(holds("true", ""), true);
   assert.equal(holds("", "true"), true);
   assert.equal(holds("", "false"), false);
@@ -3623,23 +3607,19 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.match(held.steps[0].run, /^what="head"\n\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"\nif \[\[ \$PLAN_HELD != true \]\]; then\n  echo "::notice title=PR head hold::the \$what of #\$PR_NUMBER could not be read/);
   assert.match(held.steps[0].run, /\nelse\n  echo "::notice title=PR head hold::the changed files of #\$PR_NUMBER could not be read/);
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
-  assert.equal(held.steps[0].env.HOLD_UNREAD, "${{ needs.fix-docs-head.outputs.hold-unread }}");
+  assert.equal(held.steps[0].env.HOLD_UNREAD, "${{ needs.select-passes.outputs.hold-unread }}");
   assert.equal(held.steps[0].env.PLAN_HELD, "${{ needs.select-passes.outputs.held }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
-  // fix-docs-head ends green on an unread head, so its dependents are not
-  // skipped by a failed need: each one's own if must keep it from running.
-  // Walk them in file order, each skipped job's outputs empty for the next.
-  // Each if is also evaluated on a head that was read and not held, where
-  // fix-docs must run: a default for an unmodeled ref cannot pass the walk.
+  assert.deepEqual(jobs["record-passes"].permissions, { contents: "read" }, "record-passes, left out of the walk below, records the pass whatever the head read found and holds no write grant");
   const needsOf = (job) => [job.needs ?? []].flat();
-  const downstream = new Set(["fix-docs-head"]);
-  const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
+  const downstream = new Set(["select-passes"]);
+  const results = { "select-passes": "success", "fix-docs-head-held": "success" };
   const heads = {
     unread: { unread: "true" },
     // A head that was read, and a hold read that met a fault: no held output.
     holdUnread: { "head-sha": "a".repeat(40), unread: "true", "hold-unread": "true" },
-    read: { "head-sha": "a".repeat(40), unread: "", held: "false" },
+    read: { "head-sha": "a".repeat(40), unread: "", "hold-held": "false" },
   };
   const ifContext = (expression, head) => {
     // A real fix-docs dispatch from a person: a PR number and this activity.
@@ -3647,12 +3627,12 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
     for (const [ref] of expression.matchAll(/\b(?:needs|inputs|github|vars)\.[\w-]+(?:\.[\w-]+)*/g)) {
       if (Object.hasOwn(context, ref)) continue;
       const [, need, kind, name] = /^needs\.([\w-]+)\.(result|outputs)\.?([\w-]*)$/.exec(ref) ?? [];
-      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "fix-docs-head" ? (head[name] ?? "") : "";
+      context[ref] = need === undefined ? "" : kind === "result" ? (results[need] ?? "skipped") : need === "select-passes" ? (head[name] ?? "") : "";
     }
     return context;
   };
   for (const [id, job] of Object.entries(jobs)) {
-    if (id === "fix-docs-head" || id === "fix-docs-head-held" || !needsOf(job).some((n) => downstream.has(n))) continue;
+    if (id === "select-passes" || id === "fix-docs-head-held" || id === "record-passes" || !needsOf(job).some((n) => downstream.has(n))) continue;
     downstream.add(id);
     // The sender check passes, so only the head's outputs can stop the job.
     const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
@@ -6336,7 +6316,7 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   const { jobs } = workflow("pr-unblock.yml");
   for (const id of ["fix-ci", "fix-ci-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
   const refine = workflow("pr-refine.yml").jobs;
-  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(refine[id].with["head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}", id);
+  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(refine[id].with["head-sha"], "${{ needs.select-passes.outputs.head-sha }}", id);
 });
 
 test("scan job: an empty default branch fails closed before the opener is checked out", (t) => {
@@ -8160,7 +8140,7 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.equal(starts("false", "true", "false"), false, "a supersede or trigger decline: allowed, nothing posted, but its scan job ran");
   assert.equal(starts("", "", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
   assert.equal(starts("", "", "", "skipped"), false, "no fix-docs call, no fallback");
-  assert.deepEqual(handoff.needs, ["fix-docs-head", "fix-docs"]);
+  assert.deepEqual(handoff.needs, ["select-passes", "fix-docs"]);
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
     assert.equal(evaluate(handoff.if, { "needs.fix-docs.result": result }), runs, result);
   }
@@ -8183,7 +8163,7 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   // runs both, and posts nothing.
   const listing = ({ posted = false, reportRan = true, allowed = true, scanRan = reportRan } = {}) => ({
     jobs: [
-      { name: "Fix Docs Head", conclusion: "success", steps: [] },
+      { name: "Select Passes", conclusion: "success", steps: [] },
       { name: "Fix Docs / Check Broker", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
       { name: "Fix Docs / Run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
       { name: "Fix Docs / Scan", conclusion: scanRan ? "success" : "skipped", steps: [] },
@@ -8218,10 +8198,6 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.equal(starts(failed.outputs.posted ?? "", failed.outputs.allowed ?? "", failed.outputs["handed-off"] ?? ""), false);
 });
 
-// #8890 for fix-docs's push job: patch-state, patch-sha256, patch-attempt,
-// reply-attempt and the head came from the run job, which head code can
-// forge. Now each comes from the answering leg's scan job, or the head from
-// fix-docs-head, as #9363 did for fix-ci's apply-patch.
 test("pr-refine.yml: apply-docs-patch reads no read-runner run-job output and takes only the leg that answered", () => {
   const apply = workflow("pr-refine.yml").jobs["apply-docs-patch"];
   const runOutputs = Object.entries(workflow("pr-run-activity-read.yml").on.workflow_call.outputs)
@@ -8232,7 +8208,7 @@ test("pr-refine.yml: apply-docs-patch reads no read-runner run-job output and ta
     .filter(([, , output]) => runOutputs.includes(output))
     .map(([ref]) => ref);
   assert.deepEqual(read, [], "apply-docs-patch reads no run-job output");
-  assert.equal(apply.with["patch-head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}");
+  assert.equal(apply.with["patch-head-sha"], "${{ needs.select-passes.outputs.head-sha }}");
   const runs = (subResult, sub, first, fallbackResult = "skipped", fallback = "") =>
     evaluate(apply.if, {
       "needs.fix-docs-fallback.result": fallbackResult,

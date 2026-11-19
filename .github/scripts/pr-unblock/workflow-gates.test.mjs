@@ -1008,10 +1008,7 @@ const DISPATCHER = "pr-unblock-dispatch.yml";
 
 // A write token the broker would refuse is decided before the select jobs, so
 // no later job, publish-feedback and apply-dependency-verdict included, starts.
-for (const [file, jobs] of [
-  ["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]],
-  ["pr-refine.yml", ["select-passes", "fix-docs-head"]],
-]) {
+for (const [file, jobs] of [["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]]]) {
   test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
     assert.match(text, /\n {2}check-dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
@@ -1026,6 +1023,20 @@ for (const [file, jobs] of [
     }
   });
 }
+
+test("pr-refine.yml: a dispatcher on an older copy of its file starts no plan step and no later job", () => {
+  const file = "pr-refine.yml";
+  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+  const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
+  const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
+  assert.deepEqual(starts, ["select-passes"], "every other job waits on a job");
+  const select = blocks.find((block) => block.startsWith("select-passes:"));
+  const compare = select.indexOf("        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh\n");
+  const planStart = select.indexOf("        id: start\n");
+  assert.ok(compare !== -1 && planStart > compare, "the compare runs before the plan starts");
+  assert.match(stepIf(file, "Note the start"), /steps\.current\.outputs\.stale != 'true'/);
+  assert.equal(stepIf(file, "List the PR's changed files"), "steps.start.outcome == 'success'");
+});
 
 test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first push or scheduled attempt", () => {
   const gate = stepIf(DISPATCHER, "Check the trigger");

@@ -20,22 +20,42 @@ function jobs(text) {
   return out;
 }
 
+function ifAt(lines, at, indent) {
+  let gate = lines[at].slice(indent + "if: ".length);
+  if (gate === ">-") {
+    const folded = [];
+    for (const line of lines.slice(at + 1)) {
+      if (!line.startsWith(" ".repeat(indent + 2))) break;
+      folded.push(line.trim());
+    }
+    gate = folded.join(" ");
+  }
+  return gate.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
+}
+
 // A job's needs and if:, single-line or folded, as written.
 function gateOf(block) {
   const needsLine = block.find((line) => /^ {4}needs: /.test(line));
   const needs = needsLine ? needsLine.slice("    needs: ".length).replace(/^\[|\]$/g, "").split(",").map((n) => n.trim()).filter(Boolean) : [];
   const at = block.findIndex((line) => /^ {4}if: /.test(line));
-  if (at === -1) return { needs, gate: null };
-  let gate = block[at].slice("    if: ".length);
-  if (gate === ">-") {
-    const folded = [];
-    for (const line of block.slice(at + 1)) {
-      if (!line.startsWith("      ")) break;
-      folded.push(line.trim());
-    }
-    gate = folded.join(" ");
-  }
-  return { needs, gate: gate.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim() };
+  return { needs, gate: at === -1 ? null : ifAt(block, at, 4) };
+}
+
+function stepIf(block, id) {
+  const at = block.indexOf(`        id: ${id}`);
+  assert.notEqual(at, -1, `a step with id ${id}`);
+  let start = at;
+  while (!block[start].startsWith("      - name: ")) start--;
+  const step = block.slice(start, block.findIndex((line, i) => i > start && line.startsWith("      - ")) >>> 0);
+  const ifLine = step.findIndex((line) => /^ {8}if: /.test(line));
+  assert.notEqual(ifLine, -1, `step ${id} has an if:`);
+  return ifAt(step, ifLine, 8);
+}
+
+function outputOf(block, name) {
+  const line = block.find((l) => l.startsWith(`      ${name}: `));
+  assert.ok(line, `an output ${name}`);
+  return line.slice(`      ${name}: `.length).replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
 }
 
 // Evaluates a gate with each context reference read from `context` (a needs
@@ -47,9 +67,9 @@ function evaluate(gate, context) {
   const literals = [];
   let body = gate.replace(/'[^']*'/g, (literal) => `__L${literals.push(literal) - 1}__`);
   body = body.replaceAll("!cancelled()", "true");
-  body = body.replace(/\b(?:needs|inputs|vars|github)(?:\.[\w-]+)+/g, (ref) => {
+  body = body.replace(/\b(?:needs|inputs|vars|github|steps)(?:\.[\w-]+)+/g, (ref) => {
     if (Object.hasOwn(context, ref)) return JSON.stringify(context[ref]);
-    assert.match(ref, /^needs\.[\w-]+\.outputs\./, `an unset context reference ${ref}`);
+    assert.match(ref, /^(?:needs|steps)\.[\w-]+\.outputs\./, `an unset context reference ${ref}`);
     return '""';
   });
   body = body.replace(/format\(__L\d+__, ([^)]*)\)/g, "String($1)");
@@ -61,7 +81,7 @@ function evaluate(gate, context) {
 // Runs the jobs in file order as GitHub would: a job whose gate names no
 // status function also needs every job it needs to have succeeded; a job
 // that runs succeeds with the outputs `outputs` gives it.
-function simulate(text, base, outputs) {
+function simulate(text, base, outputs, forced = {}) {
   const results = {};
   const context = { ...base };
   for (const [name, block] of jobs(text)) {
@@ -69,7 +89,7 @@ function simulate(text, base, outputs) {
     const statusFree = gate === null || !/cancelled\(\)|always\(\)|failure\(\)/.test(gate);
     const needsOk = needs.every((n) => results[n] === "success");
     const runs = (!statusFree || needsOk) && (gate === null || evaluate(gate, context));
-    results[name] = runs ? "success" : "skipped";
+    results[name] = runs ? (forced[name] ?? "success") : "skipped";
     context[`needs.${name}.result`] = results[name];
     if (runs) for (const [key, value] of Object.entries(outputs[name] ?? {})) context[`needs.${name}.outputs.${key}`] = value;
   }
@@ -84,83 +104,120 @@ const DISPATCH = {
   "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
 };
 const ran = (results) => Object.keys(results).filter((name) => results[name] === "success");
+const PLANNED = { passes: '["fix-docs"]', "fix-docs": "true", held: "false", "plan-result": "success" };
 
 test("an empty plan skips every job after it, with no model turn", () => {
-  const results = simulate(TEXT, DISPATCH, { "select-passes": { passes: "[]", "fix-docs": "" } });
-  assert.deepEqual(ran(results), ["check-dispatcher-current", "select-passes"]);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { passes: "[]", "fix-docs": "", held: "false", "plan-result": "success", "head-result": "skipped" } });
+  assert.deepEqual(ran(results), ["select-passes"]);
   assert.ok(Object.keys(results).length > 8, "every job was simulated");
 });
 
 test("a plan with fix-docs starts fix-docs and records its pass (positive control)", () => {
   const results = simulate(TEXT, DISPATCH, {
-    "select-passes": { passes: '["fix-docs"]', "fix-docs": "true" },
-    "fix-docs-head": { held: "false", "head-sha": "a".repeat(40) },
+    "select-passes": { ...PLANNED, "hold-held": "false", "head-sha": "a".repeat(40), "head-result": "success" },
     "fix-docs": { "scan-patch-state": "written" },
   });
-  for (const job of ["select-passes", "fix-docs-head", "fix-docs", "fix-docs-handoff", "apply-docs-patch", "record-passes"]) {
+  for (const job of ["select-passes", "fix-docs", "fix-docs-handoff", "apply-docs-patch", "record-passes"]) {
     assert.equal(results[job], "success", job);
   }
 });
 
-test("the select-passes job waits on a current dispatcher, and fix-docs-head on the plan's fix-docs output", () => {
-  const block = jobs(TEXT);
-  const plan = gateOf(block.get("select-passes"));
-  assert.deepEqual(plan.needs, ["check-dispatcher-current"]);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.check-dispatcher-current.outputs.stale": "false" }), true);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "needs.check-dispatcher-current.outputs.stale": "true" }), false);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.pr-number": "" }), false);
-  // A dispatch fix-docs-head could never start plans nothing, so no hold or record follows it.
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "inputs.activity": "apply-patch" }), false);
-  assert.equal(evaluate(plan.gate, { ...DISPATCH, "github.event.sender.id": 2 }), false);
-  const head = gateOf(block.get("fix-docs-head"));
-  assert.ok(head.needs.includes("select-passes"));
-  const starts = (planned) => evaluate(head.gate, { ...DISPATCH, "needs.select-passes.outputs.fix-docs": planned });
-  assert.equal(starts("true"), true);
-  assert.equal(starts(""), false);
-  assert.equal(starts("false"), false);
+test("a stale dispatcher starts no pass, no hold and no record", () => {
+  const results = simulate(TEXT, { ...DISPATCH, "inputs.dispatcher-run-id": "9" }, { "select-passes": { stale: "true", "plan-result": "skipped", "head-result": "skipped" } });
+  assert.deepEqual(ran(results), ["select-passes"]);
 });
 
-// simulate() with the select-passes job's own result forced, as a red step leaves it.
-function simulateFailedPlan(text, base) {
-  const results = {};
-  const context = { ...base };
-  for (const [name, block] of jobs(text)) {
-    const { needs, gate } = gateOf(block);
-    let result;
-    if (name === "select-passes") result = "failure";
-    else {
-      const statusFree = gate === null || !/cancelled\(\)|always\(\)|failure\(\)/.test(gate);
-      const runs = (!statusFree || needs.every((n) => results[n] === "success")) && (gate === null || evaluate(gate, context));
-      result = runs ? "success" : "skipped";
-    }
-    results[name] = result;
-    context[`needs.${name}.result`] = result;
-  }
-  return results;
-}
+test("select-passes runs the compare for a dispatcher run, and plans only on a current dispatcher", () => {
+  const block = jobs(TEXT).get("select-passes");
+  const job = gateOf(block);
+  assert.deepEqual(job.needs, [], "the first job");
+  const jobRuns = (context) => evaluate(job.gate, { ...DISPATCH, ...context });
+  assert.equal(jobRuns({}), true);
+  assert.equal(jobRuns({ "github.event.sender.id": 2, "inputs.dispatcher-run-id": "9" }), true, "a dispatcher run is compared whoever sent it");
+  assert.equal(jobRuns({ "github.event.sender.id": 2 }), false);
+  assert.equal(jobRuns({ "inputs.activity": "apply-patch" }), false);
+  assert.equal(jobRuns({ "inputs.pr-number": "" }), false);
+  assert.equal(stepIf(block, "current"), "inputs.dispatcher-run-id != ''");
+
+  const start = stepIf(block, "start");
+  const plans = (context) => evaluate(start, { ...DISPATCH, "steps.current.outcome": "skipped", ...context });
+  assert.equal(plans({}), true, "a human dispatch: no compare");
+  assert.equal(plans({ "inputs.dispatcher-run-id": "9", "steps.current.outcome": "success", "steps.current.outputs.stale": "false" }), true);
+  assert.equal(plans({ "inputs.dispatcher-run-id": "9", "steps.current.outcome": "success", "steps.current.outputs.stale": "true" }), false);
+  assert.equal(plans({ "inputs.dispatcher-run-id": "9", "steps.current.outcome": "failure" }), false, "a red compare");
+  assert.equal(plans({ "inputs.dispatcher-run-id": "9", "steps.current.outcome": "skipped" }), false, "a red tip before the compare");
+  assert.equal(plans({ "inputs.pr-number": "" }), false);
+  assert.equal(plans({ "inputs.activity": "apply-patch" }), false);
+  assert.equal(plans({ "github.event.sender.id": 2 }), false);
+  assert.equal(stepIf(block, "files"), "steps.start.outcome == 'success'");
+
+  const reads = (planned) => evaluate(stepIf(block, "head"), { "steps.plan.outputs.fix-docs": planned });
+  assert.equal(reads("true"), true);
+  assert.equal(reads(""), false);
+  assert.equal(reads("false"), false);
+});
+
+test("plan-result and head-result give each part's own result", () => {
+  const block = jobs(TEXT).get("select-passes");
+  const plan = (start, files, held, planOutcome) =>
+    evaluate(outputOf(block, "plan-result"), { "steps.start.outcome": start, "steps.files.outputs.held": held, "steps.files.outcome": files, "steps.plan.outcome": planOutcome });
+  assert.equal(plan("skipped", "skipped", "", "skipped"), "skipped", "not planned: stale, a red compare, or no fix-docs dispatch");
+  assert.equal(plan("success", "success", "true", "skipped"), "success", "a held file list");
+  assert.equal(plan("success", "success", "false", "success"), "success");
+  assert.equal(plan("success", "failure", "", "skipped"), "failure", "a red file list");
+  assert.equal(plan("success", "success", "false", "skipped"), "failure", "a red step before the plan");
+  assert.equal(plan("success", "success", "false", "failure"), "failure");
+  const head = (planned, unread, hold) =>
+    evaluate(outputOf(block, "head-result"), { "steps.plan.outputs.fix-docs": planned, "steps.head.outputs.unread": unread, "steps.hold.outcome": hold });
+  assert.equal(head("", "", "skipped"), "skipped");
+  assert.equal(head("true", "true", "skipped"), "success", "an unread head holds green");
+  assert.equal(head("true", "", "success"), "success");
+  assert.equal(head("true", "", "skipped"), "failure", "a red head read");
+  assert.equal(head("true", "", "failure"), "failure");
+});
 
 test("a failed plan starts no pass, and record-passes still runs to log refine-failed", () => {
-  const results = simulateFailedPlan(TEXT, DISPATCH);
-  assert.equal(results["select-passes"], "failure");
-  assert.deepEqual(ran(results), ["check-dispatcher-current", "record-passes"]);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { "plan-result": "failure" } }, { "select-passes": "failure" });
+  assert.deepEqual(ran(results), ["record-passes"]);
+  assert.deepEqual(ran(simulate(TEXT, DISPATCH, {}, { "select-passes": "failure" })), ["record-passes"], "a failed job with no outputs read counts as a failed plan");
+  const compare = simulate(TEXT, { ...DISPATCH, "inputs.dispatcher-run-id": "9" }, { "select-passes": { "plan-result": "skipped" } }, { "select-passes": "failure" });
+  assert.deepEqual(ran(compare), [], "a red compare or tip on a dispatcher run never started the plan, so nothing records");
+});
+
+test("a failed head read after a plan records the fix-docs pass, not the plan", () => {
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { ...PLANNED, "head-result": "failure" } }, { "select-passes": "failure" });
+  assert.deepEqual(ran(results), ["record-passes"]);
+  const record = jobs(TEXT).get("record-passes");
+  assert.ok(record.includes("          PLAN_RESULT: ${{ needs.select-passes.outputs.plan-result || needs.select-passes.result }}"));
+  assert.ok(record.includes('            {"fix-docs-head": "${{ needs.select-passes.outputs.head-result }}",'));
 });
 
 test("a held plan starts no pass and no record, and fix-docs-head-held logs the hold", () => {
-  const results = simulate(TEXT, DISPATCH, { "select-passes": { held: "true" } });
-  assert.deepEqual(ran(results), ["check-dispatcher-current", "select-passes", "fix-docs-head-held"]);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { held: "true", "plan-result": "success", "head-result": "skipped" } });
+  assert.deepEqual(ran(results), ["select-passes", "fix-docs-head-held"]);
   // Positive control: a read plan holds nothing.
-  const read = simulate(TEXT, DISPATCH, { "select-passes": { held: "false", passes: "[]", "fix-docs": "" } });
+  const read = simulate(TEXT, DISPATCH, { "select-passes": { held: "false", passes: "[]", "fix-docs": "", "plan-result": "success" } });
   assert.equal(read["fix-docs-head-held"], "skipped");
+});
+
+test("an unread head starts no pass, records the pass, and fix-docs-head-held logs the hold", () => {
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { ...PLANNED, unread: "true", "head-result": "success" } });
+  assert.deepEqual(ran(results), ["select-passes", "fix-docs-head-held", "record-passes"]);
 });
 
 test("record-passes runs after a failed pass, and not when the plan is empty or did not run", () => {
   const { needs, gate } = gateOf(jobs(TEXT).get("record-passes"));
   assert.ok(needs.includes("select-passes") && needs.includes("apply-docs-patch") && needs.includes("fix-docs"));
-  const records = (result, passes) => evaluate(gate, { "needs.select-passes.result": result, "needs.select-passes.outputs.passes": passes });
-  assert.equal(records("success", '["fix-docs"]'), true);
-  assert.equal(records("success", "[]"), false);
-  assert.equal(records("skipped", ""), false);
-  const results = simulate(TEXT, DISPATCH, { "select-passes": { passes: '["fix-docs"]', "fix-docs": "true" }, "fix-docs-head": { held: "false" } });
+  const records = (result, planResult, passes) =>
+    evaluate(gate, { "needs.select-passes.result": result, "needs.select-passes.outputs.plan-result": planResult, "needs.select-passes.outputs.passes": passes });
+  assert.equal(records("success", "success", '["fix-docs"]'), true);
+  assert.equal(records("success", "success", "[]"), false);
+  assert.equal(records("success", "skipped", ""), false);
+  assert.equal(records("skipped", "", ""), false);
+  assert.equal(records("failure", "failure", ""), true);
+  assert.equal(records("failure", "", ""), true);
+  assert.equal(records("failure", "skipped", ""), false);
+  const results = simulate(TEXT, DISPATCH, { "select-passes": { ...PLANNED, "hold-held": "false" } });
   assert.equal(results["record-passes"], "success", "it runs whatever the pass jobs did");
 });
 
