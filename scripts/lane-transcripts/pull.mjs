@@ -395,7 +395,8 @@ const NO_TELEMETRY = { telemetry: null, telemetry_bytes: null, telemetry_spans: 
  * The leg's telemetry, opened under its own payload name and the transcript's
  * run and job binding, and the row fields it gives. `telemetry_outcome` is
  * `none` (no file), `sealed_mismatch` (it did not open), `unreadable` (it
- * opened but is not gzip) or `stored`.
+ * could not be extracted from the zip, or it opened but did not decompress
+ * within its cap) or `stored`.
  */
 function openTelemetry(recipient, record, runId, jobId, traceId) {
   if (!record) return { fields: { ...NO_TELEMETRY, telemetry_outcome: "none" } };

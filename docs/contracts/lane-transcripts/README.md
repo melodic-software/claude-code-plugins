@@ -73,7 +73,7 @@ The current reader is the session-flow plugin's `scripts/lane_legs.py`.
 | `transcript` | The transcript's path relative to the sink, or null once retention removed it | yes |
 | `pruned` | Why `transcript` is null (`age`, `cap`, `missing`), absent while it is set | yes |
 | `telemetry` | The leg's telemetry path relative to the sink, or null when the leg kept none, it did not open, or retention removed it | yes |
-| `telemetry_outcome` | `stored`, `none` (the leg kept no telemetry), `sealed_mismatch` (it did not open) or `unreadable` (it opened but did not decompress); absent on a row written before the field existed | yes |
+| `telemetry_outcome` | `stored`, `none` (the leg kept no telemetry), `sealed_mismatch` (it did not open) or `unreadable` (it could not be extracted from the zip, or it opened but did not decompress within its cap); absent on a row written before the field existed | yes |
 | `telemetry_spans`, `telemetry_joined_spans` | How many spans the telemetry holds, and how many carry the row's `trace_id`; null unless `telemetry_outcome` is `stored` | yes |
 
 A reader asking for `--outcome error` reads `is_error`, not `outcome`: a row stored as `success`
