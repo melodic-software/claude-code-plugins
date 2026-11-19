@@ -711,6 +711,62 @@ class RunValidityTest(unittest.TestCase):
             " first in `jq . f || true`", proc.stdout)
         self.assertIn("command not found in 1 run", proc.stdout.splitlines()[-1])
 
+    def with_skill(self, text, case_yaml=None):
+        """Give the suite a skill whose SKILL.md holds text, and measurable-criterion
+        a case.yaml holding case_yaml when given."""
+        skill = self.dir / "suite" / "skills" / "runner" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text(text, encoding="utf-8")
+        if case_yaml is not None:
+            path = self.dir / "suite" / "evals" / "measurable-criterion" / "case.yaml"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(case_yaml, encoding="utf-8")
+
+    def test_an_interpreter_the_skill_does_not_name_warns_and_lists_every_program(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("python.jsonl", [
+            (True, "Exit code 127\nbash: line 1: python: command not found", "python -m pytest"),
+            (True, "Exit code 127\nbash: line 1: uv: command not found", "uv run pytest"),
+            (True, "Exit code 127\nbash: line 1: python: command not found", "python x.py"),
+            (False, "2 passed", "python3 -m pytest"),
+        ])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check programs started: WARN (a command was not found in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: python command not found,"
+            " first in `python -m pytest`, not named by the case's skill; uv command not"
+            " found, first in `uv run pytest`, not named by the case's skill (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_an_interpreter_the_skill_names_still_fails(self):
+        for skill, case_yaml in (
+            ("Run `node scripts/resolve.mjs` first.\n", None),
+            ("Read the file.\n",
+             'schema_version: "1.1"\nname: m\nallowed_tools:\n  - Read\n  - Bash(node:*)\n'),
+        ):
+            self.with_skill(skill, case_yaml)
+            proc, trace = self.bash_trace("named-node.jsonl", [
+                (True, "Exit code 127\nbash: line 1: node: command not found", "node x.mjs"),
+                (True, "bash: jq: command not found", "jq . f"),
+            ])
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: node command not found,"
+                " first in `node x.mjs`; jq command not found, first in `jq . f` (%s)" % trace,
+                proc.stdout, skill)
+
+    def test_a_shim_error_fails_when_the_skill_does_not_name_the_program(self):
+        self.with_skill("Read the file.\n")
+        proc, _ = self.bash_trace(
+            "shim-unnamed.jsonl",
+            [(True, "mise ERROR node is not a valid shim", "node x.mjs")],
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
+
     def test_a_grep_quoting_the_failure_texts_passes_the_programs_check(self):
         quoted = ("157:  a mise shim error (`<name> is not a valid shim`), or\n"
                   '326:# shim with no tool behind it ("mise ERROR node is not a valid shim")')

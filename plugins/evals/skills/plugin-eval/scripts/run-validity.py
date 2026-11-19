@@ -74,12 +74,19 @@ one line per check, detail lines indented under it:
                       program failing to start: a mise shim error (`<name> is
                       not a valid shim`) in any run is a FAIL, and so is
                       `command not found` for an interpreter (node, npx,
-                      python3, uv, bun, deno, ruby, perl and the like), since
-                      the run could not execute the skill's code; any other
-                      `command not found` is a warning. Each text counts only
-                      where it opens an output line, as the shell or mise
+                      python3, uv, bun, deno, ruby, perl and the like) that
+                      the case's skill names, since the run could not execute
+                      the skill's code. The case's skill is each skills/ dir
+                      its Skill-requiring graders accept (all of them for a
+                      grader with no input_match); it names a program its
+                      files or the case's allowed_tools spell as a whole word,
+                      and a skill that cannot be resolved names every
+                      interpreter. An interpreter it does not name, and any
+                      other `command not found`, is a warning. Each text counts
+                      only where it opens an output line, as the shell or mise
                       prints it, so output quoting it does not. Each detail
-                      names the run, the program and the first call that failed
+                      names the run and every program that failed to start,
+                      each with the first call that failed
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -345,6 +352,7 @@ NOT_FOUND = re.compile(
 INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )
+ALLOWED_TOOLS_KEY = re.compile(r"^allowed_tools:(.*(?:\n[ \t]*-.*)*)", re.M)
 # A Bash tool_result's sandbox report, is_error or not, and its network denial
 # lines. Upstream documents no format: observed in a with-arm trace of the x
 # plugin's suite on Claude Code 2.1.317, 2026-11-03; network-denied.jsonl in the
@@ -2624,20 +2632,101 @@ def start_failures(run):
     return found
 
 
-def check_programs(runs):
+def case_skill_dirs(case, root):
+    """The <root>/skills directories the case's Skill-requiring graders accept,
+    every one for a grader with no input_match, or None when none resolves."""
+    try:
+        names = sorted(os.listdir(os.path.join(root, "skills")))
+    except (OSError, TypeError):
+        return None
+    plugin = os.path.basename(os.path.normpath(root))
+    requiring = skill_graders(case, root)[0]
+    accepted = []
+    for grader in as_list(case.get(CASE_GRADER_DEFS)):
+        if grader.get(GRADER_NAME) not in requiring:
+            continue
+        pattern = grader_input_match(case, grader, root)
+        try:
+            found = re.compile(pattern) if pattern is not None else None
+        except re.error:
+            return None
+        accepted += [
+            n for n in names
+            if found is None
+            or any(found.search(json.dumps({"skill": s})) for s in (n, "%s:%s" % (plugin, n)))
+        ]
+    dirs = [os.path.join(root, "skills", n) for n in dict.fromkeys(accepted)]
+    return [d for d in dirs if os.path.isdir(d)] or None
+
+
+def declared_tools(case, root):
+    """The allowed_tools values in the case's prompt.md frontmatter and case.yaml."""
+    case_dir = case.get(CASE_DIR)
+    if not isinstance(case_dir, str):
+        return ""
+    values = []
+    for name in (CASE_PROMPT, CASE_YAML):
+        text = read_text(os.path.join(root, case_dir, name)) or ""
+        if name == CASE_PROMPT:
+            parts = text.split("---", 2)
+            text = parts[1] if text.startswith("---") and len(parts) == 3 else ""
+        values += [m.group(1) for m in ALLOWED_TOOLS_KEY.finditer(text)]
+    return "\n".join(values)
+
+
+def skill_named_text(case, root):
+    """The text of every file in the case's skill directories plus its declared
+    tools, or None when the case's skill cannot be resolved."""
+    dirs = case_skill_dirs(case, root)
+    if dirs is None:
+        return None
+    texts = [declared_tools(case, root)]
+    for top in dirs:
+        for parent, _, files in os.walk(top):
+            for name in files:
+                try:
+                    with open(os.path.join(parent, name), encoding="utf-8", errors="replace") as f:
+                        texts.append(f.read())
+                except OSError:
+                    continue
+    return "\n".join(texts)
+
+
+def check_programs(runs, root=None):
     """A run whose trace shows a shim error, or command not found for an
-    interpreter, could not run the skill's code, so its score measures the
-    missing program: FAIL. Any other command not found warns, as a case may
-    run a missing command on purpose."""
-    failed, warned = [], []
+    interpreter the case's skill names, could not run the skill's code, so its
+    score measures the missing program: FAIL. An interpreter the skill does not
+    name, read from its files and the case's allowed_tools, is one the run chose
+    and recovered from, so it warns; a skill that cannot be resolved names every
+    interpreter. Any other command not found warns, as a case may run a missing
+    command on purpose."""
+    failed, warned, named = [], [], {}
     for r in runs:
         found = start_failures(r)
         if not found:
             continue
-        fatal = [f for f in found if f[2]]
-        program, failure, _, call = (fatal or found)[0]
-        detail = "%s: %s %s, first in `%s` (%s)" % (
-            r.where, program, failure, call, r.trace_path
+        key = id(r.case)
+        if key not in named:
+            named[key] = skill_named_text(r.case, root)
+        text = named[key]
+        firsts = {}
+        for program, failure, fatal, call in found:
+            unnamed = (
+                fatal
+                and failure == "command not found"
+                and text is not None
+                and not re.search(r"(?<![\w.-])%s(?![\w-])" % re.escape(program), text)
+            )
+            firsts.setdefault((program, failure), (fatal and not unnamed, unnamed, call))
+        fatal = any(f[0] for f in firsts.values())
+        detail = "%s: %s (%s)" % (
+            r.where,
+            "; ".join(
+                "%s %s, first in `%s`%s"
+                % (program, failure, call, ", not named by the case's skill" if unnamed else "")
+                for (program, failure), (_, unnamed, call) in firsts.items()
+            ),
+            r.trace_path,
         )
         (failed if fatal else warned).append(detail)
     if failed:
@@ -3251,7 +3340,7 @@ def main(argv=None):
         ("session started", check_started(runs)),
         ("skill loaded", check_loaded(runs, root, frozenset(args.measured_fire))),
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
-        ("programs started", check_programs(runs)),
+        ("programs started", check_programs(runs, root)),
         (
             "permission denials",
             check_denials(
