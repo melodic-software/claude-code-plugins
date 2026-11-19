@@ -18,4 +18,4 @@ A TUI that jumps around or flickers is a bug, not something to live with. Boris'
 
 ## 124. Claude Maintains the Renderer
 
-Claude has rewritten Ink, the React-for-terminals library that draws Claude Code's interface, several times. Boris: *"I don't actually know how this impl works -- we treat it as a black box with a ton of property-based tests and benchmarks. Claude maintains it for us."* You can hand a component over once its tests specify it well enough that you never need to read it; writing those tests is the part that stays with you. The same move as Part 23 (Sections 116–120) and Section 109, at component scale.
+Claude has rewritten the library that draws Claude Code's terminal interface several times. Boris: *"I don't actually know how this impl works -- we treat it as a black box with a ton of property-based tests and benchmarks. Claude maintains it for us."* You can hand a component over once its tests specify it well enough that you never need to read it; writing those tests is the part that stays with you. The same move as Part 23 (Sections 116–120) and Section 109, at component scale.

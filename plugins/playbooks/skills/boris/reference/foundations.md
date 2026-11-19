@@ -187,20 +187,7 @@ Think of subagents as automations for the most common PR workflows:
 
 A hook auto-formats Claude's code. Claude generates well-formatted code 90% of the time; the hook catches edge cases preventing CI failures.
 
-Run it once per batch of edits rather than after every edit: a formatter that rewrites the file between edits Claude sent together can break the later ones. Use a `PostToolBatch` hook for that (for when it fires, see the hooks pointer below):
-
-```json
-"PostToolBatch": [
-  {
-    "hooks": [
-      {
-        "type": "command",
-        "command": "bun run format || true"
-      }
-    ]
-  }
-]
-```
+Run it once per batch of edits rather than after every edit: a formatter that rewrites the file between edits Claude sent together can break the later ones. Use a `PostToolBatch` hook for that (for when it fires, see the hooks pointer below).
 
 Keep it only while it stays fast (this marketplace's line is a 1 s median per fire); a slower formatter belongs in a git `pre-commit` hook only. Run the formatter in a git `pre-commit` hook as well, so humans and other agents get the same formatting.
 
