@@ -49,6 +49,11 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, 
         `exit "$(cat "${dir}/status-$n" 2>/dev/null || echo 1)"\n`,
     );
     chmodSync(join(bin, "gh"), 0o755);
+    writeFileSync(
+      join(bin, "node"),
+      `#!/usr/bin/env bash\n[[ $* != *createRateLimitLatch* ]] || echo latch >>"${dir}/latches"\nexec "${process.execPath}" "$@"\n`,
+    );
+    chmodSync(join(bin, "node"), 0o755);
     if (draw !== undefined) {
       writeFileSync(
         join(bin, "shuf"),
@@ -78,7 +83,7 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, 
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
     const lines = (name) => read(name).split("\n").filter(Boolean);
-    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number), marker: read("lane-hold/pr-refine") };
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: read("output"), args: lines("args"), ranges: lines("ranges"), sleeps: lines("sleeps").map(Number), latches: lines("latches").length, marker: read("lane-hold/pr-refine") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -335,6 +340,7 @@ test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget but inside 
   assert.doesNotMatch(out.stdout, /waits \d+s/, "90 s is past the guard's 60 s budget");
   assert.match(out.stdout, /^Read 1: the jobs read failed: GitHub's core API rate limit holds until \S+; reading again in 0s$/m);
   assert.match(out.stdout, /^Read 2: /m);
+  assert.ok(out.latches >= 2, `a wait that did not happen is not spent, so read 2 tries it again (${out.latches} tries)`);
 });
 
 test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget ends the reads at once and names the rate limit", () => {

@@ -231,10 +231,10 @@ while :; do
     if [[ -n $held ]]; then
       missing+=": $held"
       if [[ -n ${API_BUDGET_WAIT_SECONDS:-} ]]; then
-        if [[ -z $waited_out && -f $rate_guard ]]; then
+        if [[ -z $waited_out && -f $rate_guard ]] &&
+          node --input-type=module -e 'const { createRateLimitLatch } = await import(process.argv[1]); const latch = createRateLimitLatch(); if (!latch.waits(process.argv[2])) process.exit(3); await latch.waitOut(process.argv[2], "GET");' \
+            "$(realpath "$rate_guard")" "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs"; then
           waited_out=1
-          node --input-type=module -e 'const { createRateLimitLatch } = await import(process.argv[1]); await createRateLimitLatch().waitOut(process.argv[2], "GET");' \
-            "$(realpath "$rate_guard")" "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" || true
           if [[ -z $(held_by) ]]; then
             failed=$((failed - 1))
             continue
