@@ -126,18 +126,16 @@ test("pr-dispatch-feedback.yml starts no runner for a skipped or cancelled revie
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", { "github.run_attempt": "2" }), true);
 });
 
-test("pr-dispatch-feedback.yml starts no runner for a review run off a lane branch", () => {
+test("pr-dispatch-feedback.yml starts a runner for a same-repository review run on any branch but Dependabot's", () => {
   const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
-  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '([^']+)'\)/.exec(gate)?.[1];
-  assert.ok(prefix, "the dispatch gate checks the head branch");
-  const runs = (branch) =>
+  const runs = (branch, head = "melodic-software/claude-code-plugins") =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
       "github.event.workflow_run.event": "pull_request",
       "github.event.workflow_run.repository.full_name": "melodic-software/claude-code-plugins",
-      "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_repository.full_name": head,
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
@@ -146,16 +144,15 @@ test("pr-dispatch-feedback.yml starts no runner for a review run off a lane bran
       "github.triggering_actor": "a-person",
       ...RELAY_ON,
     });
-  // Every branch the issue lane opens a PR from passes; a rename of the lane
-  // branch fails here instead of silently stopping dispatches.
+  for (const branch of [LANE_BRANCH, "feat/x", "fix/pr-merge-infra-ejections", "release/plugins"]) {
+    assert.equal(runs(branch), true, branch);
+  }
+  assert.equal(runs("dependabot/npm_and_yarn/x"), false, "a Dependabot branch");
+  assert.equal(runs("feat/x", "fork/claude-code-plugins"), false, "a fork's head");
+  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '(work-resolve-issue[^']*)'\)/.exec(gate)?.[1];
+  assert.ok(prefix, "the pr-merge and relay clauses check the lane branch");
   assert.equal(laneBranchIssue(LANE_BRANCH), 12);
   assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
-  assert.equal(laneBranchIssue(`x${LANE_BRANCH}`), null);
-  assert.equal(runs(LANE_BRANCH), true);
-  for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
-    assert.equal(laneBranchIssue(branch), null, branch);
-    assert.equal(runs(branch), false, branch);
-  }
 });
 
 test("pr-dispatch-feedback.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
