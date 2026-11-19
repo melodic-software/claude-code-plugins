@@ -107,6 +107,13 @@
           "default": 2,
           "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
         },
+        "refire-budget-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 1,
+          "description": "Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget, per issue-lane slot (SLOTS): a work-unblock sweep re-fires budget-stopped issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, so each one can start inside its window's FLOOR_SPAN_MIN minutes. They also count toward refire-queue-per-slot's room."
+        },
         "stale-queued-minutes": {
           "type": "integer",
           "minimum": 1,

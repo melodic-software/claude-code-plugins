@@ -248,7 +248,10 @@
 // finished (five status listings, read once a sweep that has one) are under
 // limits.refire-queue-per-slot times the lane's SLOTS, within
 // limits.restarts-per-run, so after a clear the lane stays full with a short
-// queue that each finished run's sweep tops up. A run still `queued`
+// queue that each finished run's sweep tops up. A budget stop's re-fire also
+// waits until those runs are under limits.refire-budget-per-slot times SLOTS:
+// a run queued behind a second one per slot started past the window and the
+// start gate stopped it again. A run still `queued`
 // limits.stale-queued-minutes after it was created is not counted: its first
 // job never got a runner, so it is a run GitHub lost and will never start,
 // and counting it would hold the room at 0 for good. For the same reason a
@@ -2960,10 +2963,13 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // a listing that fails re-fires none of them this sweep. Upstream-status
   // re-fires after an outage share that room.
   const paced = (item) => item.stall === "breaker" || item.stall === "outage";
+  const budgeted = (item) => item.stall === "breaker" && item.trip?.budget;
   let room = 0;
+  let budgetRoom = 0;
   if (ready.some(paced)) {
     try {
       const target = limits["refire-queue-per-slot"] * slots();
+      const budgetTarget = limits["refire-budget-per-slot"] * slots();
       const unfinished = await inFlight();
       const minutes = limits["stale-queued-minutes"];
       const stale = unfinished.filter((run) => staleQueued(run, now, minutes)).length;
@@ -2973,6 +2979,10 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       const queued = unfinished.length - stale;
       room = Math.max(0, target - queued);
       console.log(`label-unblocked: ${queued} work-resolve-issue run(s) unfinished, kill-switch re-fire room ${room} of ${target}`);
+      if (ready.some(budgeted)) {
+        budgetRoom = Math.max(0, budgetTarget - queued);
+        console.log(`label-unblocked: budget-stop re-fire room ${budgetRoom} of ${budgetTarget}`);
+      }
     } catch (error) {
       reportHold("kill-switch re-fire queue", error);
     }
@@ -2980,6 +2990,10 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   const go = ready.filter((item) => {
     if (newFloor(item) && floorRoom-- <= 0) {
       console.log(`label-unblocked: #${item.number} floor re-fire deferred: the last hour's batch is spent`);
+      return false;
+    }
+    if (budgeted(item) && room > 0 && budgetRoom-- <= 0) {
+      console.log(`label-unblocked: #${item.number} budget-stop re-fire deferred: the issue lane's queue is at its budget-stop re-fire target`);
       return false;
     }
     if (!paced(item) || room-- > 0) {
