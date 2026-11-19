@@ -120,6 +120,7 @@ docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/harness-memory/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
@@ -971,3 +972,5 @@ plugins/session-telemetry/hooks/session-log-lib.sh plugins/harness-ops/hooks/ses
 plugins/session-telemetry/hooks/harness-ops-paths.sh plugins/harness-ops/hooks/harness-ops-paths.sh
 lib/enabled-plugin-roots.mjs plugins/plugin-diagnostics/lib/enabled-plugin-roots.mjs
 lib/enabled-plugin-roots.mjs plugins/harness-ops/lib/enabled-plugin-roots.mjs
+lib/lane-instance-collision-check.md plugins/source-control/skills/babysit-loop/reference/lane-instance-collision-check.md
+lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/reference/lane-instance-collision-check.md

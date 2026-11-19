@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q1 unchanged: raise the default attempts to 8. Basis: verified, src/retry.ts:1 and its one caller src/client.ts:3.",
+      "why": "verified label with evidence"
+    },
+    {
+      "answer": "Q2 old: fixed 1000 ms delay. New: backoff doubling from 1 s, capped at 30 s, with jitter. Why: the cap alone keeps retries in lockstep. **Basis:** judgment",
+      "why": "judgment label in bold markup"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Accepted Q1 and Q2. I will raise attempts to 8 and add exponential backoff.",
+      "why": "accepts with no basis for either item"
+    },
+    {
+      "answer": "Basis: see above.",
+      "why": "a Basis line with no outcome"
+    }
+  ]
+}

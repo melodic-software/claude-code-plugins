@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/src/notes.py\",\"old_string\":\"def main(argv):\",\"new_string\":\"def main(argv):\\n    if argv == [\\\"--version\\\"]:\\n        print(\\\"notes 0.1.0\\\")\\n        return 0\"}}]}}\n",
+      "why": "Edit adds the flag"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"src/notes.py\",\"content\":\"import sys\\n\\n\\ndef main(argv):\\n    if \\\"--version\\\" in argv:\\n        print(\\\"notes 0.1.0\\\")\\n        return 0\\n\"}}]}}\n",
+      "why": "Write adds the flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 src/notes.py --version\"}}]}}\n",
+      "why": "runs the flag without adding it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/src/subnotes.py\",\"old_string\":\"x\",\"new_string\":\"--version\"}}]}}\n",
+      "why": "another file whose name ends in notes.py"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/ws/src/notes.py\",\"old_string\":\"--version\",\"new_string\":\"-V\"}}]}}\n",
+      "why": "--version only in old_string"
+    }
+  ]
+}

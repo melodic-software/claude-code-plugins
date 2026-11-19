@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: sa-bare-launch-starts-report
+description: 'Step-away bare launch (AC1): with no words, the run arms the absence with away.py start, data root included, before any edit to src/greet.py, then tells the person where the report is and when it is due, either a report-by time or until they are back (which one depends on the clock, so either passes; the time arithmetic is unit-tested in away.py). The two statements are graded in the assistant text of the trace, since the launch message comes before the work and the final message comes after it. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [step-away, launch]
+plugins: ["../.."]
+expected_outcome: 'The run runs away.py start with its --data-root before editing src/greet.py, and its own text states the report path (the stamped .work/away/ report name) and either the report-by time or that the absence lasts until the person is back.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:step-away'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: start-runs
+    type: tool_used
+    tool: Bash
+    input_match: 'away\.py(?:\\")?[ \t]+start\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]--data-root\b'
+    min: 1
+    arm: both
+  - name: start-before-edit
+    type: tool_order
+    before:
+      tool: Bash
+      input_match: 'away\.py(?:\\")?[ \t]+start\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]--data-root\b'
+    after:
+      tool: Edit
+      input_match: '"file_path":"(?:[^"\\]*/)?greet\.py"'
+    arm: both
+  - name: states-report-path
+    type: regex
+    pattern: '^(?=[^\n]*"type":\s*"assistant")[^\n]*?"type":\s*"text",\s*"text":\s*"(?:[^"\\\n]|\\.)*?\.work/away/\d{8}T\d{6}Z-[\w-]{1,8}\.md'
+    flags: 'm'
+    target: trace
+    arm: both
+  - name: states-due
+    type: regex
+    pattern: '^(?=[^\n]*"type":\s*"assistant")[^\n]*?"type":\s*"text",\s*"text":\s*"(?:[^"\\\n]|\\.)*?(?:\buntil you(?:''|’| a)re back\b|\b(?:report(?:-by)?|due)\b(?:[^"\\\n]|\\[^n]){0,60}(?<![\d:])(?:[01]?\d|2[0-3]):[0-5]\d\b|(?<![\d:])(?:[01]?\d|2[0-3]):[0-5]\d\b(?:[^"\\\n]|\\[^n]){0,60}\b(?:report(?:-by)?|due)\b)'
+    flags: 'mi'
+    target: trace
+    arm: both

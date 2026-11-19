@@ -477,6 +477,7 @@ jobs:
       # Into the directory the model reads, as untrusted data (prompt.md). A
       # failed download leaves it empty and the judgment goes on.
       - name: Download the capture
+        id: download-capture
         if: steps.capture.outputs.artifact-id != ''
         continue-on-error: true
         timeout-minutes: 5
@@ -2161,6 +2162,7 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+          outside: ${{ steps.download-capture.outcome != 'skipped' && 'download-capture:actions/runs/artifacts' || '' }}
 
       # A clean handoff, an empty key or a key the credit gate skipped hands
       # the judgment on; any other run that passed the gates and left no
@@ -2429,6 +2431,7 @@ jobs:
       # Into the directory the model reads, as untrusted data (prompt.md). A
       # failed download leaves it empty and the judgment goes on.
       - name: Download the capture
+        id: download-capture
         if: steps.capture.outputs.artifact-id != ''
         continue-on-error: true
         timeout-minutes: 5
@@ -4013,6 +4016,7 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+          outside: ${{ steps.download-capture.outcome != 'skipped' && 'download-capture:actions/runs/artifacts' || '' }}
 
       # A clean handoff, or an empty token with the fallback token set, hands
       # the judgment on; any other run that passed the gates and left no
@@ -4261,6 +4265,7 @@ jobs:
       # Into the directory the model reads, as untrusted data (prompt.md). A
       # failed download leaves it empty and the judgment goes on.
       - name: Download the capture
+        id: download-capture
         if: steps.capture.outputs.artifact-id != ''
         continue-on-error: true
         timeout-minutes: 5
@@ -5577,6 +5582,7 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+          outside: ${{ steps.download-capture.outcome != 'skipped' && 'download-capture:actions/runs/artifacts' || '' }}
 
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success'

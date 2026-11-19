@@ -9,7 +9,8 @@ file after validating it against the schema; `/session-flow:setup check` validat
 `userConfig` only; the README's Options reference lists them. So are `cloud_route` (`offer` or
 `off`, default `offer`: under `off`, `/session-flow:workflow continue` never mentions a cloud
 session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
-`/session-flow:workflow wrap-up` offers no retrospective).
+`/session-flow:workflow wrap-up` offers no retrospective). The five `away_*` keys below are
+`userConfig` only too.
 
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
@@ -20,6 +21,11 @@ session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
 | `recall_report_kinds` | comma-separated issue types or labels | `Bug` | `/session-flow:recall` (Steps 2 and 5, the Still reported section) | repository file over user option over default |
 | `recall_doc_paths` | comma-separated git pathspecs | `*.md` | `/session-flow:recall` (Steps 2 and 5, the postmortem search) | repository file over user option over default |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/session-flow:orchestrate` (imperative 3), `/session-flow:workflow pre-pr` (step 2) and `/session-flow:retro` session mode (the `retro_lenses: 1` pass), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `away_night_start` | `HH:MM`, machine local time | `21:00` | `/session-flow:step-away` (`bed` launch; the night window runs from here to the next report-by time) | launch words over user option over default |
+| `away_report_by_workday` | `HH:MM`, machine local time | `09:00` | `/session-flow:step-away` (report-by time when the report day is not a day off) | launch words over user option over default |
+| `away_report_by_day_off` | `HH:MM`, machine local time | `10:00` | `/session-flow:step-away` (report-by time when the report day is a day off) | launch words over user option over default |
+| `away_days_off` | comma-separated three-letter weekday names | `Sat,Sun` | `/session-flow:step-away` (picks which report-by time applies) | user option over default |
+| `away_watched_folders` | comma-separated folder paths; empty means the home folder | empty | `/session-flow:step-away` (the files-written scan; dot folders and git work trees are skipped) | user option over default |
 
 `transcript_scope` bounds which project directories `/session-flow:find-handoff` and
 `/session-flow:recall` read transcripts from, through `scripts/transcript_dirs.sh`. `worktree`
@@ -37,6 +43,12 @@ pathspecs it searches for postmortems; the default `*.md` covers every tracked m
 repository file, quote a value that starts with `*` or `[` or holds a colon followed by a space, for example
 `recall_doc_paths: "*.md"` or `recall_report_kinds: "type: bug"`; `/session-flow:setup apply`
 writes such a value quoted.
+
+`/session-flow:step-away` passes each `away_*` value to `scripts/away.py start` as
+`--setting <key>=${user_config.<key>}`, and the script treats a literal unexpanded placeholder or an
+empty value as unset. The hooks read the same keys from their environment as
+`CLAUDE_PLUGIN_OPTION_<KEY>`. These keys have no repository layer and no schema entry:
+`docs/conventions/session-flow.yaml` does not set them.
 
 `wip_commit` lets `/session-flow:handoff` make one local `chore(wip): <one-line state>` commit of
 tracked changes, and only when the user asks in this session to pause. A handoff another skill
