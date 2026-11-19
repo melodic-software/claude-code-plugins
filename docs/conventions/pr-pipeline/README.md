@@ -17,6 +17,7 @@
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
 - [Write identities](#write-identities)
+- [Claude secrets](#claude-secrets)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -3698,6 +3699,50 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml`, `maintenance-repin-ci-workflows.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
+## Claude secrets
+
+Every job that reads a Claude secret (an API key or Claude Code OAuth token) names the `claude-lanes`
+environment as `environment: { name: claude-lanes, deployment: false }`. The environment's
+deployment branch policy admits `main` alone, so the job starts only in a run whose ref is `main`:
+a workflow file changed on any other branch never reaches a secret stored there. GitHub refuses
+such a job before it reaches a runner, with or without `deployment: false`
+([probe run](https://github.com/melodic-software/claude-code-plugins/actions/runs/44604030055):
+"Branch ... is not allowed to deploy to claude-lanes due to environment protection rules"), and
+`deployment: false` keeps the job out of the deployment history
+([GitHub](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)).
+
+- A lane that reads one starts from an event whose run is on `main`: `workflow_run`,
+  `pull_request_target`, `schedule`, `issues`, a push to `main`, or a dispatch on `main`. GitHub
+  checks a `pull_request` run against `refs/pull/<n>/merge` and a `pull_request_target` run against
+  the default branch
+  ([changelog](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/)).
+- A job that calls a reusable workflow cannot name an environment, so the called workflow's jobs
+  do; the caller still passes each secret by name
+  ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)). Until
+  ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` name it, the three jobs that call them
+  are listed in `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs`.
+- An environment secret shadows an organization or repository secret of the same name, so a job
+  in the environment reads the organization copy until the environment holds its own.
+
+`scripts/check-claude-secrets-environment.sh [--check]` holds these rules in `Lint Repo` over every
+file in `.github/workflows/`, printing one `path:line: finding` per offender on stderr:
+
+1. A job that reads a Claude secret names environment `claude-lanes`, as a bare name or a map
+   whose `name` is `claude-lanes`. A job reads one when a `${{ }}` expression in it, or in the
+   workflow-level `env`, reads `secrets.<name>` with `claude` or `oauth` in the name (any case),
+   reads the secrets context by a computed name or whole (`secrets[...]`, `toJSON(secrets)`), or
+   reads a name a local caller passes such a secret under.
+2. A job that passes such a secret, or `secrets: inherit`, to a reusable workflow in this
+   repository moves rule 1 onto the called jobs. Passing one to a reusable workflow elsewhere fails
+   unless `PENDING_REMOTE` names the job, and an entry that stops matching fails too.
+3. A job naming `claude-lanes` is in no workflow a `pull_request`, `pull_request_review`,
+   `pull_request_review_comment`, `merge_group` or off-`main` push starts. A push is off-`main`
+   unless its filter is exactly `branches` naming only `main`. A `workflow_call` workflow takes
+   the triggers of every local caller.
+
+It exits 0 when clean, 1 on any offender, and 2 on a usage error or a missing `node`, `yaml`
+package (`npm ci --prefix .github/standards/runner-policy`) or workflows directory.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -4561,6 +4606,9 @@ finds the run. Read its result against three limits before counting it as eviden
   `pr-run-activity-write.yml` differs from the default branch
   ([request-lane-token](../../../.github/actions/request-lane-token/README.md#a-workflow-file-the-pr-changes)),
   so for such a lane the run proves only the steps before the mint.
+- A job that reads a Claude secret runs in the `claude-lanes` environment, which refuses a run
+  on any ref but `main` ([Claude secrets](#claude-secrets)), so a branch run proves only the jobs
+  that read none.
 - A run a dispatcher sends must name the default branch as its ref
   ([check-trusted-trigger](../../../.github/actions/check-trusted-trigger/README.md#rules)), so a
   branch run tests the dispatcher or the lane started by hand, never the pair.

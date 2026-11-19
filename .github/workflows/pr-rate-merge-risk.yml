@@ -72,6 +72,9 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     cache-mode: read
@@ -544,6 +547,9 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.rate-merge-risk.result == 'success'
       && needs.rate-merge-risk.outputs.next-leg == 'subscription'
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     cache-mode: read
@@ -887,6 +893,9 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.rate-merge-risk-subscription.result == 'success'
       && needs.rate-merge-risk-subscription.outputs.next-leg == 'fallback'
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     cache-mode: read

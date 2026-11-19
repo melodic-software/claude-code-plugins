@@ -1344,7 +1344,7 @@ export async function evaluateTrigger({
   }
   let pull;
   let actors = [event.sender];
-  if (eventName === "pull_request") {
+  if (eventName === "pull_request" || eventName === TARGET_EVENT) {
     pull = event.pull_request;
     if (!isPlainObject(pull)) {
       throw new Stop("no-pr");

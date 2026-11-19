@@ -728,6 +728,9 @@ jobs:
             skill: security-review
             route: review-security
             switch: CLAUDE_SECURITY_REVIEW_DISABLED
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
@@ -1701,6 +1704,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.review-handoffs.outputs.matrix) }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
@@ -2634,6 +2640,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.collect-subscription-handoffs.outputs.matrix) }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100

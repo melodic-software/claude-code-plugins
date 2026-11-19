@@ -235,6 +235,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-range.outputs.proceed == 'true'
       && github.event.workflow_run.head_repository.full_name == github.repository }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -535,6 +538,9 @@ jobs:
       ${{ !cancelled() && needs.check-range.outputs.proceed == 'true'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && (needs.generate.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.generate-next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -782,6 +788,9 @@ jobs:
       ${{ !cancelled() && needs.check-range.outputs.proceed == 'true'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.generate-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1172,6 +1181,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.run-mutants.result == 'success' && needs.run-mutants.outputs.survivors != '' && needs.run-mutants.outputs.survivors != '0'
       && github.event.workflow_run.head_repository.full_name == github.repository }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1501,6 +1513,9 @@ jobs:
       ${{ !cancelled() && needs.run-mutants.result == 'success' && needs.run-mutants.outputs.survivors != '' && needs.run-mutants.outputs.survivors != '0'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && (needs.triage.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.triage-next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1775,6 +1790,9 @@ jobs:
       ${{ !cancelled() && needs.run-mutants.result == 'success' && needs.run-mutants.outputs.survivors != '' && needs.run-mutants.outputs.survivors != '0'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.triage-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read

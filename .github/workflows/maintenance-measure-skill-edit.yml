@@ -316,6 +316,9 @@ jobs:
     name: Generate Edit
     needs: [check-inputs, measure-baseline, measure-baseline-again, check-key-credit]
     if: needs.measure-baseline.result == 'success' && needs.measure-baseline-again.result == 'success'
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     cache-mode: read

@@ -120,7 +120,13 @@ on:
         required: false
         type: boolean
         default: true
-  pull_request:
+  # pull_request_target runs this file from main, never the PR's copy, so the
+  # eval jobs' claude-lanes environment admits the run; the PR head is
+  # checked out only as the plugin under test. From 2026-12-02 GitHub blocks
+  # pull_request_target in public repositories unless an Actions event policy
+  # allows it for this file
+  # (https://github.blog/changelog/2026-11-02-pull_request_target-blocked-by-default-december-2/).
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [labeled]
 
 permissions: {}
@@ -130,7 +136,7 @@ permissions: {}
 # re-run.
 concurrency:
   group: >-
-    eval-${{ github.event_name == 'pull_request' && github.event.label.name == 'eval: run'
+    eval-${{ github.event_name == 'pull_request_target' && github.event.label.name == 'eval: run'
     && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
@@ -150,7 +156,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-      || (github.event_name == 'pull_request'
+      || (github.event_name == 'pull_request_target'
       && github.event.label.name == 'eval: run'
       && github.event.pull_request.head.repo.full_name == github.repository
       && !github.event.pull_request.draft)
@@ -199,10 +205,13 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success' && ((github.event_name == 'workflow_dispatch'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-      || (github.event_name == 'pull_request'
+      || (github.event_name == 'pull_request_target'
       && github.event.label.name == 'eval: run'
       && github.event.pull_request.head.repo.full_name == github.repository
       && !github.event.pull_request.draft)) }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -223,7 +232,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -237,10 +246,10 @@ jobs:
       # The default branch tip; on a dispatch, the dispatched commit, which the
       # job if: holds to the default branch.
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'pull_request_target' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request_target' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -315,7 +324,7 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -325,7 +334,7 @@ jobs:
       # the credential must come from a listed human, so a person opts in to
       # each run.
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
@@ -349,7 +358,7 @@ jobs:
       # history so the next step diffs this same commit against its base. A
       # checkout runs no code from it.
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request_target'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -378,8 +387,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'pull_request_target' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'pull_request_target' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       # The tools and Chromium go under /opt, outside HOME, which each eval
@@ -403,7 +412,7 @@ jobs:
       # be written or read back. The probe step below proves the denial.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -523,7 +532,7 @@ jobs:
       # next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         env:
           LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -619,7 +628,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request_target' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -736,7 +745,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'pull_request_target' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |
@@ -960,6 +969,9 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success'
       && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -980,7 +992,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -992,10 +1004,10 @@ jobs:
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'pull_request_target' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request_target' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -1063,14 +1075,14 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
@@ -1091,7 +1103,7 @@ jobs:
           reason: ${{ needs.run-eval.outputs.next-reason || needs.check-key-credit.outputs.next-reason }}
 
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request_target'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -1114,8 +1126,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'pull_request_target' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'pull_request_target' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       - name: Create the tool directories
@@ -1124,7 +1136,7 @@ jobs:
 
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1209,7 +1221,7 @@ jobs:
 
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1279,7 +1291,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request_target' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -1383,7 +1395,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'pull_request_target' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |
@@ -1543,6 +1555,9 @@ jobs:
     name: Run Eval Fallback
     needs: [check-key-credit, run-eval-subscription]
     if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1560,7 +1575,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
           GIT_TERMINAL_PROMPT: "0"
@@ -1572,10 +1587,10 @@ jobs:
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out the default branch
-        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
+        if: github.event_name != 'pull_request_target' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request_target' && steps.tip.outputs.sha || github.sha }}
           path: .base
           persist-credentials: false
 
@@ -1643,14 +1658,14 @@ jobs:
 
       - name: Check the pull request trigger
         id: gate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
@@ -1670,7 +1685,7 @@ jobs:
           reason: ${{ needs.run-eval-subscription.outputs.next-reason }}
 
       - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request_target'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -1693,8 +1708,8 @@ jobs:
         if: steps.plugins.outputs.go == 'true'
         env:
           LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'pull_request' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'pull_request' || inputs.deterministic-only }}
+          ROOT: ${{ github.event_name == 'pull_request_target' && '.head' || '.base' }}
+          DETERMINISTIC: ${{ github.event_name == 'pull_request_target' || inputs.deterministic-only }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       - name: Create the tool directories
@@ -1703,7 +1718,7 @@ jobs:
 
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1788,7 +1803,7 @@ jobs:
 
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request_target'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1858,7 +1873,7 @@ jobs:
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request' || inputs.env-scrub) && '1' || '0' }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'pull_request_target' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
@@ -1962,7 +1977,7 @@ jobs:
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
+          REDACT: ${{ github.event_name == 'pull_request_target' && '--redact' || '' }}
           DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
           RUNS: ${{ inputs.runs }}
         run: |
