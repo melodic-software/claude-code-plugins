@@ -3737,10 +3737,11 @@ such a job before it reaches a runner, with or without `deployment: false`
   do; the caller still passes each secret by name
   ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
   ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` take the environment as their
-  `environment` input, so a caller passes `with: environment: claude-lanes`. The two hosted
-  review callers start on `pull_request`, which the environment refuses, so they stay listed in
-  `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs` until they move to
-  `workflow_run` ([#17537](https://github.com/melodic-software/claude-code-plugins/issues/17537)).
+  `environment` input, so a caller passes `with: environment: claude-lanes`. Three callers stay
+  listed in `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs`: Intake Triage
+  until the standards runner-policy contract for its reusable allows that input, and the two
+  hosted review callers, which start on `pull_request`, until they move to `workflow_run`
+  ([#17537](https://github.com/melodic-software/claude-code-plugins/issues/17537)).
 - A caller may pass a secret under the reusable workflow's own name for it: the called job in the
   environment resolves the caller's `secrets.<name>` there ("You can pass a secret by name even if
   it only exists in the environment",

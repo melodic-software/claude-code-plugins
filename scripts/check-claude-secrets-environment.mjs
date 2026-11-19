@@ -23,6 +23,10 @@ const HEAD_TRIGGERS = new Set([
 // https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows
 const PENDING_REMOTE = new Map([
   [
+    `${WORKFLOWS}/intake-triage.yml#intake-triage`,
+    "the standards runner-policy contract for ci-workflows intake-triage.yml does not yet allow its environment input",
+  ],
+  [
     `${WORKFLOWS}/pr-review-hosted.yml#pr-review`,
     "starts on pull_request, which claude-lanes refuses, until #17537 moves it to workflow_run",
   ],

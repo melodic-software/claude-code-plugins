@@ -33,7 +33,7 @@ mk_tree() {
   ln -s "$POLICY_DIR/node_modules" "$dir/.github/standards/runner-policy/node_modules"
   (
     cd "$dir" || exit 1
-    remote_call intake-triage.yml intake-triage issues claude-lanes
+    remote_call intake-triage.yml intake-triage
     remote_call pr-review-hosted.yml pr-review
     remote_call pr-review-security-hosted.yml pr-review-security
   ) || return 1
@@ -67,7 +67,7 @@ NO_ENV="job j reads a Claude secret without environment claude-lanes"
 HEAD_REF="names environment claude-lanes in a run started by"
 
 run_case "a lane reading a Claude secret in claude-lanes on a dispatch passes" 0 ":" \
-  "(4 job(s), 2 pending ci-workflows call(s))"
+  "(4 job(s), 3 pending ci-workflows call(s))"
 
 run_case "an API key read with no environment fails" 1 \
   "job a.yml workflow_dispatch '' secrets.INTAKE_CLAUDE_API_KEY" \
