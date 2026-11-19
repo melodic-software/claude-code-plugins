@@ -53,7 +53,7 @@ def test_new_clears_a_leftover_over_budget_marker_beside_its_file(tmp_path):
     handoffs = repo / ".work" / "handoffs"
     handoffs.mkdir(parents=True)
     marker = handoffs / ".20260901T100000Z-handoff-widget.md.over-budget"
-    marker.write_text('[["brief", 2000, 979]]\n', encoding="utf-8")
+    marker.write_text('["brief"]\n', encoding="utf-8")
     made = new(repo, tmp_path, None, k=1, shape="4")
     assert made.returncode == 0, err(made)
     assert not marker.exists()

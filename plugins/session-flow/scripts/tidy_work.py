@@ -28,6 +28,10 @@ from the memory-root layout:
                    last of them, and stays when one of them is refused
     running-retro  a `<TS>-running-retro-<topic>.md` file, in `running-retros/`
                    or misplaced the same way
+    orphan-marker  an over-budget marker whose handoff is not beside it. It
+                   holds only slot names, so it leaves once nothing keeps it in
+                   flight; an orphan `.slots.json` can hold the only copy of its
+                   text and is unknown
     slice          `<slug>/` holding an `INDEX.md`
     checklist      `<slug>/` holding a `workflow-checklist.md` and no `INDEX.md`
     scratch        any other entry whose name carries exactly one issue or PR
@@ -70,7 +74,8 @@ any root outside a work tree, it has no repository and counts as unknown.
 
 An item that names no issue or PR is kept however old it is: `clean` removes an
 item only when it names at least one issue or PR and every one is closed or
-merged. A handoff or running retro is attributed by the references in its text,
+merged. An archive and an orphan marker are the exceptions: each leaves by its
+own rule above. A handoff or running retro is attributed by the references in its text,
 a scratch item by its name. A slice or checklist has no attribution source, so
 `report` marks it and `clean` never removes it.
 Issue and PR state comes from `gh api` (one listing of the open ones per
@@ -205,7 +210,7 @@ class Item:
 
     @property
     def keep(self) -> bool:
-        if self.kind == "archive":
+        if self.kind in ("archive", "orphan-marker"):
             return self.in_flight
         return self.kind in ("unknown", "concern") or self.in_flight or not self.links
 
@@ -404,6 +409,9 @@ def inventory(root: Path, label: str) -> list[Item]:
         if (marker := OVER_BUDGET_RE.match(path.name)) and _plain_file(
             path.with_name(marker[1])
         ):
+            return
+        if marker and parent_kind != "concern" and _plain_file(path):
+            add(path, "orphan-marker", None)
             return
         kind, link_file = _classify(path, parent_kind)
         add(path, kind, link_file)
@@ -687,6 +695,8 @@ def _verdict(item: Item) -> str:
         verdict = "keep: unknown kind"
     elif item.reasons:
         verdict = "keep: " + "; ".join(item.reasons)
+    elif item.kind == "orphan-marker":
+        verdict = "stale: its handoff is gone"
     else:
         verdict = "stale" if item.links else "keep: names no issue or PR"
     return verdict + _attribution(item)

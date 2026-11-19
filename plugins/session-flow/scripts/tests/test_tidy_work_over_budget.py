@@ -27,7 +27,7 @@ def test_an_over_budget_marker_leaves_with_its_handoff_and_is_never_reported(env
     _, _, repo = env
     handoffs = repo / ".work" / "handoffs"
     for name in (HANDOFF_STALE, HANDOFF_FRESH):
-        write(handoffs / marker(name), '[["brief", 2000, 979]]\n')
+        write(handoffs / marker(name), '["brief"]\n')
         age(handoffs / marker(name), 60)
     items = report(env)
     assert marker(HANDOFF_STALE) not in items
@@ -38,3 +38,28 @@ def test_an_over_budget_marker_leaves_with_its_handoff_and_is_never_reported(env
     assert not (handoffs / HANDOFF_STALE).exists()
     assert not (handoffs / marker(HANDOFF_STALE)).exists()
     assert (handoffs / marker(HANDOFF_FRESH)).exists()
+
+
+ORPHAN = "20260201T100000Z-handoff-gone.md"
+
+
+def test_a_marker_whose_handoff_is_gone_leaves_once_idle(env):
+    build(env)
+    _, _, repo = env
+    handoffs = repo / ".work" / "handoffs"
+    idle = handoffs / marker(ORPHAN)
+    recent = handoffs / marker(HANDOFF_FRESH.replace("new", "newer"))
+    slots = handoffs / ORPHAN.replace(".md", ".slots.json")
+    for path in (idle, recent, slots):
+        write(path, '["brief"]\n')
+    for path in (idle, slots):
+        age(path, 60)
+    items = report(env)
+    assert items[idle.name]["kind"] == "orphan-marker"
+    assert items[idle.name]["keep"] is False
+    assert items[recent.name]["keep"] is True
+    assert items[slots.name]["kind"] == "unknown"
+    assert clean(env, "--apply").returncode == 0
+    assert not idle.exists()
+    assert recent.exists()
+    assert slots.exists()
