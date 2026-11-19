@@ -1,5 +1,6 @@
 {
   "name": "re-archive-only-answer",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "design"

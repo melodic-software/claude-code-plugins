@@ -1,5 +1,6 @@
 {
   "name": "re-skipped-rule",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "drift"

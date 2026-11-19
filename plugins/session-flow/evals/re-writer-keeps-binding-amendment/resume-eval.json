@@ -1,5 +1,6 @@
 {
   "name": "re-writer-keeps-binding-amendment",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "design",

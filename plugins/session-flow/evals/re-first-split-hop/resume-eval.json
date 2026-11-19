@@ -1,5 +1,6 @@
 {
   "name": "re-first-split-hop",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "design"
