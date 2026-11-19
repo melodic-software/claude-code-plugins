@@ -2926,9 +2926,17 @@ it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>`
 body line is one of the two leads `scripts/upstream-drift-issues.sh` writes for that id. With the
 hex-pin lead it counts only for a pull request that closes it and only modifies the
 `docs/upstream` pages whose `**Last audited upstream state:**` marker on main pins that id; with
-the vendored-copy lead (owner direction 2026-11-18), only for one that closes it and changes
-nothing outside the plugin that id's row in main's `scripts/upstream-drift-vendored-report.sh`
-names and that plugin's `.changes/` fragments. Its spec text is built from the id (and the page
+the vendored-copy lead (owner decision of 2026-11-19, #17518), only for one that closes it and
+whose every changed file, a rename's old path included, is inside the vendored scope of the plugin
+that id's row in main's `scripts/upstream-drift-vendored-report.sh` names: a markdown file under
+`plugins/<plugin>/skills/`, a `.md`, `.jsonc` or `LICENSE` file in a `vendor/` baseline there, or a
+fragment directly under `.changes/<plugin>/`. A path with a `scripts`, `hooks`, `lib`,
+`.claude-plugin`, `.mcp.json` or `evals` segment is outside it, and so are a skill's
+`actions/update.md` and the plugin's `update` skill outside `vendor/`. A `SKILL.md` outside
+`vendor/` may not be added, renamed or removed, and a modified one may change no frontmatter line
+but its `upstream-version`, `upstream-sha` and `synced` values and no `` !` `` line, with no
+```` ```! ```` block (`vendoredPath` and `skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`).
+Its spec text is built from the id (and the page
 paths, for the hex-pin lead), never from the issue's body, so an upstream path or name in its rows
 never reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other
 file still needs a listed human's issue. The same rule (`driftIssue` in
