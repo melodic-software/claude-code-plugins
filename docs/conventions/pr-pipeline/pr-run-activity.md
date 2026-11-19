@@ -681,7 +681,7 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/24067add42f5fa04743c587c6a22aa7d4059e7b8/README.md)
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/README.md)
 (at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
