@@ -2510,3 +2510,49 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
   assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
   assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
 });
+
+/** A record as apply writes it, naming settingsFile: songwriting switched on, so restoring it would switch songwriting off. */
+const handRecord = (settingsFile, target = "folder") => ({
+  schema: 1, profile: "songs", target, settingsFile, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+  phase: "applied", pending: {}, createdFile: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+  entries: { [`songwriting@${M}`]: { before: false, after: true } }, skillOverrides: {},
+});
+
+test("#17354: a git-home record of a deleted subfolder or linked worktree is kept and never offered for the repository's root file", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w, LOCAL_BEFORE);
+  const sub = join(w.project, "sub", ".claude", "settings.local.json");
+  writeTree(join(w.project, ".git", "plugin-profiles", "records"), { "sub.json": handRecord(sub), "wt.json": handRecord(t.file) });
+  rmSync(t.wt, { recursive: true });
+  const r = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const rows = JSON.parse(r.stdout).folders.filter((f) => [sub, t.file].includes(f.file));
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.ask ?? null]).sort(), [[sub, "skip", null, null], [t.file, "skip", null, null]].sort());
+  for (const f of rows) assert.ok(f.lines[0].endsWith("folder not found; record kept."), f.lines[0]);
+});
+
+test("#17354: a record kept in a folder that cannot hold it is listed as ignored and never written from", () => {
+  const w = world();
+  gitInit(w);
+  const userFile = join(w.home, ".claude", "settings.json");
+  const userBefore = readFileSync(userFile, "utf8");
+  const p2 = join(w.root, "project2");
+  writeTree(p2, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const p2File = join(p2, ".claude", "settings.local.json");
+  const planted = join(w.project, ".git", "plugin-profiles", "records");
+  writeTree(planted, { "user.json": handRecord(userFile, "initial"), "other.json": handRecord(p2File) });
+  const stateRecords = join(w.home, ".claude", "plugin-profiles-state", "records");
+  writeTree(stateRecords, { "folder.json": handRecord(p2File) });
+  const dry = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(dry.status, 0, dry.stderr);
+  const ignored = JSON.parse(dry.stdout).folders.filter((f) => f.reason === "ignored");
+  const paths = [join(planted, "user.json"), join(planted, "other.json"), join(stateRecords, "folder.json")];
+  assert.deepEqual(ignored.map((f) => f.record).sort(), paths.sort());
+  for (const f of ignored) assert.match(f.lines[0], new RegExp(`^Ignored the record ${esc(f.record)}: `));
+  const r = w.run(["reset", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(userFile, "utf8"), userBefore);
+  assert.equal(readFileSync(p2File, "utf8"), LOCAL_BEFORE);
+  for (const path of paths) assert.ok(existsSync(path), path);
+});

@@ -1141,7 +1141,14 @@ function machineFiles(where, env) {
       return null;
     }
   };
-  const files = machineSettingsFiles({ homes, recordOf: lookup, knownFiles });
+  const holding = (file) => {
+    try {
+      return homesOf(where, file);
+    } catch {
+      return [];
+    }
+  };
+  const files = machineSettingsFiles({ homes, homesOf: holding, recordOf: lookup, knownFiles });
   return { files, homes, counts: { dataDirs: dataDirs.length, pointers: pointerHomes.length, ...Object.fromEntries(Object.entries(named).map(([k, v]) => [k, v.length])) } };
 }
 
@@ -1153,6 +1160,9 @@ function resetRow(where, f) {
   const rec = f.record;
   const row = { file, recorded: Boolean(rec) && !f.adopted, adopted: f.adopted, unfinished: rec?.phase === "off-pending", overwrites: [], found: f };
   const skip = (reason, lines) => ({ ...row, action: "skip", reason, lines });
+  if (f.ignored) {
+    return { ...skip("ignored", [`Ignored the record ${f.recordPath}: it names ${file}, whose record is never kept there, so reset never writes from it.`]), record: f.recordPath };
+  }
   if (!rec) {
     let settings;
     try {
@@ -1252,6 +1262,7 @@ function resetOne(row, chosen) {
     const result = guarded(() => clearWrite(row.movedPlan, () => dropCopies(original)), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile}).`);
     return { ...result, restored: result.ok };
   }
+  if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
   if (row.action === "skip" || row.action === "remove-entries") return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
   if (row.action === "finish-restore") {
     dropCopies(original);
@@ -1345,10 +1356,11 @@ async function reset(opts, where, env, io) {
     if (result.restored) done.add(realPath(row.file));
   }
   const back = new Set();
+  const ignored = new Set(rows.filter((r) => r.record).map((r) => realPath(r.record)));
   for (const home of new Set(homes.map(realPath))) {
-    for (const { record } of listRecords(home)) {
+    for (const { path, record } of listRecords(home)) {
       const key = realPath(record.settingsFile);
-      if (done.has(key) && !back.has(key)) {
+      if (done.has(key) && !back.has(key) && !ignored.has(realPath(path))) {
         back.add(key);
         io.out(`Another terminal applied a profile to ${record.settingsFile} during the reset; run reset again.`);
         failed = true;

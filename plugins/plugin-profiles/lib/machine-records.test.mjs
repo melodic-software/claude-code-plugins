@@ -28,7 +28,7 @@ test("#17354: records of one settings file in two homes give one entry, planned 
   const data = join(root, "data");
   const first = saved(git, record(file, "build"));
   const second = saved(data, record(file, "review"));
-  const found = machineSettingsFiles({ homes: [data, git], recordOf: () => ({ found: first, record: record(file, "build") }) });
+  const found = machineSettingsFiles({ homes: [data, git], homesOf: () => [git, data], recordOf: () => ({ found: first, record: record(file, "build") }) });
   assert.equal(found.length, 1);
   assert.equal(found[0].settingsFile, file);
   assert.equal(found[0].recordPath, first);
@@ -62,7 +62,7 @@ test("#17354: a record whose folder is gone is marked missing, and a git-home on
   const home = join(root, "moved", ".git", "plugin-profiles");
   const gone = join(root, "old-place", ".claude", "settings.local.json");
   saved(home, record(gone));
-  const [found] = machineSettingsFiles({ homes: [home], recordOf: () => ({ found: null, record: null }) });
+  const [found] = machineSettingsFiles({ homes: [home], homesOf: () => [], recordOf: () => ({ found: null, record: null }) });
   assert.equal(found.missing, true);
   assert.equal(found.movedTo, join(root, "moved", ".claude", "settings.local.json"));
   assert.equal(found.recordPath, recordPath(home, gone), "with no lookup hit, the entry is planned from its own copy");
@@ -83,7 +83,7 @@ test("#17354: a known folder's file is adopted, or listed with its entries when 
     { file: loose, found: { found: null, record: null } },
     { file: empty, found: { found: null, record: null } },
   ];
-  const found = machineSettingsFiles({ homes: [], recordOf: () => ({ found: null, record: null }), knownFiles });
+  const found = machineSettingsFiles({ homes: [], homesOf: () => [], recordOf: () => ({ found: null, record: null }), knownFiles });
   assert.deepEqual(found.map((f) => [f.settingsFile, f.adopted, Boolean(f.record)]), [[adopted, true, true], [loose, false, false]]);
   assert.deepEqual(found[1].entries, ["a@m", "skill s:k"]);
 });

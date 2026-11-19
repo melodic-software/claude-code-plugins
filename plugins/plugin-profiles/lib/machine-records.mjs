@@ -64,12 +64,27 @@ export function listRecords(home) {
   });
 }
 
-/** The root file of the repository whose .git holds home, when the record's own folder is gone. */
+/** Whether folder was a linked worktree of the repository at commonDir, by the worktrees/<name>/gitdir git keeps until a prune. */
+function wasWorktree(commonDir, folder) {
+  let names;
+  try {
+    names = readdirSync(join(commonDir, "worktrees"));
+  } catch {
+    return false;
+  }
+  const own = realPath(join(folder, ".git"));
+  return names.some((name) => {
+    const gitdir = readText(join(commonDir, "worktrees", name, "gitdir"));
+    return gitdir !== null && realPath(gitdir.trim()) === own;
+  });
+}
+
+/** For a record of a main checkout's root file whose folder is gone, that repository's root file where it is now; none for a linked worktree of it. */
 function movedFile(home, settingsFile) {
   const commonDir = dirname(home);
   if (basename(home) !== "plugin-profiles" || basename(commonDir) !== ".git") return undefined;
-  const file = join(dirname(commonDir), ".claude", "settings.local.json");
-  return realPath(file) === realPath(settingsFile) ? undefined : file;
+  if (wasWorktree(commonDir, dirname(dirname(settingsFile)))) return undefined;
+  return join(dirname(commonDir), ".claude", "settings.local.json");
 }
 
 /** The plugin and skill entries a file holds, as preview names: plugin ids, then "skill <name>". */
@@ -82,24 +97,37 @@ function entriesOf(file) {
   }
 }
 
-export function machineSettingsFiles({ homes, recordOf, knownFiles = [] }) {
+const isMissing = (settingsFile) => !existsSync(dirname(dirname(settingsFile)));
+
+/**
+ * Each settings file with a record, its copies grouped by real path. homesOf(file) names the homes a record of file may sit in;
+ * a copy elsewhere is listed as ignored and never planned from, except a git home's copy for a folder that is gone, which stays
+ * kept and may name its moved root file.
+ */
+export function machineSettingsFiles({ homes, homesOf, recordOf, knownFiles = [] }) {
   const seen = new Set();
   const groups = new Map();
+  const out = [];
   for (const home of homes) {
     if (seen.has(realPath(home))) continue;
     seen.add(realPath(home));
     for (const copy of listRecords(home)) {
-      const key = realPath(copy.record.settingsFile);
+      const { settingsFile } = copy.record;
+      const held = homesOf(settingsFile).some((h) => realPath(h) === realPath(home));
+      if (!held && !(isMissing(settingsFile) && basename(home) === "plugin-profiles")) {
+        out.push({ settingsFile, folder: dirname(dirname(settingsFile)), recordPath: copy.path, copies: [], record: null, adopted: false, missing: false, ignored: true });
+        continue;
+      }
+      const key = realPath(settingsFile);
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push({ ...copy, home });
+      groups.get(key).push({ ...copy, home, held });
     }
   }
-  const out = [];
   for (const copies of groups.values()) {
     const settingsFile = copies[0].record.settingsFile;
     const hit = recordOf(settingsFile);
     const planned = copies.find((c) => c.path === hit?.found) ?? copies[0];
-    const missing = !existsSync(dirname(dirname(settingsFile)));
+    const missing = isMissing(settingsFile);
     out.push({
       settingsFile,
       folder: dirname(dirname(settingsFile)),
@@ -108,12 +136,12 @@ export function machineSettingsFiles({ homes, recordOf, knownFiles = [] }) {
       record: planned.record,
       adopted: false,
       missing,
-      movedTo: missing ? copies.map((c) => movedFile(c.home, settingsFile)).find(Boolean) : undefined,
+      movedTo: missing ? copies.filter((c) => !c.held).map((c) => movedFile(c.home, settingsFile)).find(Boolean) : undefined,
     });
   }
   for (const { file, found } of knownFiles) {
     const key = realPath(file);
-    if (groups.has(key) || out.some((f) => realPath(f.settingsFile) === key)) continue;
+    if (groups.has(key) || out.some((f) => !f.ignored && realPath(f.settingsFile) === key)) continue;
     const base = { settingsFile: file, folder: dirname(dirname(file)), recordPath: null, copies: [], missing: false };
     if (found?.record) out.push({ ...base, record: found.record, adopted: true });
     else {
