@@ -28,6 +28,7 @@ as-of-recheck run as-of-recheck
 cost-figures run cost-figures
 changed-skills run changed-skills
 comment-hygiene run comment-hygiene
+size-check run size-check
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
 # or the command that runs it by hand.

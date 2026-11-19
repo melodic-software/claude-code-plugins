@@ -158,6 +158,7 @@ for ((k = 0; k < ${#mf_bases[@]}; k++)); do
     d="${rest%%"$US"*}"
     rest="${rest#*"$US"}"
     mkdir -p "$mirror/$d"
+    mf_nm_ok "$d" && mf_link "$d/node_modules"
     for name in $RT_DRIFT_CONFIGS .gitignore; do
       [[ -f "$d/$name" ]] || continue
       mf_link "$d/$name"
