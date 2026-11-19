@@ -78,6 +78,7 @@ def test_the_committed_cases_are_the_known_set():
         [
             "re-decision-trimmed-to-fit",
             "re-rule-after-size-fail",
+            "re-retired-id-reused",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",

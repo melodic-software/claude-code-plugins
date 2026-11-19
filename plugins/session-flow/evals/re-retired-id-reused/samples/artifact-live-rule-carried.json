@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Current rules\n\n- [R4] Cut a release by pushing an annotated tag: `git tag -a v<version> -m v<version>`, then `git push origin v<version>`; the release workflow sets pyproject.toml's version from the tag, so no PR or commit edits that version.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Current rules\n\n- [R4] Bump the version in pyproject.toml by hand in the release PR, in the same commit as the release notes.\n",
+      "why": "the retired rule under the reused id"
+    },
+    {
+      "handoff": "## Current rules\n\n- [R4] Cut a release by pushing an annotated tag: `git tag -a v<version> -m v<version>`.\n",
+      "why": "id kept, the no-version-edit clause cut"
+    }
+  ]
+}
