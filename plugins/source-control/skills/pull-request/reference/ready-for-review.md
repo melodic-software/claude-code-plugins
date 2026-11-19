@@ -422,8 +422,8 @@ PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<ch
 When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
 the suites only: the gate's deterministic last part still runs, as `scripts/check-affected.sh`
 without `--tests` (still running the repository's other affected checks), or the commands §1.5
-resolves minus the test suites when the repository does not ship it. Record `pass` or `fail` from
-its exit status with the first
+resolves minus the test suites when the repository does not ship it.
+Record `pass` or `fail` from its exit status with the first
 command below. Report the verify line as that result, with the suites `skipped (CI covers it)`
 and the venue line's detail, naming the suites skipped: the list `scripts/affected-tests.sh`
 prints with no arguments, run from `$PR_TREE`, when the repository ships it, otherwise the
