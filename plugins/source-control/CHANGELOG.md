@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.0] - 2026-11-19
+
+### Added
+
+- `linkage_gate_uses_pattern`, in `docs/conventions/source-control.yaml` or as a userConfig option (the YAML wins): the POSIX ERE a `.github/workflows` file must match for the PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) to run in a repository.
+- `runner_policy_paths`, `org_settings_repo` and `review_lane_producer_repo` in `docs/conventions/source-control.yaml`: where `/source-control:babysit-prs` routes a wrong runner label, an organization-settings finding, and a review-lane check name that does not match the gate's.
+
+### Changed
+
+- The merge gate's evidence comment also links a capture whose run is titled `PR Verify Capture <run> <head>`, the Title Case run-name the capture workflow moves to next; the `pr-verify-capture <run> <head>` title still counts.
+
+- The PR-body linkage hooks no longer carry a built-in workflow path: with `linkage_gate_uses_pattern` unset they gate no repository. To keep the earlier scope, set it to `\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)`.
+- The babysit-prs routing text and the pull-request watch hand-off no longer name a specific organization's repositories or tools.
+
+### Fixed
+
+- `babysit_verify_evidence.py settle --probe-unmoved` refuses a last report that lists reruns as `reruns-unmoved` when nothing else it read has moved, so a PR-scoped `pr-merge.yml` wake skips the fresh post-merge check.
+
+- The verdict reader (`babysit_verify_evidence.py evidence`) judges a head again after the pool's reset when its `verify:unreadable` came from a read not sent below the read floor and the reset is within `BABYSIT_READ_FLOOR_WAIT_SECONDS`; ci-status's merge-queue step sets 900 s. A pass at the head whose run cannot be read now refuses `verify:unreadable`, not `verify:missing`, unless another counted pass allows.
+
 ## [11.22.5] - 2026-11-19
 
 ### Fixed
