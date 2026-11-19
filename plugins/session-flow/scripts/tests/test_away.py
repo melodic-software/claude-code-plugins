@@ -825,6 +825,24 @@ def test_stop_never_writes_through_a_link_planted_at_the_report(ctx, swap):
     assert list(outside.iterdir()) == [], "nothing is written into the linked folder"
     if swap == "report":
         assert report.is_symlink(), "the link is not replaced by a copy of what it points at"
+    result = ignored.cli("end")
+    assert result.returncode == 1 and "left untouched" in result.stderr, "end reports the refusal"
+    assert "Traceback" not in result.stderr
+    assert secret.read_text(encoding="utf-8") == "TOP-SECRET-VALUE\n" and list(outside.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks need POSIX permissions")
+def test_end_writes_a_report_recorded_through_a_linked_folder_before_report_dir_existed(ctx):
+    ctx.start()
+    via = ctx.root / "via"
+    via.symlink_to(ctx.state_dir)
+    state = ctx.state()
+    state.pop("report_dir")
+    state["report_path"] = str(via / "report.md")
+    (ctx.state_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    result = ctx.cli("end")
+    assert result.returncode == 0, result.stderr
+    assert "Watched:" in block((ctx.state_dir / "report.md").read_text(encoding="utf-8"), "files")
 
 
 def test_stop_records_transcript_path(ctx):

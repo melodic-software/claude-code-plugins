@@ -839,7 +839,7 @@ def guarded_report(state: Mapping) -> Path:
     """The report path, refused when its folder resolves elsewhere than at start or it is not a
     regular file, so a link planted by a sandboxed command is never read or written through."""
     report = Path(state["report_path"])
-    expected = state.get("report_dir") or os.path.abspath(report.parent)
+    expected = state.get("report_dir") or os.path.realpath(report.parent)
     planted = os.path.lexists(report) and not stat.S_ISREG(os.lstat(report).st_mode)
     if planted or os.path.realpath(report.parent) != expected:
         raise OSError(f"{report} is not a regular file in {expected}; left untouched")
@@ -1212,7 +1212,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = session_paths(root, args.session, DEFAULT_PLUGIN_ROOT)
     try:
         return COMMANDS[args.command](args, paths)
-    except AwayError as exc:
+    except (AwayError, OSError) as exc:
         print(f"away.py {args.command}: {exc}", file=sys.stderr)
         return 1
     except ValueError as exc:
