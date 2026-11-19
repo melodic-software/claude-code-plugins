@@ -1950,7 +1950,12 @@ def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
     for name in names:
         probes = _shared_probes(specs.get(name), b_cells[name], o_cells[name])
         b, o = b_cells[name].accuracy(probes), o_cells[name].accuracy(probes)
-        if b is not None and o is not None:
+        if b is None or o is None:
+            lines.say(
+                f"left out: case {name} has no probe both sides graded ({pair})",
+                fail=True,
+            )
+        else:
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
     lines.say(f"pair {pair}: accuracy change {_paired(nr, deltas, -1.0, 1.0)}")

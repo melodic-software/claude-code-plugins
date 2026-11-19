@@ -1703,9 +1703,7 @@ def test_a_pair_scores_shared_probes_and_reports_drops_and_token_change(
         "pass-to-fail: case re-c passes in before.claude-code (1.00) and fails in after.claude-code (0.50) at T=0.90"
         in out
     )
-    assert "re-a" not in [
-        line.split()[2] for line in out.splitlines() if line.startswith("case drop")
-    ]
+    assert "case drop: case re-a" not in out and "case drop: case re-b" not in out
     folder = tmp_path / "rep" / "pairs" / "after.claude-code--vs--before.claude-code"
     after = json.loads((folder / "after.claude-code.json").read_text())
     re_a = next(c for c in after["cases"] if c["name"] == "re-a")
@@ -1782,3 +1780,24 @@ def test_report_fails_when_a_case_was_seeded_differently(tmp_path, capsys):
     graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
     code, out = _report(tmp_path, capsys, [graded])
     assert code == 1 and "seed mismatch: case re-a arm before" in out
+
+
+def test_a_pair_fails_on_a_case_with_no_probe_both_sides_graded(tmp_path, capsys):
+    rows = [
+        _row(case, arm, 0, {f"{arm}-only": True})
+        for case in ("re-a", "re-b")
+        for arm in ("before", "after")
+    ]
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    code, out = _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--evals-dir",
+        str(tmp_path / "no-evals"),
+    )
+    assert code == 1, out
+    pair = "after.claude-code vs before.claude-code"
+    assert f"left out: case re-a has no probe both sides graded ({pair})" in out
