@@ -2480,7 +2480,7 @@ test("#17354: a folder with plugin entries and no record is listed with each ent
   assert.equal(w.read(), LOCAL_BEFORE, "--yes alone never covers a folder without a record");
   const wrong = reset(w, ["--yes", "--remove-unrecorded", join(w.root, "elsewhere", ".claude", "settings.local.json")]);
   assert.equal(wrong.status, 1);
-  assert.match(wrong.stderr, /not reset: .* is not a folder without a record in the preview; nothing was written/);
+  assert.match(wrong.stderr, /not reset: .* is not a file the preview asks about; it asks about .*; nothing was written/);
   assert.equal(w.read(), LOCAL_BEFORE);
   const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
   assert.equal(r.status, 0, r.stderr);
@@ -2541,6 +2541,42 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
   assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
   assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
   assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
+});
+
+test("#17354: a write given the preview's id refuses, writing nothing, once what reset would write differs from that preview", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const shown = resetJson(w).previewId;
+  assert.match(shown, /^[0-9a-f]{64}$/);
+  assert.equal(resetJson(w).previewId, shown, "the same machine gives the same id");
+  const p2 = secondFolder(w);
+  const applied = [w.read(), readFileSync(p2.file, "utf8")];
+  const r = reset(w, ["--yes", "--preview-id", shown]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: what reset would write changed since that preview .*nothing was written\. Look at the new preview: reset --dry-run$/m);
+  assert.deepEqual([w.read(), readFileSync(p2.file, "utf8")], applied);
+  const beforeEdit = resetJson(w).previewId;
+  const edited = JSON.parse(w.read());
+  edited.permissions.allow.push("Bash(edited)");
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const next = resetJson(w).previewId;
+  assert.notEqual(next, beforeEdit, "a hand edit of a listed file changes the id");
+  const ok = reset(w, ["--yes", "--preview-id", next]);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a file the preview does not ask about is refused, naming the files it does ask about", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const r = reset(w, ["--yes", "--remove-unrecorded", old]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, new RegExp(`^not reset: ${esc(old)} is not a file the preview asks about; it asks about ${esc(rootLocal(moved))} \\(each row's ask\\.file in reset --dry-run --json\\); nothing was written$`, "m"));
 });
 
 /** A record as apply writes it, naming settingsFile: songwriting switched on, so restoring it would switch songwriting off. */

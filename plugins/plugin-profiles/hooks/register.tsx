@@ -37,7 +37,7 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
-type ResetPreview = { sessionProfile: string | null; folders: { action: string; ask?: { file: string; question: string } }[]; lines: string[] }
+type ResetPreview = { sessionProfile: string | null; previewId: string; folders: { action: string; ask?: { file: string; question: string } }[]; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -161,7 +161,7 @@ async function resetAll($: EngineInterface): Promise<string> {
     if ((await $.ui.ask(ask.question, { options: [REMOVE, KEEP], header: 'Reset' }).catch(() => KEEP)) === REMOVE) remove.push(ask.file)
   }
   if (!restores && !remove.length) return 'Not reset; nothing changed.'
-  const done = await cli($, ['reset', '--yes', '--json', ...remove.flatMap(file => ['--remove-unrecorded', file])])
+  const done = await cli($, ['reset', '--yes', '--json', '--preview-id', preview.previewId, ...remove.flatMap(file => ['--remove-unrecorded', file])])
   if (done.exitCode !== 0 && done.exitCode !== PARTLY_DONE) return failure(done)
   show($, (JSON.parse(done.stdout) as { lines: string[] }).lines)
   await update($, pending, (): Switch => ({ profile: RESET, phase: 'armed', kind: 'reset', keeps: preview.sessionProfile ?? undefined }))

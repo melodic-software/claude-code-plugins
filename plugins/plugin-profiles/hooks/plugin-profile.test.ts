@@ -39,6 +39,7 @@ const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.
   exitCode: 0,
   stdout: JSON.stringify({
     sessionProfile,
+    previewId: 'preview-1',
     folders: folders.map(f => ({ recorded: f.action !== 'remove-entries', adopted: false, unfinished: false, overwrites: [], lines: [`${f.file}: a line the tool owns.`], ...f })),
     lines: ['Reset looked for profile records in the places the tool owns.', ...folders.map(f => `${f.file}: a line the tool owns.`)],
   }),
@@ -536,7 +537,7 @@ test('#17354: the picker shows Reset under No profile, previews the reset, asks,
   expect(w.asks).toEqual([{ question: 'Reset every file above?', options: ['Apply', 'Cancel'] }])
   expect(w.runs.slice(1)).toEqual([
     ['reset', '--dry-run', '--json'],
-    ['reset', '--yes', '--json'],
+    ['reset', '--yes', '--json', '--preview-id', 'preview-1'],
   ])
   expect(w.logs).toContain('Restored /p/.claude/settings.local.json (profile review).')
   expect(text).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
@@ -566,7 +567,7 @@ test('#17354: each folder without a record gets its own question, and only Remov
     { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
     { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
   ])
-  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--remove-unrecorded', '/b/.claude/settings.local.json']])
+  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json']])
 })
 
 test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {

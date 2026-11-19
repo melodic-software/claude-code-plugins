@@ -136,7 +136,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json]] [--remove-unrecorded <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -286,9 +286,9 @@ function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (command === "start") return parseStart(rest);
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, removeUnrecorded: [] };
+  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, removeUnrecorded: [], previewId: null };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: ["--remove-unrecorded"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: ["--remove-unrecorded", "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -1217,10 +1217,10 @@ function resetRow(where, f) {
     return skip(`${error.message}; record kept`, [`${file}: ${error.message}; reset leaves it and its record.`]);
   }
   if (rec.phase === "restoring" && plan.settings.hash === rec.restoredHash) {
-    return { ...row, action: "finish-restore", lines: [`${file}: an earlier reset restored it and was cut off before removing its record; reset removes the record.`] };
+    return { ...row, action: "finish-restore", plan, lines: [`${file}: an earlier reset restored it and was cut off before removing its record; reset removes the record.`] };
   }
   if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc) && !plan.overwrites.length) {
-    return { ...row, action: "finish-restore", reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
+    return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
   }
   const what = plan.removes
     ? "removes the file, which the first apply created"
@@ -1320,6 +1320,10 @@ function resetOne(row, chosen) {
   return done;
 }
 
+/** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and record it was planned from. */
+const previewIdOf = (rows) =>
+  hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, hashOf(r.found.copies.find((c) => c.path === r.found.recordPath)?.text ?? null)])));
+
 async function reset(opts, where, env, io) {
   if (doesNotApply(where.surface)) throw new NotApplied(`not reset: ${refusal(where.surface, "folder")}`);
   const { files, homes, counts } = machineFiles(where, env);
@@ -1337,12 +1341,18 @@ async function reset(opts, where, env, io) {
   ];
   if (opts.json && opts.dryRun) {
     const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
-    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), folders, lines }, null, 2));
+    io.out(JSON.stringify({ sessionProfile: sessionProfile(env), previewId: previewIdOf(rows), folders, lines }, null, 2));
   } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
-  const askable = new Set(rows.filter((r) => r.ask).map((r) => realPath(r.ask.file)));
+  if (opts.previewId && opts.previewId !== previewIdOf(rows)) {
+    throw new NotApplied("not reset: what reset would write changed since that preview (a profile was applied, cleared or edited elsewhere); nothing was written. Look at the new preview: reset --dry-run");
+  }
+  const asked = rows.filter((r) => r.ask).map((r) => r.ask.file);
+  const askable = new Set(asked.map(realPath));
   for (const named of opts.removeUnrecorded) {
-    if (!askable.has(realPath(resolve(named)))) throw new NotApplied(`not reset: ${named} is not a folder without a record in the preview; nothing was written`);
+    if (!askable.has(realPath(resolve(named)))) {
+      throw new NotApplied(`not reset: ${named} is not a file the preview asks about; it asks about ${asked.length ? asked.join(", ") : "none"} (each row's ask.file in reset --dry-run --json); nothing was written`);
+    }
   }
   let chosen = new Set(opts.removeUnrecorded.map((named) => realPath(resolve(named))));
   const restores = rows.some((r) => ["restore", "remove-file", "finish-restore"].includes(r.action));
