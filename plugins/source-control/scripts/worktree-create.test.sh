@@ -1205,7 +1205,6 @@ assert_file_exists "existing branch worktree has the commit" "$out/README.md"
 bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" >/dev/null 2>"$errfile"
 assert_exit "missing existing branch is a usage error" 2 "$?"
 
-# --- Case: a repository with no LFS attributes gets no LFS note ---
 repo=$(mkrepo)
 errfile="$TEST_TMPDIR/err-no-lfs.txt"
 out=$(bash "$HELPER" --name feat/no-lfs --root "$TEST_TMPDIR/wtroot-no-lfs" --repo-dir "$repo" 2>"$errfile")
@@ -1213,7 +1212,6 @@ assert_exit "no-LFS create exit 0" 0 "$?"
 assert_eq "no-LFS stdout is the worktree path alone" "$TEST_TMPDIR/wtroot-no-lfs/${repo##*/}-feat-no-lfs" "$out"
 assert_not_contains "no-LFS create writes no LFS note" "$(cat "$errfile")" "LFS"
 
-# --- Case: LFS-tracked paths arrive as pointer files, with one note on stderr ---
 if ! git lfs version >/dev/null 2>&1; then
   skip_case "LFS pointer checkout: git lfs is not installed"
 else
