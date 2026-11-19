@@ -5,10 +5,17 @@
 // answers from PP_STUB_MARKETPLACES, `agents --json` from PP_STUB_AGENTS or an empty list. `plugin install <id> --scope user` adds the plugin to the
 // PP_STUB_LIST file and switches it on in $HOME/.claude/settings.json, as the real install does,
 // or fails when PP_STUB_INSTALL_FAIL is set.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const env = process.env;
+/** Once, before answering `plugin list`, runs the node command the file PP_STUB_DURING_LIST holds ({argv, cwd}), as another terminal would mid-run. */
+if (env.PP_STUB_DURING_LIST && existsSync(env.PP_STUB_DURING_LIST) && process.argv.slice(2).join(" ") === "plugin list --json") {
+  const { argv, cwd } = JSON.parse(readFileSync(env.PP_STUB_DURING_LIST, "utf8"));
+  rmSync(env.PP_STUB_DURING_LIST);
+  spawnSync(process.execPath, argv, { cwd, env, stdio: "ignore" });
+}
 const calls = env.PP_STUB_CALLS ? (existsSync(env.PP_STUB_CALLS) ? readFileSync(env.PP_STUB_CALLS, "utf8").split("\n").filter(Boolean).length : 0) : 0;
 if (env.PP_STUB_CALLS) appendFileSync(env.PP_STUB_CALLS, `${process.argv.slice(2).join(" ")}\n`);
 if (env.PP_STUB_ENV) appendFileSync(env.PP_STUB_ENV, `${JSON.stringify({ argv: process.argv.slice(2), env })}\n`);

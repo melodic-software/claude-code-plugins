@@ -28,8 +28,9 @@
 // issue's only way in. The ci-workflows reusable hands the body to intake's
 // triage model, so the filer (scripts/upstream-drift-issues.sh) writes no
 // text the upstream repository chooses: only the upstream id, hex SHAs, our
-// own docs/upstream page paths and counts. The issue lane and pr-verify read
-// driftSpecText, never the body. Per issue, one comment holds the runs
+// own docs/upstream page and check-script paths, skill names and counts. The
+// issue lane and pr-verify read trustedDriftSpec, never the body
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Per issue, one comment holds the runs
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
