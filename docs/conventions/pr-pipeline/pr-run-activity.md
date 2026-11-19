@@ -2296,14 +2296,23 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
-  the skill. The lanes App's own comments are left out, a listed human's comment whose first line
-  is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
-  capped at the newest 20. The issue is frozen at the `labeled` event that started this run (the
-  labeler's newest such event no later than the payload's issue `updated_at`; a later label event
-  by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
-  the label it restarted): a
-  comment created or edited after that is left out, and a title or body changed since fails the
-  step, so text edited after admission does not steer the run. On a resume, `issue.json` also
+  the skill. Of the lanes App's own comments, only two kinds reach the implementer: intake's
+  refinement (`<!-- intake-triage refinement -->`), as `author_kind: refinement`, since admission
+  may have counted its criteria, and pr-merge's capped-close record, as
+  `author_kind: verify-findings`. A refinement that carries a split record goes in only when it is
+  the refinement admission read the issue's `person_checks` from; any other split refinement is
+  left out. Every other lanes App comment is left out, including the triage verdict
+  (`<!-- intake-triage verdict -->`), the admission comment and the size-split record, because the
+  App's pushback quotes the issue body. The implementer therefore never reads a triage verdict,
+  and `issue.json` needs no limit on a verdict's age. A listed human's comment whose first line is
+  `**Decision recorded.**` is marked `decision: true`, and comments other than decisions, a
+  refinement included, are capped at the newest 20. The issue is frozen at the `labeled` event
+  that started this run (the labeler's newest such event no later than the payload's issue
+  `updated_at`; a later label event by anyone never moves it, and the lanes App's remove-and-re-add
+  after a limit stop anchors at the label it restarted): a comment created or edited after that is
+  left out, except the capped-close record, which goes in whenever it was posted while no one but
+  the lanes App has edited it, and a title or body changed since fails the step, so text edited
+  after admission does not steer the run. On a resume, `issue.json` also
   carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
   base and each changed file with its line counts, from `GET /compare`. On a fresh start past a
   stale branch it carries `stale_branch` instead: that branch, the tip `issue-prior` checked, and

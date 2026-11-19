@@ -2,10 +2,10 @@
 
 How to choose a library for an interface component (a dialog, popover, menu, select, toast,
 command menu, date picker, data table, drag and drop, a virtualized list) instead of hand-rolling
-it. The criteria decide; the primitives table below names a default for React only, because which
-libraries fit depends on the project's stack and changes faster than this file. For any other
-stack, look up its current options from its own ecosystem and official sources at the time of the
-choice. The project's design system and conventions override everything here.
+it. The criteria decide, and this file names no library, because which libraries fit depends on the
+project's stack and changes faster than this file. Look up the stack's current options from its own
+ecosystem and official sources at the time of the choice. The project's design system and
+conventions override everything here.
 
 ## Why not hand-roll
 
@@ -51,34 +51,16 @@ or touch user can reach it.
 - **Pointer**: WAI-ARIA Authoring Practices Guide, patterns,
   <https://www.w3.org/WAI/ARIA/apg/patterns/>
 
-## Accessible primitives for React
+## A new primitives library
 
-When a React project has no primitives library installed and its design system names none, use
-the `components.primitives_default` setting for accessible component primitives: the resolved
-`config.values.components.primitives_default` that `/user-interface:design` detects, else the value
-in `defaults.yaml`. It names a primitives library below by its setting value; shadcn/ui is not a value,
-because it builds on one of them. If it doesn't fit the codebase, use whatever
-does, but the accessibility bar (focus management, ARIA, keyboard support) is non-negotiable.
-
-| Setting value | Library | Install | Composition |
-|---|---|---|---|
-| `base-ui` | Base UI | <https://base-ui.com/react/overview/quick-start#install-the-library> | <https://base-ui.com/react/handbook/composition#changing-the-default-rendered-element> |
-| `radix` | Radix Primitives | <https://www.radix-ui.com/primitives/docs/overview/getting-started#1-install-the-primitive> | <https://www.radix-ui.com/primitives/docs/guides/composition#changing-the-element-type> |
-| `react-aria` | React Aria | <https://react-aria.adobe.com/getting-started#install> | <https://react-aria.adobe.com/customization#dom-elements> |
-| none (builds on a row above) | shadcn/ui | <https://ui.shadcn.com/docs/installation#use-the-cli> | the composition page of the library it builds on |
-
-A setting value is a key, not a package name: install a library by the package name its Install
-page gives, never by the setting value or a name recalled from memory. Treat shadcn/ui components
-copied into the project as the project's own, and the library they build on as installed. Before
+When the project has no primitives library installed and its design system names none, the choice
+is the project's: offer the candidates the criteria above leave, each with its current
+documentation, and ask before adding one. Whichever library is chosen, the accessibility bar (focus
+management, ARIA, keyboard support) is non-negotiable. Install a library by the package name its
+own install page gives, never by a name recalled from memory. Treat components copied into the
+project from a generator as the project's own, and the library they build on as installed. Before
 relying on a library for the accessibility bar, read what its accessibility page leaves to the
 project.
-
-- **Pointer**: the pages in each row's Install and Composition columns; Base UI's accessibility
-  page, <https://base-ui.com/react/overview/accessibility#focus-management>; which libraries
-  shadcn/ui builds on, <https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default#whats-changed>
-- **As of**: 2026-10-29
-- **Recheck trigger**: a library moves its install or composition section, changes its package
-  name, or shadcn/ui changes the libraries it builds on.
 
 ## Report the choice
 
