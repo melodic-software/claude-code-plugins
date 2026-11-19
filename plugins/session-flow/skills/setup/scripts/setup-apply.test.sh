@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/resolve-convention-home.sh
 # Black-box test for setup-apply.mjs, the writer behind /session-flow:setup apply.
 #
 # Self-contained and cwd-independent; mutates only its own mktemp dir.

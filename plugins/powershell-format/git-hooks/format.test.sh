@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/git-hooks/lint.sh
 # test-scope: plugins/powershell-format/git-hooks/entries.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1 plugins/powershell-format/git-hooks/adapters.sh
 # test-scope: plugins/powershell-format/lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/install.mjs plugins/powershell-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional

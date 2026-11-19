@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .github/source-control-settings.json plugins/source-control/.claude-plugin/plugin.json
 # Part c of the babysit-prs engine's unittest suite: tests/test_babysit_postmerge*.py.
 # engine-run.sh assigns the parts; engine.test.sh, engine-b.test.sh and
 # engine-d.test.sh run the rest.

@@ -3974,6 +3974,86 @@ test("the budget record says it never counts toward the per-issue bound", () => 
   assert.ok(!breakerComment(KEY, { repo: REPO, run: 5030, ended: 0 }).includes("cause=budget"));
 });
 
+const BUDGET_ISSUES = [
+  [43, "2026-10-16T11:51:00Z"],
+  [41, "2026-10-16T11:52:00Z"],
+  [45, "2026-10-16T11:53:00Z"],
+  [42, "2026-10-16T11:54:00Z"],
+  [44, "2026-10-16T11:55:00Z"],
+];
+const SWITCH_ISSUES = [
+  [46, "2026-10-16T11:56:00Z"],
+  [47, "2026-10-16T11:57:00Z"],
+  [48, "2026-10-16T11:58:00Z"],
+  [49, "2026-10-16T11:59:00Z"],
+];
+const inWindow = ({ budget = BUDGET_ISSUES, switches = [], unfinished = 0 }) => {
+  const all = [...budget, ...switches];
+  return world({
+    openReady: all.map(([n]) => ready(n)),
+    comments: Object.fromEntries(all.map(([n]) => [n, [note()]])),
+    events: Object.fromEntries(all.map(([n]) => [n, [added(LABELED_AT, OWNER)]])),
+    runs: [
+      ...all.map(([n, ended]) => ({ ...laneRun({ number: n, conclusion: "success" }), updated_at: ended })),
+      ...unfinishedRuns(unfinished, "2026-10-16T11:50:00Z", "queued", 900),
+    ],
+    jobs: Object.fromEntries([...budget.map(([n]) => [5000 + n, BUDGET_STOPPED]), ...switches.map(([n]) => [5000 + n, KILL_SKIPPED])]),
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+};
+
+test("budget-stop re-fires inside the window keep the unfinished lane runs at refire-budget-per-slot x SLOTS: one per slot, the oldest run end first", async (t) => {
+  for (const [unfinished, expected] of [
+    [0, ["RESTART 43", "RESTART 41", "RESTART 45"]],
+    [2, ["RESTART 43"]],
+    [3, []],
+  ]) {
+    const fake = inWindow({ unfinished });
+    const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github }, clearLimits()));
+    assert.equal(code, 0);
+    assert.deepEqual(restarts(fake.calls), expected, `3 slots x 1 less ${unfinished} unfinished, the oldest run end first among 5 budget-stopped issues`);
+    assert.ok(lines.some((line) => line.startsWith("label-unblocked: #44 budget-stop re-fire deferred")), lines.join("\n"));
+  }
+  const few = inWindow({ budget: BUDGET_ISSUES.slice(0, 2) });
+  assert.equal(await sweep({ github: few.github, actions: few.github }, clearLimits()), 0);
+  assert.deepEqual(restarts(few.calls), ["RESTART 43", "RESTART 41"], "2 budget-stopped issues under a budget room of 3 both re-fire");
+});
+
+test("a deferred budget-stop re-fire leaves its room to switch trips, which still fill refire-queue-per-slot x SLOTS", async () => {
+  const fake = inWindow({ budget: BUDGET_ISSUES.slice(0, 4), switches: SWITCH_ISSUES });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }, clearLimits()), 0);
+  assert.deepEqual(
+    restarts(fake.calls),
+    ["RESTART 43", "RESTART 41", "RESTART 45", "RESTART 46", "RESTART 47", "RESTART 48"],
+    "room 2 x 3 = 6 and budget room 1 x 3 = 3: three budget re-fires, then three switch trips",
+  );
+  const switches = inWindow({ budget: [], switches: SWITCH_ISSUES, unfinished: 2 });
+  assert.equal(await sweep({ github: switches.github, actions: switches.github }, clearLimits()), 0);
+  assert.deepEqual(restarts(switches.calls), ["RESTART 46", "RESTART 47", "RESTART 48", "RESTART 49"], "switch trips alone keep two per slot: 6 less 2 unfinished leaves 4");
+});
+
+test("switch trips that sort ahead of budget stops spend the budget-stop room, so no budget stop re-fires behind them", async (t) => {
+  const older = [
+    [46, "2026-10-16T11:40:00Z"],
+    [47, "2026-10-16T11:41:00Z"],
+    [48, "2026-10-16T11:42:00Z"],
+  ];
+  const fake = inWindow({ budget: BUDGET_ISSUES.slice(0, 3), switches: older });
+  const { code, lines } = await printedBy(t, () => sweep({ github: fake.github, actions: fake.github }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 46", "RESTART 47", "RESTART 48"], "three switch trips fill the budget room of 3, so every budget stop waits");
+  for (const number of [43, 41, 45]) {
+    assert.ok(lines.some((line) => line.startsWith(`label-unblocked: #${number} budget-stop re-fire deferred`)), lines.join("\n"));
+  }
+});
+
+test("limits.refire-budget-per-slot sets the budget-stop target: at 2, 2 x 3 less 2 unfinished re-fires four of five under a room of 7", async () => {
+  const fake = inWindow({ unfinished: 2 });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }, clearLimits({ "refire-budget-per-slot": 2, "refire-queue-per-slot": 3 })), 0);
+  assert.deepEqual(restarts(fake.calls), ["RESTART 43", "RESTART 41", "RESTART 45", "RESTART 42"]);
+});
+
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
   const [kill, ask] = KILL_SKIPPED[2].steps;
   const check = (steps) => ({ ...KILL_SKIPPED[2], steps });

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
 # Coverage:
 #   - config resolution + validation (missing / malformed / empty-lanes)
 #   - status renders per-lane running/stopped state from an --agents-json fixture
