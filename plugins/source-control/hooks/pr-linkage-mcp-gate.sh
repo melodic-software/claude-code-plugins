@@ -17,19 +17,14 @@
 #
 # WHAT IT ENFORCES — no negated closing reference (`does not close #N`)
 # anywhere in the body, which GitHub's negation-blind parser would still close
-# on merge, judged as the consuming repository's
-# `.github/actions/pr-require-checks/check-contract` composite step
-# (melodic-software/ci-workflows) judges it, after stripping HTML comments and
+# on merge, judged as the PR-body contract step judges it in CI (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/pr-body-convention/README.md), after stripping HTML comments and
 # masking Markdown code. The rest of that contract (a closing line
 # and non-empty `## Summary`, `## Fix`, `## Verification` and `## Related`
 # sections) is advisory in CI, so a body missing any of it is allowed.
 #
 # SCOPE GUARDS —
 #   - enforcement is keyed to the repository's OWN policy: the gate runs only
-#     when one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:`
-#     the contract composite step `pr-require-checks/check-contract` (the
-#     SHA-pinned `melodic-software/ci-workflows/.github/actions/<path>@<sha>`
-#     form or ci-workflows' own local `./.github/actions/<path>`), so a consumer
+#     when one of the repo's `.github/workflows/*.yml` / `*.yaml` files matches `linkage_gate_uses_pattern` (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml); unset gates no repo, so a consumer
 #     without the step is never gated. This is deliberately NOT the
 #     `pr_body_required_sections` seam (docs/contracts/pr-body-convention/),
 #     whose portable default excludes `Related` on purpose;
@@ -145,29 +140,10 @@ esac
 REPO_ROOT=""
 hook::repo_root_to REPO_ROOT "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || :
 
-# The consuming repo's own workflows are the authority: the gate runs only
-# where one of them wires in the contract composite step. No step, no
-# enforcement.
+# shellcheck source=pr-linkage-scope.sh
+source "$HOOK_DIR/pr-linkage-scope.sh"
 GATE_FILE=""
-# Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
-# (`melodic-software/ci-workflows/.github/actions/<path>@<sha>`) and
-# ci-workflows' own local dogfood (`./.github/actions/<path>`), where <path> is
-# `pr-require-checks/check-contract`. The trailing class keeps a longer sibling
-# directory (`check-contract-foo`) out.
-gate_re='\.github/actions/pr-require-checks/check-contract([@[:space:]]|$)'
-for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
-  # An unmatched glob stays literal; skipped here rather than leaking
-  # `shopt -s nullglob` out of the hook.
-  [[ -f "$candidate" ]] || continue
-  # Fork-free read, not `grep` (pr-linkage-spawn-budget.test.sh). `read -d ''`
-  # returns 1 at EOF, yet `wf` holds the bytes. Cleared first so an unreadable
-  # file does not keep the previous candidate's bytes.
-  wf=""
-  IFS= read -r -d '' wf <"$candidate"
-  [[ "$wf" =~ $gate_re ]] || continue
-  GATE_FILE="$candidate"
-  break
-done
+linkage::gate_file_to GATE_FILE "$REPO_ROOT" "pr-linkage-mcp-gate"
 [[ -n "$GATE_FILE" ]] || exit 0
 
 # Out-of-scope guard: only judge PRs aimed at THIS repository. The origin URL's

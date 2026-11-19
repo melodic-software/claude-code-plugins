@@ -140,7 +140,11 @@ boundary.
    an open item or a finding still owed hands off rather than clears, so that state survives the
    reset. This is the first mechanism that pays a write cost without a live continuation attached:
    a handoff carries forward exactly the state that matters.* The skill ships in this plugin, so it
-   is never absent here; a handoff file is written through it, never free-hand. At a boundary
+   is never absent here; a handoff file is written through it, never free-hand. When this session
+   has a tool that starts another session (the Claude desktop app's Code tab), name the handoff's
+   sibling-session delivery instead of the `/clear`: the user starts a fresh session from the
+   resume prompt ([sibling-session-delivery.md](../../../reference/sibling-session-delivery.md)).
+   At a boundary
    between two human stages, the rule below narrows this edge.
 6. **Fallthrough: the next work is in the same phase or activity, or is the related next task** →
    `/compact <focus>`, typed by the user, the focus naming what the summary must keep. *Compaction

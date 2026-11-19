@@ -1,5 +1,110 @@
 # Changelog for the PR pipeline convention
 
+## [10.15.6] - 2026-11-19
+
+### Changed
+
+- The legacy FAILs file is `.github/verify-legacy-fails.json`, which `BABYSIT_VERIFY_LEGACY_FAILS` names for the verdict reader, instead of a file beside the reader.
+
+## [10.15.5] - 2026-11-19
+
+### Fixed
+
+- A rate limit whose header reset passes between the rate guard recording it and `rate_stop_from` reading it no longer turns into a guessed one-hour stop on every pool: the limit is over, so `retry_call --read` retries the read. Before, a reset a second away could fail the merge group's queued pull request read, which turned main's scheduled run red in `scripts/ci-queued-pr.test.sh`.
+
+## [10.15.4] - 2026-11-19
+
+### Fixed
+
+- ci-status's merge-queue verdict reader waits up to 900 s (`WAIT_BUDGET_SECONDS.ciStatusVerify`) for github-token's reset after a read it did not send below the read floor, then judges again, instead of ejecting the lane pull request as `verify:unreadable`; the job's timeout grows to 35 minutes to hold the wait.
+
+## [10.15.3] - 2026-11-19
+
+### Fixed
+
+- Check Plugins' merge-group read of the queued pull request waits for a rate limit's reset when it is at most `WAIT_BUDGET_SECONDS.queuedPr` (900 s) away, then reads again, instead of failing at once and making the bump, fragment, release and vendor gates refuse and eject the group. The job's timeout rises from 9 to 24 minutes to hold the wait.
+
+## [10.15.2] - 2026-11-19
+
+### Fixed
+
+- ci-status's merge-group verdict reader plans its read floor to GITHUB_TOKEN's live header limit instead of github-token's 1,000-call `limit-cap`, keeping the 10% `read-floor`, and its cold-read gate reserves that same floor (owner decision D418). Run 44463304120 ejected 21 merge-group runs with 2,766 of 5,000 requests left.
+
+## [10.15.1] - 2026-11-19
+
+### Fixed
+
+- A pull request's Refine dispatch and intake's issue refinement no longer drop on a GitHub token budget stop whose reset is near. pr-unblock-dispatch's refine job waits out a rate-limit stop (up to 1200 s) and then sends the pr-refine dispatch, where before it ended red with nothing to send it again. check-kill-switch takes a new `wait-seconds` input: a budget stop whose reset is inside it waits for the reset and reads the budget once more. Only intake's refine-select sets it, so admission no longer refuses an issue whose refinement the start gate skipped.
+
+## [10.15.0] - 2026-11-19
+
+### Added
+
+- The issue lane's start gate (`check-kill-switch`, new input `project`, set only on the read runner's first call) also holds a run while the pacer's projection of the GITHUB_TOKEN window's burn rate to `start-run-minutes` ahead (21, rate-limits.json), or to the reset when sooner, leaves under `start-project` (0.3, rate-limits.json alone) of the header's limit. The hold is a `budget` stop with the window's reset, so work-unblock's sweep re-fires it after the reset; its notice names the projected share, the horizon and the threshold. The 10% `start-gate` share and the brake stay as they are. The projection lives in `.github/actions/check-kill-switch/projection.mjs`, which `pace.mjs` now uses too.
+- `pace-pr-merge` (0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its scheduled merge and enable-auto-merge sweeps skip every other tick once the window is projected to have under 0.3 of the header's limit left at the reset, before the other timer lanes slow down. `pace` 0 still turns all pacing off.
+
+### Changed
+
+- pr-unblock's resolve-conflicts lane sends a same-head retry after an unresolved-conflict stop only once main changes one of the paths that round left conflicted. The push job's check run now records the round's pinned base and unmerged paths. The dispatcher compares that base with main's tip in one call and skips the head while no commit since touches those paths. A missing record, a failed read, or a new head sends as before.
+
+## [10.14.1] - 2026-11-19
+
+### Changed
+
+- pr-unblock-dispatch no longer sends review-dependency for a Dependabot PR whose review-dependency run is still queued or going, as resolve-conflicts and fix-ci already do. Each such second dispatch queued a whole pr-unblock run behind the first. The run listing is read only for a PR about to be sent and is shared with the other passes.
+- The dispatched-run stale-file check (`dispatcher-current.sh`, in pr-unblock.yml and pr-refine.yml) skips its contents read when the dispatcher ran the default branch tip itself, since that commit holds the tip's file.
+
+## [10.14.0] - 2026-11-19
+
+### Added
+
+- `models.routes` takes the run route `verify-capture`, the pr-verify capture's driver leg, on its own `verify-capture` profile: Opus at effort high, 120 turns. The capture drives in one session with no subagent, so its own turns carry the whole drive; it no longer takes `verify-pr`'s 60.
+
+### Fixed
+
+- work-resolve-issue's steps after the model ran wait for the workflow token's rate-limit reset, up to 1200 s (`rate-limit-wait-seconds`), instead of failing the run: the leak scan's reads, report-outcome and apply-issue-patch, Run Checks and Report Statuses. A stop-floor answer GitHub served no longer fails its step when the next call waits the reset out, and Report Statuses names the lane branch a run left when report-outcome did not finish, which the issue's next run reuses.
+
+## [10.13.1] - 2026-11-19
+
+### Fixed
+
+- Whole-review request: a pull request refused on the running-jobs or rate-limit floors leaves the run's one toggle to the next candidate instead of spending it.
+
+## [10.13.0] - 2026-11-19
+
+### Added
+
+- **`dependency-relock` patch row, a relock with no model turn.** When a Dependabot pip pull request
+  for a `group-by: dependency-name` group bumps one of the entry's directories and leaves another,
+  `review-dependency-select` uploads a relock request, `review-dependency-relock` runs the uv
+  `.github/requirements-relock.txt` pins in a digest-pinned `python:3.12-slim` container with no
+  permissions, `review-dependency-relock-patch`
+  checks the relocked lock with base code, and `apply-dependency-relock` pushes it as a
+  `[dependabot skip]` commit held to `dependency-version-change`. A relock that fails or is refused
+  stops as `dependency-pin-invalid`, labeled `needs-session`; it does not go to the model. `dependency-relock.mjs check` fails `test-bash` while a group's
+  directories disagree, when no pip group reads, or when a group directory's `requirements.in`
+  cannot be read.
+
+### Changed
+
+- pr-unblock-dispatch spends fewer core GITHUB_TOKEN calls and makes the same dispatch decisions. fix-ci reads a head's required run before its fix-ci and push-job check runs, so a head that the required run, a re-run, or a hold skips does not read those two lists. fix-docs reads the PR's check-run history (GraphQL) before the pr-refine.yml runs listing, so a PR the history already settles skips that REST listing. It reads a green run's latest jobs without a separate run read, because the listing already gives the run's status.
+
+## [10.12.2] - 2026-11-19
+
+### Changed
+
+- The verifier's resolver (`resolve-pr.mjs`) reads the upstream run's jobs for its draft-run check only once a run would otherwise be judged or rated, so a head it skips as already judged or already rated spends one GitHub API call fewer. Every judge and skip decision is unchanged; a draft-started run at a head that already has a counted verdict now reports `already-judged` instead of `draft-run`, and skips either way.
+
+### Fixed
+
+- The issue lane's `issue.json` section of `pr-run-activity.md` said every lanes App comment was left out. It now says which lanes App comments `write-issue.mjs` passes to the implementer: intake's refinement (`author_kind: refinement`) and pr-merge's capped-close record (`author_kind: verify-findings`). The triage verdict, the admission comment, the size-split record and every other App comment are left out, so the implementer never reads a triage verdict and needs no limit on its age ([#16969](https://github.com/melodic-software/claude-code-plugins/issues/16969)).
+
+## [10.12.1] - 2026-11-18
+
+### Fixed
+
+- pr-merge's whole-review request also covers a pull request held only by `evidence-unbound:<lane>` whose unbound reason is `rerun-not-allowed`: a new run at the same head binds where the re-run did not. No other unbound reason requests one, the once-per-head, twice-per-pull-request and once-per-run limits are unchanged, and what the merge gate accepts does not change.
+
 ## [10.12.0] - 2026-11-18
 
 ### Changed

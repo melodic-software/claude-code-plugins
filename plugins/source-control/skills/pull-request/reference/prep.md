@@ -23,7 +23,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 **Check whether the branch holds more than one change.** While classifying, ask whether the diff breaks into parts that do not need each other: no part reads a file, symbol or behavior another part adds, and each could be reviewed, reverted and released alone. A dependency upgrade, a parser bug fix and a new CLI flag on one branch are three such parts. When the diff breaks apart this way, name the parts and the files in each, propose one pull request per part, and ask before going on; narrow pull requests are easier to read and revert than one that mixes them. This is advice, not a gate: the user may keep one pull request. In a run with no one to ask, put the proposed split in the 1.6 report and continue with one pull request.
 
-**The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/contracts/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pre-pr-ordering/README.md). Read it there; this file cites it, never restates it.
+**The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by the pre-pr-ordering contract, bundled at [`<plugin-root>/reference/pre-pr-ordering.md`](../../../reference/pre-pr-ordering.md). Read it there; this file cites it, never restates it.
 
 Every skill named below is invoked through the Skill tool when its plugin is enabled, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
 
@@ -90,14 +90,15 @@ Unless `quick` or `review-only` scope:
 
 ## 1.5 Verify gate (hard: blocks PR creation)
 
-Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
+Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the build, test and lint commands the repository's own CI workflows, ecosystem records or project instructions name for every ecosystem the branch touches; an ecosystem none of them names a command for is reported as unresolved. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
 
-**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that "looks dotnet-only" can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
+**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that looks like it touches one ecosystem can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
 
 **Decision rule:**
 
 - Any FAIL → stop. Address each before reattempting. Do not proceed to PR creation
 - Any skip due to "tool missing" → install the tool or document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
+- Any unresolved ecosystem → name it and the files it covers in the PR body as not verified locally, so CI is its only check
 - All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
 
 **This gate runs last**, so nothing that edits the tree may run after it.

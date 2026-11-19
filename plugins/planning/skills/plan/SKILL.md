@@ -317,11 +317,11 @@ Built-in plan mode enforces read-only work during planning:
 - **During stress-test (Step 4):** plan mode is appropriate
 - **After approval (Step 5):** exit plan mode to begin execution. The user's approval is the gate
 
-The skill does not enter plan mode itself; the user controls permission modes. Before planning a complex change outside plan mode, suggest it: "Consider entering plan mode (`shift+tab`) for safe exploration while we design this."
+The skill does not enter plan mode itself; the user controls permission modes. Before planning a complex change outside plan mode, suggest it: "Consider entering plan mode for safe exploration while we design this." How the person switches modes: [Switch permission modes](https://code.claude.com/docs/en/permission-modes#switch-permission-modes).
 
 Entering plan mode licenses a **scoping confirm**: a short round of questions that settle what this plan covers, no more than one `AskUserQuestion` call holds (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>), as one numbered round before proposing it. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config is on and the questions are independent. Inline prose otherwise.
 
-**Substantive rounds do not belong in plan mode.** A question that resolves *what we are building* (real tradeoffs, contested requirements, anything whose answer changes the plan's shape) routes to `/planning:interview` via the Skill tool, run with **plan mode off**: that skill writes its open-question register to disk at ask time (what plan mode permits: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)), and plan mode primes the run toward producing the plan when the job is still reaching shared understanding. **Getting there is the user's move, not yours**: when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode.
+**Substantive rounds do not belong in plan mode.** A question that resolves *what we are building* (real tradeoffs, contested requirements, anything whose answer changes the plan's shape) routes to `/planning:interview` via the Skill tool, run with **plan mode off**: that skill writes its open-question register to disk at ask time (what plan mode permits: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)), and plan mode primes the run toward producing the plan when the job is still reaching shared understanding. **Getting there is the user's move, not yours**: when plan mode is active and a substantive round comes due, say why and ask the user to exit it, then invoke the interview once they have. Do not invoke it from inside plan mode.
 
 ## Boundary, the built-in `/plan` command
 
@@ -330,7 +330,7 @@ The command and this skill share a name, so "plan this" can mean either.
 - **`/plan` (built-in command)**: enters plan mode. Its forms are in the `/plan` row of [All commands](https://code.claude.com/docs/en/commands#all-commands). This skill offers it to the person and never runs it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an approval gate, and a persisted PLAN.md a cleared session can execute.
 
-**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: the records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: the records in [reference/native-plan.md](reference/native-plan.md)), you can run it alongside this skill (other ways to switch modes: [Switch permission modes](https://code.claude.com/docs/en/permission-modes#switch-permission-modes)). Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
 
 **Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission mode. This skill never toggles the mode on the person's behalf.
 
@@ -376,7 +376,7 @@ Write the plan even for small changes; only the one-sentence skip (Purpose) writ
 
 **Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; re-render any derived copy ("Reader depth") and refresh the pull request body or linked issue paste so the published copy carries them (under `plan_store: tracker`, rerun `publish-plan`, which edits its comment in place). Do not silently rewrite history.
 
-**After writing, recommend:** clear context and begin implementation. The implementing session reads PLAN.md for the execution roadmap.
+**After writing, recommend:** begin implementation in a fresh session. The implementing session reads PLAN.md for the execution roadmap. When the `session-flow` plugin is enabled, `/session-flow:workflow` names how that session starts (`/clear`, or on the desktop app a new session the user starts from the handoff); otherwise clear context.
 
 ## What This Skill Does Not Do
 

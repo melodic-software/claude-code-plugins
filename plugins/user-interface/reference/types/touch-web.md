@@ -40,8 +40,8 @@ keyboard, 5 viewport, safe areas and anchors, 6 scroll and gestures, 7 verify on
 3. **Touch and mouse are not exclusive.** iPads with trackpads, laptops with touchscreens, phones
    with a mouse. Write for both at once and gate by capability, not by device.
 
-Browser behavior on touch changes between releases, so each rule below names the behavior and the
-pointer says where to read it live.
+Browser behavior on touch changes between releases, so each rule below states what we do and why,
+and its pointer says where to read the browser behavior live.
 
 **Audit: Important.** A touch, hover or device check that reads the user agent string or the
 screen width.
@@ -77,13 +77,13 @@ Touch has no hover, so browsers fake one: the first tap on an element applies `:
 it there until the user taps somewhere else. A button that scales up on hover stays scaled up after
 being tapped. Gate every hover style behind a capability query.
 
-Both conditions matter. `(hover: hover)` means the primary input can hover. `(pointer: fine)` means
-it's precise, like a mouse, which rules out the odd Android device that claims hover support. A
-drawing stylus reports a fine pointer too: a basic one that cannot hover is ruled out by
-`(hover: hover)`, and one that hovers keeps the hover styles. Recipe:
+Gate on both conditions, `(hover: hover) and (pointer: fine)`: hover styles are for an input that
+both hovers and points precisely, and a device that reports only one of the two goes without them.
+Which devices report which value is the pointer's to say. Recipe:
 `hover-styles-only-where-hover-exists`, which also covers a framework's hover variant.
 
-- **Pointer**: Media Queries Level 4, `pointer` and `hover`, the examples for each value,
+- **Pointer**: when deciding which devices a hover gate lets through, fetch Media Queries Level 4,
+  `pointer` and `hover`, the examples for each value,
   <https://www.w3.org/TR/mediaqueries-4/#pointer> and <https://www.w3.org/TR/mediaqueries-4/#hover>;
   MDN, "hover" media feature, <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/hover#syntax>
 
@@ -102,34 +102,33 @@ holding buttons; feedback shown only in a hover tooltip.
 **Audit: Important.** An action, or feedback, reachable only through hover: a control that is not
 rendered, or is invisible, until the pointer hovers its container.
 
-**Tap highlight.** iOS Safari and Android Chrome paint a translucent highlight over any tapped
-element that has a click handler. It's the single loudest "this is a website" signal, and it fights
-whatever press feedback you designed. Set it once, globally. Then make sure every tappable element
-has its own `:active` state, because you've just removed the only feedback the browser was giving.
-Recipe: `the-reset`. With the tap highlight gone, a control without an `:active` state gives no
-touch feedback at all; that missing state is graded under the `forms` concern.
+**Tap highlight.** The browser's own tap highlight is the single loudest "this is a website"
+signal, and it fights whatever press feedback you designed. Which browsers paint it is the
+pointer's to say. Turn it off once, globally, with `-webkit-tap-highlight-color`. Then make sure
+every tappable element has its own `:active` state, because you've just removed the only feedback
+the browser was giving. Recipe: `the-reset`. With the tap highlight gone, a control without an
+`:active` state gives no touch feedback at all; that missing state is graded under the `forms`
+concern.
 
-- **Pointer**: MDN, `-webkit-tap-highlight-color`,
+- **Pointer**: when checking which browsers paint the tap highlight, fetch MDN,
+  `-webkit-tap-highlight-color`,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/-webkit-tap-highlight-color#browser_compatibility>
 
 **Audit: Important.** The browser's tap highlight left on in an app that styles its own press
 states.
 
-**Taps feel instant.** Two separate causes stack here. Browsers wait after a tap to see whether a
-second tap is coming, because double-tap zooms. Modern browsers skip the wait when the viewport is
-`width=device-width`, but not in every case.
-`touch-action: manipulation` tells the browser this element never double-tap-zooms, so it fires
-`click` immediately. Native buttons respond the instant
-your finger lands. A web button that only changes on `click` responds when your finger *leaves*,
+**Taps feel instant.** Two separate causes stack here. First, the tap delay: every tappable element
+gets `touch-action: manipulation`, so no control waits on a double-tap gesture it never uses.
+Second, native buttons respond the instant your finger lands. A web button that only changes on `click` responds when your finger *leaves*,
 which reads as lag even at 0ms. Style `:active`, and if you need JavaScript for the visual, listen
 to `pointerdown`, not `click`. The *feedback* fires on press; the *action* still fires on `click`,
 so the user can cancel by sliding their finger off. Recipes: `the-reset` (`touch-action`),
 `press-feedback`.
 
-Which elements still wait, and for how long, changes between browser releases; the pointer is
-where to read it.
+Two things change between browser releases: what `manipulation` turns off, and which elements
+still wait and for how long. The pointer is where to read both.
 
-- **Pointer**: MDN, `touch-action`, the `manipulation` value,
+- **Pointer**: when a tap still feels delayed, fetch MDN, `touch-action`, the `manipulation` value,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#manipulation>
 
 Hunt for: tappable elements with no `touch-action`; a pressed look set from a `click` listener.
@@ -195,15 +194,10 @@ drifted layout. This is the reason people reach for `maximum-scale=1`, which is 
 
 If the design calls for smaller text, keep the computed font-size at 16px on touch devices and
 scale visually some other way, never below 16px. Scale it down only where a fine pointer is
-primary. In Tailwind: `text-base pointer-fine:text-sm`. `text-sm` alone on an input is the bug.
-A width breakpoint such as `md:text-sm` is the screen-width guess opening rule 2 rules out: a
-touch tablet wider than the breakpoint gets the small size and zooms. Recipe: `the-reset`.
-
-- **Pointer**: Tailwind CSS, "Hover, focus, and other states", "pointer and any-pointer",
-  <https://tailwindcss.com/docs/hover-focus-and-other-states#pointer-and-any-pointer>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Tailwind renames the pointer variants or changes the query they compile to,
-  or the project's installed version predates them.
+primary, behind `@media (pointer: fine)` or the styling system's own form of that query. A small
+size set unconditionally on an input is the bug. A width breakpoint is the screen-width guess
+opening rule 2 rules out: a touch tablet wider than the breakpoint gets the small size and zooms.
+Recipe: `the-reset`.
 
 The threshold is the computed size: a `1rem` input still zooms when the root font size is set below
 16px. The 16 is WebKit's standard font size, which its iOS focus zoom divides by the input's font
@@ -218,9 +212,9 @@ it on a phone (section 7).
 - **Recheck trigger**: the constant or its use changes on WebKit `main`, or a device test shows a
   different threshold.
 
-Hunt for: `font-size` under 16px on `input`, `textarea`, `select`; `text-sm` / `text-xs` on them or
-on a shared `Input` component, alone or behind a width breakpoint (`md:text-sm`); a contenteditable
-editor with small text.
+Hunt for: `font-size` under 16px on `input`, `textarea`, `select`; a small-text utility class on
+them or on a shared `Input` component, alone or behind a width breakpoint; a contenteditable editor
+with small text.
 
 **Audit: Important.** Text in an input, textarea, select or editable field under the input floor on
 touch, so the page zooms in on focus.
@@ -277,30 +271,32 @@ field or the home indicator at `touch.check_width_px` wide.
 
 ## 5. Viewport, safe areas and anchors
 
-**Never disable zoom.** `user-scalable=no` and `maximum-scale=1` are accessibility failures. Some
-browsers ignore them for pinch zoom while others obey and lock low-vision users out. Fix the
-input font size instead, which is what was causing the zoom (section 4).
+**Never disable zoom.** `user-scalable=no` and `maximum-scale=1` are accessibility failures:
+wherever a browser obeys them, a low-vision user cannot zoom in. Which browsers obey them is the
+pointer's to say, and the rule holds on every browser. Fix the input font size instead, which is
+what was causing the zoom (section 4).
 
-- **Pointer**: MDN, viewport `<meta>`, "user-scalable",
+- **Pointer**: when a zoom lock is in question, fetch MDN, viewport `<meta>`, "user-scalable",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport#user-scalable>;
   WCAG 2.2 Understanding 1.4.4 Resize Text, "Intent",
   <https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html#intent>
 
 Hunt for: `user-scalable`, `maximum-scale`, `maximumScale`, `userScalable` in the viewport meta tag
-or the Next.js `viewport` export.
+or the framework's own viewport setting.
 
 **Audit: Blocking.** A viewport meta tag or framework viewport setting with `user-scalable=no` or
 `maximum-scale=1`.
 
-**Viewport height is `dvh` or `svh`, not `vh`.** `100vh` on mobile is the *largest* viewport, the
-height with the browser chrome collapsed. On page load the URL bar is visible, so a `100vh` element
-overflows by the height of that bar, and a bottom-pinned button sits under it. `dvh` resizes as the
-URL bar collapses, which is right for an app shell but causes layout shifts on marketing content
-mid-scroll. `svh` is stable and never overflows, which is right for a hero. `lvh` is the old `vh`
-and you almost never want it. Desktop-only admin tools can keep `vh`; note it and move on. Recipe:
+**Viewport height is `dvh` or `svh`, not `vh`.** An app shell uses `dvh`: it has to fit the screen
+whatever the browser chrome is doing, so a bottom-pinned button stays in view. A hero uses `svh`:
+marketing content must hold still while the chrome changes mid-scroll, so it never shifts under the
+reader. Neither uses `vh`, and nothing here uses `lvh`. Desktop-only admin tools can keep `vh`;
+note it and move on. What each unit measures, and which ones track the chrome, are the pointer's
+to say. Recipe:
 `full-height-that-browser-chrome-cannot-cover`.
 
-- **Pointer**: MDN, `<length>`, "Relative length units based on viewport",
+- **Pointer**: when choosing a viewport unit, fetch MDN, `<length>`, "Relative length units based
+  on viewport",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#relative_length_units_based_on_viewport>
 
 Hunt for: `100vh`, `h-screen`, `min-h-screen`, `max-h-screen`, `calc(100vh - …)`.
@@ -340,22 +336,21 @@ padding, so the target lands under the header.
 
 ## 6. Scroll and gestures
 
-**Scroll doesn't chain or pull-to-refresh in app UI.** Scrolling past the top of the page triggers
-pull-to-refresh on Android Chrome and the whole-page rubber band on iOS. Fine on a document. Wrong
-in an app with its own scroll containers, a drawer the user drags down, or a canvas. `overscroll-behavior-y:
-none` on the root, `contain` on inner scrollers. `contain` keeps the container's own bounce (which feels native)
-but stops the page behind it from moving. Never reach for a `touchmove` + `preventDefault()`
-listener for this. It blocks scrolling entirely and makes the listener non-passive, which costs
+**Scroll doesn't chain or pull-to-refresh in app UI.** In an app with its own scroll containers, a
+drawer the user drags down, or a canvas, scrolling past an edge must not refresh the page or move
+the page behind it; on a document it may. Set `overscroll-behavior-y: none` on the root and
+`contain` on inner scrollers: an inner scroller may keep its own edge effect, and the page behind
+it must stay put. What each value turns off, and which browsers refresh or bounce at the edge, are
+the pointer's to say. Never reach for a `touchmove` + `preventDefault()` listener for this. It blocks scrolling entirely and makes the listener non-passive, which costs
 frames. Recipe: `no-rubber-band-bounce-on-desktop`, whose app-shell rule keeps `none` on phones
-and sets the vertical longhand on the root, since `none` on the horizontal axis can also turn off
-swipe to go back.
+and sets only the vertical longhand on the root, leaving the horizontal axis to the browser.
 
 When a modal or sheet is open, the page behind it must not scroll. Use a dialog primitive that locks
 scroll rather than `overflow: hidden` on `body`, which iOS Safari has a long history of ignoring for
 touch scrolling. Which primitive, and where its documentation lives, is
 `../component-libraries.md`'s choice; read its dialog page for how it locks scroll.
 
-- **Pointer**: MDN, `overscroll-behavior`, "Values",
+- **Pointer**: when choosing an overscroll value, fetch MDN, `overscroll-behavior`, "Values",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#values>
 
 Hunt for: `preventDefault` inside `touchmove`; inner scroll containers (`overflow-y: auto`) without
@@ -369,9 +364,10 @@ scroll lock is `overflow: hidden` on `body`.
 **Gesture surfaces declare their axis.** A horizontal swipe on a carousel is ambiguous to the
 browser. It doesn't know whether you're scrolling the page or the track, so it guesses, and the
 guess is often the page jittering up while the carousel moves. Tell it which axes the element owns.
-The values name what the *browser* may still do. `pan-y` on a horizontal carousel means "browser,
-you keep vertical panning; I'm handling horizontal". `none` means the element handles everything.
-Use it only on elements that really do, or the user won't be able to scroll past them. For custom
+A horizontal carousel gets `pan-y`: the carousel claims only the horizontal swipe, and the page
+must keep its vertical scroll. `none` goes only on an element that handles every gesture itself,
+or the user won't be able to scroll past it. What each value leaves to the browser is the
+pointer's to say. For custom
 components that implement their own pan/zoom gestures (canvases, sliders, drawing surfaces), disable
 native gestures entirely so they don't fight yours; an element that needs both axes does that only
 once active, under the next rule. Recipe:
@@ -382,7 +378,7 @@ the track and `scroll-snap-align: start` on slides. The browser's own physics be
 spring, and `touch-action` becomes unnecessary. Recipe: `carousel-on-native-scroll`. Drag, swipe
 and spring behavior are the `motion` concern (`../animation/gestures.md`).
 
-- **Pointer**: MDN, `touch-action`, "Values",
+- **Pointer**: when choosing a `touch-action` value, fetch MDN, `touch-action`, "Values",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#values>
 
 Hunt for: carousels, sliders, drag-to-dismiss sheets, sortable lists, and canvases with no
@@ -406,11 +402,13 @@ handlers off while inactive too, or its own opt-in gesture mode, which counts as
 pattern. With `always-active` the element takes gestures from the first touch; leave the page a
 strip beside it to scroll by. The project's own pattern for these elements beats the key.
 
-The keyboard floor holds whatever the key says. If focus can enter the element, the user can move
-it out again with the keyboard alone. When that takes more than unmodified Tab or arrow keys, or
-another standard way out, the user is told how.
+The keyboard floor holds whatever the key says. If focus can enter the element, the keyboard alone
+moves it out again, and while the element is active Esc deactivates it (the way out above). When
+leaving takes anything beyond Tab, the arrow keys or Esc, the element tells the user which key, so
+nobody is stuck inside it without a mouse.
 
-- **Pointer**: WCAG 2.2 Understanding 2.1.2 No Keyboard Trap, "Intent",
+- **Pointer**: when judging whether a way out meets the WCAG floor, fetch WCAG 2.2 Understanding
+  2.1.2 No Keyboard Trap, "Intent",
   <https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html#intent>
 
 Hunt for: maps, canvases, pan-and-zoom viewers and 2D pickers with `touch-action: none` from the
@@ -468,8 +466,8 @@ Nothing above reproduces in device emulation. Sticky hover, the tap highlight, t
 on `vh`, input zoom, the click delay, overscroll, safe areas, the software keyboard: every one is a
 real-hardware behavior.
 
-- Connect the phone over USB, run the dev server on `0.0.0.0`, open it by the machine's LAN IP.
-- iOS: Safari, Develop, the device. Android: `chrome://inspect`.
+- Run the dev server on `0.0.0.0` and open it on the phone by the machine's LAN IP. To inspect
+  the page from the desktop, connect the device the way the pointer below says.
 - Test on a phone that's a few years old, not the newest one on your desk. Test with the keyboard
   open. Test in landscape once.
 - Test as an installed PWA if that's a target; standalone mode changes viewport, safe areas, and
@@ -479,8 +477,8 @@ The Xcode Simulator is a step up from emulation but still misses touch feel. Rea
 bar. Say which fixes were verified from code and which need a real phone. Report this as a device
 check, never as verified.
 
-- **Pointer**: Chrome DevTools, "Remote debug Android devices", "Debug content on your Android
-  device from your development machine",
+- **Pointer**: when connecting a phone for remote debugging, fetch Chrome DevTools, "Remote debug
+  Android devices", "Debug content on your Android device from your development machine",
   <https://developer.chrome.com/docs/devtools/remote-debugging#debug>; Apple Developer
   Documentation, Safari developer tools, "Inspecting iOS and iPadOS" (a single-topic page with no
   section anchor found), <https://developer.apple.com/documentation/safari-developer-tools/inspecting-ios>

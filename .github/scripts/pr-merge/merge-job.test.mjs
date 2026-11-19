@@ -48,6 +48,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
     [
       "Resolve main's tip",
       "Check out the default branch tip",
+      "Write the source-control trust settings",
       "Set up Node",
       "Check the kill switch",
       "Read the pace override from the base config",

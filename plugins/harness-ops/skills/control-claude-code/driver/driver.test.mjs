@@ -7,13 +7,15 @@
 // over the probe's output).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as driver from './driver.mjs';
 import { buildLaunch, ensureInstalled, installDir, main } from './driver.mjs';
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLEARED = [
@@ -37,6 +39,9 @@ process.env.XDG_RUNTIME_DIR = RUNTIME;
 delete process.env.CCD_RUNTIME_DIR;
 delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
+/** The driver's runtime directory: win32 keeps it under LOCALAPPDATA, every other platform under RUNTIME. */
+const CCD_DIR =
+  process.platform === 'win32' ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ccd') : join(RUNTIME, 'ccd');
 let sessions = 0;
 const session = () => `t${process.pid}-${++sessions}`;
 
@@ -144,8 +149,19 @@ test('launch --dry-run prints the claude command line and reserves no session', 
   try {
     const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--dry-run']);
     assert.equal(status, 0);
-    assert.equal(text, `dry run: would launch session '${s}' running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
-    assert.ok(!existsSync(join(RUNTIME, 'ccd', `${s}.lock`)), 'no lock file');
+    const cwd = join(CCD_DIR, `${s}.cwd`);
+    assert.equal(text, `dry run: would launch session '${s}' in ${cwd} running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
+    assert.ok(!existsSync(join(CCD_DIR, `${s}.lock`)), 'no lock file');
+    assert.ok(!existsSync(cwd), 'no launch directory');
+    const named = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--cwd', plugin, '--dry-run']);
+    // startsWith, not a RegExp: a win32 path's backslashes would read as escapes.
+    // Separators by platform: https://nodejs.org/api/path.html#windows-vs-posix
+    assert.ok(named.text.startsWith(`dry run: would launch session '${s}' in ${plugin} running `), named.text);
+    await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', join(plugin, 'absent'), '--dry-run']), {
+      code: 2,
+      message: `--cwd ${join(plugin, 'absent')} is not a directory`,
+    });
+    await assert.rejects(main(['launch', '--plugin-dir', plugin, '--cwd', '', '--dry-run']), { code: 2, message: '--cwd takes a directory' });
     await assert.rejects(main(['launch', '--plugin-dir', plugin, '--ttl', 'soon', '--dry-run']), { code: 2 });
   } finally {
     rmSync(plugin, { recursive: true, force: true });
@@ -282,7 +298,7 @@ test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricte
   }
 });
 
-test('real-setup drops --restricted and --strict-mcp-config, keeps the plugin dir, and still clears every key for "none"', () => {
+test('real-setup drops --restricted and --strict-mcp-config from the session, keeps the plugin dir, and still clears every key for "none"', () => {
   const input = { PATH: '/usr/bin' };
   for (const name of CLEARED) input[name] = 'set-by-parent';
   const { argv, env, keySource } = buildLaunch({ pluginDir: '/p', realSetup: true }, input);
@@ -291,8 +307,20 @@ test('real-setup drops --restricted and --strict-mcp-config, keeps the plugin di
   assert.equal(env.CLAUDE_CODE_HIDE_CWD, '1');
   assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
   assert.equal(keySource, 'none');
+});
+
+test('real-setup print mode keeps --strict-mcp-config and still drops --restricted; the default print argv is unchanged', () => {
   const print = driver.buildPrint({ pluginDir: '/p', realSetup: true }, {}, 'say ok').argv;
-  assert.deepEqual(print, ['claude', '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(print, ['claude', '--plugin-dir', '/p', '--strict-mcp-config', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(driver.buildPrint({ pluginDir: '/p' }, {}, 'say ok').argv, [
+    'claude',
+    '--restricted',
+    '--strict-mcp-config',
+    '--plugin-dir',
+    '/p',
+    ...driver.PRINT_FLAGS,
+    'say ok',
+  ]);
 });
 
 test('real-setup is refused with --unattended, --in-sandbox or a kept credential, before anything runs', async () => {
@@ -317,11 +345,18 @@ test('real-setup is refused with --unattended, --in-sandbox or a kept credential
   assert.equal(existsSync(out), false, 'no claude started');
 });
 
-test('a launcher replaces the bare claude and gets only the plugin dir; print mode adds the stream-json flags and the prompt', () => {
+test('a launcher replaces the bare claude and gets only the plugin dir; print mode adds --strict-mcp-config, the stream-json flags and the prompt', () => {
   const launcher = ['node', '/x/profiles.mjs', 'start', 'build'];
   const config = { pluginDir: '/p', realSetup: true, launcher };
   assert.deepEqual(buildLaunch(config, {}).argv, [...launcher, '--plugin-dir', '/p']);
-  assert.deepEqual(driver.buildPrint(config, {}, 'say ok').argv, [...launcher, '--plugin-dir', '/p', ...driver.PRINT_FLAGS, 'say ok']);
+  assert.deepEqual(driver.buildPrint(config, {}, 'say ok').argv, [
+    ...launcher,
+    '--plugin-dir',
+    '/p',
+    '--strict-mcp-config',
+    ...driver.PRINT_FLAGS,
+    'say ok',
+  ]);
   assert.deepEqual(launcher, ['node', '/x/profiles.mjs', 'start', 'build'], 'the launcher is not mutated');
 });
 
@@ -337,7 +372,7 @@ test('launch --dry-run with --real-setup and a launcher prints the launcher comm
     const launcher = ['node', '/x/profiles.mjs', 'start', 'build'].flatMap((word) => ['--launcher', word]);
     const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--real-setup', ...launcher, '--dry-run']);
     assert.equal(status, 0);
-    assert.equal(text, `dry run: would launch session '${s}' running node /x/profiles.mjs start build --plugin-dir ${plugin}; started nothing`);
+    assert.equal(text, `dry run: would launch session '${s}' in ${join(CCD_DIR, `${s}.cwd`)} running node /x/profiles.mjs start build --plugin-dir ${plugin}; started nothing`);
   } finally {
     rmSync(plugin, { recursive: true, force: true });
   }
@@ -746,7 +781,7 @@ test('an in-sandbox launch reaches the holder: claude starts without --restricte
   const records = `import { writeFileSync } from 'node:fs';
 export const TuiTest = { ephemeral: () => ({
   run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
-    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null, cwd: process.cwd(),
   })),
   state: async () => ({ exited: null, exit_signal: null }),
   type: async () => {},
@@ -766,10 +801,48 @@ export const TuiTest = { ephemeral: () => ({
     assert.deepEqual(got.args, ['--strict-mcp-config', '--plugin-dir', '/p']);
     assert.equal(got.key, 'ccd-dummy-x');
     assert.equal(got.scrub, null);
+    assert.equal(got.cwd, realpathSync(process.cwd()), 'the caller\'s sandbox is the boundary, so claude starts in its directory');
     assert.equal(await main(['stop', '--session', name]), 0);
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a launch starts claude in a fresh <session>.cwd under the runtime directory, or in the --cwd it names, never the caller\'s', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async () => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ cwd: process.cwd() })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const fresh = join(RUNTIME, 'ccd', `${name}.cwd`);
+  const named = join(box.root, 'named');
+  mkdirSync(named);
+  const launch = (...extra) =>
+    withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', ...extra]));
+  try {
+    mkdirSync(fresh, { recursive: true, mode: 0o700 });
+    writeFileSync(join(fresh, 'left-by-an-earlier-run'), '');
+    await launch();
+    assert.equal(JSON.parse(readFileSync(seen, 'utf8')).cwd, realpathSync(fresh));
+    assert.notEqual(realpathSync(fresh), realpathSync(process.cwd()));
+    assert.deepEqual(readdirSync(fresh), [], 'each launch empties the directory');
+    assert.equal(statSync(fresh).mode & 0o077, 0, 'the directory is private');
+    assert.equal(await main(['stop', '--session', name]), 0);
+    await launch('--cwd', named);
+    assert.equal(JSON.parse(readFileSync(seen, 'utf8')).cwd, realpathSync(named));
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
   }
@@ -924,7 +997,7 @@ test('ready stops claude at the init event and passes on apiKeySource "none"', p
   }
 });
 
-test('ready with --real-setup runs its turn through the launcher, unrestricted, and still requires "none"', posixOnly, async () => {
+test('ready with --real-setup runs its turn through the launcher, unrestricted but MCP-strict, and still requires "none"', posixOnly, async () => {
   const box = sandbox();
   stubClaude(box, 'none', 'exec sleep 30');
   const out = join(box.root, 'init.jsonl');
@@ -940,6 +1013,7 @@ test('ready with --real-setup runs its turn through the launcher, unrestricted, 
     assert.deepEqual(readFileSync(join(box.root, 'argv'), 'utf8').trim().split('\n'), [
       '--plugin-dir',
       plugin,
+      '--strict-mcp-config',
       ...driver.PRINT_FLAGS,
       'Reply with the single word ok.',
     ]);
@@ -1122,6 +1196,9 @@ test('log reports a claude missing from PATH', posixOnly, async () => {
   try {
     await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl')]), {
       message: 'claude is not on PATH',
+    });
+    await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl'), '--real-setup', '--launcher', 'profiles-typo']), {
+      message: 'profiles-typo is not on PATH',
     });
   } finally {
     process.env.PATH = saved;
@@ -1404,6 +1481,17 @@ test('a masked frame that never redraws fails the screenshot with no capture and
   } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('the data directory is named for the marketplace the install sits under, as Claude Code names it', () => {
+  assert.equal(driver.pluginDataId('/cfg/plugins/cache/acme/harness-ops/1.2.0'), 'harness-ops-acme');
+  assert.equal(driver.pluginDataId('D:\\cfg\\plugins\\cache\\my.market\\harness-ops\\1.2.0'), 'harness-ops-my-market');
+});
+
+test('outside the plugin cache the data directory is a --plugin-dir session\'s, harness-ops-inline', () => {
+  for (const root of ['/repo/plugins/harness-ops', '/opt/ccd', '/x/plugins/cache/acme/harness-ops', '/x/plugins/cache/acme/harness-ops/1.0/extra']) {
+    assert.equal(driver.pluginDataId(root), 'harness-ops-inline', root);
   }
 });
 

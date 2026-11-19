@@ -54,18 +54,6 @@
       "close_previous": true
     },
     {
-      "id": "actionlint-self-repository-watch",
-      "title": "Check actionlint for a release that parses uses: $/...",
-      "cadence": "monthly",
-      "area": [],
-      "category": "general",
-      "triggers": [],
-      "last_checked": "2026-10-24",
-      "next_due": "2026-11-24",
-      "notes": "Check rhysd/actionlint releases after v1.7.12 (and actionlint issues #711/#732) for one that parses uses: $/... . None: comment unmet on the recurring issue, change nothing. One: file an issue to repin the ci-workflows actionlint action (pr-require-checks.yml), re-count the zizmor: ignore[self-repository] sites (137 on 2026-10-24), run zizmor --fix=safe --persona=regular -- ., delete every zizmor: ignore[self-repository] and the comment above the Run zizmor step in pr-require-checks.yml; accept when zizmor and actionlint both exit 0, never a repo-wide disable. Spec: #4130.",
-      "close_previous": true
-    },
-    {
       "id": "model-fallback-targets-watch",
       "title": "Check the model-config fallback targets against the model-adaptation chapters",
       "cadence": "monthly",

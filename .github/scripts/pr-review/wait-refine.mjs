@@ -111,15 +111,20 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     return { proceed: false, reason: "head-moved" };
   }
 
+  async function poll() {
+    await sleep(pollMs);
+    return movedAtPoll();
+  }
+
   // Re-reads run <id> until it completes; returns null once the next poll
   // would pass the cap, or { moved } with the pull request once the head moves.
-  async function completed(run) {
+  async function completed(run, polls = 0) {
     while (run.status !== "completed") {
       if (now() + pollMs > deadline) return null;
-      await sleep(pollMs);
-      const pr = await movedAtPoll();
+      const pr = await poll();
       if (pr) return { moved: pr };
-      run = await api.get(`actions/runs/${run.id}`);
+      polls += 1;
+      if (polls % 2 === 1 || now() + pollMs > deadline) run = await api.get(`actions/runs/${run.id}`);
     }
     return { run };
   }
@@ -151,8 +156,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
         (run) => run.path === DISPATCHER && run.event === "pull_request_target" && run.head_sha === head && run.head_repository?.full_name === repository,
       );
       if (runs.length > 0 || now() + pollMs > start + appearMs) break;
-      await sleep(pollMs);
-      const current = await movedAtPoll();
+      const current = await poll();
       if (current) return skip(current, "waiting for a dispatcher run");
     }
     if (runs.length === 0) return await finish("no-dispatcher");
@@ -172,13 +176,18 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     if (id === 0) return await finish("no-dispatch");
     say("notice", `dispatcher run ${source} started pr-refine run ${id}`);
 
+    const deferred = now() + pollMs <= deadline;
+    if (deferred) {
+      const pr = await poll();
+      if (pr) return skip(pr, `waiting for pr-refine run ${id}`);
+    }
     const refine = await api.get(`actions/runs/${id}`);
     // pr-refine.yml's run-name ends with the PR number it refines.
     if (refine.path !== REFINE || refine.event !== "workflow_dispatch" || refine.head_branch !== "main" || !String(refine.display_title ?? "").endsWith(` #${number}`)) {
       say("warning", `run ${id} named by dispatcher run ${source} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
       return await finish("not-refine");
     }
-    const refined = await completed(refine);
+    const refined = await completed(refine, deferred ? 1 : 0);
     if (!refined) return await finish("refine-timeout");
     if (refined.moved) return skip(refined.moved, `waiting for pr-refine run ${id}`);
     const { conclusion } = refined.run;

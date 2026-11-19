@@ -26,6 +26,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { projectedLeft } from "./projection.mjs";
+
 const READ_TIMEOUT_MS = 10_000;
 const RATE_LIMITS = new URL("../log-api-budget/rate-limits.json", import.meta.url);
 
@@ -83,9 +85,22 @@ function refusal(response, now) {
   };
 }
 
+export function projectionStops(reading, { share, minutes }, now) {
+  const left = projectedLeft(reading, now, minutes * 60);
+  if (left === null) {
+    return { stop: false, text: `projection unreadable for this reading, so it does not hold the start (start-run-minutes=${minutes})` };
+  }
+  const stop = left < share;
+  const shown = Math.round(left * 100) / 100;
+  return {
+    stop,
+    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against start-project=${share} (start-run-minutes=${minutes}) stop=${stop}${stop ? ": the run would end in a window with under its start-project share of the limit left" : ""}`,
+  };
+}
+
 // The budget half of the gate: { stop, reset, line } where line is the run's
 // one notice or warning. Never throws.
-export async function checkBudget({ token, api = "https://api.github.com", share, now = Date.now() / 1000, fetchImpl = fetch } = {}) {
+export async function checkBudget({ token, api = "https://api.github.com", share, projection = null, now = Date.now() / 1000, fetchImpl = fetch } = {}) {
   if (!token) {
     return { stop: false, line: "::warning title=start-gate::no token to read the GITHUB_TOKEN budget; the lane proceeds" };
   }
@@ -105,14 +120,16 @@ export async function checkBudget({ token, api = "https://api.github.com", share
     if (![reading.limit, reading.remaining, reading.reset].every(Number.isFinite)) {
       throw new Error("neither the headers nor the body's resources.core carry limit, remaining and reset");
     }
-    const stop = budgetStops(reading, share, now);
+    const low = budgetStops(reading, share, now);
+    const ahead = !low && projection ? projectionStops(reading, projection, now) : null;
+    const stop = low || ahead?.stop === true;
     const coreFields = core && { limit: core.limit, remaining: core.remaining, reset: core.reset, used: core.used };
     return {
       stop,
       reset: reading.reset,
       line:
         `::notice title=start-gate::github-token start-gate=${share} decided from ${reading.source}: limit=${reading.limit} remaining=${reading.remaining} reset=${reading.reset} stop=${stop}; ` +
-        `body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
+        `${ahead ? `${ahead.text}; ` : ""}body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
     };
   } catch (error) {
     return { stop: false, line: `::warning title=start-gate::the GITHUB_TOKEN budget was not read (${clean(error?.message ?? error)}); the lane proceeds` };
@@ -130,6 +147,20 @@ export function startGateShare(path = RATE_LIMITS, log = (line) => console.log(l
     return share;
   } catch (error) {
     log(`::warning title=start-gate::rate-limits.json gave no start-gate share (${clean(error?.code ?? error?.message)}); the lane proceeds without a budget read`);
+    return null;
+  }
+}
+
+export function projectionGate(path = RATE_LIMITS, log = (line) => console.log(line)) {
+  try {
+    const entry = JSON.parse(readFileSync(path, "utf8"))?.["github-token"];
+    const share = entry?.["start-project"];
+    const minutes = entry?.["start-run-minutes"];
+    if (typeof share !== "number" || !(share > 0 && share <= 1)) throw new Error("github-token start-project is not a share over 0 up to 1");
+    if (!Number.isInteger(minutes) || minutes < 1) throw new Error("github-token start-run-minutes is not a whole number of minutes");
+    return { share, minutes };
+  } catch (error) {
+    log(`::warning title=start-gate::the projection gate could not be set up (${clean(error?.code ?? error?.message)}); the lane proceeds on the start-gate share alone`);
     return null;
   }
 }
@@ -152,13 +183,42 @@ export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   appendFileSync(outputPath, text);
 }
 
-export async function main(env = process.env, { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS } = {}) {
+async function waitBudget(value, log) {
+  if (!value) return 0;
+  try {
+    const { SERVER_RETRY_BUDGET_MS, waitBudgetMs } = await import("../log-api-budget/rate-guard.mjs");
+    const ms = waitBudgetMs(value);
+    return ms > SERVER_RETRY_BUDGET_MS ? ms : 0;
+  } catch (error) {
+    log(`::warning title=start-gate::the wait budget could not be read (${clean(error?.code ?? error?.message)}); a budget stop does not wait`);
+    return 0;
+  }
+}
+
+export async function main(
+  env = process.env,
+  { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {},
+) {
   let result = { ...checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE), reset: "" };
   if (result.proceed === "true" && env.BUDGET_CHECK === "true") {
     const share = startGateShare(rateLimits, log);
     if (share) {
-      const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, now: now() / 1000, fetchImpl });
+      const projection = env.PROJECT_CHECK === "true" ? projectionGate(rateLimits, log) : null;
+      const read = () => checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, projection, now: now() / 1000, fetchImpl });
+      const stoppedAt = Math.floor(now() / 1000);
+      let budget = await read();
       log(budget.line);
+      const waitMs = budget.stop ? Math.max(0, budget.reset * 1000 - now()) + 1000 : 0;
+      if (budget.stop && waitMs <= (await waitBudget(env.WAIT_SECONDS, log))) {
+        const seconds = Math.ceil(waitMs / 1000);
+        log(`::notice title=start-gate::the GITHUB_TOKEN budget stops this start until ${budget.reset}; it waits ${seconds}s for the reset, then reads the budget once more`);
+        await sleep(waitMs);
+        budget = await read();
+        log(budget.line);
+        if (!budget.stop) {
+          log(`::notice title=start-gate::started after the reset: the start the budget stopped at ${stoppedAt} goes ahead after a ${seconds}s wait`);
+        }
+      }
       if (budget.stop) {
         result = { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(budget.reset) };
       }

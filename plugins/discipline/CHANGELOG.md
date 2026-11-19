@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.29.0] - 2026-11-19
+
+### Added
+
+- `/discipline:follow-operating-procedures` rereads the user's and the project's instruction files on every invocation, checks the work in flight against them, and corrects drift or reports the work clean. It stores no procedure text of its own.
+
 ## [0.28.15] - 2026-11-18
 
 ### Changed

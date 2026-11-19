@@ -152,6 +152,7 @@ line.
    | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,percent,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
    | `rate_limits_band` | `${user_config.rate_limits_band}` | `false` | `true` draws the band row; `/rate-limits band on` or `band off` sets it for one session. |
    | `rate_limits_toast` | `${user_config.rate_limits_toast}` | `true` | `false` drops the toast when a window nears or reaches the threshold or resets; the transcript line stays. |
+   | `account_switch_url` | `${user_config.account_switch_url}` | unset | The link the options line gives for switching accounts; unset or not one http(s) URL, the line names no link. |
 
    - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
      Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.

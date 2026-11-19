@@ -72,6 +72,15 @@ and note that re-enabling restores the FAIL semantics.
    out of the list, empty or null; it refuses every other shape (a repeated key, an unknown key
    holding a map or list, a map or list, an empty quoted string), which the operator fixes by
    hand.
+8. **Away settings.** Report the effective value of each key `/session-flow:step-away` reads (an
+   unexpanded `${user_config.…}` token or empty means the default, read from
+   `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` `userConfig`, never from memory):
+   `${user_config.away_night_start}`, `${user_config.away_report_by_workday}`,
+   `${user_config.away_report_by_day_off}`, `${user_config.away_days_off}` and
+   `${user_config.away_watched_folders}`, one INFO row each. For the watched folders, test each
+   listed folder with a read-only `test -d`: PASS when every watched folder exists, WARN naming each
+   missing one (the scan skips a missing folder, so files written there go unreported), INFO when
+   the value is empty (the home folder is scanned). Nothing is written.
 
 ## `apply` (writes `docs/conventions/session-flow.yaml` only)
 
@@ -169,7 +178,8 @@ before and after, the diff when one was shown, the written path, and whether the
 `/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro`, whose session mode
 reads `retro_lenses`; `/session-flow:handoff`, which reads
 `wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`;
-`/session-flow:recall`, which also reads `recall_report_kinds` and `recall_doc_paths`.
+`/session-flow:recall`, which also reads `recall_report_kinds` and `recall_doc_paths`;
+`/session-flow:step-away`, which reads the `away_*` keys.
 
 ## Gotchas
 

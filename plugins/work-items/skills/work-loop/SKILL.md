@@ -81,7 +81,8 @@ lane-telemetry contract; one writer identity owns a marker). The upsert itself, 
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
 POST/PATCH, and the creation-race reconcile, runs as `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`. Its
 arguments, its exit codes and what each one tells the lane to do, and the `$BODY_FILE` contract are
-owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md); its `<plugin-data>` is `${CLAUDE_PLUGIN_DATA}`.
+owned by [lane-telemetry-upsert.md](../../reference/lane-telemetry-upsert.md), and this lane's
+invocation by [reference/telemetry-upsert.md](reference/telemetry-upsert.md); its `<plugin-data>` is `${CLAUDE_PLUGIN_DATA}`.
 Compose the body there, pass it as `--body-dir`, and invoke the script; do not write the comment by hand.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
@@ -167,7 +168,7 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   lowers its model, effort, or review depth: it keeps working and reports the window, its
   `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
   human action a lane never performs or scripts;
-  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
+  the link is the rate-limits `account_switch_url` option), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it

@@ -3,6 +3,24 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.6] - 2026-11-19
+
+### Fixed
+
+- The format and lint git-hook entries start pwsh without the PATH entries on a 9p mount (the Windows host's directories under WSL), where PSScriptAnalyzer's command lookups made a commit touching two large scripts take over a minute.
+
+## [2.1.5] - 2026-11-19
+
+### Changed
+
+- When the inherited `GIT_CONFIG_COUNT` is not a number, the end-of-turn check still runs no git and passes, and now prints one stderr line saying why.
+
+## [2.1.4] - 2026-11-18
+
+### Security
+
+- The end-of-turn hook runs its git-hook entry (`--worktree`) with `core.fsmonitor=false` and `core.hooksPath=/dev/null` in the child's environment (`hook::git_untrusted_env`, through `GIT_CONFIG_COUNT`), so the entry's git calls no longer start a `core.fsmonitor` command or git hook named in the repository's config.
+
 ## [2.1.3] - 2026-11-18
 
 ### Changed

@@ -1,6 +1,6 @@
 ---
 description: "Audit markdown, commit messages, PR bodies and interface copy for AI-writing tells (slop) from Wikipedia's Signs of AI writing plus model-era tells: em dashes, emoji, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedges, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), figures for facts, over-compression, mechanism-free claims and generic headlines. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', 'check this commit message', 'unslop this PR body', 'is this headline generic', or before publishing agent-written prose. Read-only by default; explicit 'fix' rewrites behind a semantic-diff guard ('detect and rewrite'). Empty target audits tracked markdown, busiest files first. Not for code comments (/code-tidying:remove-comments audit)."
-argument-hint: "[audit|fix] [target|user-scope [memory]|commit [rev]|pr-body|copy <files>]"
+argument-hint: "[audit|fix] [target|user-scope [memory]|commit [rev]|pr-body|copy <files>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh\":*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
@@ -71,6 +71,7 @@ generator.
 |---|---|
 | *(empty)* or `audit [target]` | Read-only audit (default). Empty target = repo-wide |
 | `fix [target]` | Explicit fix pass over the target's findings (guarded; below). "Detect and rewrite" or `audit fix` chains audit then fix in one invocation |
+| `audit` or `fix` with `--repo`, `--repos-from`, `--owner`, `--fleet` or `--skip` | The same action once per selected repository, per [Several repositories](#several-repositories); `fix` writes one pull request per repository |
 | `audit user-scope [memory]` | Read-only audit of the user-level Claude Code markdown, per [User-scope target](#user-scope-target) |
 | `fix user-scope [memory]` | Fix pass over that same file list, under the same rules |
 | `audit` or `fix` with `commit [rev]`, `pr-body`, or `copy <source files>` | A commit message, a PR body, or interface copy, per [Commit messages, PR bodies and interface copy](#commit-messages-pr-bodies-and-interface-copy) |
@@ -88,6 +89,7 @@ generator.
    follows [Non-repository targets](#non-repository-targets), the literal target
    `user-scope` follows [User-scope target](#user-scope-target), and `commit`, `pr-body` and
    `copy` follow [Commit messages, PR bodies and interface copy](#commit-messages-pr-bodies-and-interface-copy).
+   A target form runs this flow once per repository, per [Several repositories](#several-repositories).
 2. **Run the detector.** Build the target list once: `detect.sh --list-targets <targets>`,
    with its stdout redirected to a list file in the session scratchpad (with no targets, it
    lists the repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
@@ -121,10 +123,10 @@ generator.
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
    from the detector's `Summary` rows. State what was scanned and what the rubric did not cover.
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
-   whenever the audit examined tracked files. Settle that before any fetch
+   whenever the audit examined tracked files. Settle that before reading the contract
    (`git ls-files --error-unmatch <file>` per file target): a run that examined no tracked file
-   skips this step, contract fetch included, and says no findings file applies. Otherwise fetch
-   the producer contract and refuse to write when unreachable, or when the findings home cannot
+   skips this step, contract read included, and says no findings file applies. Otherwise read
+   the bundled producer contract and refuse to write when it cannot be read, or when the findings home cannot
    be resolved without asking. The
    outcome is then report-only, and the report says `report-only` and why; it never skips
    silently. When the home resolves, the file is mandatory even with zero findings, as the
@@ -143,6 +145,43 @@ generator.
    when they are not, since it is the shorter path to the same rewrites. Name the condition that
    changes the answer: the relay can only hand the rows over when `/ai-slop:audit` is available
    in that session, and surfaces them otherwise.
+
+### Several repositories
+
+A target form from [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others its "Target forms" lists, or the same request in words) runs
+`audit` or `fix` once per repository. Its "Target forms", "Resolving repositories", "Fan-out",
+"Merging findings" and "Writes stay per repository" sections own how. With no target form, nothing
+in this skill changes. What differs here:
+
+- **Repository markdown only.** A target form takes an empty target or a path, the path read
+  relative to each repository root. `user-scope`, `commit`, `pr-body` and `copy` name no
+  repository: a run that pairs one with a target form stops and asks which of the two to run.
+- **Anchor every script at the repository's tree.** The detector reads its config layers and its
+  no-target listing from `CLAUDE_PROJECT_DIR`, else the working directory's git top level, else
+  the working directory, so an unanchored run in another repository scans and configures from the
+  session's own project. The tree is the session's own checkout, read in place; another clone
+  when it has no uncommitted change and its `HEAD` is `origin/HEAD` after the fetch; otherwise a
+  detached worktree of `origin/HEAD` under the session scratchpad (`git -C <root> worktree add
+  --detach <scratch path> origin/HEAD`), which adds no tracked file and is removed after the pass.
+  Pass the tree's absolute path, or the path under it, as the target, and run each bundled script
+  as `CLAUDE_PROJECT_DIR=<tree> <script> ...`, so the `file=` keys, the team and personal config
+  layers and `--show-config` are that repository's. `allowed-tools` does not grant that prefixed
+  form, so the call may prompt.
+- **State per repository.** Each repository gets its own list file, chunk outputs and rubric
+  working directory under the session scratchpad. Step 5's tracked-file test runs in the tree
+  (`git -C <tree> ls-files --error-unmatch <file>`), and its findings home resolves under that
+  repository's clone root (`git -C <clone root>`), never inside a scratch worktree. Both
+  `emit-findings.sh` and `emit-fix-record.sh` read the branch from the working directory, so pass
+  `--branch <branch>`: the clone's current branch when the tree is the clone or the session's
+  checkout, else the default branch `origin/HEAD` names.
+- **Report.** Step 4's order applies across all repositories, merged as "Merging findings" says.
+  Declined counts, disabled rules and what the rubric did not cover are stated per repository,
+  since each reads its own config.
+- **`fix` per repository.** The fix flow runs once per repository, with its own run directory,
+  as "Writes stay per repository" says; a scratch worktree is never edited.
+- **No cross-repository signal.** This skill does not look for markdown copied between
+  repositories; that measurement is `/coupling:reduce`'s.
 
 ### User-scope target
 
@@ -182,7 +221,7 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
 
 A target is outside a repository when `git -C <dir> rev-parse --is-inside-work-tree` fails or
 does not print `true`, where `<dir>` is the target directory or a file target's parent. Check
-the target, not the cwd. An empty target checks `CLAUDE_PROJECT_DIR`, else the cwd; when that is
+the target, not the cwd. An empty target with no target form checks `CLAUDE_PROJECT_DIR`, else the cwd; when that is
 not a repository, stop and ask for an explicit path instead of guessing a scope. If any target
 is outside a repository, the whole run follows these rules:
 

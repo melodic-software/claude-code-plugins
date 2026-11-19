@@ -47,13 +47,6 @@ name: Maintenance Reconcile Lost Runs
 # not yet started is re-run the same way once both reviews' newest runs on
 # the head finished at least PENDING_BACKOFF_MINUTES ago.
 #
-# A hosted review run a kill switch stopped, on a head whose newest
-# pr-require-checks run failed only in ci-status with its note of that stop, is
-# re-run once, recorded, once neither the lanes switch, the lane's own switch
-# nor the upstream gate would stop it again; its completion re-runs ci-status
-# (pr-dispatch-feedback.yml rerun-ci-status). One lane per head per pass, and a
-# place under the cap, whatever the run's age up to GitHub's 30 days.
-#
 # An intake-triage run an issue event started whose first attempt failed only
 # in its intake-label-needs-triage job (a rate limit, most often) left the
 # issue without its floor label; its failed jobs are re-run once, taking no

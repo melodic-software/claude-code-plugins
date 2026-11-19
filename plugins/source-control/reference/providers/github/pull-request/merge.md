@@ -189,33 +189,29 @@ it reads one of the end statuses this procedure stops on: `merged`, `enqueued` o
 
 ## Merge after AI review
 
+The owners an agent may merge for and the AI review check names come from the
+`unattended_merge_owners` and `review_lane_checks` settings, which
+`babysit_merge_settings.py` reads from the operator's own user or managed settings, never from the
+repository: unset, the script names no owner and no check, so it always holds.
+
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
-[ "${REPO%%/*}" = melodic-software ] \
-  || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
+SETTINGS=$(python3 "<skill-dir>/../babysit-prs/scripts/babysit_merge_settings.py" show) || exit 1
+jq -e --arg o "${REPO%%/*}" 'any(.unattended_merge_owners[]; ascii_downcase == ($o | ascii_downcase))' \
+  <<<"$SETTINGS" >/dev/null \
+  || { echo "the unattended_merge_owners setting does not name ${REPO%%/*}: wait for the user" >&2; exit 1; }
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/$REPO/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
   and any(.parameters.required_status_checks[]; .context | IN("CI Status", "ci-status")))' <<<"$RULES" >/dev/null \
   || { echo 'base ruleset requires neither CI Status nor ci-status: wait for the user' >&2; exit 1; }
 RUNS=$(gh api --paginate --slurp "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100")
-jq -e '[.[].check_runs[]] as $r
-  | def lane($names): [$r[] | select(.name | IN($names[]))]
+jq -e --argjson s "$SETTINGS" '[.[].check_runs[]] as $r
+  | def lane($l): ($s.review_lane_checks[$l] | .status + .merge | unique) as $names
+      | [$r[] | select(.name | IN($names[]))]
       | length > 0 and all(.status == "completed" and .conclusion == "success");
   ($r | length) == .[0].total_count
-  and lane(["PR Review / Status", "pr-review / Status",
-            "PR Review / Claude", "pr-review / Claude", "pr-review-no-bots / Claude",
-            "PR Review / review-status", "pr-review / review-status",
-            "PR Review / claude-review-status", "pr-review / claude-review-status",
-            "pr-review-no-bots / claude-review-status",
-            "PR Review / Publish Review", "pr-review / Publish Review"])
-  and lane(["PR Review Security / Status", "pr-review-security / Status",
-            "PR Review Security / Claude", "pr-review-security / Claude",
-            "PR Review Security / review-status", "pr-review-security / review-status",
-            "PR Review Security / security-review", "pr-review-security / security-review",
-            "security-review / security-review",
-            "claude-security-review-status",
-            "PR Review Security / Publish Review", "pr-review-security / Publish Review"])' <<<"$RUNS" >/dev/null \
+  and lane("claude-review") and lane("claude-security-review")' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
 for _ in $(seq 5); do
   S=$(gh api "repos/$REPO/pulls/<pr_number>" \

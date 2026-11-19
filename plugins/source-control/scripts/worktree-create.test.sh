@@ -1205,6 +1205,36 @@ assert_file_exists "existing branch worktree has the commit" "$out/README.md"
 bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" >/dev/null 2>"$errfile"
 assert_exit "missing existing branch is a usage error" 2 "$?"
 
+repo=$(mkrepo)
+errfile="$TEST_TMPDIR/err-no-lfs.txt"
+out=$(bash "$HELPER" --name feat/no-lfs --root "$TEST_TMPDIR/wtroot-no-lfs" --repo-dir "$repo" 2>"$errfile")
+assert_exit "no-LFS create exit 0" 0 "$?"
+assert_eq "no-LFS stdout is the worktree path alone" "$TEST_TMPDIR/wtroot-no-lfs/${repo##*/}-feat-no-lfs" "$out"
+assert_not_contains "no-LFS create writes no LFS note" "$(cat "$errfile")" "LFS"
+
+if ! git lfs version >/dev/null 2>&1; then
+  skip_case "LFS pointer checkout: git lfs is not installed"
+else
+  repo=$(mkrepo)
+  {
+    git -C "$repo" lfs install --local
+    printf '*.bin filter=lfs diff=lfs merge=lfs -text\n' >"$repo/.gitattributes"
+    printf 'large content\n' >"$repo/asset.bin"
+    git -C "$repo" add .gitattributes asset.bin
+    git -C "$repo" commit -qm "add an LFS asset"
+  } >/dev/null 2>&1
+  errfile="$TEST_TMPDIR/err-lfs.txt"
+  root="$TEST_TMPDIR/wtroot-lfs"
+  out=$(bash "$HELPER" --name feat/lfs --root "$root" --base-ref head --repo-dir "$repo" 2>"$errfile")
+  assert_exit "LFS create exit 0" 0 "$?"
+  assert_eq "LFS stdout is the worktree path alone" "$root/${repo##*/}-feat-lfs" "$out"
+  assert_contains "LFS path is a pointer file" "$(head -n 1 "$out/asset.bin")" "version https://git-lfs.github.com/spec/v1"
+  err=$(cat "$errfile")
+  assert_contains "LFS note says the content was not checked out" "$err" "LFS content was not checked out"
+  assert_contains "LFS note names git lfs pull --include <paths>" "$err" "git lfs pull --include <paths>"
+  assert_eq "LFS note is one stderr line" 1 "$(grep -c 'LFS content was not checked out' "$errfile")"
+fi
+
 # --- Dependency install: npm ci runs when the new tree has a package-lock.json ---
 # A fake npm stands in for the registry: it records its arguments and, like a
 # real install, creates node_modules/.bin in its working directory. Its exit
@@ -1260,12 +1290,12 @@ errfile="$TEST_TMPDIR/err-deps-slow.txt"
 child_pid_file="$TEST_TMPDIR/npm-slow-child.pid"
 start=$SECONDS
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=30 FAKE_NPM_CHILD_PID="$child_pid_file" \
-  WORKTREE_CREATE_DEPS_CAP_SECONDS=1 bash "$HELPER" --name feat/deps-slow --base-ref head \
+  WORKTREE_CREATE_DEPS_CAP_SECONDS=3 bash "$HELPER" --name feat/deps-slow --base-ref head \
   --root "$TEST_TMPDIR/wtroot-deps-slow" --repo-dir "$deps_repo" 2>"$errfile")
 rc=$?
 elapsed=$((SECONDS - start))
 assert_exit "capped install: creation still exits 0" 0 "$rc"
-assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 1s"
+assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 3s"
 assert_contains "capped install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
 child_pid=$(cat "$child_pid_file" 2>/dev/null)
 for _ in 1 2 3 4 5 6 7 8 9 10; do

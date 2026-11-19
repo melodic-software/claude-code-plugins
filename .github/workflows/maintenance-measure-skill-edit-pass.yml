@@ -118,7 +118,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: start
           key-job: pass
@@ -131,7 +131,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: skipped
           lane: eval-hill-climb-pass
@@ -196,7 +196,7 @@ jobs:
       # check-key-credit did not name the subscription leg.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: key
           role: maintenance
@@ -304,19 +304,26 @@ jobs:
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
+      # eval-handoff.mjs: its published contract, contract-files.txt and the
+      # paths it lists, nothing run here:
+      # https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
       - name: Check out the launcher's classifier
         if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -349,7 +356,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no case runs"
@@ -453,7 +460,7 @@ jobs:
           cp "$OUT/results.json" "$STAGE/results.json"
           node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
           validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded) || true
-          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
           printf '%s\n' ${bash_ran:+"$bash_ran"} "$(printf '%s\n' "$validity" | tail -n 1)" >"$STAGE/validity.txt"
           cat "$STAGE/validity.txt"
           sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
@@ -519,7 +526,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -540,7 +547,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -606,7 +613,7 @@ jobs:
       # `present` is whether this leg runs the pass.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: subscription
           role: maintenance
@@ -720,13 +727,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -751,7 +763,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no case runs"
@@ -844,7 +856,7 @@ jobs:
           cp "$OUT/results.json" "$STAGE/results.json"
           node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
           validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded) || true
-          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
           printf '%s\n' ${bash_ran:+"$bash_ran"} "$(printf '%s\n' "$validity" | tail -n 1)" >"$STAGE/validity.txt"
           cat "$STAGE/validity.txt"
           sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
@@ -872,7 +884,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -888,7 +900,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -947,7 +959,7 @@ jobs:
       # the subscription leg saw the fallback token set.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           leg: fallback
           role: maintenance
@@ -1052,13 +1064,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
+            .github/actions/run-claude-cli/contract-files.txt
+            .github/actions/run-claude-cli/contract.cjs
+            .github/actions/check-key-credit/gate.cjs
+            .github/actions/report-lane-outcome/classify.cjs
             .github/actions/run-claude-cli/lane.cjs
             .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/report-lane-outcome/classify.cjs
+            .github/actions/run-claude-cli/otlp-receiver.cjs
+            .github/actions/select-model-credential/select.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
@@ -1083,7 +1100,7 @@ jobs:
           trap 'rm -f "$out"' EXIT
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no case runs"
@@ -1176,7 +1193,7 @@ jobs:
           cp "$OUT/results.json" "$STAGE/results.json"
           node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
           validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded) || true
-          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)' || true)
+          bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
           printf '%s\n' ${bash_ran:+"$bash_ran"} "$(printf '%s\n' "$validity" | tail -n 1)" >"$STAGE/validity.txt"
           cat "$STAGE/validity.txt"
           sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
@@ -1204,7 +1221,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}

@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createGitHub, detailSuffix } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
 import { MARKER, validRecord } from "../../scripts/lib/lane-outcome.mjs";
+import { conflictRecord, recordLine } from "../../scripts/lib/conflict-record.mjs";
 import { externalIdOf } from "./posting-run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,17 @@ function laneOutcomeLine(raw, lane, activity) {
   }
   const record = validRecord(parsed === null || typeof parsed !== "object" ? null : { ...parsed, activity });
   return record && record.lane === lane ? `${MARKER}${JSON.stringify(record)}` : "";
+}
+
+function conflictLine(base, rawPaths) {
+  let paths;
+  try {
+    paths = JSON.parse(rawPaths || "null");
+  } catch {
+    return "";
+  }
+  const record = conflictRecord(base, paths);
+  return record ? recordLine(record) : "";
 }
 
 // null when there is no file; the raw text when it is not JSON, which decide
@@ -116,9 +128,9 @@ export async function main({
     return 1;
   }
   const body = decision.report;
-  const outcome = laneOutcomeLine(env.LANE_OUTCOME, env.LANE, env.ACTIVITY);
-  if (outcome) {
-    body.output.text = body.output.text ? `${outcome}\n\n${body.output.text}` : outcome;
+  const records = [laneOutcomeLine(env.LANE_OUTCOME, env.LANE, env.ACTIVITY), conflictLine(env.CONFLICT_BASE, env.CONFLICT_PATHS)].filter(Boolean).join("\n");
+  if (records) {
+    body.output.text = body.output.text ? `${records}\n\n${body.output.text}` : records;
   }
   const externalId = externalIdOf({
     lane: env.LANE,

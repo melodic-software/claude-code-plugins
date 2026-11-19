@@ -43,7 +43,7 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
 bash <skill-dir>/scripts/clean-batch.sh \
   --tier <scan|caches|build|git|all> \
   [--dry-run|--apply] \
-  [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
+  [--repo DIR]... [--repos-from FILE|-]... [--fleet] [--owner OWNER]... \
   [--skip ENTRY]... [--skip-from FILE]... \
   [--batch-plan FILE] [--data-dir "<plugin-data>"] [--list-paths-max N]
 ```
@@ -73,6 +73,7 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 | shell glob | the shell expands it into repeated `--repo DIR` |
 | `ghq list` | `ghq list -p \| … --repos-from -` (or `--repos-from FILE`) |
 | fleet discovery | `--fleet`: every `ghq list -p` repo when `ghq` resolves, plus `chezmoi source-path` when `chezmoi` resolves and that path is in a git repo. A missing tool adds nothing; no repos at all is a usage error. `--fleet` also dedupes clones (below). |
+| one owner | `--owner <owner>` (repeatable): the fleet discovery repos whose origin, compared as below, is `<host>/<owner>/<name>`; the owner matches case-insensitively on `github.com`, exactly elsewhere. A discovered entry whose origin does not match, has no host, or is missing (a non-git entry included) is left out rather than reported `blocked`, and an owner that matches nothing adds nothing. `--owner` dedupes clones like `--fleet`. |
 
 Backslash paths from `ghq list -p` (`<drive>:\repos\...`) are normalized once to the
 git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical toplevel
@@ -80,10 +81,10 @@ git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical t
 processed once. A non-directory or non-git input is reported as a `blocked`
 outcome, never silently dropped.
 
-`--fleet` dedupes clones by origin remote across the whole set; `--repo` and
+`--fleet` and `--owner` dedupe clones by origin remote across the whole set; `--repo` and
 `--repos-from` alone never do. Two clones of one remote each hold their own working-tree
 caches, build output and object store, so a repo you name is always planned. To clean every
-clone, leave `--fleet` off. With `--fleet`, the URL is compared with the scheme, `user@` and a
+clone, leave `--fleet` and `--owner` off. With either, the URL is compared with the scheme, `user@` and a
 trailing `.git` or `/` removed, the host lowercased (on `github.com` the owner and repo too),
 and scp form (`git@host:o/r`) read as `host/o/r`. The first clone that is not skip-listed
 stays; each other is one `skipped duplicate of <path>` record, counted in `skipped=` and not
@@ -214,7 +215,7 @@ gated plan after confirming:
 
 ```bash
 ghq list -p | bash <skill-dir>/scripts/clean-batch.sh \
-  --tier caches --repos-from - --skip melodic-software/standards --data-dir "<plugin-data>"
+  --tier caches --repos-from - --skip <owner>/<repo> --data-dir "<plugin-data>"
 # → BatchPlan: <plan-path>  — confirm, then:
 CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan <plan-path>

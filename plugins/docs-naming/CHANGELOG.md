@@ -3,6 +3,45 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-11-19
+
+### Changed
+
+- `/docs-naming:generate-file-name-gate` keeps the gate as its deliverable and no longer argues on its
+  own why a path-scoped rule file cannot stand in for it. Its Purpose and `--rule` gotcha hand the
+  rule-file choice to `/corrections:codify "<the naming rule>"` when that skill is available, with
+  the shared strongest-first fallback when it is not
+  ([#17162](https://github.com/melodic-software/claude-code-plugins/issues/17162)).
+
+## [0.8.2] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [0.8.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's Adopters table moved to
+  `docs/contracts/target-scope/adopters.md` in the repository, so a new adopter no longer changes
+  this copy. The target forms and every other section are unchanged.
+
+## [0.8.0] - 2026-11-19
+
+### Added
+
+- `/docs-naming:audit-file-names` and `/docs-naming:realign-file-names` accept the target-scope
+  forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`). The audit writes one plan per
+  repository, in that repository's own worktree, and the realign applies one repository's plan at a
+  time, leaving each repository's renames for its own pull request. With no target form, both
+  skills behave as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the shared target-scope
+  contract.
+
 ## [0.7.21] - 2026-11-17
 
 ### Changed

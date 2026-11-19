@@ -3,18 +3,14 @@
 # temp dir plays the sweep branch.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+# shellcheck source=../../../lib/test-helpers.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/test-helpers.sh"
 
 mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'EOF'

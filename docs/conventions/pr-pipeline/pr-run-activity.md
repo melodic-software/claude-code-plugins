@@ -681,7 +681,7 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/24067add42f5fa04743c587c6a22aa7d4059e7b8/README.md)
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/README.md)
 (at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
@@ -2296,14 +2296,23 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
-  the skill. The lanes App's own comments are left out, a listed human's comment whose first line
-  is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
-  capped at the newest 20. The issue is frozen at the `labeled` event that started this run (the
-  labeler's newest such event no later than the payload's issue `updated_at`; a later label event
-  by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
-  the label it restarted): a
-  comment created or edited after that is left out, and a title or body changed since fails the
-  step, so text edited after admission does not steer the run. On a resume, `issue.json` also
+  the skill. Of the lanes App's own comments, only two kinds reach the implementer: intake's
+  refinement (`<!-- intake-triage refinement -->`), as `author_kind: refinement`, since admission
+  may have counted its criteria, and pr-merge's capped-close record, as
+  `author_kind: verify-findings`. A refinement that carries a split record goes in only when it is
+  the refinement admission read the issue's `person_checks` from; any other split refinement is
+  left out. Every other lanes App comment is left out, including the triage verdict
+  (`<!-- intake-triage verdict -->`), the admission comment and the size-split record, because the
+  App's pushback quotes the issue body. The implementer therefore never reads a triage verdict,
+  and `issue.json` needs no limit on a verdict's age. A listed human's comment whose first line is
+  `**Decision recorded.**` is marked `decision: true`, and comments other than decisions, a
+  refinement included, are capped at the newest 20. The issue is frozen at the `labeled` event
+  that started this run (the labeler's newest such event no later than the payload's issue
+  `updated_at`; a later label event by anyone never moves it, and the lanes App's remove-and-re-add
+  after a limit stop anchors at the label it restarted): a comment created or edited after that is
+  left out, except the capped-close record, which goes in whenever it was posted while no one but
+  the lanes App has edited it, and a title or body changed since fails the step, so text edited
+  after admission does not steer the run. On a resume, `issue.json` also
   carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
   base and each changed file with its line counts, from `GET /compare`. On a fresh start past a
   stale branch it carries `stale_branch` instead: that branch, the tip `issue-prior` checked, and
@@ -2549,8 +2558,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
   The caller's `check-dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
   select job, so nothing runs and the run ends green with no check and no stop, and the next
-  dispatcher finds the head unhandled. A read it cannot make, or a record not yet uploaded, leaves
-  the run to the broker.
+  dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
+  and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
+  run to the broker.
 
 ## Bounds
 

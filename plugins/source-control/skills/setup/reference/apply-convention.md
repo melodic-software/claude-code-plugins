@@ -146,10 +146,10 @@ With no argument in an interactive session, run the interview:
    existing declared or enforced convention, surfacing which signal produced the candidate:
    - The repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules`: prose stating a commit-message or
      PR-title convention.
-   - A commit-msg git hook: `lefthook.yml` (`commit-msg` entry), `.husky/commit-msg`,
-     `commitlint.config.*` / `.commitlintrc*` (and whether it extends
-     `@commitlint/config-conventional` or declares custom rules), or a plain Git-managed `commit-msg`
-     hook. Resolve the hooks directory with `git rev-parse --git-path hooks` rather than assuming
+   - A commit-msg git hook: a `commit-msg` entry in the hook manager the repository's own files
+     or instructions name, the commit-message linter config that hook runs (and whether it extends a
+     shared preset or declares custom rules), or a plain Git-managed `commit-msg` hook. Resolve the
+     hooks directory with `git rev-parse --git-path hooks` rather than assuming
      `.git/hooks`. In a linked worktree `.git` is a file, not a directory, and the hooks directory
      (or a `core.hooksPath` override) can live elsewhere.
    - Commit-history consensus: the default history signal, a year-scale volume-weighted read, not

@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.44] - 2026-11-19
+
+### Changed
+
+- `/disk-hygiene:clean` drops the recheck trigger from the exec-form hook pointer record in its frontmatter comment. The named triggers on the declined user-scope `extraKnownMarketplaces` channel, the launch-shell `CLAUDE_PLUGIN_DATA` deferral and the `${user_config}` gate workaround stay.
+
+## [1.0.43] - 2026-11-18
+
+### Changed
+
+- **The clean skill names no ecosystem's manifest files.** The ownership investigation's first local source now asks for a project or package manifest, `README*` and `LICENSE` in the entry or its nearest parents, without listing four ecosystems' manifest file names.
+
+### Removed
+
+- **The Windows `detached` reporting caveat and its probe record.** The safety model no longer carries the note that `Get-DiskImage` reports `detached` for disks WSL2 or Docker Desktop hold open, or the probe and pointer behind it. The virtual-disk block is unchanged: every image keeps `virtual-disk` and stays blocked and out of reclaimable bytes, whatever the attach probe answers.
+
 ## [1.0.42] - 2026-11-18
 
 ### Changed

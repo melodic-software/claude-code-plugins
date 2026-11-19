@@ -3,6 +3,45 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.5] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [5.5.4] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's Adopters table moved to
+  `docs/contracts/target-scope/adopters.md` in the repository, so a new adopter no longer changes
+  this copy. The target forms and every other section are unchanged.
+
+## [5.5.3] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/docs-naming:audit-file-names` and
+  `/docs-naming:realign-file-names` as adopters.
+
+## [5.5.2] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/improvement:find` and
+  `/improvement:improve` as adopters.
+
+## [5.5.1] - 2026-11-18
+
+### Changed
+
+- The conventions lens shows the boundary-rule line it appends as a placeholder template
+  (`<rule>. Evidence: <path:line>[, <path:line>...]. Accepted <YYYY-MM-DD>.`) instead of a .NET
+  project example.
+
 ## [5.5.0] - 2026-11-18
 
 ### Added

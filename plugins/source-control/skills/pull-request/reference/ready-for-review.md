@@ -7,7 +7,8 @@ This is not [readiness.md](readiness.md), which holds the gates that decide whet
 **merge**. This file covers the flip alone.
 
 **The order the skill runs follow is the fleet's pre-PR order**, owned by
-[`docs/contracts/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pre-pr-ordering/README.md).
+the pre-pr-ordering contract, bundled at
+[`<plugin-root>/reference/pre-pr-ordering.md`](../../../reference/pre-pr-ordering.md).
 Read it there; this phase cites it and never states a different one.
 
 ## 2.5.1 Refuse without a pull request
@@ -387,7 +388,7 @@ The bullets below are the steps.
 - **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The update moved HEAD, so the gate that ran
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
-  --tests` when the repository ships it, otherwise §1.5's ecosystem-native commands. That part
+  --tests` when the repository ships it, otherwise the commands §1.5 resolves. That part
   runs inside the record command below, so the result comes from its exit status. When CI's test
   lanes already passed on the head, the suites are skipped as a built-in condition (**CI's test
   lanes**, below); `ready --verify-local` runs them anyway.
@@ -421,9 +422,9 @@ PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<ch
 
 When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
 the suites only: the gate's deterministic last part still runs, as `scripts/check-affected.sh`
-without `--tests` (still running the repository's other affected checks, such as markdown lint,
-shellcheck and plugin validation), or §1.5's ecosystem-native commands minus the test suites when
-the repository does not ship it. Record `pass` or `fail` from its exit status with the first
+without `--tests` (still running the repository's other affected checks), or the commands §1.5
+resolves minus the test suites when the repository does not ship it.
+Record `pass` or `fail` from its exit status with the first
 command below. Report the verify line as that result, with the suites `skipped (CI covers it)`
 and the venue line's detail, naming the suites skipped: the list `scripts/affected-tests.sh`
 prints with no arguments, run from `$PR_TREE`, when the repository ships it, otherwise the
@@ -444,7 +445,7 @@ it was ready. `ci-status` gates the merge either way.
 
   When the venue's `tests` line read `ci` (above), drop `--tests` from the command, so the suites
   CI already ran are the only part skipped. Without `scripts/check-affected.sh` in the PR worktree,
-  the `if` holds §1.5's ecosystem-native commands joined with `&&`, run from `$PR_TREE`
+  the `if` holds the commands §1.5 resolves joined with `&&`, run from `$PR_TREE`
   (`(cd "$PR_TREE" && <commands>)`), leaving out the test suites on a `ci` line. When an earlier
   part of §1.5 already failed, record `fail` directly, with the next bullet's command and
   `--result fail`. A recorded `fail` stops the flip.

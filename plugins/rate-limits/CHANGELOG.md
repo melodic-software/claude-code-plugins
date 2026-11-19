@@ -3,6 +3,34 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.0] - 2026-11-19
+
+### Added
+
+- `account_switch_url` names the link the options line gives for switching accounts. Unset, the line says the user can switch accounts with no link; the plugin no longer ships a link to one organization's account-rotation repository. A value that is not one http(s) URL reads as unset, with one transcript line naming it.
+
+### Changed
+
+- The reader contract's drain-then-pause bullet names the `account_switch_url` option in place of that link.
+
+## [4.1.3] - 2026-11-19
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+## [4.1.2] - 2026-11-19
+
+### Changed
+
+- The README no longer restates when Claude Code reloads a module after its options change; it points at the `Register` doc comment instead.
+
+## [4.1.1] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [4.1.0] - 2026-11-18
 
 ### Added

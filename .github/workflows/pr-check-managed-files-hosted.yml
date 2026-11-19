@@ -53,6 +53,7 @@ on:
       - .github/standards/pyright/pyrightconfig.json
       - .github/standards/runner-policy/package-lock.json
       - .github/standards/runner-policy/package.json
+      - .github/standards/runner-policy/policy-input.mjs
       - .github/standards/runner-policy/policy.json
       - .github/standards/runner-policy/policy.schema.json
       - .github/standards/runner-policy/repository-policy.schema.json
@@ -115,7 +116,7 @@ jobs:
       - name: Guard managed files
         # The org requires actions pinned to a full commit SHA (reusable
         # workflows may float on main); this pin moves by hand.
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@24067add42f5fa04743c587c6a22aa7d4059e7b8 # v0.75.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

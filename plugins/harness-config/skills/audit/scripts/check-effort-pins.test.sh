@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for check-effort-pins.sh (no external test lib; ships with the plugin).
-#
 # Every page variant is derived from fixtures/effort-pins in a temp dir and read
 # through the SETTINGS_AUDIT_DOCS_FIXTURE_DIR seam, so no case touches the network.
 # Every case shares one docs cache in the temp dir, never the user's; a variant
@@ -20,31 +18,10 @@ trap 'rm -rf "$T"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$T/cache" XDG_CONFIG_HOME="$T/config"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
 }
 count() { grep -c -- "$2" <<<"$1"; }
 
@@ -309,9 +286,4 @@ assert_eq "every page variant edits the page" "" "$(cat "$T/noop-variants" 2>/de
 assert_eq "byte-identical: no scan-root file changed across every case" "$TREE_BEFORE" "$(tree_hash)"
 assert_eq "byte-identical: no fixture file changed across every case" "$FX_BEFORE" "$(fixture_hash)"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

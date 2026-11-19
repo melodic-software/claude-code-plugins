@@ -1,5 +1,41 @@
 # Changelog: evals
 
+## [0.20.3] - 2026-11-19
+
+### Fixed
+
+- `run-validity.py`'s `programs started` check no longer fails a run for `command not found` on an interpreter the case's skill never names (in its files or the case's `allowed_tools`), such as a run that typed `python`, found only `python3` and went on. That miss is now a warning; a missing interpreter the skill does name, and any mise shim error, still fail. The detail line lists every program that failed to start in a run, not only the first ([#17351](https://github.com/melodic-software/claude-code-plugins/issues/17351)).
+
+## [0.20.2] - 2026-11-19
+
+### Changed
+
+- The design skill's grading hygiene gate drops the unsourced claim that an output-side reasoning
+  block roughly doubles a grader's output tokens; the rule to skip that block for a grader that
+  already thinks before answering stays.
+
+## [0.20.1] - 2026-11-19
+
+### Fixed
+
+- `run-validity.py`'s INVALID verdict now names each permission denial it counted: the tool and its target (a path, a command or the denied hosts), redacted with the vendored gitleaks redactor, flattened to one line and cut to 120 characters. A call repeated across runs is named once with its count, and at most 10 calls are named. Without a loadable redactor it names only the tools. The eval workflows keep only the verdict line, so a hosted run's `validity.txt` and step summary now show which calls were denied. The plugin now carries a generated copy of `lib/redact.py` and the vendored gitleaks rules.
+
+## [0.20.0] - 2026-11-19
+
+### Changed
+
+- `plugin-eval`'s validity gate no longer voids a run whose denied call, other than a Skill call, a failed `max: 0` `tool_used` grader of its case forbids with no `input_match`: the grader already scored the call as the run's failure, so the denial is a warning and the run counts as that grader's failure. A with-arm call naming no absolute path, or one at, under or above the plugin's directory, is not set aside this way and keeps the other denial rules. A case can now measure a premature `Write` to a protected `.claude/` path ([#17223](https://github.com/melodic-software/claude-code-plugins/issues/17223)).
+
+### Fixed
+
+- `run-validity.py` no longer counts a Bash call whose result says the session has no Bash tool (`No such tool available: Bash`) as Bash that ran. A run offered no Bash whose only Bash calls hit that error is left out of its arm, as a run with no Bash call is, and the `bash ran:` line ends with `, absent tool <n>`, the count of such calls. The eval workflows' `bash ran:` line check accepts the new ending.
+
+## [0.19.6] - 2026-11-18
+
+### Changed
+
+- `design`, `methodology` and `plugin-eval` no longer restate upstream behavior on how the eval arms run and which graders are scored, the effort-curve guidance, which errored runs are graded, or a usage limit's zero scores. Each of those passages is now this repository's rule with its reason plus an anchored pointer to read live, and the blog correlate in `methodology/reference/local-decisions.md` no longer states the blog's rubric position ([#16837](https://github.com/melodic-software/claude-code-plugins/issues/16837)).
+
 ## [0.19.5] - 2026-11-18
 
 ### Removed

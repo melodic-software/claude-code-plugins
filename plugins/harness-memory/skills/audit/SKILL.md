@@ -1,6 +1,6 @@
 ---
 description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
-argument-hint: "[audit|fix|update|report]"
+argument-hint: "[audit|fix|update|report] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist
 ---
 
-**Arguments.** `[audit|fix|update|report]`. Default: audit
+**Arguments.** `[audit|fix|update|report] [--repo <repo> ...]`. Default: audit, on this project
 
 ## Pre-computed context
 
@@ -84,6 +84,38 @@ operator can weigh it against current official prompting guidance.
 | `update` | Research current official docs, refresh criteria and official-guidance reference files |
 | `fix` | Apply fixes for audit findings (requires prior audit, asks for approval) |
 | `report` | Show last audit results without re-running |
+
+## Target scope
+
+With no target form, the audit covers the project the session runs in, as every section below
+describes. The target forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same
+request in words) apply to `audit`, `report` and `fix`, and select several repositories, which
+resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. `update` refreshes this
+plugin's own criteria and takes no target. What differs here:
+
+- **Each repository's pass runs from that clone's root**, since the bundled scripts and the
+  state-key helper resolve the project from the working directory. The pre-computed header above
+  describes the invoking session's directory, so each pass runs `audit-spine.sh` itself. The pass
+  reads the clone's working tree, not `origin/HEAD`: `CLAUDE.local.md` is untracked, auto memory is
+  keyed to the clone's path, and a session in that clone loads what is on disk.
+- **User-scope files are audited in every repository's pass**, since path-scoped rules and the
+  currency checks depend on the project (Step 2 in [context/audit.md](context/audit.md)). The same
+  user-scope finding from several passes merges into one row.
+- **Cross-repository signal**: the same rule in several repositories' `CLAUDE.md`, `AGENTS.md` or
+  `.claude/rules/` files is a candidate to move to user scope or to the standards repository. A
+  file `file-provenance.sh` reports as `synced` is not that finding, unless it differs from its
+  source (the contract's "Cross-repository signals").
+- **State stays per repository**: each pass writes its report under that clone's `<state-key>`,
+  and `report` and `fix` read each clone's own. Run the helper below with `--root <clone root>`
+  from anywhere else, a fix worktree included, since a worktree has its own key.
+- **`fix` runs in the main session, one repository at a time**, because every fix waits for the
+  user's approval. Tracked files change in one worktree and one pull request per repository, as
+  the contract's "Writes stay per repository" says; confirm each finding still holds on the
+  worktree's copy before editing it. `CLAUDE.local.md`, auto memory and user-scope files are not
+  tracked, so they change in place. The memory-directory resolution and the closing re-audit run
+  from the clone root.
 
 ## Determinism contract
 

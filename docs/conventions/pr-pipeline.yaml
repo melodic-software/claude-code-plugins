@@ -1003,6 +1003,10 @@ models:
       model: opus
       effort: high
       max-turns: 300
+    verify-capture:
+      model: opus
+      effort: high
+      max-turns: 120
   default-profile: standard
   routes:
     # Resolves code conflicts, a fix on code like address-feedback's.
@@ -1015,6 +1019,7 @@ models:
     fix-docs: docs-fix
     verify-pr: review
     verify-map: verify-map
+    verify-capture: verify-capture
     # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
     # through subagent-model its blind checker's model; the checker's effort
     # stays its agent file's pin (owner decision Q1).
@@ -1771,6 +1776,10 @@ merge:
         class: trust
       - glob: ".github/actions/request-lane-token/**"
         class: trust
+      - glob: ".github/source-control-settings.json"
+        class: trust
+      - glob: ".github/verify-legacy-fails.json"
+        class: trust
       - glob: ".github/actions/log-api-budget/rate-guard.mjs"
         class: gate
       - glob: ".github/actions/log-api-budget/api-budget.bash"
@@ -1812,6 +1821,8 @@ merge:
       - glob: ".github/scripts/pr-merge/post-unarmed-status.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
+        class: gate
+      - glob: ".github/scripts/lib/run-title.mjs"
         class: gate
       # The arm path's Merge-Risk line, and the rating job's scripts that hand
       # untrusted pull request text to a credentialed model run (#13657).

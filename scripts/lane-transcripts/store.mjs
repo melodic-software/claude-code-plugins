@@ -120,6 +120,34 @@ export function transcriptPath({ date, lane, run_id: runId, run_attempt: attempt
   return path.join("transcripts", date, lane, `${runId}-${attempt}-${jobId}.json.gz`);
 }
 
+export const telemetryPath = (row) => transcriptPath(row).replace(/\.json\.gz$/, ".otel.jsonl.gz");
+
+export function telemetrySpans(text, traceId) {
+  let spans = 0;
+  let joined = 0;
+  for (let at = 0; at < text.length; ) {
+    const end = text.indexOf("\n", at);
+    const line = text.slice(at, end === -1 ? text.length : end);
+    at = end === -1 ? text.length : end + 1;
+    if (line.trim() === "") continue;
+    let request;
+    try {
+      request = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    for (const resource of Array.isArray(request?.resourceSpans) ? request.resourceSpans : []) {
+      for (const scope of Array.isArray(resource?.scopeSpans) ? resource.scopeSpans : []) {
+        for (const span of Array.isArray(scope?.spans) ? scope.spans : []) {
+          spans++;
+          if (typeof span?.traceId === "string" && span.traceId.toLowerCase() === traceId) joined++;
+        }
+      }
+    }
+  }
+  return { telemetry_spans: spans, telemetry_joined_spans: joined };
+}
+
 // The rows every complete line holds. An append cut short (a full disk, a
 // kill) leaves a last line with no newline: it is not a row, so its artifact
 // is pulled again and the next append replaces it.
@@ -224,21 +252,25 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
   const keptOutcomes = outcomes.filter((o) => now - Date.parse(o.created_at) <= METRICS_DAYS * DAY);
   if (keptOutcomes.length < outcomes.length) writeOutcomes(sink, keptOutcomes);
   const rows = readRows(sink);
-  const byPath = new Map(rows.filter((r) => r.transcript).map((r) => [path.join(sink, r.transcript), r]));
+  const byPath = new Map(rows.flatMap((row) => ["transcript", "telemetry"].filter((field) => row[field]).map((field) => [path.join(sink, row[field]), { row, field }])));
   const stored = files(paths(sink).transcripts).map((f) => {
-    const row = byPath.get(f.file);
-    return { ...f, row, at: row ? Date.parse(row.created_at) : f.mtimeMs };
+    const { row, field } = byPath.get(f.file) ?? {};
+    return { ...f, row, field, at: row ? Date.parse(row.created_at) : f.mtimeMs };
   });
   const removed = { age: 0, cap: 0, rows: 0, outcomes: outcomes.length - keptOutcomes.length };
   const drop = (entry, reason) => {
     rmSync(entry.file, { force: true });
     entry.gone = true;
     removed[reason]++;
-    if (entry.row) Object.assign(entry.row, { transcript: null, pruned: reason });
+    if (entry.field === "transcript") Object.assign(entry.row, { transcript: null, pruned: reason });
+    else if (entry.field === "telemetry") entry.row.telemetry = null;
   };
   for (const entry of stored) if (now - entry.at > TRANSCRIPT_DAYS * DAY) drop(entry, "age");
   // A row whose file is gone keeps its metrics but no path.
-  for (const row of rows) if (row.transcript && !existsSync(path.join(sink, row.transcript))) Object.assign(row, { transcript: null, pruned: row.pruned ?? "missing" });
+  for (const row of rows) {
+    if (row.transcript && !existsSync(path.join(sink, row.transcript))) Object.assign(row, { transcript: null, pruned: row.pruned ?? "missing" });
+    if (row.telemetry && !existsSync(path.join(sink, row.telemetry))) row.telemetry = null;
+  }
   const kept = rows.filter((row) => now - Date.parse(row.created_at) <= METRICS_DAYS * DAY);
   removed.rows = rows.length - kept.length;
   writeRows(sink, kept);

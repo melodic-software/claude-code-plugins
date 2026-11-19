@@ -3,6 +3,21 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8] - 2026-11-19
+
+### Changed
+
+- `audit` drops the recheck trigger from its pointer to the enforcement ladder's Guardrail
+  criterion. The skill reads that section live and stores nothing from it, so the pointer needs no
+  trigger.
+
+## [0.11.7] - 2026-11-18
+
+### Fixed
+
+- The Kohavi et al. case-studies citation links the paper's live copy on exp-platform.com; the
+  ai.stanford.edu host no longer answers.
+
 ## [0.11.6] - 2026-11-18
 
 ### Changed

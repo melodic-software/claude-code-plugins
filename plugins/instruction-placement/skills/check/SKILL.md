@@ -1,6 +1,6 @@
 ---
 description: "Pass/fail gate over path-scoped instruction surfaces: every .claude/rules/ glob must resolve, and the always-loaded rules index must match disk. Failures are SILENT in Claude Code. Use when: 'check my rules', 'are my path-scoped rules actually firing', 'is the rules index stale', 'validate paths frontmatter', 'why is my rule not loading', 'CI gate for .claude/rules', or after a change to a rule's paths: or the rules tree. Read-only; sibling realign applies fixes."
-argument-hint: "[--file <index-path>] [--breadth-max <pct>]"
+argument-hint: "[--file <index-path>] [--breadth-max <pct>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -18,7 +18,8 @@ metadata:
   summary: Gate that every path-scoped rule glob resolves and the rules index is current
 ---
 
-**Arguments.** `[--file <index-path>] [--breadth-max <pct>]`. Default: gate the whole repository
+**Arguments.** `[--file <index-path>] [--breadth-max <pct>] [--repo <repo> ...]`. Default: gate the
+whole repository. `--repo` and the other target forms: "Over several repositories" below
 
 ## Pre-computed context
 
@@ -30,12 +31,11 @@ A gate, not an audit. It answers one question with one exit code: **would every 
 instruction surface in this repository actually load when it is supposed to, and does the
 always-loaded index still describe what is on disk?**
 
-It exists because every failure mode here is silent: a glob that matches nothing, a malformed
-bracket expression, a pattern over the brace budget (how Claude Code treats one:
-[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules)).
-The rule simply never fires, and the convention it carries is quietly
-absent from every session that needed it. A repository can accumulate a dozen dead rules and look
-healthy.
+It fails a glob that matches nothing, a malformed bracket expression and a pattern over the brace
+budget, whatever Claude Code reports for each (how it treats one:
+[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules)),
+because a rule that never fires leaves its convention absent from every session that needed it,
+and a repository can accumulate a dozen dead rules and look healthy.
 
 Wire it into CI beside the linters. It is fast, deterministic, and has no judgment layer to drift.
 
@@ -126,6 +126,27 @@ Pass `--breadth-max` through when the operator supplies it. The default of 75% i
 not a law; a documentation repository where `**/*.md` legitimately covers most files should raise
 it rather than live with a standing warning.
 
+### Over several repositories
+
+With no target form, the gate covers this repository, as it always has. A target form selects
+several repositories, resolved, counted and listed as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target forms"
+and "Resolving repositories" say. What differs here:
+
+- **Gate `origin/HEAD` in a throwaway worktree.** The scripts read files on disk, and another
+  session's checkout can be dirty or behind. Per repository, after the contract's one fetch, add a
+  detached worktree at `origin/HEAD` (`git -C <root> worktree add --detach <tmp> origin/HEAD`), run
+  every command above with `--root <tmp>`, and remove it when the gate is done
+  (`git -C <root> worktree remove <tmp>`). That worktree is the only thing the gate adds to another
+  repository, and it does not outlive the run. The session's own checkout is gated in place.
+- **The index target resolves per repository.** A `--file` is read relative to each repository's
+  root, and the precedence table above picks each repository's winner on its own. Name the winner
+  per repository.
+- **One verdict per repository, one exit code.** Report each repository's verdict and its failing
+  patterns, each written with its `owner/name`, as "Merging findings" says. The exit code is 0
+  only when every repository is clean; a repository that could not be measured, or that failed to
+  resolve, makes it non-zero and is named with its reason.
+
 ## Reading the output
 
 Both scripts emit deterministic TSV. `glob-tools.sh` rows are:
@@ -153,8 +174,9 @@ do about it**. The three failure statuses have different fixes and saying "inval
 
 ## Hard rules
 
-- **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. Fixing a broken glob is the sibling
-  `realign` skill's job, or the operator's.
+- **Read-only.** No `Edit`, no `Write`, no mutating `Bash` beyond the throwaway worktree a
+  multi-repository run adds and removes. Fixing a broken glob is the sibling `realign` skill's
+  job, or the operator's.
 - **Never fabricate a verdict.** If a script cannot run, because this is not a git repository or
   tooling is missing, report that plainly and exit non-zero. A gate that passes because it could
   not measure is worse than no gate.
@@ -189,9 +211,9 @@ do about it**. The three failure statuses have different fixes and saying "inval
   reachability verdict is the false assurance the previous point warns about. `NATIVE` is the
   honest middle verdict, not a pass: it says only that nothing in the repository blocks the target,
   which is all a static check can see. `verify-load.sh` is what answers whether it actually loaded.
-- **Rules discovery follows symlinks and does not require git.** A symlinked rule may point outside the
-  repository to share one rule set across projects
-  ([Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks)),
-  so it is never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
-  vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
+- **Rules are checked as found on disk, following symlinks, with no git lookup.** A rule set shared
+  across projects by symlink (how Claude Code loads one:
+  [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks))
+  is checked even though git does not track its target. Nested instruction files are the opposite:
+  tracked-only, because an untracked or vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
   seems missing from a report, check which of the two rules applies before assuming a bug.

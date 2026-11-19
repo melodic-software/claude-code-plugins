@@ -3,6 +3,134 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.0.1] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [13.0.0] - 2026-11-19
+
+### Added
+
+- Seven trust and cost settings, read only from the source-control `userConfig` in user or managed settings (managed-settings.d drop-ins included) by the new `babysit_merge_settings.py`, never from a repository or the environment: `unattended_merge_owners`, `review_lane_workflows`, `review_lane_checks`, `owner_decisions_record`, `free_runner_labels`, `model_leg_actions` and `issue_status_app_login`.
+
+### Changed
+
+- **Breaking:** the merge phase's unattended merge, `review-venue.sh`, the merge gate's AI review checks and review lanes, the cost-decision row link, the free runner labels and the trusted Work status App come from those settings instead of one organization's values fixed in the plugin. Every one fails closed when unset: nothing merges without the user, no CI run or check counts as AI review, no decision clears a cost hold, only GitHub's standard runner labels are free, and only a person's Work status values count. An operator who relied on the old values sets them in `userConfig`.
+
+### Removed
+
+- **Breaking:** the verdict reader no longer reads a legacy FAILs file beside itself; it reads only the file `BABYSIT_VERIFY_LEGACY_FAILS` names, and reads the whole artifact listing when that is unset.
+
+### Fixed
+
+- `/source-control:worktree create` resolves `worktree.baseRef` one settings file per call: it reads the project `.claude/settings.json` first, skips `.claude/settings.local.json` without attempting it when a `Read` deny rule there covers it, and reads `~/.claude/settings.json` only when neither project layer sets the key. Agents had been reading all three files in one `grep`, which a project `Read(./.claude/settings.local.json)` deny rule refused as a whole. The `worktree-create-routes-through-helper` eval now seeds that deny and fails a run that reads the local file.
+
+## [12.0.2] - 2026-11-19
+
+### Fixed
+
+- `worktree-create.sh` checks out a repository whose `.gitattributes` routes paths through `filter=lfs` with `GIT_LFS_SKIP_SMUDGE=1`, so LFS paths arrive as pointer files instead of copies from the LFS store, and one stderr line names `git lfs pull` and `git lfs pull --include <paths>` for fetching the content.
+
+## [12.0.1] - 2026-11-19
+
+### Fixed
+
+- `/source-control:pull-request` prep and ready read the pre-PR ordering contract from the copy
+  bundled at `reference/pre-pr-ordering.md` instead of the publisher's raw URL.
+
+## [12.0.0] - 2026-11-19
+
+### Added
+
+- `linkage_gate_uses_pattern`, in `docs/conventions/source-control.yaml` or as a userConfig option (the YAML wins): the POSIX ERE a `.github/workflows` file must match for the PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) to run in a repository.
+- `runner_policy_paths`, `org_settings_repo` and `review_lane_producer_repo` in `docs/conventions/source-control.yaml`: where `/source-control:babysit-prs` routes a wrong runner label, an organization-settings finding, and a review-lane check name that does not match the gate's.
+
+### Changed
+
+- The merge gate's evidence comment also links a capture whose run is titled `PR Verify Capture <run> <head>`, the Title Case run-name the capture workflow moves to next; the `pr-verify-capture <run> <head>` title still counts.
+
+- The PR-body linkage hooks no longer carry a built-in workflow path: with `linkage_gate_uses_pattern` unset they gate no repository. To keep the earlier scope, set it to `\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)`.
+- The babysit-prs routing text and the pull-request watch hand-off no longer name a specific organization's repositories or tools.
+
+### Fixed
+
+- `babysit_verify_evidence.py settle --probe-unmoved` refuses a last report that lists reruns as `reruns-unmoved` when nothing else it read has moved, so a PR-scoped `pr-merge.yml` wake skips the fresh post-merge check.
+
+- The verdict reader (`babysit_verify_evidence.py evidence`) judges a head again after the pool's reset when its `verify:unreadable` came from a read not sent below the read floor and the reset is within `BABYSIT_READ_FLOOR_WAIT_SECONDS`; ci-status's merge-queue step sets 900 s. A pass at the head whose run cannot be read now refuses `verify:unreadable`, not `verify:missing`, unless another counted pass allows.
+
+## [11.22.5] - 2026-11-19
+
+### Fixed
+
+- `BABYSIT_READ_FLOOR_HEADER_LIMIT=1` makes `babysit_gh`'s read floor a share of the header's rate limit rather than the pool's `limit-cap`; ci-status's merge-group verdict reader sets it (owner decision D418).
+
+## [11.22.4] - 2026-11-19
+
+### Removed
+
+- `worktree cleanup` no longer reports or deletes Xcode build output and unavailable simulators on a macOS host: `context/macos-caches.md`, its pointer in `context/cleanup.md`, the optional `xcrun` prerequisite and the eval case that tested the page are gone (ADR 0101).
+- `worktree create`'s post-create checks drop the per-ecosystem table (.NET, Node, Python commands) and the hook-manager examples; a dependencies row reads the project's own install step from its Workspace environment `setup` or setup docs, and reports the check as not run when none is stated. `cleanup`'s file-lock release names no build tool's shutdown command; it uses the one the project documents.
+- `commit`'s subject ladder and `setup`'s convention inference no longer name hook managers or commit-message linters by tool; they read the commit-msg hook the repository's own files name.
+- `pull-request` prep's verify gate, the ready action's verify step and the CI fix rules no longer list per-tool commands, test-runner flags or suppression syntaxes as examples. The verify gate runs the commands the repository's CI workflows, ecosystem records or instructions name, and an ecosystem none of them covers is named in the PR body as not verified locally.
+
+### Fixed
+
+- The PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) enforce again in a repository whose ci-status job runs the ci-workflows `report-ci-status` composite, which runs check-contract inside it. Before, they stopped checking in every repository moved to that composite.
+
+## [11.22.3] - 2026-11-19
+
+### Changed
+
+- **The babysit loop's instance-collision check is a generated copy of the shared `lib/lane-instance-collision-check.md`.** The work loop carries the same copy, so the two lanes stop drifting apart; no change to the check itself.
+
+## [11.22.2] - 2026-11-19
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pr-merge sweep's one whole-review request is now spent only by a pull request that passes the rate-limit and running-jobs limits. A candidate refused on a limit no longer leaves every later candidate in the sweep answered `sweep-limit`. The limits themselves and the one request per sweep are unchanged.
+
+## [11.22.1] - 2026-11-19
+
+### Added
+
+- **An eval case for `ready`'s evidence step.** `pull-request-ready-posts-evidence-after-flip` runs `ready --evidence` on an offline draft whose head is verified and confirmed, and checks that the evidence comment goes up after the flip, with the publishable capture attached, and that the report names it. The forge now serves `gh run list` for the head (one run on a draft, a new one after the flip), so `ready`'s check for a run after the flip passes as the skill prescribes, and its tests cover that and its `gh repo set-default` answers.
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+- `babysit_verify_evidence.py` reads the trusted-actor list, admission rules and pipeline config at a commit from a checkout whose HEAD is that commit, before the contents API. `BABYSIT_CONFIG_CHECKOUT` now takes several checkouts separated by `os.pathsep`, and the first one whose HEAD is the commit answers.
+
+## [11.22.0] - 2026-11-19
+
+### Changed
+
+- **The pull-request evidence comment shows the verifier's criterion rows as one table.** When the verdict recorded for the head carries rows from `/verification:confirm`, the comment opens with one line stating the verdict, then a Criterion, Files, Test or check, Result table in place of the per-criterion result lines. A verdict recorded without rows keeps the lines. The `ready` report's verdict line now lists the rows under it.
+
+### Fixed
+
+- babysit-prs: a push that changes `plugins/code-metrics/scripts/**` or the code-metrics audit skill's scripts now stops an approval from carrying (`CARRY_REFUSES`), since CI's size check runs them.
+
+## [11.21.10] - 2026-11-18
+
+### Security
+
+- The worktree-add containment gate's worktree-root lookups (`config --get-all`, `rev-parse --git-dir` in `worktree-root-resolve.sh`) run through `hook::git_untrusted`, with the repository's `core.fsmonitor`, git hooks and pager turned off, as the gate's other git calls already do.
+
+## [11.21.9] - 2026-11-18
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pull request held only by `evidence-unbound:<lane>` with the unbound reason `rerun-not-allowed` now gets the gate's whole-review request, so a new run at the same head can bind the review. No other unbound reason requests one, and the per-head, per-pull-request and per-sweep limits still apply. What the merge gate accepts does not change.
+
+## [11.21.8] - 2026-11-18
+
+### Changed
+
+- **Skill docs point at the upstream page instead of restating it.** The Spoke paths block in the babysit-loop, babysit-prs, commit, pull-request and setup skills, the managed-sources note in the promotion-evidence bootstrap, the conflict worker's authority note, the Monitor watch notes, and the native-surface claim cells now state this plugin's rule and link the docs section, without paraphrasing what the page says.
+
 ## [11.21.7] - 2026-11-18
 
 ### Fixed

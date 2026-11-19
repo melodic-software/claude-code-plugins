@@ -206,12 +206,16 @@ last one's as returned; including a `NOT VERIFIED` from the Stage 1 gate), store
 judged, so the pull request `ready` report can name it:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --head <sha> --verdict '<verdict>' --missing '<item>' --partial '<item>'
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --head <sha> --verdict '<verdict>' --missing '<item>' --partial '<item>' --row '<criterion> | <files> | <test or check> | <result>'
 ```
 
 - `<sha>` is the full `git rev-parse HEAD`, run as its own call.
 - Pass one `--missing` per `MISSING` plan item and one `--partial` per `PARTIAL` one, each a single
   line naming the requirement, and none for `COMPLETE` items.
+- Pass one `--row` per criterion, `COMPLETE` ones included, in plan order: four cells on one line,
+  a `|` inside a cell written `\|`. The criterion mode's report says what fills each cell
+  ([outcome.md](context/outcome.md), [fix.md](context/fix.md), [refactor.md](context/refactor.md)).
+  The pull-request evidence comment shows these rows as its criteria table.
 - Skip the record when the gathered working-tree status was not empty: the verdict then judged
   uncommitted changes, not that head. The report says the verdict was not recorded and why.
 - A non-zero exit leaves no record; the report names it and the verdict stands.

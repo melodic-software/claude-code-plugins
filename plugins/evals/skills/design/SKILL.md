@@ -196,16 +196,17 @@ convert it; the overwrite rule below applies.
   [Eval suite reference](https://code.claude.com/docs/en/plugin-evals#eval-suite-reference) and
   [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields).
 
-`claude plugin eval` runs each case with the plugin and again without it. The with arm answers
-"does the output meet these expectations"; the with/without delta answers a comparative claim (the
-skill improves on what the model does without it, or the claim covers a whole plugin: its skills,
-agents and hooks together). `/evals:plugin-eval` reads that delta. Whether the skill fires is not a
-delta question: the no-plugin arm has no skill to invoke, so read it from the with-arm
-`tool_used: Skill` indicator, which is unscored.
+Use `claude plugin eval`'s with arm for "does the output meet these expectations" and its
+with/without delta for a comparative claim (the skill improves on what the model does without it,
+or the claim covers a whole plugin: its skills, agents and hooks together). `/evals:plugin-eval` reads that delta.
+Whether the skill fires is not a delta question: the no-plugin arm has no skill to invoke, so read
+it from the with-arm `tool_used: Skill` indicator.
 
-For how the arms run and which graders are scored, read
-<https://code.claude.com/docs/en/plugin-evals.md> and `claude plugin eval --help` (recorded in
-`docs/native-surfaces.md`, the `plugin eval` entry) live.
+- **Pointer**: when a case's design turns on how the arms run or which graders are scored, fetch
+  [The no-plugin baseline](https://code.claude.com/docs/en/plugin-evals#the-no-plugin-baseline)
+  and [How a case is scored](https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored)
+  live, and read `claude plugin eval --help` (recorded in `docs/native-surfaces.md`, the
+  `plugin eval` entry).
 
 ## Phase 3: grading hygiene gate
 
@@ -214,8 +215,7 @@ Before finishing, confirm and record in the criteria doc:
 - LLM-graded cases name a grader model different from the generator and constrain the verdict
   format. Add a reasoning-then-discard instruction only where the grader model does not already
   think before answering; a grader with always-on thinking reasons before it decides, so an
-  output-side reasoning block buys nothing and roughly doubles the output tokens every re-run
-  pays for.
+  output-side reasoning block buys nothing and adds output tokens every re-run pays for.
 - Re-run cost is stated (which cases are code-graded and free vs LLM-graded and metered).
 
 ### Grader check

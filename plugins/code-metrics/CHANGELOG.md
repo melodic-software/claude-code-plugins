@@ -3,6 +3,37 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [1.5.0] - 2026-11-19
+
+### Added
+
+- **Several repositories in one run.** `/code-metrics:audit`, `audit-coverage`,
+  `audit-duplication` and `audit-suppressions` take the target-scope forms (`--repo`,
+  `--repos-from`, `--owner`, `--fleet`, `--skip`) and run once per repository from that
+  repository's root, with one report section and one JSON document per repository. A repository
+  other than the session's own is measured only when its checkout is clean at `origin/HEAD`, and
+  then over its whole tree unless paths are named. Kept reports and `--findings` files stay with
+  each repository. With no target form, nothing changes. The plugin now ships the target-scope
+  contract as `reference/target-scope.md` and its own differences in
+  `reference/several-repositories.md`.
+
+## [1.4.1] - 2026-11-19
+
+### Fixed
+
+- `audit-size.sh --help` lists `--check`, says what each `size.check` rule fails, and gives the
+  exit codes under `--check`. The help text now lives in the script as a string rather than its
+  header comment.
+
 ## [1.4.0] - 2026-11-18
 
 ### Added

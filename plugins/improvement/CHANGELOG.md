@@ -3,6 +3,57 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [0.8.3] - 2026-11-19
+
+### Fixed
+
+- `setup apply` no longer writes `.claude/improvement.md` before asking: it drafts values from the invocation and the repository, then asks the first interview question with its recommendation before any write, even when every value looks unambiguous ([#17223](https://github.com/melodic-software/claude-code-plugins/issues/17223)).
+
+## [0.8.2] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's Adopters table moved to
+  `docs/contracts/target-scope/adopters.md` in the repository, so a new adopter no longer changes
+  this copy. The target forms and every other section are unchanged.
+
+## [0.8.1] - 2026-11-19
+
+### Changed
+
+- The shipped `reference/target-scope.md` copy lists `/docs-naming:audit-file-names` and
+  `/docs-naming:realign-file-names` as adopters.
+
+## [0.8.0] - 2026-11-19
+
+### Added
+
+- `/improvement:find` and `/improvement:improve` accept the target-scope contract's forms
+  (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run
+  once per repository with its root anchored. `find` ranks every repository's candidates on one
+  scale; `improve` ships at most one small PR per repository, takes each repository's own recent
+  files when no target is given, and leaves each PR a draft unless the request authorized the
+  ready flip. With no target form, both run as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
+## [0.7.0] - 2026-11-18
+
+### Changed
+
+- The hotspot recipe in `/improvement:find` ships no lockfile, generated-output or vendored-tree list. With `churn_exclude_defaults` on (the default), it resolves those mechanical files from the target repository (its `.gitattributes`, build and manifest files) through the plugin's new copy of the ecosystem resolution steps (`reference/ecosystem-resolution.md`, version 1.1.0). When nothing is declared or resolved, it counts churn without exclusions and records a gap. `/improvement:setup apply` drafts `churn_exclude` entries from the repository's own mechanical files and asks about each before it writes the team file.
+- The disconnected-capability scan identifies the languages in scope from the scoped files and their build and manifest files instead of naming language keywords, and describes table writes and reads without SQL keywords. Files whose language cannot be identified are a recorded gap.
+- The sample config in `reference/config.md` drops its C# designer-file pattern.
+- `/improvement:improve`'s trigger phrase "bring this up to current .NET" is now "bring this up to current upstream guidance".
+
 ## [0.6.2] - 2026-11-18
 
 ### Changed

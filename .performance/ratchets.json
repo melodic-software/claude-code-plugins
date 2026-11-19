@@ -195,7 +195,6 @@
         "plugins/tdd/skills/principles/reference/testable-architecture-khorikov.md": 6,
         "plugins/tdd/skills/principles/reference/testing-styles-khorikov.md": 9,
         "plugins/testing/skills/write/context/write.md": 1,
-        "plugins/user-interface/skills/audit/reference/launch-scope.md": 2,
         "plugins/user-interface/skills/write-css/reference/foundations.md": 6,
         "plugins/user-interface/skills/write-css/reference/interaction.md": 14,
         "plugins/user-interface/skills/write-css/reference/layout.md": 8,
@@ -203,8 +202,7 @@
         "plugins/user-interface/skills/write-css/reference/scroll-and-viewport.md": 15,
         "plugins/user-interface/skills/write-css/reference/show-and-hide.md": 7,
         "plugins/user-interface/skills/write-css/reference/spacing-and-shape.md": 4,
-        "plugins/user-interface/skills/write-css/reference/text-and-media.md": 5,
-        "plugins/visualization/skills/visualize/context/code-shapes.md": 3
+        "plugins/user-interface/skills/write-css/reference/text-and-media.md": 5
       }
     }
   ],

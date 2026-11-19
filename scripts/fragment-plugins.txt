@@ -94,6 +94,7 @@ spelling
 sql-server
 tdd
 testing
+themes
 toolchain
 user-experience
 user-interface

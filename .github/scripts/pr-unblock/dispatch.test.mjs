@@ -5,6 +5,7 @@ import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
+import { recordLine } from "../lib/conflict-record.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, LIST_QUERY, listAll, main, PULL_QUERY, shareTimeline } from "./dispatch.mjs";
 import { dispatchCiFixes } from "./fix-ci-dispatch.mjs";
@@ -94,8 +95,9 @@ function fakeApi({
   comments = new Map(),
   labelEvents = new Map(),
   reviewComments = new Map(),
+  compare = () => assert.fail("no comparison expected"),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [], tips: [], docs: [] };
+  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [], tips: [], docs: [], compares: [] };
   let round = 0;
   return {
     calls,
@@ -132,6 +134,10 @@ function fakeApi({
     },
     async getCommit(sha) {
       return { sha, files: [] };
+    },
+    async compareCommits(base, head) {
+      calls.compares.push(`${base}...${head}`);
+      return compare(base, head);
     },
     async listPullFiles() {
       return [];
@@ -590,6 +596,12 @@ test("skips a PR while a resolve-conflicts run for it is queued or going", async
     assert.deepEqual(dispatchedNumbers(api), ["27"], status);
     assert.ok(lines.some((line) => line.includes("#26") && line.includes("run 1")), status);
   }
+  const { api, run } = harness({
+    pages: [[pr(26), pr(27)]],
+    workflowRuns: [{ id: 1, status: "queued", display_title: "PR Unblock resolve-conflicts #26" }],
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["27"], "the Title Case run-name holds as the old one does");
 });
 
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
@@ -1204,6 +1216,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     { total_count: 1, check_runs: [SUCCESS_RUN] },
     { workflow_run_id: 77, run_url: "u", html_url: "h" },
     { total_count: 1, workflow_runs: [{ id: 5, status: "queued" }] },
+    { status: "ahead", ahead_by: 2, commits: [{}], files: [{ filename: "a.md" }] },
   ];
   const fetchStub = async (url, init) => {
     requests.push({
@@ -1266,6 +1279,9 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[3].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
   );
+  assert.deepEqual(await api.compareCommits(OLD_TIP, NEW_TIP), { status: "ahead", files: [{ filename: "a.md" }] });
+  assert.equal(requests[4].url, `https://api.example/repos/octo/repo/compare/${OLD_TIP}...${NEW_TIP}?per_page=1`);
+  await assert.rejects(api.compareCommits("main", NEW_TIP), /not a commit SHA/);
 });
 
 test("resolve-conflicts and fix-ci page through one listing: each page is one GraphQL request, and a failed page is sent again", async () => {
@@ -1619,6 +1635,99 @@ test("a retry that did not stop, or a select job's own lane stop, handles the he
   await terminal.run();
   assert.deepEqual(dispatchedNumbers(terminal.api), []);
   assert.deepEqual(terminal.api.calls.stops.map((call) => call.sha), [head], "the push job's checks are read, and hold no stop");
+});
+
+const STOP_BASE = "e".repeat(40);
+const conflictStop = (time, paths = ["docs/contract.md", "src/a.mjs"]) => ({
+  ...laneStopRun(time),
+  output: { title: "Skipped: lane-stopped", text: `${recordLine({ base: STOP_BASE, paths })}\n\nSkip reason: lane-stopped` },
+});
+const conflictState = (extra = {}) => {
+  const head = pr(1).headRefOid;
+  return {
+    pages: [[pr(1)]],
+    checked: new Map([[head, [modelRun("10:00")]]]),
+    stops: new Map([[head, [conflictStop("10:05")]]]),
+    baseTip: tipAt(NEW_TIP, "10:30"),
+    ...extra,
+  };
+};
+const changed = (...filenames) => () => ({ status: "ahead", files: filenames.map((filename) => ({ filename })) });
+
+test("an unresolved-conflict stop is not sent again when main's commits since its base leave its conflicted paths alone", async () => {
+  const head = pr(1).headRefOid;
+  const record = emptyRecord();
+  const { api, lines, run } = harness(conflictState({ compare: changed("README.md", ".changes/x.md") }), { record });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.deepEqual(api.calls.compares, [`${STOP_BASE}...${NEW_TIP}`], "one comparison, from the stop's base to the tip");
+  assert.ok(lines.some((line) => line.startsWith(`skip #1: head ${head}'s last resolve-conflicts stopped unresolved-conflict`)));
+  assert.ok(record.handled.get(CHECK_NAME).has(head));
+  assert.equal(record.bases.get(head), NEW_TIP, "kept with the tip it was compared to");
+
+  const same = harness(conflictState({ baseTip: tipAt(STOP_BASE, "10:00") }));
+  await same.run();
+  assert.deepEqual([dispatchedNumbers(same.api), same.api.calls.compares], [[], []], "an unmoved base needs no comparison");
+});
+
+test("an unresolved-conflict stop is sent again once main changes one of its conflicted paths, a rename's old name included", async () => {
+  for (const compare of [changed("README.md", "src/a.mjs"), () => ({ status: "ahead", files: [{ filename: "src/b.mjs", previous_filename: "docs/contract.md" }] })]) {
+    const { api, run } = harness(conflictState({ compare }));
+    await run();
+    assert.deepEqual(dispatchedNumbers(api), ["1"]);
+    assert.deepEqual(api.calls.compares, [`${STOP_BASE}...${NEW_TIP}`]);
+  }
+});
+
+test("a stop with no conflict record is sent again as before, with no comparison", async () => {
+  const head = pr(1).headRefOid;
+  const bare = harness(conflictState({ stops: new Map([[head, [laneStopRun("10:05")]]]) }));
+  await bare.run();
+  assert.deepEqual([dispatchedNumbers(bare.api), bare.api.calls.compares], [["1"], []]);
+  const malformed = { ...laneStopRun("10:05"), output: { title: "Skipped: lane-stopped", text: 'conflict-record {"base":"main","paths":["a"]}' } };
+  const broken = harness(conflictState({ stops: new Map([[head, [malformed]]]) }));
+  await broken.run();
+  assert.deepEqual([dispatchedNumbers(broken.api), broken.api.calls.compares], [["1"], []]);
+});
+
+test("a new head is sent with no comparison: the stop's record stays on the head it was posted on", async () => {
+  const old = pr(1).headRefOid;
+  const moved = pr(1, { headRefOid: "f".repeat(40) });
+  const { api, run } = harness(conflictState({ pages: [[moved]], checked: new Map([[old, [modelRun("10:00")]]]), stops: new Map([[old, [conflictStop("10:05")]]]) }));
+  await run();
+  assert.deepEqual([dispatchedNumbers(api), api.calls.compares], [["1"], []]);
+});
+
+test("a comparison that fails, is not the tip ahead of the stop's base, or may be cut short sends the head", async () => {
+  const many = Array.from({ length: 300 }, (_, index) => `f${index}.md`);
+  for (const compare of [
+    () => {
+      throw new Error("compare returned 502");
+    },
+    () => ({ status: "diverged", files: [] }),
+    changed(...many),
+  ]) {
+    const { api, run } = harness(conflictState({ compare }));
+    await run();
+    assert.deepEqual(dispatchedNumbers(api), ["1"]);
+  }
+  const unread = harness(conflictState({ baseTip: new Error("GraphQL: boom") }));
+  await unread.run();
+  assert.deepEqual([dispatchedNumbers(unread.api), unread.api.calls.compares], [["1"], []], "an unreadable tip sends too");
+});
+
+test("a head held untouched is read again on the next base move and compared from the stop's own base", async () => {
+  const head = pr(1).headRefOid;
+  const record = emptyRecord();
+  markHandled(record, CHECK_NAME, head);
+  record.bases.set(head, OLD_TIP);
+  const carried = () => parseRecord(serializeRecord(record));
+  const same = harness(conflictState({ baseTip: tipAt(OLD_TIP, "10:20") }), { record: carried() });
+  await same.run();
+  assert.deepEqual([dispatchedNumbers(same.api), same.api.calls.checks, same.api.calls.compares], [[], [], []]);
+  const moved = harness(conflictState({ compare: changed("docs/contract.md") }), { record: carried() });
+  await moved.run();
+  assert.deepEqual([dispatchedNumbers(moved.api), moved.api.calls.compares], [["1"], [`${STOP_BASE}...${NEW_TIP}`]]);
 });
 
 // sync-shared-copies: pr-merge's shared-copy escalation as babysit_merge.py

@@ -257,15 +257,31 @@ fallback), then:
    management hint, any launched-session behavior the resumed work depends on (next
    section), and the denied-action statement step 2 defines, never a promise of the final
    hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
-   the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
-   turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
+   the persistence override is ever unrecognized. Confirm with
+   `claude agents --json --all`, taking the entry whose `id` is the short id the launch printed,
+   and report its full `sessionId`; with no such entry, tell the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
-   The user no longer needs to paste anything.
+   The user no longer needs to paste anything. `claude --bg` ignores `--session-id` and picks the
+   id itself, so this listing is the only source of the full id.
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
 5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
-   monitor, poll, or babysit the launched agent, and do not start new work items.
+   monitor, poll, or babysit the launched agent, and do not start new work items. Invoked by
+   another skill through the Skill tool (step-away's fresh session), return the full `sessionId`
+   to it instead, or say none was found; that skill finishes its own steps this turn.
+
+## Delivery variant: desktop session
+
+When this session has a tool that starts another session (the Claude desktop app's Code tab) and
+`--cloud` was not given, read
+[`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md),
+"Background continuation", and deliver there instead of steps 1 to 3 above: our decision is to
+prefer the app's own session there. A start that is refused or fails takes steps 1 to 5 above.
+Without such a tool, skip that file.
+
+- **Pointer**: what a started session can do there,
+  <https://code.claude.com/docs/en/desktop#work-across-sessions>.
 
 ## Delivery variant: `--cloud`
 
@@ -341,12 +357,15 @@ Our rules:
   model-config's
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   table, pick the level whose described use fits the resumed task, and pass that level as
-  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
-  or verifies it is never given a level below medium; skip any row the table says is not an
-  effort level. The value is one level name of lowercase letters only, never free text, for the
-  same reason the topic slug is sanitized. The launch report names the level and quotes the
-  matched use. When the page cannot be read, say so, pass no `--effort`, and state that the
-  session will start at its default level.
+  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code or
+  verifies it is never given a level below medium: that is our marketplace's own effort floor,
+  which keeps `low` for chat-like exchanges and read-only mechanical work ("Effort floor" in
+  `docs/plugin-philosophy.md` in this plugin's marketplace repository). Skip any row the table
+  says is not an effort level.
+  The value is one level name of lowercase letters only, never free text, for the same reason
+  the topic slug is sanitized. The launch report names the level and quotes the matched use.
+  When the page cannot be read, say so, pass no `--effort`, and state that the session will start
+  at its default level.
 
   - **Pointer**: for choosing a level, see the table linked above; for the `--effort` flag, see
     [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
@@ -373,7 +392,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   launch command. No purpose given → nothing to tick
 - [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
   lock names this session carries the handover before `check-enter` (or none held)
-- [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
+- [ ] Dirty-tree gate evaluated this turn (not on a successful desktop start): `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
   edits-this-checkout-in-place warning in the report (`--settings` tier named as not covered);
@@ -387,17 +406,22 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   and launched only on the user's yes to it; a conversation-bound or already-met goal never
   launched as it stands, only redrafted (case 2) or left unlaunched (case 3); none → no launch, the message saying how to supply
   one, fallback to `/clear`-then-paste
-- [ ] Background agent launched (`claude --bg --name … --permission-mode auto`), the payload being
+- [ ] Background agent launched (not on a successful desktop start) (`claude --bg --name … --permission-mode auto`), the payload being
   `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
   flagging, and step 2's denied-action statement: auto mode may deny an action, the session keeps going past a denial, which
-  is in its transcript and `claude logs`, not promised in the final hand-off), or the non-zero
+  is in its transcript and `claude logs`, not promised in the final hand-off, and the full
+  `sessionId` from `claude agents --json --all`, handed back to a calling skill), or the non-zero
   exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
+- [ ] Desktop session only: the whole brief counted within the limit, the session started in this
+  checkout, auto chosen when the start offers a permission mode; the report names the session,
+  warns that it and the user may touch the same files, and says goal arming there is unprobed; a
+  refused or failed start → steps 1 to 5
 - [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
   `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
   report names the session id, the teleport and follow-up commands, and the signed-in account,

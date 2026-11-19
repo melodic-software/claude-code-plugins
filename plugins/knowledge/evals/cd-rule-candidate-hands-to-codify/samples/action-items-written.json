@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": ["courses/teachable/robust-http-apis-hale/analysis/repo-candidates.md", "courses/teachable/robust-http-apis-hale/analysis/action-items.md"]},
+    {"answer": ["/w/courses/teachable/robust-http-apis-hale/analysis/action-items.md"], "why": "absolute path"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": ["courses/teachable/robust-http-apis-hale/analysis/repo-candidates.md"], "why": "only the candidates file"},
+    {"answer": ["action-items.md"], "why": "outside the course directory"}
+  ]
+}

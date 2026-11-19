@@ -8,8 +8,8 @@ turns them on and off.
 
 Each profile is one YAML file. The shipped ones are in [`profiles/`](profiles/): `always-on`,
 which is on in every other profile, and `discovery`, `planning`, `interface-design`, `build`,
-`review`, `harness-upkeep` and `native`. Each file holds the profile's members and a `description`
-line saying when to pick it. `native` is Claude Code as it ships: every other plugin of these
+`review`, `improve`, `harness-upkeep` and `native`. Each file holds the profile's members and a
+`description` line saying when to pick it. `native` is Claude Code as it ships: every other plugin of these
 marketplaces is off, guardrails included, and only this plugin stays on, as the way back to a
 profile.
 
@@ -204,7 +204,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/profiles.mjs" install b@market --dry-run
 `save <name> --level user|repository` writes a profile file: the lists you give (`--plugins`,
 `--optional`, `--remove`, `--exclude`, `--hide-skills`, comma-separated) are added to the file's
 own, and `--description` replaces its description. It prints the whole file first, writes it in
-its own form (comments are not kept), and refuses a profile that would exclude an `always-on`
+its own form with every list in alphabetical order (comments are not kept), and refuses a profile that would exclude an `always-on`
 member without `always_on: false`. It keeps the file's `always_on` line.
 
 `install <name@marketplace>` installs one missing plugin at user scope. It installs only from a

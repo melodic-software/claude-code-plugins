@@ -96,7 +96,6 @@ Dispatch rules:
    per-token rate by the agent count. A tier above the default belongs at a judge or verifier stage
    at most, where one call reads many writes. Pointer for the rates:
    [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
-   Recheck trigger: that section prices a higher tier at or below the fleet default's rate.
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token and changes which model wrote the lines. Across a

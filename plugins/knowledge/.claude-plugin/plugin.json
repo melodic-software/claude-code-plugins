@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "3.3.6",
+  "version": "3.4.0",
   "license": "MIT",
   "keywords": [
     "knowledge",
@@ -44,6 +44,11 @@
       "title": "Library directory",
       "description": "Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. video-digest moves its work root here, with watch/relayout-slice.js before close; other artifacts conventions are not auto-applied.",
       "default": "."
+    },
+    "private_record_root": {
+      "type": "directory",
+      "title": "Private record checkout",
+      "description": "Checkout of the private repository where absorb-upstream writes a record whose source is not public when the destination is. Unset: absorb-upstream asks for that checkout's path."
     },
     "yt_dlp_js_runtimes": {
       "type": "string",

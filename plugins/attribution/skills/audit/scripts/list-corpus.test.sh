@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for list-corpus.sh. Fixtures are built inline in a
-# tmpdir, so no corpus sample sits in the tree. Per the shell-test-helpers
-# convention, the assertion helpers are local to this suite rather than shared
-# across plugins.
-#
 # The load-bearing cases are the fixture-tree ones: `excluded_paths` declines
 # test-fixture trees by default, and every way the eval harness lifts that
 # default (a layer setting the key, a target inside the tree, a named file)
@@ -13,6 +8,7 @@ set -uo pipefail
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # make the fixture repo operate on the CALLER's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIST_CORPUS="$SCRIPT_DIR/list-corpus.sh"
@@ -36,36 +32,8 @@ fi
 export HOME="$TEST_TMPDIR/home"
 mkdir -p "$HOME"
 
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $3" "exit $2"; fi
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 # --- Fixture repository ----------------------------------------------------------
 

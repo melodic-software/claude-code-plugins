@@ -18,13 +18,13 @@ function workDir(t) {
   return dir;
 }
 
-function run(dir, paths) {
+function run(dir, paths, extra = {}) {
   const output = path.join(dir, "github-output");
   const summary = path.join(dir, "step-summary");
   writeFileSync(output, "");
   writeFileSync(summary, "");
   const result = spawnSync(process.execPath, [SCRIPT], {
-    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
+    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extra },
     encoding: "utf8",
   });
   return { ...result, outputs: readFileSync(output, "utf8"), summary: readFileSync(summary, "utf8") };
@@ -62,6 +62,16 @@ test("a planted credential withholds the upload and asks for rotation, never pri
   const result = run(dir, path.join(dir, "out"));
   withheld(result, "GitHub token; nothing is uploaded");
   assert.match(result.stdout, /Rotate this credential/);
+});
+
+test("SCAN_WITHHOLDS names what a hit withholds in place of the whole upload", (t) => {
+  const dir = workDir(t);
+  writeFileSync(path.join(dir, "otel.jsonl"), `{"resourceLogs":[{"body":"${PLANTED}"}]}\n`);
+  const result = run(dir, path.join(dir, "otel.jsonl"), { SCAN_WITHHOLDS: "the telemetry is left out and the transcript still uploads" });
+  withheld(result, "GitHub token; the telemetry is left out and the transcript still uploads");
+  assert.doesNotMatch(result.stdout, /nothing is uploaded/);
+  assert.match(result.summary, /^### scan-upload hit: the telemetry is left out and the transcript still uploads\n/);
+  assert.doesNotMatch(result.summary, /withheld the upload/);
 });
 
 test("a block writes only the hit's rule, path and line to the summary, no character of the match", (t) => {
@@ -106,6 +116,49 @@ test("a zero-width match writes the rule, path and line and none of the line", (
   withheld(result, "R2 key pair");
   assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `R2 key pair`, path `digests.txt`, line 2\n\n");
   assert.ok(!result.summary.includes("aaaaaa") && !result.summary.includes("bbbbbb"), "no character of the match");
+});
+
+const HEX32 = "c".repeat(32);
+const HEX64 = "d".repeat(64);
+const spanLine = (extra = "") => `${JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans: [{ traceId: HEX32, spanId: "e".repeat(16), attributes: [{ key: "digest", value: { stringValue: HEX64 } }] }] }] }] })}${extra}\n`;
+const TELEMETRY = { SCAN_TELEMETRY: "true" };
+
+test("the telemetry scan does not read a trace id as the R2 key pair's 32-hex half", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "otel.jsonl");
+  const logLine = JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [{ trace_id: HEX32.toUpperCase(), body: HEX64 }] }] }] });
+  writeFileSync(file, `${spanLine()}${logLine}\n${JSON.stringify({ body: spanLine() })}\n`);
+  const result = run(dir, file, TELEMETRY);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.outputs, "clean=true\n");
+  assert.equal(result.summary, "");
+});
+
+test("the telemetry scan still withholds a 32-hex word that is no trace id beside a 64-hex word", (t) => {
+  const dir = workDir(t);
+  const bare = path.join(dir, "bare.jsonl");
+  writeFileSync(bare, `{"a": 1}\n${HEX32} ${HEX64}\n`);
+  const result = run(dir, bare, TELEMETRY);
+  withheld(result, "R2 key pair");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `R2 key pair`, path `bare.jsonl`, line 2\n\n");
+  const beside = path.join(dir, "beside.jsonl");
+  writeFileSync(beside, spanLine(` ${"f".repeat(32)}`));
+  withheld(run(dir, beside, TELEMETRY), "R2 key pair");
+});
+
+test("the telemetry scan withholds every other rule beside a trace id", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "otel.jsonl");
+  writeFileSync(file, `${spanLine()}{"body":"${PLANTED}"}\n`);
+  withheld(run(dir, file, TELEMETRY), "GitHub token");
+});
+
+test("without SCAN_TELEMETRY a trace id beside a 64-hex word still withholds", (t) => {
+  const dir = workDir(t);
+  const file = path.join(dir, "execution.json");
+  writeFileSync(file, spanLine());
+  withheld(run(dir, file), "R2 key pair");
+  withheld(run(dir, file, { SCAN_TELEMETRY: "1" }), "R2 key pair");
 });
 
 test("a hit found only after escaped breaks decode names the file's own line", (t) => {
@@ -166,4 +219,10 @@ test("the lane transcript is scanned as plaintext before it is sealed", () => {
   assert.ok(scan > 0 && scan < seal, "the scan step comes before the seal step");
   assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.execution-file \}\}\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
   assert.match(action, /id: seal\n\s+if: steps\.scan\.outputs\.clean == 'true'\n/);
+  const scanOtel = action.indexOf("id: scan-otel\n");
+  const sealOtel = action.indexOf("id: seal-otel\n");
+  assert.ok(seal < scanOtel && scanOtel < sealOtel, "the telemetry is scanned after the transcript is sealed and before its own seal");
+  assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.otel-file \}\}\n\s+SCAN_TELEMETRY: "true"\n.*\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
+  assert.equal(action.match(/SCAN_TELEMETRY/g)?.length, 1, "only the telemetry scan reads trace ids");
+  assert.match(action, /id: seal-otel\n\s+if: steps\.scan-otel\.outputs\.clean == 'true'\n/);
 });

@@ -53,6 +53,18 @@ import babysit_run_cache as run_cache
 import babysit_verify_evidence as ve
 import test_babysit_merge_unattended as unattended
 
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 REPO = "example-org/example-repo"
 PR = 41
 HEAD = "a" * 40
@@ -2704,10 +2716,15 @@ class UnreadableReadsBlock(unittest.TestCase):
         fake.fail = {"/compare/"}
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
-    def test_a_pass_whose_run_cannot_be_read_is_missing(self) -> None:
+    def test_a_pass_whose_run_cannot_be_read_is_unreadable(self) -> None:
         fake = passing()
-        del fake.runs[1]
-        self.assertEqual(read(fake).refusal, "verify:missing")
+        fake.fail = {"actions/runs/1"}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_beside_a_counted_pass_an_unread_one_still_allows(self) -> None:
+        fake = passing(artifact(named(HEAD, "pass-notes"), 5))
+        fake.fail = {"actions/runs/5"}
+        self.assertIsNone(read(fake).refusal)
 
     def test_an_unreadable_listing_commits_or_cap_refuses(self) -> None:
         for kind in ("actions/artifacts", "/commits"):
@@ -2718,6 +2735,99 @@ class UnreadableReadsBlock(unittest.TestCase):
         capped = passing()
         capped.commits = [f"{i:040x}" for i in range(250)]
         self.assertEqual(read(capped).refusal, "verify:unreadable")
+
+
+class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
+    """Owner decision D417: under BABYSIT_READ_FLOOR_STOP a read babysit_gh
+    did not send below github-token's read floor refuses verify:unreadable;
+    with BABYSIT_READ_FLOOR_WAIT_SECONDS the judgment is made again after the
+    pool's reset when it comes within that wait. gh is faked at the
+    subprocess seam under the real rate guard; each `gh api -i` answer
+    carries GitHub's rate-limit headers: 1 of 5000 left until the wait,
+    4990 after it (github-token plans to its 1000 limit-cap)."""
+
+    CLOCK = 1_800_000_000
+
+    def judge(
+        self, fake: FakeGitHub, *, reset_in: int, wait: str, listing: bool = False
+    ) -> tuple[Any, list[float], str]:
+        slept: list[float] = []
+        low = [True]
+
+        def run_command(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+            args = argv[1:]
+            include = args[:2] == ["api", "-i"]
+            if include:
+                args = ["api", *args[2:]]
+            kwargs.pop("allowed_executables", None)
+            kwargs.pop("check", None)
+            proc = fake(args, **kwargs)
+            if include and proc.returncode == 0:
+                remaining = "1" if low[0] else "4990"
+                block = (
+                    "HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\n"
+                    f"X-Ratelimit-Remaining: {remaining}\r\n"
+                    f"X-Ratelimit-Reset: {self.CLOCK + reset_in}\r\n"
+                    "X-Ratelimit-Resource: core\r\n\r\n"
+                )
+                proc = subprocess.CompletedProcess(argv, 0, block + proc.stdout, proc.stderr)
+            return proc
+
+        def sleep(seconds: float) -> None:
+            slept.append(seconds)
+            low[0] = False
+
+        def judged() -> dict[str, Any]:
+            return ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull()).report()
+
+        gh.reset_rate_guard()
+        self.addCleanup(gh.reset_rate_guard)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        stderr = io.StringIO()
+        env = {
+            "API_BUDGET_TOKEN": "github-token",
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_TEMP": tmp.name,
+            gh.READ_FLOOR_STOP_ENV: "1",
+            gh.READ_FLOOR_WAIT_ENV: wait,
+        }
+        if listing:
+            env[ve.LISTING_ENV] = os.path.join(tmp.name, "listing.json")
+        with (
+            mock.patch.object(gh, "run_command", run_command),
+            mock.patch.object(gh, "_is_paged_read", return_value=False),
+            mock.patch.object(ve, "_floor_sleep", sleep),
+            mock.patch.object(ve, "_floor_clock", return_value=self.CLOCK),
+            mock.patch.dict(os.environ, env),
+            contextlib.redirect_stderr(stderr),
+        ):
+            return ve._after_the_read_floor(judged), slept, stderr.getvalue()
+
+    def test_a_reset_within_the_wait_is_waited_for_and_the_pass_allows(self) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="900")
+        self.assertIsNone(report["refusal"], report)
+        self.assertEqual(slept, [301])
+        self.assertEqual(gh.read_floor_refusals(), {})
+
+    def test_a_floored_listing_leaves_no_note_that_refuses_the_second_judgment(
+        self,
+    ) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="900", listing=True)
+        self.assertIsNone(report["refusal"], report)
+        self.assertEqual(slept, [301])
+
+    def test_a_reset_past_the_wait_leaves_the_head_unreadable(self) -> None:
+        report, slept, stderr = self.judge(passing(), reset_in=2000, wait="900")
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertIn("below its read-floor share", report["detail"])
+        self.assertEqual(slept, [])
+        self.assertIn("its reset is 2001 s away, past the 900 s", stderr)
+
+    def test_with_no_wait_set_the_refusal_stands_as_before(self) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="")
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertEqual(slept, [])
 
 
 class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
@@ -8556,6 +8666,52 @@ class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
         report, live = self.cli(passing(), self.held())
         self.assertIsNone(report["refusal"])
         live.assert_called_once_with(REPO, PR)
+
+
+class FilesAtTheTipFromTheCheckout(unittest.TestCase):
+    """The reader takes a file at a commit from a `CONFIG_CHECKOUT_ENV`
+    checkout whose HEAD is that commit, as ci-status's .base checkout of
+    main's tip is, and reads any other commit through the contents API."""
+
+    def setUp(self) -> None:
+        self.root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        actors = {"version": 1, "actors": [MAINTAINER, LANES]}
+        (self.root / ve.TRUSTED_ACTORS_PATH).parent.mkdir(parents=True)
+        (self.root / ve.TRUSTED_ACTORS_PATH).write_text(json.dumps(actors))
+        (self.root / policy.CONFIG_PATH).parent.mkdir(parents=True)
+        (self.root / policy.CONFIG_PATH).write_text("merge:\n  rung: C2\n")
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                      "commit", "-q", "-m", "tip"]):  # fmt: skip
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, env=env)
+        self.sha = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+        self.enterContext(
+            mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(self.root)})
+        )
+        self.reader = ve.Reader(REPO, "main", now=NOW)
+
+    def test_the_trusted_list_at_the_checkout_head_reads_no_api(self) -> None:
+        with mock.patch.object(ve, "_read", side_effect=AssertionError("API read")):
+            listing = self.reader._raw_file(ve.TRUSTED_ACTORS_PATH, self.sha, "list")
+        self.assertEqual(listing, {"version": 1, "actors": [MAINTAINER, LANES]})
+
+    def test_the_pipeline_config_at_the_checkout_head_reads_no_api(self) -> None:
+        with mock.patch.object(policy, "_file_at", side_effect=AssertionError("API read")):
+            text = self.reader._text_file(policy.CONFIG_PATH, self.sha, "config")
+        self.assertEqual(text, "merge:\n  rung: C2\n")
+
+    def test_another_commit_reads_the_contents_api(self) -> None:
+        with mock.patch.object(ve, "_read", return_value={"version": 1, "actors": []}) as read:
+            listing = self.reader._raw_file(ve.TRUSTED_ACTORS_PATH, MAIN_SHA, "list")
+        self.assertEqual(listing, {"version": 1, "actors": []})
+        self.assertIn(
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            read.call_args.args[0],
+        )
 
 
 if __name__ == "__main__":

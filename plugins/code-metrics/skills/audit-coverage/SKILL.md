@@ -1,6 +1,6 @@
 ---
 description: "Read coverage artifacts a build already wrote (lcov, Cobertura, coverage.py JSON, a Go cover profile) and report line coverage per file and function, plus CRAP per function, for a change, a path, or the tree. Runs no tests, never gates. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'. Complexity alone: /code-metrics:audit complexity."
-argument-hint: "[--json] [--all] [--base <ref>] [--artifacts <path>]... [<path>...]"
+argument-hint: "[--json] [--all] [--base <ref>] [--artifacts <path>]... [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh:*)", "Bash(git branch --show-current:*)"]
@@ -52,6 +52,12 @@ for under the repository root, at most two directory levels deep and never insid
 `.git` or `vendor`: `coverage/lcov.info`, `lcov.info`, `coverage.xml`, `cobertura.xml`,
 `coverage.json`, `coverage.out`, `cover.out`. Each artifact's format is detected from its content,
 not its extension.
+
+A target form (`--repo <repo>` and the others) runs the script once per repository, as
+`${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says, and never passes the form to the
+script. Each repository reads its own artifacts under its own root: an `--artifacts` path must be
+relative and is read from each root, so name artifacts only when every repository writes them to
+that path.
 
 Present the markdown report as printed: the scope, the "Coverage of this run" table, the
 references with their provenance, then one row per file and per function. Keep the `--json`

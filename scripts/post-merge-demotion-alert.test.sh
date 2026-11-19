@@ -26,6 +26,7 @@
 # test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/post-merge-file-demotion-issues.yml"
@@ -96,20 +97,22 @@ if grep -qF "\${{" "$TMP_ROOT/filer.sh"; then
 else
   ok "the filer step body takes the file-demotion-issue job's outputs through env"
 fi
-# Beside the checkout, only the job-end log-api-budget action, run from that
-# checkout of main's tip. The checkout takes main's tip as the SHA the job's
-# first step, a run step on TIP_BRANCH main, resolves, which saves checkout's
-# REST call for a branch ref.
 uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//; s/[[:space:]]+#.*//')"
 checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
 first_step="$(awk '/^    steps:$/ { on = 1; next } on && /^      - / { n++ } n == 1 { print } n > 1 { exit }' <<<"$alert_job")"
+dropin="$(awk '/- name: Write the source-control trust settings/ { on = 1; next } on && /^      - |^$/ { exit } on' <<<"$alert_job")"
+want_dropin='        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@[0-9a-f]{40} # v[0-9.]+
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-if [[ "$uses" == $'actions/checkout\n./.base/.github/actions/log-api-budget' &&
+if [[ "$uses" == $'actions/checkout\nmelodic-software/ci-workflows/.github/actions/apply-claude-managed-settings\n./.base/.github/actions/log-api-budget' &&
+  "$dropin" =~ ^${want_dropin}$ &&
   "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"TIP_BRANCH: main"* &&
   "$checkout" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$checkout" == *"persist-credentials: false"* ]]; then
-  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but that checkout's log-api-budget"
+  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but the pinned settings drop-in and that checkout's log-api-budget"
 else
-  fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA and its log-api-budget: '$uses'"
+  fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA, the pinned settings drop-in and its log-api-budget: '$uses'"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"

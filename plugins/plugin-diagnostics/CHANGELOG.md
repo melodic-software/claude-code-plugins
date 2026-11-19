@@ -3,6 +3,24 @@
 All notable changes to the `plugin-diagnostics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.9] - 2026-11-19
+
+### Changed
+
+- `hooks/plugin-diagnostics-test-helpers.sh` is now a generated copy of the marketplace's `lib/hook-test-helpers.sh`, shared with session-telemetry. The hook test suites no longer read the machine's global or system git config: the helper now sets `GIT_CONFIG_GLOBAL` to `/dev/null` when unset and `GIT_CONFIG_NOSYSTEM=1`. The explanatory comments moved out.
+
+## [0.1.8] - 2026-11-19
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+## [0.1.7] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [0.1.6] - 2026-11-18
 
 ### Security

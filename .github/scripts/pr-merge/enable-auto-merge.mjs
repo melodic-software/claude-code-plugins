@@ -998,7 +998,7 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // PIN_RE is merge-holds.mjs's, whose pinHold holds a queued head no pin names.
 export { PIN_RE };
 export const pinBody = (sha, rung) =>
-  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`, the head its arming checks judged.`;
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`;
 
 // The lanes App's newest pin in `comments` (DETAIL_QUERY's), or undefined.
 const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)));
@@ -2394,6 +2394,9 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         // A read failing on every run holds every clean lane pull request: say why.
         if (typeof evidence?.queue?.readError === "string") {
           console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
+        }
+        for (const item of Array.isArray(evidence?.queue?.excludedRemovals) ? evidence.queue.excludedRemovals : []) {
+          console.log(`::notice title=queue-ejection::#${pull.number} removal at ${escapeCommand(String(item?.at))} not counted toward merge.max-queue-ejections: infra (${escapeCommand((Array.isArray(item?.causes) ? item.causes : []).join(", "))})`);
         }
         answered = evidence !== null && !decided;
         if (!decided) {

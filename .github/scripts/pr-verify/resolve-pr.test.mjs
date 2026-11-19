@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -914,14 +914,21 @@ const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
 const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
 const CI_STEPS = [
   ["Set up job", "success"],
-  ["Check the pull-request contract", "success"],
   ["Note a draft", "skipped"],
   ["Fail a pull request carrying the human-gated label", "success"],
   ["Fail a head a pr-unblock lane stopped", "success"],
   ["Fail a lanes App pull request on kill switch, hold path, verifier or veto", "failure"],
   ["Check each skipped lane against scope", "success"],
   ["Aggregate lane results", "success"],
+  ["Fail on the contract or draft policy", "skipped"],
   ["Complete job", "success"],
+];
+/** The steps before the report-ci-status composite, when ci-status ran check-contract as a step of its own. */
+const OLD_CONTRACT_STEP = "Check the pull-request contract";
+const OLD_CI_STEPS = [
+  ["Set up job", "success"],
+  [OLD_CONTRACT_STEP, "success"],
+  ...CI_STEPS.slice(1).filter(([n]) => n !== CONTRACT_STEP),
 ];
 const ciJob = (steps = CI_STEPS, conclusion = "failure") => ({ id: 9001, name: "ci-status", conclusion, steps: steps.map(([name, c]) => ({ name, conclusion: c })) });
 const heldJobs = (ci = ciJob(), others = [{ id: 9002, name: "Lint Repo", conclusion: "success" }, { id: 9003, name: "pr-unblock / address-feedback", conclusion: "neutral" }]) => {
@@ -988,22 +995,42 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
   assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
 });
 
-// A session holds a pull request with `do-not-merge`, which fails
-// check-contract's step of ci-status. Its log lines follow that action's
-// run.sh: the label's `::error::` line, then the step's exit.
-const contractLog = (...lines) =>
+/**
+ * A session holds a pull request with `do-not-merge`, which fails
+ * check-contract inside the report-ci-status composite. Its log lines follow
+ * a held run's: check-contract's run.sh writes the label's `::error::` line,
+ * then its exit, inside "Aggregate lane results", which still succeeds; then
+ * "Fail on the contract or draft policy" writes its own line and exit.
+ */
+const oldContractLog = (...lines) =>
   [
     '2026-10-28T16:21:30.0000000Z ##[group]Run bash "$GITHUB_ACTION_PATH/run.sh"',
     ...lines.map((line) => `2026-10-28T16:21:31.0000000Z ##[error]${line}`),
     "2026-10-28T16:21:31.0000001Z ##[error]Process completed with exit code 1.",
   ].join("\r\n");
+const failStep = [
+  `2026-10-28T16:21:33.0000000Z ##[error]${CONTRACT_LINE}`,
+  "2026-10-28T16:21:33.0000001Z ##[error]Process completed with exit code 1.",
+].join("\r\n");
+const contractLog = (...lines) => `${oldContractLog(...lines)}\r\n${failStep}`;
 const failing = (...names) => ({
   jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, names.includes(n) ? "failure" : n === HOLD_STEP ? "success" : c]))),
+});
+const oldFailing = (...names) => ({
+  jobs: heldJobs(ciJob(OLD_CI_STEPS.map(([n, c]) => [n, names.includes(n) ? "failure" : n === HOLD_STEP ? "success" : c]))),
 });
 
 test("a run that failed only on do-not-merge, alone or beside a hold an approval lifts, is judged", async () => {
   assert.equal(await held(contractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "ok");
-  assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
+  assert.equal(await held(`${logOf(PATH_HOLD)}\r\n${contractLog(DO_NOT_MERGE_LINE)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
+});
+
+/** A run reports its own commit's step names, so a held run from before the composite still reports check-contract's own step, with no fail step. */
+test("a held run from before the composite, with check-contract's own step, is judged the same way", async () => {
+  assert.equal(await held(oldContractLog(DO_NOT_MERGE_LINE), oldFailing(OLD_CONTRACT_STEP)), "ok");
+  assert.equal(await held(`${oldContractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, oldFailing(OLD_CONTRACT_STEP, HOLD_STEP)), "ok");
+  assert.equal(await held(contractLog(DO_NOT_MERGE_LINE), oldFailing(OLD_CONTRACT_STEP)), "not-a-passing-run");
+  assert.equal(await held(oldContractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "not-a-passing-run");
 });
 
 // A run reports its own commit's step names, so a held run from before the
@@ -1013,7 +1040,7 @@ test("a held run that still reports the hold step's earlier name is judged the s
   const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, c])));
   assert.equal(await held(logOf(PATH_HOLD), { jobs }), "ok");
   assert.equal(await held(logOf(COST), { jobs }), "not-a-passing-run");
-  assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, n === CONTRACT_STEP ? "failure" : c]))) }), "ok");
+  assert.equal(await held(`${logOf(PATH_HOLD)}\r\n${contractLog(DO_NOT_MERGE_LINE)}`, { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, n === CONTRACT_STEP ? "failure" : c]))) }), "ok");
   assert.equal(await held(logOf(), { jobs }), "not-a-passing-run");
 });
 
@@ -1025,25 +1052,38 @@ test("a contract failure other than do-not-merge, or a label line its step does 
     "no label line": [contractLog(), failing(CONTRACT_STEP)],
     "the label line twice": [contractLog(DO_NOT_MERGE_LINE, DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)],
     "the label line with the label text changed": [contractLog(DO_NOT_MERGE_LINE.replace("do-not-merge", "hold")), failing(CONTRACT_STEP)],
-    "the label line while the contract step passed": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(HOLD_STEP)],
-    "both steps failed with one exit": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(CONTRACT_STEP, HOLD_STEP)],
-    "the hold step failed with only the label": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf()}`, failing(CONTRACT_STEP, HOLD_STEP)],
+    "the label line while the contract step passed": [`${logOf(PATH_HOLD)}\r\n${oldContractLog(DO_NOT_MERGE_LINE)}`, failing(HOLD_STEP)],
+    "both steps failed with one exit": [`${logOf(PATH_HOLD)}\r\n${contractLog(DO_NOT_MERGE_LINE)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(CONTRACT_STEP, HOLD_STEP)],
+    "the hold step failed with only the label": [`${logOf()}\r\n${contractLog(DO_NOT_MERGE_LINE)}`, failing(CONTRACT_STEP, HOLD_STEP)],
     "the contract step cancelled": [contractLog(DO_NOT_MERGE_LINE), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === CONTRACT_STEP ? "cancelled" : n === HOLD_STEP ? "success" : c]))) }],
+    "the fail step's line missing": [`${oldContractLog(DO_NOT_MERGE_LINE)}\r\n2026-10-28T16:21:33.0000001Z ##[error]Process completed with exit code 1.`, failing(CONTRACT_STEP)],
+    "the fail step's line twice": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n2026-10-28T16:21:33.0000002Z ##[error]${CONTRACT_LINE}`, failing(CONTRACT_STEP)],
+    "the fail step's line with no contract failure": [`${failStep}`, failing(CONTRACT_STEP)],
+    "the old and new contract steps both failed": [contractLog(DO_NOT_MERGE_LINE), { jobs: heldJobs(ciJob([[OLD_CONTRACT_STEP, "failure"], ...CI_STEPS.map(([n, c]) => [n, n === CONTRACT_STEP ? "failure" : n === HOLD_STEP ? "success" : c])])) }],
   };
   for (const [name, [log, setup]] of Object.entries(cases)) {
     assert.equal(await held(log, setup), "not-a-passing-run", name);
   }
 });
 
-// Judging a held head loosens no hold: ci-status still fails on the label
-// (check-contract, its default label name, no continue-on-error), and the
-// merge queue's step still refuses a queued pull request that carries it.
+/**
+ * Judging a held head loosens no hold: ci-status still fails on the label
+ * (check-contract in the report-ci-status composite, its default label name,
+ * and the fail step on the composite's contract output, with its own line),
+ * and the merge queue's step still refuses a queued pull request that carries it.
+ */
 test("do-not-merge still fails ci-status and the merge queue", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = (name) => new RegExp(`^ {6}- name: ${name}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(workflow)?.[1] ?? "";
-  const contract = step(CONTRACT_STEP);
-  assert.match(contract, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/check-contract@[0-9a-f]{40} /m);
-  assert.doesNotMatch(contract, /do-not-merge-label|continue-on-error|^ {8}if:/m);
+  const report = step("Aggregate lane results");
+  assert.match(report, /^ {8}id: report$/m);
+  assert.match(report, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@[0-9a-f]{40} /m);
+  assert.doesNotMatch(report, /do-not-merge-label|continue-on-error/m);
+  const fail = step(CONTRACT_STEP);
+  assert.match(fail, /^ {8}if: \$\{\{ !cancelled\(\) && \(steps\.report\.outputs\.contract != 'success' \|\| steps\.report\.outputs\.draft != 'success'\) \}\}$/m);
+  assert.ok(fail.includes(`echo "::error::${CONTRACT_LINE}"\n          exit 1\n`), "the fail step writes CONTRACT_LINE and exits 1");
+  assert.doesNotMatch(fail, /continue-on-error/m);
+  assert.doesNotMatch(workflow, /pr-require-checks\/check-contract@/);
   assert.match(step("Fail a queued pull request carrying a hold label"), /^ {8}if: github\.event_name == 'merge_group'$/m);
   assert.deepEqual(labelHolds([{ name: "do-not-merge" }], null, 41), [
     "#41 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.",
@@ -2400,26 +2440,23 @@ test("each path through the resolver makes a pinned number of API calls", async 
     // As above; the head commit's time is weighed against the relink fields
     // the spec read carries (9 calls when the relink was a read of its own).
     ["an unjudged head with its commit time", committed(), "ok", 8],
-    // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
-    // the head's checks runs, the spec (9 with the relink read).
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 8],
-    // As above, but the PR links no issue now: the spec's relink fields serve
-    // only the body-edit rule (9 with the relink read).
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
-    // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
-    // the FAIL's run and compare, the head's checks runs (12 with the relink read).
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
-    // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
-    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
+    ["a FAIL named without issues: run, commit pulls, the FAIL name, its run and compare, the head's checks runs, the spec", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
+    ["a FAIL named without issues, no issue linked: the spec's relink fields serve only the body-edit rule", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 7],
+    ["a FAIL named with the PR's issues: run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare, the head's checks runs", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 10],
+    ["a pass with the spec unchanged: run, commit pulls, three names, the pass's run and compare, the spec", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
     // As above, then the FAIL name with issues.
     ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
   for (const [label, setup, expected, count] of cases) {
     const { reason: got, paths } = await calls({ issues: [edited], ...setup });
     assert.equal(got, expected, label);
     assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
+    assert.equal(paths.filter((p) => p === jobsPath).length, expected === "already-judged" ? 0 : 1, `${label}: the run's jobs are read only for a run that proceeds`);
   }
+  assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS })).reason, "draft-run", "a draft-started run at an unjudged head skips as draft-run");
+  assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS, ...counted(`pr-verify-41-${HEAD}-fail`) })).reason, "already-judged", "a draft-started run at a judged head skips as already-judged");
   // A run red only on a hold: run, commit pulls, the run's jobs once for
   // heldOnly and draftRun, ci-status's log, three names, the spec, the -i7
   // name (10 when draftRun read the jobs again).

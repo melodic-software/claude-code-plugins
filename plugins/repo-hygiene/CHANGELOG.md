@@ -3,6 +3,33 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [0.22.0] - 2026-11-19
+
+### Added
+
+- **`clean-batch.sh --owner <owner>` selects one owner's clones.** It keeps the `--fleet` repositories whose origin is `<owner>/*` (case-insensitive on github.com) and dedupes clones of one origin the way `--fleet` does. The batch repository flags now cite the target-scope contract, shipped as `reference/target-scope.md`, as the owner of what they select, and the skill's `argument-hint` shows `[--repo <repo> ...]`. Runs without a repository flag are unchanged.
+
+## [0.21.40] - 2026-11-19
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+## [0.21.39] - 2026-11-18
+
+### Changed
+
+- The shared `hook-utils.sh` adds `hook::git_untrusted_env`, which passes the overrides `hook::git_untrusted` uses to a child process through `GIT_CONFIG_COUNT`, appended after any pairs the caller set. Both read one override list. This plugin's hooks do not call it.
+
 ## [0.21.38] - 2026-11-18
 
 ### Changed

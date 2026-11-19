@@ -80,6 +80,11 @@ on:
 
 permissions: {}
 
+env:
+  # The legacy FAILs file the verdict reader takes from the default branch:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
+
 jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
@@ -129,6 +134,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
       - name: Log the checked-out main tip
         run: echo "main tip $(git -C .base rev-parse HEAD)"
 
@@ -391,7 +401,7 @@ jobs:
       group: pr-unblock-dispatch-refine-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: write # list and dispatch pr-refine.yml runs
       contents: read # check out main
@@ -436,6 +446,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_WAIT_SECONDS: "1200"
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SENDER_ID: ${{ github.event.sender.id }}

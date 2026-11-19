@@ -3,6 +3,28 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.0] - 2026-11-19
+
+### Added
+
+- `/instruction-placement:audit`, `delta`, `check` and `realign` accept the target-scope forms
+  (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`). The audit keeps one findings
+  artifact per repository, in that repository's worktree on the branch
+  `instruction-placement/realign`, and reports a section several repositories' always-loaded files
+  repeat as a report-only row naming the machine layer or the standards repository as a single
+  home. `delta` keeps one baseline per repository in that worktree, `check` gates each other
+  repository's `origin/HEAD` in a throwaway worktree and exits non-zero when any one fails, and `realign` applies one repository's findings at a time,
+  leaving its changes for that repository's own pull request. With no target form, each skill
+  behaves as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the shared target-scope
+  contract.
+
+## [1.7.1] - 2026-11-19
+
+### Changed
+
+- The README's portability note, the `check` skill's purpose and symlink gotcha, and the `migrate` and `realign` spoke-path notes no longer restate Claude Code's load order, silent-failure handling, symlink loading or Bash environment; each states this plugin's rule and points at the docs section.
+
 ## [1.7.0] - 2026-11-18
 
 ### Changed

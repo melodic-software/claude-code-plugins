@@ -375,6 +375,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"],
@@ -397,6 +398,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/resolve-config/**", "trust"],
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
+  [".github/source-control-settings.json", "trust"],
+  [".github/verify-legacy-fails.json", "trust"],
   [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
   [".github/actions/log-api-budget/api-budget.bash", "gate"],
   [".github/actions/log-api-budget/rate-limits.json", "gate"],
@@ -418,6 +421,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
+  [".github/scripts/lib/run-title.mjs", "gate"],
   [".github/scripts/pr-merge/merge-risk-line.mjs", "gate"],
   [".github/scripts/pr-merge-risk/input.mjs", "gate"],
   [".github/scripts/pr-merge-risk/write-rating.mjs", "gate"],
@@ -1106,7 +1110,7 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
 // The trusted-actor list and the pipeline config are read too: a widening the
 // approver never saw is lifted by the same approval (actorsHold).
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
 // hold path loads, old paths of renames included: pathHold with `holdPaths`

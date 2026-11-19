@@ -64,7 +64,7 @@ A line states the window, the threshold crossed, and the use and reset time the 
 After the approach and threshold lines at a carrier comes one options line:
 
 ```text
-rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.
+rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.
 ```
 
 Facts alone led Claude to stop launching agents and to move work to a smaller model
@@ -298,6 +298,7 @@ The `userConfig` options:
 | `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,percent,window,reset`). |
 | `rate_limits_band` | The band row (default `false`). |
 | `rate_limits_toast` | The toast when a window nears or reaches the threshold or resets (default `true`); the transcript line stays either way. |
+| `account_switch_url` | The link the options line gives for switching accounts, as `switch accounts (<url>)` (unset: no link). A value that is not one http(s) URL reads as unset, with one transcript line naming it. |
 
 Two settings live outside `userConfig`:
 
@@ -316,16 +317,13 @@ for a number, a number for a switch) is Claude Code's to handle before the modul
   [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
   live.
 
-The module reads its options when it loads. Claude Code reloads a module when its options change,
-so a switch turned off takes effect from the next event, with no restart. The StopFailure hook
-receives `rate_limits_enabled` as `CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED` at session
-start.
+The module reads its options when it loads, so a changed option applies from the module's next
+load. The StopFailure hook receives `rate_limits_enabled` as
+`CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED` at session start.
 
-- **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
-  writes for its build (see
+- **Pointer**: for when Claude Code reloads a module after its options change, read the doc
+  comment on `Register` in the `claude-code/index.d.ts` types Claude Code writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 Set it with `/plugin configure rate-limits@<marketplace>`, or headless via `claude plugin install
 rate-limits@<marketplace> -s <scope> --config rate_limits_enabled=false`, run against
@@ -361,6 +359,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
 | `rate_limits_band` | boolean | `false` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limits band on. |
 | `rate_limits_toast` | boolean | `true` | Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default. |
+| `account_switch_url` | string | *(none)* | One http(s) URL for how you switch Claude accounts, which the options line after an approach or threshold line names. Unset: the line says the user can switch accounts, with no link. |
 
 ### How to set these
 

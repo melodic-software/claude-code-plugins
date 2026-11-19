@@ -310,7 +310,7 @@ Read in this order. Stopping early at any step is the finding.
    without-arm one is not read. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control; a finished without-arm run's search naming only the plugin it lacks), Bash denial paths, A/B gating,
+   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control; a finished without-arm run's search naming only the plugin it lacks; a denied call a failed `max: 0` `tool_used` grader of its case forbids), Bash denial paths, A/B gating,
    the 0-turn `context: fork` run the gate passes, and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
@@ -455,8 +455,8 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
 - A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
   message before treating an exit 1 as a failing case.
-- A usage or rate limit mid-suite is **not** marked partial, so `partial: false` does not show the
-  runs ended normally. Later runs end with the error and get 0 with no grader run, in both arms, so the suite reads as a regression (pointer: [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through)). Check each affected run's `error`
+- `partial` is never this skill's signal for a usage or rate limit: a suite that hit one partway
+  through is not marked partial, so `partial: false` does not show every run ended normally, and its later runs then read as a regression (pointer: when a suite's scores drop partway through, fetch [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through) live). Check each affected run's `error`
   (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.

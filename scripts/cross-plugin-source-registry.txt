@@ -78,6 +78,18 @@ reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md -> plugins/*/reference/plugin-reconfiguration.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/detector-findings/README.md.
+reference/detector-findings.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/contracts/detector-findings/README.md -> plugins/*/reference/detector-findings.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and its one copy.
+docs/contracts/pre-pr-ordering/README.md -> plugins/source-control/reference/pre-pr-ordering.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 
@@ -211,6 +223,12 @@ hooks/hook-test-sink.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/hook-test-sink.sh -> plugins/*/hooks/hook-test-sink.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: lib/hook-test-helpers.sh, the hook-contract assertion
+# helper, and its session-telemetry and plugin-diagnostics copies, each at a
+# path of its own.
+lib/hook-test-helpers.sh -> plugins/session-telemetry/hooks/session-telemetry-test-helpers.sh plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check
 lib/spawn_noise.py
