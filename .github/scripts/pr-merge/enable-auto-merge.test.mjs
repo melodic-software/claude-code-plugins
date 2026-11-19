@@ -1473,6 +1473,16 @@ test("a failed arm fails the run and still reaches the next pull request", async
   assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm")));
 });
 
+test("a pin whose arm fails on a moved head does not say auto-merge was armed", async () => {
+  const moved = new Error("POST /graphql (GraphQL errors) failed with status 200: Head sha didn't match expected head oid");
+  const { code, writes, pins } = await run([pull(7)], {}, { armErrors: { PR_7: [moved] } });
+  assert.equal(code, 1);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  assert.equal(pins.length, 1);
+  assert.equal(pins[0].body.split("\n")[0], pinLine("C2"));
+  assert.doesNotMatch(pins[0].body, /\barmed\b/i);
+});
+
 // undici's shape for a dropped socket: a "fetch failed" TypeError whose cause
 // carries the code and the socket's message.
 const reset = () => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });

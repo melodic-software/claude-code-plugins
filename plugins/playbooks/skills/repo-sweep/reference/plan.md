@@ -34,8 +34,8 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
    repository with cheap evidence: `git ls-files`, file globs, `ls`. When it does not hold, set
    that row's recommendation in `W/recs.tsv` to `not-applicable` and the reason to the evidence
    (for example `no tracked *.test.* files`). Keep reasons to one line with no tabs.
-3. For every entry with an `issue`, run `gh issue view <n> -R melodic-software/claude-code-plugins
-   --json state -q .state`. `CLOSED` means the skill no longer needs its override: add
+3. For every entry with an `issue`, run `gh issue view <n> -R <plugin-repo>
+   --json state -q .state` (`<plugin-repo>`: SKILL.md, Scripts). `CLOSED` means the skill no longer needs its override: add
    `override removable: #<n> closed` to the reason and list it at the end of the report.
 4. Resolve arguments in angle brackets (`<human-facing markdown files>`, `<eval suite paths>`,
    `<instruction roots>`, `<lane>` as one lane, a comma list, or `all` expanded to lane names) to

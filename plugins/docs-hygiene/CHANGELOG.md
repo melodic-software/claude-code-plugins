@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.4] - 2026-11-19
+
+### Changed
+
+- `audit-derivability`'s recheck trigger for a proven rubric routes it to the shared standards repository, without naming one organization's.
+
+## [4.2.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
 ## [4.2.2] - 2026-11-19
 
 ### Changed

@@ -424,6 +424,21 @@ expect_has "unknown pin: names the skill" "$body" '### `playwright:playwright`'
 expect_has "unknown pin: says what to run" "$body" 'Run `plugins/playwright/skills/playwright/scripts/update.sh`; restore or re-vendor what it names; its output is in the run'"'"'s job summary.'
 expect_lacks "unknown pin: no pin sentence" "$body" 'Pin `'
 expect_lacks "unknown pin: no re-audit footer" "$body" 'Re-audit'
+trusted="$(ADMIT="$ADMIT" BODY_FILE="$(body_file_of create)" node --input-type=module -e '
+const { readFileSync } = await import("node:fs");
+const { pathToFileURL } = await import("node:url");
+const { driftIssue, driftShaped, ACTIONS_BOT_ID } = await import(pathToFileURL(process.env.ADMIT).href);
+const title = "Upstream drift: playwright/playwright";
+const body = readFileSync(process.env.BODY_FILE, "utf8");
+const shaped = driftShaped({ title, body, user: { id: ACTIONS_BOT_ID } });
+const drift = driftIssue({ title, body, author: { __typename: "Bot", databaseId: ACTIONS_BOT_ID }, editor: null, lastEditedAt: null });
+console.log(`${shaped} ${drift?.id} ${drift?.kind}`);
+' 2>&1)"
+if [[ "$trusted" == "true playwright/playwright vendored" ]]; then
+  pass "admission: the filed vendored body is a trusted vendored drift issue for its upstream id"
+else
+  bad "admission: the filed vendored body is a trusted vendored drift issue for its upstream id" "got: $trusted"
+fi
 # AC10: an open issue for a vendored id is edited, never filed twice.
 LIST_VENDORED_OPEN="$TMP/list-vendored-open.json"
 printf '[{"number":15,"title":"Upstream drift: playwright/playwright",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_OPEN"

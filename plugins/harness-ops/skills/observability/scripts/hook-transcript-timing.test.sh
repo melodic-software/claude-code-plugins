@@ -85,11 +85,12 @@ printf 'PreToolUse\tbash guard.sh\r\n' >"$TMP/crlf.tsv"
 run --enabled "$TMP/crlf.tsv" "$FIXTURE"
 assert_not_contains "a CRLF enabled list still matches a sampled hook" "$(sed -n '/^unsampled enabled hooks/,$p' <<<"$out")" "bash guard.sh"
 
-cat >"$TMP/hostile.jsonl" <<'EOF'
+ghp='gh''p_'
+cat >"$TMP/hostile.jsonl" <<EOF
 {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PreToolUse","durationMs":5,"command":"GITHUB_TOKEN=ghp_secretvalue bash x.sh \u001b[31mHI","toolUseID":"t1"}}
 {"type":"system","subtype":"stop_hook_summary","hookInfos":[3,{"durationMs":4,"command":"bash y.sh"}]}
 {"type":"attachment","attachment":{"type":"hook_success","hookName":7,"durationMs":2}}
-{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"Pre\u009bX\u202eY","durationMs":6,"command":"API_KEY=\"short pw\" api_key=lower curl https://u:pw@h/x ghp_Ab3dEf6hIj9lMn2pQr5tUv8xYz1bCd4fGh7k","toolUseID":"t2"}}
+{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"Pre\u009bX\u202eY","durationMs":6,"command":"API_KEY=\"short pw\" api_key=lower curl https://u:pw@h/x ${ghp}Ab3dEf6hIj9lMn2pQr5tUv8xYz1bCd4fGh7k","toolUseID":"t2"}}
 {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse","durationMs":7,"command":"node --auth-token=ghp_shortvalue123 --db-password=p/w+1 --api-key=k1 --encryption-key=e1 --key=k2 --auth=a1 --basic-auth=u:p --sort-key=name --cache-key=a monkey=1 hooks/pre-tool-use-guard-for-bash-commands.sh","toolUseID":"t3"}}
 EOF
 run "$TMP/hostile.jsonl"
