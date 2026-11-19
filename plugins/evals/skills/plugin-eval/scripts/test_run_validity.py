@@ -35,6 +35,7 @@ import copy
 import importlib.util
 import json
 import ntpath
+import os
 import re
 import subprocess
 import sys
@@ -2542,10 +2543,10 @@ class RunValidityTest(unittest.TestCase):
     LACKED = "for the plugin a finished without-arm run lacks, not counted"
 
     def absent_search(self, tool, tool_input, plugin="markdown-format", arm="without",
-                      finished=True):
+                      finished=True, trace=None):
         """The clean result at one run per arm, suite.plugins naming plugin (a
         directory that does not exist, so its name is its basename), and
-        measurable-criterion's `arm` run traced by one denied tool call."""
+        measurable-criterion's `arm` run traced, at trace, by one denied tool call."""
         call = json.dumps(tool_input)
         lines = [
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill","Bash","Grep","Glob"]}',
@@ -2560,7 +2561,8 @@ class RunValidityTest(unittest.TestCase):
                 '{"type":"result","subtype":"success","is_error":false,"permission_denials":'
                 '[{"tool_name":"%s","tool_use_id":"s1","tool_input":%s}]}' % (tool, call)
             )
-        trace = self.dir / "absent-search.jsonl"
+        trace = trace or self.dir / "absent-search.jsonl"
+        trace.parent.mkdir(parents=True, exist_ok=True)
         trace.write_text("\n".join(lines) + "\n", encoding="utf-8")
         data = load(self.write(self.clean()))
         data["suite"]["plugins"] = [{"path": "/tmp/eval-nop/plugins/" + plugin}]
@@ -2626,6 +2628,57 @@ class RunValidityTest(unittest.TestCase):
             )
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.LACKED, proc.stdout)
+
+    OWN_ROOT = "of a finished without-arm run's own eval root, not counted"
+
+    def root_search(self, tool, tool_input, **kwargs):
+        """absent_search with the trace at <eval root>/out/trace.jsonl, <root> in
+        each input value replaced by that eval root."""
+        root = self.dir / "claude-eval-Ab12Cd"
+        tool_input = {k: v.replace("<root>", str(root)) for k, v in tool_input.items()}
+        trace = root / "out" / "trace.jsonl"
+        return self.absent_search(tool, tool_input, trace=trace, **kwargs), root
+
+    def test_a_without_arm_search_of_its_own_eval_root_warns_and_names_the_call(self):
+        for tool, pattern in (("Glob", "**/SKILL.md"), ("Grep", "simulation")):
+            proc, root = self.root_search(tool, {"pattern": pattern, "path": "<root>"})
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied search " + self.OWN_ROOT, proc.stdout)
+            self.assertIn("Grep or Glob whose path is its own eval root", proc.stdout)
+            verdict = proc.stdout.strip().splitlines()[-1]
+            self.assertIn(
+                "own eval root searches excused: %s root `%s` pattern `%s`"
+                % (tool, os.path.realpath(root), pattern),
+                verdict,
+            )
+
+    def test_any_other_search_near_the_eval_root_still_fails(self):
+        for tool, tool_input in (
+            ("Glob", {"pattern": "**/*.md", "path": "<root>/config"}),
+            ("Glob", {"pattern": "**/*.md", "path": "<root>/.."}),
+            ("Grep", {"pattern": "x", "path": "<root>-other"}),
+            ("Grep", {"pattern": "x"}),
+            ("Grep", {"pattern": "x", "path": "claude-eval-Ab12Cd"}),
+            ("Glob", {"pattern": "../**/*.md", "path": "<root>"}),
+            ("Glob", {"pattern": "/etc/**", "path": "<root>"}),
+            ("Read", {"file_path": "<root>"}),
+            ("Bash", {"command": "grep -r x <root>"}),
+        ):
+            proc, _ = self.root_search(tool, tool_input)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.OWN_ROOT, proc.stdout)
+            self.assertNotIn("excused", proc.stdout)
+        glob ={"pattern": "**/*.md", "path": "<root>"}
+        for kwargs in ({"arm": "with"}, {"finished": False}):
+            proc, _ = self.root_search("Glob", glob, **kwargs)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.OWN_ROOT, proc.stdout)
+        proc = self.absent_search(
+            "Glob", {"pattern": "**/*.md", "path": str(self.dir)},
+            trace=self.dir / "trace.jsonl",
+        )
+        self.assertDenials(proc, "FAIL")
+        self.assertNotIn(self.OWN_ROOT, proc.stdout)
 
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
