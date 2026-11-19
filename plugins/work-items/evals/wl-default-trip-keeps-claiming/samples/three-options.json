@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Options: continue, switch accounts, or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
+      "answer": "Options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
       "why": "all three"
     },
     {
