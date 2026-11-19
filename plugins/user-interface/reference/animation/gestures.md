@@ -70,14 +70,9 @@ preserve velocity when interrupted.
 - Elements meant to feel physical/alive (Dynamic Island-style morphs)
 - Playful, organic interfaces
 
-**Configuration: prefer the duration + bounce API** (far easier to reason about than
-mass/stiffness/damping):
-
-```js
-{ type: "spring", duration: 0.5, bounce: 0.2 }
-// vs the physics API you rarely need:
-{ type: "spring", mass: 1, stiffness: 100, damping: 10 }
-```
+**Configuration: prefer a duration and a bounce** where the project's spring library takes both,
+over mass, stiffness and damping: they are far easier to reason about, and the physics form is
+rarely needed.
 
 **Bounce rules:** default to `animation.spring.bounce.default` in product UI. Add bounce only for
 playful, physical interactions (drag-to-dismiss release, a toy-like toggle), starting small (0.1 is

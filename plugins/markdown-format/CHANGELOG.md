@@ -3,6 +3,24 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.7] - 2026-11-19
+
+### Changed
+
+- When the inherited `GIT_CONFIG_COUNT` is not a number, the end-of-turn check still runs no git and passes, and now prints one stderr line saying why.
+
+## [2.1.6] - 2026-11-19
+
+### Fixed
+
+- The commit-time lint resolves each config's packages the way the real tree does. Before, when a config above a nested `node_modules` named a package that the nested `node_modules` also held, lint loaded the nested copy for both configs. The lint mirror now links each untracked, git-ignored `node_modules` directory on the file's path, so the upper config loads its own copy.
+
+## [2.1.5] - 2026-11-18
+
+### Security
+
+- The end-of-turn hook runs its git-hook entry (`--worktree`) with `core.fsmonitor=false` and `core.hooksPath=/dev/null` in the child's environment (`hook::git_untrusted_env`, through `GIT_CONFIG_COUNT`), so the entry's git calls no longer start a `core.fsmonitor` command or git hook named in the repository's config.
+
 ## [2.1.4] - 2026-11-18
 
 ### Security

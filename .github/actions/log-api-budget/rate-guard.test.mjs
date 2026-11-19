@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold, WAIT_BUDGET_SECONDS } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -1028,4 +1028,26 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
     if (saved === undefined) delete process.env.API_BUDGET_TOKEN;
     else process.env.API_BUDGET_TOKEN = saved;
   }
+});
+
+const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
+const jobOf = (text, id) => {
+  const start = text.indexOf(`\n  ${id}:\n`);
+  assert.ok(start >= 0, `${id} is a job`);
+  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+  return text.slice(start, next < 0 ? undefined : start + 1 + next);
+};
+const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: '?([0-9]+)'?$`, "gm"))].map((match) => Number(match[1]));
+
+test("ci-status's read deadline and both pinned composites' waits are WAIT_BUDGET_SECONDS'", () => {
+  const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
+  const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
+  const [margin] = setting(job, "GH_READ_MARGIN_SECONDS");
+  assert.equal(jobSeconds - margin, WAIT_BUDGET_SECONDS.ciStatusReads);
+  assert.deepEqual(setting(job, "rate-limit-wait-seconds"), [WAIT_BUDGET_SECONDS.step, WAIT_BUDGET_SECONDS.step], "check-contract, then aggregate-results");
+  assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/(check-contract|aggregate-results)@/g)?.length, 2, "ci-status calls two composites that take the input");
+});
+
+test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {
+  assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
 });

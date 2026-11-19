@@ -9,12 +9,11 @@ library first (`../component-libraries.md`).
 
 All values assume the defaults from `catalog.md`: `ease-out` to enter or leave and `in` for a
 permanent exit (`catalog.md`, "Easing"), exits within `exit_factor` of their entrance,
-transform/opacity only, and a `prefers-reduced-motion` path for everything. Adapt the syntax
-to the project's stack (CSS, Tailwind, Motion), filling each `{{key}}` placeholder as
-[`../values.md`](../values.md) says. A block labeled with a stack (Motion
-for React, Tailwind) applies only when the project's files show that stack; otherwise keep the
-behavior and look up the stack's own form. A rule that ends in **Audit:** gives the severity
-`/user-interface:audit` uses for a finding against it.
+transform/opacity only, and a `prefers-reduced-motion` path for everything. Write each spec in the
+project's own stack, filling each `{{key}}` placeholder as [`../values.md`](../values.md) says. The
+CSS illustrations show the behavior; in another stack keep the behavior and look up the stack's own
+form. A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding
+against it.
 
 Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`, `group-entrance`,
 `section-entrance`, `exit`, `icon-swap`, `first-paint`, `group-exit`, `view-swap`, `looping`,
@@ -38,19 +37,6 @@ Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`
 
 **Audit: Suggestion.** A press scale below `animation.scale.press_min`. The project's value stands;
 the finding names the key and its resolved value.
-
-Illustration (React with Tailwind):
-
-```tsx
-function Button({ still = false, className, ...rest }) {
-  const classes = cn(
-    "transition-[scale] duration-[{{animation.duration_ms.press}}ms] ease-out",
-    !still && "active:not-disabled:scale-[{{animation.scale.press}}]",
-    className,
-  );
-  return <button className={classes} {...rest} />;
-}
-```
 
 ## Dropdown, popover, menu, select: `popover`
 
@@ -179,22 +165,6 @@ This offset is for a few large pieces of one section; a list's items take the sh
 interval in `catalog.md`. On a marketing page, an entrance that replays on every visit is the
 `marketing-pages` concern.
 
-Illustration (Motion for React):
-
-```tsx
-const list = { show: { transition: { staggerChildren: {{animation.stagger_ms.section}} / 1000 } } };
-const piece = {
-  hide: { opacity: 0, filter: "blur(2px)", y: 8 },
-  show: { opacity: 1, filter: "blur(0px)", y: 0 },
-};
-
-<motion.section variants={list} initial="hide" animate="show">
-  {sections.map((s) => (
-    <motion.div key={s.id} variants={piece}>{s.content}</motion.div>
-  ))}
-</motion.section>
-```
-
 Illustration (CSS; set `--n` per child, 0, 1, 2 and so on, in the markup):
 
 ```css
@@ -225,16 +195,8 @@ already moved elsewhere.
   (`catalog.md`, "Easing").
 - Don't cut straight to `display: none`: instant disappearance severs spatial context.
 
-Reserve a full off-screen slide (`x: "-100%"`) for moments where the destination itself is the
+Reserve a full off-screen slide (`translateX(-100%)`) for moments where the destination itself is the
 information: a swiped-away list card, a closing drawer.
-
-Illustration (Motion for React; the permanent exit of a `medium`-role element, on the `in` curve):
-
-```tsx
-<motion.div exit={{ opacity: 0, y: -{{animation.travel_px.medium}}, filter: "blur({{animation.blur_px.soften}}px)",
-  transition: { duration: {{animation.duration_ms.medium}} * {{animation.duration_ms.exit_factor}} / 1000,
-    ease: [{{animation.easing.in}}] } }} />
-```
 
 ## Contextual icon swap: `icon-swap`
 
@@ -249,25 +211,12 @@ bounce-free spring.
 - spring: duration `animation.spring.duration_s.small`, bounce `animation.spring.bounce.default`:
   icons aren't toys
 
-Illustration (Motion for React):
-
-```tsx
-<AnimatePresence mode="popLayout" initial={false}>
-  <motion.span key={copied ? "check" : "copy"}
-    initial={{ scale: {{animation.scale.swap_start}}, opacity: 0, filter: "blur({{animation.blur_px.soften}}px)" }}
-    animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-    exit={{ scale: {{animation.scale.swap_start}}, opacity: 0, filter: "blur({{animation.blur_px.soften}}px)" }}
-    transition={{ type: "spring", duration: {{animation.spring.duration_s.small}}, bounce: {{animation.spring.bounce.default}} }}>
-    {copied ? <CheckIcon /> : <CopyIcon />}
-  </motion.span>
-</AnimatePresence>
-```
-
-Without Motion: render **both icons at once**, layering one absolutely over the other, and swap
-classes to cross-fade: nothing ever unmounts, so the reverse direction animates just as well. A firm
-ease-out such as `animation.easing.spring_stand_in` over `animation.spring.duration_s.small` stands
-in for the spring. The icon left
-in normal flow determines the component's size.
+With an animation library that unmounts the leaving icon, its presence mechanism plays the exit;
+look up how the project's library does it. Without one: render **both icons at once**, layering one
+absolutely over the other, and swap classes to cross-fade: nothing ever unmounts, so the reverse
+direction animates just as well. A firm ease-out such as `animation.easing.spring_stand_in` over
+`animation.spring.duration_s.small` stands in for the spring. The icon left in normal flow
+determines the component's size.
 
 Good candidates: actions revealed on hover, state toggles, icons inside contextual toolbars, loading
 → success indicators. Poor candidates: permanent navigation icons, purely decorative marks, anything
@@ -277,26 +226,21 @@ always on screen, text labels.
 
 If a component is showing its resting state when the page first paints, it must not play an
 entrance: reserve enter animations for state changes the user causes afterward (`catalog.md`, "Page
-load"). In Motion, `initial={false}` on `AnimatePresence` handles this for icon swaps, toggles,
-tabs, and segmented controls.
+load"). An animation library usually has a setting that skips the entrance on first render; look it
+up for the project's library, and use it for icon swaps, toggles, tabs, and segmented controls.
 
-Exception: components whose whole point is a first-run entrance (staggered hero, loading state) rely
-on their `initial` prop: there, `initial={false}` would wipe out the whole entrance. After applying
-it, hard-refresh the page and confirm nothing that should animate went static.
+Exception: components whose whole point is a first-run entrance (staggered hero, loading state)
+keep it, because skipping it removes the point of the component. After applying the setting,
+hard-refresh the page and confirm nothing that should animate went static.
 
 ## Group exit: `group-exit`
 
 When an exiting element sits in a group (list items, toasts, tags), let siblings slide into place
-while the exit plays, instead of waiting for it. In Motion for React that is `mode="popLayout"` on
-`AnimatePresence`. Without a library, pin the leaving element at its current offset with absolute
-positioning inside a positioned parent before its exit starts, so it no longer holds its slot; the
-siblings then reflow or animate into the gap (`catalog.md`, "Choreography").
-
-- **Pointer**: Motion, "AnimatePresence", props `initial` and `mode` (`popLayout`),
-  <https://motion.dev/docs/react-animate-presence#initial>,
-  <https://motion.dev/docs/react-animate-presence#poplayout>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: Motion renames `initial={false}` or `popLayout`, or changes what either does.
+while the exit plays, instead of waiting for it. An animation library may do this through a mode of
+its presence mechanism; look it up for the project's library. Without one, pin the leaving element
+at its current offset with absolute positioning inside a positioned parent before its exit starts,
+so it no longer holds its slot; the siblings then reflow or animate into the gap (`catalog.md`,
+"Choreography").
 
 ## View swap in one container: `view-swap`
 
@@ -311,7 +255,7 @@ same container (`catalog.md`, "Choreography").
   resize with a full-length fade reads as a flicker.
 - Direction follows the step: forward and back slide opposite ways. A leaving view reads its
   direction when its exit starts, so the newest direction has to reach it; how a stack passes it is
-  a run-time lookup (in Motion for React, the `custom` prop).
+  a run-time lookup.
 - Small containers or near-identical views take a crossfade with a few pixels of shift instead of a
   full slide.
 - Two dense views in a container resizing on both axes sequence instead: the old view
@@ -319,13 +263,6 @@ same container (`catalog.md`, "Choreography").
   fade out on its own path.
 - Each view carries a stable, unique key, which is how the stack detects a departure; when an
   exit never plays, check the key before anything else.
-
-- **Pointer**: Motion, "AnimatePresence", props `mode` and `custom`,
-  <https://motion.dev/docs/react-animate-presence#mode>,
-  <https://motion.dev/docs/react-animate-presence#custom>.
-- **As of**: 2026-11-07.
-- **Recheck trigger**: Motion renames `mode` or `custom`, or changes how an exiting child reads
-  `custom`.
 
 ## Looping animation: `looping`
 

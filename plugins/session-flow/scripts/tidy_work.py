@@ -42,6 +42,13 @@ from the memory-root layout:
     unknown        everything else; always reported, always kept
 
 An item is in flight, and so kept, when any of these holds:
+    - it is a handoff of an open chain: one whose newest hot file (by its
+      `<TS>` name) has no Resume prompt `Next:` line reading exactly
+      `Next: none (closed)`, a missing or unreadable line included, whatever
+      its age or PR state. A chain's handoffs are those naming its root
+      (shape-3 `chain_root`, shape-2 first `chain:` entry) and the files they
+      name as root, `chain:` entry or `previous_handoff`; no link is looked up
+      for them, and `clean` prints one `kept open chain:` line per such chain
     - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
       (missing and unrecognized values count as not done)
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
@@ -107,6 +114,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -161,6 +169,9 @@ class Item:
     states: dict[str, str] = field(default_factory=dict)
     # a handoff's chain root filename, or an archive's (its directory stem + .md)
     chain: str = ""
+    closed: bool = False
+    chain_names: frozenset[str] = frozenset()
+    open_chain: tuple[str, str] | None = None
 
     @property
     def paths(self) -> list[Path]:
@@ -255,14 +266,19 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
-def _chain_root(path: Path) -> str:
-    """A handoff's chain root: shape 3's `chain_root`, shape 2's first `chain:`
-    entry, else none (shape 1 belongs to no archive)."""
+def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str]]:
+    """A handoff's chain root (shape 3's `chain_root`, shape 2's first `chain:`
+    entry, else none: shape 1 belongs to no chain), whether its Resume prompt
+    `Next:` line closes the chain, and the handoff names it links to."""
     try:
         doc = save_point.parse_doc(path)
     except (OSError, UnicodeDecodeError):
-        return ""
-    return doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
+        return "", False, frozenset()
+    root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
+    span = save_point._next_span(doc)
+    closed = span is not None and doc.lines[span[0]] == save_point.NEXT_CLOSED
+    names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
+    return root, closed, frozenset(n for n in names if n)
 
 
 def _unfinished_stage(slice_dir: Path) -> bool:
@@ -340,6 +356,9 @@ def inventory(root: Path, label: str) -> list[Item]:
         links = _refs_of(link_file) if link_file else []
         if kind == "scratch":
             links = _name_refs(path.name)
+        closed, names = False, frozenset[str]()
+        if kind == "handoff":
+            chain, closed, names = _chain_facts(path)
         items.append(
             Item(
                 path,
@@ -349,7 +368,9 @@ def inventory(root: Path, label: str) -> list[Item]:
                 sum(size for _, size in stats),
                 links,
                 extras,
-                chain=chain or (_chain_root(path) if kind == "handoff" else ""),
+                chain=chain,
+                closed=closed,
+                chain_names=names,
             )
         )
 
@@ -451,6 +472,34 @@ def _mentions(text: str, name: str, is_dir: bool) -> bool:
     return re.search(rf"(?<![\w.-]){re.escape(name)}/", text) is not None
 
 
+def mark_open_chains(items: list[Item]) -> None:
+    """Keep every handoff of a chain whose newest hot file (by its `<TS>` name)
+    does not close it, whatever its age or PR state. A chain's handoffs are those
+    naming its root, and those any of them links to by name (a shape-1 root or
+    predecessor names no chain root itself)."""
+    handoffs = [i for i in items if i.kind == "handoff"]
+    chains: dict[tuple[str, str], list[Item]] = {}
+    for item in handoffs:
+        if item.chain:
+            chains.setdefault((item.root, item.chain), []).append(item)
+    for (label, root), members in chains.items():
+        tip = max(members, key=lambda i: i.path.name)
+        if tip.closed:
+            continue
+        names = {root}.union(*(m.chain_names for m in members))
+        for item in handoffs:
+            if (
+                item.root == label
+                and item.open_chain is None
+                and (item.chain == root or item.path.name in names)
+            ):
+                item.open_chain = (root, tip.path.name)
+                item.reasons.append(
+                    f"chain {root} is open: its newest hot file {tip.path.name} "
+                    f"does not end '{save_point.NEXT_CLOSED}'"
+                )
+
+
 def mark_in_flight(
     items: list[Item],
     days: float,
@@ -459,6 +508,7 @@ def mark_in_flight(
     roots: dict[str, Path],
 ) -> None:
     kept_handoffs: list[tuple[float, str]] = []  # (mtime, text) of handoffs kept
+    mark_open_chains(items)
 
     def judge(item: Item) -> None:
         if item.kind in ("slice", "checklist"):
@@ -871,6 +921,14 @@ def cmd_clean(args: argparse.Namespace) -> int:
                 print(f"failed: {item.path.as_posix()} ({exc})")
                 continue
             removed += 1
+    open_chains = Counter(
+        (item.root, *item.open_chain) for item in items if item.open_chain
+    )
+    for (label, root, tip), count in sorted(open_chains.items()):
+        print(
+            f"kept open chain: {label} {root} ({count} hot files; its newest, "
+            f"{tip}, does not end '{save_point.NEXT_CLOSED}')"
+        )
     kept = len(items) - len(stale)
     count = f"{removed} removed" if args.apply else f"{len(stale) - failed} to remove"
     print(f"{count}, {failed} refused or failed, {kept} kept")

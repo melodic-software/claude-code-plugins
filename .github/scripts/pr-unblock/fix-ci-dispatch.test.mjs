@@ -443,11 +443,9 @@ test("a head fix-ci-context skips after every base move is dispatched three time
   assert.deepEqual(cycles.map((cycle) => cycle.dispatched), [true, true, true, false, false, false, false, false]);
   assert.deepEqual(cycles.map((cycle) => cycle.warned), [0, 0, 0, 1, 0, 0, 0, 0]);
   assert.ok(isHandled(record, "pr-unblock / fix-ci", head), "the capped head is recorded");
-  // Run 4 read the head's runs and stopped before its required run; runs 5-8
-  // make no read past the listing.
-  assert.deepEqual([cycles[3].calls.history, cycles[3].calls.jobs], [[head], []]);
+  assert.deepEqual([cycles[3].calls.history, cycles[3].calls.jobs], [[head], [head]], "run 4 reads the required run, then the runs, and stops at the cap");
   for (const { calls } of cycles.slice(4)) {
-    assert.deepEqual({ runs: calls.runs, timeline: calls.timeline, history: calls.history, jobs: calls.jobs }, { runs: 0, timeline: [], history: [], jobs: [] });
+    assert.deepEqual({ runs: calls.runs, timeline: calls.timeline, history: calls.history, jobs: calls.jobs }, { runs: 0, timeline: [], history: [], jobs: [] }, "runs 5-8 read nothing past the listing");
   }
 });
 
@@ -1090,6 +1088,7 @@ test("an unreadable required run still keeps the per-head cap, the restart count
   const oldFix = check("pr-unblock / fix-ci", "FAILURE", { completedAt: "2026-10-22T09:00:00Z" });
   const failed = lanes("FAILURE");
   const requiredRuns = new Map([1, 2, 3].map((number) => [head(number), new Error("GET returned 502")]));
+  const record = emptyRecord();
   const { api, lines, result } = await run(
     {
       pages: [[pr(1, { checks: [failed, oldFix, oldFix, oldFix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
@@ -1097,12 +1096,12 @@ test("an unreadable required run still keeps the per-head cap, the restart count
       workflowRuns: [{ id: 99, status: "in_progress", display_title: "pr-unblock fix-ci #3" }],
       baseCommittedAt: "2026-10-22T10:00:00Z",
     },
-    { maxDispatch: 5 },
+    { maxDispatch: 5, record },
   );
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.dispatch, []);
   assert.ok(lines.includes(`::warning::#1: head ${head(1)}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), lines.join("\n"));
-  assert.ok(!api.calls.jobs.includes(head(1)), "the cap stops #1 before its required run is read");
+  assert.ok(isHandled(record, "pr-unblock / fix-ci", head(1)), "the cap records #1 though its required run could not be read");
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #2:")), lines.join("\n"));
 });
 
@@ -1244,6 +1243,47 @@ test("a failed advisory pr-test-platforms run with ci-status green is fix-ci's u
   assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY, ADVISORY]);
   assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #8:")), lines.join("\n"));
+});
+
+test("a head its required run skips reads none of its fix-ci or push job check runs, and is still skipped for the same reason", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const advisory = [lanes("SUCCESS"), check("Test Macos Planning Shared", "FAILURE")];
+  const requiredRuns = new Map([
+    [`${head(5)} ${ADVISORY}`, { run: tested(1), jobs: MIXED_JOBS }],
+    [`${head(7)} ${ADVISORY}`, { run: { ...tested(2), conclusion: "success" }, jobs: [] }],
+    [head(8), { run: rerunning(2, "in_progress"), jobs: null }],
+    [head(9), { run: tested(1), jobs: INFRA_JOBS }],
+  ]);
+  const prs = [pr(5, { checks: advisory }), pr(7, { checks: advisory }), pr(8), pr(9)];
+  const { api, lines, result } = await run({ pages: [prs], requiredRuns }, { maxDispatch: 4 });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [5]);
+  assert.deepEqual([api.calls.history, api.calls.stops], [[head(5)], [head(5)]], "only the dispatched head's check runs are read");
+  assert.deepEqual(api.calls.jobs, [head(5), head(7), head(8), head(9)], "every candidate's required run is read");
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #8: run 40119285048 attempt 2 is in_progress; its result decides"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #9: infra failure, re-run job re-runs it once"), lines.join("\n"));
+});
+
+test("a head at the cap whose required run skips it is warned about once and recorded, so later runs read nothing for it", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (minute) => `2026-10-22T09:${minute}:00Z`;
+  const failedRun = (minute) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "failure", output: { title: null }, started_at: at(minute), completed_at: at(minute) });
+  const checks = [lanes("SUCCESS"), check("Test Macos Planning Shared", "FAILURE"), check("pr-unblock / fix-ci", "FAILURE", { completedAt: at("30") })];
+  const apiOptions = {
+    pages: [[pr(7, { checks })]],
+    history: new Map([[head, [failedRun("10"), failedRun("20"), failedRun("30")]]]),
+    requiredRuns: new Map([[`${head} ${ADVISORY}`, { run: { ...tested(2), conclusion: "success" }, jobs: [] }]]),
+  };
+  const record = emptyRecord();
+  const first = await run(apiOptions, { record });
+  assert.deepEqual(first.result.dispatched, []);
+  assert.ok(first.lines.includes(`::warning::#7: head ${head}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), first.lines.join("\n"));
+  assert.ok(isHandled(record, "pr-unblock / fix-ci", head), "the capped head is recorded");
+  const second = await run(apiOptions, { record });
+  assert.deepEqual(second.result.dispatched, []);
+  assert.deepEqual({ runs: second.api.calls.runs, history: second.api.calls.history, jobs: second.api.calls.jobs }, { runs: 0, history: [], jobs: [] }, "the next run reads nothing past the listing");
+  const under = await run({ ...apiOptions, history: new Map([[head, [failedRun("30")]]]) }, { record: emptyRecord() });
+  assert.ok(under.lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), "under the cap the early reason still skips it");
 });
 
 test("a green ci-status with only a failed fix-ci run, or no failure, is left alone", async () => {
