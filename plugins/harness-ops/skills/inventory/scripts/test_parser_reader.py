@@ -56,6 +56,9 @@ def _require_live(case: unittest.TestCase) -> pathlib.Path:
     return target
 
 
+CACHED_ROOT = pathlib.Path("/h/.claude/plugins/cache/acme/harness-ops/1.2.0")
+
+
 class TestInstallResolution(unittest.TestCase):
     def test_an_explicit_dir_wins(self) -> None:
         with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": "/d/harness-ops-x"}):
@@ -95,12 +98,13 @@ class TestInstallResolution(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, env),
             mock.patch.object(pr, "checkout_root", return_value=None),
+            mock.patch.object(pr, "PLUGIN_ROOT", CACHED_ROOT),
         ):
             base, how = pr.deps_base(None)
         self.assertEqual(
             (base, how),
             (
-                pathlib.Path("/cfg/plugins/data/harness-ops-melodic-software"),
+                pathlib.Path("/cfg/plugins/data/harness-ops-acme"),
                 "plugin data directory",
             ),
         )
@@ -110,12 +114,34 @@ class TestInstallResolution(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, env),
             mock.patch.object(pr, "checkout_root", return_value=None),
+            mock.patch.object(pr, "PLUGIN_ROOT", CACHED_ROOT),
         ):
             base, how = pr.deps_base(None)
-        self.assertEqual(
-            base, pathlib.Path("/cfg/plugins/data/harness-ops-melodic-software")
-        )
+        self.assertEqual(base, pathlib.Path("/cfg/plugins/data/harness-ops-acme"))
         self.assertEqual(how, "plugin data directory")
+
+    def test_outside_the_plugin_cache_the_data_dir_is_the_inline_one(self) -> None:
+        env = {"CLAUDE_PLUGIN_DATA": "", "CLAUDE_CONFIG_DIR": "/cfg"}
+        with (
+            mock.patch.dict(os.environ, env),
+            mock.patch.object(pr, "checkout_root", return_value=None),
+            mock.patch.object(
+                pr, "PLUGIN_ROOT", pathlib.Path("/src/plugins/harness-ops")
+            ),
+        ):
+            base, _ = pr.deps_base(None)
+        self.assertEqual(base, pathlib.Path("/cfg/plugins/data/harness-ops-inline"))
+
+    def test_the_data_id_is_named_for_the_cached_marketplace(self) -> None:
+        cases = {
+            "/h/.claude/plugins/cache/acme/harness-ops/1.2.0": "harness-ops-acme",
+            "C:\\U\\.claude\\plugins\\cache\\my.market\\harness-ops\\1.0": "harness-ops-my-market",
+            "/h/.claude/plugins/cache/acme/harness-ops": "harness-ops-inline",
+            "/h/other/cache/acme/harness-ops/1.2.0": "harness-ops-inline",
+            "/repo/plugins/harness-ops": "harness-ops-inline",
+        }
+        for root, want in cases.items():
+            self.assertEqual(pr.plugin_data_id(root), want, root)
 
     def test_a_checkout_installs_under_its_work_dir(self) -> None:
         root = pathlib.Path("/repo")

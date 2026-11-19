@@ -8,18 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONF="$SCRIPT_DIR/conformance.sh"
 LOCAL="$SCRIPT_DIR/adapters/local-file"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'ok %d - %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'not ok %d - %s\n' "$CASE_NUM" "$1"
-  if [[ -n "${2:-}" ]]; then printf '  %s\n' "$2"; fi
-}
+# shellcheck source=../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../lib/test-helpers.sh"
 # expect_exit <want> <got> <name>
 expect_exit() {
   if [[ "$2" -eq "$1" ]]; then

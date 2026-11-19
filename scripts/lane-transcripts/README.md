@@ -42,6 +42,7 @@ machine or object storage, is any directory it mounts at; nothing else changes. 
 
 ```text
 <sink>/transcripts/<YYYY-MM-DD>/<lane>/<run id>-<attempt>-<job id>.json.gz   the CLI messages, gzipped
+<sink>/transcripts/<YYYY-MM-DD>/<lane>/<run id>-<attempt>-<job id>.otel.jsonl.gz   the leg's telemetry, gzipped
 <sink>/metrics.jsonl                                                       one row per transcript, no content
 <sink>/outcomes.jsonl                                                      one row per lane-outcome record
 <sink>/state.json                                                          last success, last attempt, last error kind
@@ -93,10 +94,16 @@ listed newest first, back to the last successful pull less 6 hours (7 days on th
 re-run attempt of an older run is still pulled. It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
 run's head repository is not this repository: the public key is public, so a fork's run could seal
 a record. A zip must hold `transcript.json.gz.sealed` and at most one other entry, which must be
-a sealed file (`<name>.sealed`, such as a leg's telemetry); the pull opens only the transcript,
-and any other zip counts as `bad_zip`. A record that does not open for the
-key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
-counted as `sealed_mismatch` and skipped. The summary line counts each kind.
+a sealed file (`<name>.sealed`); any other zip counts as `bad_zip`. A transcript record that does
+not open for the key, the artifact's run id and its job id (moved, tampered with, or sealed under a
+rotated key) is counted as `sealed_mismatch` and skipped. The summary line counts each kind.
+
+When the other entry is `otel.jsonl.gz.sealed` (`upload-lane-transcript`'s `otel-file`), the pull
+opens it under the payload name `otel.jsonl.gz` with the same run and job binding and stores it
+beside the transcript. The row's `telemetry_outcome` says what happened (`stored`, `none`,
+`sealed_mismatch`, `unreadable`); a telemetry record that does not open keeps the transcript.
+`telemetry_spans` counts the spans and `telemetry_joined_spans` those whose `traceId` is the row's
+`trace_id`, so a row shows whether the leg's spans joined its run attempt.
 
 A `gh` call that fails is retried, the wait doubling from 2 seconds: a listing page gets 10 tries with the wait capped at 5 minutes, any other call 5 tries. An artifact whose download,
 unzip or run read still fails counts as `fetch_failed` and the pull goes on. It has no metrics row
@@ -145,7 +152,8 @@ resuming at that workflow. It records each run attempt it finished reading as `r
 
 Every pull, and `prune`, applies it in this order:
 
-1. A transcript over 30 days old is deleted; its row stays, with `transcript: null`.
+1. A transcript over 30 days old is deleted; its row stays, with `transcript: null`. Its
+   telemetry goes with it (`telemetry: null`).
 2. A metrics row, or a lane-outcome record, over 365 days old is dropped.
 3. While every file under the sink totals more than 5 GB (5,000,000,000 bytes), the oldest
    transcript is deleted.

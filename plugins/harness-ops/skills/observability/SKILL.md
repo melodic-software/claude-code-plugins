@@ -83,9 +83,20 @@ This skill reads **your** captured telemetry and ops signals.
 
 OTEL query and retention helpers live in `otel/` (private backends) with stable entry points in
 `scripts/`. Machine provisioning owns the Collector configuration and all long-running service
-and dashboard lifecycle. A full wipe of the OTEL store is provisioning's documented reset, in its
-[otel-store-reset runbook](https://github.com/melodic-software/provisioning/blob/main/runbooks/otel-store-reset.md);
+and dashboard lifecycle. A full wipe of the OTEL store is provisioning's documented reset;
 `clean` stays the age and size prune.
+
+Where this machine's provisioning documents each part, from this plugin's options:
+
+- store reset: `${user_config.otel_store_reset_doc}`
+- Collector configuration: `${user_config.otel_collector_config_ref}`
+- dashboard stack: `${user_config.otel_dashboards_compose_ref}`
+
+We treat a value that is empty or still the literal placeholder token as no reference configured:
+name the part and point the user at their machine provisioning, never at a repository of your own
+guessing. The `context/` files name these parts by option. Pointer: for how a skill body's
+`${user_config.*}` token resolves, see
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## Arguments
 

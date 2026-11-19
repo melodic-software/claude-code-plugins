@@ -9,13 +9,8 @@ CATALOG="$HERE/testdata/fixture.md"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+# shellcheck source=../../../lib/test-helpers.sh
+source "$HERE/../../../lib/test-helpers.sh"
 assert_err() { # <label> <expected-exit> <stderr-substring> <args...>
   local label=$1 want=$2 sub=$3 out rc
   shift 3

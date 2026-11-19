@@ -24,19 +24,6 @@ trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 # variables it means to test.
 unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID
 
-mkrepo() {
-  local repo
-  repo="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
-  git -C "$repo" init -q -b main >/dev/null 2>&1
-  git -C "$repo" config user.email t@t.t
-  git -C "$repo" config user.name t
-  git -C "$repo" config commit.gpgsign false
-  printf 'seed\n' >"$repo/README"
-  git -C "$repo" add README
-  git -C "$repo" commit -q -m seed
-  printf '%s' "$repo"
-}
-
 # Helper-created reason when --session-id is omitted: host and time, no
 # `session <id> since` token. Claim must not rewrite it (#2882 AC4), and
 # check-enter treats it as foreign to every session.

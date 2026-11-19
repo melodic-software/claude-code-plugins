@@ -8,18 +8,8 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
 
 SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/setup.sh"
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi; }
+# shellcheck source=../../../lib/test-pass-fail.sh
+source "$(dirname "$SETUP")/../../../lib/test-pass-fail.sh"
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "expected to contain: $3"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "expected not to contain: $3"; fi; }
 assert_line() { if grep -Eq "$3" <<<"$2"; then pass "$1"; else fail "$1" "no line matches: $3"; fi; }
