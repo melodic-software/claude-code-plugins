@@ -2791,11 +2791,52 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
   assert.deepEqual(resultLines(kept.stdout), [`Skipped ${old}: folder not found; record kept.`]);
   assert.notEqual(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
   assert.equal(readdirSync(join(moved, ".git", "plugin-profiles", "records")).length, 1);
-  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
+  const r = reset(w, ["--yes", "--put-back-moved", movedFile]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
   assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
   assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
+});
+
+test("#17354: a moved repository's file gets its own kind of question: Keep, then Put back, its own flags, its own words in the one question and its own recommendation", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  const p2 = secondFolder(w);
+  knowFolders(w, moved, p2.dir);
+  const movedFile = rootLocal(moved);
+  const applied = [readFileSync(movedFile, "utf8"), readFileSync(p2.file, "utf8")];
+  const preview = resetJson(w);
+  const { ask } = preview.folders.find((f) => f.file === old);
+  assert.deepEqual([ask.file, ask.no, ask.yes], [movedFile, { label: "Keep", flag: "--keep-moved" }, { label: "Put back", flag: "--put-back-moved" }]);
+  assert.deepEqual(ask.recommend, { answer: "yes", reason: `Each entry profile build wrote at ${old}, before the repository moved, is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? A file in a repository that moved is not covered: each gets its own question.");
+  for (const flag of ["--remove-unrecorded", "--keep-unrecorded", "--finish-cut-off"]) {
+    const r = reset(w, ["--yes", flag, movedFile]);
+    assert.equal(r.status, 1, `${flag}: ${r.stdout}`);
+    assert.match(r.stderr, new RegExp(`^not reset: ${esc(movedFile)} is answered with --put-back-moved or --keep-moved, not ${flag}; nothing was written$`, "m"));
+  }
+  const loose = reset(w, ["--yes", "--put-back-moved", join(w.root, "elsewhere", ".claude", "settings.local.json")]);
+  assert.equal(loose.status, 1);
+  assert.match(loose.stderr, new RegExp(`is not a file the preview asks about; it asks about ${esc(movedFile)} `));
+  assert.deepEqual([readFileSync(movedFile, "utf8"), readFileSync(p2.file, "utf8")], applied);
+  const r = reset(w, ["--yes", "--put-back-moved", movedFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout).sort(), [`Restored ${movedFile} from the record of ${old} (profile build).`, `Restored ${p2.file} (profile build).`].sort());
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+
+  const alone = world();
+  gitInit(alone);
+  assert.equal(alone.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const there = join(alone.root, "moved");
+  renameSync(alone.project, there);
+  knowFolders(alone, there);
+  const nobody = reset(alone);
+  assert.equal(nobody.status, 1, nobody.stdout);
+  assert.match(nobody.stderr, /^not reset: nobody to confirm, so nothing was written; a file in a repository that moved changes only after a yes for it: run reset in a terminal, or pass --yes with --put-back-moved <file> for each file to put back$/m);
 });
 
 /** The settings file each applied-profile record on the test machine names, sorted. */
@@ -2977,7 +3018,7 @@ test("#17354: a repository moved twice, with a profile applied at each place, is
   assert.equal(readFileSync(m.file, "utf8"), m.afterReview);
   const next = resetJson(w).folders;
   assert.deepEqual(next.map((f) => [f.file, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.first, null, m.file], [m.second, m.file, null]].sort(), "the record applied latest is offered, the earlier one waits");
-  const two = reset(w, ["--yes", "--remove-unrecorded", m.file]);
+  const two = reset(w, ["--yes", "--put-back-moved", m.file]);
   assert.equal(two.status, 3, two.stdout + two.stderr);
   assert.deepEqual(resultLines(two.stdout).sort(), [`Restored ${m.file} from the record of ${m.second} (profile review).`, WAITS_DONE(m.first)].sort());
   assert.equal(readFileSync(m.file, "utf8"), m.afterBuild);
@@ -3025,7 +3066,7 @@ test("#17354: a moved repository with a profile applied at its new place, answer
   assert.equal(readFileSync(m.file, "utf8"), applied);
   assert.equal(recordFiles(w).length, 2);
   assert.equal(reset(w, ["--yes"]).status, 3);
-  const r = reset(w, ["--yes", "--keep-unrecorded", m.file]);
+  const r = reset(w, ["--yes", "--keep-moved", m.file]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.deepEqual(resultLines(r.stdout), [`Skipped ${m.file}: you answered no, so it is left as it is, and the record of ${m.old} (profile build) is kept.`]);
   assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
@@ -3063,7 +3104,7 @@ test("#17354: a file the preview does not ask about is refused, naming the files
   const moved = join(w.root, "moved");
   renameSync(w.project, moved);
   knowFolders(w, moved);
-  const r = reset(w, ["--yes", "--remove-unrecorded", old]);
+  const r = reset(w, ["--yes", "--put-back-moved", old]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, new RegExp(`^not reset: ${esc(old)} is not a file the preview asks about; it asks about ${esc(rootLocal(moved))} \\(each row's ask\\.file in reset --dry-run --json\\); nothing was written$`, "m"));
 });
@@ -3160,7 +3201,7 @@ test("#17354: reset notes a file it restores by every path: a finished earlier r
   const moved = join(mv.root, "moved");
   renameSync(mv.project, moved);
   knowFolders(mv, moved);
-  assert.equal(reset(mv, ["--yes", "--remove-unrecorded", rootLocal(moved)]).status, 0);
+  assert.equal(reset(mv, ["--yes", "--put-back-moved", rootLocal(moved)]).status, 0);
   assert.equal(readFileSync(rootLocal(moved), "utf8"), LOCAL_BEFORE);
   assert.deepEqual(resetJson(mv).folders, [], "a moved repository's file");
 });
@@ -3307,7 +3348,7 @@ const KINDS = {
     const now = join(w.root, "repo-now");
     renameSync(w.project, now);
     knowFolders(w, now);
-    return { w, files: { O: old, M: rootLocal(now) }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+    return { w, files: { O: old, M: rootLocal(now) }, own: rootLocal(now), flags: ASK_FLAGS.moved };
   },
   movedNewer: () => {
     const w = world();
@@ -3319,7 +3360,7 @@ const KINDS = {
     knowFolders(w, now);
     const left = readFileSync(rootLocal(now), "utf8");
     assert.equal(runIn(w, now, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
-    return { w, files: { O: old, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+    return { w, files: { O: old, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.moved };
   },
   movedTwice: () => {
     const w = world();
@@ -3335,7 +3376,7 @@ const KINDS = {
     knowFolders(w, now);
     const left = readFileSync(rootLocal(now), "utf8");
     assert.equal(runIn(w, now, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
-    return { w, files: { O: first, S: second, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.unrecorded };
+    return { w, files: { O: first, S: second, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.moved };
   },
   cutOffChanged: () => {
     const w = world();
@@ -3360,7 +3401,7 @@ const KINDS = {
     return { w, files: {}, unnamed: { F: w.localFile }, own: w.localFile };
   },
 };
-const ASK_FLAGS = { unrecorded: ["--remove-unrecorded", "--keep-unrecorded"], cutOff: ["--finish-cut-off", "--keep-cut-off"] };
+const ASK_FLAGS = { unrecorded: ["--remove-unrecorded", "--keep-unrecorded"], cutOff: ["--finish-cut-off", "--keep-cut-off"], moved: ["--put-back-moved", "--keep-moved"] };
 
 /** How a cell answers: at a terminal (y or n to the one question, then to each file's own), by flags, or with nobody there. */
 const MODES = {
@@ -3547,8 +3588,9 @@ function editByHand(file) {
 }
 
 test("#17354: the reset preview recommends one answer per question with a one-sentence reason from the row's facts, and keeps when those facts do not settle it", () => {
-  const SAFE = (profile) => ({ answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
-  const EDITED = { answer: "no", reason: `1 entry (implementation@${M}) changed by hand since profile build was applied, so the file may hold changes you want; a no changes nothing.` };
+  const SAFE = (profile, at = "") => ({ answer: "yes", reason: `Each entry profile ${profile} wrote${at && `${at},`} is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
+  const EDITED = (at = "") => ({ answer: "no", reason: `1 entry (implementation@${M}) changed by hand since profile build was applied${at}, so the file may hold changes you want; a no changes nothing.` });
+  const movedAt = (k) => ` at ${k.files.O}, before the repository moved`;
   const recommendOf = (k) => resetJson(k.w).folders.find((f) => f.ask).ask.recommend;
 
   assert.deepEqual(recommendOf(KINDS.noRecord()), { answer: "no", reason: "Reset did not write these entries, so they may be your own." });
@@ -3562,12 +3604,13 @@ test("#17354: the reset preview recommends one answer per question with a one-se
   assert.equal(cut.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   cutOff(cut, cut.localFile, { written: false });
   editByHand(cut.localFile);
-  assert.deepEqual(recommendOf({ w: cut }), EDITED);
+  assert.deepEqual(recommendOf({ w: cut }), EDITED());
 
-  assert.deepEqual(recommendOf(KINDS.movedNoNewer()), SAFE("build"));
+  const safe = KINDS.movedNoNewer();
+  assert.deepEqual(recommendOf(safe), SAFE("build", movedAt(safe)));
   const moved = KINDS.movedNoNewer();
   editByHand(moved.files.M);
-  assert.deepEqual(recommendOf(moved), EDITED);
+  assert.deepEqual(recommendOf(moved), EDITED(movedAt(moved)));
 
   const preview = resetJson(KINDS.restore().w);
   assert.deepEqual(preview.questionRecommend, {

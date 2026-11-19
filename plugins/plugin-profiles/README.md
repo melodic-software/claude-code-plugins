@@ -238,7 +238,7 @@ submodule known only from its superproject, until a session starts there; an app
 plain terminal in a folder Claude Code never opened; or another config folder or lane. A record
 whose folder is gone is kept, never deleted; when it was a repository root's and the repository
 moved, the preview names the root file where it is now, which reset puts back only after a yes for
-it. A record reset finds in a home that cannot hold it, such as a repository's `.git` naming user
+it, asked as its own question with Keep first (`--put-back-moved <file>`, `--keep-moved <file>`). A record reset finds in a home that cannot hold it, such as a repository's `.git` naming user
 settings, is listed as ignored and never written from. Reset never writes a
 committed `.claude/settings.json`. Each file is replaced whole, so a reset stopped part way
 leaves each file restored or untouched and the next reset finishes the rest; that holds for a

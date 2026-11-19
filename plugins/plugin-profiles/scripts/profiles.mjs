@@ -155,7 +155,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]... [--put-back-moved <file>]... [--keep-moved <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -184,6 +184,13 @@ const ASKS = {
     covers: "A file whose earlier reset was cut off is not covered: each gets its own question.",
     some: "files whose earlier reset was cut off",
     waits: "a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back",
+  },
+  moved: {
+    yes: { label: "Put back", flag: "--put-back-moved" },
+    no: { label: "Keep", flag: "--keep-moved" },
+    covers: "A file in a repository that moved is not covered: each gets its own question.",
+    some: "files in a repository that moved",
+    waits: "a file in a repository that moved changes only after a yes for it: run reset in a terminal, or pass --yes with --put-back-moved <file> for each file to put back",
   },
 };
 const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
@@ -1251,7 +1258,8 @@ function resetQuestion(rows) {
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
-  const kinds = asked.map((kind) => kind.some).join(" and ");
+  const some = asked.map((kind) => kind.some);
+  const kinds = `${some.slice(0, -1).join(", ")} and ${some.at(-1)}`;
   return {
     text: asked.length < 2 ? [covers, ...asked.map((kind) => kind.covers)].join(" ") : `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`,
     recommend: {
@@ -1261,11 +1269,14 @@ function resetQuestion(rows) {
   };
 }
 
-/** What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another value. */
-const recommendFrom = (profile, overwrites) =>
+/**
+ * What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another
+ * value. at names where a moved repository's profile was applied.
+ */
+const recommendFrom = (profile, overwrites, at = "") =>
   overwrites.length
-    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied, so the file may hold changes you want; a no changes nothing.` }
-    : { answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
+    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied${at}, so the file may hold changes you want; a no changes nothing.` }
+    : { answer: "yes", reason: `Each entry profile ${profile} wrote${at && `${at},`} is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
 
 /** The preview lines naming each entry edited since the apply that a restore changes again. */
 const overwriteLines = (plan) =>
@@ -1327,7 +1338,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
         movedTo: f.movedTo,
         movedPlan,
         overwrites: overwritesOf(movedPlan),
-        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites)),
+        ask: askOf(ASKS.moved, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites, ` at ${file}, before the repository moved`)),
         lines: [`${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`, ...overwriteLines(movedPlan)],
       };
     } catch (error) {
