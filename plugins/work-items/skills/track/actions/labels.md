@@ -17,5 +17,6 @@ creates a label.
 1. **Without names**, print the set, one label per line. **With names**, print each missing one as
    `MISSING: <name>` and nothing else; no output means every name exists. Compare exact strings.
 
-A missing label goes to whoever the consuming repository names as its label owner (a label-as-code
-source of truth, or the user). Report the full missing set at once.
+A missing label goes to whoever the consuming repository names as its label owner: the
+label-as-code repository its `label_as_code_repo` key declares
+([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)), else the user. Report the full missing set at once.
