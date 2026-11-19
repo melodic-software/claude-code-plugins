@@ -70,6 +70,8 @@ test("SCAN_WITHHOLDS names what a hit withholds in place of the whole upload", (
   const result = run(dir, path.join(dir, "otel.jsonl"), { SCAN_WITHHOLDS: "the telemetry is left out and the transcript still uploads" });
   withheld(result, "GitHub token; the telemetry is left out and the transcript still uploads");
   assert.doesNotMatch(result.stdout, /nothing is uploaded/);
+  assert.match(result.summary, /^### scan-upload hit: the telemetry is left out and the transcript still uploads\n/);
+  assert.doesNotMatch(result.summary, /withheld the upload/);
 });
 
 test("a block writes only the hit's rule, path and line to the summary, no character of the match", (t) => {

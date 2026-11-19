@@ -97,7 +97,7 @@ export function main(env = process.env) {
   if (withheld) {
     if (withheld.fingerprint && env.GITHUB_STEP_SUMMARY) {
       try {
-        appendFileSync(env.GITHUB_STEP_SUMMARY, `### scan-upload withheld the upload\n\n${withheld.fingerprint}\n`);
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `### scan-upload ${env.SCAN_WITHHOLDS ? `hit: ${env.SCAN_WITHHOLDS}` : "withheld the upload"}\n\n${withheld.fingerprint}\n`);
       } catch {}
     }
     process.stdout.write(
