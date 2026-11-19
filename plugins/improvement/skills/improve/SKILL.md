@@ -51,12 +51,17 @@ which resolve, count and fan out as
 [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
 "Resolving repositories" and "Fan-out" say.
 
-- **Step 1 runs once, before the fan-out.** An interactive run confirms one target and focus for
-  every repository, and a target form alone is not a target: with no other argument, Step 1's
-  no-arguments branch applies.
+- **Step 1 runs once, before the fan-out, for the focus and any explicit target.** A target form
+  alone is not a target. With none, Step 1 offers no file list: an interactive run confirms the
+  focus once and says each repository takes its own recent files. Each repository's run then
+  applies the recent-files fallback and the shallow-clone stop to itself, as
+  `git -C <root> log origin/HEAD --since=30.days ...` and
+  `git -C <root> rev-parse --is-shallow-repository`.
 - **Each repository then runs Steps 2 to 4** against its own standards, with that repository as
   the working directory of every skill the steps invoke and of the throttle count. No step asks
-  inside a repository's run: each ask takes its recommended default.
+  inside a repository's run: each ask takes its recommended default, except Step 4's ready flip,
+  which leaves the PR as a draft unless the user's request authorized the flip, as in Unattended
+  mode.
 - **Writes stay per repository** (that section there): at most one improvement each, in a new
   worktree on `<type>/improve-<slug>` from that repository's remote default branch, and one small
   PR. The unattended throttle and the overflow work item apply per repository.
@@ -67,7 +72,7 @@ which resolve, count and fan out as
 **Arguments given.** Use them. Map the target to its concrete surfaces (files, symbols, config,
 docs) before reading further. A target with no resolvable surface is reported, not guessed at.
 
-**No arguments, interactive.** Read the conversation for what the user was working on or
+**No arguments, interactive** (several repositories: see Several repositories). Read the conversation for what the user was working on or
 pointing at: the files edited, the symbol or doc under discussion, a complaint ("this is slow",
 "this name is wrong"). Then ask once, in one message, before touching anything:
 
@@ -80,7 +85,7 @@ pointing at: the files edited, the symbol or doc under discussion, a complaint (
 Wait for the answer. The aim is shared intent before any work: a confirmed target and focus is
 cheaper than a PR built on the wrong reading.
 
-**No arguments, unattended.** No question is possible. Take the caller's target from the
+**No arguments, unattended** (several repositories: see Several repositories). No question is possible. Take the caller's target from the
 invocation prompt; if it gives none, take the most recently changed files per the command above.
 On a shallow clone (`git rev-parse --is-shallow-repository` prints `true`), recent history is
 unreliable: stop and report that rather than pick at random.
