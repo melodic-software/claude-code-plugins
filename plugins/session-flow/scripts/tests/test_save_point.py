@@ -4438,7 +4438,7 @@ def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_pat
     assert DOWNGRADED in out(unstamped), out(unstamped)
 
 
-def test_shape2_carry_stays_verified_after_a_transcript_only_predecessor_failure(
+def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_failure(
     tmp_path,
 ):
     repo = make_repo(tmp_path)
@@ -4461,12 +4461,10 @@ def test_shape2_carry_stays_verified_after_a_transcript_only_predecessor_failure
     assert made.returncode == 0, err(made)
     hop2 = handoffs / HOP2
     carried = hop2.read_text(encoding="utf-8")
-    assert "UNVERIFIED (predecessor failed validation)" not in carried
-    assert "- [h1] The thing must stay green.\n" in carried
+    tagged = "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green.\n"
+    assert tagged in carried
     hop2.write_text(
-        model_fill(carried).replace(
-            "- [h1] The thing must stay green.\n", "- [h2] A different rule.\n"
-        ),
+        model_fill(carried).replace(tagged, "- [h2] A different rule.\n"),
         encoding="utf-8",
         newline="\n",
     )

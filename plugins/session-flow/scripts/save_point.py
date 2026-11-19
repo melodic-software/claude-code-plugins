@@ -3974,8 +3974,8 @@ def cmd_new(args: argparse.Namespace) -> int:
                 f"predecessor is shape 3; a shape-3 chain is never continued as shape {args.shape}",
             )
         if pred.shape not in (None, 1):
-            findings, _ = validate_doc(pred, projects_root, False, shallow=True)
-            pred_failed = _downgrading_fail(findings, CHECKS) is not None
+            _, code = validate_doc(pred, projects_root, False, shallow=True)
+            pred_failed = code != 0
             pred_transcript = (
                 pred.frontmatter.get("transcript")
                 or "unresolved (predecessor recorded none)"
