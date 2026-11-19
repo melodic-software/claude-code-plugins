@@ -1111,9 +1111,10 @@ def _log(what: str, exc: BaseException) -> None:
 
 
 def hook_state(env: Mapping[str, str], session: str) -> tuple[Paths, dict] | None:
-    """This session's away state for a hook. Skill-frontmatter hooks get no CLAUDE_PLUGIN_DATA, and a
-    --plugin-dir load has no derivable root, so without the variable every session-flow data
-    directory under the config dir is tried; a state found there can only make a hook refuse."""
+    """This session's away state for a hook. A hook launched without CLAUDE_PLUGIN_DATA would stay
+    silent, and a --plugin-dir load has no derivable root, so without the variable every
+    session-flow data directory under the config dir is tried; a state found there can only make
+    a hook refuse."""
     roots = [data_root(env, DEFAULT_PLUGIN_ROOT)]
     if not env.get("CLAUDE_PLUGIN_DATA"):
         roots += sorted((config_dir(env) / "plugins" / "data").glob(f"{plugin_paths.PLUGIN_NAME}*"))
