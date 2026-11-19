@@ -2150,7 +2150,8 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh fixture-git-isolation {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            '*.sh' '*.py' '*.test.mjs' '*.test.js' '*.test.cjs' '*.test.ts' scripts/fixture-git-isolation-baseline.txt \
+            '*.sh' '*.py' '*.test.mjs' '*.test.js' '*.test.cjs' '*.test.ts' scripts/lib/fixture-git-isolation-scan.awk \
+            scripts/fixture-git-isolation-baseline.txt \
             scripts/fixture-git-global-baseline.txt .github/workflows/pr-require-checks.yml) &&
             [ -z "$changed" ]; then
             echo "::notice::No shell, Python or JS test file changed since $DIFF_BASE; the scheduled run scans the whole tree."
