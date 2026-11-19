@@ -18,17 +18,8 @@ ROOT="$(cd "$HERE/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=../lib/git-hooks-test-helpers.sh
+source "$ROOT/lib/git-hooks-test-helpers.sh"
 
 expect "prerequisites.json opts into the session probe behind GIT_HOOKS_NOTICE_ENABLED" GIT_HOOKS_NOTICE_ENABLED \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$ROOT/prerequisites.json" | tr -d '\r')"
