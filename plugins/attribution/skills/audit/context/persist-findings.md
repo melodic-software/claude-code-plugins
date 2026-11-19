@@ -18,22 +18,23 @@ Resolve it in this order:
    skill listing is the whole availability test: never glob, list or search outside this
    plugin's root to find `review`. The plugin ships `reference/findings-file-shape.md`, which owns
    the shape the fix action consumes, and `/review:fanout` owns the merge-set rules and, in its
-   "Shared inputs" section, **where the file goes**; the detector-findings contract points there
-   and `findings-file-shape.md` does not restate it. Read those exact files from the `review`
+   "Shared inputs" section, **where the file goes**, which the bundled contract in rung 2 also
+   states for a producer. Read those exact files from the `review`
    plugin's root when this session already knows it, for example from a loaded `review` skill's
    base directory. When `/review:fanout` does not resolve, the root is not known, or a read
-   fails, go to rung 2. This rung works offline, which is the point of putting it first.
-2. **The publisher's raw URL**, when rung 1 does not apply:
-   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
-3. **Neither reachable → do not write.** Report that the destination and the guard could not be
+   fails, go to rung 2.
+2. **This plugin's bundled copy of the contract**, when rung 1 does not apply:
+   [`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
+3. **Neither readable → do not write.** Report that the destination and the guard could not be
    resolved from their owner, and say the run is report-only. Inventing a destination reports
    success while the consumer never scans that path.
 
-Rung 1 comes first because rung 2 alone makes every offline run report-only and points a
-portable plugin at one organization's URL. The gate is whether `review` is enabled, never a marketplace
-id. Note what rung 1 does and does not give you: the file shape and the merge rules, which is
-what composition needs. If the consuming project defines its own severity vocabulary, that
-mapping is still yours to apply (see `Tier` below).
+Rung 1 comes first because the files it reads are the ones the consumer, `review`, runs on; rung
+2 is the contract they implement, shipped inside this plugin so both rungs work offline. The gate
+is whether `review` is enabled, never a marketplace id. Note what rung 1 does and does not give
+you: the file shape and the merge rules, which is what composition needs. If the consuming
+project defines its own severity vocabulary, that mapping is still yours to apply (see `Tier`
+below).
 
 ## Where the file goes
 

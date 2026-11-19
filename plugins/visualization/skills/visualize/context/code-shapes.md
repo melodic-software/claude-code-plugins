@@ -1,8 +1,9 @@
 # Code-shape sketches
 
-One example per code-shape row of Step 2. Every path, identifier, and file name in
-these examples is a placeholder, not a reference to a real file. Keep only the
-calls, files, props, states, and boundaries the current question needs.
+One section per code-shape row of Step 2, most with an example. Every path,
+identifier, and file name in these examples is a placeholder, not a reference to a
+real file. Keep only the calls, files, props, states, and boundaries the current
+question needs.
 
 ## Pseudocode
 
@@ -35,13 +36,6 @@ submitForm
 For UI structure. Keep the state hooks and module boundaries that matter and leave
 everything else out. File paths in parentheses.
 
-```tsx
-<SessionPage> (apps/example/src/routes/session.tsx)
-  useSessionEvents()
-  <SessionToolbar>
-    <RunSkillButton> (packages/ui)
-```
-
 ## Shallow file tree
 
 For "where does this live" and for scoping a refactor: one line of responsibility
@@ -58,14 +52,6 @@ src/
 
 For the shape of code before any of it exists: the types and the function
 signatures, no bodies.
-
-```ts
-type Session = { id: string; prompt: string; startedAt: Date }
-
-function createSession(prompt: string): Promise<Session>
-function persistPrompt(session: Session): Promise<void>
-function launchAgent(session: Session, signal: AbortSignal): Promise<void>
-```
 
 ## Diff-shaped delta
 
@@ -125,12 +111,6 @@ A state or control-flow change:
 The fallback, when no sketch is smaller than the code itself: most of the block is
 new, omitting context would hide ownership or order, or the user needs a copyable
 target shape.
-
-```ts
-function slugify(title: string): string {
-  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
-}
-```
 
 ## Selecting a view
 
