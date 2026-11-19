@@ -48,8 +48,14 @@ Load-semantics facts that change how you write:
 - MEMORY.md loads only its head, so put what must load first; keep CLAUDE.md short for adherence,
   and treat the 200-line target as ours to grade with (its source: the CLAUDE.md size pointer
   below; `/docs-hygiene:audit-progressive-disclosure` runs the grading).
-- These surfaces are context, not enforcement: a rule that must be mechanically guaranteed belongs
-  in a hook or permission policy, not prose.
+- These surfaces are context, not enforcement. For a rule that must be mechanically guaranteed,
+  name the call `/corrections:codify "<the rule>"` for the user; this skill does not build the
+  mechanism. When `/corrections:codify` is among the available skills, hand it the choice of
+  mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and
+  proves the check. Otherwise, propose the strongest mechanism that can decide the rule: a change
+  that makes the mistake impossible first, then a check that blocks it, then a test, and an
+  instruction only when nothing a machine runs can decide it. Say that `/corrections:codify` was
+  not available, so the proposal is unproven.
 
 ### Surface pointers
 
