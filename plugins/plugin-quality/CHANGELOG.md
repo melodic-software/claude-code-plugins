@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.10] - 2026-11-19
+
+### Changed
+
+- The audit's config checklist and evidence-packet reference no longer restate how monitor output reaches Claude, how the plugin data-dir id is formed, or what the sub-agents "Available tools" section covers; each keeps its pointer.
+
 ## [0.21.9] - 2026-11-18
 
 ### Fixed

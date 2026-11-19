@@ -3,6 +3,17 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-11-19
+
+### Changed
+
+- The web performance, states, theming, accessibility and touch spokes, the animation catalog, behaviors, performance and gestures pages, and the audit's `launch` scope state their rules without Next.js, React, Tailwind, Motion or named dev-tool guidance, examples and pointers. Where a step still depends on the project's framework or library, the text says to look it up in that tool's own documentation for the version the project runs.
+
+### Removed
+
+- The `components.primitives_default` setting and its bundled `base-ui` value. A project with no primitives library installed now gets the candidates the criteria in `reference/component-libraries.md` leave, and the choice is the person's. A convention file that still sets the key gets an unknown-key error for it.
+- The Tailwind spokes of the `typography` and `color` concerns (`types/web/typography/tailwind.md`, `types/web/color/tailwind.md`) and the React implementation spoke of the `component-api` concern (`types/web/component-api/implementation.md`), with their rows in `reference/concerns.json`.
+
 ## [0.27.22] - 2026-11-18
 
 ### Changed

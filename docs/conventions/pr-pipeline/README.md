@@ -569,6 +569,28 @@ it, not the lockfile; it posts no round marker, and the new head is reviewed as 
 of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
 the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
 marker at the new head.
+A `.github/dependabot.yml` entry whose `group-by: dependency-name` group spans several pip
+directories keeps each group package at one version in all of them. When Dependabot's group pull
+request bumps one directory and leaves another (its pip-compile could not relock it), the lane
+relocks the lagging directory to the bumped pin with no model turn
+([`dependency-relock.mjs`](../../../.github/scripts/pr-unblock/dependency-relock.mjs)), in three
+jobs so uv, which may run a package's build code, never runs beside a token.
+`review-dependency-select` reads the lagging directory's files from the head and uploads the
+relock request; a lock whose header names another command than the one the lane runs, or a missing
+file, goes to the model instead. `review-dependency-relock` runs uv, at the version
+`.github/requirements-relock.txt` pins and by the lock's own command, inside a digest-pinned
+`python:3.12-slim` container that sees only the request and work directories, in a job with no
+permissions, no secret and no checkout, and uploads only the relocked `requirements.txt`.
+`review-dependency-relock-patch`, base code with a read-only token, checks that lock pins the
+requested version and passes `dependency-version-change`, and writes the patch
+`apply-dependency-relock` pushes under the `dependency-relock` row. A relock that fails or that
+the rule refuses, such as one that adds a package (`requirements-new-package`), does not go to
+the model: it stops as `dependency-pin-invalid`, which
+[`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json) routes to a
+failing status and the `needs-session` label.
+`dependency-relock.mjs check` and an explicit playwright comparison fail `test-bash` while a
+group's directories pin different versions; the check also fails when no pip group reads or a
+group directory's `requirements.in` cannot be read.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -1010,7 +1032,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
-`review-dependency-select` writes with no model, `docs` for a push job that passes
+and `dependency-relock` for the group relock patch `review-dependency-relock-patch` writes with
+no model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
@@ -2001,7 +2024,8 @@ request is toggled at most twice, counted from those lines and from the lane tok
 its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
 unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
-each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
+each have 30% of every rate-limit bucket's hourly limit left; a pull request refused on one of those limits leaves the
+run's toggle to the next candidate. An escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
 writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
 a draft a person made stays one.
