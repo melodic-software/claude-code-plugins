@@ -310,7 +310,7 @@ Read in this order. Stopping early at any step is the finding.
    without-arm one is not read. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control; a finished without-arm run's search naming only the plugin it lacks; a denied call a failed `max: 0` `tool_used` grader of its case forbids), Bash denial paths, A/B gating,
+   probe's denial; a sandbox network denial in an invocation probe, control or `no-network` case; a negative control's broken side, run with `--own-copy-search-warns`, searching its own copy, where such a case cannot decide the control; a finished without-arm run's search naming only the plugin it lacks, or its Grep or Glob rooted at its own eval root, which the verdict line names; a denied call a failed `max: 0` `tool_used` grader of its case forbids), Bash denial paths, A/B gating,
    the 0-turn `context: fork` run the gate passes, and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.

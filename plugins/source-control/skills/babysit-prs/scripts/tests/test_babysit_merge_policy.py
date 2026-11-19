@@ -1752,6 +1752,14 @@ class RecordLift(unittest.TestCase):
         self.fake(READ_BACK_BODY, lift_answer(pull=own))
         self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
 
+    def test_a_read_back_record_lifts_on_a_rung_pin(self) -> None:
+        for rung in ("C2", "C3"):
+            with self.subTest(rung):
+                body = f"<!-- babysit-merge-pin sha={PULL_HEAD} rung={rung} -->\nThe unattended merge path enqueued it."
+                own = merged_pull(5, [pin(body=body)], mergeCommit={"oid": "b" * 40})
+                self.fake(READ_BACK_BODY, lift_answer(pull=own))
+                self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
+
     def test_a_read_back_record_holds_while_its_pull_request_does_not_read_back(self) -> None:
         for name, comments, fields in (
             ("no pin", [], {}),
