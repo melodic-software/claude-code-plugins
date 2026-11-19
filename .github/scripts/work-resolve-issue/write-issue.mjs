@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
 // body and labels go in as written, but for a trusted upstream-drift issue
-// (admit.mjs driftIssueId), whose body is admit.mjs driftSpecText and which
+// (admit.mjs driftIssue, https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues), whose body is admit.mjs trustedDriftSpec and which
 // carries `source: "upstream-drift"`: an issue neither a listed human nor the
 // lanes App wrote, and no such drift issue, fails the run here, behind the check-admission job's own stop
 // (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
@@ -82,7 +82,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssueId, driftShaped, driftSpecText, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
@@ -116,8 +116,9 @@ const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!)
 // account is unread, or a page that may hide an older change after
 // `frozenAt`, is "edited". A failed read or an unexpected shape throws.
 // `bodyFree` is an account whose body edits do not count: github-actions[bot]
-// on a trusted drift issue, whose body the run never reads (driftSpecText),
-// so the filer's weekly rewrite leaves the run's spec as admitted.
+// on a trusted drift issue, whose body the run never reads (trustedDriftSpec),
+// so the filer's scheduled rewrite leaves the run's spec as admitted
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
 async function readEditsSince(github, repository, number, frozenAt, trusted, bodyFree = null) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
@@ -237,14 +238,15 @@ export async function main({ env = process.env, github, log = console.log, write
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
     // The check-admission job stops this run first (check-blockers.mjs); this holds the
     // line if a run gets past it. A trusted drift issue (admit.mjs
-    // driftIssueId) passes, and its body is never written: issue.json carries
-    // driftSpecText instead.
+    // driftIssue) passes, and its body is never written: issue.json carries
+    // trustedDriftSpec for its kind instead
+    // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
     let spec;
-    let driftId = null;
+    let drifted = null;
     if (!authorAdmitted(data, humans, lanesAppId)) {
       spec = driftShaped(data) ? await specOf(client, repository, env.ISSUE_NUMBER) : undefined;
-      driftId = spec === undefined ? null : driftIssueId(spec);
-      if (driftId === null) {
+      drifted = spec === undefined ? null : driftIssue(spec);
+      if (drifted === null) {
         throw new Error("the issue's author is neither a listed human nor the lanes App, and it is no trusted upstream-drift issue");
       }
     }
@@ -262,7 +264,7 @@ export async function main({ env = process.env, github, log = console.log, write
     // of the text it admitted, which this run's one read must match.
     // On a trusted drift issue only the title, which names the upstream, is
     // the admitted text the run reads.
-    const drift = driftId !== null;
+    const drift = drifted !== null;
     let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]), drift ? ACTIONS_BOT_ID : null);
     const recordMatches = (record) => (drift ? contentHash(data.title) === record.titleSha256 : matchesRecord(record, { title: data.title, body: data.body ?? "" }));
     if (!refused && admission.kind === "record" && !recordMatches(admission.record)) {
@@ -342,8 +344,8 @@ export async function main({ env = process.env, github, log = console.log, write
     const issue = {
       number: data.number,
       title: data.title,
-      body: driftId === null ? (data.body ?? "") : driftSpecText(driftId),
-      ...(driftId !== null && { source: "upstream-drift" }),
+      body: drifted === null ? (data.body ?? "") : trustedDriftSpec(drifted),
+      ...(drifted !== null && { source: "upstream-drift" }),
       labels: (data.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
       comments: comments.filter((comment) => !cut.has(comment)),
       ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),

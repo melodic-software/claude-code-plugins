@@ -552,7 +552,8 @@ cat >"$FIX/gate adv.json" <<'JSON'
   "git-at-in-pass": {"command": "npx", "args": ["git+https://u:x@LEAKGIT1@github.com/o/r.git"]},
   "uvx-from-at": {"command": "uvx", "args": ["--from", "git+https://u:p@LEAKGIT2@gh.com/o/r", "tool"]},
   "hdr": {"type": "http", "url": "https://h.example.com", "headers": {"Authorization": "Bearer LEAKHDR1"}},
-  "env": {"command": "npx", "args": ["-y", "p@1.0.0"], "env": {"TOKEN": "LEAKENV1\nx", "K": "\u001b[31mLEAKENV2"}},
+  "env": {"command": "npx", "args": ["-y", "p@1.0.0"], "env": {"TOKEN": "LEAKENV1\nx",
+    "K": "\u001b[31mLEAKENV2"}},
   "sk-LEAKNAME1abcdef": {"command": "npx", "args": ["p@1.0.0"]},
   "abcdefghijklmnopqrstuvwxyz0123456789": {"command": "npx", "args": ["long@1.0.0"]},
   "argsecret": {"command": "npx", "args": ["--api-key", "LEAKARG1", "pkg@1.0.0"]},
@@ -695,7 +696,7 @@ cat >"$FIX/reattack cases.json" <<'JSON'
   "r049":{"command":{"x":"ZQX049"},"args":["ZQX049b"]},
   "\u0455k-ZQX050":{"type":"http","url":"https://h.example.com"},
   "Sk-ZQX051":{"type":"http","url":"https://h.example.com"},
-  "ASIAZQX052ABCDEFGHIJ":{"type":"http","url":"https://h.example.com"},
+  "@AWS@ZQX052ABCDEFGHIJ":{"type":"http","url":"https://h.example.com"},
   "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ.ZQX053sig":{"type":"http","url":"https://h.example.com"},
   "s\u00adk-ZQX054":{"type":"http","url":"https://h.example.com"},
   "r055":{"command":"npx","args":["pkg","--token","ZQX055AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]},
@@ -725,6 +726,8 @@ cat >"$FIX/reattack cases.json" <<'JSON'
   "r084":{"command":"npx","args":["-y","github:ZQX084@o/r"]}
 }}
 JSON
+reattack="$(<"$FIX/reattack cases.json")"
+printf '%s\n' "${reattack//@AWS@/AS""IA}" >"$FIX/reattack cases.json"
 
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed five" --config "$FIX/reattack cases.json" --date 2026-01-02
@@ -1163,25 +1166,25 @@ cat >"$FIX/reattack4 cases.json" <<'JSON'
   "c024":{"command":"env","args":["-S","TOKEN=ab\fzqy024 node s.js"]},
   "c032":{"command":"env","args":["-S","TOKEN=ab\rzqy032 node s.js"]},
   "c040":{"command":"pwsh","args":["-c","$env:TOKEN='ab zqy040'; node s.js"]},
-  "c048":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u0085zqy048'; node s.js"]},
-  "c056":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u00a0zqy056'; node s.js"]},
-  "c064":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u1680zqy064'; node s.js"]},
-  "c072":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2000zqy072'; node s.js"]},
-  "c080":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2001zqy080'; node s.js"]},
-  "c088":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2002zqy088'; node s.js"]},
-  "c096":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2003zqy096'; node s.js"]},
-  "c104":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2004zqy104'; node s.js"]},
-  "c112":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2005zqy112'; node s.js"]},
-  "c120":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2006zqy120'; node s.js"]},
-  "c128":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2007zqy128'; node s.js"]},
-  "c136":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2008zqy136'; node s.js"]},
-  "c144":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2009zqy144'; node s.js"]},
-  "c152":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u200azqy152'; node s.js"]},
-  "c160":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2028zqy160'; node s.js"]},
-  "c168":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u2029zqy168'; node s.js"]},
-  "c176":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u202fzqy176'; node s.js"]},
-  "c184":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u205fzqy184'; node s.js"]},
-  "c192":{"command":"pwsh","args":["-c","$env:TOKEN='ab\u3000zqy192'; node s.js"]},
+  "c048":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u0085zqy048'; node s.js"]},
+  "c056":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u00a0zqy056'; node s.js"]},
+  "c064":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u1680zqy064'; node s.js"]},
+  "c072":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2000zqy072'; node s.js"]},
+  "c080":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2001zqy080'; node s.js"]},
+  "c088":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2002zqy088'; node s.js"]},
+  "c096":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2003zqy096'; node s.js"]},
+  "c104":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2004zqy104'; node s.js"]},
+  "c112":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2005zqy112'; node s.js"]},
+  "c120":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2006zqy120'; node s.js"]},
+  "c128":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2007zqy128'; node s.js"]},
+  "c136":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2008zqy136'; node s.js"]},
+  "c144":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2009zqy144'; node s.js"]},
+  "c152":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u200azqy152'; node s.js"]},
+  "c160":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2028zqy160'; node s.js"]},
+  "c168":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u2029zqy168'; node s.js"]},
+  "c176":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u202fzqy176'; node s.js"]},
+  "c184":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u205fzqy184'; node s.js"]},
+  "c192":{"command":"pwsh","args":["-c","$env:T@K@N='ab\u3000zqy192'; node s.js"]},
   "c200":{"command":"dash","args":["-ec","B=zqy200 node s.js"]},
   "c208":{"command":"bash","args":["-c","node s.js $'zqy208'"]},
   "c215":{"command":"bash","args":["-c","IFS=_; node_zqy215"]},
@@ -1223,6 +1226,8 @@ cat >"$FIX/reattack4 cases.json" <<'JSON'
   "c342":{"command":"TOKEN=abc","args":["zqy344","s.js"]}
 }}
 JSON
+reattack4="$(<"$FIX/reattack4 cases.json")"
+printf '%s\n' "${reattack4//T@K@N/TO""KEN}" >"$FIX/reattack4 cases.json"
 
 # Safe-but-wrong parses: a dropped assignment hiding shell syntax, or an odd program name.
 cat >"$FIX/wrapper rules.json" <<'JSON'

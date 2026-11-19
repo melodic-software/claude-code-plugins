@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
+import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
 import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
@@ -293,7 +293,8 @@ export async function bindLaneRows(rows, { kind, check, fields = restFields }) {
       continue;
     }
     const lane = await check({ kind, id, body: row.body, createdAt, updatedAt, lastEditedAt });
-    bound.push({ ...row, body: lane ? withoutBinding(row.body) : withoutLaneFooter(row.body) });
+    const boundHead = lane ? bindingOf(row.body)?.sha : undefined;
+    bound.push({ ...row, body: lane ? withoutBinding(row.body) : withoutLaneFooter(row.body), ...(boundHead && { boundHead }) });
   }
   return bound;
 }
@@ -1021,23 +1022,30 @@ export const restMentions = ({ issueComments = [], reviewComments = [], reviews 
 // github-actions[bot]'s for a verifier note or a lane comment, or the trusted
 // person's who opened it (always directed, so any head). A trusted
 // person's direction (a fix request, or a reply to the lane's escalation)
-// asks for the thread, so its review may be on an earlier head. `review` is
-// { user: { id }, commit_id }. keepThreads and the dispatcher
+// asks for the thread, so its review may be on an earlier head. So may a lane
+// comment's whose verified binding (`rootBoundHead`, bindLaneRows) names the
+// review's head: laneChecker proved the lane run on that head and the body's
+// digest in its record
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/lib/lane-binding.mjs).
+// `review` is { user: { id }, commit_id }. keepThreads and the dispatcher
 // (feedback-dispatch.mjs hasWorkableThread) both judge a thread with this.
-export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
+export function onReviewedHead({ authors, firstAuthorId, review, heads, rootBoundHead }) {
   const directed = authors.some((a) => a.direction === true);
   // threadAuthors accepted the root's author (the reviewer bot, a listed
   // review bot, or github-actions[bot] for a verifier note or a lane comment),
   // so its own review vouches for it.
-  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id));
+  const laneVerifiedHead = rootBoundHead !== undefined && review?.commit_id === rootBoundHead;
+  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id) || laneVerifiedHead);
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
 // review its own author (the reviewer bot, a listed review bot,
 // github-actions[bot] for a lane comment or a verifier note, or the trusted
 // person who opened it) submitted on a
-// marker-confirmed head (any head for a thread carrying
-// a trusted person's direction), and threadAuthors accepts its comments.
+// marker-confirmed head (any head for a thread carrying a trusted person's
+// direction, or the head a lane comment's verified binding names,
+// https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/lib/lane-binding.mjs),
+// and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
 // review bot's comment is tagged `listed`, from its account id alone. A
 // thread requestSkip refuses (no trusted `@codex` request behind a listed
@@ -1072,7 +1080,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       continue;
     }
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
+    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads, rootBoundHead: rows[0].boundHead })) {
       continue;
     }
     const skip = requestSkip({

@@ -1384,7 +1384,9 @@ post-merge:
 # (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last
 # update). fix-ci fixes its failed ci-status; address-feedback answers a
 # person's PR's lane review threads as the lanes App, under fix-ci's idle
-# rule; pr-merge merges it under its usual gates. Without this section nothing
+# rule, or at once when auto-merge is armed (`auto_merge`,
+# https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request); pr-merge
+# merges it under its usual gates. Without this section nothing
 # is adopted.
 adoption:
   # 2: a session waiting in the GITHUB_TOKEN gate can be idle up to 2 h during a
@@ -1878,6 +1880,8 @@ merge:
       - glob: ".github/recurring-schedule.json"
         class: enforcement
       - glob: "docs/upstream/**"
+        class: enforcement
+      - glob: "scripts/upstream-drift-vendored-report.sh"
         class: enforcement
       - glob: ".github/scripts/recurring-schedule/file-due.mjs"
         class: enforcement
