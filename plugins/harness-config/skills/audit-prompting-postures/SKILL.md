@@ -130,7 +130,8 @@ absence on a component whose purpose clearly needs it becomes a finding. Three s
   (`permissions.deny` / `ask`), hook config registering a PreToolUse matcher over the action, and
   **the script the component delegates the action to**, following the invocation and reading it, since a
   component whose destructive step runs through a script that performs the approval check is gated.
-  Any one of the three is PRESENT, cited by file and rule, or by script and line.
+  Any one of the three is PRESENT, cited by file and rule, or by script and line. For a MISSING
+  P7, the catalog's P7 "Proposal when MISSING" line names who picks the mechanism.
 - **Repo conventions win on wording.** The proposal adapts the guide's substance to the
   component's own voice and the repo's terseness conventions; it never pastes a guide block
   verbatim into a proposal without trimming to what the component needs.
