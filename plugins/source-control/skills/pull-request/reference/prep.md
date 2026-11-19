@@ -90,14 +90,15 @@ Unless `quick` or `review-only` scope:
 
 ## 1.5 Verify gate (hard: blocks PR creation)
 
-Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
+Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the build, test and lint commands the repository's own CI workflows, ecosystem records or project instructions name for every ecosystem the branch touches; an ecosystem none of them names a command for is reported as unresolved. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
 
-**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that "looks dotnet-only" can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
+**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that looks like it touches one ecosystem can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
 
 **Decision rule:**
 
 - Any FAIL → stop. Address each before reattempting. Do not proceed to PR creation
 - Any skip due to "tool missing" → install the tool or document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
+- Any unresolved ecosystem → name it and the files it covers in the PR body as not verified locally, so CI is its only check
 - All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
 
 **This gate runs last**, so nothing that edits the tree may run after it.
