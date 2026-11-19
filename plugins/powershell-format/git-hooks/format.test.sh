@@ -324,5 +324,13 @@ git -C "$REPO" config checks.powershell-format.powershell-check.declined true
 expect "a powershell-check decline carries to format and lint" "declined,declined" \
   "$(node "$INSTALL" verify --repo "$REPO" | cut -f1 | paste -sd, -)"
 
+mkdir -p "$WORK/fakestat" "$WORK/win9p" "$WORK/ext"
+printf '#!/bin/sh\nshift 4\nfor d; do case "$d" in *win9p) t=v9fs ;; *) t=ext2/ext3 ;; esac; printf "%%s\\t%%s\\n" "$t" "$d"; done\n' \
+  >"$WORK/fakestat/stat"
+chmod +x "$WORK/fakestat/stat"
+expect "pwsh runs without PATH entries on a 9p mount" "$WORK/fakestat:$WORK/ext:$(dirname "$(command -v pwsh)")|$(command -v pwsh)" \
+  "$(PATH="$WORK/fakestat:$WORK/win9p:$WORK/ext:$(dirname "$(command -v pwsh)")" RT_BIN=pwsh "$BASH" -c \
+    '. "$1/adapters.sh"; psf__path_without_9p; printf "%s|%s" "$PSF_PATH" "$PSF_BIN"' _ "$HERE")"
+
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))
