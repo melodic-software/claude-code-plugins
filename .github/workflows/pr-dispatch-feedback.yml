@@ -461,6 +461,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-dispatch-feedback-record.json
+          SWEEP_FINGERPRINT: ${{ runner.temp }}/pr-feedback-sweep-fingerprint.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: |
@@ -643,6 +644,23 @@ jobs:
           name: ${{ steps.record-5.outputs.name }}
           path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
           retention-days: 1
+          if-no-files-found: error
+
+      - name: Scan the sweep fingerprint for credentials
+        id: scan-fingerprint
+        if: always() && steps.dispatch.outputs.fingerprint == 'written'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-sweep-fingerprint.json
+
+      - name: Record the sweep fingerprint
+        if: (always() && steps.dispatch.outputs.fingerprint == 'written') && steps.scan-fingerprint.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-feedback-sweep-fingerprint
+          path: ${{ runner.temp }}/pr-feedback-sweep-fingerprint.json
+          retention-days: 1
+          overwrite: true
           if-no-files-found: error
 
       - name: Log the API budget at the end

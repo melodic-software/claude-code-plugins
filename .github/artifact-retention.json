@@ -630,6 +630,14 @@
         ".github/workflows/pr-dispatch-feedback.yml#post-verify-notes"
       ]
     },
+    "pr-feedback-sweep-fingerprint": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-unblock/sweep-fingerprint.mjs readPreviousFingerprint reads the newest by exact name (FINGERPRINT_ARTIFACT) and skips the reads of an unchanged lanes App PR"
+      ],
+      "reason": "Read by the next half-hourly tick; 1 day is the minimum. It holds PR numbers, head SHAs, update times, check run ids, key hashes and times, never model text.",
+      "scan": "upload"
+    },
     "pr-feedback-deferral": {
       "retention-days": 2,
       "readers": [

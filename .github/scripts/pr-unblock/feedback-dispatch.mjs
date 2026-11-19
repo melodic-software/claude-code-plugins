@@ -182,8 +182,9 @@
 // dispatched run is still going after the PR read. Each shortcut stands for a
 // skip the full path also reaches.
 
-import { appendFileSync, readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -197,8 +198,9 @@ import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanG
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
-import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { configDigest, sweepFingerprint, SWEEP_STATES_QUERY } from "./sweep-fingerprint.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -513,6 +515,7 @@ export async function dispatchFeedback({
   // The sweep decides every PR before it sends any: the decision then
   // returns { number, send } and send() posts it.
   defer = false,
+  due = () => {},
 }) {
   // Each skip names the upstream run, so a relay or review run traces to its
   // dispatch decision in one log read.
@@ -691,6 +694,7 @@ export async function dispatchFeedback({
       throw error;
     }
     log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
+    due(number, now);
     return null;
   }
   const waits = (run) => run.status !== "completed" && run.status !== "in_progress" && titled(run, number);
@@ -740,6 +744,10 @@ export async function dispatchFeedback({
       markHandled(record, settings.checkName, head);
     }
     if (anyHandles(existing, { now, limits: resolved.limits })) {
+      const pending = pendingStop(existing, { now, limits: resolved.limits });
+      if (pending !== null) {
+        due(number, pending.resetsAt);
+      }
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
     }
   }
@@ -760,6 +768,7 @@ export async function dispatchFeedback({
   // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
   if (noThread) {
     if (earlierFailReads.left <= 0) {
+      due(number, now);
       return skip(`#${number} has no unresolved review thread, and this pass's ${EARLIER_FAIL_READS} verifier reads for an earlier FAIL are spent; the next pass reads it`);
     }
     earlierFailReads.left -= 1;
@@ -767,6 +776,7 @@ export async function dispatchFeedback({
   const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
   const { cap: capped, supersededAtHead, earlierFailHeads = [], readFailed = false } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (noThread && (readFailed || (capped && !capFinal(capped)))) {
+    due(number, now);
     return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
   }
   if (capped) {
@@ -782,6 +792,9 @@ export async function dispatchFeedback({
     if (passOnly && !capFinal(capped)) {
       log(`#${number}: pr-verify's FAIL cap could not be read (${capped}); the pass-only round runs anyway`);
     } else {
+      if (!capFinal(capped)) {
+        due(number, now);
+      }
       return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
     }
   }
@@ -884,11 +897,23 @@ export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 // gate's wait for it (check-trusted-trigger.mjs requireRecorded). Each send's
 // result, with the head's newest completed review run id, goes to onSent;
 // returns the first, or null.
-export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, fingerprint = null, onFingerprint = () => {}, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest: { ...rest, defer: true } };
   const listed = await openPulls(context);
   const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
   const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
+  let tracker = null;
+  if (fingerprint !== null) {
+    try {
+      await fingerprint.observe(pulls);
+      tracker = fingerprint;
+      context.rest.due = fingerprint.due;
+    } catch (error) {
+      log(`::warning::sweep fingerprint: observing the open PRs failed (${error.message}); every PR is read in full and none is recorded`);
+    }
+  }
+  const nulls = new Map();
+  const failed = new Set();
   const decided = [];
   const taken = new Set();
   const started = clock();
@@ -912,7 +937,7 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
         log(`sweep: ${SWEEP_DECIDE_BUDGET_MS / 60_000} minutes spent deciding; the next tick decides the rest`);
         break decide;
       }
-      if (taken.has(pull.number)) {
+      if (taken.has(pull.number) || tracker?.unchanged(pull.number)) {
         continue;
       }
       try {
@@ -920,8 +945,11 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
         if (round !== null) {
           decided.push(round);
           taken.add(pull.number);
+        } else {
+          nulls.set(pull.number, (nulls.get(pull.number) ?? 0) + 1);
         }
       } catch (error) {
+        failed.add(pull.number);
         // One PR's failed read leaves the PRs after it to the sweep.
         log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
       }
@@ -929,6 +957,10 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     if (decided.length === before) {
       log(none);
     }
+  }
+  if (tracker !== null) {
+    const quiet = pulls.filter((pull) => !taken.has(pull.number) && !failed.has(pull.number) && nulls.get(pull.number) === passes.filter(([, rows]) => rows.includes(pull)).length);
+    onFingerprint(tracker.settle(quiet.map((pull) => pull.number)));
   }
   const sent = [];
   for (const { number, send, upstreamRunId, refireOf } of decided) {
@@ -1129,6 +1161,7 @@ async function sweepUnsent(context) {
   const commented = unresolved.flatMap((thread) => thread.comments?.nodes ?? []).map((comment) => Date.parse(comment.createdAt ?? "")).filter(Number.isFinite);
   const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")), ...commented);
   if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
+    rest.due?.(pull.number, last + UNSENT_GRACE_MS);
     return null;
   }
   // A round that ended before posting its check is sent once.
@@ -1626,6 +1659,44 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const query = new URLSearchParams({ name, per_page: String(ARTIFACT_PAGE) });
       return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
     },
+    // https://docs.github.com/en/rest/actions/artifacts#download-an-artifact
+    async downloadArtifact(id) {
+      const url = `${repo}/actions/artifacts/${encodeURIComponent(id)}/zip`;
+      const response = await send(url, { headers });
+      if (!response.ok) {
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { detail: await responseDetail(response) });
+      }
+      return Buffer.from(await response.arrayBuffer());
+    },
+    // The open PRs' numbers among the issue and review comments created or
+    // edited since `since`, two repository-wide listings
+    // (https://docs.github.com/en/rest/issues/comments#list-issue-comments-for-a-repository,
+    // https://docs.github.com/en/rest/pulls/comments#list-review-comments-in-a-repository).
+    async listCommentsSince(since) {
+      const query = `since=${encodeURIComponent(since)}&sort=updated&direction=asc&per_page=100`;
+      const issue = await pages(`${repo}/issues/comments?${query}`, 10, `more than 1000 issue comments since ${since}`);
+      const review = await pages(`${repo}/pulls/comments?${query}`, 10, `more than 1000 review comments since ${since}`);
+      return [...issue.map((row) => row.issue_url), ...review.map((row) => row.pull_request_url)].map((url) => {
+        const number = Number(/\/(?:issues|pulls)\/([1-9][0-9]{0,9})$/.exec(String(url ?? ""))?.[1]);
+        if (!Number.isSafeInteger(number)) {
+          throw new Error("a comment in the listing names no issue or pull request");
+        }
+        return number;
+      });
+    },
+    async listSweepStates(base) {
+      const states = [];
+      let after = null;
+      for (let page = 0; page < 20; page += 1) {
+        const listing = (await graphql(SWEEP_STATES_QUERY, { owner, name, base, after })).repository.pullRequests;
+        states.push(...listing.nodes);
+        if (!listing.pageInfo.hasNextPage) {
+          return states;
+        }
+        after = listing.pageInfo.endCursor;
+      }
+      throw new Error(`more than 20 pages of open PRs into ${base}`);
+    },
     // A run's latest attempt's jobs, with their steps.
     async listRunJobs(id) {
       const listing = await request(`${repo}/actions/runs/${encodeURIComponent(id)}/jobs?filter=latest&per_page=100`);
@@ -1680,6 +1751,29 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
     github,
   });
 }
+
+const RESOLVE_CONFIG = new URL("../../actions/resolve-config/", import.meta.url);
+const SWEEP_CONFIG_FILES = [
+  "docs/conventions/pr-pipeline.yaml",
+  "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
+  ".github/standards/github-actions-conventions/vocabulary.json",
+  "plugins/multi-agent/reference/defaults.yaml",
+];
+const sweepDigest = (env, { appSenderId, reviewerIds }) => {
+  const base = env.BASE_PATH || ".base";
+  return configDigest({
+    base,
+    roots: [fileURLToPath(import.meta.url), fileURLToPath(new URL("resolve-config.mjs", RESOLVE_CONFIG))],
+    files: [
+      ...SWEEP_CONFIG_FILES.map((path) => join(base, path)),
+      env.TRUSTED_ACTORS || join(base, ".github/standards/trusted-actors/trusted-actors.json"),
+      env.TRACKER_CONFIG || join(base, "docs/conventions/work-items.yaml"),
+      ...["lane-rules", "effect-grants", "activity-rules", "patch-rules", "patch-rules.schema"].map((name) => fileURLToPath(new URL(`${name}.json`, RESOLVE_CONFIG))),
+      ...(env.VERIFY_EVIDENCE_SCRIPT ? [env.VERIFY_EVIDENCE_SCRIPT] : []),
+    ],
+    extra: { appSenderId, reviewerIds },
+  });
+};
 
 // Writes run-id, the dispatched run, as a step output (a tick's later sends as
 // run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
@@ -1749,8 +1843,13 @@ export async function main(env, { api, actions, github, resolveSlot, verifyCappe
       const refire = swept.refireOf ? `refire-of${suffix}=${swept.refireOf}\n` : "";
       appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n${refire}`);
     };
+    const fingerprint = env.SWEEP_FINGERPRINT ? sweepFingerprint({ api: client, repository: common.repository, runId: common.runId, settings: DEFAULTS, digest: sweepDigest(env, common), now, log }) : null;
+    const onFingerprint = (settled) => {
+      writeFileSync(env.SWEEP_FINGERPRINT, `${JSON.stringify(settled)}\n`);
+      appendFileSync(env.GITHUB_OUTPUT, "fingerprint=written\n");
+    };
     // A lost run is recovered only on a tick the sweep sent nothing on.
-    const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
+    const sweep = async () => (await sweepReleased({ ...common, onSent: write, fingerprint, onFingerprint })) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
     if (swept !== null && sends === 0) {
       write(swept);

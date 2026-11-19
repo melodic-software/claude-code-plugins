@@ -7,6 +7,7 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
+import { FINGERPRINT_ARTIFACT, FINGERPRINT_FILE, FINGERPRINT_SCHEMA, FULL_REFRESH_MS, parseFingerprint, sweepFingerprint } from "./sweep-fingerprint.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -3934,4 +3935,268 @@ test("a comment edited after its round sends the head once more", async (t) => {
   const unedited = askApi({ asks: [{ ...ASK, updated_at: ASK.created_at }], checks: [answeredRound, answeredReply, round] });
   await requestMain(t, unedited);
   assert.deepEqual(unedited.calls.dispatch, []);
+});
+
+// One stored entry, as upload-artifact zips a single file
+// (https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, sections 4.3.7, 4.3.12, 4.3.16).
+function storedZip(name, text) {
+  const data = Buffer.from(text);
+  const file = Buffer.from(name);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(file.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(file.length, 28);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + file.length, 12);
+  end.writeUInt32LE(local.length + file.length + data.length, 16);
+  return Buffer.concat([local, file, data, central, file, end]);
+}
+
+const FINGERPRINT_UPLOADER = { id: 77, path: ".github/workflows/pr-dispatch-feedback.yml", event: "workflow_run", head_branch: "main", repository: { full_name: REPOSITORY } };
+const sweepState = (p, checks, { comments = 2, threads = [{ isResolved: false }], statuses = [] } = {}) => ({
+  number: p.number,
+  headRefOid: p.head.sha,
+  comments: { totalCount: comments },
+  reviewThreads: { totalCount: threads.length, nodes: threads },
+  commits: {
+    nodes: [
+      {
+        commit: {
+          oid: p.head.sha,
+          status: { contexts: statuses },
+          checkSuites: {
+            totalCount: 1,
+            nodes: [{ checkRuns: { totalCount: checks.length, nodes: checks.map((run, i) => ({ databaseId: run.id ?? i + 1, status: run.status, conclusion: run.conclusion, completedAt: run.completed_at ?? null, title: run.output?.title ?? null })) } }],
+          },
+        },
+      },
+    ],
+  },
+});
+const QUIET_CHECKS = { [HEAD]: [answeredRound] };
+
+function fingerprintApi(options = {}, { comments = [], artifact = null, uploader = FINGERPRINT_UPLOADER, state = {}, expired = false } = {}) {
+  const api = sweepApi({ checksAt: QUIET_CHECKS, ...options });
+  const checksAt = options.checksAt ?? QUIET_CHECKS;
+  const openPulls = options.openPulls ?? pull();
+  api.listSweepStates = async () => openPulls.map((p) => sweepState(p, checksAt[p.head.sha] ?? [], state));
+  api.listCommentsSince = async () => comments;
+  api.listArtifactsNamed = async (name) => (artifact !== null && name === FINGERPRINT_ARTIFACT ? [{ id: 9, name, expired, created_at: "2026-10-17T11:30:00Z", workflow_run: { id: 77 } }] : []);
+  api.getWorkflowRun = async (id) => (Number(id) === 77 ? uploader : assert.fail(`run ${id} is not read`));
+  api.downloadArtifact = async () => storedZip(FINGERPRINT_FILE, artifact);
+  return api;
+}
+
+const PER_PR_READS = ["listReviewThreads", "listIssueComments", "listCheckRuns", "listStatuses", "listCompletedRuns", "pullsForCommit", "getPermission"];
+const perPrReads = (counts) => Object.fromEntries(PER_PR_READS.filter((name) => counts[name]).map((name) => [name, counts[name]]));
+const TICK_1 = Date.parse("2026-10-17T12:00:00Z");
+const TICK_2 = TICK_1 + 30 * 60_000;
+
+async function fingerprintTick(t, api, { now = TICK_1, off = false, actors = null } = {}) {
+  const dir = tempDir("pr-dispatch-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const fingerprint = join(dir, "fingerprint.json");
+  const lines = [];
+  const counted = counting(api);
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, TICK),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: actors ?? noActors(dir),
+      DISPATCH_RECORD: join(dir, "record.json"),
+      ...(off ? {} : { SWEEP_FINGERPRINT: fingerprint }),
+    },
+    { api: counted.api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
+  );
+  let written = null;
+  try {
+    written = readFileSync(fingerprint, "utf8");
+  } catch {
+    written = null;
+  }
+  return { output: readFileSync(output, "utf8"), lines, written, reads: perPrReads(counted.counts), dispatch: api.calls.dispatch };
+}
+
+const actorsFile = (t) => {
+  const dir = tempDir("pr-dispatch-feedback-actors-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return noActors(dir);
+};
+
+test("an unchanged lanes App PR is not re-read on the next tick, and keeps its first decision time", async (t) => {
+  const actors = actorsFile(t);
+  const first = await fingerprintTick(t, fingerprintApi(), { actors });
+  assert.deepEqual(first.dispatch, []);
+  assert.ok(first.reads.listStatuses >= 1, "the first tick, with no previous fingerprint, reads the PR in full");
+  assert.match(first.lines.join("\n"), /sweep fingerprint: no unexpired pr-feedback-sweep-fingerprint artifact/);
+  assert.equal(JSON.parse(first.written).entries["42"].decidedAt, TICK_1);
+
+  const second = await fingerprintTick(t, fingerprintApi({}, { artifact: first.written }), { now: TICK_2, actors });
+  assert.deepEqual(second.reads, {}, "an unchanged PR costs no per-PR read");
+  assert.deepEqual(second.dispatch, []);
+  assert.match(second.lines.join("\n"), /^sweep: #42 is unchanged since run 38779143370's fingerprint/m);
+  const carried = JSON.parse(second.written);
+  assert.equal(carried.takenAt, TICK_2);
+  assert.equal(carried.entries["42"].decidedAt, TICK_1);
+});
+
+test("a PR whose head, update time, check runs, comments, threads or labels changed is re-decided in every pass, as a full sweep decides it", async (t) => {
+  const actors = actorsFile(t);
+  const first = await fingerprintTick(t, fingerprintApi(), { actors });
+  const moved = pull({ head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } });
+  for (const [label, options, extra] of [
+    ["a new head", { openPulls: moved, checksAt: { [SECOND_HEAD]: [] }, reviewRuns: { [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] } }, {}],
+    ["a newer updated_at", { openPulls: pull({ updated_at: "2026-10-17T12:20:00Z" }) }, {}],
+    ["a new check run on the head", { checksAt: { [HEAD]: [answeredRound, noModelTurn("2026-10-17T12:10:00Z")] } }, {}],
+    ["a check run completed in place", { checksAt: { [HEAD]: [{ ...answeredRound, conclusion: "neutral", output: { title: "Skipped: kill-switch", summary: "" } }] } }, {}],
+    ["a comment created or edited since the last tick", {}, { comments: [42] }],
+    ["a thread resolved", {}, { state: { threads: [{ isResolved: true }] } }],
+    ["a comment deleted", {}, { state: { comments: 1 } }],
+    ["a status posted", {}, { state: { statuses: [{ context: "pr-unblock/address-feedback", state: "FAILURE", createdAt: "2026-10-17T12:10:00Z" }] } }],
+    ["a label added", { openPulls: pull({ labels: [{ name: "needs-human" }] }) }, {}],
+  ]) {
+    const full = await fingerprintTick(t, fingerprintApi(options, extra), { now: TICK_2, off: true, actors });
+    const skipped = await fingerprintTick(t, fingerprintApi(options, { ...extra, artifact: first.written }), { now: TICK_2, actors });
+    assert.ok(full.reads.listStatuses >= 1 || full.reads.listCheckRuns >= 1, `${label}: the full sweep reads the PR`);
+    assert.deepEqual(skipped.reads, full.reads, `${label}: every pass reads the PR again`);
+    assert.deepEqual(skipped.dispatch, full.dispatch, `${label}: the same rounds are sent`);
+    assert.equal(skipped.output.replace("fingerprint=written\n", ""), full.output, label);
+  }
+});
+
+test("a missing, expired, foreign, unreadable or unparsable fingerprint, another schema or a changed configuration falls back to the full sweep", async (t) => {
+  const actors = actorsFile(t);
+  const first = await fingerprintTick(t, fingerprintApi(), { actors });
+  const other = JSON.parse(first.written);
+  const changedActors = actorsFile(t);
+  writeFileSync(changedActors, JSON.stringify({ actors: [{ login: "someone", id: 5, kind: "human" }] }));
+  const throwing = fingerprintApi({}, { artifact: first.written });
+  throwing.downloadArtifact = async () => {
+    throw new Error("GET artifact zip returned 410");
+  };
+  for (const [label, api, why, files = actors] of [
+    ["no artifact", fingerprintApi(), /no unexpired pr-feedback-sweep-fingerprint artifact/],
+    ["an expired artifact", fingerprintApi({}, { artifact: first.written, expired: true }), /no unexpired/],
+    ["a branch run's upload", fingerprintApi({}, { artifact: first.written, uploader: { ...FINGERPRINT_UPLOADER, head_branch: "work-resolve-issue/issue-1" } }), /not a workflow_run run of/],
+    ["another workflow's upload", fingerprintApi({}, { artifact: first.written, uploader: { ...FINGERPRINT_UPLOADER, path: ".github/workflows/pr-merge.yml" } }), /not a workflow_run run of/],
+    ["a download that fails", throwing, /could not be read \(GET artifact zip returned 410\)/],
+    ["text that is not JSON", fingerprintApi({}, { artifact: "{not json" }), /holds no pr-feedback-sweep-fingerprint\.json of schema 1/],
+    ["schema 2", fingerprintApi({}, { artifact: JSON.stringify({ ...other, schema: 2 }) }), /of schema 1/],
+    ["a changed trusted-actors list", fingerprintApi({}, { artifact: first.written }), /code or configuration changed/, changedActors],
+    ["the comments since the last tick cannot be read", Object.assign(fingerprintApi({}, { artifact: first.written }), { listCommentsSince: async () => Promise.reject(new Error("GET returned 403")) }), /comments since the previous tick could not be read/],
+  ]) {
+    const full = await fingerprintTick(t, fingerprintApi(), { now: TICK_2, off: true, actors: files });
+    const fallen = await fingerprintTick(t, api, { now: TICK_2, actors: files });
+    assert.match(fallen.lines.join("\n"), why, label);
+    assert.deepEqual(fallen.reads, full.reads, `${label}: every PR is read in full`);
+    assert.deepEqual(fallen.dispatch, full.dispatch, label);
+  }
+});
+
+test("a PR held by a limit stop is read again once the stop resets, though nothing about it changed", async (t) => {
+  const actors = actorsFile(t);
+  const checksAt = { [HEAD]: [{ ...failedRun(limited("2026-10-17T11:00:00Z")), started_at: "2026-10-17T10:00:00Z" }, noModelTurn("2026-10-17T10:05:00Z")] };
+  const before = await fingerprintTick(t, fingerprintApi({ checksAt }), { now: Date.parse("2026-10-17T10:30:00Z"), actors });
+  assert.deepEqual(before.dispatch, [], "held until the reset");
+  assert.equal(JSON.parse(before.written).entries["42"].dueAt, Date.parse("2026-10-17T11:00:00Z"));
+  const after = await fingerprintTick(t, fingerprintApi({ checksAt }, { artifact: before.written }), { now: Date.parse("2026-10-17T11:30:00Z"), actors });
+  assert.deepEqual(after.dispatch.map((call) => call.inputs["pr-number"]), ["42"], "dispatched after the reset");
+});
+
+test("a head the unsent sweep left inside its grace is read again once the grace ends, though nothing about it changed", async (t) => {
+  const actors = actorsFile(t);
+  const options = { checksAt: {}, reviewRuns: { [HEAD]: [REVIEWED] } };
+  const inside = await fingerprintTick(t, fingerprintApi(options), { now: Date.parse("2026-10-17T12:15:00Z"), actors });
+  assert.deepEqual(inside.dispatch, [], "inside the grace");
+  assert.equal(JSON.parse(inside.written).entries["42"].dueAt, Date.parse("2026-10-17T12:10:00Z") + UNSENT_GRACE_MS);
+  const after = await fingerprintTick(t, fingerprintApi(options, { artifact: inside.written }), { now: Date.parse("2026-10-17T12:45:00Z"), actors });
+  assert.deepEqual(after.dispatch.map((call) => call.inputs["pr-number"]), ["42"], "sent once the grace ended");
+});
+
+test("a decision older than FULL_REFRESH_MS is made again, and a skipped PR with nothing changed inside it is not", async (t) => {
+  const actors = actorsFile(t);
+  const first = await fingerprintTick(t, fingerprintApi(), { actors });
+  const inside = await fingerprintTick(t, fingerprintApi({}, { artifact: first.written }), { now: TICK_1 + FULL_REFRESH_MS - 1, actors });
+  assert.deepEqual(inside.reads, {});
+  const past = await fingerprintTick(t, fingerprintApi({}, { artifact: first.written }), { now: TICK_1 + FULL_REFRESH_MS, actors });
+  assert.ok(past.reads.listStatuses >= 1);
+  assert.equal(JSON.parse(past.written).entries["42"].decidedAt, TICK_1 + FULL_REFRESH_MS);
+});
+
+test("the fingerprint records only a PR every pass decided with nothing to send", async (t) => {
+  const actors = actorsFile(t);
+  const dispatched = await fingerprintTick(t, fingerprintApi({ checksAt: { [HEAD]: [failedRound, noModelTurn()] } }), { actors });
+  assert.equal(dispatched.dispatch.length, 1);
+  assert.deepEqual(JSON.parse(dispatched.written).entries, {}, "a PR the tick sent a round for");
+
+  const truncated = await fingerprintTick(t, fingerprintApi({}, { state: { threads: [] } }), { actors });
+  assert.ok(truncated.reads.listStatuses >= 1);
+  const partial = fingerprintApi();
+  partial.listSweepStates = async () => [{ ...sweepState(pull()[0], [answeredRound]), reviewThreads: { totalCount: 101, nodes: [] } }];
+  assert.deepEqual(JSON.parse((await fingerprintTick(t, partial, { actors })).written).entries, {}, "threads past one page leave the key unread");
+
+  const failing = fingerprintApi();
+  failing.listStatuses = async () => Promise.reject(new Error("GET statuses returned 502"));
+  assert.deepEqual(JSON.parse((await fingerprintTick(t, failing, { actors })).written).entries, {}, "a pass that threw");
+
+  const lines = [];
+  let ticks = 0;
+  const tracker = sweepFingerprint({ api: fingerprintApi(), repository: REPOSITORY, runId: RUN_ID, settings: { base: "main", workflow: "pr-unblock.yml" }, digest: "d", now: TICK_1, log: () => {}, readPrevious: async () => null });
+  let settled = null;
+  await sweepReleased({
+    api: fingerprintApi(),
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    resolveSlot: async () => resolvedLane(),
+    log: (line) => lines.push(line),
+    now: TICK_1,
+    clock: () => (ticks++ === 0 ? 0 : SWEEP_DECIDE_BUDGET_MS),
+    fingerprint: tracker,
+    onFingerprint: (value) => {
+      settled = value;
+    },
+  });
+  assert.match(lines.join("\n"), /minutes spent deciding/);
+  assert.deepEqual(settled.entries, {}, "the decide budget ran out after the first pass, so no PR finished every pass");
+});
+
+test("a due time in the past or now asks for a re-read, and a later one is kept", async () => {
+  const pulls = pull({ updated_at: "2026-10-17T11:00:00Z" });
+  const tracker = sweepFingerprint({ api: fingerprintApi({ openPulls: pulls }), repository: REPOSITORY, runId: RUN_ID, settings: { base: "main", workflow: "pr-unblock.yml" }, digest: "d", now: TICK_1, log: () => {}, readPrevious: async () => null });
+  await tracker.observe(pulls);
+  tracker.due(42, TICK_1 + 60_000);
+  tracker.due(42, TICK_1 + 30_000);
+  assert.equal(tracker.settle([42]).entries["42"].dueAt, TICK_1 + 30_000, "the earliest due time");
+  tracker.due(42, TICK_1);
+  assert.deepEqual(tracker.settle([42]).entries, {}, "due now: not recorded");
+  const again = sweepFingerprint({ api: fingerprintApi({ openPulls: pulls }), repository: REPOSITORY, runId: RUN_ID, settings: { base: "main", workflow: "pr-unblock.yml" }, digest: "d", now: TICK_1, log: () => {}, readPrevious: async () => null });
+  await again.observe(pulls);
+  again.due(42, Number.NaN);
+  assert.deepEqual(again.settle([42]).entries, {}, "an unreadable due time: not recorded");
+});
+
+test("parseFingerprint keeps only entries of its shape", () => {
+  const key = "a".repeat(64);
+  const parsed = parseFingerprint(
+    JSON.stringify({ schema: FINGERPRINT_SCHEMA, run: "1", takenAt: TICK_1, digest: "d", entries: { 42: { key, decidedAt: TICK_1, dueAt: null }, 43: { key: "short", decidedAt: TICK_1, dueAt: null }, x: { key, decidedAt: TICK_1, dueAt: null }, 44: { key, decidedAt: "soon", dueAt: null } } }),
+  );
+  assert.deepEqual([...parsed.entries.keys()], [42]);
+  assert.equal(parseFingerprint(JSON.stringify({ schema: FINGERPRINT_SCHEMA, run: "1", digest: "d", entries: {} })), null, "no takenAt");
+  assert.equal(parseFingerprint("[]"), null);
 });
