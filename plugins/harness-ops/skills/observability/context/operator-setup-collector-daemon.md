@@ -8,11 +8,11 @@ Parent: [`operator-setup.md`](operator-setup.md). Pipeline detail:
 The plugin reads and maintains Claude Code telemetry; it does not own long-running processes.
 Machine provisioning owns both parts of the local telemetry plane:
 
-- the `otelcol-contrib` Windows service and its installed configuration, converged by
-  [`Set-OtelCollector`](https://github.com/melodic-software/provisioning/blob/main/common/Provisioning.psm1);
-- the standalone Aspire dashboard containers, declared in
-  [`local-otel-dashboards.compose.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/local-otel-dashboards.compose.yaml)
-  with `restart: always`.
+- the `otelcol-contrib` Windows service and its installed configuration (the
+  `otel_collector_config_ref` option, shown in `SKILL.md`), converged by provisioning's own
+  idempotent machine configuration step;
+- the standalone Aspire dashboard containers, declared in a compose file (the
+  `otel_dashboards_compose_ref` option) with `restart: always`.
 
 The Collector is a per-machine singleton that listens on loopback (`127.0.0.1:4317` and
 `:4318`). The official Windows MSI installs it as a Windows service; provisioning pins the

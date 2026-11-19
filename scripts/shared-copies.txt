@@ -958,6 +958,8 @@ lib/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py
 lib/media-render/media_scan.py plugins/speech/scripts/media_scan.py
 lib/redact.py plugins/speech/scripts/redact.py
 plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
+lib/redact.py plugins/evals/scripts/redact.py
+plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/evals/vendor/gitleaks/gitleaks-rules.json
 lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py

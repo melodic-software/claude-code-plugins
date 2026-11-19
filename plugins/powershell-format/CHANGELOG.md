@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.6] - 2026-11-19
+
+### Fixed
+
+- The format and lint git-hook entries start pwsh without the PATH entries on a 9p mount (the Windows host's directories under WSL), where PSScriptAnalyzer's command lookups made a commit touching two large scripts take over a minute.
+
 ## [2.1.5] - 2026-11-19
 
 ### Changed

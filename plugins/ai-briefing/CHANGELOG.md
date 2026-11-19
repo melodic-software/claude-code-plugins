@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.30] - 2026-11-19
+
+### Removed
+
+- **generate:** the ranking lens in the audience-defaults reference no longer names specific
+  developer tools as examples of items an engineer would use next week.
+
 ## [1.0.29] - 2026-11-18
 
 ### Changed

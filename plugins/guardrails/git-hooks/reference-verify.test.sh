@@ -47,17 +47,8 @@ chmod +x "$WORK/bin/faketool"
 export PATH="$WORK/bin:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool
 export XDG_CACHE_HOME="$WORK/cache" LOCALAPPDATA="$WORK/cache"
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=../lib/git-hooks-test-helpers.sh
+source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
 ZERO=0000000000000000000000000000000000000000
 n=0

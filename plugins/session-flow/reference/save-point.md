@@ -18,8 +18,9 @@
 Shared by `/session-flow:handoff` and `/session-flow:continue-in-background`. This document owns
 delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
 save-point, and emitting the rails resume prompt. The citing skill owns everything after the rails
-prompt: its delivery step (`/clear`-then-paste, or a background-agent launch) and its own STOP
-semantics. Neither skill restates this content; both walk it in order.
+prompt: its delivery step (`/clear`-then-paste, a background-agent launch, or, where this session
+can start another session, a sibling session per [sibling-session-delivery.md](sibling-session-delivery.md))
+and its own STOP semantics. Neither skill restates this content; both walk it in order.
 
 ## Where save-points live
 
@@ -588,7 +589,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   background launch that succeeds clears nothing, so the loop keeps running here and needs no
   re-arm." Transferring the loop into the launched agent is deliberately not done: that would arm a
   recurring schedule inside a detached session the operator is not watching, which is a new
-  behavior to decide on its own merits, not a side effect of writing a save-point.
+  behavior to decide on its own merits, not a side effect of writing a save-point. A started
+  sibling session is the same case: nothing is cleared, the loop stays armed here, and the new
+  session does not re-arm it.
 - **Combining both:** a command is recognized only at the start of a message
   (<https://code.claude.com/docs/en/commands>), so neither re-arm can ride inside the other's prompt
   argument. Text after the command name is just more of that argument, not a second command
