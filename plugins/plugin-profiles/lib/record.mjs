@@ -66,11 +66,16 @@ export const holdsEveryEntry = (record, doc) => {
   return written.length > 0 && written.every(([key, name, after]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after);
 };
 
-/** The record with only the entries doc still holds as the record wrote them, apart from the ones a switch still owes. */
+/** The record with only the entries doc still holds as the record wrote them, and the ones a switch still owes that are not back at their before-value. */
 export function stillWritten(record, doc) {
   const out = { ...record };
   for (const [key, section] of Object.entries(SECTIONS)) {
-    out[section] = Object.fromEntries(Object.entries(record[section] ?? {}).filter(([name, { after }]) => record.pending?.[name] === undefined && (doc[key]?.[name] ?? ABSENT) === after));
+    out[section] = Object.fromEntries(
+      Object.entries(record[section] ?? {}).filter(([name, { before, after }]) => {
+        const now = doc[key]?.[name] ?? ABSENT;
+        return record.pending?.[name] === undefined ? now === after : now !== before;
+      }),
+    );
   }
   return out;
 }

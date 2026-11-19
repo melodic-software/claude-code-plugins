@@ -2490,6 +2490,26 @@ test("#17354: a reset cut off before a file's write, then a hand edit of one pro
   assert.deepEqual(w.records(), []);
 });
 
+test("#17354: a reset of an unfinished switch cut off before its write, then an entry put back by hand, keeps the record while an entry the switch still owes holds an earlier profile's value, and the yes puts those back too", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "native", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const rec = JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8"));
+  const owed = Object.keys(rec.pending);
+  assert.ok(rec.phase === "off-pending" && owed.length > 0 && rec.entries[`songwriting@${M}`] && !owed.includes(`songwriting@${M}`), JSON.stringify(rec));
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.action, "finish-cut-off");
+  for (const id of owed) assert.ok(row.entries.includes(id), `${id} still holds build's value: ${row.entries}`);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
 test("#17354: a stray temp file beside an untouched file is ignored", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);

@@ -62,7 +62,9 @@ listed the repositories that hold records.
    writes nothing by itself and asks a yes for that file through the per-file question of
    [ADR 0114](0114-remove-a-folders-unrecorded-profile-entries-only-on-a-yes-for-that-folder.md),
    default no: the yes puts back only the entries still at the profile's values, never one changed
-   by hand, then removes the record; a no, `--yes` alone or nobody to answer keeps the file and
+   by hand, then removes the record. An entry an unfinished switch still owes counts as still at
+   the profile's value until it is back at its value before the profile, since it may hold an
+   earlier profile's value, as a normal reset of that switch puts it back; a no, `--yes` alone or nobody to answer keeps the file and
    its record, and later resets list it again. Owner decision of 2026-11-19 (Q10); it replaces the
    plan's rule that reset deletes such a record without writing, which left the entries still at
    the profile's values with no way back when the write had never happened.
