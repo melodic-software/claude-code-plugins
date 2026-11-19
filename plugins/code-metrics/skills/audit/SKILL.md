@@ -20,6 +20,8 @@ Arguments: `$ARGUMENTS`
 
 The first word names the action; the rest passes to its script unchanged, except the target
 forms, which the skill resolves and never passes to a script.
+`${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says which scope argument a
+multi-repository run adds.
 
 ## Actions
 
