@@ -3735,9 +3735,12 @@ such a job before it reaches a runner, with or without `deployment: false`
   ([changelog](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/)).
 - A job that calls a reusable workflow cannot name an environment, so the called workflow's jobs
   do; the caller still passes each secret by name
-  ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)). Until
-  ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` name it, the three jobs that call them
-  are listed in `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs`.
+  ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
+  ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` take the environment as their
+  `environment` input, so a caller passes `with: environment: claude-lanes`. The two hosted
+  review callers start on `pull_request`, which the environment refuses, so they stay listed in
+  `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs` until they move to
+  `workflow_run` ([#17537](https://github.com/melodic-software/claude-code-plugins/issues/17537)).
 - A caller may pass a secret under the reusable workflow's own name for it: the called job in the
   environment resolves the caller's `secrets.<name>` there ("You can pass a secret by name even if
   it only exists in the environment",
@@ -3765,8 +3768,9 @@ file in `.github/workflows/`, printing one `path:line: finding` per offender on 
    reads a name a local caller passes such a secret under.
 2. A job that passes such a secret, or `secrets: inherit`, to a reusable workflow in this
    repository moves rule 1 onto the called jobs. Passing one to a reusable workflow elsewhere fails
-   unless `PENDING_REMOTE` names the job, and an entry that stops matching fails too.
-3. A job naming `claude-lanes` is in no workflow a `pull_request`, `pull_request_review`,
+   unless the job sets `with: environment: claude-lanes` (the literal name, not an expression) or
+   `PENDING_REMOTE` names the job, and an entry that stops matching fails too.
+3. A job naming `claude-lanes`, or passing it as `with: environment`, is in no workflow a `pull_request`, `pull_request_review`,
    `pull_request_review_comment`, `merge_group` or off-`main` push starts. A push is off-`main`
    unless its filter is exactly `branches` naming only `main`. A `workflow_call` workflow takes
    the triggers of every local caller.

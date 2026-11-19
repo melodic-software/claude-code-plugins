@@ -18,8 +18,10 @@ POLICY_DIR="$SCRIPT_DIR/../.github/standards/runner-policy"
 WF=.github/workflows
 
 remote_call() {
+  local trigger="${3:-workflow_dispatch}" with=""
+  [[ -n "${4:-}" ]] && with="    with:\n      environment: $4\n"
   # shellcheck disable=SC2016  # a literal workflow expression, never expanded
-  printf 'on: workflow_dispatch\njobs:\n  %s:\n    uses: melodic-software/ci-workflows/.github/workflows/x.yml@main\n    secrets:\n      CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}\n' "$2" >"$WF/$1"
+  printf "on: %s\njobs:\n  %s:\n    uses: melodic-software/ci-workflows/.github/workflows/x.yml@main\n${with}"'    secrets:\n      CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}\n' "$trigger" "$2" >"$WF/$1"
 }
 
 mk_tree() {
@@ -31,7 +33,7 @@ mk_tree() {
   ln -s "$POLICY_DIR/node_modules" "$dir/.github/standards/runner-policy/node_modules"
   (
     cd "$dir" || exit 1
-    remote_call intake-triage.yml intake-triage
+    remote_call intake-triage.yml intake-triage issues claude-lanes
     remote_call pr-review-hosted.yml pr-review
     remote_call pr-review-security-hosted.yml pr-review-security
   ) || return 1
@@ -65,7 +67,7 @@ NO_ENV="job j reads a Claude secret without environment claude-lanes"
 HEAD_REF="names environment claude-lanes in a run started by"
 
 run_case "a lane reading a Claude secret in claude-lanes on a dispatch passes" 0 ":" \
-  "(4 job(s), 3 pending ci-workflows call(s))"
+  "(4 job(s), 2 pending ci-workflows call(s))"
 
 run_case "an API key read with no environment fails" 1 \
   "job a.yml workflow_dispatch '' secrets.INTAKE_CLAUDE_API_KEY" \
@@ -156,6 +158,25 @@ run_case "a local call whose callee job names claude-lanes passes" 0 \
 run_case "a Claude secret passed to another repository's reusable fails" 1 \
   "remote_call other.yml review" \
   "$WF/other.yml:3: job review passes a Claude secret to melodic-software/ci-workflows/.github/workflows/x.yml@main, a reusable workflow outside this repository"
+
+run_case "a remote call passing with: environment: claude-lanes on a dispatch passes" 0 \
+  "remote_call other.yml review workflow_dispatch claude-lanes"
+
+run_case "a remote call passing with: environment: claude-lanes on pull_request fails" 1 \
+  "remote_call other.yml review pull_request claude-lanes" \
+  "$WF/other.yml:3: job review $HEAD_REF pull_request"
+
+run_case "a remote call passing another environment fails" 1 \
+  "remote_call other.yml review workflow_dispatch pr-pipeline-scan-carrier" \
+  "$WF/other.yml:3: job review passes a Claude secret to melodic-software/ci-workflows/.github/workflows/x.yml@main, a reusable workflow outside this repository"
+
+run_case "a remote call passing the environment by expression fails" 1 \
+  "remote_call other.yml review workflow_dispatch \"'\\\${{ inputs.env }}'\"" \
+  "$WF/other.yml:3: job review passes a Claude secret to melodic-software/ci-workflows/.github/workflows/x.yml@main, a reusable workflow outside this repository"
+
+run_case "a pending caller that passes with: environment fails as stale" 1 \
+  "remote_call pr-review-hosted.yml pr-review workflow_dispatch claude-lanes" \
+  "$WF/pr-review-hosted.yml: job pr-review: PENDING_REMOTE in scripts/check-claude-secrets-environment.mjs names it, but it no longer passes a Claude secret"
 
 run_case "secrets: inherit to another repository's reusable fails" 1 \
   "printf 'on: workflow_dispatch\njobs:\n  call:\n    uses: octo/x/.github/workflows/y.yml@main\n    secrets: inherit\n' >$WF/other.yml" \

@@ -17,21 +17,18 @@ const HEAD_TRIGGERS = new Set([
   "pull_request_review_comment",
   "merge_group",
 ]);
-// A calling job cannot set `environment`, so each of these ci-workflows
-// reusables must set it on its own jobs; an entry that stops matching fails:
+// A calling job cannot set `environment`, so a remote reusable takes it as its
+// `environment` input; these callers cannot pass it yet, and an entry that
+// stops matching fails:
 // https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows
 const PENDING_REMOTE = new Map([
   [
-    `${WORKFLOWS}/intake-triage.yml#intake-triage`,
-    "melodic-software/ci-workflows intake-triage.yml sets no environment on the jobs that read these secrets",
-  ],
-  [
     `${WORKFLOWS}/pr-review-hosted.yml#pr-review`,
-    "melodic-software/ci-workflows pr-review-cli.yml sets no environment on the jobs that read these secrets",
+    "starts on pull_request, which claude-lanes refuses, until #17537 moves it to workflow_run",
   ],
   [
     `${WORKFLOWS}/pr-review-security-hosted.yml#pr-review-security`,
-    "melodic-software/ci-workflows pr-review-cli.yml sets no environment on the jobs that read these secrets",
+    "starts on pull_request, which claude-lanes refuses, until #17537 moves it to workflow_run",
   ],
 ]);
 
@@ -176,7 +173,7 @@ for (const name of names.sort()) {
       uses,
       callee: local ? byLowerName.get(local[1].toLowerCase()) : null,
       inherit: value.secrets === "inherit",
-      environment: value.environment,
+      environment: local || !uses ? value.environment : value.with?.environment,
       reads,
       passes,
     });
@@ -238,21 +235,19 @@ for (const [file, { jobs }] of files) {
   for (const job of jobs) {
     const where = `${file}:${job.line}: job ${job.id}`;
     const claude = job.inherit || readsClaude(file, job.reads);
+    const named = environmentName(job.environment) === ENVIRONMENT;
     if (job.uses) {
       const key = `${file}#${job.id}`;
-      if (claude && !job.callee) {
+      if (claude && !job.callee && !named) {
         if (PENDING_REMOTE.has(key)) {
           matchedPending.add(key);
         } else {
           offenders.push(
-            `${where} passes a Claude secret to ${job.uses}, a reusable workflow outside this repository; a calling job cannot set environment, so the called jobs must name ${ENVIRONMENT}`,
+            `${where} passes a Claude secret to ${job.uses}, a reusable workflow outside this repository, without with: environment: ${ENVIRONMENT}; a calling job cannot set environment, so the called jobs must name it`,
           );
         }
       }
-      continue;
-    }
-    const named = environmentName(job.environment) === ENVIRONMENT;
-    if (claude && !named) {
+    } else if (claude && !named) {
       offenders.push(`${where} reads a Claude secret without environment ${ENVIRONMENT}`);
     }
     if (named && headTriggers.length > 0) {
@@ -265,7 +260,7 @@ for (const [file, { jobs }] of files) {
 for (const key of PENDING_REMOTE.keys()) {
   if (!matchedPending.has(key)) {
     offenders.push(
-      `${key.replace("#", ": job ")}: PENDING_REMOTE in scripts/check-claude-secrets-environment.mjs names it, but it no longer passes a Claude secret to a reusable workflow outside this repository; remove the entry`,
+      `${key.replace("#", ": job ")}: PENDING_REMOTE in scripts/check-claude-secrets-environment.mjs names it, but it no longer passes a Claude secret to a reusable workflow outside this repository without with: environment: ${ENVIRONMENT}; remove the entry`,
     );
   }
 }

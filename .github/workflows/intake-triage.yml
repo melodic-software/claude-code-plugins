@@ -292,6 +292,7 @@ jobs:
     cache-mode: read
     uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main
     with:
+      environment: claude-lanes
       runner: ubuntu-24.04
       role: intake
       claude-args: ${{ needs.check-born-triaged.outputs.claude-args }}
