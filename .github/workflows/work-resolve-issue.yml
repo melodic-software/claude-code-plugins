@@ -439,6 +439,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       start-gate: true
       lane: work-resolve-issue
       role: issue-lane
@@ -642,6 +643,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       start-gate: true
       lane: work-resolve-issue
       role: issue-lane
@@ -744,6 +746,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
@@ -853,6 +856,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: report-outcome
@@ -948,6 +952,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: apply-issue-patch
@@ -1045,12 +1050,18 @@ jobs:
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # 10 minutes of work plus the API_BUDGET_WAIT_SECONDS wait below
+    # (rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue, which
+    # rate-guard.test.mjs pins every wait in this file to), which held every
+    # end-of-run stop of https://github.com/melodic-software/claude-code-plugins/issues/16642's
+    # 2026-11-18 runs (409-987 s from the reset); run-checks matches.
+    timeout-minutes: 30
     permissions:
       contents: read
       statuses: write
     env:
       API_BUDGET_TOKEN: github-token
+      API_BUDGET_WAIT_SECONDS: "1200"
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1125,7 +1136,7 @@ jobs:
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-outcome-uploaded || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     cache-mode: read
     permissions:
       contents: read
@@ -1136,6 +1147,7 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      API_BUDGET_WAIT_SECONDS: "1200"
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1374,6 +1386,7 @@ jobs:
     cache-mode: read
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      rate-limit-wait-seconds: 1200
       lane: work-resolve-issue
       role: issue-lane
       activity: report-outcome
