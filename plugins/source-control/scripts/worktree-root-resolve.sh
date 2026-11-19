@@ -20,6 +20,11 @@
 #   returns 0 and sets WORKTREE_ROOT_VALUE / WORKTREE_ROOT_KEY_USED
 #   returns 1 if no key yields a non-empty last value
 #   KEY_USED is always the current key when a value is returned
+#
+# Git invocation: _worktree_root_git if that function is defined (the
+# fleet-audit allowlist wrapper), else hook::git_untrusted when hook-utils.sh is
+# loaded (its overrides: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt),
+# else git. No scope flag: includes stay on.
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 

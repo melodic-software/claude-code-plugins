@@ -6,6 +6,7 @@ shopt -s inherit_errexit
 UPSTREAM=melodic-software/ci-workflows
 # The standards sync owns this file's pin.
 MANAGED=.github/workflows/pr-check-managed-files-hosted.yml
+FORMAL_MODELS='.claude/skills/formal-*/model/**'
 DOC=docs/conventions/pr-pipeline/pr-run-activity.md
 SHA_RE='^[0-9a-f]{40}$'
 TAG_RE='^v[0-9]+\.[0-9]+\.[0-9]+$'
@@ -96,7 +97,7 @@ apply() {
   done <<<"$files"
   rm -f "$rewritten"
 
-  left="$(git -C "$root" grep -l "$old" -- . ":(exclude)${MANAGED}" || true)"
+  left="$(git -C "$root" grep -l "$old" -- . ":(exclude)${MANAGED}" ":(exclude,glob)${FORMAL_MODELS}" || true)"
   [[ -z "$left" ]] || die "${old} still appears after the rewrite in: $(tr '\n' ' ' <<<"$left")"
   outside="$(git -C "$root" status --porcelain | cut -c4- | grep -vxF "$files" || true)"
   [[ -z "$outside" ]] || die "paths outside the re-pin set changed: $(tr '\n' ' ' <<<"$outside")"

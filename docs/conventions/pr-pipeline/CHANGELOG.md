@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [10.12.2] - 2026-11-19
+
+### Changed
+
+- The verifier's resolver (`resolve-pr.mjs`) reads the upstream run's jobs for its draft-run check only once a run would otherwise be judged or rated, so a head it skips as already judged or already rated spends one GitHub API call fewer. Every judge and skip decision is unchanged; a draft-started run at a head that already has a counted verdict now reports `already-judged` instead of `draft-run`, and skips either way.
+
+### Fixed
+
+- The issue lane's `issue.json` section of `pr-run-activity.md` said every lanes App comment was left out. It now says which lanes App comments `write-issue.mjs` passes to the implementer: intake's refinement (`author_kind: refinement`) and pr-merge's capped-close record (`author_kind: verify-findings`). The triage verdict, the admission comment, the size-split record and every other App comment are left out, so the implementer never reads a triage verdict and needs no limit on its age ([#16969](https://github.com/melodic-software/claude-code-plugins/issues/16969)).
+
 ## [10.12.1] - 2026-11-18
 
 ### Fixed

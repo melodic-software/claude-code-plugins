@@ -1,0 +1,24 @@
+# The uv that relock-requirements.sh (.github/scripts/pr-unblock) relocks a
+# dependency group's lagging directory with, on the reviewed Dependabot pip
+# surface, which moves the version. Every wheel's hash, as
+# `uv pip compile --generate-hashes --only-binary :all:` writes them.
+uv==0.13.9 \
+    --hash=sha256:16963d19594e18d746a70c7fce82237bde4f2cac4cfcf0ca2b84796fe9d0c6e9 \
+    --hash=sha256:2c45530751517d6c3bbc69a19473f6effe47cce047bede01ffd8af7ea7b36b25 \
+    --hash=sha256:3eeeb51a267a2144640fcd8f38d4a2f63439b39bc47445fd84727c3fc462c843 \
+    --hash=sha256:5435c5ce14a56431208ca0996416d310f1598e8c2c8ba707688985a16bb82dbe \
+    --hash=sha256:56ec37616c00220032fc7b8c9d0ef51367fd0d70d9cd6ddd841660f949f84fed \
+    --hash=sha256:66c512266d633bef48384a1f53003f41f2a8e7b36fe6e7fbfd3e0fd52d96fa63 \
+    --hash=sha256:6a44b2ed8111d2f60d2b92627c5dccda3f7ed7570b18ce115e569cd68c28246b \
+    --hash=sha256:6b0c7b9f47a5d011939d61e324d3fe18a8bc155d8dd53add738709a92f290a7c \
+    --hash=sha256:6d5114bba238adddacb32fb11904f2b3ff4e988f8e9ff0d8d3b5e9822cf836b8 \
+    --hash=sha256:7ec1e1dd9b6cb335c301afdf877989df384227313981850755a59561f75e4ab8 \
+    --hash=sha256:a2ee66fe8b6608e1482ab1bde5799da04705c1cb40324c7f66054ecf46ae6e40 \
+    --hash=sha256:a6e845f387e4ed55bb59342957a9179e24a631fcc7668bda3426ae1cef8ed4b9 \
+    --hash=sha256:c16ed11e013557536b3e60065f1b912f6407bd6518e041b961e23ef9e6b4fbf5 \
+    --hash=sha256:c5dbdb7c8737cd183a9dce95b39cfd1f3d54ec2a27a1bb58f160293f9ba2c805 \
+    --hash=sha256:d7f459fe4fd247d830351c75686d3996ace3c6f3f728eb0e85a30b7ada0cef19 \
+    --hash=sha256:db5c8df7145c21ffea9c0f74e38823bac3af60cbadf0e26b8633f08627b17bab \
+    --hash=sha256:dd6f4f93ddf8a668c73f0945f3638444b2140a4e15a3912067493fc6335543e4 \
+    --hash=sha256:ecb6028d79dc96fbeafffe5c8af62a7099487ebc05a701e76714eebcffd06375 \
+    --hash=sha256:eeb92051c2123b9730c46b04cc843cfa4bc7d7b0aec56df431a2215ef4cb0273

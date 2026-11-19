@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pull-request-ready-posts-evidence-after-flip
+context:
+  scaffold_script: scaffold.sh

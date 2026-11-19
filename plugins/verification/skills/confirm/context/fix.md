@@ -102,6 +102,12 @@ Pay special attention to tests in same module or feature area as the fix. These 
 <did the same pattern exist elsewhere? If so, were those instances fixed too?>
 ```
 
+**Criterion rows.** The first `--row` the verdict record stores (SKILL.md, "Record the verdict for
+the head it judged") is the reported symptom: the Symptom, the Files changed, the reproduction test,
+and its result on both commits, such as `fails on base, passes on head`. A second row covers
+regression: `existing tests still pass`, the suite Stage 1 ran, and its result. Any other
+acceptance criterion the bug report states gets a row of its own.
+
 ### 7. Verdict
 
 - **CONFIRMED** if reproduction test passes, regressions pass, and root cause is addressed

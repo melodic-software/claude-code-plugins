@@ -106,26 +106,33 @@ jobs:
           while IFS= read -r path; do
             base64 -w0 "$path" | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
           done < <(git ls-files --modified --others --exclude-standard)
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
-            gh api -X PATCH "$refs/heads/$branch" -f sha="$base_sha" -F force=true --silent
-          else
-            gh api -X POST "$refs" -f ref="refs/heads/$branch" -f sha="$base_sha" --silent
-          fi
+          # Built on a scratch branch, then moved onto $branch in one force
+          # update: resetting an open PR's branch to the base empties its diff,
+          # and GitHub closes the PR.
+          scratch="$branch-$GITHUB_RUN_ID"
+          gh api -X POST "$refs" -f ref="refs/heads/$scratch" -f sha="$base_sha" --silent
+          trap 'gh api -X DELETE "$refs/heads/$scratch" --silent || true' EXIT
           jq -n \
             --arg repo "$GITHUB_REPOSITORY" \
             --arg oid "$base_sha" \
-            --arg branch "$branch" \
+            --arg scratch "$scratch" \
             --arg headline "$title" \
             --slurpfile additions "$adds" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
               variables: {input: {
-                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                branch: {repositoryNameWithOwner: $repo, branchName: $scratch},
                 expectedHeadOid: $oid,
                 message: {headline: $headline},
                 fileChanges: {additions: $additions}
               }}
-            }' | gh api graphql --input - | jq -er '.data.createCommitOnBranch.commit.oid'
+            }' | gh api graphql --input - | jq -er '.data.createCommitOnBranch.commit.oid' >"$RUNNER_TEMP/oid"
+          oid="$(<"$RUNNER_TEMP/oid")"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/$branch" -f sha="$oid" -F force=true --silent
+          else
+            gh api -X POST "$refs" -f ref="refs/heads/$branch" -f sha="$oid" --silent
+          fi
           body="$RUNNER_TEMP/body.md"
           cat >"$body" <<EOF
           No related issue: automated re-pin to the newest ci-workflows release
