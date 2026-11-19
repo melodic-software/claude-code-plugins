@@ -2813,7 +2813,11 @@ test("the capture prompt tells the driver where the driven session runs and to d
   };
   for (const workdir of ["success", "failure", "skipped"]) {
     assert.match(prompt(workdir), /where a feature's ## Drive in the control skill under \/ws\/\.base names the action to drive for a skill, drive that action with exactly the arguments it names\./i, workdir);
+    assert.match(prompt(workdir), /This session has no Agent tool: run run-e2e's Step 3 in this session, invoking \/app-control:drive once per touched feature, and delegate nothing\./, workdir);
+    assert.match(prompt(workdir), /Never Read a capture's \.jsonl whole: read it back with Grep, a pattern for the events the step needs and a head_limit/, workdir);
   }
+  for (const key of ["tools", "allowed-tools"]) assert.ok(!list(capStep(DRIVER), key).includes("Agent"), key);
+  assert.equal(input(capStep("Resolve the capture's model"), "model-route"), "verify-capture");
   assert.match(prompt("success"), /runs in a writable clone of that checkout, with its git history/);
   assert.doesNotMatch(prompt("success"), /empty directory/);
   for (const workdir of ["failure", "skipped"]) {
