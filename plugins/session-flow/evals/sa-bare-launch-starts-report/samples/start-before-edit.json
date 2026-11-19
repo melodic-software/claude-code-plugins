@@ -1,0 +1,110 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/away/tasks-abc12345.md",
+            "content": "- [ ] Phase 1: greeting ends with !\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed --task-file /ws/.work/away/tasks-abc12345.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/greet.py",
+            "old_string": "+ name",
+            "new_string": "+ name + \"!\""
+          }
+        }
+      ],
+      "why": "task file written, start, then the greet.py edit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/.work/away/tasks-abc12345.md",
+            "old_string": "- [ ]",
+            "new_string": "- [ ] Phase 1"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed --task-file /ws/.work/away/tasks-abc12345.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/greet.py",
+            "old_string": "+ name",
+            "new_string": "+ name + \"!\""
+          }
+        }
+      ],
+      "why": "an Edit to the task file before start is not the work edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/greet.py",
+            "old_string": "+ name",
+            "new_string": "+ name + \"!\""
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed"
+          }
+        }
+      ],
+      "why": "edit before arming"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/greet.py",
+            "old_string": "+ name",
+            "new_string": "+ name + \"!\""
+          }
+        }
+      ],
+      "why": "never arms"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --kind bed"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/greet.py",
+            "old_string": "+ name",
+            "new_string": "+ name + \"!\""
+          }
+        }
+      ],
+      "why": "start without the data root"
+    }
+  ]
+}

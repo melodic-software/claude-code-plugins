@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:do-your-research",
+            "args": "full"
+          }
+        }
+      ],
+      "why": "loads the evidence check through the Skill tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.ts"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "do-your-research"
+          }
+        }
+      ],
+      "why": "unqualified name still names the evidence check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.ts"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "withRetry"
+          }
+        }
+      ],
+      "why": "audits inline without ever calling the Skill tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:workflow"
+          }
+        }
+      ],
+      "why": "a Skill call that is not the evidence check"
+    }
+  ]
+}
