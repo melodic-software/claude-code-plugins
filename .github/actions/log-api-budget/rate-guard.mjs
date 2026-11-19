@@ -53,16 +53,36 @@ export const SIGNALS = Object.freeze({
 
 const MAX_RESET = 999_999_999_999;
 
-// The 60 s wait budget: a client's 5xx retries (retryServerErrors) and,
-// counted apart, a latch's rate-limit waits.
-export const SERVER_RETRY_BUDGET_MS = 60_000;
+/**
+ * The one copy of how long a job may wait out a rate limit before it stops and
+ * leaves the run to the lost-run reconciler, in seconds (outage posture
+ * element 1, docs/conventions/pr-pipeline/README.md). A workflow cannot import
+ * this module, so each literal below is pinned to it by rate-guard.test.mjs:
+ * - `step`: one process's waits, summed. The latch's budget for rate-limit
+ *   waits and, counted apart, a client's 5xx retries (retryServerErrors), and
+ *   the `rate-limit-wait-seconds` ci-status passes each pinned ci-workflows
+ *   composite.
+ * - `ciStatusReads`: ci-status's reads, from the job's start: its
+ *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
+ * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
+ *   its POLL_LIMIT_SECONDS.
+ * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
+ *   failure drops finished work: the `rate-limit-wait-seconds` it passes
+ *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
+ *   leak scan's wait, and its jobs' API_BUDGET_WAIT_SECONDS. It is
+ *   waitBudgetMs's cap.
+ */
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 825, rerunCiStatus: 600, workResolveIssue: 1200 });
+
+export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
 // A step whose failure would drop finished work takes a longer wait
 // (https://github.com/melodic-software/claude-code-plugins/issues/16642): whole
-// seconds over 60, up to a primary window's hour; its timeout must hold it.
+// seconds over WAIT_BUDGET_SECONDS.step, up to WAIT_BUDGET_SECONDS.workResolveIssue;
+// its timeout must hold it.
 export function waitBudgetMs(value = process.env.API_BUDGET_WAIT_SECONDS) {
   const seconds = /^\d{1,4}$/.test(String(value ?? "")) ? Number(value) : 0;
-  return seconds * 1000 > SERVER_RETRY_BUDGET_MS && seconds <= 3600 ? seconds * 1000 : SERVER_RETRY_BUDGET_MS;
+  return seconds * 1000 > SERVER_RETRY_BUDGET_MS && seconds <= WAIT_BUDGET_SECONDS.workResolveIssue ? seconds * 1000 : SERVER_RETRY_BUDGET_MS;
 }
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);

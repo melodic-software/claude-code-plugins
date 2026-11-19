@@ -32,6 +32,7 @@ import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
@@ -3977,14 +3978,14 @@ test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read with
   };
   const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
   const tip = { data: { commit: { sha: GATE_TIP } } };
-  const waited = await run({ WAIT_SECONDS: "1200" }, [limited(), tip]);
+  const waited = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [limited(), tip]);
   assert.equal(waited.reads, 2, "getBranch is read again after the wait");
   assert.equal(waited.calls, "3\n", "both getBranch reads and the gate's getContent");
   assert.equal(waited.notices.length, 1);
   const unset = await run({}, [limited(), tip]);
   assert.equal(unset.reads, 1, "no budget: no second read");
   assert.equal(unset.calls, "1\n");
-  const other = await run({ WAIT_SECONDS: "1200" }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
+  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
   assert.equal(other.reads, 1, "a 404 is not a rate limit");
 });
 
@@ -4566,7 +4567,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
   const steps = scanSteps();
   const step = (id) => steps.find((s) => s.id === id);
   const scan = step("leak-scan");
-  assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
+  assert.match(String(scan["timeout-minutes"]), /^\$\{\{ inputs\.rate-limit-wait-seconds > 0 && [1-9][0-9]* \|\| [1-9][0-9]* \}\}$/, "a slow scan ends, failing closed");
   assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
   const copy = "${{ steps.leak-scan.outputs.dir }}";
   assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.startsWith(`${copy}/`)));

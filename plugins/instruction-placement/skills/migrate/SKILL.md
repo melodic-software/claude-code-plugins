@@ -453,9 +453,8 @@ its per-write operator gate.
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Pointer: for where each `${…}` variable resolves, see
+writing it into a brief, and never pass a `${…}` token from those files to the Bash tool. Pointer:
+for where each `${…}` variable resolves, see
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next

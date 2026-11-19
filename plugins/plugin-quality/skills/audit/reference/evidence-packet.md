@@ -25,10 +25,9 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   Should it
   arrive unexpanded, derive the directory deterministically from the `${CLAUDE_PLUGIN_DATA}` row
   of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
-  fetched live, which gives the path and how this plugin's install identifier becomes `<plugin-id>`
-  (marketplace install → `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its
-  own id such as `plugin-quality-inline`). Before the first write, list the parent directory that
-  row names and use the matching entry; if none exists yet, create the id-form directory for this install.
+  fetched live, which gives the path and how this plugin's install identifier becomes `<plugin-id>`.
+  Before the first write, list the parent directory that
+  row names and use the entry named `<plugin-id>`; if none exists yet, create `<plugin-id>` there.
 - `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
   character class context-usage's mod accepts in a snapshot's session id; path containment) and truncated to **64
@@ -152,9 +151,7 @@ It may not fire at all in a given context, which is why the naming rule is the p
 the rename fallback is the backstop. This is the record the `auditor` agent cites.
 
 - **Pointer**: when checking whether the report-filename guardrail is now documented, fetch
-  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live. That section
-  documents write restriction only at tool-access granularity (`tools` and `disallowedTools`) and
-  names no report-filename guardrail.
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live.
 
 ## Packet files are write-once evidence (sibling hooks rewrite them in place)
 

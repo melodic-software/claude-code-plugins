@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold, waitBudgetMs } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -312,15 +312,16 @@ test("a holding latch refuses a stop past the budget with a notice and fails not
   assert.equal(lines.filter((line) => line.startsWith("::notice::") && line.includes("2026-10-23T10:33:20Z") && line.endsWith("this step holds")).length, 2);
 });
 
-test("API_BUDGET_WAIT_SECONDS sets the latch's budget only for whole seconds over 60 and up to an hour", () => {
-  assert.equal(waitBudgetMs("1200"), 1_200_000);
-  assert.equal(waitBudgetMs("3600"), 3_600_000);
-  for (const value of [undefined, "", "60", "0", "3601", "12.5", "-900", "1200s"]) {
+test("API_BUDGET_WAIT_SECONDS sets the latch's budget only for whole seconds over the step's and up to work-resolve-issue's", () => {
+  const most = WAIT_BUDGET_SECONDS.workResolveIssue;
+  assert.equal(waitBudgetMs(String(most)), most * 1000);
+  assert.equal(waitBudgetMs(String(WAIT_BUDGET_SECONDS.step + 1)), (WAIT_BUDGET_SECONDS.step + 1) * 1000);
+  for (const value of [undefined, "", String(WAIT_BUDGET_SECONDS.step), "0", String(most + 1), "12.5", "-900", `${most}s`]) {
     assert.equal(waitBudgetMs(value), 60_000, `${value} keeps the 60 s budget`);
   }
 });
 
-const BUDGET_1200 = 1_200_000;
+const BUDGET_1200 = WAIT_BUDGET_SECONDS.workResolveIssue * 1000;
 const floored = (remaining, resetIn) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }];
 const refused = (resetIn) => [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(NOW / 1000 + resetIn), "x-ratelimit-resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }];
 
@@ -365,7 +366,7 @@ test("a patient latch never resends a refused write, and refuses a reset past it
   assert.equal((await one.latch.guard(write.fetch)(URL_A, { method: "POST", body: "{}" })).status, 403);
   assert.equal(write.sent.length, 1);
   assert.ok(one.failed() >= 1);
-  const late = fakeGitHub([refused(1300), [200]]);
+  const late = fakeGitHub([refused(WAIT_BUDGET_SECONDS.workResolveIssue + 100), [200]]);
   const two = latchFor({ budgetMs: BUDGET_1200 });
   const fetch = two.latch.guard(late.fetch);
   assert.equal((await fetch(URL_A)).status, 403);
@@ -1092,4 +1093,46 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
     if (saved === undefined) delete process.env.API_BUDGET_TOKEN;
     else process.env.API_BUDGET_TOKEN = saved;
   }
+});
+
+const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
+const jobOf = (text, id) => {
+  const start = text.indexOf(`\n  ${id}:\n`);
+  assert.ok(start >= 0, `${id} is a job`);
+  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+  return text.slice(start, next < 0 ? undefined : start + 1 + next);
+};
+const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
+
+test("ci-status's read deadline and both pinned composites' waits are WAIT_BUDGET_SECONDS'", () => {
+  const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
+  const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
+  const [margin] = setting(job, "GH_READ_MARGIN_SECONDS");
+  assert.equal(jobSeconds - margin, WAIT_BUDGET_SECONDS.ciStatusReads);
+  assert.deepEqual(setting(job, "rate-limit-wait-seconds"), [WAIT_BUDGET_SECONDS.step, WAIT_BUDGET_SECONDS.step], "check-contract, then aggregate-results");
+  assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/(check-contract|aggregate-results)@/g)?.length, 2, "ci-status calls two composites that take the input");
+});
+
+test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {
+  assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
+});
+
+test("work-resolve-issue's waits after the model ran, and the leak scan's cap, are WAIT_BUDGET_SECONDS.workResolveIssue", () => {
+  const most = WAIT_BUDGET_SECONDS.workResolveIssue;
+  const lane = workflow("work-resolve-issue.yml");
+  for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback", "report-skip", "apply-issue-patch", "report-outcome"]) {
+    assert.deepEqual(setting(jobOf(lane, id), "rate-limit-wait-seconds"), [most], id);
+  }
+  for (const id of ["report-statuses", "run-checks"]) {
+    const job = jobOf(lane, id);
+    assert.deepEqual(setting(job, "API_BUDGET_WAIT_SECONDS"), [most], id);
+    assert.ok(setting(job, "timeout-minutes")[0] * 60 >= 600 + most, `${id}'s timeout holds ten minutes of work and the wait`);
+  }
+  assert.ok(setting(lane, "rate-limit-wait-seconds").every((seconds) => seconds === most), "no other wait in the lane");
+  const read = workflow("pr-run-activity-read.yml");
+  assert.deepEqual([...read.matchAll(/Number\(WAIT_SECONDS\) : 0, ([0-9]+)\) \* 1000/g)].map((match) => Number(match[1])), [most], "the leak scan caps its wait at it");
+  for (const [, grown, base] of read.matchAll(/timeout-minutes: \$\{\{ inputs\.rate-limit-wait-seconds > 0 && ([0-9]+) \|\| ([0-9]+) \}\}/g)) {
+    assert.ok((Number(grown) - Number(base)) * 60 >= most, "the scan job's raised timeouts hold the wait");
+  }
+  assert.equal([...read.matchAll(/inputs\.rate-limit-wait-seconds > 0 &&/g)].length, 2, "the scan job and its leak-scan step");
 });

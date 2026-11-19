@@ -137,7 +137,8 @@ on:
         default: 30
       rate-limit-wait-seconds:
         description: >-
-          The scan job's rate-limit wait budget, at most 1200: a primary
+          The scan job's rate-limit wait budget, at most rate-guard.mjs's
+          WAIT_BUDGET_SECONDS.workResolveIssue: a primary
           GitHub API limit on its leak scan's reads whose reset comes within
           it is waited out instead of dropping the model's finished output.
           0 waits for none; the scan job's timeouts grow by 20 minutes when it
@@ -3212,8 +3213,10 @@ jobs:
             };
             // A read a rate limit refused is sent once more after the reset
             // its answer names, when the waits, summed, fit WAIT_SECONDS (at
-            // most 1200, inside the step's timeout): the model's output is
-            // finished, and failing here drops it.
+            // most rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue,
+            // which rate-guard.test.mjs pins this cap to, inside the step's
+            // timeout): the model's output is finished, and failing here
+            // drops it.
             let waitLeft = Math.min(/^\d{1,4}$/.test(WAIT_SECONDS ?? '') ? Number(WAIT_SECONDS) : 0, 1200) * 1000;
             const patiently = async (call) => {
               sent();

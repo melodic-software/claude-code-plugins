@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.6] - 2026-11-18
+
+### Fixed
+
+- The permission preflight reference points at the 2.1.323 changelog entry and an archived
+  capture of the manifest reference for which plugin `settings.json` keys take effect.
+
 ## [15.6.5] - 2026-11-18
 
 ### Changed
