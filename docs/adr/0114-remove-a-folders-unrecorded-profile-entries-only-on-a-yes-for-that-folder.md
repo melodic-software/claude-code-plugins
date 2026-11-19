@@ -20,10 +20,11 @@ gave for the recorded files.
 1. **Listed, not hidden.** Reset lists each folder it knows whose `settings.local.json` holds those
    entries and no record, in the same preview, with each entry.
 2. **A yes per folder.** Its `enabledPlugins` and `skillOverrides` keys are removed only after a yes
-   for that folder: a terminal asks one question per folder after the single yes, and a caller that
+   for that folder: a terminal asks one question per folder after the single question, whatever
+   its answer (a no keeps every recorded file, and a no to every question writes nothing), and a caller that
    has asked already (the `/plugin-profile` picker, the profile skill) passes
    `--remove-unrecorded <file>` once per yes and `--keep-unrecorded <file>` once per no, which is
-   reported as kept at that answer. A named file the preview did not ask about stops the reset
+   reported as kept at that answer, and `--keep-recorded` for a no to the single question. A named file the preview did not ask about stops the reset
    before anything is written, and the refusal names the files it does ask about. The same
    per-file question serves every file reset will not write under the single yes: a moved
    repository's file, and a file whose earlier reset was cut off and that changed since (ADR 0113,

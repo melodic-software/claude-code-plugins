@@ -202,10 +202,12 @@ worktree's or subdirectory's own file, and user settings for the initial profile
 names each file, what it goes back to, and each entry edited since the apply that it would
 overwrite; one yes, typed or `--yes`, restores them, and reset prints one line per file. That yes
 covers only the files a profile record covers, a worktree copy adopted from its root file's record
-included. A folder whose `.claude/settings.local.json` holds plugin or
+included; a no keeps those files, and reset still asks each file that has its own question
+(`--keep-recorded` passes that no for a caller that asked already). A folder whose
+`.claude/settings.local.json` holds plugin or
 skill entries but no record is listed with those entries, which may be the person's own; they go
 only after a yes for that folder. In a terminal reset asks each such folder, `--yes` or not, and
-the default is no; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
+the default is no; a no to every question writes nothing and exits 1; `--remove-unrecorded <file>` and `--keep-unrecorded <file>` answer for a caller
 that asked already; with nobody at a terminal, `--yes` alone leaves each such folder as it is,
 and with neither a terminal nor `--yes` reset writes nothing and exits 1, as it does for recorded
 files.
@@ -234,8 +236,11 @@ process stopped part way, not for a power loss. When a file was changed by hand 
 reset cannot tell whether the stopped reset wrote it: it keeps the record and asks a yes for that
 file, default no (`--finish-cut-off <file>`, `--keep-cut-off <file>`); the yes puts back only the
 entries still at the profile's values and leaves every entry changed by hand. A file with no entry
-left at the profile's value is left as it is and its record removed. A repository moved more than
-once is one row, folding every record of its file. A one-session file names each installed plugin of
+left at the profile's value is left as it is and its record removed. When a profile was applied at
+a moved repository's new place, its file is one row folding every record of it, a repository moved
+more than once included: a yes for the file puts it back to before the first apply in one write;
+without an answer for it, the one yes puts back only the newest profile and keeps the older records,
+so a later reset offers the file from them; a no leaves the file and every record. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's
 plugins; a later `/plugin` toggle of such a plugin reaches only sessions started after it.
 

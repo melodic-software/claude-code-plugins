@@ -42,7 +42,13 @@ listed the repositories that hold records.
    one row and one write: each entry goes back to the older record's before-value, else the
    newer's, and both records are removed after the write, the newer first, so a reset cut off
    between the two leaves the older record and the next reset finishes. A repository moved more
-   than once is one row from its oldest record, folding every later record oldest first. A gone
+   than once is one row from its oldest record, folding every later record oldest first. Only the
+   older records need that per-file yes: without an answer for the file, the single yes runs the
+   newer record's own restore, unfolded, which puts the file back to what the older profiles left,
+   and keeps the older records, whose after-values then match the file, so the next reset offers it
+   from the oldest one; a no leaves the file and every record. When the newer record's own row is
+   not one the single yes restores (a cut-off file, an unreadable file), nothing is folded: that
+   row is listed on its own and the older record waits for it. A gone
    subfolder or linked worktree of a repository still there is only kept.
 5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
    previewed in one process and writes in another passes it, and the write refuses, writing
