@@ -164,15 +164,14 @@ artifact (a topic contract, an issue, a PR body) and reference it from there. Th
 itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
 user-controlled removal. Nothing expires, sweeps, or ages these files out silently.
 
-**Keep the hot file current; history lives in the hop files.** A shape-3 hot file carries only
-what the next session acts on: rules rewritten in place under their ids, preferences until their
+**Keep the hot file current; history lives in the hop files.** The hot file carries only what
+the next session acts on: rules rewritten in place under their ids, preferences until their
 instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
-history. `new` copies questions and decisions off disk like rules: one changes only through `retire` or a rewrite in place ending `Rewritten h<N>: <why>` for this hop `N`, and `validate` fails any other change; `new` also folds trail lines 3 or more hops old behind one `- Folded:` line. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
-state the rules still in force under Current rules from there, never from memory.
-
-A rule or preference leaves the hot file only when retired or promoted, listed with its reason
-under `## Retired rules` in this hop's file, never to meet the size cap.
+history. `new` carries the rest off disk, and the skeleton's slots say how each carried entry
+changes. After a shape-2 predecessor, state the rules still in force under Current rules from the
+hop file, never from memory. A rule or preference leaves the hot file only when retired or
+promoted, through the `retire` list with its reason, never to meet the size cap.
 
 Carrying a rule forward re-checks any refusal or owner reservation it records against the
 structure doc's evidence and retry rule ("Constraints that must hold").
@@ -234,14 +233,13 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
-On the full path the file is shape 3, a hot file plus its hop file, and a script owns every
+On the full path the file is a hot file plus its hop file, and a script owns every
 deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`;
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
-holding the values for the `<!-- FILL: … -->` slots that skeleton carries, apply them all with
-`save_point.py fill <file> --slots <json>`, run `save_point.py validate` until it exits 0, then
-paste the `save_point.py emit` output as the rails block. The Edit tool is the repair path after a
-failed `validate`, never the way the slots are filled. The screen and the file's `## Resume prompt`
+holding the values for the `<!-- FILL: … -->` slots, sized to the `budget:` line `new` prints,
+apply them with one `save_point.py fill <file> --slots <json>`, and paste the rails it prints
+(shape 3: `validate`, then `emit`). Edit is the repair path after a FAIL line, never the fill. The screen and the file's `## Resume prompt`
 section are the same bytes by construction. Two refusals route elsewhere and are stated, never
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
@@ -332,7 +330,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
   paraphrase and not the process serving it, with the owner's intent and vision verbatim; a
   remaining action that serves no recorded goal or detour is flagged `DRIFT` under Direction
-  changes (structure doc, "Shape 3")
+  changes (the trail slot's instruction)
 - [ ] Completion criteria read as goal-states, each keeping the command or diff that settles it;
   process milestones sit under the subordinate sub-heading, never as criteria
 - [ ] Every body section the structure doc defines is present. Walked from that doc this turn, not
@@ -377,9 +375,10 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   rules, the Resumption brief leads with it, Suggested skills are selected for it, Remaining
   actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
   goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
-- [ ] `save_point.py validate <file>` run and its result quoted here as `validate: exit 0` (WARN
-  lines listed and ruled on, secret-shape hits included). Non-zero → fix the slots the FAIL lines
-  name and re-run, at most three attempts; still failing → this box reads `validate: FAILED`, an
+- [ ] The verdict (`fill`'s, or `save_point.py validate <file>` on shape 3) quoted here as
+  `validate: exit 0` (WARN lines listed and ruled on, secret-shape hits included). A FAIL → fix
+  what its lines name and re-run `validate`, at most three attempts, size excepted (engine doc,
+  "Full path only"); still failing → this box reads `validate: FAILED`, an
   `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt

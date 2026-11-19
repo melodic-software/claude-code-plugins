@@ -4036,7 +4036,7 @@ def build_skeleton_3(
             "",
             _fill(
                 "rules-new",
-                f"optional: new rules, {rule_line}; a changed rule is rewritten in place under its id, its prior text staying in {hop_rel}; a retired one is deleted here and listed in {hop_rel} under '## {RETIRED_RULES}' as '- [R<n>] <why it no longer binds>'; no rule leaves to meet the size cap; delete this line when nothing changes",
+                f"optional: new rules, {rule_line}; a changed rule is rewritten in place under its id, its prior text staying in {hop_rel}; one that no longer binds leaves only through the slots' 'retire' list as {{'ref': '[R<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {RETIRED_RULES}'; no rule leaves to meet the size cap; delete this line when nothing changes",
             ),
         ]
     else:
@@ -4097,7 +4097,7 @@ def build_skeleton_3(
             "Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, *rows[-PRIOR_ROWS_KEPT:]]
         )
 
-    pref_line = f"one per line, '- [R<n>] <the preference, verbatim> (pending promotion: <instruction file>)', ids shared with Current rules; a preference its instruction file already holds leaves this file, listed in {hop_rel} under '## {RETIRED_RULES}' as '- [R<n>] promoted to <instruction file>'"
+    pref_line = f"one per line, '- [R<n>] <the preference, verbatim> (pending promotion: <instruction file>)', ids shared with Current rules; a preference its instruction file already holds leaves only through the slots' 'retire' list as {{'ref': '[R<n>]', 'reason': 'promoted to <instruction file>'}}, which lists it in {hop_rel} under '## {RETIRED_RULES}'"
     if carried:
         prefs = [
             *_section_lines(pred, "Standing preferences"),

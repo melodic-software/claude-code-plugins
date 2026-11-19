@@ -213,7 +213,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md).
 Walk it while writing the file; never write the section list from memory.
 
-**The file is shape 3 (a hot file plus its hop file), and a script owns its deterministic tier.**
+**The file is a hot file plus its hop file, and a script owns its deterministic tier.**
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
@@ -223,34 +223,24 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
 - `save_point.py new --topic <slug> [--memory-dir <root>] [--purpose <text>] (--previous <file> | --no-previous)`
   writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
   from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and the chain
-  position keys, the headings in order, the Original goal, current rules, standing preferences
-  and direction trail copied off a shape-3 predecessor, the last `## Prior sessions` rows, and the
-  whole `## Resume prompt` block except its `Next:` headlines), writes this hop's archive file
-  with the predecessor's other sections verbatim, and prints the hot file's absolute forward-slash
-  path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's, and `fill` is what
-  applies them. It never overwrites an existing handoff; it rewrites a hop file only when a retry
+  position keys, the headings in order, what it carries off the predecessor, the last
+  `## Prior sessions` rows, and the whole `## Resume prompt` block except its `Next:` headlines),
+  writes this hop's archive file with the predecessor's other sections verbatim, and prints the
+  hot file's absolute forward-slash path. On shape 4 it also prints a `budget:` line on stderr:
+  write the slot values to it. Only the `<!-- FILL: <name> — <instruction> -->` slots are the
+  model's, and `fill` is what applies them. It never overwrites an existing handoff; it rewrites a hop file only when a retry
   of the same session writes it again. `--shape 2` writes the shape-2 single file instead (the eval and
   projection harnesses build shape-2 chains with it); it refuses a shape-3 predecessor.
 - `save_point.py fill <file> --slots <json>` replaces every slot in the file from one JSON object
-  keyed by slot name, in a single write, and prints nothing on success. An inline prefix on a
-  slot's line (`**Amended:**`, `**Next action serves it by:**`, `did:`, the `left:` separator) is
-  preserved; a multi-line value is one JSON string with escaped newlines and lands as those lines
-  in place, each taking the file's own line terminator; an optional slot (`goal-first`,
-  `goal-after`, `below-rail`, `<section>-new`) left out of the object has its line deleted. It exits 1 on a
-  required slot absent from the object, a key naming no slot in this file, a slot name occurring
-  twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
-  fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a target that is
-  missing, unreadable, not a handoff file (no `type: handoff` frontmatter, the same guard
-  `validate` and `emit` apply), or not shape 2 or 3 (shape 1, no `handoff_shape` key, a shape below 1,
-  or a `handoff_shape` that is not an integer), and on a slots file that is missing, unreadable,
-  not valid JSON, not a JSON object, or holding a value that is not a string or not encodable as
-  UTF-8; 3 on a `handoff_shape` newer than the engine knows, `validate`'s own verdict, read it and
-  do not rewrite it. Every refusal
-  names the slot or key and leaves the file byte-identical, and the write itself goes to a
-  temporary file in the target's own directory replaced into place, so nothing is ever
-  half-applied. The slots JSON lives beside the handoff as
-  `<same stem>.slots.json` and is left in place. `fill` never judges a value against its slot's
-  instruction; `validate` is the gate.
+  keyed by slot name, in a single write. An inline prefix on a slot's line (`**Amended:**`,
+  `**Next action serves it by:**`, `did:`, the `left:` separator) is preserved; a multi-line value
+  is one JSON string with escaped newlines and lands as those lines in place, each taking the
+  file's own line terminator; an optional slot (`goal-first`, `goal-after`, `below-rail`,
+  `<section>-new`) left out of the object has its line deleted. Every refusal names the slot or key
+  and what to change, and leaves the file byte-identical, so nothing is ever half-applied. On
+  shape 4 it fits the hot file to the cap itself and prints the verdict and the `emit` output. The
+  slots JSON lives beside the handoff as `<same stem>.slots.json` and is left in place. `fill`
+  never judges a value against its slot's instruction; `validate` is the gate.
 - `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one
   WARN, exit 0), 1 on a validation failure, 2 on usage, 3 on a `handoff_shape` newer than it
   knows ("read it, do not rewrite it"). A leftover `FILL` slot, a prefixed `previous_handoff`, a
@@ -259,11 +249,8 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
-  shape-3 file it also checks the hot file against its predecessor and both hop files, failing a
-  predecessor rule that left the hot file without a `## Retired rules` line in this hop's file;
-  each FAIL line names the fix; a size finding also names the core, carried and written sizes, and
-  a core (or core plus carried part) too large for the size cap passes labeled UNVALIDATED unless
-  the file is over the Read page cap, which always fails.
+  shape-3 or shape-4 file it also checks the carry against the predecessor and both hop files, and
+  the size; each FAIL line names the fix.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
   says so) or a file that still carries a `FILL` slot (an unfinished skeleton is never emitted).
@@ -272,7 +259,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
 - `save_point.py amend <file> --json <path>` folds an event that arrives after emit into a
-  filled shape-3 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
+  filled shape-3 or shape-4 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
   written sections), `append` (`{title: [lines]}`, adding lines to Original goal or Direction
   changes), `retire` (`[{ref, reason}]`, as `fill` takes it), `next` (new `Next:` lines) and
   `floors` (raising id floors only). It appends what it replaces to this hop's file, validates
@@ -635,10 +622,13 @@ Or reopen the producing session in place: `claude --resume <UUID>`.
 Everything in this sub-section applies to the full path. The prompt-only rules above and below
 are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
 
-- **`validate` exit 0 gates the rails.** Run `save_point.py validate <file>` before anything is
-  printed. On a non-zero exit, fix the slots the FAIL lines name and re-run, at most three
-  attempts; the file is not the resume prompt until it passes. Quote the outcome in the citing
-  skill's checklist (`validate: exit 0`, WARN lines listed).
+- **A passing verdict gates the rails.** On shape 4 `fill` prints the verdict before the rails;
+  on shape 3 run `save_point.py validate <file>` before anything is printed. On a FAIL, fix what
+  its lines name with the Edit tool and re-run `validate`, at most three attempts; the file is not
+  the resume prompt until it passes. Size is `fill`'s to settle: a `slot_size` FAIL after its
+  second call is quoted, never edited around, and an `OVER-CAP` line never withholds the rails;
+  act on it only as it says, never by cutting binding text. Quote the outcome in the
+  citing skill's checklist (`validate: exit 0`, WARN lines listed).
 - **Three failed attempts do not withhold the rails.** The observed failure class is an operator
   left with nothing to paste, and "A resume prompt is always emitted" wins: print an
   `UNVALIDATED: <validator output>` banner above the copy instruction (outside the copy region, so
