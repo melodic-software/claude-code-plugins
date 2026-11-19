@@ -1,5 +1,28 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [4.2.0] - 2026-11-19
+
+### Changed
+
+- For a rule that must hold every time, `/docs-hygiene:write-for-agents` now names the call `/corrections:codify "<the rule>"` for the user and, when that skill is available, leaves the choice of mechanism to it. Without it, the skill proposes the strongest mechanism that can decide the rule and says the proposal is unproven. It no longer names a hook, deny rule, CI check or permission policy itself.
+
+## [4.1.1] - 2026-11-19
+
+### Fixed
+
+- `/docs-hygiene:audit-noise --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
 ## [4.1.0] - 2026-11-19
 
 ### Added

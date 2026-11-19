@@ -19,8 +19,6 @@ routinely conflated; they are distinct:
     and the command file,
     [`commands/code-review.md`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-review/commands/code-review.md),
     live.
-  - **Recheck trigger**: the command posts without `--comment`, or it stops skipping a PR that
-    already carries a Claude comment.
 - **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
   (settings, the host, and the environment decide whether it resolves). Passing a PR as its target
   reviews that PR locally and reports into the session. Some of its arguments edit the working

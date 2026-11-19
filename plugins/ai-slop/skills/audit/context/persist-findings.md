@@ -2,16 +2,16 @@
 
 **First decide whether a file is written at all** ("Surfaces, and when the file is written at
 all" below, and SKILL.md step 5: only an audit that examined tracked files writes one). When
-none is written, fetch nothing.
+none is written, read nothing.
 
 **Read the producer contract before the first write**:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
+[`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 an `ai-slop` run decides for itself and cites the contract for the rest. Where the two
 disagree, the contract wins and this file is the defect.
 
-**If the contract cannot be fetched, do not write.** Report that the destination and the guard
+**If the contract cannot be read, do not write.** Report that the destination and the guard
 could not be resolved from their owner, and stop. Inventing a destination reports success while
 the consumer never scans that path.
 
@@ -24,7 +24,7 @@ space before writing (a destination that cannot be proven is reported and not wr
 
 Common case, a summary that yields to the contract on any disagreement: with no location declared
 in `CLAUDE.md` or `.claude/rules`, the file goes to `<repo>/.work/reviews/<branch-slug>/` once
-`git check-ignore` confirms that path is ignored. The slug rule is in `/review:fanout` "Shared inputs".
+`git check-ignore` confirms that path is ignored. The slug rule is in the contract's "Where the file goes".
 A destination that cannot be resolved follows the contract, and the run reports report-only.
 
 File name: `${TS}-ai-slop.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
@@ -32,7 +32,7 @@ Never overwrite: when the path exists, take `-2`, `-3`, the smallest free intege
 
 ## Compose by script, not by hand
 
-Once the destination is resolved and the contract fetch succeeded, run
+Once the destination is resolved and the contract read succeeded, run
 `${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <detect output file> --out <resolved path>`.
 A chunked run passes `--from` once per chunk output, in chunk order; the script sums the per-rule
 counts across chunks and reports a rule as returning no result only when every chunk agreed.
@@ -45,7 +45,7 @@ The self-ignore guard file is the one write the script does not own. Create it w
 tool, never with a shell redirect: a repository running the guardrails plugin blocks
 `printf '*' > <memory root>/.gitignore` as a hook bypass, and the same block applies to any
 other shell write into the checkout. What stays with the model is
-everything before the script (destination resolution, the fetch-and-refuse gate, the self-ignore
+everything before the script (destination resolution, the read-and-refuse gate, the self-ignore
 guard) and everything after it (reading the written file's head to confirm shape, and
 severity-vocabulary mapping when the consuming project defines its own, done by editing the
 written file's `Tier` cells per the contract's consumer-precedence rule). Hand-compose only when

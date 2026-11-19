@@ -51,6 +51,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd /tmp/explore-directions-a1B2c3\\nsed -i '/<!-- runtime -->/r /plugin/notes-bridge/controls.js' explore-directions.html\",\"description\":\"x\"}}]}}",
       "why": "read into the page by sed -i r on a later line of the command"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/template.html\",\"content\":\"<!doctype html>\\n<html><body><main data-variant=\\\"A\\\"></main>\\n<!-- CONTROLS -->\\n</body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nconst manifest = { controls: [\\n  { id: 'gap', label: 'Gap', group: 'layout', type: 'range', target: '--gap', default: '16' },\\n  { id: 'size', label: 'Body size', group: 'typography', type: 'range', target: '--size', default: '16' },\\n  { id: 'accent', label: 'Accent', group: 'color', type: 'color', target: '--accent', default: '#c2410c' }\\n] };\\nconst runtime = fs.readFileSync('/plugin/notes-bridge/controls.js', 'utf8');\\nconst page = fs.readFileSync('/tmp/explore-directions-a1B2c3/template.html', 'utf8').replace('<!-- CONTROLS -->', () => '<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' + JSON.stringify(manifest) + '</script><script>' + runtime + '</script>');\\nfs.writeFileSync('/tmp/explore-directions-a1B2c3/explore-directions.html', page);\\nconsole.log('built explore-directions.html');\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/explore-directions-a1B2c3/build.mjs\",\"description\":\"x\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_3\",\"content\":\"built explore-directions.html\"}]}}",
+      "why": "a template with a placeholder and a build.mjs that reads the runtime into it, then runs"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nimport path from 'node:path';\\nconst runtime = fs.readFileSync(path.join(process.env.CLAUDE_PLUGIN_ROOT, 'notes-bridge', 'controls.js'), 'utf8');\\nconst page = fs.readFileSync('template.html', 'utf8').replace('/* RUNTIME */', () => runtime);\\nfs.writeFileSync('explore-directions.html', page);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"cd /tmp/explore-directions-a1B2c3 && node build.mjs\",\"description\":\"x\"}}]}}",
+      "why": "a build script that joins the runtime path from its parts, run from the page's directory"
     }
   ],
   "fail": [
@@ -105,6 +113,22 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"OUT=/tmp/explore-directions-a1B2c3/explore-directions.html\\nLOG=/tmp/explore-directions-a1B2c3/count.txt\\ngrep -c uiFeedbackControls /plugin/notes-bridge/controls.js \\\"$OUT\\\" > \\\"$LOG\\\"\",\"description\":\"x\"}}]}}",
       "why": "the page is assigned to one variable but the redirect writes to another"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nconst page = fs.readFileSync('/tmp/explore-directions-a1B2c3/template.html', 'utf8').replace('<!-- CONTROLS -->', '');\\nfs.writeFileSync('/tmp/explore-directions-a1B2c3/explore-directions.html', page);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/explore-directions-a1B2c3/build.mjs\",\"description\":\"x\"}}]}}",
+      "why": "a build script that builds no controls"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nconst manifest = { controls: [\\n  { id: 'gap', label: 'Gap', group: 'layout', type: 'range', target: '--gap', default: '16' }\\n] };\\nconst page = fs.readFileSync('/tmp/explore-directions-a1B2c3/template.html', 'utf8').replace('<!-- CONTROLS -->', () => '<script type=\\\"application/json\\\" id=\\\"prototype-controls\\\">' + JSON.stringify(manifest) + '</script>');\\nfs.writeFileSync('/tmp/explore-directions-a1B2c3/explore-directions.html', page);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/explore-directions-a1B2c3/build.mjs\",\"description\":\"x\"}}]}}",
+      "why": "a build script that inserts the manifest but not the runtime"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nconst runtime = fs.readFileSync('/plugin/notes-bridge/controls.js', 'utf8');\\nconst page = fs.readFileSync('/tmp/explore-directions-a1B2c3/template.html', 'utf8').replace('<!-- CONTROLS -->', () => '<script>' + runtime + '</script>');\\nfs.writeFileSync('/tmp/explore-directions-a1B2c3/explore-directions.html', page);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"The build script is ready; run it to make the page.\"}]}}",
+      "why": "a build script that reads the runtime but never runs"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/build.mjs\",\"content\":\"import fs from 'node:fs';\\nconst runtime = fs.readFileSync('/plugin/notes-bridge/controls.js', 'utf8');\\nconst page = fs.readFileSync('template.html', 'utf8').replace('/* RUNTIME */', () => runtime);\\nfs.writeFileSync('explore-directions.html', page);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l /tmp/explore-directions-a1B2c3/build.mjs\",\"description\":\"x\"}}]}}",
+      "why": "a build script that a later command only counts the lines of, never runs"
     }
   ]
 }

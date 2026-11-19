@@ -151,10 +151,10 @@ Bare invocation reports and stops, the `audit` verb's read-only contract. Under 
 consumes:
 
 1. **Read the producer contract before the first write**:
-   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
+   [`${CLAUDE_PLUGIN_ROOT}/reference/detector-findings.md`](../../reference/detector-findings.md).
    It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
    obligations, the self-ignore guard, and what a minimal producer may omit. Where the two disagree,
-   the contract wins and this file is the defect. If it cannot be fetched, do not write: report and
+   the contract wins and this file is the defect. If it cannot be read, do not write: report and
    stop, since a guessed destination reports success while the consumer never scans that path.
 2. Resolve the destination per the contract "Where the file goes": the current branch's findings
    directory in the memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's

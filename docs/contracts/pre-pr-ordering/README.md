@@ -44,7 +44,7 @@ this doc states it, or cites this doc rather than restating a different one. Tha
 
 Binding the order does not bind the *invocation*. A cross-plugin step is still reached through a
 presence-gated reference with a stated fallback, per
-[`seam-phrasing`](../seam-phrasing/README.md). Gating whether `/verification:confirm` runs never
+[`seam-phrasing`](../../../docs/contracts/seam-phrasing/README.md). Gating whether `/verification:confirm` runs never
 moves where it runs.
 
 ## What is not configurable

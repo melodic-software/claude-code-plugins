@@ -162,11 +162,18 @@ above the plugin's directory, or with no absolute path or no known plugin direct
     live.
 - `programs started` fails any run whose trace has a failed tool result or a Bash result showing
   a mise shim error (`<name> is not a valid shim`), or `command not found` for an interpreter such
-  as `node`, `npx`, `python3` or `uv`. That run could not execute the skill's code, so its score
-  measures the missing program. Any other `command not found` is a warning, since a case may run a
+  as `node`, `npx`, `python3` or `uv` that the case's skill names. That run could not execute the
+  skill's code, so its score measures the missing program. The case's skill is each `skills/`
+  directory its Skill-requiring graders accept, every one for a grader with no `input_match`. It
+  names a program when its files or the case's `allowed_tools` spell the name as a whole word, so
+  a skill that runs `python3` does not name `python`. A missing interpreter the skill does not name
+  is a program the run chose, so it is a warning, but only when the run's own shell (`bash`,
+  `zsh`, or zsh's `(eval)` for an evaluated command line) printed the line: one a script printed (`/p/lib/go.sh: line 2: node: command not found`)
+  is a helper the skill ran, so it still fails. When the case's skill cannot be resolved, every
+  interpreter counts as named. Any other `command not found` is a warning, since a case may run a
   missing command on purpose. Each text counts only where it opens an output line, as the shell or
-  mise prints it, so a grep that quotes it does not. The detail names the run, the program and the
-  first call that failed.
+  mise prints it, so a grep that quotes it does not. The detail names the run and every program
+  that failed to start, each with the first call that failed.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.
