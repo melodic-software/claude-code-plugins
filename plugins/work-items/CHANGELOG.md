@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.9.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
 ## [15.9.2] - 2026-11-19
 
 ### Changed
