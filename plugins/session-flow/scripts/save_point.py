@@ -104,92 +104,48 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from io_streams import utf8_streams  # noqa: E402  (io_streams.py beside this script)
+from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
+    ARCHIVE_DIR,
+    BULLET_RE,
+    HANDOFF_NAME_RE,
+    RETIRED_PREFIX,
+    SHAPES,
+    IdSpec,
+    entry_text,
+    fm_value,
+    hop_file_path,
+    id_of,
+    read_chain,
+    read_frontmatter,
+    retired_in,
+    retired_listings,
+    section_spans,
+)
 
 HANDOFF_SHAPE = 3
 # Shapes `new --shape` writes and `fill` fills; shape 2 stays writable so a
 # shape-2 chain can still be generated (eval predecessors, size projections).
 WRITABLE_SHAPES = (2, 3)
-CHECKS = 2
+CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
+ID_REUSE_FROM = 3
 
-# Shape 3: a hot file in this fixed order, `Original goal` first and
-# `Resume prompt` last, plus one immutable archive file per hop.
-SECTIONS_3 = (
-    "Original goal",
-    "Review before you continue",
-    "Direction changes",
-    "Resumption brief",
-    "Completion criteria",
-    "Remaining actions, in order",
-    "Open questions",
-    "Current rules",
-    "Observations",
-    "Pending commands",
-    "Environment to re-establish",
-    "Decisions in force",
-    "Suggested skills",
-    "This session",
-    "Prior sessions",
-    "Standing preferences",
-    "Resume prompt",
-)
-# Shape 3 files written before `Suggested skills` joined it still validate.
-SECTIONS_3_LEGACY = tuple(s for s in SECTIONS_3 if s != "Suggested skills")
-# Never moved to the archive to meet the cap.
-CORE_3 = (
-    "Original goal",
-    "Direction changes",
-    "Resumption brief",
-    "Current rules",
-    "Standing preferences",
-)
-
-
-@dataclass(frozen=True)
-class IdSpec:
-    """One family of `[<prefix><n>]` ids: the hot-file sections holding them,
-    the hop-file heading listing each id that leaves with why (the hop file
-    already holds the predecessor's whole section, so only this heading proves
-    a retirement rather than a drop to meet the cap), and the frontmatter key
-    holding the next unused id."""
-
-    prefix: str
-    sections: tuple[str, ...]
-    retired_heading: str
-    floor_key: str
-
-
-ID_SPECS = (
-    IdSpec(
-        "R", ("Current rules", "Standing preferences"), "Retired rules", "next_rule_id"
-    ),
-    IdSpec("Q", ("Open questions",), "Retired open questions", "next_question_id"),
-    IdSpec("D", ("Decisions in force",), "Retired decisions", "next_decision_id"),
-)
-RULES = ID_SPECS[0]
+S3 = SHAPES[3]
+RULES = S3.id_spec("R")
 RETIRED_RULES = RULES.retired_heading
-# Core sections whose entries carry no id: an entry leaves the hot file only when
-# this hop's file lists it verbatim under the paired heading, then a
-# `Retired: <reason>` line. Matched only under that heading, since the hop file
-# already holds the predecessor's whole Direction changes elsewhere.
-RETIRED_ENTRY_SECTIONS = {
-    "Original goal": "Retired goal amendments",
-    "Direction changes": "Retired direction changes",
-}
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
 DIRECTION_HOPS_KEPT = 3
 FOLD_PREFIX = "- Folded: "
 REWRITE_MARK = "Rewritten"
 REWRITE_MARK_RE = re.compile(rf"\b{REWRITE_MARK} h(\d+): \S")
-RETIRED_PREFIX = "Retired:"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 # Retire headings whose listings Review before you continue must point at.
 # `## Retired rules` keeps its one-line shape and needs no pointer, so chains
 # that retired rules before pointers existed still validate.
 POINTED_HEADINGS = (
-    *(spec.retired_heading for spec in ID_SPECS[1:]),
-    *RETIRED_ENTRY_SECTIONS.values(),
+    *(spec.retired_heading for spec in S3.id_specs if spec is not RULES),
+    *S3.retired_entry_sections.values(),
 )
 RETIRE_HEADINGS = (RETIRED_RULES, *POINTED_HEADINGS)
 HOP_NAME_RE = re.compile(r"\bh\d+-[0-9a-f]{8}\.md\b")
@@ -205,8 +161,6 @@ RETIRE_REF_RE = re.compile(
 NEW_HOME_RE = re.compile(
     r"\[R\d+\]|\b(?:promoted|moved|codified) (?:to|in|into)\b|/|\.md\b"
 )
-# Sections `new` writes and the writer cannot shorten (frontmatter aside).
-CARRIED_3 = ("Prior sessions", "Resume prompt")
 # The frontmatter keys `new` writes; any other line, and text before the first
 # heading, counts as written.
 FRONTMATTER_KEYS_3 = (
@@ -222,18 +176,17 @@ FRONTMATTER_KEYS_3 = (
     "hop",
     "archive",
     "archive_from",
-    *(spec.floor_key for spec in ID_SPECS),
+    *(spec.floor_key for spec in S3.id_specs),
     "repo",
 )
 # Shape 3 keeps the predecessor's last rows only; older rows live in hop files.
 PRIOR_ROWS_KEPT = 3
-ARCHIVE_DIR = "archive"
 ARCHIVE_TYPE = "handoff-archive"
 # Hot-file byte cap: 10,000 tokens at 2.46 bytes per token, the median of 94
 # Read truncation banners that state a real handoff file's token count (range
 # 2.34-2.52; the handoff-efficiency audit of 274 handoffs, 2026-10). PROVISIONAL,
 # not eval-set: the eval that was to choose 5K, 10K or 20K tokens was not run.
-HOT_FILE_MAX_BYTES = 24_600
+HOT_FILE_MAX_BYTES = S3.cap_bytes
 # The Read tool's page cap, 25,000 tokens ("cap 25000" in its truncation banner),
 # at the lowest audited density above (2.34 bytes per token), so no audited file
 # under it overflows one default Read; past it the Read returns only the first page
@@ -259,23 +212,8 @@ GITHUB_STATE_CLAIMS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
 )
 
-SECTIONS_14 = (
-    "Original goal",
-    "Resumption brief",
-    "Completion criteria",
-    "Constraints that must hold",
-    "Environment to re-establish",
-    "Side effects already applied",
-    "File roles in this work",
-    "Decisions already settled",
-    "Approaches tried and abandoned",
-    "Findings that cost effort to discover",
-    "Remaining actions, in order",
-    "Open questions to investigate",
-    "Blockers needing an outside decision",
-    "Suggested skills",
-)
-SECTIONS_17 = SECTIONS_14 + ("This session", "Prior sessions", "Resume prompt")
+SECTIONS_17 = SHAPES[2].names
+SECTIONS_14 = SECTIONS_17[:-3]
 CUMULATIVE = (
     "Constraints that must hold",
     "Side effects already applied",
@@ -370,9 +308,6 @@ ASCII_RAIL_RE = re.compile(r"^[-=_]{10,}$")
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
 )
-# A bare filename: `.+` would match a path separator, so a pointer carrying a
-# `../` traversal suffix would pass and be joined and parsed.
-HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
@@ -381,9 +316,6 @@ TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
 # As of 2026-10-11. Recheck when that "Size" entry changes its pointer or threshold.
 MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
-BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
-H2_RE = re.compile(r"^## (.+?)\s*$")
-CHAIN_ITEM_RE = re.compile(r"^\s+-\s+")
 FILL_MARK = "<!-- FILL"
 # The slot grammar `_fill()` writes, and the only parse of it. Non-greedy on the
 # instruction: the `## This session` line carries two slots, and a greedy group
@@ -584,14 +516,6 @@ class Doc:
         return -1
 
 
-def _fm_value(raw: str) -> str:
-    value = raw.strip()
-    value = value.split(" #", 1)[0].strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        value = value[1:-1]
-    return value
-
-
 def legacy_chain(pred: Doc, limit: int = 1000) -> list[str]:
     """The chain a shape-1 predecessor implies, oldest first and ending with
     it: its `previous_handoff` pointers walked back to the first file with
@@ -631,40 +555,16 @@ def parse_doc(path: Path) -> Doc:
 
 
 def _doc_from_lines(path: Path, lines: list[str]) -> Doc:
-    doc = Doc(path=path, lines=lines)
-    idx = 0
-    if lines and lines[0].strip() == "---":
-        idx = 1
-        while idx < len(lines) and lines[idx].strip() != "---":
-            line = lines[idx]
-            if line.startswith("chain:"):
-                inline = line[len("chain:") :].strip()
-                if inline.startswith("[") and inline.endswith("]"):
-                    doc.chain = [
-                        _fm_value(item)
-                        for item in inline[1:-1].split(",")
-                        if item.strip()
-                    ]
-                idx += 1
-                while idx < len(lines) and CHAIN_ITEM_RE.match(lines[idx]):
-                    doc.chain.append(_fm_value(CHAIN_ITEM_RE.sub("", lines[idx])))
-                    idx += 1
-                continue
-            if ":" in line and not line.startswith((" ", "\t")):
-                key, raw = line.split(":", 1)
-                doc.frontmatter[key.strip()] = _fm_value(raw)
-            idx += 1
-        if idx < len(lines):
-            doc.has_frontmatter = True
-            idx += 1
-    doc.body_start = idx
-    heads = [
-        (m.group(1), i) for i in range(idx, len(lines)) if (m := H2_RE.match(lines[i]))
-    ]
-    for n, (title, start) in enumerate(heads):
-        end = heads[n + 1][1] if n + 1 < len(heads) else len(lines)
-        doc.sections.append((title, start, end))
-    return doc
+    fm = read_frontmatter(lines)
+    return Doc(
+        path=path,
+        lines=lines,
+        frontmatter=fm.values,
+        chain=fm.chain,
+        has_frontmatter=fm.present,
+        body_start=fm.body_start,
+        sections=section_spans(lines, fm.body_start),
+    )
 
 
 def _trim_blank(lines: list[str]) -> list[str]:
@@ -773,6 +673,7 @@ class CheckKind(Enum):
     ORDER = "order"
     CARRY = "carry"
     POINTER = "pointer"
+    ID_REUSE = "id_reuse"
     MALFORMED = "malformed"
     TRANSCRIPT = "transcript"
 
@@ -1451,16 +1352,6 @@ def _stem(name: str) -> str:
     return name[: -len(".md")] if name.endswith(".md") else name
 
 
-def hop_file_path(handoffs: Path, chain_root: str, hop: int, session_id: str) -> Path:
-    """`<handoffs>/archive/<chain-root-stem>/h<N>-<session8>.md`."""
-    return (
-        handoffs
-        / ARCHIVE_DIR
-        / _stem(chain_root)
-        / f"h{hop}-{session_id[:8].lower()}.md"
-    )
-
-
 def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
     """`(chain_root, hop, archive_from)` for a shape-3 file named `name` that
     follows `pred`. Hops count from the chain root, shape-1 and shape-2 hops
@@ -1480,15 +1371,9 @@ def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
     return walked[0], hop, hop
 
 
-def _id_of(spec: IdSpec, text: str) -> tuple[int | None, str]:
-    """The `[<prefix><n>]` id leading `text` and the text after it."""
-    m = re.match(rf"^\[{spec.prefix}(\d+)\]\s*", text)
-    return (int(m.group(1)), text[m.end() :]) if m else (None, text)
-
-
 def _id_entries(doc: Doc, spec: IdSpec) -> list[tuple[int | None, Entry, str]]:
     return [
-        (_id_of(spec, entry.text)[0], entry, title)
+        (id_of(spec.prefix, entry.text)[0], entry, title)
         for title in spec.sections
         for entry in parse_entries(doc.section(title) or [])
         if not entry.exempt
@@ -1499,8 +1384,8 @@ def _retired_ids(archived: str, spec: IdSpec) -> dict[int, str]:
     """Id to reason, from the hop file's `spec.retired_heading` section only: an
     entry followed by its `Retired:` line, or one line `- [<prefix><n>] <reason>`."""
     found: dict[int, str] = {}
-    for lines, reason in _retired_listings(archived, spec.retired_heading):
-        n, rest = _id_of(spec, BULLET_RE.sub("", lines[0].strip(), count=1))
+    for lines, reason in retired_listings(archived, spec.retired_heading):
+        n, rest = id_of(spec.prefix, BULLET_RE.sub("", lines[0].strip(), count=1))
         if n is not None:
             found[n] = rest.strip() if reason is None else reason
     return found
@@ -1548,7 +1433,7 @@ def _amendment_spans(
 
 
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
-    """The retirable units of a RETIRED_ENTRY_SECTIONS section and its other
+    """The retirable units of an id-less retirable section and its other
     non-blank lines: amendment units for Original goal, one unit per line for
     Direction changes."""
     lines = doc.section(title) or []
@@ -1582,32 +1467,6 @@ def _carries(pred: Doc | None, spec: IdSpec) -> bool:
     )
 
 
-def _retired_listings(
-    archived: str, heading: str
-) -> list[tuple[tuple[str, ...], str | None]]:
-    """Each listing under `## <heading>` in a hop file: the entry's lines and the
-    reason on the `Retired:` line closing it, or None for a line no `Retired:`
-    line closes (the one-line `- [R<n>] <reason>` rule shape)."""
-    found: list[tuple[tuple[str, ...], str | None]] = []
-    pending: list[str] = []
-    inside = False
-    for line in [*archived.splitlines(), "## "]:
-        if line.startswith("## ") or not line.strip():
-            found.extend(((entry,), None) for entry in pending)
-            pending = []
-            if line.startswith("## "):
-                inside = line[3:].strip() == heading
-        elif not inside:
-            continue
-        elif line.startswith(RETIRED_PREFIX):
-            if pending:
-                found.append((tuple(pending), line[len(RETIRED_PREFIX) :].strip()))
-            pending = []
-        else:
-            pending.append(line)
-    return found
-
-
 def _chain_hop_paths(pred: Doc, start: int):
     """`(doc, hop file path)` for every shape-3 file on `pred`'s
     `previous_handoff` path from `archive_from` on, newest first."""
@@ -1635,7 +1494,7 @@ def _retire_reasons(archived: str) -> list[str]:
     return [
         reason
         for heading in POINTED_HEADINGS
-        for _, reason in _retired_listings(archived, heading)
+        for _, reason in retired_listings(archived, heading)
         if reason
     ]
 
@@ -1666,7 +1525,7 @@ def _check_retired_entries(
         report(
             f"Direction changes: the predecessor's '{FOLD_PREFIX.strip()}' pointer line is missing; keep the line `new` wrote, so the folded lines stay reachable"
         )
-    for title, heading in RETIRED_ENTRY_SECTIONS.items():
+    for title, heading in S3.retired_entry_sections.items():
         pred_units, pred_plain = _entry_units(pred, title)
         own_units, own_plain = _entry_units(doc, title)
         remaining = iter(own_plain)
@@ -1676,7 +1535,7 @@ def _check_retired_entries(
                     f"{title}: the predecessor's goal lines (quote, intent, vision, opening ask) stay byte for byte and in order; missing or changed: {line[:60]!r}"
                 )
                 break
-        listed = _retired_listings(text, heading)
+        listed = retired_listings(text, heading)
         reasoned = Counter(lines for lines, reason in listed if reason)
         unreasoned = {lines for lines, reason in listed if reason == ""}
         cursor = 0
@@ -1757,7 +1616,7 @@ def _section_bytes(doc: Doc, titles: tuple[str, ...]) -> int:
 def _cap_state(doc: Doc) -> tuple[int, int]:
     """The hot file's size on disk and the bytes its core sections hold."""
     size = len(doc.path.read_bytes()) if doc.size is None else doc.size
-    return size, _section_bytes(doc, CORE_3)
+    return size, _section_bytes(doc, S3.binding)
 
 
 def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
@@ -1769,17 +1628,17 @@ def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
         for line in doc.lines[: doc.body_start]
         if line.strip() == "---" or line.split(":", 1)[0] in FRONTMATTER_KEYS_3
     )
-    carried = fence + _section_bytes(doc, CARRIED_3)
+    carried = fence + _section_bytes(doc, S3.carried)
     return size, core, carried, size - core - carried
 
 
 def _size_text(core: int, carried: int, written: int) -> str:
-    return f"core {core} bytes, carried {carried} bytes (frontmatter, {', '.join(CARRIED_3)}), written non-core {written} bytes"
+    return f"core {core} bytes, carried {carried} bytes (frontmatter, {', '.join(S3.carried)}), written non-core {written} bytes"
 
 
 # Never shorten the core to meet the cap; a rule leaves only as retired.
 CORE_NEVER_MOVES = (
-    f"the core ({', '.join(CORE_3)}) never moves and no rule leaves to meet the cap"
+    f"the core ({', '.join(S3.binding)}) never moves and no rule leaves to meet the cap"
 )
 
 
@@ -1919,13 +1778,13 @@ def _validate_shape3(
         f.fail(
             f"frontmatter: archive must be '{ARCHIVE_DIR}/{_stem(root)}/' (got {fm['archive']!r})"
         )
-    if doc.titles == list(SECTIONS_3_LEGACY):
+    if doc.titles == list(S3.legacy_names):
         f.warn(
             "headings: written before '## Suggested skills' joined shape 3; the next hop adds it"
         )
-        _check_headings(doc, f, SECTIONS_3_LEGACY)
+        _check_headings(doc, f, S3.legacy_names)
     else:
-        _check_headings(doc, f, SECTIONS_3)
+        _check_headings(doc, f, S3.names)
     _check_original_goal(doc, f, hop or 1)
 
     prompt = doc.section("Resume prompt") or []
@@ -1942,7 +1801,7 @@ def _validate_shape3(
                 f"frontmatter: repo {fm['repo']!r} must equal the Handoff origin's first slot {slots[0]!r}"
             )
 
-    for spec in ID_SPECS:
+    for spec in S3.id_specs:
         seen: set[int] = set()
         # A first hop and any hop whose predecessor carries the floor need ids;
         # chains started before ids existed (no floor, or shape 2) still validate.
@@ -1984,6 +1843,9 @@ def _validate_shape3(
                 CheckKind.POINTER,
             )
 
+    if (_fm_int(doc, "checks") or 0) >= ID_REUSE_FROM:
+        _check_id_reuse(doc, f, pred, archived)
+
     report = f.carry(False)
     if previous is None:
         if (root, hop, start) != (doc.basename, 1, 1):
@@ -2016,6 +1878,26 @@ def _validate_shape3(
         f.warn(f"UNVALIDATED: {message}", CheckKind.SIZE)
 
 
+def _check_id_reuse(
+    doc: Doc, f: Findings, pred: Doc | None, archived: str | None
+) -> None:
+    """No id retired at this hop or any earlier one names a different entry
+    here: once retired, an id stays spent."""
+    retired = read_chain(pred.path, strict=True).retired_ids() if pred else {}
+    for prefix, ids in retired_in(archived or "", S3).items():
+        for n, text in ids.items():
+            retired.setdefault(prefix, {}).setdefault(n, text)
+    for spec in S3.id_specs:
+        spent = retired.get(spec.prefix, {})
+        for n, entry, title in _id_entries(doc, spec):
+            was = spent.get(n) if n is not None else None
+            if was is not None and entry_text(spec.prefix, entry.lines)[1] != was:
+                f.fail(
+                    f"{title}: [{spec.prefix}{n}] was retired earlier in this chain for a different entry ({was[:60]!r}), so this entry reuses a spent id (id_reuse); give it the next unused id, {spec.floor_key} in the frontmatter",
+                    CheckKind.ID_REUSE,
+                )
+
+
 def _check_carry_3(
     doc: Doc,
     f: Findings,
@@ -2034,7 +1916,7 @@ def _check_carry_3(
         if archived is None:
             return
         hop = _fm_int(doc, "hop")
-        for spec in ID_SPECS:
+        for spec in S3.id_specs:
             own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
             retired = _retired_ids(archived, spec)
             marked = _carries(pred, spec)
@@ -2062,7 +1944,7 @@ def _check_carry_3(
                         f"{title}: predecessor entry {ref} is in neither this file nor {rel}"
                     )
                 elif not retired.get(n) or _squash(
-                    _id_of(spec, entry.text)[1]
+                    id_of(spec.prefix, entry.text)[1]
                 ).startswith(_squash(retired[n])):
                     # A verbatim copy with no `Retired:` line is not a reason.
                     report(
@@ -2116,7 +1998,7 @@ def _check_retire_pointers(
     review = doc.section("Review before you continue") or []
     name = rel.rsplit("/", 1)[-1]
     for heading in POINTED_HEADINGS:
-        listed = _retired_listings(archived or "", heading)
+        listed = retired_listings(archived or "", heading)
         if listed and not any(name in line and heading in line for line in review):
             f.fail(
                 f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'",
@@ -2335,11 +2217,11 @@ def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None
     """`(retire heading, start, end)` of the `doc.lines` a retire ref names,
     None when `doc` lacks it, or why the ref is ambiguous."""
     if m["prefix"]:
-        spec = next(s for s in ID_SPECS if s.prefix == m["prefix"])
+        spec = S3.id_spec(m["prefix"])
         for title in spec.sections:
             base = doc.section_start(title) + 1
             for entry in parse_entries(doc.section(title) or []):
-                if not entry.exempt and _id_of(spec, entry.text)[0] == int(m["n"]):
+                if not entry.exempt and id_of(spec.prefix, entry.text)[0] == int(m["n"]):
                     at = base + entry.first_index
                     return spec.retired_heading, at, at + len(entry.lines)
         return None
@@ -2358,14 +2240,14 @@ def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None
         if not hits:
             return None
         at = doc.section_start(title) + 1 + hits[0]
-        return RETIRED_ENTRY_SECTIONS[title], at, at + 1
+        return S3.retired_entry_sections[title], at, at + 1
     title = "Original goal"
     spans, _ = _amendment_spans(doc.section(title) or [])
     k = int(m["ord"])
     if not 1 <= k <= len(spans):
         return None
     base = doc.section_start(title) + 1
-    return RETIRED_ENTRY_SECTIONS[title], base + spans[k - 1][0], base + spans[k - 1][1]
+    return S3.retired_entry_sections[title], base + spans[k - 1][0], base + spans[k - 1][1]
 
 
 def _content_doc(raw: list[str]) -> Doc:
@@ -2698,7 +2580,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
-FLOOR_KEYS = tuple(spec.floor_key for spec in ID_SPECS)
+FLOOR_KEYS = tuple(spec.floor_key for spec in S3.id_specs)
 AMENDED_HEADING = "Amended"
 # Quoted text snippets and digits shift with every edit (sizes, line numbers,
 # truncated entries); an id names what a FAIL is about and stays.
@@ -2728,7 +2610,7 @@ def _previous_of(path: Path) -> str | None:
                 if line.strip() == "---":
                     return None
                 if line.startswith("previous_handoff:"):
-                    return _fm_value(line.split(":", 1)[1])
+                    return fm_value(line.split(":", 1)[1])
     except OSError:
         return None
     return None
@@ -2894,7 +2776,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     if any(FILL_MARK in value for value in values):
         return _die(1, f"a value carries the literal {FILL_MARK!r}; rewrite it without")
     for title in sections:
-        if title in CARRIED_3:
+        if title in S3.carried:
             return _die(
                 1,
                 f"section {title!r} is carried (written by `new`); amend rewrites only the Resume prompt's Next: headlines, through 'next'",
@@ -2902,10 +2784,10 @@ def cmd_amend(args: argparse.Namespace) -> int:
         if title not in doc.titles:
             return _die(1, f"section {title!r} is not in {_posix(path)}")
     for title in append:
-        if title not in RETIRED_ENTRY_SECTIONS:
+        if title not in S3.retired_entry_sections:
             return _die(
                 1,
-                f"'append' adds lines to {' or '.join(RETIRED_ENTRY_SECTIONS)} only (got {title!r})",
+                f"'append' adds lines to {' or '.join(S3.retired_entry_sections)} only (got {title!r})",
             )
         if title not in doc.titles:
             return _die(1, f"section {title!r} is not in {_posix(path)}")
@@ -2994,7 +2876,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     for item in retire:
         m = RETIRE_REF_RE.match(item["ref"])
         if m and m["prefix"]:
-            key = next(s.floor_key for s in ID_SPECS if s.prefix == m["prefix"])
+            key = S3.id_spec(m["prefix"]).floor_key
             raised[key] = max(raised.get(key, 0), int(m["n"]) + 1)
     current = _content_doc(hot)
     for key, n in raised.items():
@@ -3022,7 +2904,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     )
     amended = _content_doc(hot)
     for title in sections:
-        if title in RETIRED_ENTRY_SECTIONS:
+        if title in S3.retired_entry_sections:
             kept = set(_entry_units(amended, title)[0])
             prior = set(_entry_units(pred, title)[0]) if pred else set()
             for unit in _entry_units(retired_doc, title)[0]:
@@ -3031,7 +2913,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
                         1,
                         f"section {title!r}: the rewrite removes an entry added this hop; retire it in the same call: {unit[0][:60]!r}",
                     )
-        for spec in ID_SPECS:
+        for spec in S3.id_specs:
             if title not in spec.sections:
                 continue
             kept_ids = {n for n, _, _ in _id_entries(amended, spec) if n is not None}
@@ -3579,7 +3461,7 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape == 3
-    floors = {spec.floor_key: _next_id(pred, spec) for spec in ID_SPECS}
+    floors = {spec.floor_key: _next_id(pred, spec) for spec in S3.id_specs}
     next_id = floors[RULES.floor_key]
     fm = [
         "---",
@@ -3613,7 +3495,7 @@ def build_skeleton_3(
     )
     goal_new = _fill(
         "goal-new",
-        f"optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten here: an amendment that no longer binds leaves only through the slots' 'retire' list as {{'ref': 'amendment#<i>', 'reason': ...}} (i counts amendment units from the top), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Original goal']}'; a unit with any clause still binding stays whole, or that clause is first written as an [R<n>] rule and the unit retired 'codified in [R<n>]'; delete this line when nothing changes",
+        f"optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten here: an amendment that no longer binds leaves only through the slots' 'retire' list as {{'ref': 'amendment#<i>', 'reason': ...}} (i counts amendment units from the top), which lists it in {hop_rel} under '## {S3.retired_entry_sections['Original goal']}'; a unit with any clause still binding stays whole, or that clause is first written as an [R<n>] rule and the unit retired 'codified in [R<n>]'; delete this line when nothing changes",
     )
     if pred is None or pred.section("Original goal") is None:
         goal = [
@@ -3670,7 +3552,7 @@ def build_skeleton_3(
     )
 
     trail_line = f"one line per change of direction, '- [h<k>] <change> (<cause>)', the cause owner-directed (quoting the owner) or agent-initiated; flag a remaining action that serves no recorded goal or detour as '- [h{hop}] DRIFT: <action>'"
-    trail_retire = f"; a carried line that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[h<k>]#<i>', 'reason': ...}} (i counts the lines tagged [h<k>]), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Direction changes']}'"
+    trail_retire = f"; a carried line that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[h<k>]#<i>', 'reason': ...}} (i counts the lines tagged [h<k>]), which lists it in {hop_rel} under '## {S3.retired_entry_sections['Direction changes']}'"
     if carried:
         pointer, kept, folded = None, [], False
         for line in _section_lines(pred, "Direction changes"):
@@ -3718,7 +3600,9 @@ def build_skeleton_3(
         """A slot, or for a question or decision section `new` carries
         (`_carries`), the predecessor's entries copied off disk above an
         optional slot for new ones."""
-        spec = next((s for s in ID_SPECS[1:] if title in s.sections), None)
+        spec = next(
+            (s for s in S3.id_specs if s is not RULES and title in s.sections), None
+        )
         if spec is None or not _carries(pred, spec):
             return [_fill(name, instruction)]
         ref = f"[{spec.prefix}<n>]"
@@ -3749,7 +3633,7 @@ def build_skeleton_3(
         (
             "Open questions",
             "open-questions",
-            f"one per line, '- [Q<n>] <question>' with its options, a recommendation and what it unblocks, new ids from Q{floors['next_question_id']}; a carried question keeps its id; one that is answered or no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[Q<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[1].retired_heading}'; 'None.' plus a reason when there are none",
+            f"one per line, '- [Q<n>] <question>' with its options, a recommendation and what it unblocks, new ids from Q{floors['next_question_id']}; a carried question keeps its id; one that is answered or no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[Q<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {S3.id_spec('Q').retired_heading}'; 'None.' plus a reason when there are none",
         ),
     ):
         section(title, id_body(title, name, instruction))
@@ -3797,7 +3681,7 @@ def build_skeleton_3(
         (
             "Decisions in force",
             "decisions",
-            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[2].retired_heading}'; settled history stays in the archive",
+            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {S3.id_spec('D').retired_heading}'; settled history stays in the archive",
         ),
         (
             "Suggested skills",

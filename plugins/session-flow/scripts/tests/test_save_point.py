@@ -1457,11 +1457,9 @@ def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
 
 
 def _install_in_cache(version_dir):
-    # save_point.py and io_streams.py, the one module it imports, under the
-    # plugin cache layout.
     scripts = version_dir / "scripts"
     scripts.mkdir(parents=True)
-    for name in ("save_point.py", "io_streams.py"):
+    for name in ("save_point.py", "io_streams.py", "handoff_chain.py"):
         shutil.copy2(SCRIPT.parent / name, scripts / name)
 
 
@@ -4432,7 +4430,7 @@ def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_pat
     assert dropped.returncode == 1, out(dropped)
     assert "[R1] left this file without a retirement" in out(dropped), out(dropped)
     assert DOWNGRADED not in out(dropped), out(dropped)
-    edit(hop2, "checks: 2\n", "")
+    edit(hop2, "checks: 3\n", "")
     unstamped = strict(hop2)
     assert unstamped.returncode == 0, out(unstamped)
     assert DOWNGRADED in out(unstamped), out(unstamped)
@@ -4471,7 +4469,7 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
     dropped = run("validate", str(hop2))
     assert dropped.returncode == 1, out(dropped)
     assert "predecessor entry dropped" in out(dropped), out(dropped)
-    edit(hop2, "checks: 2\n", "")
+    edit(hop2, "checks: 3\n", "")
     unstamped = run("validate", str(hop2))
     assert unstamped.returncode == 0, out(unstamped)
     assert DOWNGRADED in out(unstamped), out(unstamped)
@@ -4479,10 +4477,10 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
 
 def test_amend_keeps_the_checks_stamp(tmp_path):
     hot, _ = amend_hop1(make_repo(tmp_path), tmp_path)
-    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+    assert "\nchecks: 3\n" in hot.read_text(encoding="utf-8")
     result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
     assert result.returncode == 0, err(result)
-    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+    assert "\nchecks: 3\n" in hot.read_text(encoding="utf-8")
 
 
 def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
@@ -4492,9 +4490,9 @@ def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
     hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
     hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     edit(hop2, "- [R1] The thing must stay green.\n", "")
-    assert "\nchecks: 2\n" in hop2.read_text(encoding="utf-8")
+    edit(hop2, "\nchecks: 3\n", "\nchecks: 2\n")
     sp = _save_point_module()
-    monkeypatch.setattr(sp, "CHECKS", 3)
+    monkeypatch.setattr(sp, "CHECKS", 4)
     findings, code = sp.validate_doc(sp.parse_doc(hop2), None, True)
     failed = [x.text for x in findings.items if x.level == "FAIL"]
     assert code == 1, failed
