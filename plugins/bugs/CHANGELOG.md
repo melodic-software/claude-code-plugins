@@ -3,6 +3,26 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [0.25.0] - 2026-11-19
+
+### Added
+
+- `/bugs:scan` accepts the target-scope contract's forms (`--repo`, `--repos-from`, `--owner`,
+  `--fleet`, `--skip`, or the same request in words) and runs its pipeline once per repository
+  with the root anchored. Lanes, filing posture, the lane cursor, the budget, persisted reports and
+  `--track` filing stay per repository, and the merged report names each finding's repository.
+  With no target form, the scan runs as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
 ## [0.24.3] - 2026-11-19
 
 ### Changed

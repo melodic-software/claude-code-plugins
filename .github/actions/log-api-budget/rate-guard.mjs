@@ -66,11 +66,23 @@ const MAX_RESET = 999_999_999_999;
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
  *   its POLL_LIMIT_SECONDS.
+ * - `rerunCiStatusRate`: that step's rate-limit waits, counted with the
+ *   poll's, its RATE_WAIT_SECONDS. The job's timeout-minutes holds it, and
+ *   the reconciler's PENDING_BACKOFF_MINUTES holds the timeout, so no
+ *   recovery waits longer.
  * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
  *   failure drops finished work: the `rate-limit-wait-seconds` it passes
  *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
  *   leak scan's wait, and its jobs' API_BUDGET_WAIT_SECONDS. It is
  *   waitBudgetMs's cap.
+ * - `ciStatusVerify`: ci-status's merge-queue verdict reader, its
+ *   BABYSIT_READ_FLOOR_WAIT_SECONDS: how long it waits for a pool's reset
+ *   after a read it did not send below the read floor, then judges again
+ *   (owner decision D417). The job's timeout-minutes holds it on top of
+ *   GH_READ_JOB_SECONDS. With the merge queue's 30-minute
+ *   check_response_timeout_minutes and merge-group runs of up to about 12
+ *   minutes, a longer wait would time the entry out
+ *   (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch).
  * - `queuedPr`: check-plugins' read of the queued pull request in a merge
  *   group, its QUEUED_PR_WAIT_SECONDS: how long a rate-limited read waits for
  *   the reset before the bump, fragment, release and vendor gates refuse and
@@ -79,7 +91,7 @@ const MAX_RESET = 999_999_999_999;
  *   wait, the job's other work and ci-status after it, so it stays at 15
  *   minutes.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200, queuedPr: 900 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, rerunCiStatusRate: 720, workResolveIssue: 1200, ciStatusVerify: 900, queuedPr: 900 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 

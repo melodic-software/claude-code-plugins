@@ -412,8 +412,8 @@ success, so it is not lost. Its `Note the hold` step (`.github/workflows/pr-veri
 and the lost-run reconciler's next pass reads that job's annotations for the `held:` notice, as
 `triage-sweep.mjs` `classifyRun` does, and re-runs the run once with the same record a lost lane
 run gets (`reconcile.mjs` `faultHeld`). That happens only at attempt 1 and only while the status
-page shows Actions operational, so outside an outage a held verdict is retried within about 30
-minutes (the cron runs at minutes 4 and 34). A run held again at attempt 2 waits for the head's
+page shows Actions operational, so outside an outage a held verdict is retried within about an
+hour (the cron runs at minute 4). A run held again at attempt 2 waits for the head's
 next checks run. The reconciler lists pr-verify's and pr-review-main's succeeded runs from `FAULT_HELD_HOURS` back, or
 from the last pass that read when that is earlier, since a pass idle through an outage reads
 nothing, or from the oldest first attempt that pass saw still going, since a run's three jobs can

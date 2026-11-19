@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.9.5] - 2026-11-19
+
+### Fixed
+
+- `interview`: the register rules now state the row shape `check-open-questions.sh` grades in the terminal lane. The round field reads `round <N>` and nothing else, and keeps the round the row was first written in when the question is asked again. Each new row goes at the end of the register. The sweep record keeps the sub-agent's `S<N>` ids, which restart at `S1` in each sweep. Before, an interview that followed the skill text could write a round field `--procedure` rejects, or a row out of order, which makes the register ungradeable.
+
+- **The six `plan-reviewer-cut-medium-*` eval cases can pass on the shipped plan skill.** Their
+  `reviewer-not-dispatched` grader no longer sets `max: 0`, because under `auto` a MEDIUM blast
+  radius runs the plan reviewer, so the grader could not pass in the same run as
+  `blast-radius-medium`. A reviewer dispatch is now a must-pass sample. The `low-*` cases still
+  require no reviewer dispatch.
+
+## [5.9.4] - 2026-11-19
+
+### Changed
+
+- `draft-goal-condition` reads the `ProposeGoal` cap from `reference/native-goal.md` at run time
+  instead of stating it, points at that record for why it proposes no condition with a tab, and
+  its Boundary entry for the tool points at that record for the `ask_user` default and the
+  contexts that refuse the tool, keeping only our gate.
+- `interview` and `wayfind` keep the rule that the caller declares an unattended run, giving the
+  reason that the caller knows whether a person is there, and drop the claim that a session cannot
+  detect it.
+- `plan` drops the plan-mode keybinding and points at the permission-modes page's section on
+  switching modes.
+
 ## [5.9.3] - 2026-11-19
 
 ### Changed

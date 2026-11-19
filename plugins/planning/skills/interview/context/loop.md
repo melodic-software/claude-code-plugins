@@ -369,6 +369,11 @@ Fields: `Q<N> | status | round | question | resolution`. Statuses:
 
 `Q<N>` matches the terminal numbering, runs continuously across rounds, and never has a gap. A gap means a row was dropped after it was written, and the gate refuses to grade a register with one.
 
+**Write each row in the shape the gate grades.** In the terminal lane, write each row this way when you register it, so the gate passes without a repair:
+
+- The round field reads `round <N>` and nothing else, `<N>` being the round in which the row was first written. Asking the question again (unanswered from last round, after a discussion, after a correction) leaves the field as it is. `--procedure` fails any other text in the field, and needs a row in every round from 1 to the highest round a row names.
+- Append each new row at the end of the register, a late commitment row and a sweep item's row included ("Commitment rows written after later ids exist"); never insert one between existing rows. A row whose `Q<N>` is lower than the row above it makes the register ungradeable (exit 2) with or without `--procedure`.
+
 **Free-text flag, a resolution-field convention.** When a reply RESOLVES its question but arrives as free text rather than a pick from the authored options, whether through the escape hatch, a complete answer in the user's own words, or an explicit "you pick" (which resolves to the recommendation), lead the resolution field with `free-text:` before the answer. Downstream passes (answer audits, plan formulation) treat flagged rows as deserving scrutiny rather than as settled picks: a free-text answer is where a misread lands silently. The flag never launders a non-answer into `answered`: a partial or non-resolving reply keeps its row `open` under the drift check below, exactly as if the reply had changed the subject. This lives inside the free-form resolution field; `check-open-questions.sh` grades statuses, not resolutions, so the flag is invisible to the gate and downstream passes read it from the row text.
 
 **Commitment rows.** A recommendation's `Commits you to:` parts (SKILL.md Stance "Relentless mode") are rows of their own, written `open` at ask-time and numbered after their headline, so the ids stay contiguous and the gate grades each one. The question field names the headline: `- Q6 | open | round 2 | (part of Q5) token scope for the review step |`. An explicit acceptance of the headline resolves each to `answered` with `accepted via Q5: <value>`; choosing an alternative or rejecting the headline sets each to `withdrawn` with `pruned by Q5 = <answer>`. The read-only decision table gives each part its own row number, and the `me` decision tree gives each its own checkbox. Unattended, each part takes the ladder on its own: a codebase-resolvable headline does not make its parts resolvable, and a part that is the user's decision is `blocked` like any other row.
@@ -413,7 +418,7 @@ The rule is also surface-agnostic: it reads the register, so it does not care wh
 
 ### Unattended path
 
-`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (`https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
+`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. The caller knows whether a person is there to answer and the skill would only be guessing, so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
 
 The ladder, in order:
 

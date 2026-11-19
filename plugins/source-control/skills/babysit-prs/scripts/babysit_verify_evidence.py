@@ -103,10 +103,13 @@ failed read, a list cut short or no such run keeps the FAIL.
   (`split_child_body`), or is an issue github-actions[bot] filed whose one
   recurring-schedule marker names one row of the default branch's schedule
   (`recurring_row`), or is an issue github-actions[bot] filed, nobody else
-  last edited, with the upstream-drift workflow's title and hex-pin lead line
-  (`drift_issue`) on a pull request whose changed files only modify the
-  default branch's docs/upstream pages pinned to that upstream
-  (`drift_scope`), or is a main-red incident github-actions[bot] filed,
+  last edited, with the upstream-drift workflow's title and one of its two
+  lead lines (`drift_issue`) on a pull request whose changed files, for the
+  hex-pin lead, only modify the default branch's docs/upstream pages pinned
+  to that upstream (`drift_scope`), or, for the vendored-copy lead, stay
+  inside the plugin the default branch's vendored row for that upstream
+  names and its changelog fragments (`vendored_scope`), or is a main-red
+  incident github-actions[bot] filed,
   nobody else last edited, under the monitoring lane's title and marker
   line (`main_red_incident`), or is an own-agent filing intake admission
   admits (`own_agent_filing`, ADR 0111): an identity on admission's
@@ -121,6 +124,8 @@ failed read, a list cut short or no such run keeps the FAIL.
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
   for a new head;
+- otherwise, with a PASS or PASS-NOTES at the head whose run cannot be read:
+  `verify:unreadable`;
 - otherwise, on a pull request created more than `TOO_OLD_DAYS` ago,
   `verify:too-old`: its verdicts may have expired, and the lost-run
   reconciler re-runs the head's checks so pr-verify judges it, whose fresh
@@ -170,8 +175,9 @@ tie, `INDEX_PREFIX` then `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>` and
 `failIndexNames`), and the FAIL uploads only if every index did; a job with
 no index step (`FAIL_INDEX` unset: a re-run of an older pr-verify.yml) writes
 no FAIL at all. When the
-legacy FAILs file (`LEGACY_FAILS_FILE`, every FAIL uploaded before the index,
-built by `legacy-fails` from the verifier's runs and their artifacts) loads, a
+legacy FAILs file (the file `LEGACY_FAILS_ENV` names, every FAIL uploaded
+before the index, built by `legacy-fails` from the verifier's runs and their
+artifacts) loads, a
 judgment reads no listing (`Reader._targeted`): the name filter returns every
 artifact of an exact name across runs, so it reads the index names of this
 pull request's number and each other pull request that closes one of its
@@ -309,12 +315,17 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    READ_FLOOR_REFUSAL,
+    READ_FLOOR_WAIT_ENV,
     RUN_SEARCH_CAP,
     fetch_paginated_api,
     flatten_paginated_items,
+    forget_read_floor,
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    read_floor_refusals,
+    read_floor_wait_seconds,
     single_attempt,
     split_created_window,
 )
@@ -334,8 +345,6 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
 # `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
 INDEX_PREFIX = "pr-verify-index-"
-# The FAILs uploaded before the index (`Reader._legacy`), committed beside
-# this module once built (`legacy-fails`); its presence turns the index on.
 LEGACY_FAILS_FILE = "verify-legacy-fails.json"
 LEGACY_FAILS_ENV = "BABYSIT_VERIFY_LEGACY_FAILS"
 LEGACY_FAILS_VERSION = 1
@@ -755,9 +764,12 @@ ACTIONS_ISSUE_QUERY = (
 ACTIONS_BOT_ID = 41898282
 # file-due.mjs SCHEDULE_MARKER.
 SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
-# resolve-pr.mjs DRIFT_TITLE and driftLead: scripts/upstream-drift-issues.sh's
-# title and its hex-pin lead line.
 DRIFT_TITLE_RE = re.compile(r"Upstream drift: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+VENDORED_REPORT_PATH = "scripts/upstream-drift-vendored-report.sh"
+VENDORED_ROW_RE = re.compile(
+    r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|plugins/([A-Za-z0-9][A-Za-z0-9_.-]*)/[^|"]*\|[^|"]*(\|files-only)?"\s*'
+)
+VENDORED_ROW_ID_RE = re.compile(r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|')
 # resolve-pr.mjs MAIN_RED_TITLE and MAIN_RED_KEY: maintenance-monitor-signals
 # issues.mjs FILING["1 main red"] title and its marker line for that key.
 MAIN_RED_TITLE = "Restore the failing required checks on main"
@@ -894,24 +906,26 @@ def actions_bot_only(issue: Any) -> bool:
     )
 
 
-def drift_issue(issue: Any) -> str | None:
-    """resolve-pr.mjs driftSpec's issue half: the upstream id when `issue`
-    (as `ACTIONS_ISSUE_QUERY` reads it) is one github-actions[bot] wrote and
-    nobody else last edited, titled `Upstream drift: <id>`, whose first body
-    line is the hex-pin lead scripts/upstream-drift-issues.sh writes for that
-    id; else None. Pure."""
+def drift_issue(issue: Any) -> tuple[str, str] | None:
+    """resolve-pr.mjs driftSpec's issue half (admit.mjs driftIssue): the
+    upstream id and kind when `issue` (as `ACTIONS_ISSUE_QUERY` reads it) is
+    one github-actions[bot] wrote and nobody else last edited, titled
+    `Upstream drift: <id>`, whose first body line is one of the two leads
+    scripts/upstream-drift-issues.sh writes for that id: kind `pinned` for
+    the hex-pin lead, `vendored` for the vendored-copy lead; else None.
+    Pure."""
     issue = json_object(issue)
     title = issue.get("title")
     body = issue.get("body")
     match = DRIFT_TITLE_RE.fullmatch(title) if isinstance(title, str) else None
-    lead = body.split("\n", 1)[0].removesuffix("\r") if isinstance(body, str) else None
-    counts = (
-        actions_bot_only(issue)
-        and match is not None
-        and lead
-        == f"Upstream `{match[1]}` changed since the pin on its docs/upstream page."
-    )
-    return match[1] if counts and match is not None else None
+    if match is None or not actions_bot_only(issue) or not isinstance(body, str):
+        return None
+    lead = body.split("\n", 1)[0].removesuffix("\r")
+    kinds = {
+        f"Upstream `{match[1]}` changed since the pin on its docs/upstream page.": "pinned",
+        f"Upstream `{match[1]}` no longer matches the copy vendored here.": "vendored",
+    }
+    return (match[1], kinds[lead]) if lead in kinds else None
 
 
 def main_red_incident(issue: Any) -> bool:
@@ -1114,6 +1128,139 @@ def drift_scope(files: Any, id: str, pins: Callable[[str], str | None]) -> bool:
         ):
             return False
     return all(pins(json_object(file)["filename"]) == id for file in files)
+
+
+def vendored_plugin(text: Any, id: str) -> str | None:
+    """admit.mjs vendoredRows for one id: the plugin the rows of `text`
+    (scripts/upstream-drift-vendored-report.sh) name for `id`, or None when
+    none does, two plugins claim it, a row for it does not parse, or a row
+    for it lacks `files-only` (its apply mode may install a package). Pure."""
+    if not isinstance(text, str):
+        return None
+    lines = [
+        line
+        for line in text.split("\n")
+        if (head := VENDORED_ROW_ID_RE.match(line)) and head[1] == id
+    ]
+    rows = [VENDORED_ROW_RE.fullmatch(line) for line in lines]
+    if not rows or not all(rows):
+        return None
+    plugins = {row[2] for row in rows}
+    if len(plugins) != 1 or not all(row[3] for row in rows):
+        return None
+    return plugins.pop()
+
+
+VENDORED_UNSAFE = frozenset(
+    {"scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."}
+)
+
+
+VENDOR_INERT_RE = re.compile(r".*\.(?:md|jsonc)|LICENSE")
+
+
+def vendored_path(plugin: Any, name: Any) -> bool:
+    """resolve-pr.mjs vendoredPath: a changelog fragment directly under
+    `.changes/<plugin>/`, or, under `plugins/<plugin>/skills/`, a markdown
+    file, or in a `vendor/` baseline a markdown, `.jsonc` or `LICENSE` file,
+    with no VENDORED_UNSAFE segment, and never a skill's `actions/update.md`
+    or, outside `vendor/`, the plugin's `update` skill. Pure."""
+    if not isinstance(plugin, str) or not isinstance(name, str):
+        return False
+    fragment = f".changes/{plugin}/"
+    if name.startswith(fragment):
+        return re.fullmatch(r"[^/]+\.md", name[len(fragment) :]) is not None
+    parts = name.split("/")
+    vendored = "vendor" in parts[4:-1]
+    procedure = (len(parts) > 3 and parts[3] == "update" and not vendored) or parts[-2:] == [
+        "actions",
+        "update.md",
+    ]
+    return (
+        name.startswith(f"plugins/{plugin}/skills/")
+        and len(parts) > 4
+        and all(part and part not in VENDORED_UNSAFE for part in parts)
+        and not procedure
+        and (VENDOR_INERT_RE.fullmatch(parts[-1]) is not None if vendored else name.endswith(".md"))
+    )
+
+
+SKILL_FILE_RE = re.compile(r"plugins/[^/]+/skills/(?:[^/]+/)+SKILL\.md")
+SKILL_READS_MAX = 10
+SYNC_STAMP_RE = re.compile(
+    r' {2}(upstream-version|upstream-sha|synced): ("?)[\w./@:+-]+\2', re.ASCII
+)
+PRECOMPUTE_FENCE_RE = re.compile(r"(?:`{3,}|~{3,})\s*!")
+
+
+def skill_file(name: Any) -> bool:
+    """resolve-pr.mjs skillFile: a SKILL.md under a plugin's skills/ and
+    outside a vendor/ baseline below the skill directory, whatever the
+    skill is named. Pure."""
+    return (
+        isinstance(name, str)
+        and SKILL_FILE_RE.fullmatch(name) is not None
+        and "vendor" not in name.split("/")[4:-1]
+    )
+
+
+def _skill_surface(text: Any) -> tuple[list[str], list[str]] | None:
+    """resolve-pr.mjs skillSurface: the frontmatter with each sync stamp's
+    value dropped, and every body line holding `` !` ``; None with no closed
+    frontmatter or a fenced precompute. Pure."""
+    lines = text.split("\n") if isinstance(text, str) else []
+    if not lines or lines[0] != "---" or "---" not in lines[1:]:
+        return None
+    end = lines.index("---", 1)
+    if any(PRECOMPUTE_FENCE_RE.search(line) for line in lines):
+        return None
+    front = [
+        line[: line.index(":") + 1] if SYNC_STAMP_RE.fullmatch(line) else line
+        for line in lines[1:end]
+    ]
+    return front, [line for line in lines[end + 1 :] if "!`" in line]
+
+
+def skill_text_safe(base: Any, head: Any) -> bool:
+    """resolve-pr.mjs skillTextSafe: the SKILL.md change from `base` to
+    `head` leaves its frontmatter but for sync stamp values, and its inline
+    precompute lines, as they were, with no fenced precompute. Pure."""
+    before = _skill_surface(base)
+    return before is not None and before == _skill_surface(head)
+
+
+def _vendored_skill_safe(file: dict[str, Any], texts: dict[str, tuple[str, str]]) -> bool:
+    """resolve-pr.mjs vendoredSkillSafe, with `texts` the base and head
+    texts read per modified skill_file. Pure."""
+    if skill_file(file.get("previous_filename")):
+        return False
+    name = file.get("filename")
+    if not skill_file(name):
+        return True
+    pair = texts.get(name)
+    return file.get("status") == "modified" and pair is not None and skill_text_safe(*pair)
+
+
+def vendored_scope(
+    files: Any, plugin: str, texts: dict[str, tuple[str, str]] | None = None
+) -> bool:
+    """resolve-pr.mjs driftSpec's changed-file half for a vendored-copy
+    issue: `files` (GET compare's `files`) is non-empty, under GitHub's cap,
+    every path, and a rename's previous path, is a vendored_path of
+    `plugin`, and a skill_file among them passes _vendored_skill_safe on
+    `texts`. Pure."""
+    if not is_json_array(files) or not 0 < len(files) < COMPARE_FILES_CAP:
+        return False
+
+    def inside(path: Any) -> bool:
+        return vendored_path(plugin, path)
+
+    return all(
+        inside(file.get("filename"))
+        and ("previous_filename" not in file or inside(file["previous_filename"]))
+        and _vendored_skill_safe(file, texts or {})
+        for file in map(json_object, files)
+    )
 
 
 def split_child_body(
@@ -1797,16 +1944,8 @@ class Reader:
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
     # The issue number `link_refusal` took for each pull request.
     linked_issue: dict[int, Any] = field(default_factory=dict)
-    # The legacy FAILs file (`_legacy`): when it loads, judgments read the
-    # FAIL index by exact name instead of the whole listing. `LEGACY_FAILS_ENV`
-    # names another file, or none when empty.
     legacy_path: str | None = field(
-        default_factory=lambda: (
-            os.environ.get(
-                LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
-            )
-            or None
-        )
+        default_factory=lambda: os.environ.get(LEGACY_FAILS_ENV) or None
     )
     _legacy_entries: list[dict[str, Any]] | None = None
     _legacy_loaded: bool = False
@@ -1876,7 +2015,9 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
-                if self._overcount_mine:
+                if self._overcount_mine and READ_FLOOR_REFUSAL in self._listing_error:
+                    self._release_overcount()
+                elif self._overcount_mine:
                     self._note_overcount(self._listing_error)
                 if self._whole_paged and (
                     isinstance(exc, _CutShort) or not isinstance(exc, _Transient)
@@ -2518,6 +2659,15 @@ class Reader:
         self._overcount_mine = True
         return True
 
+    def _release_overcount(self) -> None:
+        """Best effort: drop this Reader's claim on the job's over-count whole
+        listing (`_claim_overcount`), so a later Reader may take it."""
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
+        if path is not None:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        self._overcount_mine = False
+
     def _note_overcount(self, outcome: str) -> None:
         """Best effort: how the job's over-count whole listing ended, so a
         later Reader's refusal carries a caller-limit refusal's prefix."""
@@ -2528,10 +2678,15 @@ class Reader:
 
     def _note_failed_listing(self, error: str) -> None:
         """Best effort: a failed write leaves the next Reader to list. A
-        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
-        noted: a later caller may have the time."""
+        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) or
+        below a pool's read floor (`READ_FLOOR_REFUSAL`) is not noted: a later
+        caller may have the time, or find the pool reset."""
         path = self._beside(FAILED_LISTING_SUFFIX)
-        if path is not None and not error.startswith(DEADLINE_UNREADABLE):
+        if (
+            path is not None
+            and not error.startswith(DEADLINE_UNREADABLE)
+            and READ_FLOOR_REFUSAL not in error
+        ):
             with contextlib.suppress(OSError):
                 note = f"{error} (an earlier listing in this job)"
                 path.write_text(note, encoding="utf-8")
@@ -2790,7 +2945,7 @@ class Reader:
         try:
             record = self._record(run_id, name, artifact_id)
         except _Unreadable as exc:
-            if shared:
+            if shared and READ_FLOOR_REFUSAL not in str(exc):
                 run_cache.put(UNREAD_RECORD_SECTION, key, str(exc))
             raise
         if shared:
@@ -3227,20 +3382,65 @@ class Reader:
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
         wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
-        request `pr` at `head` only modifies the default branch's pages that
-        pin its upstream (`drift_scope`), as resolve-pr.mjs driftSpec
-        requires. A failed read raises `_Unreadable` (`verify:unreadable`)."""
+        request `pr` at `head` stays inside its kind's scope: the default
+        branch's pages that pin its upstream (`drift_scope`), or the plugin
+        the default branch's vendored row names (`vendored_scope`), as
+        resolve-pr.mjs driftSpec requires. A failed read raises `_Unreadable`
+        (`verify:unreadable`)."""
         node = self._actions_issue(issue)
-        upstream = drift_issue(node) if node is not None else None
-        if upstream is None:
+        drift = drift_issue(node) if node is not None else None
+        if drift is None:
             return False
+        upstream, kind = drift
+        plugin = None
+        if kind == "vendored":
+            plugin = vendored_plugin(self._default_text(VENDORED_REPORT_PATH), upstream)
+            if plugin is None:
+                return False
         base = json_object(json_object(pr).get("base")).get("sha")
         if not isinstance(base, str) or not isinstance(head, str):
             raise _Unreadable(f"#{issue.get('number')}: no base or head to compare")
         compared = _read(
             ["api", f"repos/{self.repo}/compare/{base}...{head}"], "changed files"
         )
-        return drift_scope(json_object(compared).get("files"), upstream, self._page_pin)
+        files = json_object(compared).get("files")
+        if plugin is not None:
+            return vendored_scope(files, plugin, self._skill_texts(compared, head))
+        return drift_scope(files, upstream, self._page_pin)
+
+    def _skill_texts(self, compared: Any, head: str) -> dict[str, tuple[str, str]]:
+        """resolve-pr.mjs compareFiles's reads: each modified skill_file of
+        GET compare answer `compared` as text at its merge base and at `head`,
+        none past SKILL_READS_MAX. A failed read raises `_Unreadable`."""
+        answer = json_object(compared)
+        files = answer.get("files")
+        merge_base = json_object(answer.get("merge_base_commit")).get("sha")
+        names = [
+            file.get("filename")
+            for file in map(json_object, files if is_json_array(files) else [])
+            if file.get("status") == "modified" and skill_file(file.get("filename"))
+        ]
+        if not names or len(names) > SKILL_READS_MAX or not isinstance(merge_base, str):
+            return {}
+        return {
+            name: (self._text_at(name, merge_base), self._text_at(name, head)) for name in names
+        }
+
+    def _text_at(self, path: str, ref: str) -> str:
+        """File `path` as text at commit `ref`. A failed read raises
+        `_Unreadable`."""
+        file = json_object(
+            _read(
+                ["api", f"repos/{self.repo}/contents/{urllib.parse.quote(path)}?ref={ref}"],
+                "skill text",
+            )
+        )
+        if file.get("encoding") != "base64" or not isinstance(file.get("content"), str):
+            raise _Unreadable(f"{path}: no content at {ref}")
+        try:
+            return base64.b64decode(file["content"]).decode("utf-8")
+        except ValueError as exc:
+            raise _Unreadable(f"{path}: {exc}") from exc
 
     def _page_pin(self, path: str) -> str | None:
         """The upstream id docs/upstream page `path` pins at the default
@@ -3254,29 +3454,33 @@ class Reader:
         shared = run_cache.get_dated("upstream-page", key, run_cache.MAX_AGE)
         if shared is None:
             at = run_cache.now()
-            file = json_object(
-                _read(
-                    [
-                        "api",
-                        f"repos/{self.repo}/contents/{path}?ref={self._tip(default)}",
-                    ],
-                    "upstream page",
-                )
-            )
-            if file.get("encoding") != "base64" or not isinstance(
-                file.get("content"), str
-            ):
-                raise _Unreadable(f"{path}: no page content")
-            try:
-                text = base64.b64decode(file["content"]).decode("utf-8")
-            except ValueError as exc:
-                raise _Unreadable(f"{path}: {exc}") from exc
-            value = page_pin(text)
+            value = page_pin(self._default_text(path, default))
             run_cache.put("upstream-page", key, value, at)
         else:
             value, at = shared
         run_cache.note(at)
         return value
+
+    def _default_text(self, path: str, default: str | None = None) -> str:
+        """File `path` as text at the default branch's tip. A failed read
+        raises `_Unreadable`."""
+        if default is None:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+        file = json_object(
+            _read(
+                ["api", f"repos/{self.repo}/contents/{path}?ref={self._tip(default)}"],
+                "upstream page",
+            )
+        )
+        if file.get("encoding") != "base64" or not isinstance(file.get("content"), str):
+            raise _Unreadable(f"{path}: no page content")
+        try:
+            return base64.b64decode(file["content"]).decode("utf-8")
+        except ValueError as exc:
+            raise _Unreadable(f"{path}: {exc}") from exc
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
@@ -4018,6 +4222,10 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
+        # A pass at the head whose run did not read: it may be the pass that
+        # allows, so with no counted one the head is unreadable, not missing
+        # (https://github.com/melodic-software/claude-code-plugins/issues/17377).
+        unread_pass: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
         # with a FAIL whose run cannot be read, for the cap's other pull
         # requests (`_elsewhere`).
@@ -4069,10 +4277,14 @@ class Reader:
                         (run_id, name, item.get("id"))
                     )
                     continue
-                if self._run_state(run_id) == COUNTED:
+                state = self._run_state(run_id)
+                if state == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
                     passes.append((run_id, name, item.get("id")))
                 else:
+                    unread_pass = unread_pass or (
+                        f"run of {name}" if state == UNREAD else None
+                    )
                     ignored += 1
                 continue
             state = self._run_state(run_id, shared=True)
@@ -4194,6 +4406,8 @@ class Reader:
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
                     None,
                 )
+        elif unread_pass:
+            refusal, detail = UNREADABLE, unread_pass
         elif too_old:
             refusal = TOO_OLD
             detail = f"created {created.isoformat()}"
@@ -5005,12 +5219,18 @@ def lane_risk_refusal(
 
 
 def lane_queue(
-    repo: str, branch: str, number: int, head: str, limit: int
+    repo: str,
+    branch: str,
+    number: int,
+    head: str,
+    limit: int,
+    causes: tuple[str, ...] = merge_policy.QUEUE_EJECTION_INFRA_CAUSES,
 ) -> dict[str, Any]:
     """The merge queue's failed-check removals of `head` and whether pr-merge's
     gate would enqueue it again under `merge.max-queue-ejections` `limit`
-    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
-    the cap refuses. A read that fails refuses as the gate's unreadable hold,
+    (`babysit_merge.queue_ejection_hold`, excusing infra `causes`), with the
+    gate's marked comment when the cap refuses and the removals it excused
+    (`excludedRemovals`). A read that fails refuses as the gate's unreadable hold,
     with no comment, and names why in `readError`; a failed runs read keeps
     the refusal, with no comment and its error in `commentError`."""
     # Imported here: babysit_merge imports this module.
@@ -5027,6 +5247,7 @@ def lane_queue(
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
     removals = None if read_error else queue.get("failedRemovals")
+    excluded: list[dict[str, Any]] = []
     refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
         repo,
         branch,
@@ -5035,6 +5256,8 @@ def lane_queue(
         count,
         limit,
         removals if isinstance(removals, list) else None,
+        causes=causes,
+        excluded=excluded,
     )
     return {
         "failedEjections": count,
@@ -5043,6 +5266,7 @@ def lane_queue(
         "comment": comment,
         "readError": str(read_error) if read_error else None,
         "commentError": comment_error,
+        "excludedRemovals": excluded,
     }
 
 
@@ -5054,7 +5278,7 @@ def _when(value: Any) -> datetime | None:
     return when if when.tzinfo is not None else None
 
 
-UNATTRIBUTED_UNMOVED = "unattributed-unmoved"
+UNMOVED_PROBES = ("unattributed", "reruns")
 
 
 def _settle(
@@ -5077,12 +5301,13 @@ def _settle(
     quarantine issues and pins after it. The report checks run again last,
     so their clock is never earlier than it was with the room's rule first.
     With `unmoved` (`--probe-unmoved`), an idle report that lists unattributed
-    runs but that every other part keeps refuses as `UNATTRIBUTED_UNMOVED`:
-    such a run stops counting only once a newer commit passes
-    (`postmerge._recovered`), which the verifying runs test sees, so a fresh
-    check would list it again and pr-merge.yml's PR-scoped wake runs none.
-    Without it that refusal reads nothing, as the sweep runs its check
-    anyway. With `fresh` as well, this job's own check just made the report from the
+    runs, or reruns, but that every other part keeps refuses as
+    `unattributed-unmoved` or `reruns-unmoved`: an unattributed run stops
+    counting only once a newer commit passes (`postmerge._recovered`), and a
+    pending rerun only once it completes, which the verifying runs test sees,
+    so a fresh check would list it again and pr-merge.yml's PR-scoped wake
+    runs none. Without it that refusal reads nothing, as the sweep runs its
+    check anyway. With `fresh` as well, this job's own check just made the report from the
     verifying runs as they are, so their two reads are skipped, as a sweep
     arms on the report dispatch-post-merge-runs just made with no idle rule; the
     report checks and the quarantine and pin reads still apply.
@@ -5125,12 +5350,12 @@ def _settle_reason(
         return refusal and f"idle tick {refusal}"
 
     if idle and (refused := postmerge.idle_report_refusal(shared)):
-        if refused == "unattributed" and unmoved:
-            report = {**shared.gate.report, "unattributed": []}
+        if refused in UNMOVED_PROBES and unmoved:
+            report = {**shared.gate.report, refused: []}
             cleared = replace(shared, gate=replace(shared.gate, report=report))
             with contextlib.suppress(RuntimeError, ValueError, OSError):
                 if _settle_reason(repo, cleared, idle=True, outcome={}) is None:
-                    return idle_tick(UNATTRIBUTED_UNMOVED)
+                    return idle_tick(f"{refused}-unmoved")
         return idle_tick(refused)
     default = merge_policy._default_branch(repo, shared=True)
     config = merge_policy._default_branch_config(repo, default)
@@ -6519,7 +6744,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
     enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
     at the head it read. Exit 0 whenever the line is printed, a refusal
-    included.
+    included. A `verify:unreadable` that a read-floor refusal caused is judged
+    again after the pool's reset when that falls within `READ_FLOOR_WAIT_ENV`
+    (`_after_the_read_floor`).
 
     `--base-sha` is required: the FAIL cap is the gate's, `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
@@ -6674,12 +6901,63 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
-    reader = Reader(args.repo, args.branch, now=now)
-    if args.shared_listing:
-        reader.listing_max_age = None
+
+    def judged() -> dict[str, Any]:
+        reader = Reader(args.repo, args.branch, now=now)
+        if args.shared_listing:
+            reader.listing_max_age = None
+        return _evidence_report(args, reader)
+
     with merge_policy.base_tips_remembered():
-        print(json.dumps(_evidence_report(args, reader)))
+        print(json.dumps(_after_the_read_floor(judged)))
         return 0
+
+
+def _floor_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _floor_clock() -> float:
+    return time.time()
+
+
+def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """`judge()`, judged once more by a fresh reader when it refused
+    `verify:unreadable` with a read refused below its pool's read floor and
+    every such pool's reset falls within `READ_FLOOR_WAIT_ENV`: the process
+    waits for the reset, then reads again. Otherwise the first judgment stands
+    (owner decision D417,
+    https://github.com/melodic-software/claude-code-plugins/issues/16642)."""
+    report = judge()
+    refused = read_floor_refusals()
+    budget = read_floor_wait_seconds()
+    if report.get("refusal") != UNREADABLE or not refused or budget <= 0:
+        return report
+    pools = ", ".join(sorted(refused))
+    resets = [reset for reset in refused.values() if reset is not None]
+    if len(resets) < len(refused):
+        why = "no reset was read for it"
+    else:
+        wait = max(0.0, max(resets) + 1 - _floor_clock())
+        if wait <= budget:
+            print(
+                f"babysit-verify-evidence: a read was not sent below the {pools} "
+                f"read floor; waiting {wait:.0f} s for its reset, then judging again",
+                file=sys.stderr,
+                flush=True,
+            )
+            _floor_sleep(wait)
+            forget_read_floor(refused)
+            return judge()
+        why = f"its reset is {wait:.0f} s away"
+    print(
+        f"babysit-verify-evidence: a read was not sent below the {pools} read "
+        f"floor and {why}, past the {budget} s {READ_FLOOR_WAIT_ENV}; "
+        "the judgment stands",
+        file=sys.stderr,
+        flush=True,
+    )
+    return report
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
@@ -6758,6 +7036,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                 args.number,
                 args.head,
                 config.max_queue_ejections,
+                config.queue_ejection_infra_causes,
             )
     return evidence.report() | link
 

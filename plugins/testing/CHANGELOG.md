@@ -3,6 +3,20 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.8] - 2026-11-19
+
+### Fixed
+
+- `check-visual-parity`: outside a marketplace checkout and without `CLAUDE_PLUGIN_DATA`, `visual-compare.sh` installs under the data directory named from the install's own marketplace (`testing-<marketplace>`, or `testing-inline` outside the plugin cache) instead of one fixed publisher marketplace.
+
+## [5.7.7] - 2026-11-19
+
+### Fixed
+
+- `/testing:audit --persist-findings` reads the detector-findings contract from the copy bundled at
+  `reference/detector-findings.md` instead of fetching it from the publisher's repository, so
+  persisting works offline.
+
 ## [5.7.6] - 2026-11-19
 
 ### Changed

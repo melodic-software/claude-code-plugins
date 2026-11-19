@@ -30,7 +30,6 @@ open pull request:
   its own triggers. Pointer: before telling anyone it is available or how it is enabled, fetch
   [availability](https://code.claude.com/docs/en/code-review#availability) and
   [set up](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review) live.
-  Recheck trigger: it starts running in this lane's CI workflow.
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
   in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
 

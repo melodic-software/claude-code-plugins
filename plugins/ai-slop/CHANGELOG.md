@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0] - 2026-11-19
+
+### Added
+
+- **Several repositories in one run.** `/ai-slop:audit` takes the target-scope forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`) and runs `audit` or `fix` once per repository, each script anchored at that repository's tree so its own config and tracked markdown apply. Findings carry their `owner/name`, the findings file stays per repository, and `fix` opens one pull request per repository. With no target form the skill behaves as before. The plugin now ships `reference/target-scope.md`, a generated copy of the contract.
+
+## [0.19.12] - 2026-11-19
+
+### Fixed
+
+- `/ai-slop:audit` reads the detector-findings contract from the copy bundled at
+  `reference/detector-findings.md` before writing a findings file, instead of fetching it from the
+  publisher's repository, so persisting works offline.
+
 ## [0.19.11] - 2026-11-18
 
 ### Removed

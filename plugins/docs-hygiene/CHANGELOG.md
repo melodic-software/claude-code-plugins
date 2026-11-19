@@ -1,5 +1,59 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.4] - 2026-11-19
+
+### Changed
+
+- `audit-derivability`'s recheck trigger for a proven rubric routes it to the shared standards repository, without naming one organization's.
+
+## [4.2.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [4.2.2] - 2026-11-19
+
+### Changed
+
+- The `compress_articles` record in the config reference quotes caveman's **Remove** list, so it is a stored value and gets back its as-of date, 2026-11-06.
+- `/docs-hygiene:audit-derivability`'s Sources pointer for which subagents skip launch-loaded files no longer carries a recheck trigger, and the matching row is gone from its Recheck triggers table.
+
+## [4.2.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [4.2.0] - 2026-11-19
+
+### Changed
+
+- For a rule that must hold every time, `/docs-hygiene:write-for-agents` now names the call `/corrections:codify "<the rule>"` for the user and, when that skill is available, leaves the choice of mechanism to it. Without it, the skill proposes the strongest mechanism that can decide the rule and says the proposal is unproven. It no longer names a hook, deny rule, CI check or permission policy itself.
+
+## [4.1.1] - 2026-11-19
+
+### Fixed
+
+- `/docs-hygiene:audit-noise --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
+## [4.1.0] - 2026-11-19
+
+### Added
+
+- `audit-derivability`, `audit-encapsulation`, `audit-noise`, `audit-progressive-disclosure`,
+  `compress`, `extract-ssot` and `rename-references` accept the target-scope forms (`--repo`,
+  `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run once per
+  repository. Each repository keeps its own settings, findings files, ledgers and pull requests.
+  A run with no target form works as before.
+- `reference/target-scope.md`, a generated copy of the target-scope contract, and a "Several
+  repositories" section in `context/clean-tree-fallback.md` with the rules all seven skills share.
+
 ## [4.0.12] - 2026-11-17
 
 ### Changed

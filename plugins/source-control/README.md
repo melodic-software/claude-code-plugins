@@ -175,18 +175,18 @@ A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it blocks the call only when
 that body carries a negated closing reference (`does not close #N`), which
 GitHub's parser still closes on merge, and names each one with the `Refs: #N`
-line to use instead. The rest of the check-contract step (a closing line and
+line to use instead. The rest of the repository's PR-body contract step (a closing line and
 non-empty `## Summary`, `## Fix`, `## Verification` and `## Related` sections)
 is advisory in CI, so a body missing any of it passes.
 `/source-control:pull-request create` already gates its own body; this covers
 the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
-where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
-contract composite step `pr-require-checks/check-contract`, or the
-`pr-require-checks/report-ci-status` composite that runs it (the SHA-pinned
-`melodic-software/ci-workflows/.github/actions/<path>@<sha>` form, or
-ci-workflows' own local `./.github/actions/<path>`). A body the hook
+where one of the repo's `.github/workflows/*.yml` / `*.yaml` files matches
+`linkage_gate_uses_pattern`, a POSIX ERE naming the line that wires in the
+repository's PR-body contract step, set in `docs/conventions/source-control.yaml`
+or as the userConfig value of that name (the YAML wins). Unset, the hook gates
+no repository. A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
@@ -225,14 +225,15 @@ more about contention than about the hook. Counted with
 | Path | clone-family | `execve` |
 | --- | --- | --- |
 | A `gh` call with no `pr` in it | 7 | 2 |
-| `gh pr create` with a readable body (allow or block) | 11 | 3 |
+| `gh pr create` with a readable body (allow or block) | 10 | 4 |
 | `pr-linkage-mcp-gate`, an MCP create (allow or block) | 11 | 4 |
 
 Two of each `execve` count belong to `lib/hook-utils.sh`, not to these hooks:
 one `jq -e .` validating the payload and one `git rev-parse` resolving the repo
 root. The gates themselves spend one batched `jq` over the whole payload, plus,
 on the MCP surface only, the `git remote get-url` its origin-match scope guard
-needs. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
+needs. A repository whose team YAML names `linkage_gate_uses_pattern` adds one
+`awk` that parses it. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
 with no headroom, and proves itself non-vacuous against three mutants.
 
 #### Telemetry (opt-in)
@@ -255,9 +256,8 @@ refused by the cloud GitHub proxy (see
 covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 It blocks only the same negated closing reference, under the same authority (a
-workflow in the consuming repository's own `.github/workflows/` that `uses:` the
-`pr-require-checks/check-contract` composite step, or the `pr-require-checks/report-ci-status`
-composite that runs it), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
+workflow in the consuming repository's own `.github/workflows/` that matches
+`linkage_gate_uses_pattern`), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
 Bash sibling's static-readability caveats don't apply here; the scope guards
 that remain are the workflow scan above, an origin-remote match on the call's
 `owner`/`repo` (another repository's PR is not this repo's policy), and an
@@ -409,8 +409,16 @@ repo's owner.
 |---|---|---|
 | `lane_instance` | string | a random `lane-<hex>` id made once and kept in the plugin data dir, never the hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `lane_app_slug` | string | none (the telemetry write identity comes from the token's user; set it under a GitHub App installation token so `babysit-loop` resolves `<slug>[bot]`) |
-| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `check-contract` or `report-ci-status` step) |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `check-contract` or `report-ci-status` step) |
+| `unattended_merge_owners` | string (multiple) | none: nothing merges after AI review without the user. This and the six keys below are trust and cost settings, read only from user or managed settings (`babysit_merge_settings.py`), never from a repository |
+| `review_lane_workflows` | string (multiple) | none: no CI run counts as a review lane, so `review_venue: auto` reviews locally |
+| `review_lane_checks` | string (multiple) | none: no check counts as AI review, so the merge gate holds |
+| `owner_decisions_record` | string | none: no decision clears a cost hold |
+| `free_runner_labels` | string (multiple) | GitHub's standard hosted labels only |
+| `model_leg_actions` | string (multiple) | the built-in `run-claude-cli` and `claude-code*` names only |
+| `issue_status_app_login` | string | none: only a person's Work status values count |
+| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
+| `linkage_gate_uses_pattern` | string (ERE) | unset: neither PR-linkage hook gates any repository; a repository's `docs/conventions/source-control.yaml` value wins |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -466,15 +474,19 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 **`pr_body_linkage_gate_enabled`.** Blocks only a negated closing reference. A missing closing
 line or a missing or empty `## Summary`, `## Fix`, `## Verification` or `## Related` section
 passes, since CI reports those as advisory. Enforced only in a repository whose
-`.github/workflows` carry a workflow that uses the `check-contract` composite step or the
-`report-ci-status` composite that runs it.
+`.github/workflows` carry a workflow matching `linkage_gate_uses_pattern`.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
 cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
 [docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It blocks
 the same negated closing reference, with the same policy scope: enforced only in a repository
-whose `.github/workflows` carry a workflow that uses the `check-contract` composite step or the
-`report-ci-status` composite that runs it.
+whose `.github/workflows` carry a workflow matching `linkage_gate_uses_pattern`.
+
+**`linkage_gate_uses_pattern`.** The POSIX ERE both PR-linkage hooks match against each
+`.github/workflows/*.yml` and `*.yaml` file, usually the `uses:` line of the step that checks PR
+bodies in CI. A repository's `linkage_gate_uses_pattern` in `docs/conventions/source-control.yaml`
+wins over this value. Unset or empty, neither hook gates any repository; a pattern bash cannot
+compile, or a team YAML that does not parse, turns both off with a note on stderr.
 
 **`branch_issue_pattern`.** The last capture group must resolve to digits (`Closes #N` honors only
 a numeric issue). Set it for a non-default branch scheme that places the number differently, for
@@ -562,6 +574,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `pr_body_linkage_gate_enabled` | boolean | `true` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
+| `linkage_gate_uses_pattern` | string | *(none)* | A POSIX ERE; the two PR-linkage hooks run only in a repository where a .github/workflows file matches it, usually the uses: line of its PR-body check. The repository docs/conventions/source-control.yaml value wins. Unset: neither hook gates any repository. |
 | `branch_issue_pattern` | string | *(none)* | Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
 | `pr_open_state` | string | `"ready"` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
 | `review_venue` | string | `"auto"` | Who reviews a PR before the ready flip. auto (default) reviews locally only where no healthy CI lane does; local always reviews locally; ci leaves it to the CI lanes; both does both. A repository's review_venue in docs/conventions/source-control.yaml wins over this value. |
@@ -599,6 +612,13 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `babysit_worktree_root` | directory | *(none)* | Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir. |
 | `lane_instance` | string | *(none)* | Writer identity for this machine's babysit-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
 | `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>\[bot\]. Absent: the identity comes from the token's user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
+| `unattended_merge_owners` | string (multiple) | *(none)* | GitHub owners whose repositories /source-control:pull-request may merge after AI review without asking (merge phase 4.2.1). User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: nothing merges without the user. |
+| `review_lane_workflows` | string (multiple) | *(none)* | Reusable workflows whose runs count as a CI review lane, each as code-review=, security-review= or either= then <owner>/<repo>/.github/workflows/<file>. User or managed settings only, never a repository. Absent: no run counts, so every lane reads local. |
+| `review_lane_checks` | string (multiple) | *(none)* | AI review lane callers and check names the merge gate accepts, each as claude-review: or claude-security-review: then caller=<workflow path>, status=<check> or merge=<check>. User or managed settings only, never a repository. Absent: no check is AI review, so the gate holds. |
+| `owner_decisions_record` | string | *(none)* | The record whose line links clear a cost hold, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no decision clears a cost hold. |
+| `free_runner_labels` | string (multiple) | *(none)* | Runner label globs the merge gate treats as free besides GitHub's standard labels; * stands for letters, digits and -. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only GitHub's standard labels are free. |
+| `model_leg_actions` | string (multiple) | *(none)* | Action names besides run-claude-cli and claude-code* that start a model leg, for the merge gate's cost check; adds only. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: the built-in names only. |
+| `issue_status_app_login` | string | *(none)* | The one GitHub App login (<slug>\[bot\]) whose Work status field values the merge gate counts like a person's, when the trusted-actors list also lists it. User or managed settings only, never a repository. Absent: only a person's values count. |
 | `promotion_evidence_binding` | file | *(none)* | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_root` | directory | *(none)* | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_source` | file | *(none)* | Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |

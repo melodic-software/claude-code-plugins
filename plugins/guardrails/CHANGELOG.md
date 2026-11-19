@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.6] - 2026-11-19
+
+### Changed
+
+- `block-noncanonical-commit.sh`'s header names the configure command as `/plugin configure guardrails@<marketplace>`, not one publisher's marketplace.
+
 ## [3.10.5] - 2026-11-19
 
 ### Changed

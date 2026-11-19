@@ -53,6 +53,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_dependabot as dependabot
+import babysit_merge_settings as merge_settings
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
 import babysit_tracker_binding as tracker_binding
@@ -804,6 +805,14 @@ MAX_VERIFY_FAILS = 3
 # attempt per issue after the pr-merge lane closes its pull request at the
 # FAIL cap (owner decision 2026-10-29).
 VERIFY_CAP_ATTEMPTS = 1
+QUEUE_EJECTION_INFRA_CAUSES = (
+    "rate-limit",
+    "read-floor",
+    "verify-unreadable",
+    "kill-switch",
+    "lost-runner",
+    "main-red",
+)
 
 
 @dataclass(frozen=True)
@@ -866,6 +875,7 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
+    queue_ejection_infra_causes: tuple[str, ...] = QUEUE_EJECTION_INFRA_CAUSES
     # `merge.risk-escalation-minutes`: how long a reasons comment must have
     # stood unchanged at the head before the gate adds the human-gated label
     # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
@@ -968,8 +978,9 @@ class IssueStatusConfig:
 ISSUE_STATUS_KEY = "models.issue-status"
 # The job token's bot, a bot setter the trusted-actor list does not list.
 ACTIONS_BOT = (41898282, "github-actions[bot]")
-# The one App whose field values count for every state.
-LANES_APP_LOGIN = "melodic-automation-lanes[bot]"
+# The one App whose field values count for every state, read only from the
+# operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
+LANES_APP_LOGIN = merge_settings.load().issue_status_app_login
 
 
 LANE_PRS_MODES = ("native", "gate")
@@ -1123,6 +1134,7 @@ def read_config_at(
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
+            ("merge.queue-ejection-infra-causes", True),
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
             ("merge.verify-cap-attempts", False),
@@ -1232,6 +1244,15 @@ def read_config_at(
         MAX_QUEUE_EJECTIONS_LIMIT,
         f"is not a count from 1 to {MAX_QUEUE_EJECTIONS_LIMIT}",
     )
+    infra_causes = QUEUE_EJECTION_INFRA_CAUSES
+    if _merge_names(text, "queue-ejection-infra-causes"):
+        named = values["merge.queue-ejection-infra-causes"]
+        infra_causes = tuple(c for c in named if c in QUEUE_EJECTION_INFRA_CAUSES)
+        if unknown := [c for c in named if c not in QUEUE_EJECTION_INFRA_CAUSES]:
+            notes.append(
+                f"merge.queue-ejection-infra-causes {unknown!r} is not among "
+                f"{list(QUEUE_EJECTION_INFRA_CAUSES)!r}; those ejections count"
+            )
     escalation_minutes = bounded(
         "merge.risk-escalation-minutes",
         r"0|[1-9][0-9]*",
@@ -1305,6 +1326,7 @@ def read_config_at(
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
+        queue_ejection_infra_causes=infra_causes,
         risk_escalation_minutes=int(escalation_minutes)
         if escalation_minutes is not None
         else RISK_ESCALATION_MINUTES,
@@ -1386,6 +1408,11 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         path_holds=base.path_holds or main.path_holds,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
+        queue_ejection_infra_causes=tuple(
+            c
+            for c in base.queue_ejection_infra_causes
+            if c in main.queue_ejection_infra_causes
+        ),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
         verify_cap_attempts=min(base.verify_cap_attempts, main.verify_cap_attempts),
         # Main's own list, read in a `git diff` of its own, so an exclude or a
@@ -1459,8 +1486,10 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.check_inputs,
                     c.head_check_inputs,
                     c.issue_holds,
+                    c.queue_ejection_infra_causes,
                 )
             )
+            and set(c.queue_ejection_infra_causes) <= set(QUEUE_EJECTION_INFRA_CAUSES)
             and all(
                 len(row) == 3
                 and isinstance(row[0], str)
@@ -1917,7 +1946,7 @@ CANARY_RUNS = (
 # The pull request a read-back record names, as `babysit_postmerge._issue_body`
 # writes it.
 RECORD_PULL = re.compile(r"^- Pull request: (?:https://\S+/pull/|#)([1-9][0-9]*)$")
-PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$")
 # A pull request's merge and the agent identity's pin read-back over its first
 # 100 comments; a longer thread proves no read-back.
 LIFT_PULL = (
@@ -3019,7 +3048,9 @@ def issue_status(
     ]
     actors = trusted_listing(repo, ref) if ours_newest_first else ()
     people = {
-        i for i, login, kind in actors if kind == "human" or login == LANES_APP_LOGIN
+        i
+        for i, login, kind in actors
+        if kind == "human" or (LANES_APP_LOGIN and login == LANES_APP_LOGIN)
     }
     listed_bots = {
         (i, login)
@@ -3610,9 +3641,8 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # merge-holds.mjs DECISION_ROW and DECISION_QUOTE read it: a line link to a
 # row of the owner-decisions record, and the owner's words after `verbatim:`.
 # Shape only: the record is private, and sessions write it too.
-DECISION_ROW = re.compile(
-    r"https://github\.com/melodic-software/architecture/blob/(?:main|[0-9a-f]{40})"
-    r"/docs/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?"
+DECISION_ROW = merge_settings.decision_row_pattern(
+    merge_settings.load().owner_decisions_record
 )
 DECISION_QUOTE = re.compile(
     r"(?<![A-Za-z0-9_])verbatim:[ \t]*\"[^\"\n]*[^\" \t\r\n][^\"\n]*\""

@@ -3,6 +3,95 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.0] - 2026-11-19
+
+### Changed
+
+- The babysit merge gate trusts a vendored-copy upstream-drift issue as it trusts a hex-pin one: github-actions[bot] wrote it, nobody else last edited it, its title is `Upstream drift: <id>` and its first body line is the filer's vendored-copy lead for that id. It counts only for a pull request whose changed files, renames' old paths included, are markdown under the `skills/` of the plugin that id's row in the default branch's `scripts/upstream-drift-vendored-report.sh` names, markdown, `.jsonc` or `LICENSE` files in a `vendor/` baseline there, or fragments directly under that plugin's `.changes/`, with no `scripts`, `hooks`, `lib`, `.claude-plugin`, `.mcp.json` or `evals` path segment, and whose `SKILL.md` files outside `vendor/` change no frontmatter but the sync stamps and no `` !` `` line or fenced ```` ```! ```` block, and that touch no skill's `actions/update.md` and no file of the plugin's `update` skill outside `vendor/`, matching pr-verify's `driftSpec`. An id no row names, that two plugins claim, or with a row lacking the `files-only` mark (its update may install a package) is not trusted.
+
+### Fixed
+
+- lift a read-back record on a C2 or C3 merge pin
+
+  The merge policy's read-back check matched only a pin comment with no
+  rung, so a pull request merged at rung C2 or C3, whose pin carries
+  `rung=C2` or `rung=C3`, never read back, and its read-back record could
+  never lift. The pin pattern now accepts the optional rung, as the
+  post-merge reader already does.
+
+## [13.0.2] - 2026-11-19
+
+### Fixed
+
+- stop counting infra merge-queue removals toward merge.max-queue-ejections
+
+  The babysit-prs gate and enable-auto-merge no longer count a removal whose
+  merge-group run failed on infra alone: a GitHub rate limit, the API read
+  or stop floor, a verify:unreadable refusal, the lanes kill switch, a lost
+  runner, or a job main failed at the same time. Every failed job must name
+  such a cause, so a real check failure beside one still counts. The new
+  merge.queue-ejection-infra-causes list names which causes apply (default
+  all); every cause excuses a removal only after its reset
+  or an hour. Each excused removal gets a queue-ejection notice, and older
+  removals are found past the newest page of failed merge-group runs.
+
+## [13.0.1] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [13.0.0] - 2026-11-19
+
+### Added
+
+- Seven trust and cost settings, read only from the source-control `userConfig` in user or managed settings (managed-settings.d drop-ins included) by the new `babysit_merge_settings.py`, never from a repository or the environment: `unattended_merge_owners`, `review_lane_workflows`, `review_lane_checks`, `owner_decisions_record`, `free_runner_labels`, `model_leg_actions` and `issue_status_app_login`.
+
+### Changed
+
+- **Breaking:** the merge phase's unattended merge, `review-venue.sh`, the merge gate's AI review checks and review lanes, the cost-decision row link, the free runner labels and the trusted Work status App come from those settings instead of one organization's values fixed in the plugin. Every one fails closed when unset: nothing merges without the user, no CI run or check counts as AI review, no decision clears a cost hold, only GitHub's standard runner labels are free, and only a person's Work status values count. An operator who relied on the old values sets them in `userConfig`.
+
+### Removed
+
+- **Breaking:** the verdict reader no longer reads a legacy FAILs file beside itself; it reads only the file `BABYSIT_VERIFY_LEGACY_FAILS` names, and reads the whole artifact listing when that is unset.
+
+### Fixed
+
+- `/source-control:worktree create` resolves `worktree.baseRef` one settings file per call: it reads the project `.claude/settings.json` first, skips `.claude/settings.local.json` without attempting it when a `Read` deny rule there covers it, and reads `~/.claude/settings.json` only when neither project layer sets the key. Agents had been reading all three files in one `grep`, which a project `Read(./.claude/settings.local.json)` deny rule refused as a whole. The `worktree-create-routes-through-helper` eval now seeds that deny and fails a run that reads the local file.
+
+## [12.0.2] - 2026-11-19
+
+### Fixed
+
+- `worktree-create.sh` checks out a repository whose `.gitattributes` routes paths through `filter=lfs` with `GIT_LFS_SKIP_SMUDGE=1`, so LFS paths arrive as pointer files instead of copies from the LFS store, and one stderr line names `git lfs pull` and `git lfs pull --include <paths>` for fetching the content.
+
+## [12.0.1] - 2026-11-19
+
+### Fixed
+
+- `/source-control:pull-request` prep and ready read the pre-PR ordering contract from the copy
+  bundled at `reference/pre-pr-ordering.md` instead of the publisher's raw URL.
+
+## [12.0.0] - 2026-11-19
+
+### Added
+
+- `linkage_gate_uses_pattern`, in `docs/conventions/source-control.yaml` or as a userConfig option (the YAML wins): the POSIX ERE a `.github/workflows` file must match for the PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) to run in a repository.
+- `runner_policy_paths`, `org_settings_repo` and `review_lane_producer_repo` in `docs/conventions/source-control.yaml`: where `/source-control:babysit-prs` routes a wrong runner label, an organization-settings finding, and a review-lane check name that does not match the gate's.
+
+### Changed
+
+- The merge gate's evidence comment also links a capture whose run is titled `PR Verify Capture <run> <head>`, the Title Case run-name the capture workflow moves to next; the `pr-verify-capture <run> <head>` title still counts.
+
+- The PR-body linkage hooks no longer carry a built-in workflow path: with `linkage_gate_uses_pattern` unset they gate no repository. To keep the earlier scope, set it to `\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)`.
+- The babysit-prs routing text and the pull-request watch hand-off no longer name a specific organization's repositories or tools.
+
+### Fixed
+
+- `babysit_verify_evidence.py settle --probe-unmoved` refuses a last report that lists reruns as `reruns-unmoved` when nothing else it read has moved, so a PR-scoped `pr-merge.yml` wake skips the fresh post-merge check.
+
+- The verdict reader (`babysit_verify_evidence.py evidence`) judges a head again after the pool's reset when its `verify:unreadable` came from a read not sent below the read floor and the reset is within `BABYSIT_READ_FLOOR_WAIT_SECONDS`; ci-status's merge-queue step sets 900 s. A pass at the head whose run cannot be read now refuses `verify:unreadable`, not `verify:missing`, unless another counted pass allows.
+
 ## [11.22.5] - 2026-11-19
 
 ### Fixed

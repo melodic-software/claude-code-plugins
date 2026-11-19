@@ -60,7 +60,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   with `-n`, with no opening assignment, names only its absolute file operands, so a
   quoted grep pattern or `-e` value is no path (`grep -E "a|b" /x | head`); a `-f` pattern file
   is a path.
-- Up to six kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to seven kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
   aimed only there while every other absolute path it names was named by an allowed Bash call of
@@ -114,7 +114,13 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   and `**` names the plugin. A term matches once its `*`, `.`, `^`, `$` and `/` ends are stripped,
   case ignored. Any other command, flag, redirect into a file, unquoted glob or `$`, term, tool,
   a with-arm run, or a run that did not finish keeps the rules below.
-- The sixth is a denied named call other than Skill that a `tool_used` grader of its case forbids
+- The sixth is a denied `Grep` or `Glob`, in a without-arm run that finished, whose `path` is that
+  run's own eval root (the sandbox holding its `out/trace.jsonl`): the arm lacks the plugin and
+  looks for it in its own folder. The verdict line, which is all CI keeps in `validity.txt`, names
+  each such call with its tool, root and pattern. A `Glob` pattern that is rooted or holds `..`,
+  a path under or above the root, another run's root, any other tool, a with-arm run, or a run
+  that did not finish keeps the rules below.
+- The seventh is a denied named call other than Skill that a `tool_used` grader of its case forbids
   with `max: 0` and no `input_match`, when that grader failed in the run: the grader already
   scored the call as the run's failure, and the denial only kept it from landing, as with a
   `Write` to a protected `.claude/` path in a case asserting the skill writes nothing yet. A
@@ -162,11 +168,18 @@ above the plugin's directory, or with no absolute path or no known plugin direct
     live.
 - `programs started` fails any run whose trace has a failed tool result or a Bash result showing
   a mise shim error (`<name> is not a valid shim`), or `command not found` for an interpreter such
-  as `node`, `npx`, `python3` or `uv`. That run could not execute the skill's code, so its score
-  measures the missing program. Any other `command not found` is a warning, since a case may run a
+  as `node`, `npx`, `python3` or `uv` that the case's skill names. That run could not execute the
+  skill's code, so its score measures the missing program. The case's skill is each `skills/`
+  directory its Skill-requiring graders accept, every one for a grader with no `input_match`. It
+  names a program when its files or the case's `allowed_tools` spell the name as a whole word, so
+  a skill that runs `python3` does not name `python`. A missing interpreter the skill does not name
+  is a program the run chose, so it is a warning, but only when the run's own shell (`bash`,
+  `zsh`, or zsh's `(eval)` for an evaluated command line) printed the line: one a script printed (`/p/lib/go.sh: line 2: node: command not found`)
+  is a helper the skill ran, so it still fails. When the case's skill cannot be resolved, every
+  interpreter counts as named. Any other `command not found` is a warning, since a case may run a
   missing command on purpose. Each text counts only where it opens an output line, as the shell or
-  mise prints it, so a grep that quotes it does not. The detail names the run, the program and the
-  first call that failed.
+  mise prints it, so a grep that quotes it does not. The detail names the run and every program
+  that failed to start, each with the first call that failed.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.

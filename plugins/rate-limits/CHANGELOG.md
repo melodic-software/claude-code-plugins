@@ -3,6 +3,16 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.0] - 2026-11-19
+
+### Added
+
+- `account_switch_url` names the link the options line gives for switching accounts. Unset, the line says the user can switch accounts with no link; the plugin no longer ships a link to one organization's account-rotation repository. A value that is not one http(s) URL reads as unset, with one transcript line naming it.
+
+### Changed
+
+- The reader contract's drain-then-pause bullet names the `account_switch_url` option in place of that link.
+
 ## [4.1.3] - 2026-11-19
 
 ### Changed

@@ -1,5 +1,25 @@
 # Changelog: evals
 
+## [0.20.4] - 2026-11-19
+
+### Changed
+
+- `run-validity.py`'s `permission denials` check no longer fails a finished without-arm run for a denied `Grep` or `Glob` whose `path` is that run's own eval root (the sandbox holding its `out/trace.jsonl`): the arm lacks the plugin and looks for it in its own folder. That denial is now a warning, and the verdict line, which is all CI keeps in `validity.txt`, names each excused call with its tool, root and pattern. A `Glob` pattern that is rooted or holds `..`, a path under or above the root, another tool, a with-arm run and an unfinished run still fail ([#17262](https://github.com/melodic-software/claude-code-plugins/issues/17262)).
+
+## [0.20.3] - 2026-11-19
+
+### Fixed
+
+- `run-validity.py`'s `programs started` check no longer fails a run for `command not found` on an interpreter the case's skill never names (in its files or the case's `allowed_tools`), such as a run that typed `python`, found only `python3` and went on. That miss is now a warning; a missing interpreter the skill does name, and any mise shim error, still fail. The detail line lists every program that failed to start in a run, not only the first ([#17351](https://github.com/melodic-software/claude-code-plugins/issues/17351)).
+
+## [0.20.2] - 2026-11-19
+
+### Changed
+
+- The design skill's grading hygiene gate drops the unsourced claim that an output-side reasoning
+  block roughly doubles a grader's output tokens; the rule to skip that block for a grader that
+  already thinks before answering stays.
+
 ## [0.20.1] - 2026-11-19
 
 ### Fixed
