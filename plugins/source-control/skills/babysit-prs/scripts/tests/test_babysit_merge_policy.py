@@ -11164,6 +11164,27 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
             self.assertIsNone(policy._config_checkout(sha))
         self.assertEqual(policy._config_checkout(sha), self.checkout.resolve())
 
+    def test_the_listed_checkout_whose_head_is_the_commit_answers(self) -> None:
+        older = self.commit({policy.CONFIG_PATH: "merge:\n  rung: C1\n"})
+        other = self.checkout.parent / "tip"
+        self.git(self.checkout.parent, "clone", "-q", f"file://{self.checkout}", str(other))
+        tip = self.commit({policy.CONFIG_PATH: PIPELINE})
+        self.git(other, "fetch", "-q", "origin")
+        self.git(other, "checkout", "-q", "--detach", tip)
+        self.git(self.checkout, "checkout", "-q", "--detach", older)
+        listed = os.pathsep.join(["", str(self.checkout), str(other)])
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: listed}):
+            self.assertEqual(policy._config_checkout(older), self.checkout.resolve())
+            self.assertEqual(policy._config_checkout(tip), other.resolve())
+            self.assertIsNone(policy._config_checkout(SHA))
+
+    def test_a_checkout_file_reads_at_its_head_and_nothing_else(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: "merge:\n  rung: C2\n"})
+        self.assertEqual(policy.checkout_file_at(policy.CONFIG_PATH, sha), "merge:\n  rung: C2\n")
+        self.assertIsNone(policy.checkout_file_at("absent.json", sha))
+        self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, SHA))
+        self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, "main"))
+
 
 class DefaultBranchFromTheEvent(unittest.TestCase):
     """`DEFAULT_BRANCH_ENV` answers `_default_branch` for the run's own

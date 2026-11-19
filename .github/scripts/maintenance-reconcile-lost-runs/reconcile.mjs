@@ -546,6 +546,93 @@ async function firstAttemptJobs(call, repo, id) {
   return listing;
 }
 
+/**
+ * How many runs one GraphQL query answers: their first-attempt job listings
+ * with each job's check-run annotations, the reads holdReason, faultHeld and
+ * firstAttemptJobs send one REST call per run and per job for. Two step
+ * connections, the first and the last 100, cover a job of up to 200 steps
+ * (pr-verify's Check Intent lists 117). Measured: 5 runs answered in about
+ * 2 s for 5 points, 10 in about 6 s, and 25 hit GraphQL's 10 s limit (504).
+ */
+export const JOBS_BATCH = 5;
+const STEP_FIELDS = "totalCount nodes { name number status conclusion }";
+export const JOBS_QUERY = `query($ids: [ID!]!) { nodes(ids: $ids) { ... on WorkflowRun { databaseId runAttempt checkSuite { checkRuns(first: 30, filterBy: { checkType: ALL }) { totalCount nodes { databaseId name status conclusion head: steps(first: 100) { ${STEP_FIELDS} } tail: steps(last: 100) { ${STEP_FIELDS} } annotations(first: 100) { totalCount nodes { annotationLevel title message } } } } } } } }`;
+const jobsPath = (repo, id) => `/repos/${repo}/actions/runs/${id}/attempts/1/jobs?per_page=100`;
+const notesPath = (repo, id) => `/repos/${repo}/check-runs/${id}/annotations?per_page=100`;
+const lower = (value) => (typeof value === "string" ? value.toLowerCase() : value);
+const wholeConnection = (c) => Array.isArray(c?.nodes) && c.nodes.length === c.totalCount && c.nodes.every(isObject);
+
+/**
+ * The REST answers one run's node stands in for, by path: its first-attempt
+ * job listing and each job's annotations, in the shape REST gives the fields
+ * the rules read. Undefined, so REST reads the run, unless the node answers
+ * for the run's first attempt in full: every job, every step and every
+ * annotation listed. A job with no steps stands in only when it was skipped,
+ * since stepsKnown reads such a job's runner_id, which GraphQL does not give;
+ * a skipped job never had a runner.
+ */
+export function servedReads(repo, run, node) {
+  const checks = node?.checkSuite?.checkRuns;
+  if (node?.databaseId !== run?.id || node.runAttempt !== 1 || !wholeConnection(checks) || checks.nodes.length === 0) {
+    return undefined;
+  }
+  const reads = new Map();
+  const jobs = [];
+  for (const check of checks.nodes) {
+    const { head, tail, annotations } = check;
+    if (!Number.isSafeInteger(check.databaseId) || !Array.isArray(head?.nodes) || !Array.isArray(tail?.nodes) || head.totalCount !== tail.totalCount || !wholeConnection(annotations)) {
+      return undefined;
+    }
+    const steps = new Map([...head.nodes, ...tail.nodes].map((s) => [s?.number, s]));
+    if (steps.size !== head.totalCount || ![...steps.keys()].every(Number.isSafeInteger) || (steps.size === 0 && lower(check.conclusion) !== "skipped")) {
+      return undefined;
+    }
+    jobs.push({
+      id: check.databaseId,
+      name: check.name,
+      status: lower(check.status),
+      conclusion: lower(check.conclusion),
+      ...(steps.size === 0 ? { runner_id: null } : {}),
+      steps: [...steps.values()].sort((a, b) => a.number - b.number).map((s) => ({ name: s.name, number: s.number, status: lower(s.status), conclusion: lower(s.conclusion) })),
+    });
+    reads.set(
+      notesPath(repo, check.databaseId),
+      annotations.nodes.map((a) => ({ annotation_level: lower(a.annotationLevel), title: a.title, message: a.message })),
+    );
+  }
+  reads.set(jobsPath(repo, run.id), { total_count: jobs.length, jobs: jobs.sort((a, b) => a.id - b.id) });
+  return reads;
+}
+
+/**
+ * Reads the runs' first-attempt jobs, JOBS_BATCH runs a query, into `cache`
+ * by the REST path each answer stands in for. A batch of one run is left to
+ * REST, where it costs the same one call. A run the answer does not cover in
+ * full is read through REST; after a query fails, by error or GraphQL's own
+ * rate limit, or answers for none of its runs, every later run this pass is
+ * too (`state.failed`), so this never stops a pass REST would finish.
+ */
+async function prefetchJobs(send, repo, runs, cache, state) {
+  const wanted = [...new Map(runs.filter((r) => Number.isSafeInteger(r?.id) && typeof r.node_id === "string" && !cache.has(jobsPath(repo, r.id))).map((r) => [r.id, r])).values()];
+  for (let at = 0; at + 1 < wanted.length && !state.failed; at += JOBS_BATCH) {
+    const batch = wanted.slice(at, at + JOBS_BATCH);
+    try {
+      const nodes = (await send("POST", "/graphql", { query: JOBS_QUERY, variables: { ids: batch.map((r) => r.node_id) } }))?.data?.nodes;
+      if (!batch.some((r, i) => Array.isArray(nodes) && nodes[i]?.databaseId === r.id && nodes[i].runAttempt === 1)) {
+        state.failed = true;
+        continue;
+      }
+      batch.forEach((r, i) => {
+        for (const [path, answer] of servedReads(repo, r, Array.isArray(nodes) ? nodes[i] : undefined) ?? []) {
+          cache.set(path, answer);
+        }
+      });
+    } catch {
+      state.failed = true;
+    }
+  }
+}
+
 // The Actions component's status, or undefined when the page has none.
 export const actionsStatus = (page) => componentStatus(page, ACTIONS.name);
 
@@ -1175,6 +1262,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const keepJobs = new Map();
   // The pass reads to carry to the next pass: read whole now, or carried and still unexpired.
   const keepPasses = [];
+  const prefetchedReads = new Map();
+  const batches = { failed: false };
+  const send = call;
+  call = async (method, apiPath, ...rest) => (method === "GET" && prefetchedReads.has(apiPath) ? prefetchedReads.get(apiPath) : send(method, apiPath, ...rest));
+  const prefetch = (runs) => prefetchJobs(send, repo, runs, prefetchedReads, batches);
+  const carriedHit = (r, held = false) => {
+    const carried = carriedJobs.get(jobsKey(r.id, 1));
+    return carried?.head === r.head_sha && carried?.updated_at === r.updated_at && (!held || carried.held === true);
+  };
   const sayHeld = (r, held) => {
     const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
     say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
@@ -1590,6 +1686,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       }
     }
   }
+  await prefetch(
+    [...laneRuns]
+      .filter(([lanePath]) => !laneFailures.has(lanePath))
+      .flatMap(([lanePath, runs]) => [...runs.values()].filter((r) => r.path === lanePath && isLostLane(r, since) && !settled.has(r.id) && !carriedHit(r))),
+  );
   for (const [lanePath, lane] of RECORDED_LANES) {
     try {
       if (laneFailures.has(lanePath)) {
@@ -1691,6 +1792,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     if (unowned > 0) {
       say(`${unowned} succeeded runs follow no open pull request's newest checks run, so they are not read for a hold`);
     }
+    await prefetch(unread.slice(0, FAULT_HELD_READS).filter((r) => !carriedHit(r, true)));
     for (const [i, r] of unread.entries()) {
       if (i === FAULT_HELD_READS) {
         say(`${unread.length - i} succeeded runs wait for the next pass's hold check`);
@@ -1751,6 +1853,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   } catch (error) {
     noteFailure(INTAKE, error);
   }
+  await prefetch(candidates.filter((r) => !settled.has(r.id)));
   for (const r of candidates) {
     if (settled.has(r.id)) {
       settle.push({ id: r.id, reason: "" });
@@ -1780,6 +1883,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);
   }
+  await prefetch(stopped.filter((r) => !settled.has(r.id)));
   for (const r of stopped) {
     if (settled.has(r.id)) {
       settle.push({ id: r.id, reason: "" });
