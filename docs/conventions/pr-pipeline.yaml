@@ -1776,6 +1776,10 @@ merge:
         class: trust
       - glob: ".github/actions/request-lane-token/**"
         class: trust
+      - glob: ".github/source-control-settings.json"
+        class: trust
+      - glob: ".github/verify-legacy-fails.json"
+        class: trust
       - glob: ".github/actions/log-api-budget/rate-guard.mjs"
         class: gate
       - glob: ".github/actions/log-api-budget/api-budget.bash"

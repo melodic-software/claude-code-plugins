@@ -209,6 +209,9 @@ export const HOLD_LINE = "Hold: a human merges this";
 // lanes App can edit; ci-status fails while this label is on, and removing it
 // lifts the hold.
 export const HOLD_LABEL = "do-not-merge";
+export const EVAL_GATED_LABEL = "eval-gated";
+export const evalHoldComment = (issueNumber) =>
+  `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The causes a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
@@ -2842,8 +2845,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         }
         // A held PR carries the hold label from its opening; one the label
         // cannot reach is closed rather than left held by body text alone.
+        const evalGated = issueLabels.includes(EVAL_GATED_LABEL);
+        const alreadyHeld = (pull.labels ?? []).some((label) => label?.name === HOLD_LABEL);
         const labeled =
-          !plan.hold ||
+          !(plan.hold || evalGated) ||
           (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
             () => true,
             (error) => {
@@ -2851,6 +2856,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
               return false;
             },
           ));
+        if (labeled && evalGated) {
+          const body = evalHoldComment(issueNumber);
+          const posted =
+            alreadyHeld &&
+            (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(
+              (all) => all.some((comment) => comment?.user?.login === bot && comment.body === body),
+              () => false,
+            ));
+          if (!posted) {
+            await github("POST", `${repo}/issues/${pull.number}/comments`, { body });
+          }
+        }
         // A plan with a tip opens only at it: a PR whose head moved off the
         // checked tip is closed, and the issue goes to a person. Closing a
         // closed PR changes nothing, so the close is resent.

@@ -49,6 +49,7 @@ SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
 PREFILTER_CLI = "skills/babysit-prs/scripts/babysit_merge_prefilter.py"
 SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
+SETTINGS_CLI = "skills/babysit-prs/scripts/babysit_merge_settings.py"
 VERIFY_EVIDENCE_CLI = "skills/babysit-prs/scripts/babysit_verify_evidence.py"
 WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
 EVIDENCE_COMMENT_CLI = "skills/babysit-prs/scripts/babysit_evidence_comment.py"
@@ -1745,6 +1746,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "a draft and marks it ready again."
         ),
         backed_by=("whole-review.marks-ready", "whole-review.toggles-draft"),
+    ),
+    EntryPoint(
+        path=SETTINGS_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "`show` reads the trust and cost settings from the operator's user "
+            "and managed settings files and prints them as JSON. No GitHub call "
+            "and no write on any path."
+        ),
+        backed_by=(),
     ),
     EntryPoint(
         path=SKIP_CLI,

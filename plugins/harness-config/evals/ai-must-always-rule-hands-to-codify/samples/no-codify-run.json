@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-instructions"
+          }
+        }
+      ],
+      "why": "loads the audited skill only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "name new migrations YYYYMMDDHHMM_<slug>.sql"
+          }
+        }
+      ],
+      "why": "runs codify instead of naming the call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify"
+          }
+        }
+      ],
+      "why": "runs codify by its short name"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I5: convert-to-mechanism\nPROPOSAL: `/corrections:codify \"name every new db/migrations/ file YYYYMMDDHHMM_<slug>.sql\"`",
+      "why": "the proposal is the named codify call"
+    },
+    {
+      "answer": "I5: convert-to-mechanism\n**PROPOSAL:** hand it to `/corrections:codify rules CLAUDE.md`, which picks the rung and proves the check",
+      "why": "the rules-file form of the call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I5: convert-to-mechanism\nPROPOSAL: add a PreToolUse hook that blocks a Write of a misnamed migration file",
+      "why": "the skill picks the mechanism itself"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nI5: convert-to-mechanism\nPROPOSAL: add a CI job that fails on a misnamed migration",
+      "why": "codify only outside the proposal line"
+    }
+  ]
+}

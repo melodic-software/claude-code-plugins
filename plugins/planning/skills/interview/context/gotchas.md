@@ -28,7 +28,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A blocking question fired mid-phase:** a gate that lands after the caller's phase is underway idles a lane nobody is watching. Emit the open set at the phase boundary; justify the exception in one line.
 
-- **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
+- **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. The caller declares an unattended run; the skill never guesses it.
 
 - **A bundled recommendation locked by accepting its headline:** a design that also picks a platform, a runtime, and a credential reads as one answer, so a "yes" records one row and locks every part the user never saw. List each part under `Commits you to:` with its own row; a part left unlisted is not decided (SKILL.md "A recommendation that fixes more than one decision lists every part").
 

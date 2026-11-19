@@ -222,8 +222,7 @@ non-source paths are not in the coverage total.
   dead. Precision of this shape is unmeasured beyond the fixture contract (a workflow reference
   saves the script it names; a script named nowhere is the one candidate).
 - **`-H -o` attribute each match to its file**, and the lane relies on BSD grep taking both flags.
-  Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1). Recheck trigger: the lane fails on a BSD or macOS userland, or the man page drops
-  either flag.
+  Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1).
 
 ## Why Rust, a .NET build lane, and an LSP scanning lane are absent
 

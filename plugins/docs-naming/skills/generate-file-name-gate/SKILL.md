@@ -20,10 +20,16 @@ every exemption are inlined at emission, so a checkout with the plugin
 uninstalled, or a CI runner that never had it, still enforces what the team
 agreed.
 
-**A path-scoped rule file is not a substitute.** A rule is guidance Claude
-reads during its own session: it blocks nothing, binds no human editor or other
-tool, and never runs in CI. The gate runs over the whole tracked set wherever it
-is invoked. That is why the gate is the deliverable and the rule is the option.
+The gate is the deliverable. Whether a path-scoped rule file should also carry
+the naming rule is a separate choice: when `/corrections:codify` is among the
+available skills, hand it the choice of mechanism; it picks the strongest rung
+of the enforcement ladder that can decide the rule and proves the check. Name
+the call, `/corrections:codify "<the naming rule>"`, for the operator to run;
+never make it. Otherwise, propose the strongest mechanism that can decide the
+rule: a change that makes the mistake impossible first, then a check that blocks
+it, then a test, and an instruction only when nothing a machine runs can decide
+it. Say that `/corrections:codify` was not available, so the proposal is
+unproven.
 
 - **Pointer**: when weighing whether a rule could stand in for the gate, fetch
   [memory § Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)
@@ -113,7 +119,9 @@ For the rule itself, once the gate is wired and green.
 - **A rule file is a pointer surface a repository may deliberately not carry.**
   Some trees strip pointer rules that already have an owner document and a
   deterministic oracle, on the argument that the gate is the oracle. `--rule` is
-  opt-in for exactly that reason; offer it and let the operator decide.
+  opt-in for exactly that reason. When you offer it, give the route Purpose
+  names for the rule-file question (the `/corrections:codify` call when it is
+  available, else the fallback proposal), and let the operator decide.
 - **A configuration value is untrusted text, and the emitted gate runs in CI.**
   Three hazards, each closed at a different layer: rendering is a literal splice
   rather than a `sed` substitution, so an `&` or a `|` in a regex cannot be
