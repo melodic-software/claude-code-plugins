@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.9.0] - 2026-11-19
+
+### Added
+
+- `/work-items:scan-todos` accepts the target-scope contract's forms (`--repo`, `--repos-from`,
+  `--owner`, `--fleet`, `--skip`) to scan several repositories, ranking every repository's marker
+  groups in one table and filing each marker in its own repository's tracker. A run with none of
+  them scans the current repository as before.
+- `/work-items:track add` takes `--repo <owner>/<name>` to file an item in a repository other
+  than the bound one; its duplicate check and label check read that repository.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
 ## [15.8.0] - 2026-11-19
 
 ### Added

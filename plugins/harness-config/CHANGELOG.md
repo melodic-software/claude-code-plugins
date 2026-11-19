@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.3.1] - 2026-11-19
+
+### Fixed
+
+- `/harness-config:audit-instructions --persist-findings` reads the detector-findings contract from
+  the copy bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
 ## [5.3.0] - 2026-11-19
 
 ### Changed
