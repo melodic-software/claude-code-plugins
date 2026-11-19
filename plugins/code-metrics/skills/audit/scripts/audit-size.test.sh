@@ -170,6 +170,10 @@ rm -rf "${GATE:?}" "${GATE_HOME:?}"
 
 grep -q 'audit-size.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
+grep -q 'audit-size.sh \[--json\].* \[--check\] ' < <(bash "$SCRIPT" --help 2>&1)
+assert_eq "--help lists --check on the usage line" 0 "$?"
+assert_contains "--help states the --check exit codes" "$(bash "$SCRIPT" --help 2>&1)" \
+  "Under \`--check\`, 1 means a changed file failed the rule, and 2"
 
 # No interpreter passes the floor probe: the shared cm_require_python prints
 # the prerequisite line under this script's name and exits 2. Failing stubs go
