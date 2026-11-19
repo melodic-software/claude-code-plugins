@@ -1939,15 +1939,24 @@ class SettleCommand(unittest.TestCase):
         settle.assert_not_called()
 
     def unattributed_settle(
-        self, *flags: str, runs: str | None = None, marks: str | None = None
+        self,
+        *flags: str,
+        runs: str | None = None,
+        marks: str | None = None,
+        listed: dict[str, list[object]] | None = None,
     ) -> tuple[int, str | None, mock.Mock, mock.Mock]:
         """`settle` with `flags` on a report, computed now, that would stand
-        but for one unattributed run; the verifying runs read `runs`, the
+        but for one unattributed run (or `listed`'s entries); the verifying runs read `runs`, the
         quarantine and pin reads `marks`, and the lane room's rule keeps it.
         Returns the exit code, the reason, and the runs and `settle_shared`
         mocks."""
         report = replace(
-            shared(report={**SETTLED, "unattributed": ["https://run/31/attempts/2"]}),
+            shared(
+                report={
+                    **SETTLED,
+                    **(listed or {"unattributed": ["https://run/31/attempts/2"]}),
+                }
+            ),
             computed_at=datetime.now(UTC),
         )
         out = io.StringIO()
@@ -1999,6 +2008,31 @@ class SettleCommand(unittest.TestCase):
                     *probe, runs=runs, marks=marks
                 )
                 self.assertEqual((code, reason), (1, "idle tick unattributed"))
+
+    def test_a_reruns_report_nothing_else_refuses_is_refused_as_unmoved(self) -> None:
+        listed = {"reruns": [{"runId": 31, "attempt": 2}]}
+        code, reason, idle_runs, settle = self.unattributed_settle(
+            "--idle-tick", "--probe-unmoved", listed=listed
+        )
+        self.assertEqual((code, reason), (1, "idle tick reruns-unmoved"))
+        idle_runs.assert_called_once()
+        settle.assert_called_once()
+
+    def test_a_reruns_report_with_anything_moved_or_no_probe_is_refused_plainly(
+        self,
+    ) -> None:
+        listed = {"reruns": [{"runId": 31, "attempt": 2}]}
+        probe = ("--idle-tick", "--probe-unmoved")
+        for flags, runs, marks in (
+            (probe, "runs-changed", None),
+            (probe, None, "pins-changed"),
+            (("--idle-tick",), None, None),
+        ):
+            with self.subTest(flags=flags, runs=runs, marks=marks):
+                code, reason, _, _ = self.unattributed_settle(
+                    *flags, runs=runs, marks=marks, listed=listed
+                )
+                self.assertEqual((code, reason), (1, "idle tick reruns"))
 
     def test_an_unattributed_report_without_the_probe_reads_nothing(self) -> None:
         for flags in (("--idle-tick",), ("--idle-tick", "--fresh")):
