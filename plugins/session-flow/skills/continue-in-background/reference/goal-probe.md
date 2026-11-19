@@ -51,11 +51,14 @@ Both ran from a trusted project directory. From the home directory the launch fa
 
    The window is the time from launch to `start`: the away hook refuses no permission prompt
    raised then (none was raised here), and the first turn runs without the away note. The report
-   scans from `start`, so actions before it are not listed. A first turn that ends inside the window goes unheld by the away hook, but the goal
-   names the task file, so the session keeps working and its next Stop reads the state. The Stop
-   hook did not record the transcript path, so `refresh` finds the transcript under the config
-   folder's `projects/` by session id; the probe's `refresh` listed it. Untested: a launch with
-   worktree isolation on, where the task file and report sit outside the session's worktree.
+   scans from `start`, so actions before it are not listed. In the skill the window is longer
+   than here, since continue-in-background's report steps run before `start`. Not observed,
+   reasoned from the goal's Stop hook: a first turn that ends inside the window is not held by
+   the away hook, but the goal names the task file, so the session keeps working and its next
+   Stop reads the state. The Stop hook did not record the transcript path, so `refresh` finds
+   the transcript under the config folder's `projects/` by session id; the probe's `refresh`
+   listed it. Untested: a launch with worktree isolation on, where the task file and report sit
+   outside the session's worktree.
 
 Sessions 1 and 2 were stopped and removed with `claude stop` and `claude rm` afterwards; probe 3
 left no cloud session, branch or pull request. Session 4 was stopped and removed the same way,
