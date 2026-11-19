@@ -49,14 +49,13 @@ the principle it claims to serve, per the
 ## Tool workflow
 
 1. **Conceptual queries** → `search_dometrain(query, tech?, max_results?)` with a
-   natural-language description of what you are implementing (e.g. "validate JWT tokens in
-   ASP.NET Core minimal APIs"). Phrase the query naturally rather than keyword-stuffing. When a
-   result marks a hit as a partial or semantic-only match, weigh it below an exact one. How results are
-   ranked and what each hit carries: the server README's
+   natural-language description of what you are implementing. Phrase the query naturally rather
+   than keyword-stuffing. When a result marks a hit as a partial or semantic-only match, weigh it
+   below an exact one. How results are ranked and what each hit carries: the server README's
    [Tools](https://github.com/Dometrain/mcp#tools) section.
 2. **Code-shaped queries** → `search_code(query, language?, max_results?)` with an identifier,
-   API name, or short code fragment (e.g. `AddAuthentication`, `IAsyncEnumerable`). Returns the
-   on-screen code with a deep link to the exact moment it appears.
+   API name, or short code fragment. Returns the on-screen code with a deep link to the exact
+   moment it appears.
 3. **Drill in** → `get_lesson(lesson_id)` for the full curated lesson document before writing
    nontrivial code based on a search hit.
 4. **Explore** → `list_courses(topic?)` and `get_course(course_id_or_slug)` to see what exists
@@ -65,14 +64,9 @@ the principle it claims to serve, per the
 ## Citing lessons
 
 When lesson content shapes your code or explanation, cite the deep link so the user can watch
-the source, e.g.:
-
-> Following the approach from [Implementing the Classic
-> Builder](https://dometrain.com/take/course/design-patterns-in-csharp-builder-2845456/implementing-the-classic-builder-pattern-57337052/?t=135),
-> a lesson in *Design Patterns in C#: Builder*
-
-Use the `deep_link` values returned by the tools verbatim (the `?t=<seconds>` fragment jumps to
-the right moment). Name the course using the returned `course` field.
+the source. Use the `deep_link` values returned by the tools verbatim (the `?t=<seconds>`
+fragment jumps to the right moment). Make the lesson's title the link text, then name the course
+using the returned `course` field.
 
 Mark any part of the answer no lesson confirmed, including parts resting only on
 partial-term or semantically related hits, and name the queries you ran for it, so the

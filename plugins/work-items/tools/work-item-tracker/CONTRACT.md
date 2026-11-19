@@ -272,8 +272,8 @@ which means the item was never closed. A failed history read exits with the mapp
 no item, never an empty history. GitHub reads the issue timeline's `closed` and `reopened` events
 over REST (`GET /repos/{owner}/{repo}/issues/{number}/timeline`, paginated), so the read also works
 in a session whose proxy refuses GraphQL (pointer:
-[issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types), recheck
-trigger: the timeline API drops either event). local-markdown and the jira, gitea and linear seeds
+[issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)).
+local-markdown and the jira, gitea and linear seeds
 declare no state history.
 
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
@@ -306,8 +306,7 @@ reads in that field is at the pointer:
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
 GraphQL `lastEditedAt`, since REST carries no edit time: the
 [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) list no
-body-edit event, and `renamed` covers only the title; recheck trigger: that list
-adds a body-edit event) and reports it as `body_edit`;
+body-edit event, and `renamed` covers only the title, as of 2026-10-31) and reports it as `body_edit`;
 `after_admission` is `true` when that edit is later than the latest `at` of the named labels,
 because a body rewritten after the labeler read it is not the body the labeler admitted.
 `admitted` is `true` only when every named label is trusted and `after_admission` is `false`; a
@@ -329,7 +328,8 @@ for organization issue fields: it reads the options from `GET /orgs/{org}/issue-
 needs `read:org` on an OAuth or classic token, and writes names, since the REST write takes the
 option's name (pointer:
 [issue field values](https://docs.github.com/en/rest/issues/issue-field-values) and
-[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields); recheck trigger: the write starts taking option ids, or the listing's permission
+[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields); as of
+2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
 changes). An adapter that declares no `set-fields` key exits `6`.
 
 `get-field-options` is the read-only counterpart of `set-fields`: it lists the options of one

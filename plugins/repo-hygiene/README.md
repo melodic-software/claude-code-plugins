@@ -24,7 +24,7 @@ nothing.
 | `git` | Prune stale worktree/remote metadata and gc; audit branches (merged / PR-merged / stale) and delete only on per-branch opt-in | Low |
 | `tree` | Reset the working tree like a fresh pull. `git reset --hard` + `git clean -fdx` | **Destructive** |
 | `tree-batch` | Run `tree` across many repos (`ghq list`, a glob, or an explicit list) behind one confirmation gate, with a separator-agnostic skip list and a dirty-by-default guard | **Destructive** |
-| `all` | Sweep `caches` + `build` + `git`. **never** the `tree` reset | Medium |
+| `all` | Sweep `caches`, `build`, and `git`, and **never** the `tree` reset | Medium |
 
 Tiers are cumulative (`build` includes `caches`; `all` is `build` plus `git`), and
 neither `tree` nor `tree-batch` is composed into `all`. One mistaken sweep cannot
@@ -41,7 +41,7 @@ ad-hoc loop. A skip entry that matches nothing is reported, never silently ignor
 
 ```shell
 # Dry-run the whole ghq tree, skipping one repo (the agent shows the plan first):
-ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
+ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip <owner>/<repo>
 ```
 
 ### Multi-repo audits

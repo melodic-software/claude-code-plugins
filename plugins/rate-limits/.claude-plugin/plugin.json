@@ -69,6 +69,11 @@
       "title": "Window-change toast",
       "description": "Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default.",
       "default": true
+    },
+    "account_switch_url": {
+      "type": "string",
+      "title": "Account-switching link",
+      "description": "One http(s) URL for how you switch Claude accounts, which the options line after an approach or threshold line names. Unset: the line says the user can switch accounts, with no link."
     }
   }
 }
