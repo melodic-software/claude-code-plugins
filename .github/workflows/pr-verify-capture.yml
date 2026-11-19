@@ -402,7 +402,8 @@ jobs:
               package-lock.json .node-version; do
               printf '%s %s\n' "$input" "$(git -C .base rev-parse --verify --quiet "HEAD:$input" || echo none)"
             done
-            yq -o=json -I=0 '[.merge."verify-capture", .models."default-profile", .models.routes."verify-pr", (.models.routes."verify-pr" as $p | .models.profiles[$p])]' .base/docs/conventions/pr-pipeline.yaml
+            yq -o=json -I=0 '[.merge."verify-capture", .models]' .base/docs/conventions/pr-pipeline.yaml |
+              jq -c '[.[0], .[1]."default-profile", .[1].routes."verify-pr", .[1].profiles[.[1].routes."verify-pr"]]'
           )
           export INPUTS
           node .base/.github/scripts/pr-verify/reuse-capture.mjs find
