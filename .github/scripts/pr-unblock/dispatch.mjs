@@ -702,6 +702,19 @@ export function createGitHubApi({
       }
       return { status: run.status, jobs: await latestJobs(runId) };
     },
+    async readLatestJobs(runId) {
+      if (!RUN_ID.test(String(runId))) {
+        throw new Error("not a run id");
+      }
+      try {
+        return { jobs: await latestJobs(runId) };
+      } catch (error) {
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {

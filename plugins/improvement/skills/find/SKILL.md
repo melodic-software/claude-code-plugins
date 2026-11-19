@@ -1,6 +1,6 @@
 ---
 description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
-argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path]"
+argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -52,14 +52,26 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
   resolvable surface is itself a finding (likely instrument-first, below).
 - **Size band.** `--small` / `--medium` / `--large` (or equivalent prose: "quick wins only", "big
   swings") restricts candidates to that size band. Default: all sizes, ranked together.
-- **Repo as parameter.** One repo per invocation. An explicit repo path in the arguments makes that
-  checkout the target; otherwise the current repo is. When the target is not the session's working
-  directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
-  every probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
-  and file reads under that root, so the evidence never silently comes from the invoking repo.
-  The branch/log calls above describe the session's cwd, not the target; re-run them
-  with `-C <root>` in that case. Fleet-wide sweeps are out of scope. Compose with
-  `repo-fleet-hygiene` externally, one invocation per repo.
+- **Repositories.** One repository by default: an explicit repo path in the arguments makes that
+  checkout the target; otherwise the current repo is. The target forms (`--repo`, `--repos-from`,
+  `--owner`, `--fleet`, `--skip`, or the same request in words) select several, which resolve,
+  count, fan out and merge as
+  [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+  "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the whole
+  scan below with its root anchored, delegated lanes included (`/architecture:improve` gets
+  `--repo <owner/name>`), and its candidates join one ranked list on this skill's scale
+  (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`).
+  The single-repository procedure: when the target is not the session's working directory,
+  resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor every probe
+  to it. `git -C <root>` for every git command here and in the `context/` recipes, and file
+  reads under that root, so the evidence never silently comes from the invoking repo. The
+  branch/log calls above describe the session's cwd, not the target; re-run them with
+  `-C <root>` in that case. Over several repositories, unattended state stays per repository:
+  each one's report and dismissed-candidate memory under its own `<state-key>` (the helper run
+  from that repository's root), and its findings and candidate files under its own memory root
+  ("Writes stay per repository" there). A candidate is filed in its own repository's tracker, and
+  the open cap counts per repository; the run cap counts per run. A row naming several
+  repositories is filed once, in the repository that owns the source.
 - **Mode.** Interactive is the default. Unattended is entered only when the caller declares it (see
   Unattended mode), never inferred from context.
 
@@ -184,7 +196,7 @@ reader knows what the ranking could not see.
    unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
    output, with the candidate's evidence citation attached. A pick that fits one small PR may
    instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
-   target.
+   target, plus `--repo <owner/name>` when the candidate came from another repository.
 5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when enabled; the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
 
 Where a named pipeline skill is not enabled in the consuming project, summarize the equivalent

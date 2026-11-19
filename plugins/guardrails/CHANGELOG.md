@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.4] - 2026-11-18
+
+### Security
+
+- `hpp::resolve_scan_root`, which `hardcoded-path-check` and `block-github-post-content` run against the project directory, passes the overrides `hook::git_untrusted` uses to its `git rev-parse`, so the repository's `core.fsmonitor`, git hooks and pager stay off there too.
+
 ## [3.10.3] - 2026-11-18
 
 ### Security

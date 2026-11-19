@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.0] - 2026-11-19
+
+### Changed
+
+- **The pull-request evidence comment shows the verifier's criterion rows as one table.** When the verdict recorded for the head carries rows from `/verification:confirm`, the comment opens with one line stating the verdict, then a Criterion, Files, Test or check, Result table in place of the per-criterion result lines. A verdict recorded without rows keeps the lines. The `ready` report's verdict line now lists the rows under it.
+
+### Fixed
+
+- babysit-prs: a push that changes `plugins/code-metrics/scripts/**` or the code-metrics audit skill's scripts now stops an approval from carrying (`CARRY_REFUSES`), since CI's size check runs them.
+
+## [11.21.10] - 2026-11-18
+
+### Security
+
+- The worktree-add containment gate's worktree-root lookups (`config --get-all`, `rev-parse --git-dir` in `worktree-root-resolve.sh`) run through `hook::git_untrusted`, with the repository's `core.fsmonitor`, git hooks and pager turned off, as the gate's other git calls already do.
+
 ## [11.21.9] - 2026-11-18
 
 ### Fixed

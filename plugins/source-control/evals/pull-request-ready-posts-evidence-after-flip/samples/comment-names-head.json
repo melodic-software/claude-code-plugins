@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 0123456789abcdef0123456789abcdef01234567\n\ncart | cart page | passed\n",
+      "why": "the marked evidence comment for a full head"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Marked ready for review. Reviews were turned off for this run.\n",
+      "why": "another comment, not the evidence comment"
+    },
+    {
+      "answer": "<!-- evidence-verification -->\n### Verification evidence for 0123456\n",
+      "why": "a short head, not the full commit"
+    }
+  ]
+}

@@ -121,6 +121,7 @@ docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-bud
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh

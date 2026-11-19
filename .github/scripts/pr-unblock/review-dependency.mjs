@@ -34,6 +34,7 @@ import {
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
+import { parseGroups, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { movePin, PACKAGE, unifiedDiff } from "./install-script-pin.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
@@ -221,7 +222,19 @@ export async function pinMove(api, files, headSha) {
   return moved && { from: moved.from, to: moved.to, patch: unifiedDiff("package.json", manifest, moved.text) };
 }
 
-export async function select({ api, pr, headSha, appId, dependabotId, config = null, policy, repository = "", maxRounds = DEFAULT_MAX_ROUNDS, provenance }) {
+export async function select({
+  api,
+  pr,
+  headSha,
+  appId,
+  dependabotId,
+  config = null,
+  groups = [],
+  policy,
+  repository = "",
+  maxRounds = DEFAULT_MAX_ROUNDS,
+  provenance,
+}) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
@@ -258,6 +271,15 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   } catch (error) {
     pinError = error.message;
   }
+  let relockError = "";
+  try {
+    const target = await relockTarget({ files, groups, readText: (path) => api.getText(path, headSha) });
+    if (target) {
+      return { decision: "relock", relock: await relockRequest(target, { readText: (path) => api.getText(path, headSha) }), classification };
+    }
+  } catch (error) {
+    relockError = error.message;
+  }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
   const checkRuns = [];
@@ -269,7 +291,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   const shas = whole ? commits.map((commit) => commit.sha) : null;
   const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
-    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError };
+    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError };
   }
 
   return {
@@ -277,6 +299,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     rounds: done,
     classification,
     pinError,
+    relockError,
     file: {
       version: 1,
       repository,
@@ -406,6 +429,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config,
+    groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
     policy: readPolicy(env.DEPENDABOT_POLICY, log),
     provenance,
   });
@@ -415,22 +439,37 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     writeFileSync(env.CONTEXT_RUN_FILE, `${JSON.stringify(run)}\n`);
   }
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
+  const summary = (line) => {
+    log(line);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
+    }
+  };
   if (result.pin) {
     need(env, ["PIN_PATCH_FILE"]);
     writeFileSync(env.PIN_PATCH_FILE, result.pin.patch);
     output("pin-state", "written");
     output("pin-sha256", createHash("sha256").update(result.pin.patch).digest("hex"));
-    const line = `${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`;
-    log(line);
-    if (env.GITHUB_STEP_SUMMARY) {
-      appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
-    }
+    summary(`${PACKAGE} install-script pin: ${result.pin.from} to ${result.pin.to}, pushed by apply-dependency-pin with no model turn`);
+  }
+  if (result.relock) {
+    need(env, ["RELOCK_DIR"]);
+    const request = `${JSON.stringify(result.relock)}\n`;
+    writeFileSync(`${env.RELOCK_DIR}/request.json`, request);
+    writeFileSync(`${env.RELOCK_DIR}/requirements.in`, result.relock.in_after);
+    writeFileSync(`${env.RELOCK_DIR}/requirements.txt`, result.relock.txt_before);
+    output("relock-state", "written");
+    output("relock-sha256", createHash("sha256").update(request).digest("hex"));
+    summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);
   }
+  if (result.relockError) {
+    log(`::warning::the dependency group's lagging directory was not relocked (${result.relockError}); the model reviews the pull request as it stands`);
+  }
   output("proceed", String(result.decision === "proceed"));
-  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn" }[result.decision] ?? "");
+  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn" }[result.decision] ?? "");
   output("escalation-reason", result.escalationReason ?? "");
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {
