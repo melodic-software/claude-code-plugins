@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/*
+# test-scope: plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/* plugins/evals/scripts/redact.py plugins/evals/vendor/gitleaks/*
 """Fixture suite for run-validity.py.
 
 fixtures/run-validity/ holds two result files trimmed from one real
@@ -35,6 +35,7 @@ import copy
 import importlib.util
 import json
 import ntpath
+import re
 import subprocess
 import sys
 import tempfile
@@ -126,8 +127,10 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
         self.assertIn(
             "verdict: INVALID (scaffold scripts unchecked in 4 cases; 3 permission"
-            " denials in the traces; the skill did not fire in 1 with-arm run of a"
-            " should-trigger case)",
+            " denials in the traces: Read"
+            " `/tmp/eval-r2/plugins/evals/skills/methodology/reference/grading.md` x2,"
+            " Read `/tmp/eval-r2/plugins/evals/skills/methodology/reference/success-criteria.md`;"
+            " the skill did not fire in 1 with-arm run of a should-trigger case)",
             proc.stdout,
         )
 
@@ -1538,8 +1541,8 @@ class RunValidityTest(unittest.TestCase):
             "check permission denials: FAIL (2 denials in 2 runs", proc.stdout
         )
         self.assertIn(
-            "1 permission denial in the traces (warnings only, not counted:"
-            " case measurable-criterion)",
+            "1 permission denial in the traces: Grep `/tmp/claude-eval-x` (warnings"
+            " only, not counted: case measurable-criterion)",
             proc.stdout.splitlines()[-1],
         )
 
@@ -1710,7 +1713,10 @@ class RunValidityTest(unittest.TestCase):
             ("Read", {"file_path": "/etc/hosts"}),
         ])
         self.assertDenials(proc, "FAIL")
-        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn(
+            "verdict: INVALID (1 permission denial in the traces: Read `/etc/hosts`)",
+            proc.stdout,
+        )
         self.assertIn(
             "FAIL (3 denials in 1 run; 2 denials under the run's own plugin-data"
             " directory, not counted)",
@@ -1859,12 +1865,63 @@ class RunValidityTest(unittest.TestCase):
                       proc.stdout)
 
     def test_a_mixed_run_fails_counting_only_its_other_tool_results_denials(self):
+        settings = str(self.dir / "claude-eval-ab" / "config" / "settings.json")
         proc = self.denied_in_sandbox([
             ("Read", {"file_path": self.own_results("tool-results", "a.txt")}),
-            ("Read", {"file_path": str(self.dir / "claude-eval-ab" / "config" / "settings.json")}),
+            ("Read", {"file_path": settings}),
         ])
         self.assertDenials(proc, "FAIL")
-        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertIn(
+            "verdict: INVALID (1 permission denial in the traces: Read `%s`)"
+            % module.load_redactor().redact(settings),
+            proc.stdout,
+        )
+
+    WORKFLOW_BASH_RAN_GREP = re.compile(
+        r"bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*"
+        r"(, unknown [0-9]+)?)(, absent tool [0-9]+)?"
+    )
+
+    def test_the_verdict_names_each_counted_denial_redacted(self):
+        """The secret-shaped values and the home path are built at run time, so
+        no committed file holds one."""
+        home = "/".join(("", "home", "someone"))
+        pat = "ghp_" + "A1b2C3d4" * 4 + "E5f6"
+        bearer = "Bearer " + "x9Y8z7W6" * 3
+        proc = self.denied_in_sandbox([
+            ("Bash", {"command": "curl -H 'Authorization: %s' https://h" % bearer}),
+            ("Bash", {"command": "git push https://%s@github.com/o/r" % pat}),
+            ("Read", {"file_path": home + "/notes/x.md"}),
+            ("Bash", {"command": "echo a\n::error::b\techo `id`"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        lines = proc.stdout.splitlines()
+        verdict = lines[-1]
+        self.assertTrue(verdict.startswith("verdict: INVALID (4 permission denials in the traces: "))
+        self.assertRegex(lines[-2], r"\A%s\Z" % self.WORKFLOW_BASH_RAN_GREP.pattern)
+        self.assertNotIn(pat, verdict)
+        self.assertNotIn(bearer.split()[1], verdict)
+        self.assertIn("Bash `curl -H 'Authorization: Bearer <redacted:", verdict)
+        self.assertIn("Bash `git push https://<redacted:", verdict)
+        self.assertIn("Read `~/notes/x.md`", verdict)
+        self.assertIn("Bash `echo a ::error::b echo 'id'`", verdict)
+
+    def test_the_verdict_cuts_long_targets_and_caps_the_calls_named(self):
+        long = "echo " + "y" * 300
+        proc = self.denied_in_sandbox(
+            [("Bash", {"command": long})]
+            + [("Read", {"file_path": "/etc/f%d" % i}) for i in range(11)]
+            + [("Read", {"file_path": "/etc/f0"})]
+        )
+        self.assertDenials(proc, "FAIL")
+        verdict = proc.stdout.splitlines()[-1]
+        self.assertIn("Bash `%s...`," % long[:117], verdict)
+        self.assertIn("Read `/etc/f0` x2", verdict)
+        self.assertIn("Read `/etc/f8`, +2 more)", verdict)
+        self.assertNotIn("/etc/f9", verdict)
 
     def test_other_denials_near_tool_results_still_fail(self):
         sandbox = self.dir / "claude-eval-ab"
@@ -2535,6 +2592,10 @@ class RunValidityTest(unittest.TestCase):
             " xtomd.com:443 (",
             proc.stdout,
         )
+        self.assertIn(
+            "1 permission denial in the traces: Bash `network-outbound xtomd.com:443`",
+            proc.stdout.splitlines()[-1],
+        )
 
     def test_a_without_arm_network_denial_leaves_the_check_unchanged(self):
         for every in (False, True):
@@ -3175,6 +3236,38 @@ class RunValidityTest(unittest.TestCase):
         listed = self.dir / "list.json"
         listed.write_text("[]", encoding="utf-8")
         self.assertEqual(self.run_script(listed, "--runs", "1").returncode, 2)
+
+
+class NamedCallsTest(unittest.TestCase):
+    """named_calls and load_redactor in process: the vendored redactor loads with
+    its rules, and with none it names the tools only."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def denial(self, tool, target):
+        return (None, None, tool, "id", (tool, json.dumps(target)), None)
+
+    def test_the_vendored_redactor_loads_its_rules(self):
+        redactor = self.module.load_redactor()
+        self.assertIsNotNone(redactor)
+        self.assertGreater(redactor.rule_count, 0)
+
+    def test_with_no_redactor_only_the_tools_are_named(self):
+        self.assertIsNone(self.module.load_redactor(str(HERE / "no-such-redact.py")))
+        found = [self.denial("Bash", "cat /etc/x"), self.denial("Read", "/etc/y"),
+                 self.denial("Read", "/etc/z")]
+        self.assertEqual(self.module.named_calls(found, None), "Bash, Read x2")
+
+    def test_a_target_that_is_not_text_is_named_as_json(self):
+        redactor = self.module.load_redactor()
+        found = [self.denial("mcp__x__y", {"b": 1, "a": [2]})]
+        self.assertEqual(
+            self.module.named_calls(found, redactor), 'mcp__x__y `{"a": [2], "b": 1}`'
+        )
 
 
 class WindowsPathTest(unittest.TestCase):

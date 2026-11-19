@@ -5,6 +5,18 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.3.0] - 2026-11-19
+
+### Changed
+
+- Three skills hand the choice of mechanism for a rule to `/corrections:codify` when it is
+  available: `/harness-config:audit-instructions` (I5 and I15),
+  `/harness-config:audit-prompting-postures` (a MISSING P7 proposal) and
+  `/harness-config:draft-auto-mode-rules` (an action that must never happen). Without it, each
+  proposes the strongest mechanism that can decide the rule and says the proposal is unproven.
+  What each skill detects and reports is unchanged, and draft-auto-mode-rules still keeps the
+  `hard_deny` entry as a second layer.
+
 ## [5.2.7] - 2026-11-18
 
 ### Fixed

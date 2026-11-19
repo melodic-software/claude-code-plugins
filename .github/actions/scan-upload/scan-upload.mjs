@@ -22,18 +22,27 @@ import { fileURLToPath } from "node:url";
 import { hitFingerprint, scanLeak, WARN_ONLY } from "../../../lib/publish-gate.mjs";
 
 const COMPRESSED = [Buffer.from([0x1f, 0x8b]), Buffer.from("PK\x03\x04", "latin1"), Buffer.from("(\xb5/\xfd", "latin1")];
+const R2 = "R2 key pair";
+const TRACE_ID = /(\\?"trace_?id\\?"\s*:\s*\\?")[0-9a-f]{32}(?=\\?")/gi;
+const hideTraceIds = (bytes) => Buffer.from(bytes.toString("latin1").replace(TRACE_ID, (_, key) => `${key}${"x".repeat(32)}`), "latin1");
 
 /**
  * Every file under each of `entries` (the upload's path lines), judged by
  * scanLeak. Returns `{ withheld: {label, credential, fingerprint?} | null, warned, files }`,
- * fingerprint the summary line for a pattern block.
+ * fingerprint the summary line for a pattern block. `telemetry` reads an R2 key pair block
+ * again with the trace ids hidden.
  */
-export function scanPaths(entries) {
+export function scanPaths(entries, { telemetry = false } = {}) {
   let warned = false;
   let files = 0;
   const withhold = (label, credential = false) => ({ withheld: { label, credential }, warned, files });
-  const judge = (bytes, where) => {
-    const { block, credential, warn } = scanLeak(bytes);
+  const judge = (bytes, where, content = false) => {
+    let result = scanLeak(bytes);
+    if (telemetry && content && result.block === R2) {
+      bytes = hideTraceIds(bytes);
+      result = scanLeak(bytes);
+    }
+    const { block, credential, warn } = result;
     if (block) {
       let fingerprint = null;
       try {
@@ -65,7 +74,7 @@ export function scanPaths(entries) {
     if (COMPRESSED.some((magic) => bytes.subarray(0, magic.length).equals(magic))) {
       return { label: "a compressed file, whose bytes the scan cannot read" };
     }
-    return judge(Buffer.from(name, "utf8"), "a file name") ?? judge(bytes, name);
+    return judge(Buffer.from(name, "utf8"), "a file name") ?? judge(bytes, name, true);
   };
   for (const line of entries) {
     const entry = line.trim();
@@ -89,7 +98,7 @@ export function main(env = process.env) {
   const entries = String(env.SCAN_PATHS ?? "").split(/\r?\n/);
   let result;
   try {
-    result = scanPaths(entries);
+    result = scanPaths(entries, { telemetry: env.SCAN_TELEMETRY === "true" });
   } catch (error) {
     result = { withheld: { label: `no finished scan (${error.name})`, credential: false }, warned: false, files: 0 };
   }
