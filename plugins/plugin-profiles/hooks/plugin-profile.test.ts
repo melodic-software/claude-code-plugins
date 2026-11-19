@@ -50,7 +50,7 @@ const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.
 })
 
 const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
-  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
   const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
@@ -86,6 +86,7 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   on('tool.call', { tool: 'AskUserQuestion' }, ($: unknown, e: any) => {
     const q = e.questions[0]
     w.asks.push({ question: q.question, options: q.options.map((o: { label: string }) => o.label) })
+    w.headers.push(q.header)
     const answer = answers.shift()
     if (answer === undefined) return { deny: 'dismissed' }
     return { result: { questions: e.questions, answers: { [q.question]: answer } } }
@@ -491,6 +492,7 @@ test('#16747: the picker offers No profile, which previews the clear, asks, clea
   const text = await runPicking($, w, 'No profile')
   expect(w.logs).toContain('Puts back 3 plugin entries and 0 skill entries to their values before the first apply.')
   expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Cancel', 'Apply'] }])
+  expect(w.headers).toEqual(['Profile'])
   expect(w.runs.slice(1)).toEqual([
     ['clear', '--for', 'folder', '--dry-run', '--json'],
     ['clear', '--for', 'folder', '--yes'],
@@ -561,11 +563,12 @@ test('#17354: Cancel at the reset confirm resets nothing', async ($, on) => {
   expect(w.commands).toEqual([])
 })
 
-test('#17354: each folder without a record gets its own question, and only Remove passes it to reset', async ($, on) => {
+test('#17354: each folder without a record gets its own question, and only Remove passes it to reset; every reset question is headed Reset', async ($, on) => {
   const loose = (file: string) => ({ file, action: 'remove-entries', ask: { file, question: `${file} has no record. Remove its entries?`, ...UNRECORDED } })
   const resetDry = resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, loose('/a/.claude/settings.local.json'), loose('/b/.claude/settings.local.json')])
   const w = world(on, ['Apply', 'Keep', 'Remove'], { resetDry })
   await runPicking($, w, 'Reset')
+  expect(w.headers).toEqual(['Reset', 'Reset', 'Reset'])
   expect(w.asks).toEqual([
     { question: QUESTION, options: ['Cancel', 'Apply'] },
     { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Keep', 'Remove'] },

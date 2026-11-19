@@ -162,11 +162,11 @@ async function resetAll($: EngineInterface): Promise<string> {
       ? 'Nothing to reset: each file reset restored earlier is unchanged since.'
       : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
-  const keepRecorded = Boolean(preview.question) && !(await confirmed($, preview.question as string))
+  const keepRecorded = Boolean(preview.question) && !(await chose($, preview.question as string, CANCEL, APPLY, RESET))
   const yes: string[] = []
   const no: string[] = []
   for (const ask of askable) {
-    if (await chose($, ask.question, ask.no.label, ask.yes.label, 'Reset')) yes.push(ask.yes.flag, ask.file)
+    if (await chose($, ask.question, ask.no.label, ask.yes.label, RESET)) yes.push(ask.yes.flag, ask.file)
     else no.push(ask.no.flag, ask.file)
   }
   if ((!preview.question || keepRecorded) && !yes.length) return 'Not reset; nothing changed.'
