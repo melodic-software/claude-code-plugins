@@ -94,7 +94,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // (rate-guard.test.mjs holds the two equal).
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "start-gate": 0.1 },
+  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,
@@ -109,11 +109,11 @@ const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // optional, the share of the header's limit left at which the latch stops;
 // start-gate, optional, check-kill-switch's share under which a lane does not
 // start, which that gate reads from rate-limits.json alone.
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "start-gate": SHARE };
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 // Fields rate-limits.json holds that pr-pipeline.yaml's limits.api cannot set
 // (its schema rejects them): their one reader takes the file's value alone.
-export const FILE_ONLY_FIELDS = Object.freeze(["start-gate"]);
+export const FILE_ONLY_FIELDS = Object.freeze(["pace-pr-merge", "start-gate", "start-project", "start-run-minutes"]);
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
 // rate-limits.json, checked: every pool in API_POOLS and no other, each with

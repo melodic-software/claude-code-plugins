@@ -6,7 +6,10 @@ description: >
   With budget "true" and both switches off, one GET /rate_limit stops the
   lane while the core pool's remaining is under rate-limits.json's
   github-token start-gate share of its limit, or when the read is refused
-  (403, 429, retry-after, remaining 0); any other failed read proceeds. Every
+  (403, 429, retry-after, remaining 0); any other failed read proceeds. With
+  project "true" it also stops while the window is projected to have under
+  github-token's start-project share of its limit left at the run's
+  expected end. Every
   stop is proceed=false reason=kill-switch, with cause switch or budget.
   Always exits 0: the model step's `if:` reads the output, so a missing
   output also keeps the lane stopped.
@@ -30,6 +33,14 @@ inputs:
       `true` also reads the GITHUB_TOKEN budget. Set it only on a gate that
       starts new work; a gate that finishes or judges existing work keeps the
       default, switches only, so a low budget never throws that work away.
+    required: false
+    default: "false"
+  project:
+    description: >
+      `true`, with budget "true", also stops the lane while the pacer's
+      projection of the window's spend to github-token's start-run-minutes
+      ahead (or the reset, when sooner) leaves under start-project of the
+      limit, both from rate-limits.json. Set only on the issue lane's first call.
     required: false
     default: "false"
   token:
@@ -63,5 +74,6 @@ runs:
         KILL_SWITCH_VALUE: ${{ inputs.value }}
         REPO_KILL_SWITCH_VALUE: ${{ inputs.repo-value }}
         BUDGET_CHECK: ${{ inputs.budget }}
+        PROJECT_CHECK: ${{ inputs.project }}
         BUDGET_TOKEN: ${{ inputs.token }}
       run: node "$GITHUB_ACTION_PATH/check-kill-switch.mjs"
