@@ -946,6 +946,7 @@ def seed_run(
     )
     (run_dir / "gh-config").mkdir(exist_ok=True)
     _git(call, run_dir, env, "clone", "--local", "--quiet", str(base_repo), str(repo))
+    _git(call, repo, env, "config", "worktreeroot.path", str(run_dir / "worktrees"))
     seeded = {}
     for rel, content in case["seed"].get("repo_files", {}).items():
         path = repo / rel
@@ -1428,6 +1429,14 @@ def _reader_workspace(
         "set-url",
         "origin",
         str(copy_dir / "origin.git"),
+    )
+    _git(
+        cfg.call or default_call,
+        repo,
+        env,
+        "config",
+        "worktreeroot.path",
+        str(copy_dir / "worktrees"),
     )
     rebase = lambda path: Path(str(path).replace(str(run_dir), str(copy_dir), 1))  # noqa: E731
     return {

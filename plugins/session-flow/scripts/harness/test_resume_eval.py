@@ -1084,6 +1084,14 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
     for hop in hops:
         for rel in (hop.get("effects") or {}).get("files", {}):
             assert (run["repo"] / rel).is_file()
+    import subprocess
+
+    pinned_root = subprocess.run(
+        ["git", "-C", str(run["repo"]), "config", "--local", "worktreeroot.path"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert pinned_root == str(cfg.root / "r" / "worktrees")
     scripted = [
         t["text"]
         for hop in hops
