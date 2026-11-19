@@ -150,6 +150,7 @@ to set these keys, checked against
 | Key | Values | Default | What it controls |
 |---|---|---|---|
 | `registry_dir` | a contained project-relative directory of letters, digits, `.`, `_`, `-`, `/` and `\` | none: `${CLAUDE_PLUGIN_DATA}` | Where `/harness-ops:known-issues` keeps `registry.json`, for everyone working in the repository. Beats the `registry_dir` option; a personal `harness-ops.local.yaml` beats it. Read from the working tree by `scripts/registry-dir.mjs`, which reports the layer that set it (`/harness-ops:setup` shows it); an absolute, drive, UNC, traversal or escaping-symlink value, or one holding any other character (the value reaches a shell command), is named and dropped, and resolves to the plugin data directory. Team and personal values join the git toplevel; the option joins the session's project directory, as it always has. |
+| `probe_state_issue` | `<owner>/<repo>#<number>` | none: the case is skipped | The issue `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case creates its routine on and posts its two state comments to. Beats the `probe_state_issue` option; a personal `harness-ops.local.yaml` beats it. Read by `scripts/probe-state-issue.mjs`; `probe.py` refuses any other shape. |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/harness-ops:audit-install-state` dispatches its fresh-context cross-review (`strict` also for a single-agent run) and `/harness-ops:changelog` its local verifier: `light` and `off` skip both and mark what they would have checked `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 These `userConfig` options tune the skills:
@@ -187,6 +188,13 @@ These `userConfig` options tune the skills:
   comments written by `<slug>[bot]` when the lanes run `gh` under that App's installation
   token. Leave it unset under a personal or machine-user token. An empty value, or an
   unrendered `${user_config.lane_app_slug}` placeholder, is treated as no slug.
+- **`probe_state_issue`** (string, optional). The issue, as `<owner>/<repo>#<number>`, the
+  cloud-routine behavior probe works against; unset skips that case. A repository's
+  `probe_state_issue` in `harness-ops.yaml` beats it (see [Configuration](#configuration)).
+- **`otel_store_reset_doc`**, **`otel_collector_config_ref`**, **`otel_dashboards_compose_ref`**
+  (strings, optional). Where your machine provisioning documents the OTEL store reset, the
+  Collector configuration and the Aspire dashboard compose file; `/harness-ops:observability`
+  names each one it is asked about. Unset, it describes the part and links nothing.
 
 Run `/harness-ops:setup` to validate this choice. Claude Code owns persistence through its plugin
 configuration prompt; rerun setup afterward to verify the rendered value.
@@ -211,6 +219,10 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `quiet_auto_update_marketplaces` | string | *(none)* | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
 | `update_other_paths` | boolean | `false` | Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them. |
 | `lane_app_slug` | string | *(none)* | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
+| `probe_state_issue` | string | *(none)* | Issue, as owner/repo#number, the cloud-routine behavior probe creates its routine on and posts two state comments to. Unset: that case is skipped. A repository's probe_state_issue in harness-ops.yaml beats this option. |
+| `otel_store_reset_doc` | string | *(none)* | URL or path of your machine provisioning's documented full reset of the OTEL store, which observability names when asked to wipe it. Unset: it names the step without a link. |
+| `otel_collector_config_ref` | string | *(none)* | URL or path of the Collector configuration your machine provisioning installs, which observability names as the pipeline's source. Unset: it describes the configuration without a link. |
+| `otel_dashboards_compose_ref` | string | *(none)* | URL or path of the compose file your machine provisioning declares the Aspire dashboard containers in. Unset: observability describes the stack without a link. |
 
 ### How to set these
 

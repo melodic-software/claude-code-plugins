@@ -34,6 +34,10 @@ Subcommands (standard library only):
       --max-runs defaults to 20 under --live; a dry run has no run ceiling.
       A case marked explicit runs live only when --case names it; otherwise
       it is reported skipped.
+      --state-issue OWNER/REPO#N is the issue a needs_state_issue case works
+      against (scripts/probe-state-issue.mjs resolves it); empty or an
+      unrendered ${user_config.*} placeholder is unset, and such a case is
+      then skipped live. A dry run fills in DRY_RUN_STATE_ISSUE.
 
   table RESULTS
       Print a results.jsonl file as a Markdown outcome table for the records.
@@ -83,6 +87,8 @@ DEFAULT_SUITE_COST_USD = 10.0
 DEFAULT_SUITE_RUNS = 20
 DEFAULT_TIMEOUT = 300
 DRY_RUN_VERSION = "0.0.0-dry-run"
+STATE_ISSUE = re.compile(r"([A-Za-z0-9][A-Za-z0-9-]*)/([A-Za-z0-9._-]+)#([1-9][0-9]*)")
+DRY_RUN_STATE_ISSUE = "probe-owner.invalid/probe-repo#1"
 TEXT_CLIP = 300
 # A plant_env value: this fixed prefix, then random hex. The prefix lets anyone search
 # a run's output for a leak without knowing the value; the temp directory holds only
@@ -302,7 +308,7 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
             and all(isinstance(r, str) and r and "," not in r for r in rules)
         ):
             problems.append(f"{cid}: {field} must be a list of rules with no comma")
-    for flag in ("verdict_only", "explicit"):
+    for flag in ("verdict_only", "explicit", "needs_state_issue"):
         if not isinstance(case.get(flag, False), bool):
             problems.append(f"{cid}: {flag} must be true or false")
     plant = case.get("plant_env")
@@ -358,7 +364,27 @@ def substitute(text: str, workdir: Path, case_dir: Path, json_escape: bool) -> s
     return text
 
 
+def state_issue(value: str | None) -> str | None:
+    """The --state-issue value, None when unset; SystemExit on any other shape."""
+    if not value or value.startswith("${user_config."):
+        return None
+    if not STATE_ISSUE.fullmatch(value):
+        raise SystemExit(
+            f"error: --state-issue must be <owner>/<repo>#<number>: {value!r}"
+        )
+    return value
+
+
+def state_substitute(text: str, issue: str) -> str:
+    repo, number = issue.split("#")
+    return text.replace("${PROBE_STATE_REPO}", repo).replace(
+        "${PROBE_STATE_ISSUE}", number
+    )
+
+
 def skip_reason(case: dict) -> str | None:
+    if case.get("needs_state_issue") and not case.get("state_issue"):
+        return "probe_state_issue is unset (pass --state-issue)"
     platforms = case.get("platforms") or []
     if platforms and not any(sys.platform.startswith(p) for p in platforms):
         return f"platform {sys.platform} not in {platforms}"
@@ -958,6 +984,10 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             case_dir,
             json_escape=False,
         )
+        if case.get("needs_state_issue"):
+            prompt = state_substitute(
+                prompt, case.get("state_issue") or DRY_RUN_STATE_ISSUE
+            )
         # The planted value goes only here: rows are built from case, never resolved.
         resolved = {
             **case,
@@ -1015,6 +1045,7 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                     "max_budget_usd": budget,
                     "model": model,
                     "real_setup": getattr(args, "real_setup", False),
+                    "state_issue": getattr(args, "state_issue", None),
                 },
                 runner,
                 args.keep,
@@ -1173,6 +1204,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--out", type=Path)
     p_run.add_argument("--keep", action="store_true")
     p_run.add_argument("--real-setup", action="store_true")
+    p_run.add_argument("--state-issue")
 
     p_table = sub.add_parser("table")
     p_table.add_argument("results", type=Path)
@@ -1238,6 +1270,7 @@ def main(argv: list[str] | None = None) -> int:
             print(line)
         return 0
 
+    args.state_issue = state_issue(args.state_issue)
     chosen = select_cases(cases, args.case, args.area)
     if not chosen:
         print("error: no case selected", file=sys.stderr)

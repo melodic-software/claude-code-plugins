@@ -685,6 +685,74 @@ class SuiteTests(unittest.TestCase):
         probe.run_suite(cases[:1], record, args)
         self.assertEqual(calls, ["a/plain", "a/explicit"])
 
+    def _state_case(self):
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text(
+            "gh api repos/${PROBE_STATE_REPO}/issues/${PROBE_STATE_ISSUE}/comments"
+        )
+        return case(id="a/state", outcome="ran", needs_state_issue=True, dir=self.tmp)
+
+    def _run_state(self, live, state_issue):
+        prompts = []
+
+        def record(_c, _cwd, _settings_file, prompt):
+            prompts.append(prompt)
+            return stream(INIT, final())
+
+        args = Namespace(
+            max_runs=10,
+            max_cost_usd=100.0,
+            retries=0,
+            keep=False,
+            live=live,
+            case=[],
+            state_issue=state_issue,
+        )
+        return probe.run_suite([self._state_case()], record, args), prompts
+
+    def test_a_state_issue_case_is_skipped_live_when_none_is_configured(self):
+        rows, prompts = self._run_state(live=True, state_issue=None)
+        self.assertEqual(rows[0]["verdict"], "skipped")
+        self.assertIn("probe_state_issue is unset", rows[0]["note"])
+        self.assertEqual(prompts, [])
+
+    def test_a_configured_state_issue_fills_the_prompt(self):
+        _, prompts = self._run_state(live=True, state_issue="acme/widgets#42")
+        self.assertEqual(prompts, ["gh api repos/acme/widgets/issues/42/comments"])
+
+    def test_a_dry_run_without_a_state_issue_uses_the_unresolvable_stand_in(self):
+        _, prompts = self._run_state(live=False, state_issue=None)
+        self.assertEqual(
+            prompts, ["gh api repos/probe-owner.invalid/probe-repo/issues/1/comments"]
+        )
+
+    def test_the_state_issue_flag_reads_unset_values_and_refuses_other_shapes(self):
+        self.assertIsNone(probe.state_issue(None))
+        self.assertIsNone(probe.state_issue(""))
+        self.assertIsNone(probe.state_issue("${user_config.probe_state_issue}"))
+        self.assertEqual(probe.state_issue("acme/widgets#42"), "acme/widgets#42")
+        for bad in (
+            "acme/widgets",
+            "acme/widgets#0",
+            "acme/widgets#42; rm -rf x",
+            "acme/wid gets#1",
+            "-acme/widgets#1",
+            "acme/widgets#1/../x",
+        ):
+            with self.assertRaises(SystemExit, msg=bad):
+                probe.state_issue(bad)
+
+    def test_the_cloud_routine_case_names_no_repository_of_its_own(self):
+        c = next(
+            c
+            for c in probe.discover(probe.DEFAULT_CASES)
+            if c["id"] == "cloud-routine/state-read-back-next-run"
+        )
+        self.assertIs(c["needs_state_issue"], True)
+        prompt = (c["dir"] / "prompt.md").read_text(encoding="utf-8")
+        self.assertIn("repos/${PROBE_STATE_REPO}/issues/${PROBE_STATE_ISSUE}/", prompt)
+        self.assertNotRegex(prompt, r"repos/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/issues/\d")
+
     def test_explicit_and_timeout_are_validated(self):
         by_id = {}
         good = case(outcome="ran", tags=["x"], dir=self.tmp, explicit=True, timeout=60)
