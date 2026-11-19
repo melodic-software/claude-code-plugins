@@ -43,7 +43,7 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`, all optional,
+`$ARGUMENTS` carries `[--unattended] [--cloud] [--step-away <words>] [file|prompt] [topic] [purpose...]`, all optional,
 the non-flag tokens positional. `--unattended`, anywhere in the arguments, is the caller declaring
 that nobody is present (it governs the offer under "Boundary") and is consumed first; the bare word
 in a purpose is purpose text. A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. `--step-away "<words>"`, consumed next, makes the
@@ -143,8 +143,8 @@ first reach step-away as arguments is unprobed. Pointer: probe 4 in [reference/g
 **Output order: position panel, then the rails prompt, then the launch report.** The panel (engine
 doc, "Emit the position panel") leads; the operator is walking away while an agent keeps working,
 so the one thing they should not have to reconstruct is where the work stood when they left. It is
-screen output only: **the launched agent receives exactly the `/goal` payload and never a line of
-the panel**, which keeps it identical to the goal-region paste a person would make.
+screen output only: **the launched agent receives exactly the launch payload and never a line of
+the panel**, which keeps it identical to the paste a person would make.
 
 The rails prompt from the engine doc is still emitted before the launch (transparency + manual
 fallback), then:
@@ -277,12 +277,15 @@ fallback), then:
    the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
    turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
-   The user no longer needs to paste anything.
+   With `--step-away`, also confirm the arming: take the session's full `sessionId` from
+   `claude agents --json --all`, wait in the background up to two minutes for
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" status --session <that id> --data-root "${CLAUDE_PLUGIN_DATA}"`
+   to read `"active"`, and report it armed, or report arming unconfirmed with that command.
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
-5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
-   monitor, poll, or babysit the launched agent, and do not start new work items.
+5. **Stop.** The background agent is the continuation; this session terminates the task. Past
+   step 3's checks, do not monitor, poll, or babysit the launched agent, or start new work items.
 
 ## Delivery variant: desktop session
 
@@ -428,7 +431,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   exit reported with fallback to
   `/clear`-then-paste
 - [ ] `--step-away` only: payload's first line `/session-flow:step-away <words>` written by this
-  skill, no `/goal` claimed armed, no goal drafted or confirmed; a value with a newline or double
+  skill, no `/goal` claimed armed, no goal drafted or confirmed, the report saying armed or arming
+  unconfirmed (step 3); a value with a newline or double
   quote, or `--cloud` given too → no launch, reason stated
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
@@ -479,12 +483,8 @@ section states what to do when they resolve, never that they are present.
 
 ## Gotchas
 
-Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory
-collapse, the non-repo-plus-no-`WorktreeCreate`-hook vs. unknown split with its deliberately wide
-unknown default, and the ban on reusing the context block's git output (dirty-tree gate, step 1;
-context block), the no-inline-prompt rule and the session-persistence env requirement (launch
-command, step 2), slug sanitization ("Arguments"), and non-inheritance surprises. Model, effort,
-CLI flags ("What the launched session inherits").
+Failure patterns sit at the step that owns them: dirty-tree gate (step 1), launch command (step
+2), slug sanitization ("Arguments"), non-inheritance ("What the launched session inherits").
 
 ## What this skill does not do
 

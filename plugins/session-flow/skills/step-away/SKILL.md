@@ -91,8 +91,8 @@ state has silent hooks: prompts would wait all night and no report would exist.
    absence step 1 would ask about first; nobody can answer it later. To hand off, invoke
    `/session-flow:continue-in-background` through the Skill tool with
    `--step-away "<absence words> <scope>"`, the "fresh session" words removed, so the background
-   session runs this skill on its first prompt and arms under its own id. Run no `start` here. A
-   session launched this way never hands off again.
+   session runs this skill first and arms under its own id. Run no `start` here; tell the person
+   whether the arming was confirmed. A session launched this way never hands off again.
 7. **Work**, from the turn after the launch message (the Stop hook's note or the person's `/goal`
    line starts it): read [reference/rules.md](reference/rules.md), then work the task file.
 
