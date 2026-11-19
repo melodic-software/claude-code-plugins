@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.1] - 2026-11-19
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
 ## [10.4.0] - 2026-11-19
 
 ### Added

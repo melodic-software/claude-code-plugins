@@ -24,6 +24,7 @@
 // can release it.
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
+import { runTitle } from "./feedback-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
@@ -89,6 +90,7 @@ export async function dispatchDependencyReviews({
   const dispatched = [];
   let failed = 0;
   let sent = 0;
+  let active = null;
   for (const node of candidates) {
     if (sent >= maxDispatch) {
       log(`defer #${node.number}: ${maxDispatch} review dispatches this run; left for a later run unread`);
@@ -171,6 +173,17 @@ export async function dispatchDependencyReviews({
     }
     if (anyHandles(existing, { now, limits, lagStopsRelease: true })) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
+      continue;
+    }
+    try {
+      active ??= (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+    } catch (error) {
+      log(`::warning::#${node.number}: ${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); skipped, a later run retries`);
+      continue;
+    }
+    const inFlight = active.find((run) => run.display_title === runTitle("review-dependency", node.number));
+    if (inFlight) {
+      log(`skip #${node.number}: ${workflow} run ${inFlight.id} for review-dependency is not done yet`);
       continue;
     }
     if (existing.some(headLagStop)) {

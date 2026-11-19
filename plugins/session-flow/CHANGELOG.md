@@ -1,5 +1,36 @@
 # Changelog: session-flow plugin
 
+## [9.11.0] - 2026-11-19
+
+### Added
+
+- `/session-flow:step-away` arms a session to run while you are away: prompts are refused and listed in a return report, your decisions are parked with options and a recommendation, and the report is shown once when you are back.
+- session-flow now registers PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks in every session; each does nothing unless a step-away absence is active.
+- `/session-flow:go-with-recommendations` accepts the latest recommendations after a full evidence check, returning any that changed with old, new and why.
+
+## [9.10.1] - 2026-11-19
+
+### Fixed
+
+- `save_point.py validate` no longer lets a successor drop a carried rule, decision or question
+  because its predecessor failed only on size: handoffs written from now on carry a `checks: 2`
+  stamp, and for them the predecessor downgrade applies only to content failures. Older files
+  validate as before.
+
+## [9.10.0] - 2026-11-19
+
+### Added
+
+- `/session-flow:audit-sessions resumed`: context at the tenth message of sessions resumed from a
+  handoff, as a median and sample size per session-flow plugin version, with a rise check
+  between two versions.
+
+### Fixed
+
+- `tidy_work.py clean` keeps every file of a handoff chain whose newest hot file is not closed
+  (`Next: none (closed)`), whatever its age or the state of the pull requests it names, and
+  prints one `kept open chain:` line per such chain.
+
 ## [9.9.2] - 2026-11-19
 
 ### Changed

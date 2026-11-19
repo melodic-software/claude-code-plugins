@@ -25,13 +25,14 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
@@ -2795,7 +2796,7 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
   assert.ok(modes.size > 0, "a launcher step names its permission-mode");
   for (const pin of pins) {
-    const { cliArgs } = await laneAtPin(pin);
+    const { cliArgs } = await contractAtPin(pin);
     for (const permissionMode of new Set([...modes, "default"]))
       for (const sandbox of [true, false])
         for (const effort of ["", "high"])
@@ -3944,6 +3945,51 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
 });
 
+test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read within rate-limit-wait-seconds", async (t) => {
+  const root = tempDir("scan-wait-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const step = scanSteps().find((s) => s.id === "leak-scan");
+  assert.equal(step.env.WAIT_SECONDS, "${{ inputs.rate-limit-wait-seconds }}");
+  const run = async (env, answers) => {
+    const notices = [];
+    const branches = [];
+    const file = join(root, "scan-leak-calls");
+    rmSync(file, { force: true });
+    const github = {
+      rest: {
+        repos: {
+          getBranch: async () => {
+            branches.push(answers.length);
+            const answer = answers.shift();
+            if (answer instanceof Error) throw answer;
+            return answer;
+          },
+          getContent: async () => {
+            throw new Error("stop after the gate read");
+          },
+        },
+      },
+    };
+    const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {}, notice: (line) => notices.push(line) };
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { HEAD_SHA: "a".repeat(40), CALLS_FILE: file, ...env },
+    }).catch(() => {});
+    return { calls: existsSync(file) ? readFileSync(file, "utf8") : null, notices, reads: branches.length };
+  };
+  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
+  const tip = { data: { commit: { sha: GATE_TIP } } };
+  const waited = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [limited(), tip]);
+  assert.equal(waited.reads, 2, "getBranch is read again after the wait");
+  assert.equal(waited.calls, "3\n", "both getBranch reads and the gate's getContent");
+  assert.equal(waited.notices.length, 1);
+  const unset = await run({}, [limited(), tip]);
+  assert.equal(unset.reads, 1, "no budget: no second read");
+  assert.equal(unset.calls, "1\n");
+  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
+  assert.equal(other.reads, 1, "a 404 is not a rate limit");
+});
+
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
@@ -4522,7 +4568,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
   const steps = scanSteps();
   const step = (id) => steps.find((s) => s.id === id);
   const scan = step("leak-scan");
-  assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
+  assert.match(String(scan["timeout-minutes"]), /^\$\{\{ inputs\.rate-limit-wait-seconds > 0 && [1-9][0-9]* \|\| [1-9][0-9]* \}\}$/, "a slow scan ends, failing closed");
   assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
   const copy = "${{ steps.leak-scan.outputs.dir }}";
   assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.startsWith(`${copy}/`)));
@@ -8597,7 +8643,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue" });
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) });
+  const laneJobs = workflow("work-resolve-issue.yml").jobs;
+  for (const id of ["resolve-issue-handoff", "resolve-issue-subscription-handoff", "resolve-issue-stale"]) {
+    const job = laneJobs[id];
+    const evidence = job.steps.find((s) => s.run?.startsWith("bash .base/.github/scripts/lib/handoff-evidence.sh "));
+    assert.equal(evidence.env.API_BUDGET_WAIT_SECONDS, String(WAIT_BUDGET_SECONDS.workResolveIssue), `${id} waits WAIT_BUDGET_SECONDS.workResolveIssue`);
+    assert.ok(job["timeout-minutes"] * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${id}'s timeout holds ten minutes of reads and the wait`);
+  }
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],
@@ -10039,7 +10092,8 @@ test("every checkout of this repository takes a SHA, and main's tip comes only f
       assert.ok(["main", DEFAULT_BRANCH].includes(tip.env.TIP_BRANCH), where);
       assert.equal(tip.env.GIT_TERMINAL_PROMPT, "0", where);
       assert.equal(tip.uses, undefined, where);
-      assert.equal(tip.run, TIP_RUN, `${where}: the one tip script`);
+      const carries = steps.some((s) => String(s.env?.PR_MERGE_MAIN_TIP ?? "").includes("steps.tip.outputs.carry-tip"));
+      assert.equal(tip.run, carries ? TIP_RUN_CARRY : TIP_RUN, `${where}: the one tip script`);
     }
   }
   assert.ok(tips >= 70, `only ${tips} tip steps found`);
@@ -10052,6 +10106,22 @@ const TIP_RUN = [
   '  sleep "$((RANDOM % (2 * i + 1)))"',
   "done",
   'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "",
+].join("\n");
+
+const TIP_RUN_CARRY = [
+  'until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&',
+  "    sha=$(awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }' <<<\"$refs\") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
+  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  '  sleep "$((RANDOM % (2 * i + 1)))"',
+  "done",
+  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "# The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only",
+  "# while no tag is named main, which they refuse: with it, no reader",
+  "# process reads git/ref/tags/main or git/ref/heads/main again.",
+  "if ! awk '$2 == \"refs/tags/main\" || $2 == \"refs/tags/main^{}\" { found = 1 } END { exit !found }' <<<\"$refs\"; then",
+  '  echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"',
+  "fi",
   "",
 ].join("\n");
 

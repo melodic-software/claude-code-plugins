@@ -62,32 +62,7 @@ EOF
 }
 
 # run_case <label> <expected-rc> <setup> [<must-name>...]
-run_case() {
-  local label="$1" expected="$2" setup="$3"
-  shift 3
-  local tree out rc s
-  mk_tree tree || {
-    fail "$label: fixture build failed"
-    return
-  }
-  (cd "$tree" && eval "$setup") || {
-    fail "$label: setup failed"
-    return
-  }
-  out="$(bash "$tree/scripts/check-cost-figures.sh" --check 2>&1)"
-  rc=$?
-  if [[ $rc -ne $expected ]]; then
-    fail "$label: expected rc=$expected, got rc=$rc: $out"
-    return
-  fi
-  for s in "$@"; do
-    if ! grep -qF -- "$s" <<<"$out"; then
-      fail "$label: '$s' not named in output: $out"
-      return
-    fi
-  done
-  ok "$label"
-}
+run_case() { test_harness::check_case mk_tree check-cost-figures.sh "$@"; }
 
 # add <text> [<file>]: a new last paragraph in a skill file (default a fresh
 # reference file, outside SKILL.md's list-price section).
@@ -176,23 +151,11 @@ run_case "a missing exempt list is an environment error" 2 "rm $EX"
 tree=""
 if mk_tree tree; then
   printf 'A run costs $2.\n' >"$tree/$SKILL/reference/new.md"
-  stdout="$(bash "$tree/scripts/check-cost-figures.sh" 2>/dev/null)"
-  rc=$?
-  if [[ $rc -eq 1 && -z "$stdout" ]]; then
-    ok "discover mode exits 1 with nothing on stdout"
-  else
-    fail "discover mode should exit 1 with an empty stdout (rc=$rc): $stdout"
-  fi
+  test_harness::assert_discover_quiet "$tree/scripts/check-cost-figures.sh"
 else
   fail "discover mode: fixture build failed"
 fi
 
-bash "$SUT_SRC" --bogus >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "unknown mode exits 2"
-else
-  fail "unknown mode should exit 2 (rc=$rc)"
-fi
+test_harness::assert_unknown_mode "$SUT_SRC"
 
 test_harness::report

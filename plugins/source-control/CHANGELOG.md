@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.4] - 2026-11-19
+
+### Removed
+
+- `worktree cleanup` no longer reports or deletes Xcode build output and unavailable simulators on a macOS host: `context/macos-caches.md`, its pointer in `context/cleanup.md`, the optional `xcrun` prerequisite and the eval case that tested the page are gone (ADR 0101).
+- `worktree create`'s post-create checks drop the per-ecosystem table (.NET, Node, Python commands) and the hook-manager examples; a dependencies row reads the project's own install step from its Workspace environment `setup` or setup docs, and reports the check as not run when none is stated. `cleanup`'s file-lock release names no build tool's shutdown command; it uses the one the project documents.
+- `commit`'s subject ladder and `setup`'s convention inference no longer name hook managers or commit-message linters by tool; they read the commit-msg hook the repository's own files name.
+- `pull-request` prep's verify gate, the ready action's verify step and the CI fix rules no longer list per-tool commands, test-runner flags or suppression syntaxes as examples. The verify gate runs the commands the repository's CI workflows, ecosystem records or instructions name, and an ecosystem none of them covers is named in the PR body as not verified locally.
+
+### Fixed
+
+- The PR-body linkage hooks (`pr-body-linkage-gate`, `pr-linkage-mcp-gate`) enforce again in a repository whose ci-status job runs the ci-workflows `report-ci-status` composite, which runs check-contract inside it. Before, they stopped checking in every repository moved to that composite.
+
+## [11.22.3] - 2026-11-19
+
+### Changed
+
+- **The babysit loop's instance-collision check is a generated copy of the shared `lib/lane-instance-collision-check.md`.** The work loop carries the same copy, so the two lanes stop drifting apart; no change to the check itself.
+
+## [11.22.2] - 2026-11-19
+
+### Fixed
+
+- `/source-control:babysit-prs`: a pr-merge sweep's one whole-review request is now spent only by a pull request that passes the rate-limit and running-jobs limits. A candidate refused on a limit no longer leaves every later candidate in the sweep answered `sweep-limit`. The limits themselves and the one request per sweep are unchanged.
+
+## [11.22.1] - 2026-11-19
+
+### Added
+
+- **An eval case for `ready`'s evidence step.** `pull-request-ready-posts-evidence-after-flip` runs `ready --evidence` on an offline draft whose head is verified and confirmed, and checks that the evidence comment goes up after the flip, with the publishable capture attached, and that the report names it. The forge now serves `gh run list` for the head (one run on a draft, a new one after the flip), so `ready`'s check for a run after the flip passes as the skill prescribes, and its tests cover that and its `gh repo set-default` answers.
+
+### Changed
+
+- The shared `hook-utils.sh`: `hook::git_untrusted_env` prints one stderr line when `GIT_CONFIG_COUNT` is not a number. This plugin's hooks do not call it.
+
+- `babysit_verify_evidence.py` reads the trusted-actor list, admission rules and pipeline config at a commit from a checkout whose HEAD is that commit, before the contents API. `BABYSIT_CONFIG_CHECKOUT` now takes several checkouts separated by `os.pathsep`, and the first one whose HEAD is the commit answers.
+
 ## [11.22.0] - 2026-11-19
 
 ### Changed

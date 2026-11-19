@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { main, paceDecision, previousRun } from "./pace.mjs";
+import { main, paceDecision, paceShare, previousRun } from "./pace.mjs";
 import { apiLimits } from "./rate-guard.mjs";
 import { PACED_LOOKBACK_HOURS, PACED_STEP, SWEEP_MARGIN_MIN } from "../../scripts/work-unblock/label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -99,6 +99,27 @@ const run = async (env, fetchImpl) => {
   }
   return { output: readFileSync(output, "utf8"), lines };
 };
+
+test("a workflow's own pace share replaces pace for that workflow alone, and pace 0 turns it off too", () => {
+  const limits = { pace: 0.2, "pace-pr-merge": 0.3 };
+  assert.equal(paceShare(limits, "pr-merge.yml"), 0.3);
+  assert.equal(paceShare(limits, "work-unblock.yml"), 0.2);
+  assert.equal(paceShare({ ...limits, pace: 0 }, "pr-merge.yml"), 0);
+  assert.equal(paceShare(apiLimits({ resolvedPath: "" })["github-token"], "pr-merge.yml"), 0.3, "the shipped value");
+});
+
+test("a window projected to 25% left paces pr-merge's sweep and no other lane", async () => {
+  const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3125", "x-ratelimit-reset": String(NOW + 1800) };
+  for (const [file, expected] of [["pr-merge.yml", "paced=true\n"], ["pr-unblock-dispatch.yml", "paced=false\n"]]) {
+    const fetchImpl = async (url) =>
+      /\/jobs\?/.test(url)
+        ? new Response(JSON.stringify({ jobs: [{ steps: [{ name: WORK_STEP, conclusion: "success" }] }] }))
+        : new Response(JSON.stringify({ workflow_runs: PAIR }), { headers });
+    const got = await run({ GITHUB_WORKFLOW_REF: `o/r/.github/workflows/${file}@refs/heads/main` }, fetchImpl);
+    assert.equal(got.output, expected, `${file}: 30 min in, 1875 used, 1875 more leaves 1250, 0.25, under pr-merge's 0.3 and over pace 0.2`);
+    assert.match(got.lines[0], new RegExp(`projected=0\\.25 pace=${file === "pr-merge.yml" ? "0\\.3" : "0\\.2"} `), file);
+  }
+});
 
 test("a hot tick after a scheduled run that did its work is paced, with a notice", async () => {
   const gh = github({ runs: PAIR, steps: { 8: "success" } });

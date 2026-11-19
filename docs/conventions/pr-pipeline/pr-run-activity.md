@@ -681,7 +681,7 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/24067add42f5fa04743c587c6a22aa7d4059e7b8/README.md)
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/README.md)
 (at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
@@ -2558,8 +2558,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
   The caller's `check-dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
   select job, so nothing runs and the run ends green with no check and no stop, and the next
-  dispatcher finds the head unhandled. A read it cannot make, or a record not yet uploaded, leaves
-  the run to the broker.
+  dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
+  and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
+  run to the broker.
 
 ## Bounds
 
