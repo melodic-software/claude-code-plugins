@@ -1947,7 +1947,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           : "";
   const place = (what, set) => {
     const core = set.filter((item) => !isReview(item));
-    const split = short(set) === NO_UPLOAD && core.length > 0 && core.length < set.length && short(core) === "";
+    const split = short(set) === NO_UPLOAD && places(set) <= room && core.length > 0 && core.length < set.length && short(core) === "";
     if (split) {
       deferred += 1;
       say(`${what}: its stopped reviews deferred, ${short(set)}`);

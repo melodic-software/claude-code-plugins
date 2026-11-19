@@ -3673,7 +3673,7 @@ test("with a re-run in flight, that floor and its two reviews need three places,
   assert.ok(log.mock.calls.some((c) => String(c.arguments[0]) === "reconcile: #17282: deferred, only 2 of 3 re-run places left"));
 });
 
-test("at the 21:50 pass, a set whose reviews do not fit the record uploads left re-runs its floor alone, and the merge-risk run still gets a place", async (t) => {
+test("at the 21:50 pass, a set short of places and uploads after an earlier set in the pass waits whole, and the merge-risk run still gets a place", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const otherFloor = failed(44403126378, sha(17280), { jobs: floorStatus(), created: "2026-11-18T21:36:00Z", updated: "2026-11-18T21:40:00Z" });
   const { code, reruns, failedJobReruns, outputs } = await reconcile({
@@ -3682,14 +3682,28 @@ test("at the 21:50 pass, a set whose reviews do not fit the record uploads left 
     now: PASS_2150,
   });
   assert.equal(code, 0);
-  assert.deepEqual(failedJobReruns, [44403126378, 44403903762]);
+  assert.deepEqual(failedJobReruns, [44403126378], "the floor does not go without its reviews");
   assert.deepEqual(reruns, [44402781806]);
-  assert.deepEqual(records(outputs), [
-    `reconcile-rerun-44403126378-2-${sha(17280)}`,
-    `reconcile-rerun-44403903762-2-${SWITCHED_HEAD}`,
-    `reconcile-rerun-44402781806-2-${RATER_TIP}`,
-  ]);
-  assert.equal(outputs.clean, "", "the deferred reviews keep the next tick");
+  assert.deepEqual(records(outputs), [`reconcile-rerun-44403126378-2-${sha(17280)}`, `reconcile-rerun-44402781806-2-${RATER_TIP}`, ""]);
+  assert.equal(outputs.clean, "", "the deferred set keeps the next tick");
+  const said = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.ok(said.includes("reconcile: #17282: deferred, no record upload left this pass"));
+  assert.ok(!said.some((line) => line.includes("its stopped reviews deferred")));
+});
+
+test("a floor and its review that fit the places left but not the record uploads re-run the floor alone", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const when = { created: "2026-11-18T21:36:00Z", updated: "2026-11-18T21:40:00Z" };
+  const { code, reruns, failedJobReruns, outputs } = await reconcile({
+    pulls: [pr(1), switchedPull],
+    runs: [gated(201, sha(1), when), gated(301, sha(1), { path: SECURITY_REVIEW, ...when }), floorChecks, switchedReviews()[0]],
+    now: PASS_2150,
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [201, 301, 44403903762]);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, `reconcile-rerun-44403903762-2-${SWITCHED_HEAD}`]);
+  assert.equal(outputs.clean, "");
   assert.ok(log.mock.calls.some((c) => String(c.arguments[0]) === "reconcile: #17282: its stopped reviews deferred, no record upload left this pass"));
 });
 
