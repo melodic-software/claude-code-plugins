@@ -34,7 +34,17 @@ const clearPreview = (p: { recorded?: boolean; sessionProfile?: string | null; l
 })
 const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the change into this session; a new session starts with it.'
 
-const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
+type ResetRow = { file: string; action: string; ask?: { file: string; question: string } }
+const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.json', action: 'restore' }], sessionProfile: string | null = null): Out => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    sessionProfile,
+    folders: folders.map(f => ({ recorded: f.action !== 'remove-entries', adopted: false, unfinished: false, overwrites: [], lines: [`${f.file}: a line the tool owns.`], ...f })),
+    lines: ['Reset looked for profile records in the places the tool owns.', ...folders.map(f => `${f.file}: a line the tool owns.`)],
+  }),
+})
+
+const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
   const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
   const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
@@ -53,7 +63,11 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
     w.runs.push([...args])
     w.envs.push(e.init?.env)
     const out =
-      args[0] === 'clear'
+      args[0] === 'reset'
+        ? args.includes('--dry-run')
+          ? (cli.resetDry ?? resetPreview())
+          : (cli.reset ?? { exitCode: 0, stdout: 'Restored /p/.claude/settings.local.json (profile review).\n' })
+        : args[0] === 'clear'
         ? args.includes('--dry-run')
           ? (cli.clearDry ?? clearPreview())
           : (cli.clear ?? { exitCode: 0, stdout: 'Cleared profile review from /p/.claude/settings.local.json.\n' })
@@ -155,7 +169,7 @@ for (const surface of SURFACES)
     const ui = await $.ui.mount({ ...PICKER, surface })
     expect(await ui.find({ type: 'Select' })).toBeUndefined()
     const rows = (await ui.findAll({ type: 'Button' })).map(b => b.key)
-    expect(rows).toEqual([...[...PROFILES, 'No profile'].map(name => `profile:${name}`), 'cancel'])
+    expect(rows).toEqual([...[...PROFILES, 'No profile', 'Reset'].map(name => `profile:${name}`), 'cancel'])
     await ui.press({ key: 'profile:planning' })
     await settle()
     expect(w.runs[1]).toEqual(['apply', 'planning', '--for', 'folder', '--defer-off', '--dry-run', '--json'])
@@ -510,4 +524,54 @@ test('#16747: in a session started in a one-session profile, a clear says the se
   await settle()
   expect(w.logs).toContain('This folder has no profile now; this session keeps its one-session profile review.')
   expect(w.logs).not.toContain('This folder has no profile now; this session loaded the plugins your user and project settings name.')
+})
+
+const resets = (w: { runs: string[][] }) => w.runs.filter(r => r[0] === 'reset' && !r.includes('--dry-run'))
+
+test('#17354: the picker shows Reset under No profile, previews the reset, asks, resets, and reloads at the turn end', async ($, on) => {
+  const w = world(on, ['Apply'])
+  const text = await runPicking($, w, 'Reset')
+  expect(w.logs).toContain('Reset looked for profile records in the places the tool owns.')
+  expect(w.logs).toContain('/p/.claude/settings.local.json: a line the tool owns.')
+  expect(w.asks).toEqual([{ question: 'Reset every file above?', options: ['Apply', 'Cancel'] }])
+  expect(w.runs.slice(1)).toEqual([
+    ['reset', '--dry-run', '--json'],
+    ['reset', '--yes'],
+  ])
+  expect(w.logs).toContain('Restored /p/.claude/settings.local.json (profile review).')
+  expect(text).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual(['reload-plugins'])
+  expect(writes(w)).toEqual([])
+  expect(w.logs).toContain('The profiles on this machine are reset; this session loaded the plugins its settings name now.')
+})
+
+test('#17354: Cancel at the reset confirm resets nothing', async ($, on) => {
+  const w = world(on, ['Cancel'])
+  expect(await runPicking($, w, 'Reset')).toBe('Not reset; nothing changed.')
+  expect(resets(w)).toEqual([])
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual([])
+})
+
+test('#17354: each folder without a record gets its own question, and only Remove passes it to reset', async ($, on) => {
+  const loose = (file: string) => ({ file, action: 'remove-entries', ask: { file, question: `${file} has no record. Remove its entries?` } })
+  const resetDry = resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, loose('/a/.claude/settings.local.json'), loose('/b/.claude/settings.local.json')])
+  const w = world(on, ['Apply', 'Keep', 'Remove'], { resetDry })
+  await runPicking($, w, 'Reset')
+  expect(w.asks).toEqual([
+    { question: 'Reset every file above?', options: ['Apply', 'Cancel'] },
+    { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
+    { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
+  ])
+  expect(resets(w)).toEqual([['reset', '--yes', '--remove-unrecorded', '/b/.claude/settings.local.json']])
+})
+
+test('#17354: with nothing recorded the picker says so, asks nothing and resets nothing', async ($, on) => {
+  const w = world(on, [], { resetDry: resetPreview([]) })
+  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: no profile is recorded anywhere reset can find.')
+  expect(w.asks).toEqual([])
+  expect(resets(w)).toEqual([])
 })

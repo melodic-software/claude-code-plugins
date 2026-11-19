@@ -10,6 +10,10 @@ const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
+const RESET = 'Reset'
+const REMOVE = 'Remove'
+const KEEP = 'Keep'
+const RESTORES = ['restore', 'remove-file', 'finish-restore']
 const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
 const APPLY = 'Apply'
@@ -31,6 +35,7 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
+type ResetPreview = { sessionProfile: string | null; folders: { action: string; ask?: { file: string; question: string } }[]; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -64,6 +69,7 @@ const registerCommand = ($: EngineInterface) =>
 const entriesOf = (profiles: readonly Profile[]): PickerEntry[] => [
   ...profiles.map(p => ({ name: p.name, description: p.description ?? '' })),
   { name: CLEAR, description: "clear this folder's profile, back to your user and project settings" },
+  { name: RESET, description: 'put every folder and the initial profile back to before any profile' },
 ]
 const labelOf = (e: PickerEntry) => (e.description ? `${e.name}: ${e.description}` : e.name)
 
@@ -137,6 +143,32 @@ async function clearProfile($: EngineInterface): Promise<string> {
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
+/** Previews the machine-wide reset, asks once for the recorded files and once per folder without a record, then resets. */
+async function resetAll($: EngineInterface): Promise<string> {
+  const dry = await cli($, ['reset', '--dry-run', '--json'])
+  if (dry.exitCode !== 0) return failure(dry)
+  const preview = JSON.parse(dry.stdout) as ResetPreview
+  show($, preview.lines)
+  const restores = preview.folders.some(f => RESTORES.includes(f.action))
+  const askable = preview.folders.flatMap(f => (f.ask ? [f.ask] : []))
+  if (!preview.folders.length) return 'Nothing to reset: no profile is recorded anywhere reset can find.'
+  if (!restores && !askable.length) return 'Nothing to reset; the files above keep their records.'
+  if (restores && !(await confirmed($, 'Reset every file above?'))) return 'Not reset; nothing changed.'
+  const remove: string[] = []
+  for (const ask of askable) {
+    if ((await $.ui.ask(ask.question, { options: [REMOVE, KEEP], header: 'Reset' }).catch(() => KEEP)) === REMOVE) remove.push(ask.file)
+  }
+  if (!restores && !remove.length) return 'Not reset; nothing changed.'
+  const done = await cli($, ['reset', '--yes', ...remove.flatMap(file => ['--remove-unrecorded', file])])
+  if (done.exitCode > 1) return failure(done)
+  const before = new Set(preview.lines)
+  show($, done.stdout.split('\n').filter(line => !before.has(line) && !line.startsWith('Reset looked') && !line.startsWith('It found')))
+  await update($, pending, (): Switch => ({ profile: RESET, phase: 'armed', kind: 'reset', keeps: preview.sessionProfile ?? undefined }))
+  return done.exitCode === 0
+    ? `Reset every profile this machine records. ${NEXT_STEP}`
+    : `Reset most files; the lines above name the ones skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`
+}
+
 /** The line refusing a new switch while an earlier one waits for its reload, or undefined. */
 const waitingLine = async ($: EngineInterface) =>
   (await read($, pending)) ? `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.` : undefined
@@ -160,6 +192,7 @@ async function switchProfile($: EngineInterface, args: string): Promise<string> 
 
 async function switchTo($: EngineInterface, name: string): Promise<string> {
   if (name === CLEAR) return clearProfile($)
+  if (name === RESET) return resetAll($)
   const dry = await cli($, ['apply', name, '--for', 'folder', '--defer-off', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
   const preview = JSON.parse(dry.stdout) as Preview
@@ -185,6 +218,14 @@ async function finish($: EngineInterface): Promise<void> {
       s.keeps
         ? `This folder has no profile now; this session keeps its one-session profile ${s.keeps}.`
         : 'This folder has no profile now; this session loaded the plugins your user and project settings name.',
+    )
+    return
+  }
+  if (s.kind === 'reset') {
+    $.ui.log(
+      s.keeps
+        ? `The profiles on this machine are reset; this session keeps its one-session profile ${s.keeps}.`
+        : 'The profiles on this machine are reset; this session loaded the plugins its settings name now.',
     )
     return
   }
