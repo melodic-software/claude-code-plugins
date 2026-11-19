@@ -384,7 +384,6 @@ jobs:
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: ${{ steps.credit.outputs.next-leg }}
 
-      # The verify-pr route's model, turns and effort, as the judge's.
       - name: Resolve the capture's model
         id: models
         if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false' && steps.credential.outputs.key-skipped != 'true'
@@ -392,7 +391,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          model-route: verify-pr
+          model-route: verify-capture
           output-path: ${{ runner.temp }}/pr-verify-capture-models.json
 
       # Read by the next runs' gates: the probing marker the gate names
