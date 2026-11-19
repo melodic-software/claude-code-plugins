@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: .github/actions/log-api-budget/api-budget.bash
 # test-scope: .github/scripts/pr-merge/retry-call.bash
+# test-scope: .github/scripts/pr-merge/rate-stop.bash
 # Runs the `Resolve the queued pull request` step body of
 # .github/workflows/pr-require-checks.yml under bash -e, against stub `gh` and
 # `git`.

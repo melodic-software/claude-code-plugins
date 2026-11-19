@@ -2,11 +2,14 @@
 # review-venue.sh — Say, per AI review lane, whether CI reviews this repository's
 # pull requests and is healthy, so a local review runs only where CI does not.
 #
-# A lane is a workflow whose pull_request runs call the org's reusable review
-# workflow: ci-workflows pr-review.yml (code-review) or pr-review-security.yml
-# (security-review), or pr-review-cli.yml: security-review from a caller whose
-# path names security, code-review from any other. It is healthy when its workflow is active and its newest
-# pull_request run that reached a verdict (completed, and neither skipped nor
+# A lane is a workflow whose pull_request runs call a reusable review workflow
+# the review_lane_workflows setting names for it (`code-review=` or
+# `security-review=`), or one it names `either=`: security-review from a caller
+# whose path names security, code-review from any other. The setting is read
+# only from the operator's settings, so a pull request cannot widen it:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
+# Unset, no run counts and every lane reads local absent. A lane is healthy
+# when its workflow is active and its newest pull_request run that reached a verdict (completed, and neither skipped nor
 # cancelled) succeeded and was created within --max-age-days. A failed run whose
 # every failed job says failure-class=skipped-validation reached no verdict: the
 # pull request edits the caller workflow, so the review skipped itself by
@@ -82,17 +85,19 @@ done
 command -v gh >/dev/null 2>&1 || die 5 "gh not found on PATH"
 command -v jq >/dev/null 2>&1 || die 5 "jq not found on PATH"
 
-# Each lane and the reusable workflow its caller references, in output order.
-# Fixed here: a pull request cannot widen them.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETTINGS_PY="$SCRIPT_DIR/../../babysit-prs/scripts/babysit_merge_settings.py"
+settings=$(
+  # shellcheck source=../../babysit-prs/scripts/babysit-python.sh
+  . "$SCRIPT_DIR/../../babysit-prs/scripts/babysit-python.sh"
+  babysit_python "$SETTINGS_PY" show
+) || die 2 "cannot read the review_lane_workflows setting"
+wfs() { jq -c --arg l "$1" '[.review_lane_workflows[]? | select(.lane == $l) | .workflow]' <<<"$settings"; }
 LANES=(code-review security-review)
-REUSABLE=(
-  '^melodic-software/ci-workflows/\.github/workflows/pr-review\.yml@'
-  '^melodic-software/ci-workflows/\.github/workflows/pr-review-security\.yml@'
-)
-# pr-review-cli.yml serves either lane through an input the run listing does
-# not show, so its caller's path decides the lane: security-review when it
-# names security, code-review otherwise.
-CLI='^melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@'
+code_wfs=$(wfs code-review) || die 2 "cannot parse the review_lane_workflows setting"
+security_wfs=$(wfs security-review) || die 2 "cannot parse the review_lane_workflows setting"
+CLI=$(wfs either) || die 2 "cannot parse the review_lane_workflows setting"
+REUSABLE=("$code_wfs" "$security_wfs")
 CLI_SECURITY=(false true)
 WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
@@ -141,6 +146,7 @@ skipped_validation() {
 # event starts each lane, a draft's run included (it concludes skipped), so a
 # repository with lanes shows them in the first pages.
 UNREAD=""
+[[ "$code_wfs$security_wfs$CLI" == "[][][]" ]] && PAGES=0
 for ((page = 1; page <= PAGES; page++)); do
   runs=$(read_runs "repos/$REPO/actions/runs?event=pull_request&per_page=100&page=$page" $(((page - 1) * 100)))
   case $? in
@@ -153,10 +159,11 @@ for ((page = 1; page <= PAGES; page++)); do
   esac
   for i in "${!LANES[@]}"; do
     [[ -n "${WORKFLOW_ID[i]}" ]] && continue
-    hit=$(jq -r --arg re "${REUSABLE[i]}" --arg cli "$CLI" --argjson sec "${CLI_SECURITY[i]}" '
-      [.workflow_runs[]? | select(any(.referenced_workflows[]?; .path | test($re))
-        or ((.path // "" | test("security")) == $sec
-          and any(.referenced_workflows[]?; .path | test($cli))))][0]
+    hit=$(jq -r --argjson wfs "${REUSABLE[i]}" --argjson cli "$CLI" --argjson sec "${CLI_SECURITY[i]}" '
+      def calls($names): any(.referenced_workflows[]?; .path as $p
+        | any($names[]; . as $w | $p | type == "string" and startswith($w + "@")));
+      [.workflow_runs[]? | select(calls($wfs)
+        or ((.path // "" | test("security")) == $sec and calls($cli)))][0]
       | select(. != null) | "\(.workflow_id)\t\(.path)"' <<<"$runs") ||
       die 2 "cannot parse the workflow runs of $REPO"
     if [[ -n "$hit" ]]; then
@@ -170,7 +177,10 @@ done
 
 for i in "${!LANES[@]}"; do
   lane="${LANES[i]}" id="${WORKFLOW_ID[i]}" path="${WORKFLOW_PATH[i]}"
-  if [[ -z "$id" && -n "$UNREAD" ]]; then
+  if [[ "${REUSABLE[i]}" == "[]" && "$CLI" == "[]" ]]; then
+    printf '%s local absent: the review_lane_workflows setting names no workflow for the %s lane\n' "$lane" "$lane"
+    continue
+  elif [[ -z "$id" && -n "$UNREAD" ]]; then
     printf '%s local unreadable: %s\n' "$lane" "$UNREAD"
     continue
   elif [[ -z "$id" ]]; then

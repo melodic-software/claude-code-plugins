@@ -159,6 +159,7 @@ import babysit_check_inputs as check_inputs
 import babysit_dependabot as dependabot
 import babysit_lane_binding as lane_binding
 import babysit_merge_policy as merge_policy
+import babysit_merge_settings as merge_settings
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_evidence_comment as evidence_comment
@@ -309,51 +310,11 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # The two AI review lanes `--auto` waits for. `ci-status` is the only required
 # check and does not wait on these separate workflows, so auto-merge armed
 # before both pass on the live head could merge ahead of their review. Each
-# lane maps to the job segments its check may carry (`review /
-# claude-review-status`). A name holding ` / ` must match the whole check
-# name: the security job is named `security-review`, generic enough that
-# another workflow's job could carry it, so it counts only under its own
-# caller prefix, as does pr-review-cli.yml's `review-status`, which both lanes
-# share. `PR Review / review-status` and `PR Review Security / review-status`
-# are the callers' display names; the lower-case callers are a head tested
-# before the rename, or a repository whose caller job has no display name.
-# `pr-review-security / security-review` is the caller of pr-review-security.yml
-# (`PR Review Security / security-review` under its display name),
-# `security-review / security-review` the previous one, and
-# `claude-security-review-status` the job of a pin that predates the fold.
-# ci-workflows names these jobs in Title Case: pr-review-cli.yml's status job
-# `Status` (planned: `Publish Review`), and both pr-review.yml's and
-# pr-review-security.yml's job `Claude`. These segments are shared by the two lanes, so each counts only as a whole
-# name under the lane's own callers (`pr-review-no-bots` is the sandbox's
-# pr-review.yml caller). Old and new callers and job names run side by side
-# while repos migrate. Every matching check must succeed.
-AI_REVIEW_CHECKS = {
-    "claude-review-status": (
-        "claude-review-status",
-        "PR Review / review-status",
-        "pr-review / review-status",
-        "PR Review / Status",
-        "pr-review / Status",
-        "PR Review / Claude",
-        "pr-review / Claude",
-        "pr-review-no-bots / Claude",
-        "PR Review / Publish Review",
-        "pr-review / Publish Review",
-    ),
-    "claude-security-review-status": (
-        "claude-security-review-status",
-        "security-review / security-review",
-        "pr-review-security / security-review",
-        "PR Review Security / security-review",
-        "PR Review Security / review-status",
-        "pr-review-security / review-status",
-        "PR Review Security / Status",
-        "pr-review-security / Status",
-        "PR Review Security / Claude",
-        "pr-review-security / Claude",
-        "PR Review Security / Publish Review",
-        "pr-review-security / Publish Review",
-    ),
+# lane maps to its `review_lane_checks` `merge` names, read only from the
+# operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
+AI_REVIEW_CHECKS: dict[str, tuple[str, ...]] = {
+    f"{lane}-status": merge
+    for lane, (_, _, merge) in merge_settings.load().review_lane_checks.items()
 }
 
 

@@ -146,6 +146,21 @@ test("a stop that passes between the two clock reads is waited out as zero, then
   assert.equal(out.calls, 2);
 });
 
+test("a header stop that has passed by the time it is read is retried, not guessed an hour", () => {
+  const out = run({
+    args: "--read 60",
+    failures: 1,
+    failure:
+      "::error::'gh api x' hit GitHub's core API rate limit: no call to it before 2033-05-18T03:33:25Z (x-ratelimit-reset); the call returns 1\ngh: API rate limit exceeded (HTTP 403)",
+    stop: `core ${NOW + 5}\n`,
+    jumpAt: 1,
+  });
+  assert.match(out.stdout, /^rc=0$/m);
+  assert.equal(out.calls, 2);
+  assert.equal(out.sleeps.length, 1);
+  assert.ok(out.sleeps[0] <= 15, String(out.sleeps));
+});
+
 test("the budget counts every wait together, not each alone", () => {
   // 20 s of the 30 s go on the stop, so a backoff over 10 s does not fit.
   for (let i = 0; i < 10; i += 1) {

@@ -53,6 +53,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_dependabot as dependabot
+import babysit_merge_settings as merge_settings
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
 import babysit_tracker_binding as tracker_binding
@@ -977,8 +978,9 @@ class IssueStatusConfig:
 ISSUE_STATUS_KEY = "models.issue-status"
 # The job token's bot, a bot setter the trusted-actor list does not list.
 ACTIONS_BOT = (41898282, "github-actions[bot]")
-# The one App whose field values count for every state.
-LANES_APP_LOGIN = "melodic-automation-lanes[bot]"
+# The one App whose field values count for every state, read only from the
+# operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
+LANES_APP_LOGIN = merge_settings.load().issue_status_app_login
 
 
 LANE_PRS_MODES = ("native", "gate")
@@ -3046,7 +3048,9 @@ def issue_status(
     ]
     actors = trusted_listing(repo, ref) if ours_newest_first else ()
     people = {
-        i for i, login, kind in actors if kind == "human" or login == LANES_APP_LOGIN
+        i
+        for i, login, kind in actors
+        if kind == "human" or (LANES_APP_LOGIN and login == LANES_APP_LOGIN)
     }
     listed_bots = {
         (i, login)
@@ -3637,9 +3641,8 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # merge-holds.mjs DECISION_ROW and DECISION_QUOTE read it: a line link to a
 # row of the owner-decisions record, and the owner's words after `verbatim:`.
 # Shape only: the record is private, and sessions write it too.
-DECISION_ROW = re.compile(
-    r"https://github\.com/melodic-software/architecture/blob/(?:main|[0-9a-f]{40})"
-    r"/docs/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?"
+DECISION_ROW = merge_settings.decision_row_pattern(
+    merge_settings.load().owner_decisions_record
 )
 DECISION_QUOTE = re.compile(
     r"(?<![A-Za-z0-9_])verbatim:[ \t]*\"[^\"\n]*[^\" \t\r\n][^\"\n]*\""

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.11] - 2026-11-19
+
+### Fixed
+
+- `/attribution:audit`'s second rung for the detector-findings contract is the copy bundled at
+  `reference/detector-findings.md` instead of the publisher's raw URL, so a run without the
+  `review` plugin still persists findings offline.
+
 ## [0.20.10] - 2026-11-18
 
 ### Changed

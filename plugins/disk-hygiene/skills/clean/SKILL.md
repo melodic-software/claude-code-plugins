@@ -16,8 +16,6 @@ hooks:
         # Pointer: when checking how exec form spawns `command` with `args`,
         # fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#command-hook-fields live.
-        # Recheck trigger: either section changes how `args` and `shell`
-        # interact, or a skill hook gains another placeholder.
         - type: command
           command: node
           args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
