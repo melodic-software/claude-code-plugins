@@ -263,11 +263,6 @@ batch_discover_fleet() {
   fi
 }
 
-# batch_discover_owner <array-name> <owner> — append each repo batch_discover_fleet
-# finds whose origin (batch_remote_key) is `<host>/<owner>/<name>`. The owner
-# compares case-insensitively on github.com, as batch_remote_key folds that host's
-# path, and exactly elsewhere. A repo with no origin, or a local-path origin with
-# no host, never matches.
 batch_discover_owner() {
   local -n _owned="$1"
   local owner="$2" entry top rk path

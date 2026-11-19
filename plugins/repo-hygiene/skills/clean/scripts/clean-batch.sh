@@ -22,11 +22,6 @@
 # a repo that appeared is not in the plan so it is never touched. The plan is the
 # fleet-level analogue of the child's per-repo manifest staleness guard.
 #
-# Usage:
-#   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-#                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
-#                  [--owner OWNER]... [--skip ENTRY]... [--skip-from FILE]...
-#                  [--batch-plan FILE] [--data-dir DIR] [--list-paths-max N] [--help]
 # --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
 # durable per-repo-set dir under the plugin data dir, resolved by plugin_data_dir).
 # Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
@@ -170,9 +165,6 @@ DATA_DIR_ARG=""
 LIST_MAX=20
 PLAN_RETAIN_DAYS=14
 REPO_INPUTS=()
-# Clone dedupe by origin URL is part of --fleet and --owner only: --repo and
-# --repos-from are an explicit selection, and two clones of one origin each hold
-# their own working-tree caches, build output and object store.
 FLEET=0
 
 while [[ $# -gt 0 ]]; do

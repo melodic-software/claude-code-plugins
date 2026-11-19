@@ -625,7 +625,6 @@ printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)"
 assert_not_contains "non-git chezmoi source is not a fleet entry" "$out" "$NOGIT"
 
-# --owner keeps the fleet repos whose origin owner matches, and dedupes clones.
 FL_OTHER="$(mkrepo fleet-other-owner)"
 FL_NOORIGIN="$(mkrepo fleet-no-origin)"
 git -C "$FL_OTHER" remote add origin https://github.com/someone-else/repo.git
