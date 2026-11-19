@@ -54,8 +54,26 @@ checkout can read it.
   note).
 - Follow-ups for the started session go to it as a message, not a new session.
 
+## Background continuation (`continue-in-background`)
+
+The user asked in words for the work to continue now, so that request is the user's own words
+asking for a new session: start it at once, with no card to click. That skill's explicit-intent
+gate still decides whether there is a request at all.
+
+- **Brief**: the `/goal` payload that skill's completion condition gate produced, verbatim, the
+  same text a `claude --bg` agent would receive, plus the lines under "The brief is the rails
+  prompt".
+- **Where**: this checkout, as for a full-path handoff. The session edits it in place, so the
+  `claude --bg` dirty-tree gate does not apply; say in the report that the started session and
+  the user may touch the same files.
+- **Permissions**: when the start offers a permission mode, choose auto, as that skill does for
+  `claude --bg`.
+- **Report**: the started session's name and that it shows under this session in the sidebar,
+  in place of the `claude agents` hint, then stop as that skill's step 5 says.
+
 ## Fallback
 
 The card is not available, the start is refused or fails, or the user chooses to keep the work in
 this session: print the citing skill's own delivery instruction (`/clear`, then copy everything
-between the dashed lines) with the same rails prompt, and say which of the three applied.
+between the dashed lines) with the same rails prompt, and say which of the three applied. For
+`continue-in-background` the fallback is its own `claude --bg` launch, which falls back in turn.

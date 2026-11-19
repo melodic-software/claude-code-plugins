@@ -267,6 +267,15 @@ fallback), then:
 5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
    monitor, poll, or babysit the launched agent, and do not start new work items.
 
+## Delivery variant: desktop session
+
+When this session has a tool that starts another session (the Claude desktop app's Code tab) and
+`--cloud` was not given, read
+[`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md),
+"Background continuation", and deliver there instead of steps 1 to 3 above: the started session
+shows in the app's sidebar and can report back, which a `claude --bg` agent there does not. A
+start that is refused or fails takes steps 1 to 5 above. Without such a tool, skip that file.
+
 ## Delivery variant: `--cloud`
 
 Same hard gate, completion condition gate, save-point, `/goal` payload, prompt file, failure
