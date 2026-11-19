@@ -49,6 +49,11 @@ git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
 git -C "$NOORIGIN" init -q
+COMPOSITE="$WORK/composite"
+mkdir -p "$COMPOSITE/.github/workflows"
+printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3\n' >"$COMPOSITE/.github/workflows/pr-require-checks.yml"
+git -C "$COMPOSITE" init -q
+git -C "$COMPOSITE" remote add origin https://github.com/acme-corp/widgets.git
 
 # run <expected-exit> <name> <payload-json>; the payload carries its own cwd.
 run() {
@@ -118,6 +123,7 @@ run 0 "Refs: #N non-closing marker passes" "$(payload "$GATED" $CREATE $OWNER $R
 run 0 "create with no body field passes (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
 run 0 "update with no body field passes" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
 run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$BAD")"
+run 2 "the report-ci-status composite enforces too" "$(payload "$COMPOSITE" $CREATE $OWNER $REPO "$BAD")"
 run 0 "different target repo is out of scope" "$(payload "$GATED" $CREATE other-org other-repo "$BAD")"
 run 0 "gated repo with no origin remote allows (undeterminable target)" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$BAD")"
 run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$BAD")"

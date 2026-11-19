@@ -15,12 +15,14 @@ import { parseArgs } from "node:util";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
-export class ConfigurationError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "ConfigurationError";
-  }
-}
+import {
+  ConfigurationError,
+  isMapping,
+  jsonPointerLocation,
+  parseUniqueJson,
+} from "./policy-input.mjs";
+
+export { ConfigurationError, parseUniqueJson };
 
 const YAML_PARSE_OPTIONS = {
   maxAliasCount: 0,
@@ -29,20 +31,6 @@ const YAML_PARSE_OPTIONS = {
   strict: true,
   uniqueKeys: true,
 };
-
-export function parseUniqueJson(source, location) {
-  const document = parseDocument(source, { ...YAML_PARSE_OPTIONS, schema: "json" });
-  if (document.errors.length > 0) {
-    throw new ConfigurationError(
-      `${location} has duplicate object members or ambiguous structure: ${document.errors[0].message}`,
-    );
-  }
-  try {
-    return JSON.parse(source);
-  } catch (error) {
-    throw new ConfigurationError(`${location} is not valid JSON: ${error.message}`);
-  }
-}
 
 const MODULE_DIRECTORY = import.meta.dirname;
 const DEFAULT_POLICY_PATH = path.join(MODULE_DIRECTORY, "policy.json");
@@ -84,24 +72,6 @@ const PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS = new Set([
   "STANDARDS_REVIEW_APP_ID",
   "STANDARDS_REVIEW_APP_PRIVATE_KEY",
 ]);
-
-// The shared object-shape check behind every "must be a mapping" decision in
-// this analyzer. It admits any non-null, non-array object, which under the
-// core schema means a decoded YAML mapping — but an explicit `!!set`/`!!omap`/
-// `!!timestamp`/`!!binary` tag or a `%YAML 1.1` directive also decodes to an
-// object this admits. Tag-shape rejection is deliberately not performed here;
-// it belongs at the parse boundary, not at 48 individual gates.
-function isMapping(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function jsonPointerLocation(location, instancePath) {
-  return `${location}${instancePath
-    .split("/")
-    .slice(1)
-    .map((segment) => `.${segment.replaceAll("~1", "/").replaceAll("~0", "~")}`)
-    .join("")}`;
-}
 
 function validateStructure(value, validator, location) {
   if (validator(value)) {

@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-19
+
+### Added
+
+- A shipped `improve` profile for targeted improvement of existing code: find one improvement, make it, test it and open the pull request, with 13 plugins in place of the 38 of `harness-upkeep`.
+
 ## [0.7.0] - 2026-11-18
 
 ### Changed

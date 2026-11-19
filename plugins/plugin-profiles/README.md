@@ -8,8 +8,8 @@ turns them on and off.
 
 Each profile is one YAML file. The shipped ones are in [`profiles/`](profiles/): `always-on`,
 which is on in every other profile, and `discovery`, `planning`, `interface-design`, `build`,
-`review`, `harness-upkeep` and `native`. Each file holds the profile's members and a `description`
-line saying when to pick it. `native` is Claude Code as it ships: every other plugin of these
+`review`, `improve`, `harness-upkeep` and `native`. Each file holds the profile's members and a
+`description` line saying when to pick it. `native` is Claude Code as it ships: every other plugin of these
 marketplaces is off, guardrails included, and only this plugin stays on, as the way back to a
 profile.
 

@@ -783,9 +783,17 @@ test("list --json names every shipped profile but always-on, each with its descr
   const r = w.run(["list", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const profiles = JSON.parse(r.stdout);
-  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "interface-design", "native", "planning", "review"]);
+  assert.deepEqual(profiles.map((p) => p.name).sort(), ["build", "discovery", "harness-upkeep", "improve", "interface-design", "native", "planning", "review"]);
   assert.equal(profiles.find((p) => p.name === "build").description, "Write the change, test, review, verify, open and merge the PR, and run lanes.");
   assert.match(profiles.find((p) => p.name === "native").description, /guardrails included/);
+  assert.match(profiles.find((p) => p.name === "improve").description, /^Targeted improvement of existing code/);
+});
+
+test("#17355: the shipped improve profile holds exactly its 13 members, in alphabetical order", () => {
+  const file = join(SHIPPED, "improve.yaml");
+  const improve = parseProfile(readFileSync(file, "utf8"), file);
+  const members = ["architecture", "code-metrics", "code-tidying", "codebase-health", "coupling", "implementation", "improvement", "overengineering", "performance", "review", "testing", "toolchain", "verification"];
+  assert.deepEqual(improve.plugins, members.map((name) => `${name}@${M}`));
 });
 
 test("list --json adds a repository profile to the shipped ones", () => {
