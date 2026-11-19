@@ -18,7 +18,8 @@ const CANCEL = 'Cancel'
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
 const NOT_CHOSEN = 'No profile chosen; nothing changed.'
-const PICK_OPEN = `A profile pick is already open in its pane; pick there, or press Cancel and run /${COMMAND} again.`
+const NOTHING_TO_FINISH = 'Nothing to finish:'
+const PICK_OPEN =`A profile pick is already open in its pane; pick there, or press Cancel and run /${COMMAND} again.`
 
 type Profile = { name: string; description: string | null }
 type Preview = {
@@ -174,7 +175,7 @@ async function switchTo($: EngineInterface, name: string): Promise<string> {
   return `Switched this folder to profile ${name}. ${NEXT_STEP}${preview.pending.length ? ` ${stayLoaded(preview.pending)}` : ''}`
 }
 
-/** Writes the off entries once the reload has run, finishing the switch's off-pending record. */
+/** Writes the off entries once the reload has run, only while the folder's record is still this switch's off-pending one. */
 async function finish($: EngineInterface): Promise<void> {
   const s = await read($, pending)
   if (s?.phase !== 'reloading') return
@@ -187,12 +188,14 @@ async function finish($: EngineInterface): Promise<void> {
     )
     return
   }
-  const r = await cli($, ['apply', s.profile, '--for', 'folder', '--yes'])
+  const r = await cli($, ['apply', s.profile, '--for', 'folder', '--finish-pending'])
   const off = s.off ?? []
   $.ui.log(
     r.exitCode !== 0
       ? `The switch to ${s.profile} is unfinished (${failure(r)}); /${COMMAND} ${s.profile} finishes it.`
-      : `Profile ${s.profile} is in force.${off.length ? ` ${stayLoaded(off)}` : ''}`,
+      : r.stdout.startsWith(NOTHING_TO_FINISH)
+        ? `The switch to ${s.profile} was not finished: this folder's profile changed elsewhere since (a reset, a clear or another switch), so nothing was written.`
+        : `Profile ${s.profile} is in force.${off.length ? ` ${stayLoaded(off)}` : ''}`,
   )
 }
 

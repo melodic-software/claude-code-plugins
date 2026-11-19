@@ -355,7 +355,7 @@ test('AC9, AC11: the turn end after a switch runs /reload-plugins once, then wri
   expect(w.commands).toEqual(['reload-plugins'])
   expect(writes(w)).toEqual([
     ['apply', 'review', '--for', 'folder', '--defer-off', '--yes'],
-    ['apply', 'review', '--for', 'folder', '--yes'],
+    ['apply', 'review', '--for', 'folder', '--finish-pending'],
   ])
   expect(w.logs).toContain('Profile review is in force. The plugin it switches off stays loaded in this session until a later /reload-plugins or the next session start.')
   await turnEnd($)
@@ -378,7 +378,7 @@ test('the person running /reload-plugins first finishes the switch, and the turn
   const w = world(on, ['Apply'])
   await run($, 'review')
   await $.command.run({ command: 'reload-plugins', args: '' } as any)
-  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--yes'])
+  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--finish-pending'])
   await turnEnd($)
   await settle()
   expect(w.commands).toEqual(['reload-plugins'])
@@ -411,7 +411,25 @@ test('AC11: the module loaded again by the reload finishes the switch at its ses
   expect(writes(w).length).toBe(1)
   await $.session.start({ cwd: '/p' } as any)
   await settle()
-  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--yes'])
+  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--finish-pending'])
+})
+
+test('#17354: the turn end after a switch finishes it with --finish-pending, never a full apply', async ($, on) => {
+  const cli: { apply?: Out } = {}
+  const w = world(on, ['Apply'], cli)
+  await run($, 'review')
+  cli.apply = { exitCode: 0, stdout: 'Nothing to finish: no unfinished switch to review is recorded for /p/.claude/settings.local.json.\n' }
+  await turnEnd($)
+  await settle()
+  expect(writes(w)).toEqual([
+    ['apply', 'review', '--for', 'folder', '--defer-off', '--yes'],
+    ['apply', 'review', '--for', 'folder', '--finish-pending'],
+  ])
+  expect(w.runs.some(r => r[0] === 'apply' && r.includes('--yes') && !r.includes('--defer-off'))).toBe(false)
+  expect(w.logs).toContain(
+    "The switch to review was not finished: this folder's profile changed elsewhere since (a reset, a clear or another switch), so nothing was written.",
+  )
+  expect(w.logs.some(line => line.startsWith('Profile review is in force'))).toBe(false)
 })
 
 test('#16747: the profile list and the preview log one line per call, never a newline-joined block', async ($, on) => {

@@ -600,6 +600,32 @@ test("D8: a switch cut off after its first write is recorded off-pending, named 
   assert.equal(w.read(), LOCAL_BEFORE);
 });
 
+test("#17354: apply --finish-pending does nothing once the folder's record is gone or no longer off-pending", () => {
+  const w = world();
+  const nothing = (name) => new RegExp(`^Nothing to finish: no unfinished switch to ${name} is recorded for ${esc(w.localFile)}\\.$`, "m");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const finished = w.run(["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.equal(finished.status, 0, finished.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], false, "an off-pending record of this profile is finished");
+  assert.equal(JSON.parse(w.run(["status", "--json"]).stdout).phase, "applied");
+  const applied = w.read();
+  const again = w.run(["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.match(again.stdout, nothing("build"));
+  assert.equal(w.read(), applied, "an applied record is left alone");
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const other = w.read();
+  assert.match(w.run(["apply", "build", "--for", "folder", "--finish-pending"]).stdout, nothing("build"));
+  assert.equal(w.read(), other, "a switch to another profile is not finished as this one");
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  const gone = w.run(["apply", "review", "--for", "folder", "--finish-pending"]);
+  assert.equal(gone.status, 0, gone.stderr);
+  assert.match(gone.stdout, nothing("review"));
+  assert.equal(w.read(), LOCAL_BEFORE, "a cleared folder stays cleared");
+  assert.deepEqual(w.records(), []);
+  assert.equal(w.run(["apply", "build", "--for", "session", "--finish-pending"]).status, 2, "only a folder or user settings has a switch to finish");
+});
+
 test("AC11: --defer-off also holds back the off entry of a plugin that only user settings switch on", () => {
   const w = world({ local: null });
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);

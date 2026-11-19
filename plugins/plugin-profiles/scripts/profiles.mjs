@@ -22,7 +22,9 @@
 //          `claude --settings` and changes no settings file. The record of a folder in git goes
 //          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
 //          entries that switch plugins on and records the ones that switch plugins off as
-//          pending, for an in-session switch; the next apply writes them. A target the surface
+//          pending, for an in-session switch; the next apply writes them. --finish-pending is that
+//          next apply: it writes only while the target's record is still off-pending for <name>,
+//          and otherwise prints that there is nothing to finish and writes nothing. A target the surface
 //          does not support (lib/surface.mjs) is refused, and so is --for folder when the
 //          remember_folder_profile option is false, and --defer-off in a session that
 //          PLUGIN_PROFILES_SESSION names.
@@ -120,7 +122,7 @@ const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 const sessionProfile = (env) => env[SESSION_VAR] || null;
 /** The variables a started claude never inherits; its session file sets its own. */
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
-const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
+const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off] [--finish-pending]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
        profiles.mjs start [<profile> | --profile <profile>] [--with <settings file or JSON>] [--unattended] [--dry-run] [claude arguments]
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
@@ -262,7 +264,7 @@ function parseArgs(argv) {
   if (command === "start") return parseStart(rest);
   if (!["apply", "launch", "status", "clear", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false };
-  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
+  const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
   const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
@@ -279,6 +281,7 @@ function parseArgs(argv) {
   const targets = command === "apply" ? Object.keys(TARGET_LEVEL) : command === "clear" ? Object.keys(TARGET_FILES) : ["folder", "initial"];
   if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
+  if (opts.finishPending && opts.target === "session") throw new UsageError("--finish-pending applies to a folder or user settings, not a one-session file");
   if (["apply", "clear"].includes(command) && opts.json && !opts.dryRun) throw new UsageError(`${command} --json prints a preview and needs --dry-run`);
   return opts;
 }
@@ -476,6 +479,15 @@ async function apply(opts, where, env, io) {
   }
   if (opts.deferOff && sessionProfile(env)) {
     throw new NotApplied(`not applied: this session runs in profile ${sessionProfile(env)} from a one-session settings file, so a switch here would not hold; start a session in ${opts.name} with apply ${opts.name} --for session, then the claude --settings command it prints`);
+  }
+  if (opts.finishPending) {
+    const file = targetFile(where, opts.target);
+    const rec = recordOf(where, file).record;
+    if (rec?.phase !== "off-pending" || rec.profile !== opts.name) {
+      io.out(`Nothing to finish: no unfinished switch to ${opts.name} is recorded for ${file}.`);
+      return 0;
+    }
+    opts = { ...opts, yes: true };
   }
   const catalog = catalogFor(where, opts.target);
   const records = () => recordsFromCli();
