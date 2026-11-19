@@ -694,6 +694,7 @@ def test_stop_open_items(ctx):
     assert "write the docs" in output["reason"]
     assert "fix the flaky test" in output["reason"]
     assert RULES_TAIL in output["reason"]
+    assert " refresh " not in output["reason"], "the hook keeps the blocks current, so it asks for no refresh"
     check = ctx.cli("check")
     assert check.returncode == 1
     assert check_lines(check)["open"] == "2"
@@ -742,14 +743,59 @@ def test_stop_after_mode_warning_still_holds_open_items(ctx):
     assert "write the docs" in json.loads(second)["reason"]
 
 
-def test_stop_blocks_on_unlisted_refusal(ctx):
+def test_stop_lists_a_new_refusal_itself(ctx):
     started_with_tasks(ctx, "- [x] done\n")
     ctx.hook("PermissionRequest", "permission_request_bash")
-    output = json.loads(ctx.hook("Stop", "stop"))
-    assert output["decision"] == "block"
-    assert "refresh" in output["reason"]
-    assert ctx.cli("refresh").returncode == 0
+    assert ctx.hook("Stop", "stop") == "", "the Stop hook lists the refusal, so no refresh is needed to stop"
+    assert "- R1 permission prompt" in block(ctx.report().read_text(encoding="utf-8"), "refused")
+    assert check_lines(ctx.cli("check"))["blocks_fresh"] == "pass"
+
+
+def test_stop_refreshes_blocks_from_the_transcript_and_keeps_the_agents_sections(ctx):
+    started_with_tasks(ctx, "- [x] done\n")
+    fill_report(ctx.report(), "- **Decision:** which database.\n  **Options:** Postgres; SQLite.\n  **Recommendation:** Postgres.\n")
+    before = ctx.report().read_text(encoding="utf-8")
+    ctx.install_transcript()
     assert ctx.hook("Stop", "stop") == ""
+    text = ctx.report().read_text(encoding="utf-8")
+    assert "gh pr create" in block(text, "externals"), "the first Stop records the transcript and lists its external actions"
+    assert "curl -X POST https://example.invalid/api/deploy" in block(text, "refused"), "an auto mode denial is listed"
+    assert [r["id"] for r in ctx.refused()] == ["R1"]
+    assert text.split("<!-- away:refused:begin -->")[0] == before.split("<!-- away:refused:begin -->")[0], (
+        "everything above the script-owned blocks, Needs you included, is left as the agent wrote it"
+    )
+    assert ctx.hook("Stop", "stop") == ""
+    assert [r["id"] for r in ctx.refused()] == ["R1"], "a second Stop adds no duplicate"
+
+
+def test_stop_leaves_the_file_scan_to_end(ctx):
+    watched = ctx.root / "watched"
+    watched.mkdir()
+    task = ctx.repo / "tasks.md"
+    task.write_text("- [x] done\n", encoding="utf-8")
+    ctx.start(
+        "--kind", "until", "--until", "2000-01-01T00:00:00+00:00", "--task-file", str(task),
+        "--setting", f"away_watched_folders={watched}",
+    )
+    fill_report(ctx.report())
+    (watched / "written.txt").write_text("x", encoding="utf-8")
+    assert ctx.hook("Stop", "stop") == ""
+    assert "written.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "the Stop hook runs no file scan"
+    assert "files_after_due" not in ctx.state()
+    assert ctx.cli("end").returncode == 0
+    assert "written.txt" in block(ctx.report().read_text(encoding="utf-8"), "files"), "end scans the watched folders"
+
+
+def test_stop_fails_open_when_the_report_cannot_be_written(ctx):
+    started_with_tasks(ctx, "- [ ] write the docs\n")
+    blocker = ctx.root / "not-a-dir"
+    blocker.write_text("", encoding="utf-8")
+    state = ctx.state()
+    (ctx.state_dir / "state.json").write_text(json.dumps(dict(state, report_path=str(blocker / "report.md"))), encoding="utf-8")
+    payload = dict(HOOK_INPUTS["stop"], session_id=SESSION, transcript_path=str(ctx.root / "t.jsonl"))
+    result = ctx.run("hook", "Stop", stdin=json.dumps(payload))
+    assert (result.returncode, result.stdout) == (0, ""), "a hook error leaves the stop silent"
+    assert "failed open" in result.stderr
 
 
 def test_stop_records_transcript_path(ctx):
@@ -776,11 +822,6 @@ def test_prompt_subagent_report_not_return(ctx):
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
 
 
-def _stop_note(ctx: Away) -> str:
-    started_with_tasks(ctx, "- [ ] write the docs\n")
-    return json.loads(ctx.hook("Stop", "stop"))["reason"]
-
-
 def _active_note(ctx: Away) -> str:
     ctx.start()
     return context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
@@ -794,8 +835,8 @@ def _back_note(ctx: Away) -> str:
 
 @pytest.mark.parametrize(
     ("note", "verb", "status_after"),
-    [(_stop_note, "refresh", "active"), (_active_note, "end", "ended"), (_back_note, "deliver", None)],
-    ids=["stop-refresh", "active-end", "back-deliver"],
+    [(_active_note, "end", "ended"), (_back_note, "deliver", None)],
+    ids=["active-end", "back-deliver"],
 )
 def test_hook_note_command_names_data_root(ctx, note, verb, status_after):
     text = note(ctx)

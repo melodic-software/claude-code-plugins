@@ -129,8 +129,8 @@ evidence is checked.
   PermissionRequest hook: fetch
   <https://code.claude.com/docs/en/permission-modes#skip-all-checks-with-bypasspermissions-mode>.
 - Keep the machine awake for the whole absence.
-- With the Bash sandbox on, run every `away.py` call that writes (`start`, `refresh`, `end`,
-  `deliver`) outside the sandbox, and run `start` while the person is here in case that asks.
+- With the Bash sandbox on, run `start`, `end` and `deliver` outside it while the person is here;
+  during the absence the Stop hook, unsandboxed, keeps the report's script-owned blocks current.
   Pointer: when checking where sandboxed commands may write, fetch
   <https://code.claude.com/docs/en/sandboxing#filesystem-isolation>.
 - A second `/session-flow:step-away` during an active absence reconciles with it and keeps its

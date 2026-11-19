@@ -1026,20 +1026,18 @@ def on_stop(hook: Hook) -> dict | None:
     if hook.status is not Status.ACTIVE:
         return None
     payload, paths = hook.payload, hook.paths
-    report = Path(hook.state["report_path"])
-    now_digest = digest(report)
     mode = payload.get("permission_mode")
     transcript = payload.get("transcript_path")
 
-    def first_look(state: dict) -> tuple[bool, object]:
+    def first_look(state: dict) -> tuple[bool, dict]:
         if isinstance(transcript, str) and transcript and not payload.get("agent_id"):
             state["transcript_path"] = transcript
         warn = isinstance(mode, str) and mode != "auto" and not state.get("mode_warned")
         if warn:
             state["mode_warned"] = True
-        return warn, state.get("last_block_digest")
+        return warn, dict(state)
 
-    warn, last_digest = update_state(paths, first_look)
+    warn, state = update_state(paths, first_look)
     if warn and mode == "bypassPermissions":
         return _block(
             "Away mode: this session's permission mode is bypassPermissions, where almost nothing prompts, "
@@ -1052,11 +1050,13 @@ def on_stop(hook: Hook) -> dict | None:
             "prompt is refused instead of judged by auto mode. Tell the person now, before they leave, and "
             "offer to continue in auto mode. Then carry on."
         )
+    refresh(state, paths, files=False)
     if payload.get("background_tasks"):
         return None
-    if payload.get("stop_hook_active") is True and now_digest == last_digest:
+    now_digest = digest(Path(state["report_path"]))
+    if payload.get("stop_hook_active") is True and now_digest == state.get("last_block_digest"):
         return None
-    result = check_report(hook.state, paths)
+    result = check_report(state, paths)
     if result.passed:
         return None
     update_state(paths, lambda state: state.update(last_block_digest=now_digest))
@@ -1064,12 +1064,13 @@ def on_stop(hook: Hook) -> dict | None:
     if result.open_items:
         shown = "; ".join(result.open_items[:LIST_LIMIT])
         more = f" (and {len(result.open_items) - LIST_LIMIT} more)" if len(result.open_items) > LIST_LIMIT else ""
-        parts.append(f"Open items in {hook.state.get('task_file')}: {shown}{more}.")
+        parts.append(f"Open items in {state.get('task_file')}: {shown}{more}.")
         parts.append("Work the next one, or mark it parked in the task file once it waits on the person.")
     failed = [name for name, ok in result.criteria.items() if not ok]
     if failed:
         parts.append(f"Report checks failing: {', '.join(failed)}.")
-    parts.append(f"Run `{hook.command} refresh {hook.target}` after each finished piece.")
+    if "blocks_fresh" in failed:
+        parts.append("Keep each `<!-- away:... -->` marker exactly once; this hook rewrites what lies between them.")
     parts.append(f"Re-read {paths.rules} if the away rules are not in context.")
     return _block(" ".join(parts))
 
