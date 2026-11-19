@@ -80,10 +80,8 @@ def test_interval_and_case_drop_match_plugin_evals_noise_report():
     import importlib.util
     from pathlib import Path
 
-    path = (
-        Path(__file__).resolve().parents[3]
-        / "evals/skills/plugin-eval/scripts/noise-report.py"
-    )
+    here = Path(__file__).resolve().parent
+    path = here.parents[2] / "evals/skills/plugin-eval/scripts/noise-report.py"
     spec = importlib.util.spec_from_file_location("noise_report", path)
     noise = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(noise)
