@@ -2,8 +2,7 @@
 """pydeps.py: the hash-locked on-demand install (first install, no-op rerun, a failed install) and the run launcher.
 
 The lock is a local wheel that provides the numpy and onnxruntime modules, installed with pip's own PIP_NO_INDEX and
-PIP_FIND_LINKS, so no test reaches a package index. `python test_speech_pydeps.py --make-wheel DIR` builds that wheel and
-prints its sha256, for the hook suite (../hooks/install-python-deps.test.sh).
+PIP_FIND_LINKS, so no test reaches a package index.
 """
 import base64
 import contextlib
@@ -342,7 +341,4 @@ class ReadyStamp(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == '--make-wheel':
-        print(make_wheel(sys.argv[2])[1])
-    else:
-        unittest.main()
+    unittest.main()

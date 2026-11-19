@@ -34,17 +34,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=../lib/git-hooks-test-helpers.sh
+source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
 n=0
 new_repo() { # [team yaml body], written to the tracked docs/conventions/source-control.yaml

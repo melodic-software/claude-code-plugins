@@ -90,6 +90,26 @@ psf_init() {
   PSF_ROOT_ARG="$(psf_pwsh_path "$1")"
   [[ "$PSF_HERE" == /* || "$PSF_HERE" == [A-Za-z]:[\\/]* ]] || PSF_HERE="$PWD/$PSF_HERE"
   PSF_PS1_ARG="$(psf_pwsh_path "$PSF_HERE/psscriptanalyzer.ps1")"
+  psf__path_without_9p
+}
+
+psf__path_without_9p() {
+  local mnt type m d parts=() mounts=() keep=() tab="${PSF_MOUNTS:-/proc/self/mounts}"
+  PSF_PATH="$PATH" PSF_BIN="${RT_BIN:-pwsh}"
+  [[ -r "$tab" ]] || return 0
+  while read -r _ mnt type _; do
+    [[ "$type" == 9p ]] && mounts+=("$mnt")
+  done <"$tab"
+  ((${#mounts[@]})) || return 0
+  IFS=: read -ra parts <<<"$PATH"
+  for d in "${parts[@]}"; do
+    for m in "${mounts[@]}"; do
+      [[ "$d" == "$m" || "$d" == "$m"/* ]] && continue 2
+    done
+    keep+=("$d")
+  done
+  PSF_BIN="$(command -v "$PSF_BIN" 2>/dev/null || printf "%s" "$PSF_BIN")"
+  PSF_PATH="$(IFS=:; printf '%s' "${keep[*]}")"
 }
 
 psf_settings_rel() {
@@ -102,8 +122,8 @@ psf_run() {
   local dir="$RT_DIR" rc
   RT_DIR="$1"
   shift
-  PSF_PS1="$PSF_PS1_ARG" PSSA_SETTINGS="$(psf_pwsh_path "$dir/$PSF_SETTINGS")" \
-    PSSA_REPO_ROOT="$PSF_ROOT_ARG" PSSA_STATE_BASE="$PSF_STATE_ARG" rt_run "$@"
+  PATH="$PSF_PATH" RT_BIN="$PSF_BIN" PSF_PS1="$PSF_PS1_ARG" \
+    PSSA_SETTINGS="$(psf_pwsh_path "$dir/$PSF_SETTINGS")" PSSA_REPO_ROOT="$PSF_ROOT_ARG" PSSA_STATE_BASE="$PSF_STATE_ARG" rt_run "$@"
   rc=$?
   RT_DIR="$dir"
   return "$rc"

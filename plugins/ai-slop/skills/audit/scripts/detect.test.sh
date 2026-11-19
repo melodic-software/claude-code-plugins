@@ -7,12 +7,12 @@
 # audit off them with an excluded_paths glob in docs/conventions/ai-slop.yaml, and they
 # stay measurable through the same config isolation this suite uses — an empty
 # HOME and CLAUDE_PROJECT_DIR give the shipped defaults back.
-# Per the shell-test-helpers convention, assertion helpers are local.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # make the nested-repo fixture operate on the CALLER's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT="$SCRIPT_DIR/detect.sh"
@@ -39,9 +39,8 @@ make_repo() {
   git init -q "$1" >/dev/null 2>&1
 }
 
-FAILED=0
-CASE_NUM=0
-SKIPPED=0
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
 # The total this suite registers when every case runs: PASS + FAIL + SKIP. It is
 # host-independent because every host-conditional branch calls skip() once per
 # assertion it replaces, so a host that cannot build a fixture moves cases
@@ -49,39 +48,6 @@ SKIPPED=0
 # updates this number, and the Result block names both totals when they disagree.
 EXPECTED_CASES=274
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-# A case whose subject this host cannot build is neither a pass nor a failure.
-# It prints its own visible line and carries its own counter, and never routes
-# through pass(), so a proof this host could not run can never be read off the
-# summary as one that did.
-skip() {
-  SKIPPED=$((SKIPPED + 1))
-  printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi
-}
-assert_contains() {
-  case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-    *"$3"*) fail "$1" "absent: $3" "present" ;;
-    *) pass "$1" ;;
-  esac
-}
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }

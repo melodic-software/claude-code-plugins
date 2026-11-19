@@ -99,25 +99,24 @@ as of 2026-11-09; recheck when that row changes its starting model.
 
 Role effort reaches workflow `agent()` calls, which pass `opts.effort`
 explicitly, and Agent tool dispatches with no named type, which pass it as the
-per-spawn `effort` parameter (route's Output section). A named agent runs at
-its `effort` frontmatter unless its dispatcher passes `effort` on the call or
-a source ranked above both applies. When it sets none, it runs at the session's
-level on the main conversation's model; on another model that level does not
-apply. route reads no settings file, so the
-effort it prints is the level a caller asks for, before any cap. A loop lane's
-level is its own `lanes[].effort`, not the `orchestrator` role.
+per-spawn `effort` parameter (route's Output section). Which level a named
+agent runs at, given the call, its `effort` frontmatter and the session, is
+Claude Code's precedence, read at the pointers below. route reads no settings
+file, so the effort it prints is the level a caller asks for, before any cap. A
+loop lane's level is its own `lanes[].effort`, not the `orchestrator` role.
 
-- Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
+- Pointer: for effort precedence and what a subagent inherits, read
+  [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
   and [model config: effort level of subagents and teammates](https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates)
 
 ## Hard cap
 
-`maxEffortLevel` is the consumer's hard cap over every role and every named
-agent's pinned effort: any higher level, from a role, frontmatter or the
-session, runs at the cap. Which settings scopes set it, how values across
-scopes and a model's `modelSettings` entry combine, and how an organization
-effort limit applies alongside it are read at the pointers below.
+A consumer caps effort with `maxEffortLevel`. This plugin neither reads nor
+overrides it, so a role's effort is a request the cap may lower. How the cap
+applies, which settings scopes set it, how values across scopes and a model's
+`modelSettings` entry combine, and how an organization effort limit applies
+alongside it are read at the pointers below.
 
 - Pointer: [settings reference: `maxEffortLevel`](https://code.claude.com/docs/en/settings-reference#maxeffortlevel);
   [model config: organization effort limits](https://code.claude.com/docs/en/model-config#organization-effort-limits)
@@ -133,8 +132,8 @@ never emits a frontier session's own model for a fan-out stage. What the agent
 runs on is the harness's call: see
 [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
 [run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
-Under an Opus session `opus` and `inherit`
-name the same model, so the guard changes nothing there.
+Where `fanout.model` and `inherit` resolve to the same model, the guard
+changes nothing.
 
 Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
 fan-outs. Set it on the layer whose scope you mean: the personal override for one

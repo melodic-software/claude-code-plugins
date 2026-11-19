@@ -3,6 +3,7 @@
 # Each case: PASS prints, FAIL prints. Non-zero exit on any FAIL.
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="${SCRIPT_DIR}/parse-branch-issue.sh"

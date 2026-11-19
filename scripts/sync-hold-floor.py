@@ -19,7 +19,8 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
   `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
   every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
-- pr-require-checks.yml's `API_BUDGET_SH` blocks (`api-budget <job>`): api-budget.bash, verbatim.
+- pr-require-checks.yml's `API_BUDGET_SH` blocks (`api-budget <job>`): api-budget.bash without its full-line
+  comments, since ci-status and mark-lanes have no checkout to source it from.
 """
 
 from __future__ import annotations
@@ -150,11 +151,12 @@ API_BUDGET = ".github/actions/log-api-budget/api-budget.bash"
 def api_budget_sh(indent: str) -> list[str]:
     """The `API_BUDGET_SH: |` env key with api-budget.bash as its value: each
     line two spaces past the key, an empty line left empty, the final newline
-    dropped."""
+    dropped. Full-line comments are left out: two copies of them would put
+    pr-require-checks.yml over GitHub's 500 KB workflow file limit."""
     text = (ROOT / API_BUDGET).read_text(encoding="utf-8").removesuffix("\n")
     return [
         f"{indent}API_BUDGET_SH: |",
-        *(f"{indent}  {line}" if line else "" for line in text.split("\n")),
+        *(f"{indent}  {line}" if line else "" for line in text.split("\n") if not line.lstrip().startswith("#")),
     ]
 
 

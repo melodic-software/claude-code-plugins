@@ -71,28 +71,20 @@ neither; a light-only app declaring `light dark`.
 
 ## 3. Half a dark mode is worse than none
 
-Some components have `dark:` classes and some don't, and the OS setting or a leftover toggle
-activates it. The user gets dark cards on a white page with black text on the dark cards.
+Some components have dark-theme styles and some don't, and the OS setting or a leftover toggle
+activates them. The user gets dark cards on a white page with black text on the dark cards.
 
-Hunt for: `dark:` utilities or `[data-theme="dark"]` rules present in some components and absent
-in the layout, the inputs, or the text tokens; Tailwind's `darkMode` config set to `media` when the
-app was only designed in light.
+Hunt for: dark-theme rules (a dark variant on utility classes, a `[data-theme="dark"]` selector, a
+`prefers-color-scheme: dark` query) present in some components and absent in the layout, the
+inputs, or the text tokens; a styling system's dark mode set to follow the OS when the app was only
+designed in light.
 
-Whatever the Tailwind version, treat stray `dark:` classes as following the OS setting unless the
-project ties the `dark` variant to a class or attribute selector. Read the project's CSS and config
-for that tie before calling its dark theme unreachable.
-
-- **Pointer**: Tailwind CSS, Dark mode, how the `dark` variant is tied to a selector,
-  <https://tailwindcss.com/docs/dark-mode#toggling-dark-mode-manually>; the v3 page, the `darkMode`
-  strategies, <https://v3.tailwindcss.com/docs/dark-mode#toggling-dark-mode-manually>; and v4's
-  compatibility layer, which reads `darkMode` from a JavaScript config,
-  <https://github.com/tailwindlabs/tailwindcss/blob/main/packages/tailwindcss/src/compat/dark-mode.ts>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either page changes what the `dark` variant follows by default or renames the
-  custom variant or the `selector` strategy, or the compatibility layer stops reading `darkMode`.
+Treat stray dark rules as following the OS setting unless the project ties them to a class or
+attribute selector. Read that tie in the project's own CSS and config, and in its styling system's
+documentation for the version in use, before calling its dark theme unreachable.
 
 This is a decision, not a diff: either finish the theme or make it unreachable (remove the toggle,
-set `color-scheme: light`, stop the `dark:` variant from firing). Put it on the human list with both
+set `color-scheme: light`, stop the dark rules from firing). Put it on the human list with both
 options and what each costs. Turning off a broken dark mode before launch is a legitimate choice.
 
 **Audit: Blocking.** A half-built dark theme that users can reach, through a toggle or the OS
@@ -101,7 +93,7 @@ setting. Report it for a person with both options; never apply either one as a f
 ## 4. Dark mode flips variables, not classes
 
 Define colors as a numbered scale of CSS variables and swap the values under the dark theme
-selector, instead of scattering manual `dark:` overrides across components:
+selector, instead of scattering manual dark-theme overrides across components:
 
 ```css
 :root {
@@ -117,21 +109,9 @@ selector, instead of scattering manual `dark:` overrides across components:
 }
 ```
 
-In Tailwind projects, do not hand-write `dark:` color overrides per component. Point utilities at
-the variables and let the theme flip do the work:
-
-```css
-/* Good: variables flip automatically */
-.button {
-  background: var(--gray-12);
-  color: var(--gray-1);
-}
-
-/* Avoid: manual overrides everywhere */
-.button {
-  @apply bg-gray-900 dark:bg-gray-100;
-}
-```
+A component's styles read the variables (`background: var(--gray-12)`) and carry no dark-theme
+color override of their own; in a utility-class system, point the utilities at the variables the
+same way.
 
 Which instruction wins: the project's existing theme mechanism first. With none, the
 `/user-interface:write-css` recipe `one-set-of-color-tokens-for-light-and-dark` (one set of
@@ -139,20 +119,20 @@ Which instruction wins: the project's existing theme mechanism first. With none,
 shown above. Which step each role takes in the dark theme is the `color` concern. This rule keeps
 one thing whatever the mechanism: the flip happens once, at the theme root, never per component.
 
-Hunt for: `dark:` overrides sprinkled through every component; component styles that set a color
+Hunt for: dark-theme overrides sprinkled through every component; component styles that set a color
 for each theme instead of reading a variable.
 
-**Audit: Important.** Per-component `dark:` color overrides, or a theme switched by classes on each
-component, where the project could flip its colors once at the theme root.
+**Audit: Important.** Per-component dark-theme color overrides, or a theme switched by classes on
+each component, where the project could flip its colors once at the theme root.
 
 ## 5. Hardcoded colors don't flip
 
-One `bg-white` on a dropdown, one `#fff` in an SVG, one `border-gray-200` on a card: each is a
+One white background on a dropdown, one `#fff` in an SVG, one light-gray border on a card: each is a
 bright rectangle in the dark theme. These are the most common dark-mode defects and the most
 mechanical to fix.
 
-Hunt for: raw hex / `rgb()` / `white` / `black` in component styles; Tailwind palette classes
-(`bg-white`, `text-gray-900`, `border-gray-200`) in a project that has semantic tokens; inline
+Hunt for: raw hex / `rgb()` / `white` / `black` in component styles; utility classes that name a
+fixed palette color in a project that has semantic tokens; inline
 `fill="#000"` / `stroke="#111"` in SVG icons; `<img>` logos with baked-in dark text.
 
 Fix: point each at the project's existing token. Icons use `currentColor` so they follow the text:
@@ -161,7 +141,7 @@ Fix: point each at the project's existing token. Icons use `currentColor` so the
 <svg fill="none" stroke="currentColor">…</svg>
 ```
 
-Never scatter new per-component `dark:` overrides to patch these. If the project flips a numbered
+Never scatter new per-component dark-theme overrides to patch these. If the project flips a numbered
 variable scale at the theme root, the fix is using the variable (section 4). A raster logo with
 dark text needs a second asset or an SVG; that's the human list.
 
@@ -250,9 +230,9 @@ mode gets a dark bar or dark mode gets a white one. Give each scheme its own:
 ```
 
 Match the value to the color at the very top of your page: the header background, not the brand
-color. In Next.js set it through the `viewport` export (`themeColor: [{ media, color }]`). If the
-app switches theme with a class rather than the OS setting, update the tag from JavaScript on
-toggle. For an installed PWA, the manifest's `theme_color`/`background_color` are the same
+color. Where the framework writes the document head, set the per-scheme values through the
+framework's own head or metadata mechanism. If the app switches theme with a class rather than the
+OS setting, update the tag from JavaScript on toggle. For an installed PWA, the manifest's `theme_color`/`background_color` are the same
 decision. `apple-mobile-web-app-status-bar-style` takes a style keyword, not a color; Apple's meta
 tag reference below lists them. Read the colors from the project's tokens.
 Never invent them.
@@ -264,9 +244,7 @@ fix the theme depends on; which browsers apply it is in the MDN pointer below.
 
 - **Pointer**: MDN, `<meta name="theme-color">`, the `media` attribute and browser compatibility,
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/theme-color#media>;
-  Next.js, `generateViewport`, `themeColor`,
-  <https://nextjs.org/docs/app/api-reference/functions/generate-viewport#themecolor>; MDN, the
-  manifest `theme_color` and the meta tag that overrides it per scheme,
+  MDN, the manifest `theme_color` and the meta tag that overrides it per scheme,
   <https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/theme_color#description>;
   Apple, Safari Web Content Guide, "Changing the Status Bar Appearance",
   <https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html#//apple_ref/doc/uid/TP40002051-CH3-SW1>;
@@ -274,8 +252,8 @@ fix the theme depends on; which browsers apply it is in the MDN pointer below.
   `apple-mobile-web-app-status-bar-style` entry,
   <https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html>
 - **As of**: 2026-11-16
-- **Recheck trigger**: MDN's page changes its Baseline status or what `media` does, Next.js renames
-  the `themeColor` field, the manifest page gains a per-scheme `theme_color`, or Apple retires the
+- **Recheck trigger**: MDN's page changes its Baseline status or what `media` does, the manifest
+  page gains a per-scheme `theme_color`, or Apple retires the
   archived guide or the Safari HTML Reference's meta tag page, or changes the status-bar style
   keywords that page lists.
 
@@ -326,29 +304,17 @@ function setTheme(theme) {
 .no-transitions * { transition: none !important; }
 ```
 
-```jsx
-// next-themes: no flash on load (it injects the blocking script), no color ripple on toggle
-<ThemeProvider attribute="class" disableTransitionOnChange>
-  {children}
-</ThemeProvider>
-```
+When the project already switches themes through a theme library or provider, use its own option
+for suppressing transitions on change, as its documentation names it, and keep the attribute or
+class it already sets; never add a library for this. Under a Content Security Policy, pass the
+request's nonce to whatever injects the theme script; never add `'unsafe-inline'` to `script-src`
+to let it run.
 
-Only when the project already uses `next-themes`. Match its existing `attribute`.
-
-Under a Content Security Policy, pass the request's nonce through the provider's `nonce` prop;
-never add `'unsafe-inline'` to `script-src` to let the provider's script run.
-
-- **Pointer**: next-themes README, the `ThemeProvider` props (`attribute` and its default,
-  `disableTransitionOnChange`, `nonce`), <https://github.com/pacocoursey/next-themes#themeprovider>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the README changes the `attribute` default, or renames
-  `disableTransitionOnChange` or `nonce`.
-
-Hunt for: a theme toggle with no transition suppression; `next-themes` `ThemeProvider` without
-`disableTransitionOnChange`.
+Hunt for: a theme toggle with no transition suppression; a theme provider with its
+transition-suppression option left off.
 
 **Audit: Important.** A theme switch that animates every color at its own speed: a toggle with no
-transition suppression, or a `next-themes` provider without `disableTransitionOnChange`.
+transition suppression, or a theme provider with its transition-suppression option left off.
 
 Whether the right theme is on screen at first paint, before any switch: check it here, and grade it
 under the `layout-stability` concern.

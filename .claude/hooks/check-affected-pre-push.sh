@@ -216,12 +216,14 @@ TOOLING=(
   '.github/requirements-ci.txt'
   'plugins/*/hooks/*' 'plugins/autonomy/skills/setup/scripts/*'
   'plugins/harness-ops/skills/audit-native-overlap/scripts/*'
+  'plugins/code-metrics/*'
 )
 
 # The files a merge-base copy needs: the scripts check-affected.sh runs and their
 # libraries, and every config a check reads its rules from.
 TOOLS_EXTRACT=(
   scripts .shellcheckrc ruff.toml pyproject.toml .github/requirements-ci.txt
+  plugins/code-metrics
 )
 
 # tooling_change_to <out-var> <top> <mb>: assigns the first TOOLING path HEAD,

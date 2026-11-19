@@ -8,6 +8,8 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const SCRIPT = fileURLToPath(new URL("./sibling-workdir.sh", import.meta.url));
 const skip = process.platform === "win32" && "bash and git";

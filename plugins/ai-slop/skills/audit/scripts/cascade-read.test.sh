@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Reader-interface tests for lib/cascade-read.sh. Assertion helpers are local.
 # cascade::* assigns through printf -v and namerefs, which shellcheck cannot see.
 # shellcheck disable=SC2154
 set -uo pipefail
@@ -11,12 +10,8 @@ source "$SCRIPT_DIR/lib/cascade-read.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }

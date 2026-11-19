@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { CLASSIFIER_FILES, loadLauncher } from "../plugin-eval/eval-handoff.mjs";
+import { CONTRACT_FILES, contractFiles, loadContract } from "../plugin-eval/eval-handoff.mjs";
 
 const fetched = new Map();
 const ATTEMPTS = 3;
@@ -26,14 +26,18 @@ export function fetchAtPin(pin, path) {
   return fetched.get(url);
 }
 
-export async function laneAtPin(pin) {
+export async function contractFilesAtPin(pin) {
+  return contractFiles(await fetchAtPin(pin, CONTRACT_FILES));
+}
+
+export async function contractAtPin(pin) {
   const root = mkdtempSync(join(tmpdir(), "ci-workflows-at-pin-"));
   try {
-    for (const path of CLASSIFIER_FILES) {
+    for (const path of [CONTRACT_FILES, ...(await contractFilesAtPin(pin))]) {
       mkdirSync(dirname(join(root, path)), { recursive: true });
       writeFileSync(join(root, path), await fetchAtPin(pin, path));
     }
-    return loadLauncher(root);
+    return loadContract(root);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.4] - 2026-11-19
+
+### Changed
+
+- `reference/config.md` no longer paraphrases Claude Code's effort precedence, `maxEffortLevel` behavior or alias resolution; its "Where effort applies" and "Hard cap" sections state what the resolver does and point at the docs sections.
+
 ## [3.1.3] - 2026-11-17
 
 ### Changed

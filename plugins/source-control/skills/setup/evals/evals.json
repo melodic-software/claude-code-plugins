@@ -5,7 +5,7 @@
       "id": 1,
       "name": "infers-before-recommending-conventional-commits",
       "prompt": "/source-control:setup",
-      "expected_output": "Before asking anything, checks the repo's own CLAUDE.md/AGENTS.md/.claude/rules, any commit-msg hook (lefthook.yml, .husky/commit-msg, commitlint config, or a plain Git-managed commit-msg hook resolved via `git rev-parse --git-path hooks` rather than a hardcoded .git/hooks path), and recent git log history for an existing convention. With no signal found, it recommends Conventional Commits (11-type vocabulary: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test) as the default, marked RECOMMENDED, and does not offer or accept 'security' as a type.",
+      "expected_output": "Before asking anything, checks the repo's own CLAUDE.md/AGENTS.md/.claude/rules, any commit-msg hook (a hook manager's commit-msg entry, the commit-message linter config it runs, or a plain Git-managed commit-msg hook resolved via `git rev-parse --git-path hooks` rather than a hardcoded .git/hooks path), and recent git log history for an existing convention. With no signal found, it recommends Conventional Commits (11-type vocabulary: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test) as the default, marked RECOMMENDED, and does not offer or accept 'security' as a type.",
       "files": [],
       "expectations": [
         "Checks CLAUDE.md/rules, a commit-msg hook (resolved via git plumbing, not a hardcoded .git/hooks path), and git log history for an existing convention before asking",

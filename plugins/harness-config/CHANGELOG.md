@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.2.7] - 2026-11-18
+
+### Fixed
+
+- The audit-permission-grants criteria point at the 2.1.323 changelog entry and an archived
+  capture of the manifest reference for which plugin `settings.json` keys take effect.
+
 ## [5.2.6] - 2026-11-18
 
 ### Changed

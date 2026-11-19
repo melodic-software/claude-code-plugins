@@ -60,6 +60,7 @@ import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-hold
 import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { readConflictRecord } from "../lib/conflict-record.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -107,6 +108,29 @@ function inFlightRun(log, active, { workflow, activity, node }) {
     log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
   }
   return inFlight;
+}
+
+// GitHub lists at most this many files in a comparison, all on its first page
+// (https://docs.github.com/en/rest/commits/commits#compare-two-commits), so
+// compareCommits reads one page of one commit.
+const COMPARE_FILE_LIMIT = 300;
+
+async function conflictUntouched(api, log, { node, base, conflict, readTip }) {
+  try {
+    const { oid } = await readTip();
+    if (oid === conflict.base) {
+      return oid;
+    }
+    const { status, files } = await api.compareCommits(conflict.base, oid);
+    if (status !== "ahead" || !Array.isArray(files) || files.length >= COMPARE_FILE_LIMIT) {
+      return null;
+    }
+    const paths = new Set(conflict.paths);
+    return files.some((file) => paths.has(file?.filename) || paths.has(file?.previous_filename)) ? null : oid;
+  } catch (error) {
+    log(`::warning::#${node.number}: could not compare ${base} ${conflict.base} with its tip: ${error.message}; sent as if it had changed the conflicted paths`);
+    return null;
+  }
 }
 
 // The log line that names a head-lag stop on the head as the cause of this
@@ -252,6 +276,7 @@ export async function dispatchConflicting({
     }
     let handled;
     let waiting = null;
+    let conflict = null;
     try {
       const { held, why } = await prHold({ ...holdReads(api, node), holdLabels, gateLabel, activity, appId: appSenderId });
       // Not recorded: the hold can come off with the head unchanged.
@@ -267,8 +292,9 @@ export async function dispatchConflicting({
       // stand on it.
       if (anyHandles(existing, { now, ...options })) {
         const cap = (limits ?? LIMIT_DEFAULTS)["limit-stops-per-head"];
-        const { cut, stops } = stopRelease(await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId }), cap);
+        const { cut, stops, newest } = stopRelease(await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId }), cap);
         existing = releasedBy(existing, cut, limits);
+        conflict = cut === null ? null : readConflictRecord(newest?.output?.text);
         if (cut === null && stops >= cap) {
           log(`::warning::#${node.number}: head ${node.headRefOid}'s ${stopCheckName} stopped ${stops} time(s), the most one head gets; no ${activity} retry until a new push`);
         }
@@ -318,6 +344,13 @@ export async function dispatchConflicting({
     }
     if (handled) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
+      continue;
+    }
+    const untouchedAt = conflict ? await conflictUntouched(api, log, { node, base, conflict, readTip }) : null;
+    if (untouchedAt !== null) {
+      log(`skip #${node.number}: head ${node.headRefOid}'s last ${activity} stopped unresolved-conflict on ${base} ${conflict.base}, and no ${base} commit since touches its conflicted paths`);
+      markHandled(record, checkName, node.headRefOid);
+      record.bases.set(node.headRefOid, untouchedAt);
       continue;
     }
     sent += 1;
@@ -632,6 +665,13 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${repoUrl}/commits/${encodeURIComponent(sha)}`);
     },
+    async compareCommits(base, head) {
+      if (!SHA.test(base) || !SHA.test(head)) {
+        throw new Error("not a commit SHA");
+      }
+      const { status, files } = await request(`${repoUrl}/compare/${base}...${head}?per_page=1`);
+      return { status, files };
+    },
     // A held PR's issue timeline, review comments and reviews (gate-source.mjs
     // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
@@ -701,6 +741,19 @@ export function createGitHubApi({
         throw error;
       }
       return { status: run.status, jobs: await latestJobs(runId) };
+    },
+    async readLatestJobs(runId) {
+      if (!RUN_ID.test(String(runId))) {
+        throw new Error("not a run id");
+      }
+      try {
+        return { jobs: await latestJobs(runId) };
+      } catch (error) {
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.

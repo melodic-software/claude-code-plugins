@@ -20,6 +20,7 @@ set -uo pipefail
 
 # The session running this test may export these; the hook reads them.
 unset CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$SCRIPT_DIR/settings-write-ask.mjs"

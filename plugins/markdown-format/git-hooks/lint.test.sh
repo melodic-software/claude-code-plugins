@@ -20,17 +20,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() {
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=markdown-format-test-helpers.sh
+source "$HERE/markdown-format-test-helpers.sh"
 
 DEFAULT_CFG='{ "config": { "default": true, "MD013": false } }'
 n=0
@@ -46,14 +37,6 @@ new_repo() {
   printf '# Seed\n' >"$REPO/seed.md"
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
-}
-
-check() {
-  local repo="$1" out rc
-  shift
-  out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
-  rc=$?
-  printf '%s|%s|%s' "$rc" "$out" "$(cat "$WORK/stderr")"
 }
 
 HINT='markdown-format: fix the findings markdownlint-cli2 reported above, or adjust the repository markdownlint config.'
@@ -423,6 +406,30 @@ printf '# T\n\n<b>x</b>\n' >"$REPO/sub/a.md"
 git -C "$REPO" add sub/a.md
 expect "a nested config resolves its own node_modules copy before the root one" "1||$SUB_HTML
 $HINT" "$(check "$REPO")"
+
+ver_pkg() {
+  mkdir -p "$1/ver-rule"
+  printf 'module.exports = { names: ["%s", "%s"], description: "%s", tags: ["x"], parser: "none", function: (params, onError) => { onError({ lineNumber: 1 }); } };\n' "$2" "$3" "$4" >"$1/ver-rule/index.js"
+}
+new_repo NONE
+ver_pkg "$REPO/node_modules" MD901 ver-one "version one"
+ver_pkg "$REPO/sub/node_modules" MD902 ver-two "version two"
+mkdir -p "$REPO/sub/node_modules/sub-style"
+printf '{ "name": "sub-style", "main": "style.json" }\n' >"$REPO/sub/node_modules/sub-style/package.json"
+printf '{ "MD013": false, "MD033": true }\n' >"$REPO/sub/node_modules/sub-style/style.json"
+printf 'node_modules/\n' >"$REPO/.gitignore"
+printf '{ "config": { "default": true, "MD013": false }, "customRules": ["ver-rule"] }\n' >"$REPO/.markdownlint-cli2.jsonc"
+printf 'extends: sub-style\n' >"$REPO/sub/.markdownlint.yaml"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m cfg --no-verify
+printf '# T\n\n<b>x</b>\n' >"$REPO/sub/a.md"
+git -C "$REPO" add sub/a.md
+marker="$(cd "$REPO" && bash "$CHECK" 2>&1 >/dev/null | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$marker"
+expect "a root config loads the root node_modules copy of a package a nested node_modules also holds" "1||sub/a.md:1: MD901/ver-one version one
+$SUB_HTML
+$HINT" "$(check "$REPO")"
+expect "every mirror is removed after a run that links each config's node_modules" "" "$(left_mirrors "$REPO")"
 
 new_repo NONE
 style_pkg "$REPO/on/node_modules" true

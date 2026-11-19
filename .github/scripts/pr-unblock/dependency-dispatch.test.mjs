@@ -30,10 +30,14 @@ const DEPENDABOT_COMMIT_AUTHOR = { name: "dependabot[bot]", email: "49699333+dep
 // GitHub verified and committed it, as it does Dependabot's commits.
 const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 
-function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map() } = {}) {
-  const calls = { dispatch: [], checks: [], commits: [], files: [] };
+function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map(), runs = [] } = {}) {
+  const calls = { dispatch: [], checks: [], commits: [], files: [], runs: 0 };
   return {
     calls,
+    async listWorkflowRuns() {
+      calls.runs += 1;
+      return runs;
+    },
     async listPullCommits(number) {
       calls.commits.push(number);
       return commits.get(number) ?? [{ sha: "d".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR, ...SIGNED } }];
@@ -217,6 +221,40 @@ test("a patch bump whose commits listing is short of its total is review", async
   ]);
   const { dispatched } = await run(fakeApi({ nodes, files }), { config });
   assert.deepEqual(dispatched.map((d) => d.number), [51]);
+});
+
+test("a PR whose review-dependency run is not done yet is not sent again, and the slot goes to the next PR", async () => {
+  const runs = [
+    { id: 901, status: "in_progress", display_title: "pr-unblock review-dependency #21" },
+    { id: 902, status: "queued", display_title: "pr-unblock resolve-conflicts #22" },
+    { id: 903, status: "completed", display_title: "pr-unblock review-dependency #22" },
+  ];
+  const api = fakeApi({ nodes: [pr(21), pr(22), pr(23)], runs });
+  const lines = [];
+  const { dispatched, failed } = await run(api, { maxDispatch: 1, log: (line) => lines.push(line) });
+  assert.equal(failed, 0);
+  assert.deepEqual(dispatched.map((d) => d.number), [22]);
+  assert.ok(lines.includes("skip #21: pr-unblock.yml run 901 for review-dependency is not done yet"));
+  assert.ok(lines.includes("defer #23: 1 review dispatches this run; left for a later run unread"));
+  assert.equal(api.calls.runs, 1);
+});
+
+test("the run listing is read only for a PR about to be sent", async () => {
+  const node = pr(10);
+  const reviewed = { status: "completed", conclusion: "success", started_at: "2026-10-17T10:00:00Z", output: { title: "Reviewed" } };
+  const api = fakeApi({ nodes: [node], checks: new Map([[node.headRefOid, [reviewed]]]) });
+  assert.deepEqual((await run(api)).dispatched, []);
+  assert.equal(api.calls.runs, 0);
+});
+
+test("a run listing that cannot be read holds the PR with a warning and fails nothing", async () => {
+  const api = fakeApi({ nodes: [pr(4)] });
+  api.listWorkflowRuns = async () => {
+    throw Object.assign(new Error("GET runs returned 403"), { status: 403, rateLimited: true });
+  };
+  const lines = [];
+  assert.deepEqual(await run(api, { log: (line) => lines.push(line) }), { dispatched: [], failed: 0 });
+  assert.ok(lines.includes("::warning::#4: pr-unblock.yml run listing is rate limited (GET runs returned 403); skipped, a later run retries"));
 });
 
 test("dispatches at most the cap, lowest number first", async () => {

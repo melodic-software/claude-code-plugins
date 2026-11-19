@@ -178,12 +178,18 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
+              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
             ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
             sleep "$((RANDOM % (2 * i + 1)))"
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
+          # while no tag is named main, which they refuse: with it, no reader
+          # process reads git/ref/tags/main or git/ref/heads/main again.
+          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
+            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
+          fi
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -257,6 +263,7 @@ jobs:
         if: steps.mode.outputs.live == 'true'
         continue-on-error: true
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -273,6 +280,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           ACTIONS_TOKEN: ${{ github.token }}
           LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -1033,12 +1041,18 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
+              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
             ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
             sleep "$((RANDOM % (2 * i + 1)))"
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
+          # while no tag is named main, which they refuse: with it, no reader
+          # process reads git/ref/tags/main or git/ref/heads/main again.
+          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
+            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
+          fi
 
       # Everything below runs from main as it is right now, never from a PR.
       # Full history: the gate reads the pipeline config's history from this
@@ -1419,6 +1433,7 @@ jobs:
         if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
@@ -1443,6 +1458,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
@@ -1466,6 +1482,7 @@ jobs:
         if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
@@ -2446,12 +2463,18 @@ jobs:
           TIP_BRANCH: main
           GIT_TERMINAL_PROMPT: "0"
         run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
+              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
             ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
             sleep "$((RANDOM % (2 * i + 1)))"
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
+          # while no tag is named main, which they refuse: with it, no reader
+          # process reads git/ref/tags/main or git/ref/heads/main again.
+          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
+            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
+          fi
 
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2616,6 +2639,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: last-report
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2655,6 +2679,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: carry-run-cache
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2705,6 +2730,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: lane-records
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2835,6 +2861,7 @@ jobs:
           && (!inputs.pr || steps.keep-report.outputs.stands == 'true')
         continue-on-error: true
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: head-ref-map
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2853,6 +2880,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: verify-answers
           ACTIONS_TOKEN: ${{ github.token }}
