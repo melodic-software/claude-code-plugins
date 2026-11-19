@@ -163,13 +163,7 @@ else
 fi
 
 # 10. Unknown mode is a usage error, not a silent pass.
-bash "$SUT_SRC" --bogus >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "unknown mode exits 2"
-else
-  fail "unknown mode should exit 2 (rc=$rc)"
-fi
+test_harness::assert_unknown_mode "$SUT_SRC"
 
 # 11. No drift from the docs-naming template this gate was generalized into.
 #     The emitter renders the template with THIS repository's
