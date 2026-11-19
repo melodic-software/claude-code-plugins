@@ -359,6 +359,29 @@ class ReadConfigAt(unittest.TestCase):
                     any("max-queue-ejections" in n for n in config.notes), noted
                 )
 
+    def test_queue_ejection_infra_causes_default_to_every_cause(self) -> None:
+        def with_causes(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  queue-ejection-infra-causes: {value}\n"
+            )
+
+        every = policy.QUEUE_EJECTION_INFRA_CAUSES
+        for text, expected, noted in (
+            (PIPELINE, every, False),
+            (with_causes("[kill-switch, rate-limit]"), ("kill-switch", "rate-limit"), False),
+            (with_causes("[]"), (), False),
+            (with_causes("[rate-limit, flaky]"), ("rate-limit",), True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.queue_ejection_infra_causes, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("queue-ejection-infra-causes" in n for n in config.notes),
+                    noted,
+                )
+
     def test_max_verify_fails_defaults_to_three_and_a_bad_value_is_one(
         self,
     ) -> None:
@@ -7937,6 +7960,7 @@ merge:
   report-only: false
   require-verifier-verdict: false
   max-queue-ejections: 5
+  queue-ejection-infra-causes: [rate-limit, kill-switch, main-red]
   max-verify-fails: 4
   verify-cap-attempts: 3
   risk-escalation-minutes: 90
@@ -7958,6 +7982,7 @@ merge:
   report-only: true
   require-verifier-verdict: true
   max-queue-ejections: 1
+  queue-ejection-infra-causes: [rate-limit, read-floor]
   max-verify-fails: 2
   verify-cap-attempts: 0
   risk-escalation-minutes: 10
@@ -8039,6 +8064,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "dependabot_majors": "hold",
             "max_queue_ejections": 1,
             "max_verify_fails": 2,
+            "queue_ejection_infra_causes": ("rate-limit",),
             "verify_cap_attempts": 0,
             "agent_identity": IDENTITY,
             # Timing only: the base's, whichever side is stricter.
