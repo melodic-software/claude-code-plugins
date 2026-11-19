@@ -232,12 +232,11 @@ condition sits in a fenced `text` block. Both shapes match the goal region
 `/session-flow:handoff` writes, so a goal drafted here pastes the same way after a handoff.
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it under
-the conditions the Boundary section lists (no subagent, interactive local session, not plan mode).
-The tool has its own, lower cap (500 characters on 2.1.285, per
-[reference/native-goal.md](reference/native-goal.md)): re-run the Step 3 counter with
-`--limit 500` first, and propose only a condition that passes it and contains no tab character
-(the tool expands tabs before it counts, so the raw count would understate it). The paste-ready
-line is emitted either way.
+the conditions the Routing paragraph below lists. The tool has its own, lower cap: read it from
+[reference/native-goal.md](reference/native-goal.md) at run time, re-run the Step 3 counter with
+`--limit <that cap>` first, and propose only a condition that passes it and contains no tab
+character (the tool expands tabs before it counts, so the raw count would understate it). The
+paste-ready line is emitted either way.
 
 When Step 0.5 ran, emit the run contract in `reference/run-contract.md` beside the condition.
 
@@ -254,10 +253,10 @@ and that a goal the page says is removed must be re-set.
   - **Pointer**: <https://code.claude.com/docs/en/goal#set-a-goal> for what setting a goal does,
     <https://code.claude.com/docs/en/goal#check-status> and
     <https://code.claude.com/docs/en/goal#clear-a-goal> for the other two forms.
-- **`ProposeGoal` (built-in tool)**: the model proposes a goal condition and the person approves
-  it with one keypress (`ask_user` true, the default); `ask_user` false sets it with no dialog.
-  It cannot clear a goal, and it is refused in subagents, outside interactive local sessions, and
-  in plan mode.
+- **`ProposeGoal` (built-in tool)**: the model proposes a goal condition for the person to
+  approve. Its `ask_user` default, what it cannot do, and the contexts that refuse it are
+  recorded in [reference/native-goal.md](reference/native-goal.md). Our gate: this skill proposes
+  only with `ask_user` true, under the conditions in Routing below.
 - **This skill (marketplace plugin).** Picks the repetition lever and, when `/goal` fits, drafts a
   transcript-demonstrable condition sourced from the live docs and passed through the length
   counter. It sets nothing.
