@@ -32,7 +32,6 @@ plugins/kindle-dedrm/skills/manage/reference/workflow.md
 plugins/knowledge/skills/course-digest/reference/adapters/discovery-checklist.md
 plugins/knowledge/skills/course-digest/reference/adapters/dometrain.md
 plugins/machine-health/skills/audit/README.md
-plugins/machine-health/skills/audit/reference/shared/discovery-guide.md
 plugins/machine-health/skills/audit/reference/shared/testing.md
 plugins/machine-health/skills/audit/reference/windows/check-catalog.md
 plugins/machine-health/skills/audit/reference/windows/remediation-policy.md

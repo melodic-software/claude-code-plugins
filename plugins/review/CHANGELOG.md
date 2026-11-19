@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.1] - 2026-11-19
+
+### Changed
+
+- Pointer records no longer carry a recheck trigger: the model and effort pin records of six reviewer agents, and the upstream pointers in `code-review`, `fanout` and the `quality-gate` pr and spec modes. Each record keeps its decision and its pointer. A trigger on one of our own rejections stays, such as the `quality-gate` code mode's refusal to treat a `/code-review` effort level as a substitute for it.
+
 ## [10.4.0] - 2026-11-18
 
 ### Added

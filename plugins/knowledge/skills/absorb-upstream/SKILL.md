@@ -82,7 +82,7 @@ handled as private.
 |---|---|---|
 | `public` (a local checkout: its pin is on a public remote) | any | Proceed. |
 | `private` (a local checkout with a public remote included, when its pin is on none), `internal`, `unknown` or `local` | `private`, `internal` or `local` | Proceed. |
-| `private`, `internal`, `unknown` or `local` | `public` or `unknown` | Write nothing in this repository. Tell the person the full record is written in a private repository instead (for this marketplace's maintainers, a checkout of `melodic-software/knowledge-corpus`), and give two reruns with absolute paths, the source's included when it was given as a relative path: first, the same command with `--out <absolute path to the private checkout>/docs/upstream`; second, the same command run from the private checkout. When the source reads `unknown` because gh could not read it, a rerun with gh signed in can prove it `public`. |
+| `private`, `internal`, `unknown` or `local` | `public` or `unknown` | Write nothing in this repository. Tell the person the full record is written in a private repository instead: the checkout the `private_record_root` option names, `${user_config.private_record_root}` (empty or still the literal token means unset: ask the person for a private checkout's path). Give two reruns with absolute paths, the source's included when it was given as a relative path: first, the same command with `--out <absolute path to the private checkout>/docs/upstream`; second, the same command run from the private checkout. When the source reads `unknown` because gh could not read it, a rerun with gh signed in can prove it `public`. |
 
 The guard redirects and never drops: never shorten or leave out the record's content to write it
 in a public repository.

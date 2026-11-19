@@ -1,0 +1,90 @@
+# Remove a folder's unrecorded profile entries only on a yes for that folder
+
+- Status: accepted
+- Date: 2026-11-19
+- Refs: [#17354](https://github.com/melodic-software/claude-code-plugins/issues/17354); owner
+  decisions of 2026-11-18 (interview, relayed by the control-hub session);
+  [ADR 0113](0113-reset-every-recorded-settings-file-on-the-machine-found-through-repository-pointers-and-a-scan.md)
+
+## Context
+
+A folder's `.claude/settings.local.json` can hold `enabledPlugins` or `skillOverrides` entries with
+no record of a profile apply: the record was lost with a fresh clone, an earlier tool wrote them, or
+a person wrote them by hand. Without a record the tool cannot tell which entries a profile wrote,
+so `clear` names the keys and changes nothing. A machine-wide reset meets such folders in numbers,
+and the owner wants reset to cover them without a person's own entries going under the yes they
+gave for the recorded files.
+
+## Decision
+
+1. **Listed, not hidden.** Reset lists each folder it knows whose `settings.local.json` holds those
+   entries and no record, in the same preview, with each entry.
+2. **A yes per folder.** Its `enabledPlugins` and `skillOverrides` keys are removed only after a yes
+   for that folder: a terminal asks one question per folder after the single question, whatever
+   its answer (a no keeps every recorded file, and a no to every question writes nothing), and a caller that
+   has asked already (the `/plugin-profile` picker, the profile skill) passes
+   `--remove-unrecorded <file>` once per yes and `--keep-unrecorded <file>` once per no, which is
+   reported as kept at that answer, and `--keep-recorded` for a no to the single question. A named file the preview did not ask about stops the reset
+   before anything is written, and the refusal names the files it does ask about. The same
+   per-file question serves every file reset will not write under the single yes: a moved
+   repository's file, and a file whose earlier reset was cut off and that changed since (ADR 0113,
+   decision 6), answered with `--finish-cut-off <file>` and `--keep-cut-off <file>`. Each question
+   in the `--json` preview carries its own answers, a label and a flag for yes and for no, so a
+   caller asks with the tool's labels and passes the tool's flags.
+3. **`--yes` is the single yes only.** It restores every recorded file and skips each folder without
+   a record, saying why.
+4. **User settings are never offered.** User `settings.json` without a record is left alone, and a
+   committed `.claude/settings.json` is never written.
+5. **A file reset put back is not offered again while unchanged.** Each time reset leaves a file
+   at its bytes before any profile, it notes their hash beside where that file's record is saved,
+   under the same rule for which homes may hold it. A later reset skips a file whose bytes still
+   match its note: no row, no question, no write, and one preview line counting such files. An
+   edit makes the note stale, so the file is listed under 1 and 2 again and the next reset that
+   writes removes the note; an apply removes it, and a record always wins over a note. Owner
+   decision of 2026-11-19 (Q9, option b): without it a second reset offered to delete the
+   entries the first had just put back.
+6. **The answer that changes nothing comes first.** Every question the `/plugin-profile` picker and
+   the profile skill ask (reset's single question, each per-file question, and the picker's apply,
+   switch and clear confirms) lists Cancel, Keep or No first and the answer that writes second,
+   so the picker pre-selects the safe answer and Esc or a failed prompt is that answer. The
+   picker's one ask helper holds the order; the terminal's `[y/N]` already reads anything but `y`
+   or `yes` as no. Owner, 2026-11-19 live try: "we need the dangerous answer to not be
+   preselected", "should be less dangerous option always".
+7. **The tool recommends, the caller presents.** The `--json` preview carries one recommendation
+   per question, an answer and a one-sentence reason from the row's facts: `ask.recommend` on each
+   per-file question and `questionRecommend` (`asked`, `unasked`) for the single question. A folder
+   without a record: keep, since reset did not write its entries. A cut-off file or a moved
+   repository's older record: yes only while no entry the profile wrote was changed by hand to
+   another value, else keep, naming those entries. The single question: yes for a person who asked
+   for a reset, naming what goes back and that applying a profile again undoes it; no otherwise.
+   The skill marks that answer `(Recommended)` wherever it sits and gives the reason, never one of
+   its own; the picker, which has no agent, shows it as a line before the question. Owner, same
+   try: "if you could have the agent (AI) provide recommendations" (spelling corrected).
+
+## Considered options
+
+- **Today's `clear` behavior: name the keys and change nothing.** Rejected by the owner: a reset
+  that leaves profile entries it can see is not a reset.
+- **Remove them under the single yes.** Rejected by the owner: one yes for recorded files would then
+  also delete entries a person wrote, which no record shows a profile wrote.
+- **Keep listing a file reset just put back, with "may be your own" wording only.** Rejected by the
+  owner (Q9): it still offered a person's own entries for deletion after a complete reset.
+- **List the recommended answer first.** Rejected by the owner: the pre-selected answer would then
+  be the one that writes whenever yes is recommended.
+- **Let the skill's agent word its own recommendation.** Rejected: the picker could not show the
+  same advice, and two sources would drift.
+
+## Consequences
+
+- An unattended `reset --yes` never removes an entry no profile recorded.
+- The preview grows by one row per such folder, and each defaults to keep.
+- Every caller that runs reset for a person asks the single question and each per-folder question
+  in the tool's own text, which the `--json` preview carries. The single question says it covers
+  only the files a profile record covers (a worktree copy adopted from its root file's record
+  included), and a per-folder question names the count and the first few
+  entries, the full list staying in the preview.
+
+## Revisit triggers
+
+- Records gain a way to be rebuilt after a fresh clone, so fewer folders lack one.
+- The owner finds the per-folder questions too many in practice.

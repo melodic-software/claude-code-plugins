@@ -540,13 +540,17 @@ test("a drift-shaped github-actions issue is a candidate; any other github-actio
     driftIssue(1),
     issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->" }),
     driftIssue(3, { title: "Upstream drift: sandcastle" }),
-    driftIssue(4, { body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
+    driftIssue(4, { title: "Upstream drift: playwright/playwright", body: "Upstream `playwright/playwright` no longer matches the copy vendored here." }),
+    driftIssue(9, { title: "Upstream drift: firecrawl/update", body: "Upstream `firecrawl/update` no longer matches the copy vendored here." }),
     driftIssue(5, { user: { id: OUTSIDER } }),
     driftIssue(6, { body: `<!-- factory-monitor key=x -->\n${DRIFT_LEAD_TEXT}` }),
+    driftIssue(7, { body: "Upstream `other/repo` no longer matches the copy vendored here." }),
+    driftIssue(8, { user: { id: OUTSIDER }, body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
   ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [1],
+    [1, 4],
+    "the hex-pin lead and a files-only row's vendored lead from github-actions[bot] are candidates; a package-installing row, another id or another author is not",
   );
 });
 
