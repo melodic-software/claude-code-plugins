@@ -341,12 +341,15 @@ Our rules:
   model-config's
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   table, pick the level whose described use fits the resumed task, and pass that level as
-  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
-  or verifies it is never given a level below medium; skip any row the table says is not an
-  effort level. The value is one level name of lowercase letters only, never free text, for the
-  same reason the topic slug is sanitized. The launch report names the level and quotes the
-  matched use. When the page cannot be read, say so, pass no `--effort`, and state that the
-  session will start at its default level.
+  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code or
+  verifies it is never given a level below medium: that is our marketplace's own effort floor,
+  which keeps `low` for chat-like exchanges and read-only mechanical work ("Effort floor" in
+  `docs/plugin-philosophy.md` in this plugin's marketplace repository). Skip any row the table
+  says is not an effort level.
+  The value is one level name of lowercase letters only, never free text, for the same reason
+  the topic slug is sanitized. The launch report names the level and quotes the matched use.
+  When the page cannot be read, say so, pass no `--effort`, and state that the session will start
+  at its default level.
 
   - **Pointer**: for choosing a level, see the table linked above; for the `--effort` flag, see
     [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).

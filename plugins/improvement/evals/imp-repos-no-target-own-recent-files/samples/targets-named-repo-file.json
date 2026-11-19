@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Dry run, 1 repository: peer/ledger-cli.\n\n**Target**: `src/report.js`, the most recently changed source file in ledger-cli.\n\n**Gap**: the rounding helper is copied into `src/export.js`. Basis: judgment.\n\n```diff\n-function roundAmount(n) {\n+const { roundAmount } = require('./balances');\n```\n\nNo branch, commit or PR: dry run."
+    },
+    {
+      "answer": "peer/ledger-cli: picked src/cli.js from that repository's last 30 days of history; proposed diff above. Nothing changed.",
+      "why": "short report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "peer/ledger-cli: no resolvable surface. The recent files (src/discount.js, src/late-fee.js) do not exist in that repository.",
+      "why": "pre-fix: the invoking repository's list applied to the named one"
+    },
+    {
+      "answer": "Target: README.md in peer/ledger-cli. No gap found.",
+      "why": "names no ledger-cli source file"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

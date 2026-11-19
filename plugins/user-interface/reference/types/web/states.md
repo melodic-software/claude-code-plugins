@@ -6,8 +6,8 @@ update, a copy button, a toast, a badge or a tag. The project's own state compon
 `EmptyState`, a skeleton, a toast library) and its copy conventions win over every rule here;
 suggest a change to them, never override them.
 
-The examples are React (JSX) and CSS. In another framework, keep the behavior and write it in that
-framework's own idiom.
+The examples show the behavior, not code to copy: write each rule in the project's own framework
+and its idiom.
 
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it, and what that finding looks like.
@@ -94,9 +94,8 @@ action shifts the layout.
 The network will fail on launch day. A view that renders nothing, spins forever, or crashes to a
 white screen when its request fails is broken for everyone on a train.
 
-**Hunt for:** data hooks whose `error` / `isError` is never read; `fetch` with no `.ok` check;
-routes with no `error.tsx` / error boundary / `errorElement`; no `not-found` page; "Something went
-wrong" with no next step.
+**Hunt for:** data fetches whose error state is never read; `fetch` with no `.ok` check; routes no
+error boundary covers; no not-found page; "Something went wrong" with no next step.
 
 An error state says what happened and offers a specific recovery: a retry button that refetches, a
 link back to somewhere that works. "Something went wrong" plus a back button ends the journey. The
@@ -107,22 +106,12 @@ Write the message in product terms. Never render the raw exception message, resp
 trace: it shows internals to whoever sees the screen. Log the detail, and where support needs it,
 show an id the person can quote.
 
-The hunt's file and prop names are search tokens for Next.js and React Router; in another router,
-hunt for its own error-route and not-found conventions. A failed form submit is the `forms` concern.
+Hunt for the error-route and not-found conventions of the project's router, as its documentation
+names them. A failed form submit is the `forms` concern.
 
 This section grades the failed view: the screen or panel the error replaced. The same generic
 string in a toast, a dialog or an inline message is graded once, as copy, under "Plain-language
 copy" in `../../principles.md`.
-
-- **Pointer**: Next.js, Error Handling, "Nested error boundaries" and "Not found" (the `error` and
-  `not-found` file conventions),
-  <https://nextjs.org/docs/app/getting-started/error-handling#nested-error-boundaries> and
-  <https://nextjs.org/docs/app/getting-started/error-handling#not-found>; React Router, `<Route>`
-  props `ErrorBoundary` and `errorElement` (the two are mutually exclusive),
-  <https://reactrouter.com/api/components/Route#errorboundary>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Next.js renames the `error` or `not-found` file convention, or React Router
-  drops `errorElement` or `ErrorBoundary` from the route props.
 
 **Audit: Blocking.** A view that renders nothing, spins forever or crashes to a white screen when
 its request fails; a route that no error boundary covers, its own or one above it; a failed view
@@ -137,19 +126,11 @@ trace.
 Silence past `states.wait_indicator_ms` reads as broken. The user clicks again or leaves. Keeping
 that second click from firing the request twice is the `forms` concern.
 
-**Hunt for:** data hooks whose `isLoading` / `isPending` is never read; route segments with no
-`loading.tsx` or `<Suspense fallback>`; buttons that start async work with no pending state;
-`fallback={null}`.
+**Hunt for:** data fetches whose pending state is never read; a route or a lazy boundary with no
+loading fallback, or an empty one; buttons that start async work with no pending state.
 
 The opposite is also a finding: a spinner that flashes for 80ms on a fast response. Delay the
 indicator by `animation.delay_ms.indicator` so fast responses never show it.
-
-- **Pointer**: Next.js, `loading.js` file convention, "Instant Loading States",
-  <https://nextjs.org/docs/app/api-reference/file-conventions/loading#instant-loading-states>;
-  React, `<Suspense>`, "Props" (`fallback`), <https://react.dev/reference/react/Suspense#props>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Next.js renames the `loading` file convention, or React renames the
-  `fallback` prop of `<Suspense>`.
 
 **Audit: Important.** A wait over `states.wait_indicator_ms` with no indicator, or an indicator
 that flashes on a fast response because nothing delays it.
@@ -159,8 +140,8 @@ that flashes on a fast response because nothing delays it.
 A spinner collapses the page to nothing, then the content arrives and everything jumps. A skeleton
 occupies the same box the loaded content will, so nothing moves when the data lands.
 
-**Hunt for:** a centered spinner as the loading state of a list, table, card grid, or page;
-`dynamic()` / `lazy()` imports with no sized fallback.
+**Hunt for:** a centered spinner as the loading state of a list, table, card grid, or page; lazy
+imports with no sized fallback.
 
 Spinners are right for an action inside a control (a submitting button). Skeletons are right for
 content.
@@ -168,17 +149,7 @@ content.
 This section chooses between a skeleton and a spinner. How big the skeleton is, its height and row
 count against the loaded content, is the `layout-stability` concern.
 
-`dynamic()` and `lazy()` are search tokens for Next.js and React; give the fallback wherever the
-framework takes a lazy import's loading UI.
-
-- **Pointer**: Next.js, Lazy Loading guide, "Adding a custom loading component" (the `loading`
-  option of `next/dynamic`),
-  <https://nextjs.org/docs/app/guides/lazy-loading#adding-a-custom-loading-component>; React,
-  `lazy`, "Lazy-loading components with Suspense" (the fallback comes from a `<Suspense>` boundary
-  above the lazy component), <https://react.dev/reference/react/lazy#suspense-for-code-splitting>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Next.js renames `next/dynamic` or its `loading` option, or React changes
-  where a `lazy` component's fallback comes from.
+Give the fallback wherever the framework takes a lazy import's loading UI.
 
 **Audit: Important.** A centered spinner as the loading state of a list, table, card grid or page.
 
@@ -190,19 +161,13 @@ Optimistic feels instant.
 An optimistic update that never reverts shows the user a lie: the item looks saved, the toggle looks
 on, and the server never heard about it.
 
-**Hunt for:** state set before an `await` with no `catch` restoring the previous value; `onMutate`
-with no `onError` rollback (React Query); `useOptimistic` with no error surface.
+**Hunt for:** state set before an `await` with no `catch` restoring the previous value; a data
+library's optimistic update with no rollback on error, or with no error surface.
 
 Fix: on failure, restore the previous value and say so ("Couldn't update. Try again.").
 
-Roll back through the library's own mechanism, which the page the pointer names describes. Where the library restores
-the previous value by itself, the fix still adds the message.
-
-- **Pointer**: when the update goes through TanStack Query, fetch TanStack Query, Optimistic
-  Updates, "Via the cache",
-  <https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates#via-the-cache>
-  live; when it goes through `useOptimistic`, fetch React, `useOptimistic`, "How optimistic state
-  works", <https://react.dev/reference/react/useOptimistic#how-optimistic-state-works> live.
+Roll back through the library's own mechanism, as its own documentation describes it. Where the
+library restores the previous value by itself, the fix still adds the message.
 
 **Audit: Important.** An optimistic update with no rollback on failure, or a failure that rolls back
 without telling the user.

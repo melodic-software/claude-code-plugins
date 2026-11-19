@@ -1195,6 +1195,9 @@ test('log reports a claude missing from PATH', posixOnly, async () => {
     await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl')]), {
       message: 'claude is not on PATH',
     });
+    await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl'), '--real-setup', '--launcher', 'profiles-typo']), {
+      message: 'profiles-typo is not on PATH',
+    });
   } finally {
     process.env.PATH = saved;
     rmSync(box.root, { recursive: true, force: true });

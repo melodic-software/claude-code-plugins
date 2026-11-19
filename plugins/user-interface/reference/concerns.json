@@ -81,10 +81,6 @@
         {
           "path": "reference/types/web/component-api.md",
           "read_when": "always"
-        },
-        {
-          "path": "reference/types/web/component-api/implementation.md",
-          "read_when": "the component is written in React"
         }
       ],
       "recipes": [],
@@ -179,10 +175,6 @@
         {
           "path": "reference/types/web/typography/details-and-floors.md",
           "read_when": "underlines, text selection, placeholders, carets, font smoothing, decorative text or minimum text sizes are set or reviewed"
-        },
-        {
-          "path": "reference/types/web/typography/tailwind.md",
-          "read_when": "detect reports Tailwind"
         }
       ],
       "recipes": [
@@ -238,10 +230,6 @@
         {
           "path": "reference/types/web/color/gamut-and-p3.md",
           "read_when": "high chroma, Display P3, or a browser target without oklch()"
-        },
-        {
-          "path": "reference/types/web/color/tailwind.md",
-          "read_when": "detect reports Tailwind"
         }
       ],
       "recipes": [

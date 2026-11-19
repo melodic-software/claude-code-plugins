@@ -26,7 +26,8 @@ if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   # shellcheck source=hook-utils.sh
   source "$HOOK_DIR/hook-utils.sh"
-  err="$(hook::git_untrusted_env && "${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  hook::git_untrusted_env || exit 0
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
   report=""
   while IFS= read -r line; do
     case "$line" in

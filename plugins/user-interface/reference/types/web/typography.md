@@ -37,7 +37,6 @@ is the source for these conditions.
 | `typography/scale-and-rhythm.md` | a type scale, text units, line height, paragraph spacing, letter spacing or text-box trimming is set |
 | `typography/line-behavior.md` | line length, wrapping, truncation, text alignment, casing, typographic characters, language or direction is set or reviewed |
 | `typography/details-and-floors.md` | underlines, text selection, placeholders, carets, font smoothing, decorative text or minimum text sizes are set or reviewed |
-| `typography/tailwind.md` | detect reports Tailwind |
 
 Other concerns own their lines, one home each: input text size on phones is the `touch` concern,
 text contrast (body, large text, placeholders, both themes) is the `color` concern, layout that

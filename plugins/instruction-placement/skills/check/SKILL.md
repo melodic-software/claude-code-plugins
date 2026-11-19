@@ -30,12 +30,11 @@ A gate, not an audit. It answers one question with one exit code: **would every 
 instruction surface in this repository actually load when it is supposed to, and does the
 always-loaded index still describe what is on disk?**
 
-It exists because every failure mode here is silent: a glob that matches nothing, a malformed
-bracket expression, a pattern over the brace budget (how Claude Code treats one:
-[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules)).
-The rule simply never fires, and the convention it carries is quietly
-absent from every session that needed it. A repository can accumulate a dozen dead rules and look
-healthy.
+It fails a glob that matches nothing, a malformed bracket expression and a pattern over the brace
+budget, whatever Claude Code reports for each (how it treats one:
+[Memory, "Path-specific rules"](https://code.claude.com/docs/en/memory#path-specific-rules)),
+because a rule that never fires leaves its convention absent from every session that needed it,
+and a repository can accumulate a dozen dead rules and look healthy.
 
 Wire it into CI beside the linters. It is fast, deterministic, and has no judgment layer to drift.
 
@@ -189,9 +188,9 @@ do about it**. The three failure statuses have different fixes and saying "inval
   reachability verdict is the false assurance the previous point warns about. `NATIVE` is the
   honest middle verdict, not a pass: it says only that nothing in the repository blocks the target,
   which is all a static check can see. `verify-load.sh` is what answers whether it actually loaded.
-- **Rules discovery follows symlinks and does not require git.** A symlinked rule may point outside the
-  repository to share one rule set across projects
-  ([Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks)),
-  so it is never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
-  vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
+- **Rules are checked as found on disk, following symlinks, with no git lookup.** A rule set shared
+  across projects by symlink (how Claude Code loads one:
+  [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks))
+  is checked even though git does not track its target. Nested instruction files are the opposite:
+  tracked-only, because an untracked or vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
   seems missing from a report, check which of the two rules applies before assuming a bug.

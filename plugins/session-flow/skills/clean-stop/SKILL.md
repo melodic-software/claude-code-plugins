@@ -132,11 +132,9 @@ do not manufacture work to look thorough.
 
 ## Verification record: `/export`
 
-- **Our decision.** This skill suggests `/export` to the person and never runs it: we treat it as an interactive built-in the Skill tool cannot invoke, and a command that is not available to the person is left out of the menu.
-- **Probe observation.** An ad-hoc run of `claude --bare -p "/export <path>"` on Claude Code 2.1.241 (2026-08-24) refused the command headless, and the command's invocation mode read as interactive on 2.1.263 (2026-09-11). No `/harness-ops:behavior-probes` record covers this yet.
-- **Pointer**: the `/export` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands), for what the command does.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that row or a release note adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+- **Our decision.** This skill suggests `/export` to the person and never runs it: we treat it as an interactive built-in the Skill tool cannot invoke and a headless run cannot reach, and a command that is not available to the person is left out of the menu.
+- **Probe record**: the `export` → `session-flow:clean-stop` entry of `docs/native-surfaces.md` in this plugin's marketplace repository holds the headless refusal, the invocation mode, and the trigger that reopens this decision.
+- **Pointer**: when deciding whether `/export` can run headless or take a format or redaction flag, fetch the `/export` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) live.
 
 ## What this skill does not do
 

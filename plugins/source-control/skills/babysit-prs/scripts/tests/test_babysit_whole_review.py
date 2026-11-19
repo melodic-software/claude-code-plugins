@@ -372,10 +372,45 @@ class Limits(unittest.TestCase):
         self.lane_left = self.job_left = 1500
         self.assertIsNone(self.limits())
 
-    def test_a_refusal_also_spends_the_sweep(self) -> None:
+    def test_a_refusal_leaves_the_sweep_to_the_next_candidate(self) -> None:
         self.lane_left = 1499
         self.assertEqual(self.limits(), "rate-limit:lane:core:1499/5000")
+        self.lane_left = 5000
+        self.assertIsNone(self.limits())
         self.assertEqual(self.limits(), "sweep-limit")
+
+    def test_a_running_jobs_refusal_leaves_the_sweep(self) -> None:
+        self.jobs = {1: ["in_progress"] * 30, 2: ["queued"] * 5}
+        self.assertEqual(self.limits(), "running-jobs:35")
+        self.jobs = {1: ["in_progress"], 2: ["queued"]}
+        self.assertIsNone(self.limits())
+
+    def test_a_spent_sweep_reads_nothing(self) -> None:
+        self.assertIsNone(self.limits())
+        self.calls.clear()
+        self.assertEqual(self.limits(), "sweep-limit")
+        self.assertEqual(self.calls, [])
+
+    def test_three_candidates_the_first_refused_for_budget(self) -> None:
+        env = {wr.SPENT_ENV: self.spent, wr.JOB_TOKEN_ENV: "job"}
+        at = datetime(2026, 11, 18, 22, 28, tzinfo=UTC)
+        answers = []
+        with (
+            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch.object(wr, "gh_capture", side_effect=self._capture),
+            mock.patch.object(wr, "lane_toggles", return_value=0),
+        ):
+            for head, job_left in (("a" * 40, 350), ("b" * 40, 5000), ("c" * 40, 5000)):
+                self.job_left = job_left
+                answers.append(wr.request("o/r", "reasons", head, "PR", "lanes", at)[1])
+        self.assertEqual(
+            answers,
+            [
+                {"toggled": False, "skipped": "rate-limit:job:core:350/5000"},
+                {"toggle": True},
+                {"toggled": False, "skipped": "sweep-limit"},
+            ],
+        )
 
     def test_a_1000_call_job_token_with_400_left_is_allowed(self) -> None:
         # GITHUB_TOKEN outside Enterprise Cloud: 1,000 calls an hour.

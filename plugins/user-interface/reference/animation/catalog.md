@@ -110,10 +110,10 @@ looks cool: none of the purposes above applies.
 ## Cheapest tool: `cheapest-tool`
 
 Before writing any animation code, check what the project already uses: plain CSS
-transitions/keyframes, Tailwind, Motion (`motion`/`framer-motion` in package.json), React Spring, or
-WAAPI. Write animations in that system. Never add an animation library for something CSS
-transitions can do, and never hand-roll spring physics when Motion is already installed. The same
-holds for any spring library the project already has.
+transitions/keyframes, a utility-class system's transition classes, an animation or spring library
+in its manifests, or WAAPI. Write animations in that system. Never add an animation library for
+something CSS transitions can do, and never hand-roll spring physics when a spring library, or an
+animation library with springs, is already installed.
 
 Walk down the ladder and stop at the first rung that does the job. The rungs are kinds of tool; the
 project's stack names its own.
@@ -323,8 +323,8 @@ velocity when retargeted. Parameters, velocity hand-off and drag details are in 
   takes the entrance's path, runs shorter (`duration`) and is quieter; its distance and curve are
   `behaviors.md` `exit`.
 - **Exits exist.** An element that animates in and then vanishes instantly severs the spatial
-  context the entrance built. In React the cause is usually conditional rendering with no presence
-  wrapper: the node unmounts before any exit can play.
+  context the entrance built. In a component framework the cause is usually conditional rendering
+  with no presence wrapper: the node unmounts before any exit can play.
 - **Masking a crossfade that will not settle.** When two overlapping states stay visible however
   the easing and duration are tuned, a small blur during the transition blends them into one
   perceived change. Keep it small: blur cost grows with radius and area (`performance.md`).
@@ -351,9 +351,9 @@ a fixed-duration tween instead of a spring. Rapidly-triggered or gesture motion 
 transitions or springs that retarget, not `@keyframes` restarting from zero.
 
 **Audit: Important.** An entrance with no exit: a conditionally rendered element with an exit
-defined but nothing that keeps it mounted while the exit plays (in Motion for React, an `exit` prop
-with no `AnimatePresence` ancestor, so the `exit` is silently dead), or CSS enter keyframes with
-`display: none` on close.
+defined but nothing that keeps it mounted while the exit plays (an animation library's exit with no
+presence wrapper of the kind that library needs, so the exit is silently dead), or CSS enter
+keyframes with `display: none` on close.
 
 ## Page load: `page-load`
 
@@ -484,30 +484,13 @@ fades; a multi-step form that slides crossfades instead. Never zero out feedback
 - Avoid large moving backgrounds, slow looping oscillations and abrupt brightness jumps even
   without the setting.
 - How the stack reads the setting (a media query, a platform accessibility API, a library hook) is
-  a lookup for the stack's own docs. In Motion for React, read when the project lists `motion` or
-  `framer-motion`: gate `initial`/`animate` values with `useReducedMotion()`, and honor the OS
-  setting app-wide with `<MotionConfig reducedMotion="user">`, set explicitly rather than left to
-  the library's default (pointer below).
-
-Illustration (React with Motion; adapt to the stack):
-
-```tsx
-const reduce = useReducedMotion();
-<motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} />
-
-const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-<video autoPlay={!prefersReducedMotion} controls={prefersReducedMotion} muted playsInline />
-```
+  a lookup for the stack's own docs. In script, read it with
+  `window.matchMedia("(prefers-reduced-motion: reduce)")`. Where an animation library has an
+  app-wide reduced-motion setting, set it explicitly to follow the OS setting rather than leave it
+  at the library's default, which its own documentation states.
 
 Verify with the browser's rendering tools, emulating `prefers-reduced-motion: reduce`. The common
 failure is a "reduced" variant that still moves because one transform lives in a shared class.
-
-- **Pointer**: Motion, "MotionConfig", props, `reducedMotion` (options and the `"never"` default),
-  <https://motion.dev/docs/react-motion-config#reducedmotion>; Motion, "Accessibility",
-  <https://motion.dev/docs/react-accessibility#automatic>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: Motion changes the `reducedMotion` default or its options, or renames
-  `useReducedMotion`.
 
 **Audit: Blocking.** Large movement (a slide, a scale-in of a panel, parallax, a full-screen
 transition, an autoplaying video or animated image) with no `prefers-reduced-motion` handling or
@@ -526,10 +509,8 @@ because a press is real on touch. Touch and small-screen behavior, and the findi
 hover, are the `touch` concern (`../types/touch-web.md`).
 
 A utility framework's hover variant may gate only half of that query: read what the project's
-version compiles to (pointer below) and add the `pointer: fine` half where it is missing.
-
-- **Pointer**: Tailwind CSS, "Hover, focus, and other states", "Quick reference" (the `hover` row),
-  <https://tailwindcss.com/docs/hover-focus-and-other-states#quick-reference>.
+version compiles to, in that framework's own documentation, and add the `pointer: fine` half where
+it is missing.
 
 Hover motion doesn't make the target run away. An element that translates or scales on hover moves
 its own hit area. At the edge, the cursor falls off, hover ends, the element returns, hover starts
