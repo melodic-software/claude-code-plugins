@@ -33,7 +33,6 @@ function ifAt(lines, at, indent) {
   return gate.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
 }
 
-// A job's needs and if:, single-line or folded, as written.
 function gateOf(block) {
   const needsLine = block.find((line) => /^ {4}needs: /.test(line));
   const needs = needsLine ? needsLine.slice("    needs: ".length).replace(/^\[|\]$/g, "").split(",").map((n) => n.trim()).filter(Boolean) : [];
