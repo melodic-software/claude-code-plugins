@@ -2,6 +2,7 @@
 # test-scope: plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/skills/remove-comments/scripts/settings.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$HERE/comment-settings.sh"

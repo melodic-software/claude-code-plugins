@@ -66,6 +66,8 @@ while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 cd "$TMP" || exit 1
 
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
   mkdir -p "$1"

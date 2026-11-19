@@ -56,6 +56,8 @@ command_not_found_handle() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
   mkdir -p "$1"

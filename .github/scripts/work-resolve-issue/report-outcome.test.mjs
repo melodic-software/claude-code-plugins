@@ -65,6 +65,8 @@ import { STOP_ROUTES } from "./stop-routes.mjs";
 import { STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 // The real Work status reader (read-status.mjs statusReader) over field reads
 // that `fields` answers (read-status.fixtures.mjs withFields); it makes no

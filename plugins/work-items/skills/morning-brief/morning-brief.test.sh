@@ -10,6 +10,7 @@ set -uo pipefail
 # absolute GIT_DIR would redirect that fixture's writes into the caller's
 # clone, so the inherited git environment is cleared before anything runs.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRIEF="$SCRIPT_DIR/scripts/morning-brief.sh"

@@ -4,6 +4,7 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 # The cloud proxy injects url.*.insteadOf rewrites through GIT_CONFIG_*; they
 # are irrelevant to local fixtures, but a stray GIT_CONFIG_COUNT with missing
 # pairs makes git refuse to run at all.

@@ -16,6 +16,7 @@
 # GIT_CONFIG is a DISTINCT leak path: it replaces the file the `git config`
 # subcommand reads and writes, independently of -C and of GIT_DIR.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 # Strip what a Claude Code session exports, so a suite run from one matches CI.
 # CLAUDE_PLUGIN_DATA (another plugin's, leaked) latches hook::notice_once across

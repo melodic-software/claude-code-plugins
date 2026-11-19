@@ -36,6 +36,8 @@ import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 // The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
 process.env.TMPDIR = tempDir("callers-tmp-");

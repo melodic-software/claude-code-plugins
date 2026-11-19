@@ -8,6 +8,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { judgeProbe } from "./policy-probe.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const ROOT = "/home/runner/actions-runner";
 const CALLS = [

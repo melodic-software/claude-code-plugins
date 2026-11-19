@@ -10,6 +10,8 @@ import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-outp
 import { tempDir } from "../../lib/test-tmp.mjs";
 import { ENTRY, LANE_WORKFLOWS, main, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
 import { CAP_BYTES, parseArtifactName, paths, prune, query, readOutcomes, readRows, traceIdOf, transcriptMetrics, writeRows } from "./store.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const MARKER = "plaintext-marker-5d21";
 const NOW = Date.parse("2026-11-02T12:00:00Z");

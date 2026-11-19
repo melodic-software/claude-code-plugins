@@ -35,6 +35,8 @@ import babysit_verify_evidence as ve  # noqa: E402
 # first (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_git_var
 
 REPO = "example-org/example-repo"
