@@ -77,6 +77,7 @@ def test_the_committed_cases_are_the_known_set():
     assert CASE_NAMES == sorted(
         [
             "re-decision-trimmed-to-fit",
+            "re-rule-after-size-fail",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
@@ -105,9 +106,13 @@ def test_same_spec_same_bytes(tmp_path):
 
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path):
-    _, chain, _ = built[name]
+    spec, chain, _ = built[name]
     projects = chain[0].parents[1] / "predecessor-transcripts"
-    for path in chain:
+    stated = {
+        int(item["hop"]): item["fail"]
+        for item in spec["seed"]["predecessor"].get("expected_fail", [])
+    }
+    for hop, path in enumerate(chain, 1):
         done = subprocess.run(
             [
                 sys.executable,
@@ -122,7 +127,12 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
             text=True,
             encoding="utf-8",
         )
-        assert done.returncode == 0, done.stdout
+        if hop in stated:
+            fails = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL:")]
+            assert done.returncode == 1 and fails, done.stdout
+            assert all(re.search(stated[hop], ln) for ln in fails), done.stdout
+        else:
+            assert done.returncode == 0, done.stdout
         assert "secret-shaped" not in done.stdout
     # A successor built on the newest file must not see a failed predecessor, which
     # would stamp every carried entry UNVERIFIED and change the before arm.

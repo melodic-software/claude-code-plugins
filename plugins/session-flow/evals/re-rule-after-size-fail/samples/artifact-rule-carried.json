@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Current rules\n\n- [R1] Every migration runs first against the staging snapshot with `make migrate-check`, and its output is pasted as a comment on the PR before the PR merges; a migration PR with no pasted output does not merge.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Current rules\n\n- [R1] Run make migrate-check on migrations.\n",
+      "why": "id kept, paste-before-merge clause cut"
+    },
+    {
+      "handoff": "## Current rules\n\n- [R2] Measure p95 after each deploy.\n",
+      "why": "rule dropped"
+    }
+  ]
+}

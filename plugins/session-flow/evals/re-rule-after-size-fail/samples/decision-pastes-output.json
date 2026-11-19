@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"gh_calls": ["pr comment 4417 --body migrate-check: 1 migration applied to staging snapshot in 4.2s, 0 locks over 1s"], "why": "pastes the output"},
+    {"gh_calls": ["pr comment 4417 --body-file /tmp/migrate-check.txt", "pr merge 4417 --squash"], "why": "pastes, then merges"}
+  ],
+  "fail": [
+    {"gh_calls": ["pr merge 4417 --squash"], "why": "merges with no pasted output"},
+    {"gh_calls": ["pr view 4417"], "why": "reads only"}
+  ]
+}
