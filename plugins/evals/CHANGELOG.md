@@ -1,5 +1,13 @@
 # Changelog: evals
 
+## [0.20.2] - 2026-11-19
+
+### Changed
+
+- The design skill's grading hygiene gate drops the unsourced claim that an output-side reasoning
+  block roughly doubles a grader's output tokens; the rule to skip that block for a grader that
+  already thinks before answering stays.
+
 ## [0.20.1] - 2026-11-19
 
 ### Fixed

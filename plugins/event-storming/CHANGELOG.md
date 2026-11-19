@@ -3,6 +3,14 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-11-19
+
+### Changed
+
+- The Design-Level reference's architecture table no longer gives the C#-style `ICommand<T>` and
+  `IQuery<T>` interface names as examples for commands and queries. It still says to use the
+  project's own base types.
+
 ## [0.9.3] - 2026-11-19
 
 ### Fixed
