@@ -147,3 +147,29 @@ EOF
 
 git add .
 git commit -q -m "feat(orders): create-order route"
+
+mkdir -p .work/robust-http-apis-hale
+printf '%s\n' '*' >.work/.gitignore
+cat >.work/robust-http-apis-hale/course-digest-checklist.md <<'EOF'
+# /knowledge:course-digest Checklist
+
+Copy into `<work-root>/.work/<slug>/course-digest-checklist.md`. Tick each phase as it completes; skip per the criteria below.
+
+## Phases (`[full-context]` synthesis requires transcript + frames + code)
+
+- [x] Phase 1: Discover course structure (modules, lessons, URLs) → `course.json`
+- [x] Phase 2: Extract per-lesson transcript, screenshots, notes, code references
+- [x] Phase 2b: Process frames: classify, dedup (report-only), manifests (needs ffmpeg + ImageMagick)
+- [x] Phase 2c: Download resources + analyze companion code repo
+- [x] Phase 2d: Validate with `validate-extraction.js` quality checks before synthesis
+- [x] Phase 3: Synthesize per-module multi-agent summaries
+- [x] Phase 4: Analyze, producing course-level synthesis and cross-cutting themes
+- [ ] Phase 5: Recommend what applies to this repo (`repo-candidates.md`, `action-items.md`)
+
+## Skip criteria
+
+- Phase 2 screenshots/frames: skip for lessons with no visual content (summaries become `[transcript-only]`)
+- Phase 2b: skip when no frames were extracted
+- Phase 2c: skip when no companion repo or downloadable resources exist
+- `extract` action stops after Phase 2d; `analyze` action starts at Phase 3 on already-extracted content
+EOF
