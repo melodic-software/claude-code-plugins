@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for emit-findings.sh. Fixtures are built inline in a
-# tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
-#
 # Two load-bearing groups here. First, the relay boundary: only
 # fingerprint-confirmed copies, the two deterministic stamp rules, and a restated
 # fact carrying a declared unanimous-and-refutation-survived outcome may reach
@@ -26,42 +23,15 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 SKIPPED=0
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
 # A case whose subject this host cannot build is neither a pass nor a failure:
 # it never routes through pass(), so the summary cannot count it as run.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $3" "exit $2"; fi
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
-  esac
 }
 assert_match() {
   if [[ "$2" =~ $3 ]]; then pass "$1"; else fail "$1" "matches: $3" "$2"; fi

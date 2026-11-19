@@ -22,12 +22,8 @@ SUT="$SCRIPT_DIR/check-dispatch-artifact.sh"
 WORKROOT="$(mktemp -d)"
 trap 'rm -rf "$WORKROOT"' EXIT
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # run_raw <expected-exit> <label> [args...] — argv exactly as given, for the
 # cases about the argument vector itself.
