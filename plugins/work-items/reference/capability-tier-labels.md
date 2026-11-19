@@ -34,9 +34,9 @@ When an item genuinely needs the frontier quota guard and lacks the label:
    the repo cannot provision it; the work-loop lane treats the item as general tier until triage
    (or an operator) applies the label.
 3. **Label-as-code owner.** Route provisioning to the repository the `label_as_code_repo` key of
-   `docs/conventions/work-items.yaml` names (read it with
-   `skills/triage/scripts/parse-concern-value.sh docs/conventions/work-items.yaml label_as_code_repo`;
-   empty output: no owner is declared). This plugin never creates the label ad hoc when
+   `docs/conventions/work-items.yaml` names. From the repository root, run
+   `bash "<plugin-root>/skills/triage/scripts/parse-concern-value.sh" docs/conventions/work-items.yaml label_as_code_repo`,
+   `<plugin-root>` being this plugin's root directory; empty output means no owner is declared. This plugin never creates the label ad hoc when
    label-as-code owns writes.
 
 ## Migration

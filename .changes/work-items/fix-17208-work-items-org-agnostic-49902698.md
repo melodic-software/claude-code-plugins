@@ -18,3 +18,11 @@ bump: minor
   workflow list, lane-outcome links, label-as-code repository or account
   tool link; this repository sets its own values in
   docs/conventions/work-items.yaml.
+
+### Fixed
+
+- give label_as_code_repo a runnable read and name only its reader
+
+  capability-tier-labels.md and the schema run parse-concern-value.sh from
+  <plugin-root>, as ai-disclaimer.md does. The morning brief's record field
+  list names v and the credential fields it reads.

@@ -1360,9 +1360,6 @@ EOF
 cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
-# Lanes, live: ci.yml is not a default lane workflow and is dropped. The
-# intake-triage run in the window failed on the limit, read through its job's
-# annotations.
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
 {"total_count": 4, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}, {"path": ".github/workflows/pr-review-main.yml"}]}
 EOF
