@@ -598,10 +598,12 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         return state
 
     with locked(paths.lock):
-        state = change(read_state(paths) or {})
+        previous = read_state(paths)
+        reconciling = status_of(previous) is Status.ACTIVE
+        state = change(previous or {})
         report = Path(state["report_path"])
         report.parent.mkdir(parents=True, exist_ok=True)
-        if report.exists():
+        if reconciling and report.exists():
             text = report.read_text(encoding="utf-8")
             updated = rewrite_header(text, state)
             if updated != text:

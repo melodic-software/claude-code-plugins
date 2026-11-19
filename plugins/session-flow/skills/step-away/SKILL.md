@@ -103,20 +103,22 @@ evidence is checked.
 
 ## Gotchas
 
-- The away hooks (PermissionRequest, Elicitation, Stop, UserPromptSubmit) are plugin hooks in
-  `hooks/hooks.json`, so they run in every session, survive a resume or restart and reach
-  subagents; each does nothing unless this session's absence is active. Skill-frontmatter hooks
-  would not do: they are dropped when the process restarts and get no `CLAUDE_PLUGIN_DATA`.
-- A sandboxed command's network prompt never reaches a hook, so it cannot be refused and waits for
-  the person. Pointer:
+- We keep the away hooks (PermissionRequest, Elicitation, Stop, UserPromptSubmit) in the
+  plugin's `hooks/hooks.json`, not in this skill's frontmatter, and each does nothing unless this
+  session's absence is active. Pointers: when checking what skill hooks are limited to, fetch
+  <https://code.claude.com/docs/en/hooks#limits-on-skill-hooks>; for which hooks get the plugin
+  data directory, <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>;
+  the live run behind the choice is in this skill's pull request, melodic-software/claude-code-plugins#17337.
+- Warn the person at launch that a sandboxed command's network prompt is not ours to refuse.
+  Pointer: when checking which prompts reach the hook, fetch
   <https://code.claude.com/docs/en/hooks#permissionrequest>.
-- While the absence is active the PermissionRequest hook answers every prompt, which changes what
-  the bypass-permission modes do for the rest of it. Pointer:
+- Before launching an absence in a bypass-permission mode, check how that mode treats a
+  PermissionRequest hook: fetch
   <https://code.claude.com/docs/en/permission-modes#skip-all-checks-with-bypasspermissions-mode>.
-- Keep the machine awake: a sleeping machine stops the run.
-- With the Bash sandbox on, the plugin data directory is read-only inside it, so every `away.py`
-  call that writes (`start`, `refresh`, `end`, `deliver`) has to run outside the sandbox. Where
-  that asks the person, run `start` while they are here; during the absence a write that would ask
-  is refused, so the report goes stale while the hooks, which run outside the sandbox, keep working.
+- Keep the machine awake for the whole absence.
+- With the Bash sandbox on, run every `away.py` call that writes (`start`, `refresh`, `end`,
+  `deliver`) outside the sandbox, and run `start` while the person is here in case that asks.
+  Pointer: when checking where sandboxed commands may write, fetch
+  <https://code.claude.com/docs/en/sandboxing#filesystem-isolation>.
 - A second `/session-flow:step-away` during an active absence reconciles with it and keeps its
   report; one after the absence ended starts a new absence with a new report.

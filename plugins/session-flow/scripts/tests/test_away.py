@@ -381,6 +381,19 @@ def test_start_twice_rewrites_header(ctx):
     assert "hand-written note" in lines, "the rest of the report is kept"
 
 
+def test_new_absence_starts_a_fresh_report(ctx):
+    ctx.start()
+    report = ctx.report()
+    report.write_text(report.read_text(encoding="utf-8") + "\nleft over from the last absence\n", encoding="utf-8")
+    assert ctx.cli("end").returncode == 0
+    assert ctx.cli("deliver").returncode == 0
+    ctx.start("--kind", "until", "--until", "2099-01-02T07:30:00+00:00")
+    assert ctx.report() == report, "the session-local report path is reused"
+    text = report.read_text(encoding="utf-8")
+    assert "left over from the last absence" not in text, "a new absence does not inherit the delivered report"
+    assert f"- Started: {ctx.state()['started']}" in text.splitlines(), "the header names the new absence's start"
+
+
 def test_report_path_not_ignored(ctx):
     ctx.start()
     assert ctx.report() == ctx.state_dir / "report.md", "not git-ignored: the report stays beside the state"
