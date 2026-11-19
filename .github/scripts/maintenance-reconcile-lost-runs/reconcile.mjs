@@ -61,7 +61,7 @@
 //   pass. A run held again at attempt 2 waits for the
 //   head's next checks run. A pr-rate-merge-risk run the lanes kill switch
 //   stopped is taken the same way: it succeeds with no rating, its resolver
-//   skipped in every leg that ran (RATER_RESOLVE_STEP). This script reads
+//   skipped in the last leg that ran (RATER_RESOLVE_STEP). This script reads
 //   nothing while the switch is on, so its first pass after the switch lifts
 //   re-runs it, once, at attempt 1 only.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
@@ -404,11 +404,14 @@ export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".gi
 /**
  * The rater's kill-switch step and the resolver it gates: a rater run the
  * lanes kill switch stopped succeeds with the switch step run and the resolver
- * skipped in every leg that ran, and rates nothing (pr-rate-merge-risk.yml's
- * report-only stop).
+ * skipped in the last leg that ran, and rates nothing (pr-rate-merge-risk.yml's
+ * report-only stop). An earlier leg hands off only when it did not rate, so a
+ * switch set between legs still leaves the run unrated.
  */
 export const RATER_SWITCH_STEP = "Check the kill switch";
 export const RATER_RESOLVE_STEP = "Resolve the pull request";
+/** The rater's legs by job name, in the order each hands off to the next. */
+export const RATER_LEGS = ["Rate Merge Risk", "Rate Merge Risk Subscription", "Rate Merge Risk Fallback"];
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.
@@ -1017,13 +1020,12 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   if (run.path === RATER) {
     const whole = wholeListing(listing) && listing.jobs.every((job) => stepsKnown(job));
     const ran = listing.jobs.filter((job) => Array.isArray(job?.steps) && job.steps.length > 0);
+    const legs = ran.map((job) => RATER_LEGS.indexOf(job.name));
+    const last = legs.includes(-1) ? undefined : ran[legs.indexOf(Math.max(...legs))];
     const stopped =
-      ran.length > 0 &&
-      ran.every(
-        (job) =>
-          job.steps.some((step) => step?.name === RATER_SWITCH_STEP && step.conclusion === "success") &&
-          job.steps.some((step) => step?.name === RATER_RESOLVE_STEP && step.conclusion === "skipped"),
-      );
+      last !== undefined &&
+      last.steps.some((step) => step?.name === RATER_SWITCH_STEP && step.conclusion === "success") &&
+      last.steps.some((step) => step?.name === RATER_RESOLVE_STEP && step.conclusion === "skipped");
     if (stopped && whole && typeof run.updated_at === "string") {
       keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true });
     }

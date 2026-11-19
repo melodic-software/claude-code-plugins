@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -3698,6 +3698,18 @@ test("a stopped merge-risk run is not read while the lanes kill switch is on, no
   assert.deepEqual(again.calls.filter((c) => c.startsWith("POST ")), []);
 });
 
+test("a merge-risk run the switch stopped in the leg its key leg handed off to is re-run, not settled", async () => {
+  const stopped = recordedRater("switch-stopped-44405002826");
+  const [key, subscription, fallback] = stopped.jobs;
+  const resolvedKey = { ...key, steps: key.steps.map((step) => (step.name === RATER_RESOLVE_STEP ? { ...step, conclusion: "success" } : step)) };
+  const stoppedSubscription = { ...subscription, conclusion: "success", steps: key.steps };
+  const handedOff = { ...stopped, jobs: [resolvedKey, stoppedSubscription, fallback] };
+  const { code, reruns, settled } = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, handedOff], now: PASS_2212, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [44405002826]);
+  assert.deepEqual(settled.runs, []);
+});
+
 test("a merge-risk run whose resolver ran is not re-run and is settled, so its jobs are read once", async () => {
   const resolved = recordedRater("resolved-44405353994");
   const { code, calls, settled } = await reconcile({ pulls: [stoppedPull], runs: [stoppedChecks, resolved], now: PASS_2212, carry: null });
@@ -3709,6 +3721,7 @@ test("a merge-risk run whose resolver ran is not re-run and is settled, so its j
 test("pr-rate-merge-risk still gates its resolver on the kill-switch step the reconciler reads, in every leg", () => {
   const legs = verifyLegs("pr-rate-merge-risk.yml");
   assert.equal(legs.length, 3);
+  assert.deepEqual(legs.map(({ body }) => /^ {4}name: (.*)$/m.exec(body)?.[1]), RATER_LEGS);
   for (const { name, body } of legs) {
     const steps = legSteps(body);
     const kill = steps.find((s) => s.startsWith(`      - name: ${RATER_SWITCH_STEP}\n`));
