@@ -301,7 +301,7 @@ jobs:
           role: automations
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.generate-next-leg }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # The plugin loads from a read-only copy of main's under the workspace,
       # the one tree run-claude-cli's file tools reach.
@@ -1239,7 +1239,7 @@ jobs:
           role: automations
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.triage-next-leg }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Download the executed mutants
         if: steps.credential.outputs.present == 'true'

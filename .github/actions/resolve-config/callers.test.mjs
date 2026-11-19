@@ -11008,7 +11008,7 @@ test("the credit window check names a drifted default, a missing input, a check-
   assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"]);
 });
 
-const KEYS_DISABLED = "${{ vars.CLAUDE_API_KEYS_DISABLED }}";
+const KEYS_DISABLED = "${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}";
 function keyOffProblems(files, load) {
   const problems = [];
   for (const file of files) {

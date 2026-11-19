@@ -202,7 +202,7 @@ jobs:
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Download the edit
         if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'

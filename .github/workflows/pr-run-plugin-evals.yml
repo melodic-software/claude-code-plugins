@@ -344,7 +344,7 @@ jobs:
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # The plugin under test on a pull request: the label-time head, with full
       # history so the next step diffs this same commit against its base. A

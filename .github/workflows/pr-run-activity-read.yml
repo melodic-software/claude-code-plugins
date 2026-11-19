@@ -1766,7 +1766,7 @@ jobs:
           role: ${{ inputs.role }}
           credential-set: ${{ secrets.claude-api-key != '' }}
           selected: ${{ needs.check-broker.outputs.skip-key == 'true' && 'subscription' || '' }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Check the OAuth token
         id: token-present

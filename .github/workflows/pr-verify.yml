@@ -371,7 +371,7 @@ jobs:
           role: pr-verify
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: ${{ steps.credit.outputs.next-leg }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # The skipped key leg's lane record: outcome skipped, class credit-stop,
       # handed off, so leg counts before and after the gate compare.

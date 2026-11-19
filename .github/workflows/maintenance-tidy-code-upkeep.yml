@@ -280,7 +280,7 @@ jobs:
           leg: key
           role: automations
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
-          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       # The plugin and the prompt, written from main before the root checkout
       # replaces .base.
