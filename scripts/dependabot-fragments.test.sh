@@ -131,6 +131,11 @@ mapfile -t dirs < <(awk '
   /^    directory: \/plugins\//{print e " " $2}
   in_dirs && /^      - \/plugins\//{print e " " $2}
 ' "$SELF_DIR/../.github/dependabot.yml")
+# A looser count of every /plugins/ path value outside comments, in any layout
+# (a directory: value, a block-list item, a flow-list item). When the awk above
+# stops matching a layout, its list falls short of this count and the test fails
+# instead of silently checking fewer directories.
+expected="$(awk '!/^[[:space:]]*#/{n += gsub(/(^|[[:space:][,"])\/plugins\//, "&")} END{print n + 0}' "$SELF_DIR/../.github/dependabot.yml")"
 missed="" checked=0
 for entry in "${dirs[@]}"; do
   eco="${entry%% *}" dir="${entry#* /}"
@@ -152,10 +157,10 @@ for entry in "${dirs[@]}"; do
     done
   done
 done
-if [[ ${#dirs[@]} -gt 0 && $checked -ge ${#dirs[@]} && -z "$missed" ]]; then
+if [[ ${#dirs[@]} -gt 0 && ${#dirs[@]} -eq $expected && $checked -ge ${#dirs[@]} && -z "$missed" ]]; then
   ok "the push paths cover every manifest Dependabot bumps under plugins/ ($checked files in ${#dirs[@]} directories)"
 else
-  fail "push paths miss:${missed:- none} (patterns: ${patterns[*]:-none}; ${#dirs[@]} directories, $checked files)"
+  fail "push paths miss:${missed:- none} (patterns: ${patterns[*]:-none}; ${#dirs[@]} of $expected plugins/ directories collected, $checked files)"
 fi
 
 # The job runs a push only when it carries a Dependabot commit, matched by the
