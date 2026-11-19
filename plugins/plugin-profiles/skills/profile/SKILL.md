@@ -84,7 +84,9 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   is written: run nothing. Otherwise run `reset --yes --json --preview-id <previewId>`, plus
   `--keep-recorded` when the first answer was no, with
   `<ask.yes.flag> <ask.file>` for each yes and `<ask.no.flag> <ask.file>` for each no, the
-  file exactly as `ask.file` names it. Relay its `lines`. When it refuses because the preview changed, nothing was written:
+  file exactly as `ask.file` names it. Relay its `lines`. When the last line says records wait and
+  to run reset again (a moved repository goes back one layer per run), offer another reset, starting
+  from a new dry run. When it refuses because the preview changed, nothing was written:
   start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
   **Reset** do the same and reload the session.
 - **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay

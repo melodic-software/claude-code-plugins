@@ -236,11 +236,12 @@ process stopped part way, not for a power loss. When a file was changed by hand 
 reset cannot tell whether the stopped reset wrote it: it keeps the record and asks a yes for that
 file, default no (`--finish-cut-off <file>`, `--keep-cut-off <file>`); the yes puts back only the
 entries still at the profile's values and leaves every entry changed by hand. A file with no entry
-left at the profile's value is left as it is and its record removed. When a profile was applied at
-a moved repository's new place, its file is one row folding every record of it, a repository moved
-more than once included: a yes for the file puts it back to before the first apply in one write;
-without an answer for it, the one yes puts back only the newest profile and keeps the older records,
-so a later reset offers the file from them; a no leaves the file and every record. A one-session file names each installed plugin of
+left at the profile's value is left as it is and its record removed. One reset writes each file
+from one record only. When a profile was applied at a moved repository's new place, reset first
+puts back that newest record and keeps the older one waiting, saying so; it exits 3 and says to run
+reset again, and the next run offers the file from the older record. A repository moved more than
+once goes back the same way, one layer per run, newest first, until the file holds what it held
+before the first apply; a no at any layer leaves the file and every record. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's
 plugins; a later `/plugin` toggle of such a plugin reaches only sessions started after it.
 

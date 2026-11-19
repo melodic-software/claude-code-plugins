@@ -38,18 +38,17 @@ listed the repositories that hold records.
 4. **A record whose folder is gone is kept.** Reset never deletes it under the one yes; when it was
    the record of a main checkout's root file and that repository moved, the preview names the
    repository's root file where it is now, which reset restores from the record only after a yes
-   for it. When a profile was applied at the new place since, that file has two records and gets
-   one row and one write: each entry goes back to the older record's before-value, else the
-   newer's, and both records are removed after the write, the newer first, so a reset cut off
-   between the two leaves the older record and the next reset finishes. A repository moved more
-   than once is one row from its oldest record, folding every later record oldest first. Only the
-   older records need that per-file yes: without an answer for the file, the single yes runs the
-   newer record's own restore, unfolded, which puts the file back to what the older profiles left,
-   and keeps the older records, whose after-values then match the file, so the next reset offers it
-   from the oldest one; a no leaves the file and every record. When the newer record's own row is
-   not one the single yes restores (a cut-off file, an unreadable file), nothing is folded: that
-   row is listed on its own and the older record waits for it. A gone
-   subfolder or linked worktree of a repository still there is only kept.
+   for it. **One layer per reset:** in one run at most one row writes or asks about a settings
+   file. A file with its own record, in any state, is handled by that record's row; a moved record
+   is offered for the file only when the file has no record of its own and no moved record applied
+   later points at it. Every other moved record is kept, asks nothing and writes nothing, and its
+   line says a later record goes first. So a repository with profiles applied before and after a
+   move goes back one layer per run, newest first: each run is an ordinary single-record restore,
+   and each layer's before-values are the after-values of the layer below, so after the last layer
+   the file holds what it held before the first apply. A run that put back a file a moved record
+   waited behind exits 3 and says how many records wait and to run reset again; a no at any layer
+   keeps the file and every record. A gone subfolder or linked worktree of a repository still there
+   is only kept.
 5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
    previewed in one process and writes in another passes it, and the write refuses, writing
    nothing, when what it would write differs from that preview.
@@ -86,6 +85,12 @@ listed the repositories that hold records.
   lose their only way back.
 - **Delete the record of a folder that cannot be found.** Rejected (owner, P4): a moved repository
   and a gone one look the same, and the record is the only path back.
+- **Fold every record of a moved repository's file into one write.** Tried and dropped: each fold
+  rule (a newer record at the new place, a repository moved twice, a fallback for `--yes` alone,
+  a newer record that is cut off or unreadable) met a combination it did not cover, and the last
+  one asked two questions about one file and let a yes to one undo a no to the other, against
+  decision 6. One layer per run needs no rule beyond a single-record restore and costs another
+  run per layer.
 
 ## Consequences
 

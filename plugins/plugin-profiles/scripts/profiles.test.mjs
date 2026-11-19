@@ -2764,101 +2764,61 @@ test("#17354: a record whose folder is missing is kept, listed as not found, and
   assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
 });
 
-test("#17354: a moved repository with a profile applied at its new place is one row, folding both records, and its yes puts back the file before the first apply", () => {
-  const w = world();
-  gitInit(w);
-  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const old = rootLocal(w.project);
-  const moved = join(w.root, "repo-now");
-  renameSync(w.project, moved);
-  knowFolders(w, moved);
-  const movedFile = rootLocal(moved);
-  assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
-  const records = join(moved, ".git", "plugin-profiles", "records");
-  assert.equal(readdirSync(records).length, 2);
-  const rows = resetJson(w).folders;
-  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[old, "skip", movedFile]], "one row for the one file");
-  assert.equal(rows[0].ask.file, movedFile);
-  assert.match(rows[0].lines.join("\n"), new RegExp(`folds in the record of ${esc(movedFile)} \\(profile review\\)`));
-  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
-  assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build), folding in the record of ${movedFile} (profile review).`]);
-  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
-  assert.deepEqual(readdirSync(records), []);
-});
+/** The settings file each applied-profile record on the test machine names, sorted. */
+const recordFiles = (w) => allRecords(w).map((rel) => JSON.parse(readFileSync(join(w.root, rel), "utf8")).settingsFile).sort();
+const WAITS_SKIP = (file) => `Skipped ${file}: folder not found; record kept until reset puts back the later record of its repository's file.`;
+const WAITS_LINE = (n) => `${n} ${n === 1 ? "record waits" : "records wait"} behind a file this reset put back; run reset again to offer ${n === 1 ? "it" : "them"}.`;
+const waitsRow = (old, file) => `${old}: folder not found; record kept. The repository is now at ${dirname(dirname(file))}, and ${file} has a later record that reset handles first; running reset again afterwards offers this one.`;
 
-test("#17354: a moved repository with a profile applied at its new place, given --yes and no answer for it, puts back the newer profile under the one yes, keeps the older record, and the next reset offers the file from it", () => {
-  for (const cut of [null, "before the write", "after the write"]) {
-    const w = world();
-    gitInit(w);
-    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-    const old = rootLocal(w.project);
-    const moved = join(w.root, "repo-now");
-    renameSync(w.project, moved);
-    knowFolders(w, moved);
-    const movedFile = rootLocal(moved);
-    const buildLeft = readFileSync(movedFile, "utf8");
-    assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
-    const records = join(moved, ".git", "plugin-profiles", "records");
-    const olderName = `${sha(old)}.json`;
-    const newerPath = join(records, `${sha(movedFile)}.json`);
-    if (cut) {
-      const rec = JSON.parse(readFileSync(newerPath, "utf8"));
-      writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(buildLeft), fromHash: sha(readFileSync(movedFile, "utf8")) }, null, 2)}\n`);
-      if (cut === "after the write") writeFileSync(movedFile, buildLeft);
-    }
+/**
+ * Runs reset until no record is left (at most max runs), each run answering yes to the one question and to each file's own, and
+ * checks every run: no file is asked about twice, each listed file gets one result line, and a record goes only with its own
+ * file's restore. Returns each run's exit status.
+ */
+function resetLayers(w, max = 4) {
+  const statuses = [];
+  while (recordFiles(w).length && statuses.length < max) {
+    const run = `run ${statuses.length + 1}`;
     const preview = resetJson(w);
-    assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record are not covered: each gets its own question.", `cut ${cut}`);
-    const r = reset(w, ["--yes"]);
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    const done = cut === "after the write" ? `Finished an earlier reset of ${movedFile}: its record is removed.` : `Restored ${movedFile} (profile review).`;
-    assert.deepEqual(resultLines(r.stdout), [`${done} The record of ${old} (profile build) is kept, so a later reset offers to put ${movedFile} back to before the first apply.`], `cut ${cut}`);
-    assert.equal(readFileSync(movedFile, "utf8"), buildLeft, `cut ${cut}`);
-    assert.deepEqual(readdirSync(records), [olderName], `cut ${cut}`);
-    const next = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
-    assert.equal(next.status, 0, next.stdout + next.stderr);
-    assert.deepEqual(resultLines(next.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
-    assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE, `cut ${cut}`);
-    assert.deepEqual(readdirSync(records), []);
+    const asks = preview.folders.filter((f) => f.ask).map((f) => f.ask);
+    const covered = preview.question ? preview.folders.filter((f) => ["restore", "remove-file", "finish-restore"].includes(f.action)).map((f) => f.file) : [];
+    const asked = [...covered, ...asks.map((a) => a.file)];
+    assert.equal(new Set(asked).size, asked.length, `${run}: one question per file: ${asked.join(", ")}`);
+    const before = recordFiles(w);
+    const r = reset(w, ["--yes", ...asks.flatMap((a) => [a.yes.flag, a.file])]);
+    const lines = resultLines(r.stdout);
+    for (const f of preview.folders) assert.equal(lines.filter((l) => l.includes(f.file)).length, 1, `${run}: one result line names ${f.file}\n${r.stdout}`);
+    const put = preview.folders.filter((f) => lines.some((l) => /^(Restored|Removed|Finished) /.test(l) && l.includes(f.file))).map((f) => f.file);
+    const left = recordFiles(w);
+    for (const gone of before.filter((file) => !left.includes(file))) assert.ok(put.includes(gone), `${run}: the record of ${gone} goes only with its own restore\n${r.stdout}`);
+    statuses.push(r.status);
   }
-});
+  return statuses;
+}
 
-test("#17354: a moved repository whose newer record the one yes cannot restore lists that file on its own, folds nothing, and offers nothing from the older record until it is put back", () => {
-  const w = world();
+/** A repository given profile build, then moved to repo-now and given each profile of then there in turn; left holds the file before each of those. */
+function movedRepository(w, then = ["review"]) {
   gitInit(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const old = rootLocal(w.project);
   const moved = join(w.root, "repo-now");
   renameSync(w.project, moved);
   knowFolders(w, moved);
-  const movedFile = rootLocal(moved);
-  const buildLeft = readFileSync(movedFile, "utf8");
-  assert.equal(runIn(w, moved, ["apply", "native", "--for", "folder", "--yes"]).status, 0);
-  const records = join(moved, ".git", "plugin-profiles", "records");
-  const newerPath = join(records, `${sha(movedFile)}.json`);
-  const rec = JSON.parse(readFileSync(newerPath, "utf8"));
-  assert.ok(Object.keys(rec.entries).length > 1, "an entry is left at the newer profile's value after the edit");
-  writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(buildLeft), fromHash: sha("not the file") }, null, 2)}\n`);
-  const [name] = Object.keys(rec.entries);
-  const doc = JSON.parse(readFileSync(movedFile, "utf8"));
-  doc.enabledPlugins[name] = "edited by hand";
-  writeFileSync(movedFile, `${JSON.stringify(doc, null, 2)}\n`);
-  const edited = readFileSync(movedFile, "utf8");
-  const rows = resetJson(w).folders;
-  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]).sort(), [[movedFile, "finish-cut-off", null], [old, "skip", null]].sort());
-  assert.match(rows.find((f) => f.file === old).lines[0], /once that record is put back, a later reset offers the file from this one\.$/);
-  const r = reset(w, ["--yes"]);
-  assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.deepEqual(resultLines(r.stdout).sort(), [CUT_OFF_SKIP(movedFile), `Skipped ${old}: folder not found; record kept.`].sort());
-  assert.equal(readFileSync(movedFile, "utf8"), edited);
-  assert.equal(readdirSync(records).length, 2);
-});
+  const file = rootLocal(moved);
+  const left = then.map((profile) => {
+    const text = readFileSync(file, "utf8");
+    assert.equal(runIn(w, moved, ["apply", profile, "--for", "folder", "--yes"]).status, 0);
+    return text;
+  });
+  return { old, file, left, records: join(moved, ".git", "plugin-profiles", "records") };
+}
 
-test("#17354: a repository moved twice, with a profile applied at each place, is one row folding every record oldest first, and its yes puts back the file before the first apply", () => {
-  const w = world();
+/** A repository given build, moved and given review, then moved again and given newest: its three files and the file after each apply before the last. */
+function movedTwice(w, newest = "build") {
   gitInit(w);
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const first = rootLocal(w.project);
+  const afterBuild = readFileSync(first, "utf8");
   const between = join(w.root, "repo-between");
   renameSync(w.project, between);
   assert.equal(runIn(w, between, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
@@ -2866,55 +2826,164 @@ test("#17354: a repository moved twice, with a profile applied at each place, is
   const now = join(w.root, "repo-now");
   renameSync(between, now);
   knowFolders(w, now);
-  const movedFile = rootLocal(now);
-  assert.equal(runIn(w, now, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const records = join(now, ".git", "plugin-profiles", "records");
-  assert.equal(readdirSync(records).length, 3);
+  const file = rootLocal(now);
+  const afterReview = readFileSync(file, "utf8");
+  assert.equal(runIn(w, now, ["apply", newest, "--for", "folder", "--yes"]).status, 0);
+  return { first, second, file, afterBuild, afterReview, records: join(now, ".git", "plugin-profiles", "records") };
+}
+
+test("#17354: a moved repository with a profile applied at its new place is put back one layer per reset, newest first, one question per file each run", async () => {
+  const w = world();
+  const m = movedRepository(w);
   const rows = resetJson(w).folders;
-  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[first, "skip", movedFile]], "one row for the one file, from the oldest record");
-  const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
-  assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${first} (profile build), folding in the records of ${second} (profile review), ${movedFile} (profile build).`]);
-  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
-  assert.deepEqual(readdirSync(records), []);
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.ask?.file ?? null, f.waitsFor ?? null]).sort(), [[m.file, "restore", null, null, null], [m.old, "skip", null, null, m.file]].sort());
+  assert.deepEqual(rows.find((f) => f.file === m.old).lines, [waitsRow(m.old, m.file)]);
+  const first = await resetAtTerminal(w, () => "y");
+  assert.equal(first.status, 3, first.stdout + first.stderr);
+  assert.deepEqual(first.prompts.map((p) => FIRST.test(p)), [true], "one question, covering the newer record's file");
+  assert.deepEqual(resultLines(first.stdout).sort(), [`Restored ${m.file} (profile review).`, WAITS_SKIP(m.old)].sort());
+  assert.equal(first.stdout.split("\n").at(-1), WAITS_LINE(1));
+  assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
+  assert.deepEqual(recordFiles(w), [m.old]);
+  const second = await resetAtTerminal(w, () => "y");
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  assert.deepEqual(second.prompts, [`The folder of ${m.old} is gone, and its repository is now at ${dirname(dirname(m.file))}. Put back ${m.file} from that record?`]);
+  assert.deepEqual(resultLines(second.stdout), [`Restored ${m.file} from the record of ${m.old} (profile build).`]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(recordFiles(w), []);
+
+  const again = world();
+  const n = movedRepository(again);
+  assert.deepEqual(resetLayers(again), [3, 0]);
+  assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
 });
 
-test("#17354: a folded reset of a moved repository cut off after its write, with both records or only the older left, is finished by the next reset", () => {
-  for (const newerRemoved of [false, true]) {
+test("#17354: a moved repository with a profile applied at its new place, given --yes alone, puts back the newer layer, keeps the older record until a yes for its file, and a reset cut off before or after the newer layer's write is finished first", () => {
+  for (const cut of [null, "before the write", "after the write"]) {
     const w = world();
-    gitInit(w);
-    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-    const [olderName] = gitRecords(w);
-    const moved = join(w.root, "repo-now");
-    renameSync(w.project, moved);
-    knowFolders(w, moved);
-    const movedFile = rootLocal(moved);
-    assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
-    const records = join(moved, ".git", "plugin-profiles", "records");
-    writeFileSync(movedFile, LOCAL_BEFORE);
-    if (newerRemoved) for (const name of readdirSync(records).filter((n) => n !== olderName)) rmSync(join(records, name));
-    const r = reset(w, ["--yes", "--remove-unrecorded", movedFile]);
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE, `newer record removed: ${newerRemoved}`);
-    assert.deepEqual(readdirSync(records), []);
+    const m = movedRepository(w);
+    const newerPath = join(m.records, `${sha(m.file)}.json`);
+    if (cut) {
+      const rec = JSON.parse(readFileSync(newerPath, "utf8"));
+      writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(m.left[0]), fromHash: sha(readFileSync(m.file, "utf8")) }, null, 2)}\n`);
+      if (cut === "after the write") writeFileSync(m.file, m.left[0]);
+    }
+    assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?", `cut ${cut}`);
+    const r = reset(w, ["--yes"]);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    const done = cut === "after the write" ? `Finished an earlier reset of ${m.file}: its record is removed.` : `Restored ${m.file} (profile review).`;
+    assert.deepEqual(resultLines(r.stdout).sort(), [done, WAITS_SKIP(m.old)].sort(), `cut ${cut}`);
+    assert.equal(r.stdout.trim().split("\n").at(-1), WAITS_LINE(1));
+    assert.equal(readFileSync(m.file, "utf8"), m.left[0], `cut ${cut}`);
+    assert.deepEqual(recordFiles(w), [m.old], `cut ${cut}`);
+    const plain = reset(w, ["--yes"]);
+    assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+    assert.deepEqual(resultLines(plain.stdout), [`Skipped ${m.old}: folder not found; record kept.`]);
+    assert.equal(readFileSync(m.file, "utf8"), m.left[0], `cut ${cut}`);
+    assert.deepEqual(resetLayers(w), [0], `cut ${cut}`);
+    assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE, `cut ${cut}`);
   }
 });
 
-test("#17354: a moved repository with a profile applied at its new place, answered no, keeps its file and both records", () => {
+/** Leaves file's own record as a reset cut off before its write, then puts its first entry back to its value before that profile by hand. */
+function cutOffOwnThenPutBack(records, file, restoredText) {
+  const path = join(records, `${sha(file)}.json`);
+  const rec = JSON.parse(readFileSync(path, "utf8"));
+  assert.ok(Object.keys(rec.entries).length > 1, "an entry is left at the newer profile's value after the edit");
+  writeFileSync(path, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(restoredText), fromHash: sha("not the file") }, null, 2)}\n`);
+  const [[name, { before }]] = Object.entries(rec.entries);
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  if (before === "absent") delete doc.enabledPlugins[name];
+  else doc.enabledPlugins[name] = before;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+  return readFileSync(file, "utf8");
+}
+
+test("#17354: a moved repository whose newer record the one yes cannot restore lists that file on its own, keeps the older record waiting behind it, and puts back each layer after a yes for it", () => {
   const w = world();
-  gitInit(w);
-  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
-  const moved = join(w.root, "repo-now");
-  renameSync(w.project, moved);
-  knowFolders(w, moved);
-  const movedFile = rootLocal(moved);
-  assert.equal(runIn(w, moved, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
-  const records = join(moved, ".git", "plugin-profiles", "records");
-  const applied = readFileSync(movedFile, "utf8");
-  const r = reset(w, ["--yes", "--keep-unrecorded", movedFile]);
+  const m = movedRepository(w, ["native"]);
+  const edited = cutOffOwnThenPutBack(m.records, m.file, m.left[0]);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.file, "finish-cut-off", null, null], [m.old, "skip", null, m.file]].sort());
+  assert.deepEqual(rows.find((f) => f.file === m.old).lines, [waitsRow(m.old, m.file)]);
+  for (const args of [["--yes"], ["--yes", "--keep-cut-off", m.file]]) {
+    const r = reset(w, args);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const own = args.length > 1 ? `Skipped ${m.file}: you answered no, so it is left as it is, and its record is kept.` : CUT_OFF_SKIP(m.file);
+    assert.deepEqual(resultLines(r.stdout).sort(), [own, WAITS_SKIP(m.old)].sort(), args.join(" "));
+    assert.ok(!r.stdout.includes(WAITS_LINE(1)), "nothing unblocked, so no line says to run again");
+    assert.equal(readFileSync(m.file, "utf8"), edited);
+    assert.equal(recordFiles(w).length, 2);
+  }
+  assert.deepEqual(resetLayers(w), [3, 0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a repository moved twice, with a profile applied at each place, is put back one layer per reset, newest first, and the last layer leaves the file as before the first apply", () => {
+  const w = world();
+  const m = movedTwice(w);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.file, "restore", null, null], [m.first, "skip", null, m.file], [m.second, "skip", null, m.file]].sort());
+  const one = reset(w, ["--yes"]);
+  assert.equal(one.status, 3, one.stdout + one.stderr);
+  assert.deepEqual(resultLines(one.stdout).sort(), [`Restored ${m.file} (profile build).`, WAITS_SKIP(m.first), WAITS_SKIP(m.second)].sort());
+  assert.equal(one.stdout.trim().split("\n").at(-1), WAITS_LINE(2));
+  assert.equal(readFileSync(m.file, "utf8"), m.afterReview);
+  const next = resetJson(w).folders;
+  assert.deepEqual(next.map((f) => [f.file, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.first, null, m.file], [m.second, m.file, null]].sort(), "the record applied latest is offered, the earlier one waits");
+  const two = reset(w, ["--yes", "--remove-unrecorded", m.file]);
+  assert.equal(two.status, 3, two.stdout + two.stderr);
+  assert.deepEqual(resultLines(two.stdout).sort(), [`Restored ${m.file} from the record of ${m.second} (profile review).`, WAITS_SKIP(m.first)].sort());
+  assert.equal(readFileSync(m.file, "utf8"), m.afterBuild);
+  assert.deepEqual(resetLayers(w), [0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+
+  const again = world();
+  const n = movedTwice(again);
+  assert.deepEqual(resetLayers(again), [3, 3, 0]);
+  assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a repository moved twice whose newest record is a cut-off file gets one question for that file, and a no to it keeps the file and every record", async () => {
+  const w = world();
+  const m = movedTwice(w, "native");
+  const edited = cutOffOwnThenPutBack(m.records, m.file, m.afterReview);
+  const preview = resetJson(w);
+  assert.equal(preview.question, null);
+  assert.deepEqual(preview.folders.filter((f) => f.ask).map((f) => f.ask.file), [m.file], "one question, about the cut-off file");
+  const no = await resetAtTerminal(w, () => "n");
+  assert.equal(no.status, 0, no.stdout + no.stderr);
+  assert.equal(no.prompts.length, 1);
+  assert.deepEqual(resultLines(no.stdout).sort(), [`Skipped ${m.file}: you answered no, so it is left as it is, and its record is kept.`, WAITS_SKIP(m.first), WAITS_SKIP(m.second)].sort());
+  assert.equal(readFileSync(m.file, "utf8"), edited);
+  assert.equal(recordFiles(w).length, 3);
+  assert.deepEqual(resetLayers(w), [3, 3, 0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a moved record's reset cut off after its write is finished by the next reset", () => {
+  const w = world();
+  const m = movedRepository(w);
+  rmSync(join(m.records, `${sha(m.file)}.json`));
+  writeFileSync(m.file, LOCAL_BEFORE);
+  assert.deepEqual(resetLayers(w), [0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a moved repository with a profile applied at its new place, answered no at each layer, keeps its file and every record", async () => {
+  const w = world();
+  const m = movedRepository(w);
+  const applied = readFileSync(m.file, "utf8");
+  const no = await resetAtTerminal(w, () => "n");
+  assert.equal(no.status, 1, no.stdout);
+  assert.equal(readFileSync(m.file, "utf8"), applied);
+  assert.equal(recordFiles(w).length, 2);
+  assert.equal(reset(w, ["--yes"]).status, 3);
+  const r = reset(w, ["--yes", "--keep-unrecorded", m.file]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.equal(readFileSync(movedFile, "utf8"), applied);
-  assert.equal(readdirSync(records).length, 2);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${m.file}: you answered no, so it is left as it is, and the record of ${m.old} (profile build) is kept.`]);
+  assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
+  assert.deepEqual(recordFiles(w), [m.old]);
 });
 
 test("#17354: a write given the preview's id refuses, writing nothing, once what reset would write differs from that preview", () => {
@@ -3266,6 +3335,7 @@ const fill = (text, vars) => text.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
 const RESTORED = "Restored {F} (profile build).";
 const NOTHING = [];
 const ANSWERED_NO = "Skipped {F}: you answered no, so it is left as it is, and its record is kept.";
+const WAITS = WAITS_SKIP("{O}");
 
 /**
  * One row per cell: row kind, way of answering, each file's content after the run (same: as before the run; before: as before
@@ -3329,21 +3399,21 @@ const CELLS = [
   ["movedNoNewer", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
   ["movedNoNewer", "--yes own-no", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
   ["movedNoNewer", "nobody", "M=same", 1, NOTHING, 1],
-  ["movedNewer", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
-  ["movedNewer", "t:yn", "M=same", 2, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {M} (profile review) are kept."], 0],
-  ["movedNewer", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
+  ["movedNewer", "t:yy", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "t:yn", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "t:ny", "M=same", 2, NOTHING, 1],
   ["movedNewer", "t:nn", "M=same", 2, NOTHING, 1],
-  ["movedNewer", "--yes", "M=left", 1, ["Restored {M} (profile review). The record of {O} (profile build) is kept, so a later reset offers to put {M} back to before the first apply."], 0],
-  ["movedNewer", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the record of {M} (profile review)."], 0],
-  ["movedNewer", "--yes own-no", "M=same", 2, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {M} (profile review) are kept."], 0],
+  ["movedNewer", "--yes", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "--yes own-yes", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "--yes own-no", "M=same", 2, NOTHING, 1],
   ["movedNewer", "nobody", "M=same", 2, NOTHING, 1],
-  ["movedTwice", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
-  ["movedTwice", "t:yn", "M=same", 3, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {S} (profile review), {M} (profile build) are kept."], 0],
-  ["movedTwice", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
+  ["movedTwice", "t:yy", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "t:yn", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "t:ny", "M=same", 3, NOTHING, 1],
   ["movedTwice", "t:nn", "M=same", 3, NOTHING, 1],
-  ["movedTwice", "--yes", "M=left", 2, ["Restored {M} (profile build). The records of {O} (profile build), {S} (profile review) are kept, so a later reset offers to put {M} back to before the first apply."], 0],
-  ["movedTwice", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build), folding in the records of {S} (profile review), {M} (profile build)."], 0],
-  ["movedTwice", "--yes own-no", "M=same", 3, ["Skipped {M}: you answered no, so it is left as it is, and the records of {O} (profile build), {S} (profile review), {M} (profile build) are kept."], 0],
+  ["movedTwice", "--yes", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "--yes own-yes", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "--yes own-no", "M=same", 3, NOTHING, 1],
   ["movedTwice", "nobody", "M=same", 3, NOTHING, 1],
   ["cutOffChanged", "t:yy", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
   ["cutOffChanged", "t:yn", "F=same", 1, [ANSWERED_NO], 0],
