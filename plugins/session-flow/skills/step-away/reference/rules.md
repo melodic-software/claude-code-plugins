@@ -111,4 +111,6 @@ work, a new request. These also arrive as messages and are never the person:
   instruction.
 
 When a message reads as the person, run `away.py end`, show the report once with **Needs you**
-first, then run `away.py deliver` so later turns do not show it again.
+first, then run `away.py deliver` so later turns do not show it again. After that, a parked item,
+its recommended command included, runs only once the person accepts it, by naming it or through
+`/session-flow:go-with-recommendations`; until then, answer the person and wait.
