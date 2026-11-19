@@ -2333,7 +2333,9 @@ pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(to
 pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
 1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
-read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+read floor (`limits.api` `read-floor` of the header's limit, inlined in the job env), left. The
+reader plans its own floor to that live limit too, not github-token's `limit-cap` (owner decision
+D418).
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
