@@ -110,7 +110,8 @@ test('the card is five rows: title and actions, switches, dim glass and blur tog
   await bedroom($, '')
 
   const ui = await $.ui.mount(cardOf(placed[0]!))
-  const rows = (await ui.drawn()).children ?? []
+  const drawn = await ui.drawn()
+  const rows = 'children' in drawn ? (drawn.children ?? []) : []
 
   expect(rows).toHaveLength(5)
   expect(await ui.find({ type: 'Text', text: STATUS })).toBeUndefined()
@@ -174,7 +175,7 @@ test('a pressed switch moves the shader\'s number once, straight to the end, and
 
   const room = await $.ui.mount(BACKDROP)
   const ui = await $.ui.mount(cardOf(placed[0]!))
-  const tv = async (): Promise<unknown> => (await room.find({ type: 'Shader' }))?.props.values?.tv
+  const tv = async (): Promise<unknown> => ((await room.find({ type: 'Shader' }))?.props.values as Record<string, number> | undefined)?.tv
 
   await clock.advance(SETTLE_MS)
   expect(await tv()).toBe(1)
