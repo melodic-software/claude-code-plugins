@@ -18,7 +18,7 @@
 //   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
 //   GitHub's status pages show indicator none. At attempt 2 fix-ci takes it.
 // - Flake: the same run when it ended failure on anything else, at attempt 1
-//   only: its failed jobs are re-run once, at the next half-hourly run, so a
+//   only: its failed jobs are re-run once, at the next hourly run, so a
 //   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
 //   wait for this re-run unless it is already queued or going, so it may run
 //   beside a fix-ci run (CI minutes, no model).

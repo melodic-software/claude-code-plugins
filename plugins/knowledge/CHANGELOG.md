@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.0] - 2026-11-19
+
+### Added
+
+- `private_record_root` names the private checkout `absorb-upstream` sends a record to when its source is not public and the destination is. Unset, the skill asks for that path; it no longer names one organization's private repository.
+
 ## [3.4.0] - 2026-11-19
 
 ### Changed

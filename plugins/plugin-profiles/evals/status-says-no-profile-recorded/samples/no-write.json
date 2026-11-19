@@ -45,6 +45,17 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/plugin-profiles/scripts/profiles.mjs\" reset --yes",
+            "description": "Run the profile tool"
+          }
+        }
+      ]
     }
   ]
 }

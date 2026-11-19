@@ -1754,8 +1754,6 @@ test("an intake run where any job but the floor label failed, or none did, is le
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
-// A run left alone stays a failed first attempt for the whole lookback, so
-// its jobs are listed only while it is recent, not on every half-hourly pass.
 test("an intake run that ended over 2 hours ago gets no job listing and no re-run", async () => {
   const { failedJobReruns, calls } = await reconcile({ pulls: [], runs: [intakeRun(301, { created: "2026-10-19T17:00:00Z", updated: "2026-10-19T17:59:00Z" })] });
   assert.deepEqual(failedJobReruns, []);

@@ -1,6 +1,6 @@
 name: Maintenance File Upstream Drift Issues
 
-# Weekly drift issues for every upstream this repository records or vendors:
+# Daily drift issues for every upstream this repository records or vendors:
 # the docs/upstream pages pinned to a git commit, read by
 # scripts/check-upstream-drift.sh --report, and the vendored skills, whose own
 # check scripts scripts/upstream-drift-vendored-report.sh runs. Both reports go
@@ -8,7 +8,8 @@ name: Maintenance File Upstream Drift Issues
 # `Upstream drift: <id>` (opened on drift, updated in place on later runs,
 # closed once the upstream is clean). Informational: not in
 # pr-require-checks.yml and not behind `ci-status`, so nothing here can block a
-# merge.
+# merge. Contract:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues
 #
 # Two jobs. `report` runs the checks with a read-only token, held by the
 # docs/upstream step alone: the vendored check scripts fetch third-party
@@ -24,12 +25,10 @@ name: Maintenance File Upstream Drift Issues
 # runs on a fresh hosted runner. Report text reaches the filer as a file and
 # never through a `${{ }}` expression; the check scripts' own output goes only
 # to the job summary.
-#
-# Monday 10:29 UTC sits clear of the other scheduled runs.
 
 on:
   schedule:
-    - cron: "29 10 * * 1"
+    - cron: "29 10 * * *"
   workflow_dispatch:
 
 permissions: {}
