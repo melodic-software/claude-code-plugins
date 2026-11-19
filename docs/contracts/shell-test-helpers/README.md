@@ -22,11 +22,13 @@ below are not that: they are three genuinely different *assertion-primitive* sha
 (`make_sink`, `wait_for_sink`, `check_envelope`) is a different fact and does use the mechanism; see
 [The telemetry-sink helper](#the-telemetry-sink-helper).
 
-- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; each file also keeps its own
-  plugin-local `make_sink`, outside the vendored sink helper):
+- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters, and a `make_sink` outside the
+  vendored sink helper):
   [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
-  [`session-telemetry/hooks/session-telemetry-test-helpers.sh`](../../../plugins/session-telemetry/hooks/session-telemetry-test-helpers.sh),
-  [`plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh`](../../../plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh).
+  and [`lib/hook-test-helpers.sh`](../../../lib/hook-test-helpers.sh), which
+  `scripts/sync-shared-copies.sh` generates into
+  `session-telemetry/hooks/session-telemetry-test-helpers.sh` and
+  `plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh`.
 - **Skill-script shape** (`pass`/`fail`, `FAILED`/`CASE_NUM` counters, file-existence assertions):
   [`source-control/scripts/test-helpers.sh`](../../../plugins/source-control/scripts/test-helpers.sh),
   and `/repo-hygiene:clean`'s bundled test-helper copy, named rather than linked because it sits
@@ -80,10 +82,12 @@ the canonical through [`scripts/shared-copies.txt`](../../../scripts/shared-copi
 `--check` fails on a copy that differs from what it generates. The contract suite is
 [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.test.sh).
 
-- `guardrails`, `session-telemetry` and `plugin-diagnostics` keep their own plugin-local `make_sink`. They
-  differ in contract (guardrails' takes a stub body, the other two take a capture file) and stay outside the vendored
-  helper.
-- The `ok` / `fail` counters stay duplicated per plugin. Only the sink helper is shared.
+- `guardrails`' test helper and `lib/hook-test-helpers.sh` each define a `make_sink` outside the
+  vendored sink helper: guardrails' takes a stub body, the other takes a capture file.
+- The `ok` / `bad` counters are vendored only for session-telemetry and plugin-diagnostics, through
+  `lib/hook-test-helpers.sh` and its contract suite
+  [`lib/hook-test-helpers.test.sh`](../../../lib/hook-test-helpers.test.sh); every other plugin keeps
+  its own.
 - `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change the
   per-plugin rule.
 
@@ -103,18 +107,17 @@ The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.
 
 ## Deferred, not rejected
 
-`guardrails-test-helpers.sh`, `session-telemetry-test-helpers.sh` and `plugin-diagnostics-test-helpers.sh`
-share a shape closely (all are
-hook-contract helpers with near-identical `ok`/`bad` bodies). If they converge to byte-identical,
-vendoring just that pair through the existing `lib/` and registry mechanism, the same pattern
-`hook-utils.sh` and `hook-test-sink.sh` use, is the smaller, precedented move, revisited then rather
-than spread across all the plugins now.
+The session-telemetry and plugin-diagnostics helpers converged and are now vendored from
+`lib/hook-test-helpers.sh`, the pattern `hook-utils.sh` and `hook-test-sink.sh` use.
+`guardrails-test-helpers.sh` shares the hook-contract shape but still differs widely; if it
+converges, it joins as a third copy rather than prompting a unified API across all plugins.
 
 ## Conformance
 
-Each assertion-helper copy site above (the guardrails, session-telemetry, plugin-diagnostics, source-control, repo-hygiene and
-work-item-tracker helpers) carries a one-line pointer back to this doc. The vendored sink copies are
-generated from the canonical file and are governed by `scripts/sync-shared-copies.sh --check` instead. A new plugin adding
+Each hand-kept assertion helper above (guardrails, source-control, repo-hygiene and
+work-item-tracker) carries a one-line pointer back to this doc. The vendored copies (the sink helper,
+and the session-telemetry and plugin-diagnostics hook-contract helpers) are generated from their
+canonical files and governed by `scripts/sync-shared-copies.sh --check`. A new plugin adding
 its own `*.test.sh` assertion helper is not required to register anything here. Duplication of this
 shape is the accepted default, not an opt-in.
 

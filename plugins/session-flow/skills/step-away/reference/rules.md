@@ -78,8 +78,11 @@ names the parked item), and keep working. Other merges follow the repository's o
 ## Keep the report current
 
 - After each finished piece of work, update the report's own sections (Done, Waiting on me, Found,
-  Additional notes), tick the task-file item, and run `away.py refresh`. The script owns the
-  refused-actions, external-actions and files-written blocks; never edit between their markers.
+  Additional notes) and tick the task-file item. The script owns the refused-actions,
+  external-actions and files-written blocks: the Stop hook rewrites the first two at every turn's
+  end and `end` scans the files, so run no `refresh` while the person is away, and never edit
+  between the blocks' markers. Re-read the report before editing it, since the hook may have
+  rewritten it.
 - Before stopping, run `away.py check`; fix each failing criterion it names.
 - Waiting on me holds only what you can still run yourself, with what it waits on.
 

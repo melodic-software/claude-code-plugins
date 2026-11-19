@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The diff is one line, but a wrong value deletes audit rows nobody can bring back, so this is interview-first.\n\nQ1: Is there a rule (legal, contract, audit) that requires keeping audit_log rows for 90 days? My recommendation: check before shrinking it.\nQ2: Should rows older than 30 days be exported before the first run? My recommendation: yes.", "why": "opens a Q-numbered round"},
+    {"answer": "Before I change it:\n1. Who reads audit_log entries between 30 and 90 days old?\n2. Can the first purge wait until an export exists?", "why": "a numbered question round"}
+  ],
+  "fail": [
+    {"answer": "It is one constant, so no interview needed. I've set RETENTION_DAYS to 30; review the diff.", "why": "skips the interview and builds"},
+    {"answer": "Done:\n1. Changed RETENTION_DAYS from 90 to 30.\n2. No other file reads it.", "why": "a numbered summary with no question is not a question round"},
+    {"answer": "", "why": "empty reply holds no question round"}
+  ]
+}
