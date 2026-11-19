@@ -47,6 +47,11 @@ export function fakeDeps(artifacts, { now = NOW, runs = {}, failures = {}, workf
         const page = artifacts.filter((a) => a.name === m[1]).slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100);
         return Buffer.from(JSON.stringify({ artifacts: page.map(({ zip, ...a }) => a) }));
       }
+      m = /actions\/runs\/(\d+)\/artifacts\?per_page=100&page=(\d+)$/.exec(url);
+      if (m) {
+        const page = artifacts.filter((a) => String(a.workflow_run.id) === m[1]).slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100);
+        return Buffer.from(JSON.stringify({ artifacts: page.map(({ zip, ...a }) => a) }));
+      }
       m = /actions\/workflows\/([^/]+)\/runs\?per_page=100$/.exec(url);
       if (m) return Buffer.from(JSON.stringify({ workflow_runs: workflowRuns[m[1]] ?? [] }));
       m = /actions\/artifacts\/(\d+)\/zip$/.exec(url);
