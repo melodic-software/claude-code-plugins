@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -536,6 +537,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         state = change(previous or {})
         report = Path(state["report_path"])
         report.parent.mkdir(parents=True, exist_ok=True)
+        state.setdefault("report_dir", os.path.realpath(report.parent))
         if reconciling and report.exists():
             text = report.read_text(encoding="utf-8")
             updated = rewrite_header(text, state)
@@ -833,9 +835,20 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
     write_blocks(state, {"files": file_lines})
 
 
+def guarded_report(state: Mapping) -> Path:
+    """The report path, refused when its folder resolves elsewhere than at start or it is not a
+    regular file, so a link planted by a sandboxed command is never read or written through."""
+    report = Path(state["report_path"])
+    expected = state.get("report_dir") or os.path.abspath(report.parent)
+    planted = os.path.lexists(report) and not stat.S_ISREG(os.lstat(report).st_mode)
+    if planted or os.path.realpath(report.parent) != expected:
+        raise OSError(f"{report} is not a regular file in {expected}; left untouched")
+    return report
+
+
 def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     """Rewrite the named script-owned blocks; the slow file scan writes apart from the others."""
-    report = Path(state["report_path"])
+    report = guarded_report(state)
     report.parent.mkdir(parents=True, exist_ok=True)
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
     for name, lines in blocks.items():
@@ -843,18 +856,8 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     write_atomic(report, text)
 
 
-def files_due(state: Mapping, now: datetime) -> bool:
-    """True for the first refresh after report_by has passed."""
-    due = _instant_or_none(state.get("report_by"))
-    return due is not None and now >= due and not state.get("files_after_due")
-
-
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:
-    state = require_state(paths)
-    due = files_due(state, datetime.now().astimezone())
-    refresh(state, paths, files=args.files or due)
-    if due:
-        update_state(paths, lambda current: current.update(files_after_due=True))
+    refresh(require_state(paths), paths, files=args.files)
     return 0
 
 
@@ -1050,7 +1053,10 @@ def on_stop(hook: Hook) -> dict | None:
             "prompt is refused instead of judged by auto mode. Tell the person now, before they leave, and "
             "offer to continue in auto mode. Then carry on."
         )
-    refresh(state, paths, files=False)
+    try:
+        refresh(state, paths, files=False)
+    except Exception as exc:
+        _log("stop refresh failed", exc)
     if payload.get("background_tasks"):
         return None
     now_digest = digest(Path(state["report_path"]))
