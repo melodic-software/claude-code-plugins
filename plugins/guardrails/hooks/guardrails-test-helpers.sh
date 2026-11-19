@@ -122,6 +122,56 @@ command_json() {
 pwsh_command_json() {
   jq -n --arg cmd "$1" '{tool_name:"PowerShell",tool_input:{command:$cmd}}'
 }
+replall_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
+    '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
+}
+nul_payload() {
+  jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}'
+}
+size_filler() { head -c "$1" /dev/zero | tr '\0' b; }
+sized_write_json() {
+  local n="$1" tail="${2:-}"
+  [[ -n "$tail" ]] && tail=" $tail"
+  # shellcheck disable=SC2154  # FIXTURE is a caller contract (set by each test file)
+  printf '%s%s' "$(size_filler $((n - ${#tail})))" "$tail" |
+    MSYS_NO_PATHCONV=1 jq -Rs --arg fp "$FIXTURE" \
+      '{tool_name:"Write",tool_input:{file_path:$fp,content:.}}'
+}
+mcp_single_json() {
+  jq -n --arg p "$1" --arg c "$2" \
+    '{tool_name:"mcp__github__create_or_update_file",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",path:$p,content:$c}}'
+}
+mcp_push_json() {
+  local jq_args=() n=0
+  while (($#)); do
+    jq_args+=(--arg "p$n" "$1" --arg "c$n" "$2")
+    shift 2
+    n=$((n + 1))
+  done
+  local filter='{tool_name:"mcp__github__push_files",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",files:['
+  local i
+  for ((i = 0; i < n; i++)); do
+    ((i)) && filter+=','
+    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
+    filter+='{path:$p'"$i"',content:$c'"$i"'}'
+  done
+  filter+=']}}'
+  jq -n "${jq_args[@]}" "$filter"
+}
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+alias_chain() {
+  local n="$1" terminal="$2" mode="${3:-same}" cmd="git" i
+  for ((i = 1; i < n; i++)); do
+    if [[ "$mode" == diverge ]]; then
+      cmd+=" -c alias.a$i='a$((i + 1)) --x$i' -c alias.a$i.command='a$((i + 1)) --y$i'"
+    else
+      cmd+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"
+    fi
+  done
+  printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
+}
 
 # --- One command-to-verdict driver -------------------------------------------
 # Every guard suite needs the same unit of work: one payload on stdin, one hook
@@ -276,6 +326,22 @@ expect_both() {
   shift 2
   expect "$label (direct)" "$expected" --via direct "$@"
   expect "$label (dispatched)" "$expected" --via dispatched "$@"
+}
+
+nul_stderr() {
+  guard_invoke --payload "$(nul_payload "$1" "$2")"
+  printf '%s' "$GUARD_ERR"
+  return "$GUARD_RC"
+}
+
+assert_bounded_exit() {
+  if [[ "$3" == "124" ]]; then
+    bad "$1: HUNG (exit 124 at the 150s bound) — here-string deadlock regression"
+  elif [[ "$3" == "$2" ]]; then
+    ok "$1 (exit $3)"
+  else
+    bad "$1: expected exit $2, got $3"
+  fi
 }
 
 # --- Write/Edit driver for the advisory PostToolUse guards --------------------
