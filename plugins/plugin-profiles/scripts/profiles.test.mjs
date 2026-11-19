@@ -2394,15 +2394,16 @@ test("#17354: a reset cut off before a file's write, then an entry put back by h
   const [row] = preview.folders;
   const still = Object.keys(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).entries).filter((id) => id !== `songwriting@${M}`);
   assert.deepEqual([row.action, row.recorded, row.entries], ["finish-cut-off", true, still]);
+  const few = `${still.slice(0, 3).join(", ")}${still.length > 3 ? ` and ${still.length - 3} more` : ""}`;
   assert.deepEqual(row.ask, {
     file: w.localFile,
-    question: `An earlier reset of ${w.localFile} was cut off and the file changed since. Put back the ${still.length} entries still at the values profile build wrote (${still.slice(0, 3).join(", ")}${still.length > 3 ? ` and ${still.length - 3} more, listed above` : ""}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`,
+    question: `An earlier reset of ${w.localFile} was cut off and the file changed since. Put back the ${still.length} entries still at the values profile build wrote (${few}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`,
     yes: { label: "Put back", flag: "--finish-cut-off" },
     no: { label: "Keep", flag: "--keep-cut-off" },
   });
   assert.deepEqual(row.lines, [
-    `${w.localFile}: an earlier reset of this file was cut off and the file changed since. ${still.length} entries still hold the values profile build wrote: ${still.join(", ")}.`,
-    "  A yes for this file puts those back to their values from before the profile and leaves the entries changed by hand since as they are; a no keeps the file and its record.",
+    `${w.localFile}: an earlier reset of this file was cut off and the file changed since. ${still.length} entries still hold the values profile build wrote: ${few}.`,
+    `  A yes for this file puts those back to their values from before the profile and leaves the 1 entry changed by hand since as it is (songwriting@${M}); a no keeps the file and its record.`,
   ]);
   assert.equal(preview.question, null, "the one question covers no file here");
   const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);

@@ -1233,8 +1233,8 @@ const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "value
 const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** The first few ids, and how many more the preview line lists. */
-const fewOf = (ids, shown = 3) => (ids.length > shown ? `${ids.slice(0, shown).join(", ")} and ${ids.length - shown} more, listed above` : list(ids));
+/** The first three ids and how many more, followed by tail when some are left out. */
+const fewOf = (ids, tail = "") => (ids.length > 3 ? `${ids.slice(0, 3).join(", ")} and ${ids.length - 3} more${tail}` : list(ids));
 /** An apply's time in this machine's time zone; the recorded text when it is not a date. */
 const localTime = (iso) => {
   const at = new Date(iso);
@@ -1285,7 +1285,7 @@ function resetRow(where, f, waits = false) {
       reason: NO_RECORD,
       entries: f.entries,
       settings,
-      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries)})?`),
+      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries, ", listed above")})?`),
       lines: [`${file}: no profile record, and its ${f.entries.length} plugin and skill entries may be your own: ${list(f.entries)}. Reset removes them only after a yes for this folder.`],
     };
   }
@@ -1331,6 +1331,7 @@ function resetRow(where, f, waits = false) {
       return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
     }
     const values = wroteValues(entries, rec.profile);
+    const changed = [...Object.keys(rec.entries), ...Object.keys(rec.skillOverrides)].filter((id) => !entries.includes(id));
     return {
       ...row,
       action: "finish-cut-off",
@@ -1339,8 +1340,8 @@ function resetRow(where, f, waits = false) {
       plan: clearPlan(file, { found: f.recordPath, record: still }),
       ask: askOf(ASKS.cutOff, file, `An earlier reset of ${file} was cut off and the file changed since. Put back the ${counted(entries.length, "entry", "entries")} still at ${values} (${fewOf(entries)}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`),
       lines: [
-        `${file}: an earlier reset of this file was cut off and the file changed since. ${counted(entries.length, "entry", "entries")} still ${entries.length === 1 ? "holds" : "hold"} ${values}: ${list(entries)}.`,
-        "  A yes for this file puts those back to their values from before the profile and leaves the entries changed by hand since as they are; a no keeps the file and its record.",
+        `${file}: an earlier reset of this file was cut off and the file changed since. ${counted(entries.length, "entry", "entries")} still ${entries.length === 1 ? "holds" : "hold"} ${values}: ${fewOf(entries)}.`,
+        `  A yes for this file puts those back to their values from before the profile and leaves the ${counted(changed.length, "entry", "entries")} changed by hand since as ${changed.length === 1 ? "it is" : "they are"} (${fewOf(changed)}); a no keeps the file and its record.`,
       ],
     };
   }
