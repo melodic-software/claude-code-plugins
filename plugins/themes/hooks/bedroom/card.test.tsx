@@ -12,9 +12,9 @@ const SETTLE_MS = 7000
 const STATUS = 'on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0'
 
 /** Hooks that stand for the engine beneath the plugin. Answers the session's surfaces, records each placed row's id and each theme call. */
-function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: string[], themeCalls: string[] = []): MockClock {
+function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: string[], themeCalls: string[] = [], stored?: object): MockClock {
   on('command.register', () => ({ value: { command: 'bedroom' } }))
-  on('store.get', () => ({ value: undefined }))
+  on('store.get', () => ({ value: stored }))
   on('store.set', () => ({ value: undefined }))
   on('theme.set', () => {
     themeCalls.push('set')
@@ -229,6 +229,19 @@ test('a dim step darkens the veil over the running shader and sends no room; a t
 
   await bedroom($, 'title console')
   await ui.unmount()
+  await room.unmount()
+})
+
+test('a dim saved before the veil darkens the room from its first draw, which is drawn at dim 0', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, ['desktop'], placed, [], { state: { ...DEFAULT_STATE }, dim: 0.2 })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const room = await $.ui.mount(BACKDROP)
+
+  expect((await room.find({ key: 'veil' }))?.props.backgroundColor).toBe('#07080f33')
+  expect((await room.find({ type: 'Svg' }))?.props.source).toBe(wholeRoom({}, 0))
   await room.unmount()
 })
 
