@@ -1063,6 +1063,10 @@ case "$mode" in
       cat "$f"
       exit 0
     fi
+    if [[ -f "${f%.json}.err" ]]; then
+      cat "${f%.json}.err" >&2
+      exit 1
+    fi
     printf '{"message":"Not Found","documentation_url":"https://example.invalid/docs"}\n'
     printf 'gh: Not Found (HTTP 404) — no fixture %s\n' "$key" >&2
     exit 1
@@ -1361,9 +1365,6 @@ EOF
 cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
-# Lanes, live: ci.yml is not a default lane workflow and is dropped. The
-# intake-triage run in the window failed on the limit, read through its job's
-# annotations.
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
 {"total_count": 4, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}, {"path": ".github/workflows/pr-review-main.yml"}]}
 EOF
@@ -1414,6 +1415,13 @@ EOF
 cat >"$REST/$(rest_key "$R/check-runs/770/annotations?per_page=100").json" <<'EOF'
 [{"message": "Process completed with exit code 1."}, {"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]
 EOF
+printf 'jobs:\n  t:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/intake-triage.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - uses: "anthropics/claude-code-action@v1"\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/pr-review-main.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - uses: anthropics/claude-code-base-action@0123abc\n' \
+  >"$REST/$(rest_key "$R/contents/.github/workflows/pr-unblock.yml").json"
+printf 'jobs:\n  t:\n    steps:\n      - run: make test\n' >"$REST/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
 
 OUT_REST="$(run_stub rest)"
 RC_REST=$?
@@ -1442,6 +1450,44 @@ assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
 assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 10 sections unreadable: stuck stranded landed touches"
+
+mkdir -p "$TMP/cfg-lanes" "$TMP/cfg-no-lanes"
+cat >"$TMP/cfg-lanes/work-items.yaml" <<'EOF'
+morning_brief:
+  lane_workflows:
+    - intake-triage.yml
+    - absent-lane.yml
+  lane_outcome_contract_ref:
+    - "https://example.invalid/lane-outcome.md#fields"
+    - docs/lane-record.md
+EOF
+LANES_CFG="$(section "$(run_stub rest --config-home "$TMP/cfg-lanes")" "== Lanes")"
+assert_contains "lane_workflows: a configured file the repo has is read" "$LANES_CFG" "intake-triage.yml  runs=1"
+assert_not_contains "lane_workflows: a file the list leaves out is not read" "$LANES_CFG" "pr-review-main.yml  runs="
+assert_not_contains "lane_workflows: a configured file the repo lacks is dropped" "$LANES_CFG" "absent-lane.yml"
+assert_contains "lane_outcome_contract_ref: each pointer prints under the heading, the anchor kept" "$LANES_CFG" \
+  "lane-outcome record contract: https://example.invalid/lane-outcome.md#fields docs/lane-record.md"
+LANES_DEFAULT="$(section "$(run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_contains "lane_workflows unset: a workflow using claude-code-action is a lane" "$LANES_DEFAULT" "intake-triage.yml  runs=1"
+assert_contains "lane_workflows unset: a workflow using claude-code-base-action is a lane" "$LANES_DEFAULT" "pr-unblock.yml  runs=1"
+assert_not_contains "lane_workflows unset: a workflow with no Claude action is not a lane" "$LANES_DEFAULT" "ci.yml"
+assert_not_contains "lane_outcome_contract_ref unset: no contract line" "$LANES_DEFAULT" "lane-outcome record contract:"
+cp -R "$REST" "$TMP/rest-err-wf"
+rm -f "$TMP/rest-err-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
+printf 'gh: boom, the upstream fell over (HTTP 500)\n' >"$TMP/rest-err-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").err"
+LANES_ERR_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-err-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_contains "lane_workflows unset: a workflow file read that fails is UNREADABLE" "$LANES_ERR_WF" "UNREADABLE: workflow .github/workflows/ci.yml"
+assert_not_contains "lane_workflows unset: a failed workflow file read is never 'none found'" "$LANES_ERR_WF" "no lane workflows found"
+cp -R "$REST" "$TMP/rest-gone-wf"
+rm -f "$TMP/rest-gone-wf/$(rest_key "$R/contents/.github/workflows/ci.yml").json"
+cat >"$TMP/rest-gone-wf/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
+{"total_count": 5, "workflows": [{"path": ".github/workflows/intake-triage.yml", "state": "active"}, {"path": ".github/workflows/old.yml", "state": "deleted"}, {"path": ".github/workflows/ci.yml", "state": "active"}, {"path": ".github/workflows/pr-unblock.yml", "state": "active"}, {"path": ".github/workflows/pr-review-main.yml", "state": "active"}]}
+EOF
+LANES_GONE_WF="$(section "$(MB_GH_FIXTURES="$TMP/rest-gone-wf" run_stub rest --config-home "$TMP/cfg-no-lanes")" "== Lanes")"
+assert_not_contains "lane_workflows unset: a workflow file that answers 404 is not UNREADABLE" "$LANES_GONE_WF" "UNREADABLE"
+assert_contains "lane_workflows unset: lanes are still read past a 404 and a deleted workflow" "$LANES_GONE_WF" "intake-triage.yml  runs=1"
+assert_contains "lane_workflows unset: a lane listed after the 404 is read" "$LANES_GONE_WF" "pr-unblock.yml  runs=1"
+assert_not_contains "lane_workflows unset: a deleted workflow is not a lane" "$LANES_GONE_WF" "old.yml"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'

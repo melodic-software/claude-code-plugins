@@ -305,7 +305,8 @@ unambiguous; ask only where an item genuinely needs the user.
    automation or the `work` due-recurring tier) lands without that label, is invisible to the next
    `due` / `work` pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's
    label listing (for the GitHub adapter, `gh label list`). **When the repository declares a
-   label-as-code source of truth, that system is the sole writer, never `gh label create` labels ad
+   label-as-code owner (`label_as_code_repo`, as
+   [`../../reference/label-taxonomy.md`](../../reference/label-taxonomy.md) defines it), that system is the sole writer, never `gh label create` labels ad
    hoc.** When the resolved label is missing and the schedule carries rows, tell the user plainly that
    the schedule cannot be reconciled until the label is added through the repository's declared
    provisioning process; do not silently treat it as optional. This step files no items; for a row now
@@ -364,8 +365,9 @@ schedule work. Triage marks an untrusted item with `provenance: untrusted`, the 
 3. **Discover** via the adapter's label listing (GitHub: `gh label list -R <owner>/<repo> --limit 200`, the repository `check` probe 2 named, filter
    `provenance:`). Look for `provenance: untrusted`.
 4. **Present**. Report "provenance label provisioned" and continue.
-5. **Missing, label-as-code owner declared**, stop. Name the label and route remediation
-   to that owner; never `gh label create` ad hoc.
+5. **Missing, label-as-code owner declared** (`label_as_code_repo`, as
+   [`../../reference/label-taxonomy.md`](../../reference/label-taxonomy.md) defines it), stop. Name the
+   label and route remediation to that repository; never `gh label create` ad hoc.
 6. **Missing, no label-as-code owner, interactive user present**, offer to create it via the
    adapter's label-creation mechanics (GitHub: `gh label create "<name>" -R <owner>/<repo> --description
    "<description>" --color "<color>"` using the reference table). RECOMMENDED: create it, this pass

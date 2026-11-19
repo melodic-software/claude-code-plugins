@@ -6,6 +6,7 @@
 # Autonomous lane posts here come from a bot account, whose author line already marks them.
 ai_disclaimer: false
 filing_posture: allowed
+label_as_code_repo: melodic-software/github-iac
 # The Azure subscription is not set here: pass --subscription or set it in work-items.local.yaml.
 morning_brief:
   org: melodic-software
@@ -19,6 +20,20 @@ morning_brief:
     - budget-subscription-forecast
   anomaly_alert: daily-cost-anomaly
   expiry_days: 30
+  lane_workflows:
+    - intake-triage.yml
+    - pr-review-hosted.yml
+    - pr-review-main.yml
+    - pr-review-security-hosted.yml
+    - pr-rate-merge-risk.yml
+    - pr-verify.yml
+    - pr-refine.yml
+    - pr-unblock.yml
+    - work-resolve-issue.yml
+  lane_outcome_contract_ref:
+    - "https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml"
+    - "https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/classify.cjs"
+    - "https://github.com/melodic-software/ci-workflows/blob/main/docs/lane-outcome.md#fields"
 tracker:
   schema_version: "1.0"
   provider: "github"
