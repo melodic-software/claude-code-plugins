@@ -127,14 +127,16 @@ observed.
 ### Leading step-away command
 
 With `--step-away "<words>"`, the payload is the line `/session-flow:step-away <words>`, a line
-break, then the text that would follow `/goal` and its space above. The skill writes the command
-name, so a caller supplies only the words. A first prompt runs one slash command, so no `/goal`
-arms: step-away arms the launched session under its own id, and its Stop hook holds the condition
-(every task file item done or parked, and `away.py check` exits 0). The person's choice in
-step-away to hand off is the launch approval, so no goal is drafted or confirmed. With `--cloud`,
-do not launch: a cloud session's first-prompt arming is unprobed. We rely on a typed step-away
-first prompt arming the session, which our probe observed; whether lines after the first reach
-step-away as arguments is unprobed. Pointer: probe 4 in [reference/goal-probe.md](reference/goal-probe.md).
+break, then the text that would follow `/goal` and its space above when a goal applies; when none
+applies, the resume region's `Read @` directive line on the full path, or the resume region's
+between-rails text on prompt-only. The skill writes the command name, so a caller supplies only
+the words. A first prompt runs one slash command, so no `/goal` arms: step-away arms the launched
+session under its own id, and its Stop hook holds the condition (every task file item done or
+parked, and `away.py check` exits 0). The person's choice in step-away to hand off is the launch
+approval, so this path skips the gate's cases 2 and 3: no goal is drafted, confirmed or required.
+With `--cloud`, do not launch: a cloud session's first-prompt arming is unprobed. We rely on a
+typed step-away first prompt arming the session, which our probe observed; whether lines after the
+first reach step-away as arguments is unprobed. Pointer: probe 4 in [reference/goal-probe.md](reference/goal-probe.md).
 
 ## Delivery: background-agent launch
 
@@ -412,12 +414,12 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
-- [ ] Completion condition settled: an applying goal used (an active one → `/goal clear` advised
+- [ ] Completion condition settled (not with `--step-away`): an applying goal used (an active one → `/goal clear` advised
   in the report), or one drafted as case 2 says, shown as the goal region,
   and launched only on the user's yes to it; a conversation-bound or already-met goal never
   launched as it stands, only redrafted (case 2) or left unlaunched (case 3); none → no launch, the message saying how to supply
   one, fallback to `/clear`-then-paste
-- [ ] Background agent launched (not on a successful desktop start) (`claude --bg --name … --permission-mode auto`), the payload being
+- [ ] Background agent launched (not on a successful desktop start) (`claude --bg --name … --permission-mode auto`), the payload being the `--step-away` payload or
   `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
