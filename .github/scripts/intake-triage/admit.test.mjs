@@ -4,6 +4,7 @@ import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitC
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
 import { WRITTEN_STATUS_REREADS, WRITTEN_STATUS_WAIT_MS } from "./admit.mjs";
 import { driftSpecText } from "./admit.mjs";
+import { ACTIONS_BOT_ID, ownAgentIds } from "./admit.mjs";
 import { runCode, stopRoute } from "../work-resolve-issue/stop-routes.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
@@ -280,12 +281,17 @@ describe("decide", () => {
       const path = join(dir, "bare.json");
       writeFileSync(path, JSON.stringify(bare));
       assert.deepEqual(loadRules(path)["own-agents"], { identities: ["lanes-app"], "source-cap": 5 });
-      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["cap", { "source-cap": 0 }]]) {
+      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["actions bot id", { identities: [ACTIONS_BOT_ID] }], ["cap", { "source-cap": 0 }]]) {
         const bad = join(dir, `${name}.json`);
         writeFileSync(bad, JSON.stringify({ ...bare, "own-agents": value }));
         assert.throws(() => loadRules(bad), /own-agents/, name);
       }
       rmSync(dir, { recursive: true, force: true });
+    });
+
+    test("ownAgentIds never counts github-actions[bot], listed or as the App id", () => {
+      assert.deepEqual([...ownAgentIds({ "own-agents": { identities: ["lanes-app", ACTIONS_BOT_ID, 7] } }, 5)], [5, 7]);
+      assert.deepEqual([...ownAgentIds(undefined, ACTIONS_BOT_ID)], []);
     });
   });
 

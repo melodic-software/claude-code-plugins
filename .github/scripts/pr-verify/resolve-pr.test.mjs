@@ -2370,6 +2370,7 @@ test("an own-agent filing's body is spec only while no other account edited it, 
     ["a bot not on the list", node(bot(99)), null],
     ["no source label", node(app, null, []), null],
     ["two source labels", node(app, null, ["source: improvement-find", "source: upstream"]), null],
+    ["a malformed source label", node(app, null, ["source:improvement-find"]), null],
   ]) {
     assert.deepEqual(await specBody(issue, null), [[8, expected]], name);
   }

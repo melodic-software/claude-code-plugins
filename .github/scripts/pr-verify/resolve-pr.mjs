@@ -72,7 +72,7 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssueId, driftSpecText, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -1021,7 +1021,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       const childBody = childBodies.get(issue.number);
-      const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sourceLabels(issue.labels?.nodes).length === 1 && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
+      const sources = sourceLabels(issue.labels?.nodes);
+      const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
       const recurring = written(issue) || childBody !== undefined || ownBody !== null ? null : recurringSpec(issue, schedule);
       const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
       const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
