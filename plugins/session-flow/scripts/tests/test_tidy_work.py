@@ -1104,6 +1104,8 @@ def test_a_finished_chain_keeps_its_newest_hot_file_and_its_archive(env):
     result = clean(env, "--apply")
     assert result.returncode == 0, result.stderr
     assert archive.is_dir()
+    for hop in ("h1-00000000.md", "h2-00000000.md"):
+        assert (archive / hop).is_file(), hop
     assert (repo / ".work" / "handoffs" / HOP3_2).exists()
     assert not (repo / ".work" / "handoffs" / ROOT3).exists()
 

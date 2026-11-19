@@ -724,7 +724,7 @@ read alike, and both exit 3 on a shape newer than the script knows. What each re
 | retro | `parse_transcript.py --chain-from`'s `handoff_journey`; without it, `chain --json`; any other section through `read` |
 | orient | `chain --json` for the timeline; `read` for Prior sessions and each section the briefing uses |
 | find-handoff | `emit` for Resume prompt; `read` for any section the operator asks about |
-| reanchor | `chain --json` for the links; `validate` per shape-3 or shape-4 link; `read` for Original goal on a shape-1 or shape-2 link and for each section holding a premise |
+| reanchor | `chain --json` for the links; `validate` per shape-3 or shape-4 link; `read` for Original goal on a shape-1 or shape-2 link or when `validate` cannot run, and for each section holding a premise |
 | continue-in-background | `validate` before launch; `read` for Environment to re-establish and Remaining actions, in order |
 
 **A broken link.** When `new --previous` finds its predecessor missing or unreadable, it writes

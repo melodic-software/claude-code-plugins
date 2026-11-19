@@ -91,9 +91,12 @@ read from there.
 
 1. Gather the session's inputs, the handoff / plan / memory files, the
    `Original goal` they record, and any PRs, issues, branches, skills, or plugin
-   versions they name. When an input chains from a prior handoff, the goal check
-   compares links, which a single document cannot do: validate a shape-3 input,
-   and open the prior file for an older one (check 5).
+   versions they name, reading a handoff's sections with `save_point.py read`.
+   When an input chains from a prior handoff, the goal check compares links,
+   which a single document cannot do: list them with `save_point.py chain`,
+   validate each shape-3 or shape-4 link, and read `Original goal` with
+   `save_point.py read` for a shape-1 or shape-2 link or when `validate`
+   cannot run (check 5).
 2. Run the five checks above against live reality. Fetch/read the live source
    (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
    When a check cannot reach what it needs (no network, no `gh`, no fetch),

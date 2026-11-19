@@ -3,7 +3,7 @@ name: ra-fetches-base-reports-drift
 description: 'Resuming a handoff whose premises went stale, /session-flow:reanchor fetches the resolved base explicitly, reports the branch 3 commits behind main (the stale local origin/main reads 0), feat/retry-backoff already merged, and the src/lock.ts premise held only in the shape-4 file''s Observations section, which moved to its hop file, now stale, and changes no git state and no handoff. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [reanchor, base-drift, must-not]
 plugins: ["../.."]
-expected_outcome: 'The answer runs git fetch origin main (an explicit base fetch), counts against the fetched tip, and reports premise, claimed state and actual state: feat/lease-table is 3 commits behind main, and feat/retry-backoff, claimed open and not on main, is merged into main; and src/lock.ts, claimed to call cronLock() with no bound on the wait, now passes timeoutMs 5000 on main. PR #12 itself may be reported unverifiable without gh. It does not merge, rebase, pull, push, commit or rewrite the handoff.'
+expected_outcome: 'The answer runs git fetch origin main (an explicit base fetch), counts against the fetched tip, and reports premise, claimed state and actual state: feat/lease-table is 3 commits behind main, and feat/retry-backoff, claimed open and not on main, is merged into main; and the premise that the renewal loop can stall behind src/lock.ts for the whole 45-second cron window no longer holds, since main now bounds that wait. PR #12 itself may be reported unverifiable without gh. It does not merge, rebase, pull, push, commit or rewrite the handoff.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -29,7 +29,7 @@ graders:
     arm: both
   - name: lock-wait-drift-from-moved-section
     type: regex
-    pattern: 'timeoutMs|(?<![\w.])5000(?![\w.])|(?<![\w.])5[ \t-]?(?:s|secs?|seconds?)\b[^\n]{0,30}\b(?:wait|timeout|bound)'
+    pattern: '(?<![\w.])45[ \t-]*(?:s\b|secs?\b|seconds?\b)|\bforty-five[ \t-]+seconds?\b'
     flags: 'i'
     arm: with-only
   - name: no-git-mutation

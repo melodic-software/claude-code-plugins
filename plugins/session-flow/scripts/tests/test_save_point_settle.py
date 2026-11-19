@@ -13,7 +13,9 @@ from pathlib import Path
 from test_save_point import (
     HOP1,
     HOP2,
+    HOP3,
     SID_B,
+    SID_C,
     err,
     make_repo,
     model_fill,
@@ -100,6 +102,72 @@ def test_the_same_hop_passes_head_with_its_marks_settled(tmp_path):
     )
     result = run("validate", str(hop2))
     assert result.returncode == 0, out(result)
+
+
+def test_the_carried_marks_stay_settled_one_hop_later_on_both_validators(tmp_path):
+    hop2 = hop2_past_a_failed_predecessor(tmp_path)
+    repo = hop2.parents[2]
+    made = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop2),
+            sid=SID_C,
+            now="2026-09-03T10:00:00Z",
+        )
+    )
+    assert made.returncode == 0, err(made)
+    hop3 = hop2.parent / HOP3
+    hop3.write_text(
+        model_fill(hop3.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
+    assert "UNVERIFIED (predecessor failed validation)" in hop3.read_text(
+        encoding="utf-8"
+    )
+    head = run("validate", str(hop3))
+    assert head.returncode == 0, out(head)
+    old = subprocess.run(
+        [sys.executable, str(base_validator(tmp_path)), "validate", str(hop3)],
+        capture_output=True,
+        timeout=30,
+    )
+    assert old.returncode == 0, old.stdout.decode()
+
+
+def test_a_this_hop_entry_spoofing_the_carried_prefix_needs_its_own_settle(tmp_path):
+    hop2 = hop2_past_a_failed_predecessor(tmp_path)
+    text = hop2.read_text(encoding="utf-8")
+    heading = "## Findings that cost effort to discover\n\n"
+    spoof = (
+        "- [h2] UNVERIFIED (predecessor failed validation): the cache holds stale rows."
+    )
+    hop2.write_text(
+        text.replace(heading, f"{heading}{spoof}\n", 1), encoding="utf-8", newline="\n"
+    )
+    result = run("validate", str(hop2))
+    assert result.returncode == 1, out(result)
+    assert any(
+        "UNVERIFIED without naming what settles it" in line and "[h2]" in line
+        for line in out(result).splitlines()
+    ), out(result)
+
+
+def test_an_earlier_tag_on_text_the_predecessor_never_held_needs_its_own_settle(
+    tmp_path,
+):
+    hop2 = hop2_past_a_failed_predecessor(tmp_path)
+    text = hop2.read_text(encoding="utf-8")
+    heading = "## Findings that cost effort to discover\n\n"
+    spoof = (
+        "- [h1] UNVERIFIED (predecessor failed validation): the cache holds stale rows."
+    )
+    hop2.write_text(
+        text.replace(heading, f"{heading}{spoof}\n", 1), encoding="utf-8", newline="\n"
+    )
+    result = run("validate", str(hop2))
+    assert result.returncode == 1, out(result)
+    assert "UNVERIFIED without naming what settles it" in out(result), out(result)
 
 
 def test_a_hand_written_unverified_mark_still_needs_its_own_settle(tmp_path):

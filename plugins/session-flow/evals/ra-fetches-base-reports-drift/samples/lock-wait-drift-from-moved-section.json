@@ -1,22 +1,22 @@
 {
   "pass": [
     {
-      "answer": "Stale premise: the handoff says src/lock.ts calls cronLock() with no bound on the wait, but main now passes timeoutMs: 5000.",
-      "why": "names the new timeout"
+      "answer": "Stale premise: the handoff expects the renewal loop to stall behind src/lock.ts for the whole 45-second cron window, but main now bounds that wait (timeoutMs: 5000).",
+      "why": "names the moved section's 45-second window"
     },
     {
-      "answer": "| src/lock.ts has no wait bound | claimed | main bounds it at 5 seconds of wait |",
-      "why": "names the new bound in seconds"
+      "answer": "| renewal can stall 45 s behind cronLock() | claimed | main bounds the wait |",
+      "why": "spaced unit"
     }
   ],
   "fail": [
     {
-      "answer": "The handoff assumes src/lock.ts calls cronLock() with no bound on the wait; I did not check it.",
-      "why": "restates the premise without the drift"
+      "answer": "main gained 3 commits since the handoff; src/lock.ts on main now passes timeoutMs: 5000 to cronLock().",
+      "why": "read from main's code and commits alone, without the moved section"
     },
     {
       "answer": "main gained 3 commits since the handoff, among them fix(lock): bound the cron lock wait.",
-      "why": "the commit subject alone, readable from git log without the moved section"
+      "why": "the commit subject alone"
     },
     {
       "answer": "feat/lease-table is 3 commits behind main.",

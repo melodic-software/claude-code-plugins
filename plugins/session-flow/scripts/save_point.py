@@ -1169,7 +1169,7 @@ def validate_doc(
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
     if (_fm_int(doc, "checks") or 0) >= UNVERIFIED_SETTLE_FROM:
-        _check_unverified(doc, f, SHAPES[shape].carried)
+        _check_unverified(doc, f, SHAPES[shape].carried, pred)
 
     for i, line in enumerate(doc.lines, 1):
         if FILL_MARK in line:
@@ -1360,21 +1360,38 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
             f.fail(f"{title}: empty; write 'None.' plus a reason")
 
 
-def _check_unverified(doc: Doc, f: Findings, carried: tuple[str, ...]) -> None:
+def _check_unverified(
+    doc: Doc, f: Findings, carried: tuple[str, ...], pred: Doc | None
+) -> None:
     """Every UNVERIFIED mark in a section the session wrote is followed on its
     line by the command or source that settles it. The mark `new` puts on an
     entry carried past a failed predecessor is settled once for its section,
     by the CARRY_SETTLE line, so the entry's text stays what older validators
-    match."""
+    match. That covers only a carried entry: one tagged before this file's hop
+    whose text the predecessor holds (when the predecessor was read)."""
+    hop = _fm_int(doc, "hop") or len(doc.chain)
     for title, start, end in doc.sections:
         if title in carried:
             continue
         body = doc.lines[start + 1 : end]
         settled = any(CARRY_SETTLE_RE.match(line.strip()) for line in body)
+        held = (
+            None
+            if pred is None
+            else {e.normalized for e in parse_entries(pred.section(title) or [])}
+        )
         for i in range(start + 1, end):
             line = doc.lines[i]
-            if settled:
-                rest = TAG_RE.sub("", BULLET_RE.sub("", line.strip(), count=1))
+            entry = BULLET_RE.sub("", line.strip(), count=1)
+            tag = TAG_RE.match(entry)
+            rest = TAG_RE.sub("", entry)
+            if (
+                settled
+                and tag
+                and int(tag.group(1)) < hop
+                and UNVERIFIED_PRED_RE.match(rest)
+                and (held is None or Entry(0, [line], False).normalized in held)
+            ):
                 line = UNVERIFIED_PRED_RE.sub("", rest)
             if any(
                 not SETTLE_RE.search(line, m.end())

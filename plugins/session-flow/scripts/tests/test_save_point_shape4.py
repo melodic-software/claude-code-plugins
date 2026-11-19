@@ -343,6 +343,14 @@ def test_chain_json_lists_every_link_and_hop(tmp_path):
     ]
 
 
+def test_emit_prints_a_shape4_prompt_under_the_cap_with_no_notice(tmp_path):
+    hot = s4_chain(make_repo(tmp_path), tmp_path, 1)[0]
+    result = run("emit", str(hot))
+    assert result.returncode == 0, err(result)
+    assert re.search(r"^Read @.*\.md, ", out(result), re.M)
+    assert "OVER-CAP" not in err(result), err(result)
+
+
 def test_emit_prints_a_shape4_prompt_over_the_cap_with_its_over_cap_notice(tmp_path):
     hot = over_cap_binding(tmp_path)
     result = run("emit", str(hot))
