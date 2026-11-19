@@ -203,10 +203,13 @@ const startOf = (run) => Date.parse(run?.started_at ?? "");
 // when that check releases the head (releasesHead) and fewer than `cap` such
 // checks stand on it (the dispatcher's own per-head cap), so activity checks
 // that started before it stop counting; null otherwise. `stops` counts them.
+// `newest` is that newest emitter check itself (undefined when there is none),
+// whose `output.text` carries the conflict record the dispatcher reads
+// (https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference).
 export function stopRelease(stopRuns, cap) {
   const stops = stopRuns.filter(releasesHead).length;
   const newest = stopRuns.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), stopRuns[0]);
-  return { cut: releasesHead(newest) && stops < cap ? startOf(newest) : null, stops };
+  return { cut: releasesHead(newest) && stops < cap ? startOf(newest) : null, stops, newest };
 }
 
 // `runs` without those started before `cut`, a limit stop kept.

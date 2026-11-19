@@ -602,6 +602,7 @@ jobs:
       escalation-reason: >-
         ${{ steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
+      conflict-paths: ${{ steps.prepare.outputs.conflict-paths }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
       # The verdict step's skip reason, after the gate's reason.
       skip-reason: >-
@@ -2174,6 +2175,8 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
+          conflict-base: ${{ inputs.patch-prepare == 'merge-base' && needs.run.outputs.escalation-reason == 'unresolved-conflict' && inputs.patch-merge-base-sha || '' }}
+          conflict-paths: ${{ inputs.patch-prepare == 'merge-base' && needs.run.outputs.escalation-reason == 'unresolved-conflict' && needs.run.outputs.conflict-paths || '' }}
 
       # Issue mode, after the run job opened the PR or stopped: the lease
       # handle is the caller's, from the read runner's check-broker, which ran
