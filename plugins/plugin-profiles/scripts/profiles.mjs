@@ -1249,7 +1249,9 @@ function machineFiles(where, env) {
 }
 
 const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
-const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "values"} profile ${profile} wrote`;
+/** The values a cut-off row's entries still hold: the ones the profile wrote, or, for an entry an unfinished switch still owes, the one it had yet to change. */
+const wroteValues = (ids, rec) =>
+  `the ${ids.length === 1 ? "value" : "values"} profile ${rec.profile} wrote${ids.some((id) => rec.pending?.[id] !== undefined) ? " or its unfinished switch had yet to change" : ""}`;
 const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -1374,7 +1376,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
     if (!entries.length) {
       return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
     }
-    const values = wroteValues(entries, rec.profile);
+    const values = wroteValues(entries, rec);
     const changed = [...Object.keys(rec.entries), ...Object.keys(rec.skillOverrides)].filter((id) => !entries.includes(id));
     return {
       ...row,
@@ -1467,7 +1469,7 @@ function resetOne(row, { chosen, kept, keepRecorded }) {
     line: plan.removes
       ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).`
       : row.action === "finish-cut-off"
-        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec.profile)}, and left the entries changed by hand since as they are.`
+        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec)}, and left the entries changed by hand since as they are.`
         : `Restored ${file} (profile ${plan.rec.profile}).`,
     ok: true,
     restored: !f.adopted,

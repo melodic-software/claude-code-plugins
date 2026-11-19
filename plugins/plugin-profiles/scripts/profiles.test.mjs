@@ -2506,8 +2506,12 @@ test("#17354: a reset of an unfinished switch cut off before its write, then an 
   const [row] = resetJson(w).folders;
   assert.equal(row.action, "finish-cut-off");
   for (const id of owed) assert.ok(row.entries.includes(id), `${id} still holds build's value: ${row.entries}`);
+  const values = "the values profile native wrote or its unfinished switch had yet to change";
+  assert.ok(row.lines[0].includes(` still hold ${values}: `), row.lines[0]);
+  assert.ok(row.ask.question.includes(` still at ${values} (`), row.ask.question);
   const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(resultLines(r.stdout)[0].includes(` still at ${values}, `), r.stdout);
   assert.equal(w.read(), LOCAL_BEFORE);
   assert.deepEqual(w.records(), []);
 });
