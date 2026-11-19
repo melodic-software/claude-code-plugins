@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from test_tidy_work import (  # noqa: F401  (env is a pytest fixture)
+import test_tidy_work
+from test_tidy_work import (
     CLOSED_NEXT,
     HOP3_2,
     ROOT3,
     SHIPPED,
     age,
-    env,
     hot_file,
     links,
     report,
@@ -22,6 +22,7 @@ from test_tidy_work import (  # noqa: F401  (env is a pytest fixture)
     write,
 )
 
+env = test_tidy_work.env
 OPEN_NEXT = "Next:\nShip the fix"
 MERGED = {"#7": "merged"}
 ROOT2 = "20250101T100000Z-handoff-two.md"
