@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/hooks/run-away-hook.sh plugins/session-flow/lib/python-probe.sh
 """Contract tests for away.py: the step-away state, report, check and hook entry.
 
 The CLI and every hook run as a subprocess with a temp HOME, config dir and plugin data root, so

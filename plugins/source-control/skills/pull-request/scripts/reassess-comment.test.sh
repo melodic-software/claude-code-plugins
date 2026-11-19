@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 # Regression tests for reassess-comment.sh, including that no output reads as a
 # member's veto under the merge gate's own pattern.
 
