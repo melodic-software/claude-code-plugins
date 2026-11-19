@@ -45,6 +45,7 @@ if [[ ${event:-} == pull_request_target ]]; then
 fi
 [[ ${path:-} =~ ^\.github/workflows/[A-Za-z0-9._-]+\.ya?ml$ && ${head:-} =~ ^[0-9a-f]{40}$ ]] ||
   leave "dispatcher run $DISPATCHER_RUN_ID names no workflow file and head"
+[[ $head != "$(git -C .base rev-parse -q --verify HEAD)" ]] || exit 0
 blob=$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$head" --jq .sha) && [[ $blob =~ ^[0-9a-f]{40}$ ]] ||
   leave "cannot read $path at $head"
 if [[ $blob != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]]; then
