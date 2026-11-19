@@ -14,6 +14,8 @@ const RESET = 'Reset'
 const REMOVE = 'Remove'
 const KEEP = 'Keep'
 const RESTORES = ['restore', 'remove-file', 'finish-restore']
+/** The tool's exit status for a reset that wrote what it could and named each file it skipped. */
+const PARTLY_DONE = 3
 const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
 const APPLY = 'Apply'
@@ -159,14 +161,13 @@ async function resetAll($: EngineInterface): Promise<string> {
     if ((await $.ui.ask(ask.question, { options: [REMOVE, KEEP], header: 'Reset' }).catch(() => KEEP)) === REMOVE) remove.push(ask.file)
   }
   if (!restores && !remove.length) return 'Not reset; nothing changed.'
-  const done = await cli($, ['reset', '--yes', ...remove.flatMap(file => ['--remove-unrecorded', file])])
-  if (done.exitCode > 1) return failure(done)
-  const before = new Set(preview.lines)
-  show($, done.stdout.split('\n').filter(line => !before.has(line) && !line.startsWith('Reset looked') && !line.startsWith('It found')))
+  const done = await cli($, ['reset', '--yes', '--json', ...remove.flatMap(file => ['--remove-unrecorded', file])])
+  if (done.exitCode !== 0 && done.exitCode !== PARTLY_DONE) return failure(done)
+  show($, (JSON.parse(done.stdout) as { lines: string[] }).lines)
   await update($, pending, (): Switch => ({ profile: RESET, phase: 'armed', kind: 'reset', keeps: preview.sessionProfile ?? undefined }))
   return done.exitCode === 0
     ? `Reset every profile this machine records. ${NEXT_STEP}`
-    : `Reset most files; the lines above name the ones skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`
+    : `Reset did not finish every file; the lines above name each one skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`
 }
 
 /** The line refusing a new switch while an earlier one waits for its reload, or undefined. */

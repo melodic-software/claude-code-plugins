@@ -36,8 +36,8 @@ The user sees every change before it is made, so each write runs twice:
 2. Ask whether to go ahead, one yes-or-no question per write.
 3. Only after the user's yes in this conversation, run the same command with `--yes`. The write is
    done when the tool prints its `Applied`, `Saved`, `Installed` or `Cleared` line, or reset's
-   line for each file; a non-zero exit means nothing was written, except for reset, whose lines
-   name each file it skipped. Relay the message.
+   line for each file; a non-zero exit means nothing was written, except reset's exit 3, which
+   wrote what it could and names each file it skipped. Relay the message.
 
 `--yes` stands for that answer, so it is never passed on a guess, on an earlier yes for a
 different write, or when nobody is there to answer: with no one to ask, stop after the preview

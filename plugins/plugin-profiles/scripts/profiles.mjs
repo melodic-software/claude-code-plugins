@@ -80,9 +80,11 @@
 //          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk.
 //
 // Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
-// consent, a missing required prerequisite, settings changed by another writer) or the check
-// failed. Exit 2: usage, profile or settings
-// file error. apply names a missing plugin with its install command and installs nothing.
+// consent, a missing required prerequisite, settings changed by another writer), nothing
+// written, or the check failed. Exit 2: usage, profile or settings
+// file error. Exit 3: a reset wrote what it could and named each file it skipped (scenario row
+// 37 of https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
+// apply names a missing plugin with its install command and installs nothing.
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
@@ -134,13 +136,16 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes] [--remove-unrecorded <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json]] [--remove-unrecorded <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
        profiles.mjs install <name@marketplace> [--dry-run] [--yes]
        profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>] [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
        profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
+
+/** Exit status of a reset that wrote what it could and named each file it skipped; 1 stays "nothing written". */
+const PARTLY_DONE = 3;
 
 class UsageError extends Error {}
 class NotApplied extends Error {}
@@ -301,7 +306,9 @@ function parseArgs(argv) {
   if (["apply", "status", "clear"].includes(command) && !targets.includes(opts.target)) throw new UsageError(`--for takes ${targets.join(", ")}`);
   if (opts.deferOff && opts.target === "session") throw new UsageError("--defer-off applies to a folder or user settings, not a one-session file");
   if (opts.finishPending && opts.target === "session") throw new UsageError("--finish-pending applies to a folder or user settings, not a one-session file");
-  if (["apply", "clear", "reset"].includes(command) && opts.json && !opts.dryRun) throw new UsageError(`${command} --json prints a preview and needs --dry-run`);
+  if (["apply", "clear", "reset"].includes(command) && opts.json && !opts.dryRun && !(command === "reset" && opts.yes)) {
+    throw new UsageError(command === "reset" ? "reset --json prints the preview with --dry-run, or each file's result with --yes" : `${command} --json prints a preview and needs --dry-run`);
+  }
   return opts;
 }
 
@@ -1328,10 +1335,10 @@ async function reset(opts, where, env, io) {
     ...rows.flatMap((r) => r.lines),
     ...(keeps ? [keeps] : []),
   ];
-  if (opts.json) {
+  if (opts.json && opts.dryRun) {
     const folders = rows.map(({ found, plan, movedPlan, settings, ...r }) => r);
     io.out(JSON.stringify({ sessionProfile: sessionProfile(env), folders, lines }, null, 2));
-  } else for (const line of lines) io.out(line);
+  } else if (!opts.json) for (const line of lines) io.out(line);
   if (opts.dryRun) return 0;
   const askable = new Set(rows.filter((r) => r.ask).map((r) => realPath(r.ask.file)));
   for (const named of opts.removeUnrecorded) {
@@ -1343,15 +1350,23 @@ async function reset(opts, where, env, io) {
     if (!interactive()) throw new NotApplied("not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt");
     if (restores && !["y", "yes"].includes(await ask("Reset every file above? [y/N] "))) throw new NotApplied("not reset: nothing was written");
   }
-  if (!opts.removeUnrecorded.length && askable.size && interactive()) {
+  if (!opts.removeUnrecorded.length && !opts.json && askable.size && interactive()) {
     const answered = await askPerFolder(rows.filter((r) => r.ask).map((r) => r.ask));
     chosen = new Set([...answered].map(realPath));
   }
   let failed = false;
+  const results = [];
+  const say = (line) => (opts.json ? results.push(line) : io.out(line));
   const done = new Set();
   for (const row of rows) {
-    const result = resetOne(row, chosen);
-    io.out(result.line);
+    let result;
+    try {
+      result = resetOne(row, chosen);
+    } catch (error) {
+      if (typeof error.code !== "string") throw error;
+      result = { line: `Skipped ${row.file}: ${error.message}; run reset again.`, ok: false };
+    }
+    say(result.line);
     if (!result.ok) failed = true;
     if (result.restored) done.add(realPath(row.file));
   }
@@ -1362,12 +1377,13 @@ async function reset(opts, where, env, io) {
       const key = realPath(record.settingsFile);
       if (done.has(key) && !back.has(key) && !ignored.has(realPath(path))) {
         back.add(key);
-        io.out(`Another terminal applied a profile to ${record.settingsFile} during the reset; run reset again.`);
+        say(`Another terminal applied a profile to ${record.settingsFile} during the reset; run reset again.`);
         failed = true;
       }
     }
   }
-  return failed ? 1 : 0;
+  if (opts.json) io.out(JSON.stringify({ lines: results }, null, 2));
+  return failed ? PARTLY_DONE : 0;
 }
 
 function listProfiles(opts, where, io) {

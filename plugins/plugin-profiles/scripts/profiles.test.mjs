@@ -2144,6 +2144,38 @@ test("#17354: reset prints one line per folder: restored, or skipped with its re
   assert.deepEqual(w.records(), ["gone.json"]);
 });
 
+test("#17354: reset --yes --json prints only each file's result line, as data", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const r = reset(w, ["--yes", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), { lines: [`Restored ${w.localFile} (profile build).`] });
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(reset(w, ["--json"]).status, 2, "--json writes only with --yes");
+});
+
+test("#17354: a file reset cannot write is skipped with the reason, the files after it are still reset, and reset exits 3", { skip: process.platform === "win32" || process.getuid?.() === 0 }, () => {
+  const w = world();
+  const first = join(w.root, "aaa");
+  writeTree(first, { ".claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, first, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const firstFile = join(first, ".claude", "settings.local.json");
+  const applied = readFileSync(firstFile, "utf8");
+  chmodSync(join(first, ".claude"), 0o555);
+  try {
+    const r = reset(w, ["--yes"]);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    assert.match(r.stdout, new RegExp(`^Skipped ${esc(firstFile)}: .*EACCES.*; run reset again\\.$`, "m"));
+    assert.ok(resultLines(r.stdout).includes(`Restored ${w.localFile} (profile build).`), r.stdout);
+    assert.doesNotMatch(r.stderr, /nothing written for this step/);
+    assert.equal(readFileSync(firstFile, "utf8"), applied);
+  } finally {
+    chmodSync(join(first, ".claude"), 0o755);
+  }
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
 test("#17354: reset never writes a committed .claude/settings.json, even when a record names it", () => {
   const w = world();
   const committed = join(w.project, ".claude", "settings.json");
@@ -2321,7 +2353,7 @@ test("#17354: a file another writer changes during reset is skipped as changed, 
     doc.permissions.allow.push("Bash(other-writer)");
     writeFileSync(other, `${JSON.stringify(doc, null, 2)}\n`);
   });
-  assert.equal(r.status, 1, r.stdout);
+  assert.equal(r.status, 3, r.stdout);
   assert.ok(resultLines(r.stdout).includes(`Skipped ${other}: it changed during the reset and is left as the other writer left it; run reset again.`), r.stdout);
   const left = JSON.parse(readFileSync(other, "utf8"));
   assert.equal(left.enabledPlugins[`songwriting@${M}`], false, "the profile's entries are still there");
@@ -2333,7 +2365,7 @@ test("#17354: a file another writer changes during reset is skipped as changed, 
   assert.deepEqual(w.records(), []);
 });
 
-test("#17354: a record an apply re-saves during reset is reported and reset exits 1", async () => {
+test("#17354: a record an apply re-saves during reset is reported and reset exits 3", async () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const p2 = secondFolder(w);
@@ -2343,7 +2375,7 @@ test("#17354: a record an apply re-saves during reset is reported and reset exit
     reapplied = join(done, ".claude", "settings.local.json");
     assert.equal(runIn(w, done, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
   });
-  assert.equal(r.status, 1, r.stdout);
+  assert.equal(r.status, 3, r.stdout);
   assert.match(r.stdout, new RegExp(`^Another terminal applied a profile to ${esc(reapplied)} during the reset; run reset again\\.$`, "m"));
   assert.equal(recordedFiles(resetJson(w)).includes(reapplied), true, "the re-saved record is still there for the next reset");
 });

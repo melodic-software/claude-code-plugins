@@ -66,7 +66,7 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
       args[0] === 'reset'
         ? args.includes('--dry-run')
           ? (cli.resetDry ?? resetPreview())
-          : (cli.reset ?? { exitCode: 0, stdout: 'Restored /p/.claude/settings.local.json (profile review).\n' })
+          : (cli.reset ?? { exitCode: 0, stdout: JSON.stringify({ lines: ['Restored /p/.claude/settings.local.json (profile review).'] }) })
         : args[0] === 'clear'
         ? args.includes('--dry-run')
           ? (cli.clearDry ?? clearPreview())
@@ -536,7 +536,7 @@ test('#17354: the picker shows Reset under No profile, previews the reset, asks,
   expect(w.asks).toEqual([{ question: 'Reset every file above?', options: ['Apply', 'Cancel'] }])
   expect(w.runs.slice(1)).toEqual([
     ['reset', '--dry-run', '--json'],
-    ['reset', '--yes'],
+    ['reset', '--yes', '--json'],
   ])
   expect(w.logs).toContain('Restored /p/.claude/settings.local.json (profile review).')
   expect(text).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
@@ -566,7 +566,26 @@ test('#17354: each folder without a record gets its own question, and only Remov
     { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
     { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
   ])
-  expect(resets(w)).toEqual([['reset', '--yes', '--remove-unrecorded', '/b/.claude/settings.local.json']])
+  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--remove-unrecorded', '/b/.claude/settings.local.json']])
+})
+
+test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {
+  const refusal = 'not reset: what reset would write changed since the preview; nothing was written. Look at the new preview: reset --dry-run'
+  const w = world(on, ['Apply'], { reset: { exitCode: 1, stderr: `${refusal}\n` } })
+  expect(await runPicking($, w, 'Reset')).toBe(refusal)
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual([])
+})
+
+test('#17354: a reset that skipped a file shows each result line and reloads', async ($, on) => {
+  const lines = ['Skipped /p/.claude/settings.local.json: it changed during the reset and is left as the other writer left it; run reset again.']
+  const w = world(on, ['Apply'], { reset: { exitCode: 3, stdout: JSON.stringify({ lines }) } })
+  expect(await runPicking($, w, 'Reset')).toBe(`Reset did not finish every file; the lines above name each one skipped and why. Run /plugin-profile and pick Reset again for those. ${NEXT_STEP}`)
+  expect(w.logs).toContain(lines[0])
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual(['reload-plugins'])
 })
 
 test('#17354: with nothing recorded the picker says so, asks nothing and resets nothing', async ($, on) => {
