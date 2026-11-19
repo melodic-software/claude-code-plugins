@@ -711,14 +711,21 @@ written to disk (shape-1 files are never rewritten).
 Consumers cite this section list rather than restating it. A copy of the list in another file
 drifts silently.
 
-**Readers go through the script.** A skill that reads a handoff (retro, orient, find-handoff,
-reanchor, continue-in-background) reads a section by name with
+**Readers go through the script.** A section is read by name with
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`, which
-follows a move to the hop file, and walks a chain with `save_point.py chain <file> --json`: every
-hot file the walk reaches (a missing or unreadable one is a link with that status, not an error),
-and every hop's Direction changes, This session and Observations, read from the next hop's file
-when a hot file is gone. Neither reads by position, so shapes 2, 3 and 4 read alike. Both exit 3 on
-a shape newer than the script knows; read that file itself.
+follows a move to the hop file, and a chain is walked with `save_point.py chain <file> --json`:
+every hot file the walk reaches (a missing or unreadable one is a link with that status, not an
+error), and every hop's date, session id, Direction changes, This session and Observations, read
+from the next hop's file when a hot file is gone. Neither reads by position, so shapes 2, 3 and 4
+read alike, and both exit 3 on a shape newer than the script knows. What each reader uses:
+
+| Skill | Reads |
+|---|---|
+| retro | `parse_transcript.py --chain-from`'s `handoff_journey`; without it, `chain --json`; any other section through `read` |
+| orient | `chain --json` for the timeline; `read` for Prior sessions and each section the briefing uses |
+| find-handoff | `emit` for Resume prompt; `read` for any section the operator asks about |
+| reanchor | `chain --json` for the links; `validate` per shape-3 or shape-4 link; `read` for Original goal on a shape-1 or shape-2 link and for each section holding a premise |
+| continue-in-background | `validate` before launch; `read` for Environment to re-establish and Remaining actions, in order |
 
 **A broken link.** When `new --previous` finds its predecessor missing or unreadable, it writes
 the handoff anyway, names the file as `previous_handoff` with `previous_status: missing` or

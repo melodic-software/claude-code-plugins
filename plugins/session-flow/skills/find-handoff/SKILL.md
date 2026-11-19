@@ -76,7 +76,10 @@ legacy form `Handoff origin: <identity>, relative path <path>.`.
 goal applied), so rung 1 can hand back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
 that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
-is named as such and never presented as the lost handoff.
+is named as such and never presented as the lost handoff. When the operator asks what a candidate
+says beyond its metadata and prompt, read that section by name with
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py read <file> --section "<name>"`, which follows a
+section moved to the hop file; reading it changes nothing and the confirm gate still holds.
 
 **The resume prompt this skill recovers is the resume region plus the goal region (when one
 applies) plus every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The

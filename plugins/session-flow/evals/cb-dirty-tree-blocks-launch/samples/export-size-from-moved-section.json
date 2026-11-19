@@ -2,17 +2,21 @@
   "pass": [
     {
       "answer": "- Write the row writer in src/export.py; it must stream rows to the file, since ledger exports reach 2 GB.",
-      "why": "carries the streaming note"
+      "why": "carries the export size"
     },
     {
-      "answer": "Note: rows are streamed, never buffered (exports reach 2 GB).",
-      "why": "passive form"
+      "answer": "Note: rows are streamed, never buffered (exports reach 2GB).",
+      "why": "unspaced unit"
     }
   ],
   "fail": [
     {
+      "answer": "- Write the row writer in src/export.py; stream rows to the file to keep memory low.",
+      "why": "guessed from the prompt's mention of memory, without the moved section's size"
+    },
+    {
       "answer": "- Write the row writer in src/export.py and its test in tests/test_export.py.",
-      "why": "no streaming note"
+      "why": "no memory note"
     },
     {
       "answer": "The last handoff noted nothing about memory.",

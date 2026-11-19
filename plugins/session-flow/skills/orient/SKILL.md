@@ -40,7 +40,13 @@ now" matters, not just "what did we just say." The verification records
    direction established in this session. Synthesize these inline.
 2. **Durable memory-tier state**. Read what exists, most-recent-first:
    - handoff save-points (`<memory_dir>/handoffs/`), the last session's
-     in-flight snapshot; its own brief names where the work stood;
+     in-flight snapshot; its own brief names where the work stood. Read each
+     section the briefing uses by name, with
+     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`
+     (Original goal, Resumption brief, Remaining actions, Decisions in force,
+     Open questions, Environment to re-establish, Observations, and any other
+     the ask needs), never by position: a section moved to the hop file is
+     read from there;
    - the workflow checklist (`<memory_dir>/<slug>/`), the stage ledger;
    - running-retro ledgers (`<memory_dir>/running-retros/`), accumulated
      in-flight findings.

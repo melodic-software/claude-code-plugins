@@ -5,14 +5,18 @@
       "why": "names the new timeout"
     },
     {
-      "answer": "| src/lock.ts unbounded | claimed | main gained fix(lock): bound the cron lock wait |",
-      "why": "names the fixing commit"
+      "answer": "| src/lock.ts has no wait bound | claimed | main bounds it at 5 seconds of wait |",
+      "why": "names the new bound in seconds"
     }
   ],
   "fail": [
     {
       "answer": "The handoff assumes src/lock.ts calls cronLock() with no bound on the wait; I did not check it.",
       "why": "restates the premise without the drift"
+    },
+    {
+      "answer": "main gained 3 commits since the handoff, among them fix(lock): bound the cron lock wait.",
+      "why": "the commit subject alone, readable from git log without the moved section"
     },
     {
       "answer": "feat/lease-table is 3 commits behind main.",

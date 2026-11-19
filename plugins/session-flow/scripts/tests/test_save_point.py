@@ -4466,10 +4466,7 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
     assert made.returncode == 0, err(made)
     hop2 = handoffs / HOP2
     carried = hop2.read_text(encoding="utf-8")
-    tagged = (
-        "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green."
-        f" (settle: save_point.py validate {HOP1})\n"
-    )
+    tagged = "- [h1] UNVERIFIED (predecessor failed validation): The thing must stay green.\n"
     assert tagged in carried
     hop2.write_text(
         model_fill(carried).replace(tagged, "- [h2] A different rule.\n"),

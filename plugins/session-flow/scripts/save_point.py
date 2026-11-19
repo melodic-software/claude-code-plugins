@@ -347,7 +347,11 @@ MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 UNVERIFIED_RE = re.compile(r"\bUNVERIFIED\b")
 SETTLE_RE = re.compile(r"\(settle: [^\n]*\S[^\n]*\)")
-TOOL_SETTLE_RE = re.compile(r"\s*\(settle: [^()\n]+\)")
+TRAILING_SETTLE_RE = re.compile(r"\s*\(settle: [^\n]*\)\s*$")
+CARRY_SETTLE = "<!-- UNVERIFIED (predecessor failed validation) marks in this section: {settle} -->"
+CARRY_SETTLE_RE = re.compile(
+    r"^<!-- UNVERIFIED \(predecessor failed validation\) marks in this section: \(settle: .+\) -->$"
+)
 FILL_MARK = "<!-- FILL"
 # The slot grammar `_fill()` writes, and the only parse of it. Non-greedy on the
 # instruction: the `## This session` line carries two slots, and a greedy group
@@ -651,7 +655,7 @@ class Entry:
     def normalized(self) -> str:
         text = TAG_RE.sub("", self.text)
         if UNVERIFIED_PRED_RE.match(text):
-            text = TOOL_SETTLE_RE.sub("", UNVERIFIED_PRED_RE.sub("", text), count=1)
+            text = TRAILING_SETTLE_RE.sub("", UNVERIFIED_PRED_RE.sub("", text))
         return " ".join(text.split())
 
 
@@ -1358,18 +1362,26 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
 
 def _check_unverified(doc: Doc, f: Findings, carried: tuple[str, ...]) -> None:
     """Every UNVERIFIED mark in a section the session wrote is followed on its
-    line by the command or source that settles it."""
+    line by the command or source that settles it. The mark `new` puts on an
+    entry carried past a failed predecessor is settled once for its section,
+    by the CARRY_SETTLE line, so the entry's text stays what older validators
+    match."""
     for title, start, end in doc.sections:
         if title in carried:
             continue
+        body = doc.lines[start + 1 : end]
+        settled = any(CARRY_SETTLE_RE.match(line.strip()) for line in body)
         for i in range(start + 1, end):
             line = doc.lines[i]
+            if settled:
+                rest = TAG_RE.sub("", BULLET_RE.sub("", line.strip(), count=1))
+                line = UNVERIFIED_PRED_RE.sub("", rest)
             if any(
                 not SETTLE_RE.search(line, m.end())
                 for m in UNVERIFIED_RE.finditer(line)
             ):
                 f.fail(
-                    f"{title}: line {i + 1} marks a claim UNVERIFIED without naming what settles it; end that line with '(settle: <command or URL>)': {line.strip()[:60]!r}",
+                    f"{title}: line {i + 1} marks a claim UNVERIFIED without naming what settles it; end that line with '(settle: <command or URL>)': {doc.lines[i].strip()[:60]!r}",
                     CheckKind.UNVERIFIED,
                 )
 
@@ -1586,9 +1598,9 @@ def _check_retired_entries(
     hop = _fm_int(doc, "hop") or 0
 
     def fold_pointed(d: Doc) -> bool:
-        return any(
-            line.startswith(FOLD_PREFIX) for line in d.section("Direction changes") or []
-        )
+        title = "Direction changes"
+        body = follow(d.section(title) or [], title, d.path.parent) or []
+        return any(line.startswith(FOLD_PREFIX) for line in body)
 
     folded = fold_pointed(doc)
     if fold_pointed(pred) and not folded:
@@ -3312,9 +3324,11 @@ def _tag_carried(
 ) -> list[str]:
     """Carry a predecessor's cumulative section forward verbatim, tagging
     untagged entries `[h<default_hop>]` and, for a predecessor that failed
-    validation, marking every entry UNVERIFIED. An UNVERIFIED mark without a
-    settle clause gets `settle` after its line's text."""
+    validation, marking every entry UNVERIFIED. A section holding such a mark
+    starts with one CARRY_SETTLE line naming `settle`; the entries' own text
+    is left as older validators match it."""
     lines = _trim_blank(body)
+    marked = False
     for entry in parse_entries(body):
         if entry.exempt:
             continue
@@ -3332,9 +3346,10 @@ def _tag_carried(
             tag = f"[h{default_hop}]"
         if unverified and not UNVERIFIED_PRED_RE.match(rest):
             rest = "UNVERIFIED (predecessor failed validation): " + rest
-        if UNVERIFIED_PRED_RE.match(rest) and not SETTLE_RE.search(rest):
-            rest = f"{rest.rstrip()} {settle}"
+        marked = marked or bool(UNVERIFIED_PRED_RE.match(rest))
         lines[idx] = f"{marker}{tag} {rest}"
+    if marked and not any(CARRY_SETTLE_RE.match(line.strip()) for line in lines):
+        lines = [CARRY_SETTLE.format(settle=settle), "", *lines]
     return lines
 
 

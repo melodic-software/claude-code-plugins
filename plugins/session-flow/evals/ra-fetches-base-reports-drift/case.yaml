@@ -29,7 +29,7 @@ graders:
     arm: both
   - name: lock-wait-drift-from-moved-section
     type: regex
-    pattern: 'timeoutMs|(?<![\w.])5000(?![\w.])|(?<![\w.])5[ \t-]?(?:s|secs?|seconds?)\b[^\n]{0,30}\b(?:wait|timeout|bound)|\bbound the cron lock wait\b'
+    pattern: 'timeoutMs|(?<![\w.])5000(?![\w.])|(?<![\w.])5[ \t-]?(?:s|secs?|seconds?)\b[^\n]{0,30}\b(?:wait|timeout|bound)'
     flags: 'i'
     arm: with-only
   - name: no-git-mutation

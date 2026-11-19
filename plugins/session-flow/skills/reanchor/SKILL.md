@@ -24,6 +24,12 @@ back up.
 
 ## What it re-anchors
 
+Read a handoff's premises section by section with
+`python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`:
+every section but Prior sessions and Resume prompt can hold one (Decisions in force, Current rules,
+Observations, Environment to re-establish and the rest), and a section moved to the hop file is
+read from there.
+
 1. **Handoff / plan premises.** For every PR, issue, or branch a handoff or
    locked plan references, confirm it is still in the state the document claims:
    open vs merged/closed, same head, same base, not renamed. A plan that

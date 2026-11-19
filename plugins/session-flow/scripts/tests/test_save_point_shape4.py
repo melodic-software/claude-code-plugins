@@ -78,6 +78,14 @@ def test_shape4_validates_while_handoff_shape_is_3(tmp_path):
         assert "UNSUPPORTED" not in out(result)
 
 
+def test_every_movable_section_moved_validates_hops_1_to_5(tmp_path):
+    movable = ("Direction changes", "Observations", "Suggested skills")
+    paths = s4_chain(make_repo(tmp_path), tmp_path, 5, moves=movable)
+    for k, path in enumerate(paths, 1):
+        result = validate(path)
+        assert result.returncode == 0, f"hop {k}: {out(result)}"
+
+
 def test_a_3_to_4_transition_validates(tmp_path):
     paths = s4_chain(make_repo(tmp_path), tmp_path, 3, shape3_hops=2)
     assert "handoff_shape: 3" in paths[1].read_text(encoding="utf-8")
@@ -131,7 +139,8 @@ def test_a_binding_section_never_moves(tmp_path):
     ), out(result)
 
 
-def test_binding_content_over_the_cap_fails_naming_the_section(tmp_path):
+def over_cap_binding(tmp_path: Path) -> Path:
+    """A shape-4 hop 1 whose Decisions in force alone passes the cap."""
     paths = s4_chain(make_repo(tmp_path), tmp_path, 1, moves=())
     head, bodies = split_sections(paths[0].read_text(encoding="utf-8"))
     big = "\n".join(f"- [D{n}] Keep decision {n} " + "x" * 80 for n in range(2, 300))
@@ -143,6 +152,11 @@ def test_binding_content_over_the_cap_fails_naming_the_section(tmp_path):
         encoding="utf-8",
         newline="\n",
     )
+    return paths[0]
+
+
+def test_binding_content_over_the_cap_fails_naming_the_section(tmp_path):
+    paths = [over_cap_binding(tmp_path)]
     result = validate(paths[0])
     assert result.returncode == 1, out(result)
     assert any(
@@ -329,11 +343,16 @@ def test_chain_json_lists_every_link_and_hop(tmp_path):
     ]
 
 
-def test_emit_prints_a_shape4_prompt(tmp_path):
-    paths = s4_chain(make_repo(tmp_path), tmp_path, 1)
-    result = run("emit", str(paths[0]))
+def test_emit_prints_a_shape4_prompt_over_the_cap_with_its_over_cap_notice(tmp_path):
+    hot = over_cap_binding(tmp_path)
+    result = run("emit", str(hot))
     assert result.returncode == 0, err(result)
     assert re.search(r"^Read @.*\.md, ", out(result), re.M)
+    notice = [
+        line for line in err(result).splitlines() if line.startswith("OVER-CAP: ")
+    ]
+    assert len(notice) == 1 and "Decisions in force holds" in notice[0], err(result)
+    assert "the prompt is emitted" in notice[0]
 
 
 def test_the_moved_pointer_form_is_the_design_form():
