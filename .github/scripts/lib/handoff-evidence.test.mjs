@@ -10,6 +10,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, wr
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { WAIT_BUDGET_SECONDS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./handoff-evidence.sh", import.meta.url));
@@ -316,7 +317,7 @@ test("with API_BUDGET_WAIT_SECONDS set, a read the rate limit refused waits for 
   const out = run([limitedUntil(reset), [answer("200 OK", {}, listing(LANE_POSTED)), 0]], "0 0 0 0 0", {
     calls: "resolve-issue-subscription",
     runnerTemp: true,
-    env: { API_BUDGET_WAIT_SECONDS: "1200" },
+    env: { API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) },
   });
   assert.equal(out.status, 0, out.stdout + out.stderr);
   assert.equal(out.args.length, 2, "one refused read, one after the reset");
@@ -340,7 +341,7 @@ test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget ends the re
   const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 3000)], "0 0 0 0 0", {
     calls: "resolve-issue-subscription",
     runnerTemp: true,
-    env: { API_BUDGET_WAIT_SECONDS: "1200" },
+    env: { API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) },
   });
   assert.equal(out.status, 1);
   assert.equal(out.args.length, 1);

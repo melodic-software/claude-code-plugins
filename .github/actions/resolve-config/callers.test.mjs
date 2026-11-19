@@ -32,6 +32,7 @@ import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
@@ -8596,7 +8597,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: "1200" });
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) });
+  const laneJobs = workflow("work-resolve-issue.yml").jobs;
+  for (const id of ["resolve-issue-handoff", "resolve-issue-subscription-handoff", "resolve-issue-stale"]) {
+    const job = laneJobs[id];
+    const evidence = job.steps.find((s) => s.run?.startsWith("bash .base/.github/scripts/lib/handoff-evidence.sh "));
+    assert.equal(evidence.env.API_BUDGET_WAIT_SECONDS, String(WAIT_BUDGET_SECONDS.workResolveIssue), `${id} waits WAIT_BUDGET_SECONDS.workResolveIssue`);
+    assert.ok(job["timeout-minutes"] * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${id}'s timeout holds ten minutes of reads and the wait`);
+  }
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],

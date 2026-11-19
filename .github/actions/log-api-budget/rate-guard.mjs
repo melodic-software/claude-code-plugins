@@ -65,8 +65,13 @@ const MAX_RESET = 999_999_999_999;
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
  *   its POLL_LIMIT_SECONDS.
+ * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
+ *   failure drops finished work: the `rate-limit-wait-seconds` it passes
+ *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
+ *   leak scan's wait, and its jobs' API_BUDGET_WAIT_SECONDS. It is
+ *   waitBudgetMs's cap.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 825, rerunCiStatus: 600 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 825, rerunCiStatus: 600, workResolveIssue: 1200 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
