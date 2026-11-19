@@ -28,15 +28,19 @@ gh api -i -X GET "repos/$BASE_REPO/contents/docs/conventions/source-control.yaml
 
 ## Which workflows are lanes
 
-A lane is a caller workflow whose pull request runs reference one of the org's reusable review
-workflows, fixed in the script:
+A lane is a caller workflow whose pull request runs reference a reusable review workflow the
+`review_lane_workflows` setting names, as `<owner>/<repo>/.github/workflows/<file>@<ref>`. The
+script reads the setting through babysit-prs' `babysit_merge_settings.py`, from the operator's own
+user or managed settings and never from the repository, so a pull request cannot make its own
+workflow a lane. Unset, no workflow is a lane and every lane reads `local absent`.
 
-| Lane | Reusable workflow the caller's runs reference |
+| Entry | The caller's runs count for |
 |---|---|
-| `code-review` | `melodic-software/ci-workflows/.github/workflows/pr-review.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path does not contain `security` |
-| `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path contains `security` |
+| `code-review=<owner>/<repo>/.github/workflows/<file>` | `code-review` |
+| `security-review=<owner>/<repo>/.github/workflows/<file>` | `security-review` |
+| `either=<owner>/<repo>/.github/workflows/<file>` | `security-review` from a caller whose path contains `security`, `code-review` from any other |
 
-The run listing does not show `pr-review-cli.yml`'s `lane` input, so the caller's path decides its
+The run listing does not show an `either` workflow's lane input, so the caller's path decides its
 lane. Otherwise the caller's file name does not matter (`pr-review-hosted.yml` on a public
 repository, `pr-review.yml` on a private one). The script reads the `referenced_workflows` field of the
 repository's newest pull request runs, up to three pages of 100:

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "P7: MISSING\nPROPOSAL: `/corrections:codify \"confirm before purge-builds deletes build/ and dist/\"`; codify picks and proves the gate.",
+      "why": "names the call with codify present"
+    },
+    {
+      "answer": "The P7 proposal names the /corrections:codify call when it is available; when /corrections:codify is not available, the report falls back to a fenced diff marked unproven. Codify is loaded here.\n\nP7: MISSING\nPROPOSAL: `/corrections:codify \"confirm before purge-builds deletes build/ and dist/\"`",
+      "why": "explains the fallback in prose; the PROPOSAL line makes no unavailability claim"
+    },
+    {
+      "answer": "P7: MISSING\nPROPOSAL: a fenced diff adding a confirmation step before the rm -rf",
+      "why": "no claim about codify at all (picks-no-mechanism judges this)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "P7: MISSING\nPROPOSAL: a permissions.deny rule for rm -rf, unproven because /corrections:codify was not available",
+      "why": "the PROPOSAL line takes the fallback although codify is loaded"
+    },
+    {
+      "answer": "P7: MISSING\nPROPOSAL: corrections:codify isn't installed here, so a confirmation step (unproven)",
+      "why": "contracted form of the fallback sentence on the PROPOSAL line"
+    },
+    {
+      "answer": "P7: MISSING\nPROPOSAL: /corrections:codify is unavailable, so a PreToolUse hook (unproven)",
+      "why": "the word unavailable on the PROPOSAL line"
+    }
+  ]
+}

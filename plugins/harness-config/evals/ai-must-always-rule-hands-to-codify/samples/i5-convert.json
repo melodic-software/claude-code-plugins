@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The rule must fire every time and nothing checks it, so I5 moves it to a mechanism.\n\nI5: convert-to-mechanism\nPROPOSAL: `/corrections:codify \"name new migrations YYYYMMDDHHMM_<slug>.sql\"`",
+      "why": "the fixed verdict line"
+    },
+    {
+      "answer": "**I5:** `convert-to-mechanism`\n**PROPOSAL:** hand the rule to codify",
+      "why": "bold and code markup around the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I5: keep\nPROPOSAL: keep the line as written",
+      "why": "keeps the prose"
+    },
+    {
+      "answer": "I5: delete\nPROPOSAL: delete the line",
+      "why": "deletes a rule no check enforces"
+    }
+  ]
+}

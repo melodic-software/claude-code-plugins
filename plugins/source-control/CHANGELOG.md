@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.2] - 2026-11-19
+
+### Fixed
+
+- `worktree-create.sh` checks out a repository whose `.gitattributes` routes paths through `filter=lfs` with `GIT_LFS_SKIP_SMUDGE=1`, so LFS paths arrive as pointer files instead of copies from the LFS store, and one stderr line names `git lfs pull` and `git lfs pull --include <paths>` for fetching the content.
+
+## [12.0.1] - 2026-11-19
+
+### Fixed
+
+- `/source-control:pull-request` prep and ready read the pre-PR ordering contract from the copy
+  bundled at `reference/pre-pr-ordering.md` instead of the publisher's raw URL.
+
 ## [12.0.0] - 2026-11-19
 
 ### Added
