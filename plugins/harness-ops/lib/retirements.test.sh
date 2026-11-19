@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/harness-ops/retirements.yaml
 # Runs harness-ops' own retirements.yaml through its check-retirements.sh copy
 # against fixture repositories: the morning_brief records clean only the
 # block, keep the file's other keys, and the demoted records stay report-only.

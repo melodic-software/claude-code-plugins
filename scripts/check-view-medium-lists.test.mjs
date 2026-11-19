@@ -1,3 +1,13 @@
+// test-scope: plugins/planning/*.md plugins/planning/*/evals.json plugins/architecture/*.md plugins/architecture/*/evals.json
+// test-scope: plugins/review/skills/explain-change/*.md plugins/review/skills/explain-change/*/evals.json
+// test-scope: plugins/visualization/skills/present/*.md plugins/visualization/skills/visualize/*.md
+// test-scope: plugins/discovery/skills/blindspot/*.md plugins/discovery/skills/blindspot/*/evals.json
+// test-scope: plugins/debugging/skills/debug/*.md plugins/education/skills/illustrate/*.md plugins/education/skills/teach/*.md
+// test-scope: plugins/work-items/skills/morning-brief/*.md plugins/work-items/skills/triage/*.md plugins/adhd/skills/clarify/*.md
+// test-scope: plugins/codebase-health/skills/audit/*.md plugins/ai-briefing/skills/generate/*.md
+// test-scope: plugins/overengineering/skills/audit/*.md plugins/overengineering/skills/audit/*/evals.json
+// test-scope: plugins/prototype/skills/explore-directions/*.md plugins/prototype/skills/explore-directions/*/evals.json
+// test-scope: plugins/prototype/skills/pressure-test/*.md plugins/prototype/skills/pressure-test/*/evals.json
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";

@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 """The lift block a canary or revert demotion record carries, and the close of
 a record that lifted (#11022's decision of 2026-11-02: a record lifts once the
 content whose deletion filed it is on main again, or a referencing pull
