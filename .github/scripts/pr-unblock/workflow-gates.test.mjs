@@ -147,6 +147,10 @@ test("pr-dispatch-feedback.yml starts a runner for a same-repository review run 
   for (const branch of [LANE_BRANCH, "feat/x", "fix/pr-merge-infra-ejections", "release/plugins"]) {
     assert.equal(runs(branch), true, branch);
   }
+  assert.equal(laneBranchIssue(`x${LANE_BRANCH}`), null);
+  for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
+    assert.equal(laneBranchIssue(branch), null, branch);
+  }
   assert.equal(runs("dependabot/npm_and_yarn/x"), false, "a Dependabot branch");
   assert.equal(runs("feat/x", "fork/claude-code-plugins"), false, "a fork's head");
   const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '(work-resolve-issue[^']*)'\)/.exec(gate)?.[1];

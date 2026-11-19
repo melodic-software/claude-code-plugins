@@ -1022,8 +1022,12 @@ export const restMentions = ({ issueComments = [], reviewComments = [], reviews 
 // github-actions[bot]'s for a verifier note or a lane comment, or the trusted
 // person's who opened it (always directed, so any head). A trusted
 // person's direction (a fix request, or a reply to the lane's escalation)
-// asks for the thread, so its review may be on an earlier head. `review` is
-// { user: { id }, commit_id }. keepThreads and the dispatcher
+// asks for the thread, so its review may be on an earlier head. So may a lane
+// comment's whose verified binding (`rootBoundHead`, bindLaneRows) names the
+// review's head: laneChecker proved the lane run on that head and the body's
+// digest in its record
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/lib/lane-binding.mjs).
+// `review` is { user: { id }, commit_id }. keepThreads and the dispatcher
 // (feedback-dispatch.mjs hasWorkableThread) both judge a thread with this.
 export function onReviewedHead({ authors, firstAuthorId, review, heads, rootBoundHead }) {
   const directed = authors.some((a) => a.direction === true);
@@ -1038,8 +1042,10 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads, rootBoun
 // review its own author (the reviewer bot, a listed review bot,
 // github-actions[bot] for a lane comment or a verifier note, or the trusted
 // person who opened it) submitted on a
-// marker-confirmed head (any head for a thread carrying
-// a trusted person's direction), and threadAuthors accepts its comments.
+// marker-confirmed head (any head for a thread carrying a trusted person's
+// direction, or the head a lane comment's verified binding names,
+// https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/lib/lane-binding.mjs),
+// and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
 // review bot's comment is tagged `listed`, from its account id alone. A
 // thread requestSkip refuses (no trusted `@codex` request behind a listed
