@@ -9,5 +9,5 @@ bump: minor
 
 ### Changed
 
-- When `CLAUDE_PLUGIN_DATA` is not usable, the inventory parser, the control-claude-code driver and the known-issues registry now name their data directory after the marketplace this plugin is installed from, as Claude Code does. Before, they used a fixed directory name. Outside the plugin cache they use `harness-ops-inline`, the name Claude Code gives a `--plugin-dir` session's data directory.
+- When `CLAUDE_PLUGIN_DATA` is not usable, the inventory parser, the control-claude-code driver and the known-issues registry now name their data directory after the marketplace this plugin is installed from, as Claude Code does. Before, they used a fixed directory name. Outside the plugin cache they use `harness-ops-inline`, the name Claude Code gives a `--plugin-dir` session's data directory. `scripts/session-telemetry-state.mjs`, which observability and setup read, follows the same rule for the session-telemetry id: it no longer falls back to a fixed marketplace.
 - The behavior-probe cases and skill text no longer name a particular organization's repository. The auto-mode `gh secret` cases target `probe-owner.invalid/probe-repo`, a name no GitHub login can have.

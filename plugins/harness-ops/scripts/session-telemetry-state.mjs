@@ -36,7 +36,7 @@ function args(argv) {
 
 export function state({ project, env = process.env, ownRoot = OWN_ROOT }) {
   const own = resolveInstall(ownRoot);
-  const marketplace = own.pluginId?.split("@")[1] ?? "melodic-software";
+  const marketplace = own.pluginId?.split("@")[1] ?? "inline";
   const config = own.userSettings
     ? path.dirname(own.userSettings)
     : env.CLAUDE_CONFIG_DIR || path.join(env.HOME || homedir(), ".claude");

@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "session-telemetry-state.mjs");
-const ID = "session-telemetry@melodic-software";
+import { render, state } from "./session-telemetry-state.mjs";
+
+const ID = "session-telemetry@acme";
 const INSTALL = `claude plugin install ${ID}`;
 const ENABLE = `claude plugin enable ${ID}`;
 
@@ -17,7 +16,7 @@ function config({ installed, enabled, options }) {
   mkdirSync(path.join(dir, "plugins"), { recursive: true });
   const records = {};
   if (installed) {
-    const root = path.join(dir, "plugins", "cache", "melodic-software", "session-telemetry", "0.1.0");
+    const root = path.join(dir, "plugins", "cache", "acme", "session-telemetry", "0.1.0");
     mkdirSync(path.join(root, ".claude-plugin"), { recursive: true });
     writeFileSync(
       path.join(root, ".claude-plugin", "plugin.json"),
@@ -34,20 +33,15 @@ function config({ installed, enabled, options }) {
   writeFileSync(path.join(dir, "plugins", "installed_plugins.json"), JSON.stringify({ plugins: records }));
   writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ enabledPlugins: enabled ? { [ID]: true } : {} }));
   if (options) {
-    const data = path.join(dir, "plugins", "data", "session-telemetry-melodic-software");
+    const data = path.join(dir, "plugins", "data", "session-telemetry-acme");
     mkdirSync(data, { recursive: true });
     writeFileSync(path.join(data, "options.json"), JSON.stringify({ plugin_root: "/x", options }));
   }
   return dir;
 }
 
-function run(dir) {
-  const r = spawnSync(process.execPath, [script, "--project", ""], {
-    encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: dir, CLAUDE_CONFIG_DIR: dir },
-  });
-  assert.equal(r.status, 0, r.stderr);
-  return r.stdout;
+function run(dir, ownRoot = path.join(dir, "plugins", "cache", "acme", "harness-ops", "1.0.0")) {
+  return render(state({ project: "", env: { PATH: process.env.PATH, HOME: dir, CLAUDE_CONFIG_DIR: dir }, ownRoot }));
 }
 
 describe("session-telemetry-state.mjs", () => {
@@ -71,8 +65,15 @@ describe("session-telemetry-state.mjs", () => {
     const out = run(dir);
     assert.match(out, /^session-telemetry: enabled$/m);
     assert.ok(!out.includes(ENABLE), out);
-    assert.ok(out.includes(`data_dir=${path.join(dir, "plugins", "data", "session-telemetry-melodic-software")}`), out);
+    assert.ok(out.includes(`data_dir=${path.join(dir, "plugins", "data", "session-telemetry-acme")}`), out);
     assert.match(out, /^option session_event_log_dir=telemetry\/hooks$/m);
     assert.match(out, /^option skill_usage_scope=repo$/m);
+  });
+
+  test("harness-ops outside the plugin cache: the sibling id ends in @inline, as a --plugin-dir session's does", () => {
+    const dir = config({ installed: false, enabled: false });
+    const out = run(dir, path.join(dir, "src", "plugins", "harness-ops"));
+    assert.ok(out.includes("claude plugin enable session-telemetry@inline"), out);
+    assert.ok(out.includes(`data_dir=${path.join(dir, "plugins", "data", "session-telemetry-inline")}`), out);
   });
 });
