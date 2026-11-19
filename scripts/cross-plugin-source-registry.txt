@@ -212,6 +212,12 @@ hooks/hook-test-sink.sh
 # duplication audit: the root canonical and the copies.
 lib/hook-test-sink.sh -> plugins/*/hooks/hook-test-sink.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: lib/hook-test-helpers.sh, the hook-contract assertion
+# helper, and its session-telemetry and plugin-diagnostics copies, each at a
+# path of its own.
+lib/hook-test-helpers.sh -> plugins/session-telemetry/hooks/session-telemetry-test-helpers.sh plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh
+
 # Dedicated check: scripts/sync-shared-copies.sh --check
 lib/spawn_noise.py
 

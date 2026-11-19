@@ -40,8 +40,10 @@ CAPTURE_WORKFLOW = ".github/workflows/pr-verify-capture.yml"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
-# The capture workflow's run-name: its upstream run and the head.
-TITLE_RE = re.compile(r"pr-verify-capture [1-9][0-9]* ([0-9a-f]{40})")
+CAPTURE_TITLE_PREFIXES = ("pr-verify-capture", "PR Verify Capture")
+TITLE_RE = re.compile(
+    rf"(?:{'|'.join(map(re.escape, CAPTURE_TITLE_PREFIXES))}) [1-9][0-9]* ([0-9a-f]{{40}})"
+)
 
 Read = Callable[[list[str]], Any]
 

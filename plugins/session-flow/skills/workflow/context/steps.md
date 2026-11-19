@@ -16,10 +16,11 @@ goes back to that stage rather than being settled where it surfaced.
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
 advice, pick the level whose described use fits that kind of work, and name both the level and
-the matched use. A stage that changes code or verifies it is never advised below medium; skip any
-row the table says is not an effort level. When the page cannot be read, say so and advise no
-level. The advice is the human's to act on; this skill never sets
-effort.
+the matched use. A stage that changes code or verifies it is never advised below medium: that is
+our marketplace's own effort floor, which keeps `low` for chat-like exchanges and read-only
+mechanical work ("Effort floor" in `docs/plugin-philosophy.md` in this plugin's marketplace
+repository). Skip any row the table says is not an effort level. When the page cannot be read,
+say so and advise no level. The advice is the human's to act on; this skill never sets effort.
 
 - **Pointer**: for choosing an effort level, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).

@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.1] - 2026-11-19
+
+### Changed
+
+- The README's portability note, the `check` skill's purpose and symlink gotcha, and the `migrate` and `realign` spoke-path notes no longer restate Claude Code's load order, silent-failure handling, symlink loading or Bash environment; each states this plugin's rule and points at the docs section.
+
 ## [1.7.0] - 2026-11-18
 
 ### Changed

@@ -7,6 +7,8 @@ import { test } from "node:test";
 import { allowScriptsRefusal, installScriptPinRefusal, packageJsonRefusal } from "./dependency-classify.mjs";
 import { lockedVersion, main, movePin, unifiedDiff } from "./install-script-pin.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const CLI = "@anthropic-ai/claude-code";
 

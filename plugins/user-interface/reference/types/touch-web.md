@@ -195,15 +195,10 @@ drifted layout. This is the reason people reach for `maximum-scale=1`, which is 
 
 If the design calls for smaller text, keep the computed font-size at 16px on touch devices and
 scale visually some other way, never below 16px. Scale it down only where a fine pointer is
-primary. In Tailwind: `text-base pointer-fine:text-sm`. `text-sm` alone on an input is the bug.
-A width breakpoint such as `md:text-sm` is the screen-width guess opening rule 2 rules out: a
-touch tablet wider than the breakpoint gets the small size and zooms. Recipe: `the-reset`.
-
-- **Pointer**: Tailwind CSS, "Hover, focus, and other states", "pointer and any-pointer",
-  <https://tailwindcss.com/docs/hover-focus-and-other-states#pointer-and-any-pointer>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Tailwind renames the pointer variants or changes the query they compile to,
-  or the project's installed version predates them.
+primary, behind `@media (pointer: fine)` or the styling system's own form of that query. A small
+size set unconditionally on an input is the bug. A width breakpoint is the screen-width guess
+opening rule 2 rules out: a touch tablet wider than the breakpoint gets the small size and zooms.
+Recipe: `the-reset`.
 
 The threshold is the computed size: a `1rem` input still zooms when the root font size is set below
 16px. The 16 is WebKit's standard font size, which its iOS focus zoom divides by the input's font
@@ -218,9 +213,9 @@ it on a phone (section 7).
 - **Recheck trigger**: the constant or its use changes on WebKit `main`, or a device test shows a
   different threshold.
 
-Hunt for: `font-size` under 16px on `input`, `textarea`, `select`; `text-sm` / `text-xs` on them or
-on a shared `Input` component, alone or behind a width breakpoint (`md:text-sm`); a contenteditable
-editor with small text.
+Hunt for: `font-size` under 16px on `input`, `textarea`, `select`; a small-text utility class on
+them or on a shared `Input` component, alone or behind a width breakpoint; a contenteditable editor
+with small text.
 
 **Audit: Important.** Text in an input, textarea, select or editable field under the input floor on
 touch, so the page zooms in on focus.
@@ -287,7 +282,7 @@ input font size instead, which is what was causing the zoom (section 4).
   <https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html#intent>
 
 Hunt for: `user-scalable`, `maximum-scale`, `maximumScale`, `userScalable` in the viewport meta tag
-or the Next.js `viewport` export.
+or the framework's own viewport setting.
 
 **Audit: Blocking.** A viewport meta tag or framework viewport setting with `user-scalable=no` or
 `maximum-scale=1`.

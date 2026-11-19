@@ -38,6 +38,8 @@ import {
 } from "./write-verdict.mjs";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);

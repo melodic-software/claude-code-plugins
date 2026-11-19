@@ -7,6 +7,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { caseLoadRefusals, casePlugins, caseRefusal, gitShow, linkRefusals, proseRefusal, refusals, selectPlugins } from "./select-plugins.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "select-plugins.mjs");
 const run = (input, args = []) => spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: "utf8" });

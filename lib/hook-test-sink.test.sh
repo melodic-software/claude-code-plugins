@@ -26,6 +26,7 @@ trap 'rm -rf "$WORK"' EXIT
 source "$LIB_DIR/hook-test-sink.sh"
 # shellcheck source=hook-utils.sh
 source "$LIB_DIR/hook-utils.sh"
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 # now_ms -> NOW_MS = milliseconds since the epoch. EPOCHREALTIME is Bash 5+,
 # which hook::emit_telemetry needs as well.

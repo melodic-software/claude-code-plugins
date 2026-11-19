@@ -65,6 +65,7 @@ import { pathToFileURL } from "node:url";
 import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
 const DEPENDABOT_ID = 49699333;
@@ -106,6 +107,7 @@ const LANES = Object.freeze({
       ["Apply Dependency Patch", "apply-dependency-patch"],
       ["Apply Dependency Verdict", "apply-dependency-verdict"],
       ["Apply Dependency Pin", "apply-dependency-pin"],
+      ["Apply Dependency Relock", "apply-dependency-relock"],
       ["Apply Patch", "apply-patch"],
       ["Apply Patch Rung Up", "apply-patch-rung-up"],
       ["Apply Shared Copies", "apply-shared-copies"],
@@ -141,7 +143,6 @@ const TRANSIENT =
 export const TRANSIENT_PER_HEAD = 2;
 const TRANSIENT_MARKER = /^<!-- pr-lane-refire transient run ([1-9][0-9]{0,19}) tree ([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
 const MARKER = /^<!-- pr-lane-refire (\.github\/workflows\/[A-Za-z0-9._-]+\.yml)@([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
-const DISPATCH_TITLE = /^pr-unblock ([a-z]+(?:-[a-z]+)*) #([1-9][0-9]{0,9})$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // check-trusted-trigger's head checks.
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
@@ -247,7 +248,7 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
   }
   // A dispatched run is on main; its title names the PR, and the check its
   // report job posted on the PR's current head links back to it.
-  const number = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[2];
+  const number = PR_UNBLOCK_TITLE.exec(String(run.display_title ?? ""))?.[2];
   const pull = number === undefined || run.head_branch !== "main" ? undefined : byNumber.get(Number(number));
   if (pull === undefined || !SHA.test(String(run.head_sha))) {
     return undefined;
@@ -267,7 +268,7 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
 // tokenRefusal's answer, except a workflow-modified refusal of one of the
 // lane's `dispatcherRefires`, which a dispatcher sends again on main.
 async function refusedFile({ actions, repo, run, lane }) {
-  const activity = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[1];
+  const activity = PR_UNBLOCK_TITLE.exec(String(run.display_title ?? ""))?.[1];
   const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
   if (!Array.isArray(jobs)) {
     throw new Error(`run ${run.id}'s jobs have an unexpected shape`);

@@ -27,6 +27,8 @@ from datetime import datetime, timedelta, timezone
 # the fixture. Cleared unconditionally, before any test spawns git.
 for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_v, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 import audit_skill_visibility as engine  # noqa: E402  (import follows the git-env clear above)
 

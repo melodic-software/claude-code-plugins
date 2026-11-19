@@ -131,9 +131,7 @@ naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
 batched PR cross-reference, staleness classification, unclaimed-lock
 report), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
-destructive branch deletion for the user, reports the disk space freed, and on a
-macOS host with `xcrun` lists Xcode build output and unavailable simulators,
-deleting each only on its own yes), `audit` (configuration health,
+destructive branch deletion for the user, and reports the disk space freed), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
 Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out
@@ -177,17 +175,18 @@ A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it blocks the call only when
 that body carries a negated closing reference (`does not close #N`), which
 GitHub's parser still closes on merge, and names each one with the `Refs: #N`
-line to use instead. The rest of the check-contract step (a closing line and
+line to use instead. The rest of the repository's PR-body contract step (a closing line and
 non-empty `## Summary`, `## Fix`, `## Verification` and `## Related` sections)
 is advisory in CI, so a body missing any of it passes.
 `/source-control:pull-request create` already gates its own body; this covers
 the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
-where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
-contract composite step `pr-require-checks/check-contract` (the SHA-pinned
-`melodic-software/ci-workflows/.github/actions/<path>@<sha>` form, or
-ci-workflows' own local `./.github/actions/<path>`). A body the hook
+where one of the repo's `.github/workflows/*.yml` / `*.yaml` files matches
+`linkage_gate_uses_pattern`, a POSIX ERE naming the line that wires in the
+repository's PR-body contract step, set in `docs/conventions/source-control.yaml`
+or as the userConfig value of that name (the YAML wins). Unset, the hook gates
+no repository. A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
@@ -226,14 +225,15 @@ more about contention than about the hook. Counted with
 | Path | clone-family | `execve` |
 | --- | --- | --- |
 | A `gh` call with no `pr` in it | 7 | 2 |
-| `gh pr create` with a readable body (allow or block) | 11 | 3 |
+| `gh pr create` with a readable body (allow or block) | 10 | 4 |
 | `pr-linkage-mcp-gate`, an MCP create (allow or block) | 11 | 4 |
 
 Two of each `execve` count belong to `lib/hook-utils.sh`, not to these hooks:
 one `jq -e .` validating the payload and one `git rev-parse` resolving the repo
 root. The gates themselves spend one batched `jq` over the whole payload, plus,
 on the MCP surface only, the `git remote get-url` its origin-match scope guard
-needs. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
+needs. A repository whose team YAML names `linkage_gate_uses_pattern` adds one
+`awk` that parses it. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
 with no headroom, and proves itself non-vacuous against three mutants.
 
 #### Telemetry (opt-in)
@@ -256,8 +256,8 @@ refused by the cloud GitHub proxy (see
 covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 It blocks only the same negated closing reference, under the same authority (a
-workflow in the consuming repository's own `.github/workflows/` that `uses:` the
-`pr-require-checks/check-contract` composite step), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
+workflow in the consuming repository's own `.github/workflows/` that matches
+`linkage_gate_uses_pattern`), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
 Bash sibling's static-readability caveats don't apply here; the scope guards
 that remain are the workflow scan above, an origin-remote match on the call's
 `owner`/`repo` (another repository's PR is not this repo's policy), and an
@@ -409,8 +409,9 @@ repo's owner.
 |---|---|---|
 | `lane_instance` | string | a random `lane-<hex>` id made once and kept in the plugin data dir, never the hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `lane_app_slug` | string | none (the telemetry write identity comes from the token's user; set it under a GitHub App installation token so `babysit-loop` resolves `<slug>[bot]`) |
-| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `check-contract` step) |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `check-contract` step) |
+| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow matching `linkage_gate_uses_pattern`) |
+| `linkage_gate_uses_pattern` | string (ERE) | unset: neither PR-linkage hook gates any repository; a repository's `docs/conventions/source-control.yaml` value wins |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -466,13 +467,19 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 **`pr_body_linkage_gate_enabled`.** Blocks only a negated closing reference. A missing closing
 line or a missing or empty `## Summary`, `## Fix`, `## Verification` or `## Related` section
 passes, since CI reports those as advisory. Enforced only in a repository whose
-`.github/workflows` carry a workflow that uses the `check-contract` composite step.
+`.github/workflows` carry a workflow matching `linkage_gate_uses_pattern`.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
 cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
 [docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It blocks
 the same negated closing reference, with the same policy scope: enforced only in a repository
-whose `.github/workflows` carry a workflow that uses the `check-contract` composite step.
+whose `.github/workflows` carry a workflow matching `linkage_gate_uses_pattern`.
+
+**`linkage_gate_uses_pattern`.** The POSIX ERE both PR-linkage hooks match against each
+`.github/workflows/*.yml` and `*.yaml` file, usually the `uses:` line of the step that checks PR
+bodies in CI. A repository's `linkage_gate_uses_pattern` in `docs/conventions/source-control.yaml`
+wins over this value. Unset or empty, neither hook gates any repository; a pattern bash cannot
+compile, or a team YAML that does not parse, turns both off with a note on stderr.
 
 **`branch_issue_pattern`.** The last capture group must resolve to digits (`Closes #N` honors only
 a numeric issue). Set it for a non-default branch scheme that places the number differently, for
@@ -560,6 +567,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `pr_body_linkage_gate_enabled` | boolean | `true` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
+| `linkage_gate_uses_pattern` | string | *(none)* | A POSIX ERE; the two PR-linkage hooks run only in a repository where a .github/workflows file matches it, usually the uses: line of its PR-body check. The repository docs/conventions/source-control.yaml value wins. Unset: neither hook gates any repository. |
 | `branch_issue_pattern` | string | *(none)* | Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
 | `pr_open_state` | string | `"ready"` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
 | `review_venue` | string | `"auto"` | Who reviews a PR before the ready flip. auto (default) reviews locally only where no healthy CI lane does; local always reviews locally; ci leaves it to the CI lanes; both does both. A repository's review_venue in docs/conventions/source-control.yaml wins over this value. |

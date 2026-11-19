@@ -3,6 +3,12 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.8] - 2026-11-19
+
+### Changed
+
+- `/wizard:generate` no longer names `.env.example` or `docker-compose*` in its planning table as where to find the values an app reads locally. It now looks in any committed template of `.env` keys, the config files the repository's README or setup docs name, and the environment variables and config files the source code reads.
+
 ## [0.10.7] - 2026-11-18
 
 ### Changed

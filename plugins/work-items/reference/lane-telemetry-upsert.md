@@ -1,0 +1,109 @@
+# Lane telemetry upsert (per-instance singleton, race-converging)
+
+The contract of `scripts/lane-telemetry-upsert.sh`, which the `work-loop` and `attend-queue` lanes
+run to maintain one sentinel-identified status comment **per lane instance** on their tracking
+issue. Each lane's `reference/telemetry-upsert.md` gives its invocation, where its arguments come
+from, and what it does on top; this file owns what the script writes, checks and exits with. A
+*cycle* below is one work-loop cycle or one attend-queue pass.
+
+The script ships in this plugin rather than in `harness-ops`, so a lane never depends on a sibling
+plugin being installed.
+
+## Arguments
+
+| Argument | Value |
+| --- | --- |
+| `--lane` | `work-loop` or `attend-queue`. Names the marker's lane half. |
+| `--instance` | The resolved lane instance. An empty value, or a surviving literal `${user_config.…}` placeholder, means the key is unset and takes a random id the script makes once and keeps in `<body-dir>/lane-instance` (headless-config floor: the script logs the assumption). Never the hostname: the marker is public. |
+| `--repo` | The target repository as `owner/name`. |
+| `--issue` | The lane's tracking issue number. |
+| `--body-file` | The file holding this cycle's composed body. It must resolve under `--body-dir`; a symlink or a path outside it exits 16 before any read. |
+| `--body-dir` | `<plugin-data>`: this plugin's data dir, which the lane's `SKILL.md` gives as an absolute path; compose the body file in it. A reference file reaches the lane unsubstituted, so a `${…}` token here would reach Bash empty. The script refuses a dir whose last segment does not name `work-items`, or that is `/`, the home dir or an ancestor of it (exit 16). |
+| `--app-slug` | The GitHub App whose installation token `gh` runs under; required under such a token, where the upsert otherwise exits 15 every cycle. An empty value, or a surviving literal `${user_config.…}` placeholder, is treated as absent, so the argument is a no-op outside an App token. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
+
+## What the upsert writes
+
+The marker is `work-items:<lane>@<instance>` and the comment's first line is the sentinel
+`<!-- harness-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
+rendered and distinct per writer, so sibling instances each own one comment on the same issue.
+The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
+sentinel is never adopted, and it counts only comments the write identity authored: the sentinel is
+public text, so a comment anyone else posts with it is never made canonical, written, or
+tombstoned. Where the lookup finds nothing the script creates the comment; where it finds one it
+edits that comment in place; where it finds several the lowest id is canonical (numeric sort,
+deterministic for every session), the canonical comment receives this cycle's full state, and every
+other sentinel comment is edited to a one-line tombstone, but only once the canonical write
+verifies, so a cycle whose own write is unproven never tombstones a racing session's comment. That
+converges the fork two sessions create when both race the first-ever upsert. A crashed racer's
+unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing is deleted.
+A sibling instance's comment carries a different marker, never enters the list, and is neither made
+canonical nor tombstoned.
+
+**`$BODY_FILE` contract.** The file's first line must be exactly the sentinel above, with the
+cycle's report below it and at least 16 payload bytes there. The lookup matches on that prefix, so a
+body composed without it is not merely rejected. It would never be found again, and the next cycle
+would post a second comment. Compose the sentinel into the file; do not rely on anything downstream
+to add it.
+
+**Three checks, because they catch different failures.** The pre-write body gate runs before any
+API call and rejects a body that is empty, opens with a literal `@`, is not sentinel-prefixed, or
+carries under 16 payload bytes below the sentinel. The write's own exit status is checked next: a
+PATCH that fails leaves the previous cycle's body in place, which a read-back running regardless
+would happily accept. The post-write read-back then re-reads what the write stored and compares it
+with the body file, ignoring only CR and trailing newlines: the only check that sees a write which
+reported success and stored something else, including an earlier cycle's well-formed body. Create
+and update pass the body file as `-F body=@<file>`, never `-f`; how each flag treats a leading `@`
+is read live at [gh api § Options](https://cli.github.com/manual/gh_api#options).
+
+## Exit codes
+
+Every refusal is a distinct code with a one-line stderr reason. A non-zero exit is never a reason
+to end the loop or the pass: the lane records the outcome and continues.
+
+| Code | Meaning | What the lane does |
+| --- | --- | --- |
+| 0 | Upserted and verified; duplicates superseded | Report the cycle normally. |
+| 2 | Missing, repeated, or unknown argument | Fix the invocation. |
+| 3 | `--lane` is not `work-loop` or `attend-queue` | Fix the invocation. |
+| 4 | The resolved instance is empty, starts with a hyphen, or carries a character outside `[a-z0-9-]` | Stop the lane rather than write under a marker nobody chose. |
+| 5 | The resolved instance exceeds 32 characters (the length half of `^[a-z0-9][a-z0-9-]{0,31}$`; code 4 enforces the shape half) | Same as code 4. |
+| 6 | `--repo` is not `owner/name` | Fix the invocation. |
+| 7 | `--issue` is not a positive integer | Fix the invocation. |
+| 8 | `gh` or `jq` is not on PATH | Carry the telemetry in the cycle report instead. |
+| 9 | The body file is missing, empty, or opens with a literal `@` | Nothing was written. Fix the body composition; do not re-run blind. |
+| 10 | The body is not sentinel-prefixed, or carries under 16 payload bytes | Same as code 9. |
+| 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
+| 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
+| 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
+| 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or anything else the comment shows. |
+| 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
+| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | Nothing was read or written. Compose the body under `--body-dir`. |
+| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | Nothing was written. Remove the credential-shaped text and rotate a real credential. |
+| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | Nothing was written. Re-run once this cycle with an empty `--instance`, so the script uses the stored random id (a lane with durable state then persists that id as `lane_instance`); tell the operator to unset a hostname-shaped `lane_instance` key. |
+
+An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
+posts a second comment, the exact failure the singleton exists to prevent.
+
+**Carry every UNREPORTED outcome forward.** A degraded body that does land still moves the
+comment's timestamp, so a consumer keying on that timestamp rather than on the body reads the lane
+as **fresh** while it carries nothing. Stderr does not survive the session, so a refusal, a failed
+write, and a failed verification all have to reach the next cycle: a lane with durable loop state
+records it there, a lane without one carries it in the cycle's own summary.
+
+## Gotcha: compound-command permission matching
+
+The gate order lives inside the script, so the invocation is one simple command rather than the
+compound shape (variable assignment, a lookup function, an `if/elif/else`, a `for` loop, and
+several `gh api` calls in one Bash invocation) a permission rule may not cover.
+
+- **Pointer**: when an allow rule fails to cover the upsert invocation, fetch
+  [permissions § Compound commands](https://code.claude.com/docs/en/permissions#compound-commands)
+  live.
+
+When the invocation is blocked anyway, retry it rather than hand-transcribing the upsert:
+reproducing the gates in isolated calls loses the distinct exit codes the lane reads its own outcome
+from.
+
+## Known limits
+
+Not implemented: the 64 KiB cap and read retries that the `harness-ops` lanes wrapper carries.

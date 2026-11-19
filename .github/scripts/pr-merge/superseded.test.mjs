@@ -332,7 +332,10 @@ test("a PR-scoped run is superseded by a newer dispatch for the same pull reques
   assert.equal(same.superseded, true);
   assert.match(same.stdout, /run 600 \(workflow_dispatch\)/);
   assert.equal((await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [scoped(600, 42, OWNER)], env })).superseded, true, "a listed human's");
+  const titled = await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [{ ...scoped(600, 42), display_title: "PR Merge: arm #42" }], env });
+  assert.equal(titled.superseded, true, "the Title Case run-name");
   for (const [why, other] of [
+    ["another pull request, Title Case", { ...scoped(600, 43), display_title: "PR Merge: arm #43" }],
     ["another pull request", scoped(600, 43)],
     ["a re-run", scoped(600, 42, ACTIONS_BOT, { attempt: 2 })],
     ["re-run by another bot", scoped(600, 42, ACTIONS_BOT, { rerunner: LANES_BOT })],

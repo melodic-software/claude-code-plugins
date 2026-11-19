@@ -426,9 +426,10 @@ def _send_once(
         and os.environ.get(READ_FLOOR_STOP_ENV) == "1"
         and low_headroom(limits_pool)
     ):
+        _floored[limits_pool] = _headroom_reset.get(limits_pool)
         raise ReadsFloored(
             f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
-            "is below its read-floor share"
+            f"{READ_FLOOR_REFUSAL}"
         )
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
@@ -587,6 +588,7 @@ class WritesPaused(RuntimeError):
 # (`low_headroom`), so a process that no estimate bounds, such as ci-status's
 # verdict reader, never spends the floor. Unset, only report-only reads skip.
 READ_FLOOR_STOP_ENV = "BABYSIT_READ_FLOOR_STOP"
+READ_FLOOR_REFUSAL = "is below its read-floor share"
 
 
 class ReadsFloored(RuntimeError):
@@ -595,8 +597,39 @@ class ReadsFloored(RuntimeError):
     read that failed and the caller fails closed."""
 
 
+# Whole seconds a caller of a process under `READ_FLOOR_STOP_ENV` may wait for
+# a floored pool's reset before it judges again (`read_floor_refusals`), as
+# ci-status's verdict reader does: the job passes rate-guard.mjs's
+# WAIT_BUDGET_SECONDS.ciStatusVerify, which rate-guard.test.mjs pins
+# (https://github.com/melodic-software/claude-code-plugins/issues/16642).
+READ_FLOOR_WAIT_ENV = "BABYSIT_READ_FLOOR_WAIT_SECONDS"
+
+
+def read_floor_wait_seconds() -> int:
+    """`READ_FLOOR_WAIT_ENV` as whole seconds; 0 when unset or not one."""
+    value = os.environ.get(READ_FLOOR_WAIT_ENV, "")
+    return int(value) if re.fullmatch(r"[0-9]{1,5}", value) else 0
+
+
+def read_floor_refusals() -> dict[str, int | None]:
+    """Each pool a read was refused for below its read floor, with the reset
+    its last reading named (None when it named none)."""
+    return dict(_floored)
+
+
+def forget_read_floor(pools: Iterable[str]) -> None:
+    """Drop the readings and refusals of `pools`, once their reset has passed:
+    the next read goes out and reads the pool again."""
+    for pool in pools:
+        _headroom.pop(pool, None)
+        _headroom_reset.pop(pool, None)
+        _floored.pop(pool, None)
+
+
 _tripped: dict[str, RateLimitExhausted] = {}
 _headroom: dict[str, tuple[int, int]] = {}
+_headroom_reset: dict[str, int] = {}
+_floored: dict[str, int | None] = {}
 _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
 # The job's stop file, read once before the first call; None until then.
@@ -622,6 +655,8 @@ def reset_rate_guard() -> None:
     _read_retries_sent = 0
     _tripped.clear()
     _headroom.clear()
+    _headroom_reset.clear()
+    _floored.clear()
     _limits.clear()
     _trip_reported = False
     _job_stops = None
@@ -1047,6 +1082,11 @@ def _guard_response(
     resource = headers.get("x-ratelimit-resource")
     if remaining is not None and limit and resource in (None, "core", "graphql"):
         _headroom[limits_pool] = (remaining, limit)
+        reset = _int_header(headers, "x-ratelimit-reset")
+        if reset is None:
+            _headroom_reset.pop(limits_pool, None)
+        else:
+            _headroom_reset[limits_pool] = reset
     if not reading["latched"]:
         return
     server = server_error_hold(status=status, headers=headers, body=body)
@@ -1061,8 +1101,19 @@ def _guard_response(
         raise trip
 
 
+# Set to 1, the read floor is a share of the header's limit, not of the pool's
+# `limit-cap`: ci-status's merge-group verdict reader, whose refusal ejects the
+# queue entry, plans to the token's live limit (owner decision D418; run
+# https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120
+# refused with 2,766 of 5,000 left).
+READ_FLOOR_HEADER_LIMIT_ENV = "BABYSIT_READ_FLOOR_HEADER_LIMIT"
+
+
 def _below(pool: str | None, field: str) -> bool:
     pools = list(_headroom) if pool is None else [pool]
+    capped = (
+        field == "read-floor" and os.environ.get(READ_FLOOR_HEADER_LIMIT_ENV) != "1"
+    )
     for name in pools:
         limits = pool_limits(name)
         if isinstance(limits, str):
@@ -1071,7 +1122,7 @@ def _below(pool: str | None, field: str) -> bool:
         if not reading:
             continue
         remaining, limit = reading
-        cap = limits.get("limit-cap") if field == "read-floor" else None
+        cap = limits.get("limit-cap") if capped else None
         if cap is not None and cap < limit:
             remaining, limit = max(0, cap - (limit - remaining)), cap
         if remaining < limits[field] * limit:
@@ -1082,7 +1133,8 @@ def _below(pool: str | None, field: str) -> bool:
 def low_headroom(pool: str | None = None) -> bool:
     """Whether `pool` (any pool read so far, when None) last read below its
     `read-floor` share (of the pool's default `limit-cap` in rate-limits.json
-    when the header reports more), or its limits are unreadable. Report-only reads
+    when the header reports more, unless `READ_FLOOR_HEADER_LIMIT_ENV` is
+    set), or its limits are unreadable. Report-only reads
     are skipped then."""
     return _below(pool, "read-floor")
 

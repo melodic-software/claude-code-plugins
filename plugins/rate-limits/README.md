@@ -316,16 +316,13 @@ for a number, a number for a switch) is Claude Code's to handle before the modul
   [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
   live.
 
-The module reads its options when it loads. Claude Code reloads a module when its options change,
-so a switch turned off takes effect from the next event, with no restart. The StopFailure hook
-receives `rate_limits_enabled` as `CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED` at session
-start.
+The module reads its options when it loads, so a changed option applies from the module's next
+load. The StopFailure hook receives `rate_limits_enabled` as
+`CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED` at session start.
 
-- **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
-  writes for its build (see
+- **Pointer**: for when Claude Code reloads a module after its options change, read the doc
+  comment on `Register` in the `claude-code/index.d.ts` types Claude Code writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 Set it with `/plugin configure rate-limits@<marketplace>`, or headless via `claude plugin install
 rate-limits@<marketplace> -s <scope> --config rate_limits_enabled=false`, run against

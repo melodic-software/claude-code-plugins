@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: cd-rule-candidate-hands-to-codify
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: action-items-written
+    type: file_exists
+    path: '**/robust-http-apis-hale/analysis/action-items.md'
+    arm: both
+  - name: rule-candidate-to-codify
+    type: regex
+    pattern: '^#{1,6}[ \t]*Rule candidates\b(?:(?!\n#{1,2}[ \t])[\s\S])*?(?:/corrections:codify\b(?:(?!\n(?:[-*]|\d+\.)[ \t])[\s\S]){0,400}?\bvalidat\w*\b[^\n]{0,80}?\b(?:request|body|bodies|payload|input)|\bvalidat\w*\b[^\n]{0,80}?\b(?:request|body|bodies|payload|input)(?:(?!\n(?:[-*]|\d+\.)[ \t])[\s\S]){0,400}?/corrections:codify\b)'
+    flags: 'mi'
+    target: { source: file, path: courses/teachable/robust-http-apis-hale/analysis/action-items.md }
+    arm: both
+  - name: no-instruction-target
+    type: regex
+    pattern: '\bAdd\b[^\n]{0,20}?\bto[ \t]+[`"\x27]?(?:\./)?(?:CLAUDE\.md|AGENTS\.md|\.claude/rules/)|^#{1,6}[ \t]*CLAUDE\.md[ \t]*/'
+    flags: 'mi'
+    match: 'not_contains'
+    target: { source: file, path: courses/teachable/robust-http-apis-hale/analysis/action-items.md }
+    arm: both
+  - name: rule-lands-with-codify
+    type: llm
+    focus: { source: file, path: courses/teachable/robust-http-apis-hale/analysis/action-items.md }
+    criteria: "The file is the action-items list a course digest wrote for a repository, after a course that teaches one rule: validate request bodies at the boundary with a schema per route. The corrections plugin, which provides /corrections:codify, was installed. Judge only where the file sends that rule. Judge what the file says, not whether it is true. PASS only if the rule appears as a rule candidate whose action is handing it to /corrections:codify (a named call such as /corrections:codify followed by the rule, in any wording), so codify picks the mechanism. A rationale, a source lesson, or a note that codify may propose a check or schema middleware is fine. FAIL if the entry's action is adding a line to CLAUDE.md, AGENTS.md or a .claude/rules/ file; if it names an instruction file as the rule's target and codify only as an aside; if the file says codify already ran for the rule; if the rule appears only as an architecture, testing or work-item entry with no codify hand-off; or if the file is empty or missing. Do not judge the other sections."
+    arm: both
+  - name: no-codify-run
+    type: tool_used
+    tool: Skill
+    input_match: '"skill":"/?(?:corrections:)?codify"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-instruction-file-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:CLAUDE\.md|AGENTS\.md|\.claude/rules/)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-instruction-file-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*(?:CLAUDE\.md|AGENTS\.md|\.claude/rules/)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-extraction
+    type: tool_used
+    tool: Bash
+    input_match: '(?:extract-course|discover-resources|download-resources|build-course-json|classify-frames|generate-manifests|validate-extraction|analyze-code-repo)\.js|\brun\.mjs\b|\bplaywright\b'
+    min: 0
+    max: 0
+    arm: both

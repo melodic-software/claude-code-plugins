@@ -9,6 +9,7 @@ import { gunzipSync } from "node:zlib";
 import { generate } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { MAX_ARTIFACT_BYTES, sealTelemetry } from "./seal-transcript.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ACTION = readFileSync(path.join(HERE, "action.yml"), "utf8");
@@ -28,10 +29,10 @@ function workDir(t) {
   return dir;
 }
 
-function run(dir, inputs) {
+function run(dir, inputs, ...args) {
   const output = path.join(dir, "github-output");
   writeFileSync(output, "");
-  const result = spawnSync(process.execPath, [path.join(HERE, "seal-transcript.mjs")], {
+  const result = spawnSync(process.execPath, [path.join(HERE, "seal-transcript.mjs"), ...args], {
     env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, RUNNER_TEMP: dir, GITHUB_RUN_ID: "42", ...stepEnv(inputs) },
     encoding: "utf8",
   });
@@ -118,11 +119,78 @@ test("a missing, empty or linked transcript seals nothing; a bad job id fails", 
   }
 });
 
-test("the upload keeps only the sealed file, for 7 days, named by job and attempt", () => {
+const TELEMETRY = `${JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans: [{ name: MARKER }] }] }] })}\n`;
+
+function sealBoth(t) {
+  const dir = workDir(t);
+  const keys = generate();
+  const inputs = {
+    "public-key": keys.publicLine,
+    "execution-file": path.join(dir, "execution.json"),
+    "otel-file": path.join(dir, "otel.jsonl"),
+    "job-id": "refine-issue",
+  };
+  writeFileSync(inputs["execution-file"], TRANSCRIPT);
+  writeFileSync(inputs["otel-file"], TELEMETRY);
+  const transcript = run(dir, inputs);
+  assert.equal(transcript.status, 0, transcript.stdout + transcript.stderr);
+  return { dir, keys, inputs, transcript };
+}
+
+test("the telemetry seals beside the transcript under its own payload name and opens to the same bytes", (t) => {
+  const { dir, keys, inputs, transcript } = sealBoth(t);
+  const result = run(dir, inputs, "telemetry");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(path.dirname(result.outputs.file), path.dirname(transcript.outputs.file));
+  assert.equal(path.basename(result.outputs.file), "otel.jsonl.gz.sealed");
+  const sealed = readFileSync(result.outputs.file);
+  assert.equal(sealed.includes(Buffer.from(MARKER)), false, "no plaintext in the sealed file");
+  const keyId = keys.publicLine.split(" ")[1];
+  const open = (name, runId = "42", jobId = "refine-issue") => gunzipSync(openRecord(parsePrivateKey(keys.privateText), [keyId], name, sealed, runId, jobId)).toString("utf8");
+  assert.equal(open("otel.jsonl.gz"), TELEMETRY);
+  assert.throws(() => open("transcript.json.gz"), /does not open/, "bound to its own payload name");
+  assert.throws(() => open("otel.jsonl.gz", "43"), /does not open/, "bound to its run");
+  assert.equal(openSealed(transcript.outputs.file, keys.privateText, keyId), TRANSCRIPT, "the transcript is untouched");
+  assert.doesNotMatch(result.stdout + result.stderr, new RegExp(MARKER));
+});
+
+test("no telemetry file seals nothing, and a telemetry failure only warns", (t) => {
+  const { dir, inputs } = sealBoth(t);
+  for (const file of ["", path.join(dir, "absent.jsonl")]) {
+    const result = run(dir, { ...inputs, "otel-file": file }, "telemetry");
+    assert.equal(result.status, 0, file);
+    assert.deepEqual(result.outputs, {}, file);
+  }
+  const result = run(dir, { ...inputs, "public-key": "x25519 0000000000000000 REPLACE_WITH_PUBLIC_KEY" }, "telemetry");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^::warning::upload-lane-transcript: the telemetry is left out: /m);
+  assert.deepEqual(result.outputs, {});
+  assert.deepEqual(sealedFiles(dir).filter((f) => f.endsWith("otel.jsonl.gz.sealed")), []);
+});
+
+test("telemetry that would take the artifact past the puller's limit is left out with a warning", (t) => {
+  const { dir, inputs } = sealBoth(t);
+  const output = path.join(dir, "github-output");
+  writeFileSync(output, "");
+  const env = { ...stepEnv(inputs), GITHUB_OUTPUT: output, RUNNER_TEMP: dir, GITHUB_RUN_ID: "42" };
+  const written = [];
+  const write = process.stdout.write;
+  process.stdout.write = (line) => written.push(String(line));
+  try {
+    sealTelemetry(env, 1);
+  } finally {
+    process.stdout.write = write;
+  }
+  assert.match(written.join(""), /::warning::upload-lane-transcript: the telemetry is left out: with it the artifact would pass/);
+  assert.equal(readFileSync(output, "utf8"), "");
+  assert.equal(MAX_ARTIFACT_BYTES, 63 * 1024 * 1024);
+});
+
+test("the upload keeps only the sealed files, for 7 days, named by job and attempt", () => {
   const upload = ACTION.slice(ACTION.indexOf("uses: actions/upload-artifact@"));
   assert.match(ACTION, /if: steps\.seal\.outputs\.file != ''\n\s+uses: actions\/upload-artifact@[0-9a-f]{40} /);
   assert.match(upload, /^ {8}name: lane-transcript-\$\{\{ inputs\.job-id \}\}-\$\{\{ github\.run_attempt \}\}$/m);
-  assert.match(upload, /^ {8}path: \$\{\{ steps\.seal\.outputs\.file \}\}$/m);
+  assert.match(upload, /^ {8}path: \|\n {10}\$\{\{ steps\.seal\.outputs\.file \}\}\n {10}\$\{\{ steps\.seal-otel\.outputs\.file \}\}\n/m);
   // The issue's retention: 7 days (cant-fail-ok: the issue's stated contract).
   assert.match(upload, /^ {8}retention-days: 7$/m);
   assert.match(upload, /^ {8}overwrite: false$/m);

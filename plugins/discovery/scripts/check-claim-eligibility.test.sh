@@ -18,16 +18,8 @@ if [[ -z "$WORK" || ! -d "$WORK" ]]; then
 fi
 trap 'rm -rf "$WORK"' EXIT
 
-passes=0
-fails=0
-pass() {
-  printf 'ok   - %s\n' "$1"
-  passes=$((passes + 1))
-}
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # run <expected-exit> <label> [--err <stderr-substring>] [args...]
 run() {

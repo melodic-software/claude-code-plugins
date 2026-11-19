@@ -136,3 +136,20 @@ D/audit-sessions/
   `audit-sessions.sweep/v2`.
 - Exit codes: 0 pass, 1 warning (a metric degraded by drift), 2 error, 3 no store under the data
   directory. Exit 3 writes nothing; any other exit writes only what `--write-report` asks for.
+
+## Resumed-context report
+
+- `resumed_context.py` reads transcripts, not the store, and writes nothing. Its JSON envelope has
+  schema `audit-sessions.resumed-context/v1` (the `SCHEMA` constant in
+  `scripts/resumed_context.py`), with `status`, `summary` and `data`.
+- `data.sessions` holds one row per resumed session in scope: `session_id`, `project`, `start`,
+  `cwd`, `entrypoints`, `handoff` and `handoff_path`, `plugin_version`, `plugin_versions_seen` and
+  `ctx_msg10` (null when the session never reached the 10th message).
+- `data.counts` holds `transcripts`, `in_scope`, `unattributed`, `automated_set_aside`, `resumed`,
+  `reached_10` and `unreadable`. `data.overall` and each `data.groups` row hold `n` and `median`;
+  a group also holds `plugin_version` and `sufficient`. With `--baseline` and `--candidate`,
+  `data.comparison` holds `baseline`, `candidate`, `rise` and `miss_count`, which the script
+  always leaves null.
+- Versioning follows the sweep report's rule: new fields within v1, and a removed, renamed or
+  redefined field moves the schema to v2. Exit codes: 0 pass, 1 a compared side is short of
+  `--min-per-side`, 2 error.

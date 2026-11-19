@@ -56,7 +56,8 @@ import {
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
-import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
+import { isPrUnblockTitle } from "../lib/run-title.mjs";
+import { HOLD_LINE } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
@@ -551,7 +552,7 @@ export async function dispatchCiFixes({
     }
   };
   for (const node of candidates) {
-    const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+    const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, activity, node.number));
     if (inFlight) {
       log(`skip fix-ci #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
       continue;
@@ -580,6 +581,29 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
       continue;
     }
+    const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
+    let requiredRun;
+    try {
+      requiredRun = await api.readRequiredRun(node.headRefOid, path);
+    } catch (error) {
+      if (error.rateLimited) {
+        log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+        continue;
+      }
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
+      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
+    }
+    const early = skipReason(
+      { ...node, requiredRun, laneGate, fixCiRuns: [] },
+      { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, ownedBranches, now },
+    );
+    if (early !== "" && !headChecks(node, actionsAppId)?.some((run) => run.name === checkName)) {
+      log(`skip fix-ci #${node.number}: ${early}`);
+      continue;
+    }
     // The per-head cap is the loop's hard end, so a head whose runs cannot be
     // read is not dispatched.
     let fixCiRuns;
@@ -604,23 +628,9 @@ export async function dispatchCiFixes({
       markHandled(record, checkName, node.headRefOid);
       continue;
     }
-    // A re-run going, or an infra-only first failure's re-run still due,
-    // decides before a model run; an unreadable run waits on nothing.
-    const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
-    let requiredRun;
-    try {
-      requiredRun = await api.readRequiredRun(node.headRefOid, path);
-    } catch (error) {
-      // A rate limit is no reason to spend a model run: a later run retries.
-      if (error.rateLimited) {
-        log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
-        continue;
-      }
-      if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
+    if (early !== "") {
+      log(`skip fix-ci #${node.number}: ${early}`);
+      continue;
     }
     // A cancelled tested run can hide a failed job behind a later skipped run
     // of it, which the rollup does not show: read what fix-ci-context reads.
@@ -690,7 +700,7 @@ export async function dispatchCiFixes({
   // holds the head.
   for (const node of stale) {
     const stoppedAt = Date.parse(staleStop(node, { base, appSenderId, holdLabels, gateLabel }).createdAt ?? "");
-    const since = runs.find((run) => run.display_title === runTitle(activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
+    const since = runs.find((run) => isPrUnblockTitle(run.display_title, activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
     if (since) {
       log(`skip fix-ci #${node.number}: ${workflow} run ${since.id} started after the fix-ci stop on head ${node.headRefOid}`);
       continue;

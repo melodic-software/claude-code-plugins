@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Missing: `docs/team-rules.md`, which CLAUDE.md imports. CLAUDE.md itself was read.",
+      "why": "names the missing import"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I reread CLAUDE.md. Findings: clean.",
+      "why": "the missing file is not named"
+    }
+  ]
+}

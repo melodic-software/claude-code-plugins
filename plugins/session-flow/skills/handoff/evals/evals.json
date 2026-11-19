@@ -621,6 +621,21 @@
         "The Environment to re-establish section names the review plugin, version 9.1.0, and the /reload-plugins step",
         "No line says /clear, a new conversation or the resume prompt loads the updated plugin"
       ]
+    },
+    {
+      "id": 46,
+      "name": "desktop-session-tool-offers-sibling-session",
+      "prompt": "/session-flow:handoff file plan-execution\n\n(Context: the session runs in the Claude desktop app's Code tab and has a tool that starts another session. The plan is approved and execution should start in a fresh session in this checkout.)",
+      "expected_output": "The full-path save-point is written and the rails prompt printed as usual. Because the session can start another session, the skill reads reference/sibling-session-delivery.md and offers a session the user starts, with the rails block as its brief plus the checkout path, branch and commit-scope lines, fresh context, in this checkout. It does not start the session itself. The /clear-then-paste instruction stays as the fallback, and the skill stops the task.",
+      "files": [],
+      "expectations": [
+        "The rails prompt is printed, byte-equal to the file's Resume prompt section",
+        "A new session is offered for the user to start, never started without the user's action",
+        "The offered brief carries the rails block plus the checkout path and branch",
+        "The offered session runs in this checkout, not a new worktree, because the handoff file is gitignored",
+        "The /clear-then-paste instruction is still given as the fallback",
+        "The response does no plan execution after the save-point"
+      ]
     }
   ]
 }

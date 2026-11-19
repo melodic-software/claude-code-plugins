@@ -6,43 +6,15 @@
 # redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/resolve-config.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASES=0
-
-pass() {
-  CASES=$((CASES + 1))
-  printf 'PASS: %s\n' "$1"
-}
-
-fail() {
-  CASES=$((CASES + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
-  esac
-}
-
-assert_lacks() {
-  case "$2" in
-  *"$3"*) fail "$1" "does not contain: $3" "$2" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
 # The empty HOME that sits beside a fixture root (`<case>/repo` and `<case>/home`).
 # It is a sibling, never inside the root: a root that contains the home is a home

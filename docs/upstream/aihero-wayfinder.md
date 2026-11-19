@@ -50,7 +50,7 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 
 | Idea | What it does | Upstream problem | Our problem | Disposition (decisions) | Landed |
 |---|---|---|---|---|---|
-| Planning becomes the constraint once agents build | Treats planning capacity, not build capacity, as what limits throughput | Building from a clear idea is cheap, so the plan sets the pace | The constraint is the human hand-off of intent and vision during planning, plus review of what comes out | **take**, restated: planning with a human in the loop is the constraint; agent verification and low-risk auto-merge serve the review end; keeping agents saturated goes to the lanes workshops | none |
+| Planning becomes the constraint once agents build | Treats planning capacity, not build capacity, as what limits throughput | Building from a clear idea is cheap, so the plan sets the pace | The constraint is the human hand-off of intent and vision during planning, plus review of what comes out | **take**, restated: planning with a human in the loop is the constraint; agent verification and low-risk auto-merge serve the review end; keeping agents saturated needs no planning change (Q883) | none |
 | A long interview fills one session | One interview runs out of room, compaction drops answers, and halves split across sessions lose their cross-links | Rich answers vanish once a session compacts | Our interview writes a ledger in the memory slice from its first round, so a compacted interview resumes from the file ([`interview/SKILL.md`](../../plugins/planning/skills/interview/SKILL.md)) | **already have** (Q300): the interview keeps its fog and question-count wayfind triggers; size alone routes to the continuation router ([`routing.md`](../../plugins/planning/skills/interview/context/routing.md)) | none |
 | Planning fidelity | Ranks planning artifacts from talk to working code by how concrete they are | Cheap agent prototypes make higher fidelity affordable earlier | Our planning skills had no name for it | **take** (Q301): wayfind names fidelity; each item is settled with the cheapest artifact that answers its question, never below the level that answers nothing | [#15396](https://github.com/melodic-software/claude-code-plugins/pull/15396) |
 | Appetite bounds the solution | Fixes how much an effort is worth and shapes the solution to fit | Scope grows to fill whatever time a plan allows | The Brief recorded an appetite nothing downstream read | **adapt** (Q302): plan and brainstorm fit the approach to the appetite and cut scope; plan review asks whether the plan is within appetite; no numeric budget | [#15396](https://github.com/melodic-software/claude-code-plugins/pull/15396) |
@@ -182,9 +182,10 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 
 ### Handed elsewhere
 
-- Review lanes enforcing the glossary's rejected words, and agents running a failing command
-  themselves (Q383): later workshops.
-- Planning enough work to keep agents busy: the lanes workshops.
+- Review lanes enforcing the glossary's rejected words (Q383): no change, the local code reviewer's
+  advisory is the control (Q882). Agents running a failing command themselves: covered at the
+  feedback-loops workshop (Q775), [#16617](https://github.com/melodic-software/claude-code-plugins/pull/16617).
+- Planning enough work to keep agents busy: no change (Q883).
 
 ## License notice
 

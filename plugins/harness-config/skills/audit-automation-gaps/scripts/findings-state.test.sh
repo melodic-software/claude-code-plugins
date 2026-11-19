@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for findings-state.sh (self-contained, ships with the plugin).
-#
 # THE CASE THIS SUITE EXISTS FOR is case 8: two repositories writing the same run
 # id into one plugin data root must not collide. That is rule 1 of
 # docs/contracts/plugin-data-report-keying/README.md, and an unkeyed
@@ -21,6 +19,7 @@ set -uo pipefail
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/findings-state.sh"
@@ -29,14 +28,10 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 SKIPPED=0
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
 # A host-capability skip is reported as itself and never through pass(), so a
 # proof this host could not run can never be read off the summary as one that
 # did.
@@ -58,29 +53,6 @@ host_makes_symlinks() {
   fi
   rm -rf "$d"
   return "$rc"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
 }
 assert_file() {
   if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "no such file: $2"; fi

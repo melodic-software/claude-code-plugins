@@ -221,9 +221,25 @@ mk plugins/playwright/skills/demo-video/scripts/demo-video.test.sh \
   "# test-scope: plugins/playwright/skills/demo-video/scripts/* plugins/playwright/skills/demo-video/requirements.txt"
 plan -- plugins/playwright/skills/demo-video/requirements.txt
 is "$(key bash_plan)" '{"0":["plugins/playwright/skills/demo-video/scripts/demo-video.test.sh"]}' &&
-  is "$(key bash_needs)" '{"0":"demovideo"}'
+  is "$(key bash_needs)" '{"0":"animation demovideo mediarender"}'
 check "a demo-video requirements change puts the demovideo toolchain in its leg's needs" $?
 rm -rf "$repo/plugins/playwright"
+
+mk plugins/locks/locks.test.sh "# test-scope: .github/requirements-ci.txt .github/requirements-relock.txt plugins/animation/requirements.txt plugins/playwright/skills/demo-video/requirements.txt lib/media-render/requirements.txt"
+for lock in .github/requirements-ci.txt plugins/animation/requirements.txt \
+  plugins/playwright/skills/demo-video/requirements.txt lib/media-render/requirements.txt; do
+  mk "$lock" "numpy==2.5.4"
+  plan -- "$lock" plugins/c/c.sh plugins/a/a.sh
+  is "$(key bash_needs | jq -r '.["0"]' | tr -d '\r')" "animation demovideo mediarender" &&
+    is "$(key bash_needs | jq -r '[.[]] | map(select(test("demovideo"))) | length' | tr -d '\r')" 1
+  check "a change to $lock installs every co-installed lock together on leg 0 only" $?
+done
+mk .github/requirements-relock.txt "numpy==2.5.4"
+plan -- .github/requirements-relock.txt
+is "$(key bash_needs)" '{"0":""}'
+check "a change to a lock the test-bash step never installs brings no lock toolchain" $?
+rm -rf "$repo/plugins/locks" "$repo/plugins/animation/requirements.txt" "$repo/plugins/playwright" "$repo/lib/media-render" \
+  "$repo/.github/requirements-ci.txt" "$repo/.github/requirements-relock.txt"
 
 # The media-render and explainer-video suites capture frames with Playwright for Python.
 mk lib/media-render/media-render.test.sh "# test-scope: lib/media-render/*"

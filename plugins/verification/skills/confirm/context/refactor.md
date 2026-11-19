@@ -98,6 +98,11 @@ Show what changed structurally with `git diff --stat` and `git diff --name-statu
 - Verifier verdicts: <each verdict returned on this head, in order, as returned; the last is the verdict> / none (no verifier ran: <why>)
 ```
 
+**Criterion rows.** The first `--row` the verdict record stores (SKILL.md, "Record the verdict for
+the head it judged") is `behavior preserved: same tests pass`, the files the refactor changed, the
+suite Stage 1 ran (and, for a Replace, the differential run), and its result. Any other acceptance
+criterion the plan states gets a row of its own.
+
 ### 7. Verdict
 
 - **CONFIRMED** if all tests pass and no untested gaps are HIGH risk; for a Replace, the differential run also ran with zero unexplained mismatches. A Replace is never CONFIRMED with an unexplained mismatch (that is BEHAVIORAL CHANGE DETECTED) or with no differential run (at best LIKELY PRESERVED, with the missing run named as the gap)

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for changelog-status.sh.
-#
 # Coverage:
 #   - the marker line in the ledger wins, and the default range runs from it to
 #     the newest release, oldest first, with [VSCode] lines excluded from the count
@@ -52,20 +50,13 @@ trap 'rm -rf "$TMP"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s\n      expected: %q\n      got:      %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
-assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
 # PATH stub for `claude --version`: the version is read from CLAUDE_STUB_VERSION.
 mkdir -p "$TMP/stub"

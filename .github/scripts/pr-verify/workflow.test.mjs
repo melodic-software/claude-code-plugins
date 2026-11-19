@@ -1624,7 +1624,7 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   const tmp = tempDir("capture-collect-tmp-");
   const bin = tempDir("capture-collect-bin-");
   const realJq = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" }).stdout.trim();
-  writeFileSync(path.join(bin, "jq"), `#!/bin/bash\ncase "$*" in *"del(.cause)"*) exit 5 ;; esac\nexec '${realJq}' "$@"\n`, { mode: 0o755 });
+  writeFileSync(path.join(bin, "jq"), `#!/bin/bash\ncase "$*" in *"del(.cause"*) exit 5 ;; esac\nexec '${realJq}' "$@"\n`, { mode: 0o755 });
   const failedOut = path.join(workspace, "out-strip-failed");
   const failedStrip = runStep(capStep("Collect the capture"), { PATH: `${bin}:${process.env.PATH}`, GITHUB_WORKSPACE: workspace, APP: "claude-code", OUT: failedOut, TMPDIR: tmp, DRIVE_OUTCOME: "success", OUTPUT_FILE: forgedOutput });
   assert.equal(failedStrip.status, 0, failedStrip.stderr);
@@ -2132,14 +2132,15 @@ test("the capture's credit gate reads the key's credit history right after the c
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
   // The key call runs whatever the read chose; only whether the key is set reaches it.
   const key = capStep("Check the credential");
-  assert.equal(stepIf(key), APPLICABLE);
+  assert.equal(stepIf(key), `${APPLICABLE} && steps.reuse.outputs.reused != 'true'`);
   assert.equal(input(key, "leg"), "key");
   assert.equal(input(key, "role"), "pr-verify");
   assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
   assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
-  assert.equal(capIndex("Check the credential"), capIndex(MATCH) + 1);
+  assert.equal(capIndex("Find an earlier capture of this head"), capIndex(MATCH) + 1);
+  assert.equal(capIndex("Check the credential"), capIndex("Take the earlier capture") + 1);
   const models = capStep("Resolve the capture's model");
-  assert.equal(stepIf(models), `${APPLICABLE} && steps.credential.outputs.key-skipped != 'true'`);
+  assert.equal(stepIf(models), `${APPLICABLE} && steps.reuse.outputs.reused != 'true' && steps.credential.outputs.key-skipped != 'true'`);
   assert.ok(capIndex("Resolve the capture's model") > capIndex("Check the credential"));
   // A held key sets present false, so no leg step starts.
   for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE]) {
@@ -2355,7 +2356,7 @@ test("a key that cannot capture records the capture blocked in the capture job, 
   // No job reads the leg any more, so the capture job exports none.
   assert.doesNotMatch(jobIn(CAPTURE_TEXT, CAP), /^ {4}outputs:/m);
   // The scan and the upload take any one capture: the driver's, the blocked one or the match step's.
-  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outputs.written == 'true' || steps.match.outputs.applicable == 'false')";
+  const either = "(steps.collect.outcome == 'success' || steps.handoff-capture.outputs.written == 'true' || steps.match.outputs.applicable == 'false' || steps.reuse.outputs.reused == 'true')";
   assert.equal(stepIf(capStep("Scan the capture for credentials")), `always() && ${either}`);
   assert.equal(stepIf(capStep("Upload the capture")), `(always() && ${either}) && steps.scan-capture.outputs.clean == 'true'`);
 });
@@ -2812,7 +2813,11 @@ test("the capture prompt tells the driver where the driven session runs and to d
   };
   for (const workdir of ["success", "failure", "skipped"]) {
     assert.match(prompt(workdir), /where a feature's ## Drive in the control skill under \/ws\/\.base names the action to drive for a skill, drive that action with exactly the arguments it names\./i, workdir);
+    assert.match(prompt(workdir), /This session has no Agent tool: run run-e2e's Step 3 in this session, invoking \/app-control:drive once per touched feature, and delegate nothing\./, workdir);
+    assert.match(prompt(workdir), /Never Read a capture's \.jsonl whole: read it back with Grep, a pattern for the events the step needs and a head_limit/, workdir);
   }
+  for (const key of ["tools", "allowed-tools"]) assert.ok(!list(capStep(DRIVER), key).includes("Agent"), key);
+  assert.equal(input(capStep("Resolve the capture's model"), "model-route"), "verify-capture");
   assert.match(prompt("success"), /runs in a writable clone of that checkout, with its git history/);
   assert.doesNotMatch(prompt("success"), /empty directory/);
   for (const workdir of ["failure", "skipped"]) {

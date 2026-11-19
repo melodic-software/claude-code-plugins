@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for probe-lane-config.sh.
-#
 # The script exists only to reproduce, from a bundled file, what a pre-compute
 # line used to compute inline (#1687). So every case asserts TWO things: the
 # script's output against the expected literal, and the script's output against
@@ -43,18 +41,13 @@ START_DIR="$PWD"
 TMP="$(mktemp -d)"
 trap 'cd "$START_DIR" 2>/dev/null; rm -rf "$TMP"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s\n      expected: %q\n      got:      %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 
 # --- The inline equivalent of the resolution the script bundles --------------
 ORIGINAL="$TMP/original.sh"

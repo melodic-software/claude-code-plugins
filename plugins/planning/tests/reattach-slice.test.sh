@@ -13,16 +13,8 @@ set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=../lib/test-ok-fail.sh
+source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
 slice=""
 tail=""

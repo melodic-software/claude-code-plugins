@@ -80,7 +80,7 @@ false-positive tax it levies on people who then learn to ignore the whole surfac
 
 **Default-skeptical is empirically grounded, not a temperament.** Kohavi et al.'s Microsoft data,
 cited by Fowler and published in full at
-<https://ai.stanford.edu/~ronnyk/ExP_DMCaseStudies.pdf>, found only about one-third of
+<https://exp-platform.com/Documents/ExP_DMCaseStudies.pdf>, found only about one-third of
 carefully-analyzed features improved the metrics they were built to improve, with later data from a
 large search product harsher still. The measurement is of shipped features under controlled
 experiment; the extension to presumptive capability is Fowler's own, and the imprecision runs in the
@@ -492,7 +492,7 @@ its diffs were acted on.
 - Martin Fowler, "Yagni": the four costs, the carry-cost definition this method argues in, and the
   explicit scope boundary in §10. <https://martinfowler.com/bliki/Yagni.html>
 - Kohavi et al., controlled-experiment case studies: the base rate behind the default-skeptical
-  posture. <https://ai.stanford.edu/~ronnyk/ExP_DMCaseStudies.pdf>
+  posture. <https://exp-platform.com/Documents/ExP_DMCaseStudies.pdf>
 - John Ousterhout, *A Philosophy of Software Design*: incremental accumulation, and why a single
   removal reads as no improvement. <https://milkov.tech/assets/psd.pdf>
 - Rob Ewaschuk, "My Philosophy on Alerting": the removal default, the qualitative bar, the 50% and

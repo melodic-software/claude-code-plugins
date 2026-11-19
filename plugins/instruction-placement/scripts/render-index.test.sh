@@ -8,6 +8,7 @@
 # shellcheck disable=SC2016 # assertions quote markdown code spans; the backticks
 # are literal table content, never command substitution.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 set -uo pipefail
 
@@ -17,31 +18,16 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 SCRIPT="$SCRIPT_DIR/render-index.sh"
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=../lib/test-helpers.sh
+source "$SCRIPT_DIR/../lib/test-helpers.sh"
 SKIPPED=0
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
 # A case this host cannot run is neither a pass nor a failure. It prints its own
 # visible line, carries its own counter, and never routes through pass(), so a
 # host-blocked proof can never be read off the summary as a case that ran.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-assert_contains() {
-  if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
 }
 assert_not_contains() {
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "must not contain: $3" "$2"; fi
