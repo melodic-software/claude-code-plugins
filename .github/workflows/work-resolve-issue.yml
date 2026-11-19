@@ -548,7 +548,7 @@ jobs:
     needs: [resolve-issue]
     if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 15
     permissions:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
@@ -587,7 +587,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue
-          API_BUDGET_WAIT_SECONDS: "1200"
           HANDOFF_EVIDENCE_LAG: notice
         run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
 

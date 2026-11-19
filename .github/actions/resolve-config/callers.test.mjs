@@ -8596,7 +8596,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue" });
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: "1200" });
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],

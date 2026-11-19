@@ -477,7 +477,7 @@ const HELD_UNTIL = stamped(
 );
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
 const LIMIT_COMPANION = stamped(
-  String.raw`##\[error\](?:\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed$|leak-scan: no finished scan \(HttpError\);)`,
+  String.raw`##\[error\](?:\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed(?:: GitHub.*)?$|leak-scan: no finished scan \(HttpError\);)`,
 );
 const FLOOR_JOB_ENDS = new Set(["success", "skipped", "failure"]);
 const NO_RESET = "rate-limited";

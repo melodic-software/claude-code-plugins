@@ -48,7 +48,7 @@
 # reset, so a failed read names that reset. A job that sets
 # API_BUDGET_WAIT_SECONDS waits for it once through rate-guard.mjs's waitOut,
 # within the guard's wait budget, then reads again; a reset past that budget
-# ends the reads at once.
+# and past the reads' window ends the reads at once.
 #
 # Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale, credit-stop)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
@@ -240,7 +240,8 @@ while :; do
             continue
           fi
         fi
-        break
+        stop=$(api_budget_stop_until core)
+        ((${stop:-0} - $(date +%s) <= window - waited)) || break
       fi
     fi
   fi

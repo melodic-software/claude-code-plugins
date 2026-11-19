@@ -324,6 +324,18 @@ test("with API_BUDGET_WAIT_SECONDS set, a read the rate limit refused waits for 
   assert.equal(out.output, "posted=true\n");
 });
 
+test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget but inside the reads' window keeps reading on the delays", () => {
+  const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 90)], "60 60", {
+    calls: "resolve-issue-subscription",
+    runnerTemp: true,
+    draw: 0,
+    env: { API_BUDGET_WAIT_SECONDS: "60" },
+  });
+  assert.doesNotMatch(out.stdout, /waits \d+s/, "90 s is past the guard's 60 s budget");
+  assert.match(out.stdout, /^Read 1: the jobs read failed: GitHub's core API rate limit holds until \S+; reading again in 0s$/m);
+  assert.match(out.stdout, /^Read 2: /m);
+});
+
 test("with API_BUDGET_WAIT_SECONDS set, a reset past the wait budget ends the reads at once and names the rate limit", () => {
   const out = run([limitedUntil(Math.floor(Date.now() / 1000) + 3000)], "0 0 0 0 0", {
     calls: "resolve-issue-subscription",
