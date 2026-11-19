@@ -25,7 +25,7 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { contractAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
@@ -36,6 +36,8 @@ import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 // The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
 process.env.TMPDIR = tempDir("callers-tmp-");
@@ -2809,6 +2811,39 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   }
 });
 
+const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const [pin] = job.steps.map((step) => String(step.uses ?? "").match(new RegExp(`^melodic-software/ci-workflows/${composite}@([0-9a-f]{40})$`))?.[1]).filter(Boolean);
+  assert.ok(pin, "ci-status pins report-ci-status to a full SHA");
+  const action = async (path) => parse(await fetchAtPin(pin, `${path}/action.yml`));
+  const waits = {};
+  let rerun = 0;
+  for (const step of (await action(composite)).runs.steps) {
+    if (!step.uses?.startsWith("$/")) continue;
+    const path = step.uses.slice(2);
+    const { inputs } = await action(path);
+    const value = (key) => Number(step.with?.[key] ?? inputs[key]?.default ?? 0);
+    if (inputs["rate-limit-wait-seconds"]) waits[path.split("/").pop()] = value("rate-limit-wait-seconds");
+    rerun += value("rerun-wait-seconds");
+  }
+  for (const name of ["check-contract", "aggregate-results"]) assert.ok(name in waits, `report-ci-status at ${pin} runs ${name} with a rate-limit-wait-seconds input`);
+  for (const [name, seconds] of Object.entries(waits)) {
+    assert.ok(seconds <= WAIT_BUDGET_SECONDS.step, `${name}'s rate-limit-wait-seconds at ${pin} is ${seconds}, over WAIT_BUDGET_SECONDS.step ${WAIT_BUDGET_SECONDS.step}`);
+  }
+  const delays = (await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/run.sh")).match(/^OWN_GATE_RETRY_DELAYS='([0-9 ]+)'$/m)?.[1];
+  assert.ok(delays, `aggregate-results/run.sh at ${pin} sets OWN_GATE_RETRY_DELAYS`);
+  const ownGate = delays.split(" ").reduce((sum, seconds) => sum + Number(seconds), 0);
+  const margin = job.env.GH_READ_MARGIN_SECONDS;
+  const total = Object.values(waits).reduce((sum, seconds) => sum + seconds, rerun + ownGate + STATUS_WRITE_RETRY_SECONDS);
+  assert.ok(
+    total <= margin,
+    `report-ci-status's rate-limit waits ${JSON.stringify(waits)}, ${rerun} s rerun wait, ${ownGate} s own-gate retries and ${STATUS_WRITE_RETRY_SECONDS} s status writes at ${pin} total ${total} s, over GH_READ_MARGIN_SECONDS ${margin}`,
+  );
+});
+
 // Each launcher leg is followed by a check that the CLI's init message
 // reports the permission mode the base config asked for, or default for
 // dontAsk; any other mismatch, a missing init message or an empty mode fails
@@ -5039,7 +5074,7 @@ function carryTranscript(t, execution, { inputs = {}, publicLine = TRANSCRIPT_KE
 function transcriptRecord(t, runOutputs) {
   const temp = tempDir("transcript-record-");
   t.after(() => rmSync(temp, { recursive: true, force: true }));
-  const step = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find((s) => s.id === "record");
+  const step = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find((s) => s.id === "record");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
     const output = NEEDS_RUN_OUTPUT.exec(expression)?.[1];
@@ -5070,7 +5105,7 @@ test("pr-run-activity-read.yml: the transcript job uploads the run job's leg tra
     const { status, log, record } = transcriptRecord(t, carried.runOutputs);
     assert.equal(status, 0, log);
     assert.deepEqual(openTranscript(record, jobId), LEG_MESSAGES, jobId);
-    const upload = workflow("pr-run-activity-read.yml").jobs.transcript.steps.find(isUpload);
+    const upload = workflow("pr-run-activity-read.yml").jobs["upload-transcript"].steps.find(isUpload);
     assert.equal(expand(upload.with.name, { ...carried.context, "github.run_attempt": "2" }), `lane-transcript-${jobId}-2`, "the artifact name the puller lists for this job-id");
     assert.throws(() => openTranscript(record, "resolve-conflicts"), undefined, "bound to its job-id");
   }
@@ -5212,7 +5247,7 @@ test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript 
   }
   assert.equal(evaluate(seal.if, { "steps.seal-check.outcome": "success", "steps.transcript-carry.outputs.staged": "true" }), true);
   assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /transcript-/);
-  const job = jobs.transcript;
+  const job = jobs["upload-transcript"];
   assert.deepEqual(job.needs, "run");
   assert.deepEqual(job.permissions, {});
   assert.equal(job.environment, undefined);
@@ -9126,6 +9161,26 @@ test("every model leg is followed by a sealed transcript upload of its own execu
   assert.ok(legs >= 13, `only ${legs} model legs found`);
 });
 
+test("a transcript upload's otel-file is its own leg's, from a launcher with the receiver on", () => {
+  let carried = 0;
+  for (const file of workflowFiles()) {
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      for (const [at, step] of steps.entries()) {
+        if (step.with?.["otel-receiver"] !== undefined) assert.ok(isLauncher(step), `${file}#${jobId} ${step.name}: otel-receiver on a step that is no launcher`);
+        if (!isTranscriptUpload(step) || step.with?.["otel-file"] === undefined) continue;
+        carried++;
+        const leg = /^\$\{\{ steps\.([\w-]+)\.outputs\.execution-file \}\}$/.exec(step.with["execution-file"] ?? "")?.[1];
+        assert.equal(step.with["otel-file"], `\${{ steps.${leg}.outputs.otel-file }}`, `${file}#${jobId} ${step.name}: the otel-file of the leg whose transcript it uploads`);
+        const launcher = steps.slice(0, at).find((s) => s.id === leg);
+        assert.ok(launcher && isLauncher(launcher), `${file}#${jobId} ${step.name}: ${leg} is a launcher before it`);
+        assert.equal(launcher.with?.["otel-receiver"], "true", `${file}#${jobId} ${leg}: the receiver is on`);
+      }
+    }
+  }
+  if (workflowFiles().includes("maintenance-audit-lane-runs.yml")) assert.ok(carried >= 3, `only ${carried} uploads carry telemetry`);
+});
+
 test("every caller of a reusable holding model legs passes the transcript key", () => {
   let callers = 0;
   for (const file of workflowFiles()) {
@@ -10591,7 +10646,7 @@ test("the policy probe reruns a session with no tool call, at most three times, 
   const calls = [
     ["Read", { file_path: "/proc/self/environ" }],
     ["Read", { file_path: `${root}/.runner` }],
-    ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+    ["Grep", { pattern: "policy-probe", glob: "environ", path: "/proc/self" }],
     ["Glob", { pattern: "environ", path: "/proc/self" }],
   ];
   const stream = (made, denials) =>

@@ -3645,8 +3645,8 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  transcript:
-    name: Transcript
+  upload-transcript:
+    name: Upload Transcript
     needs: run
     if: >-
       !cancelled() && needs.run.outputs.transcript-sealed-length != ''

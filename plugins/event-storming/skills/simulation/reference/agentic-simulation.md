@@ -665,7 +665,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 
 - Generate session ID: `{domain}-{YYYYMMDD}-{random4}` (e.g., `devconf-20260321-a7f2`)
 - Create session directory: `{session_dir}/personas/` (where `{session_dir}` is created by the secure temp primitive in "Persona Persistence Across Rounds" and its returned path is carried for the rest of the session)
-- Backend preflight: `check_available` on the chosen backend. If it fails, stop and offer the routes in SKILL.md "Board backend"; never switch backends unasked
+- Backend preflight: `check_available` on the chosen backend (markdown runs it just before the first board write, per SKILL.md "Where markdown boards go"). If it fails, stop and offer the routes in SKILL.md "Board backend"; never switch backends unasked
 - Domain research: 3+ web-research searches (Perplexity MCP if present, else `WebSearch`) before building persona prompts
 - Generate persona profile files (see "Persona Persistence Across Rounds" section above)
 - Record session metadata in `{session_dir}/session-meta.md`: domain, personas, backend, board references (updated as boards are created)

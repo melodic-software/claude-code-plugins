@@ -30,6 +30,8 @@ for _leaked_git_var in (
     "GIT_CONFIG",
 ):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_git_var
 
 GATE = Path(__file__).resolve().parent / "check-line-citations.py"

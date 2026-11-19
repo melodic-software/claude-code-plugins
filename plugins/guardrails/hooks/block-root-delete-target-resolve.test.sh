@@ -159,6 +159,7 @@ if [[ "$leak" == same ]]; then ok 'no descriptor leaks'; else no 'no descriptor 
 
 # --- The guard refuses when a resolver outlives the time left --------------
 unset CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 GUARD="$HOOK_DIR/block-root-delete-target.sh"
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"

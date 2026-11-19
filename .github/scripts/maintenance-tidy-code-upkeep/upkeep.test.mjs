@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { areaOf, detectAreas, gh, parseCount, lookbackStart, parseLog, plan, readCleanSweeps, slugOf } from "./upkeep.mjs";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const NOW = Date.parse("2026-11-20T06:00:00Z");
 const daysAgo = (days) => NOW - days * 86_400_000;

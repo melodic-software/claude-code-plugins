@@ -11,53 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/cutover-check.sh"
 REAL_SOURCES="$SCRIPT_DIR/../reference/sources.md"
 
-CASE_NUM=0
-FAILED=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n' "$1"
-  printf '      %s\n' "$2"
-}
-
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
-}
-
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "expected NOT to contain: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-
-# An unknown command is a failed check, not a "command not found" on stderr that
-# the run moves past while every other check reports passing.
-#
-# The count goes through a FILE, not the FAILED variable: bash runs this
-# handler wherever the unknown command was, which is often a subshell, and a
-# subshell's increment dies with it. The summary adds the file's lines back in.
-UNKNOWN_COMMANDS="$(mktemp)"
-# shellcheck disable=SC2329 # bash invokes this by name when a command is not found
-command_not_found_handle() {
-  printf '%s\n' "$1" >>"$UNKNOWN_COMMANDS"
-  printf 'FAIL: unknown command in the suite: %s\n' "$1"
-  printf '      a helper is missing or misspelled; the check it belonged to did not run\n'
-  return 127
-}
+# shellcheck source=../../../lib/migrate-test-helpers.sh
+source "$SCRIPT_DIR/../../../lib/migrate-test-helpers.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
@@ -65,6 +20,8 @@ trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 cd "$TMP" || exit 1
+
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
