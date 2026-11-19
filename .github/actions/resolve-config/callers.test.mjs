@@ -584,7 +584,7 @@ function refineLegShape(job) {
     .map((step) => {
       const shape = structuredClone(step);
       if (step.id === "credential") {
-        for (const input of ["leg", "credential-set", "fallback-set", "reason"]) delete shape.with[input];
+        for (const input of ["leg", "credential-set", "fallback-set", "key-off", "reason"]) delete shape.with[input];
       }
       if (step.id === "run") {
         delete shape.with["api-key"];
@@ -695,7 +695,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.match(credentialOf(job).uses, SELECT);
     assert.equal(credentialOf(job).if, "steps.models.outcome == 'success'");
   }
-  assert.deepEqual(credentialOf(model).with, { leg: "key", role: "intake", "credential-set": "${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}" });
+  assert.deepEqual(credentialOf(model).with, { leg: "key", role: "intake", "credential-set": "${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}", "key-off": KEYS_DISABLED });
   assert.deepEqual(credentialOf(sub).with, {
     leg: "subscription",
     role: "intake",
@@ -11006,6 +11006,36 @@ test("the credit window check names a drifted default, a missing input, a check-
   assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW_WRITTEN_OUT) }), [`f.yml r passes key-credit-window-hours ${KEY_CREDIT_WINDOW_WRITTEN_OUT}`], "a written-out default overrides the reusable's own");
   assert.deepEqual(check({}, KEY_CREDIT_WINDOW_WRITTEN_OUT), [`f.yml reads ${KEY_CREDIT_WINDOW_WRITTEN_OUT}`], "a written-out default in any other read");
   assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"]);
+});
+
+const KEYS_DISABLED = "${{ vars.CLAUDE_API_KEYS_DISABLED }}";
+function keyOffProblems(files, load) {
+  const problems = [];
+  for (const file of files) {
+    for (const [id, job] of Object.entries(load(file).jobs ?? {})) {
+      for (const step of (job?.steps ?? []).filter((s) => String(s?.uses ?? "").startsWith(SELECT_ACTION))) {
+        const keyOff = step.with?.["key-off"];
+        if (step.with?.leg === "key" ? keyOff !== KEYS_DISABLED : keyOff !== undefined) problems.push(`${file} ${id} ${step.name}: key-off ${keyOff}`);
+      }
+    }
+  }
+  return problems;
+}
+
+test("every key leg passes the org's API-key switch as key-off, and no other leg does", () => {
+  const files = workflowFiles();
+  assert.deepEqual(keyOffProblems(files, workflow), []);
+  const legs = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter((s) => String(s?.uses ?? "").startsWith(SELECT_ACTION) && s.with?.leg === "key")));
+  assert.ok(legs.length >= 17, `found ${legs.length} key legs`);
+});
+
+test("the key-off check names a missing switch, a literal, and a switch on another leg", () => {
+  const call = (leg, keyOff) => ({ name: "Check", uses: `${SELECT_ACTION}${"0".repeat(40)}`, with: { leg, ...(keyOff === undefined ? {} : { "key-off": keyOff }) } });
+  const check = (steps) => keyOffProblems(["f.yml"], () => ({ jobs: { j: { steps } } }));
+  assert.deepEqual(check([call("key", KEYS_DISABLED), call("subscription"), call("start")]), []);
+  assert.deepEqual(check([call("key")]), ["f.yml j Check: key-off undefined"]);
+  assert.deepEqual(check([call("key", "true")]), ["f.yml j Check: key-off true"]);
+  assert.deepEqual(check([call("subscription", KEYS_DISABLED)]), [`f.yml j Check: key-off ${KEYS_DISABLED}`]);
 });
 
 test("every catalog lane's key leg runs behind the key's credit gate", () => {

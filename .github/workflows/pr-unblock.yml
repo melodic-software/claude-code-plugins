@@ -2140,6 +2140,7 @@ jobs:
           role: pr-unblock
           credential-set: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-adjudicator-key-credit.outputs.next-leg }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED }}
 
       - name: Check the subscription token
         id: sub
