@@ -90,10 +90,11 @@ resolved as
   repository in scope, a bare id is a question, not an acceptance: ask which
   repository it means.
 - **Apply in the audit's worktree.** The plan is checkout-local, so it is not in
-  the clone a repository resolves to. Take each repository's worktree from the
-  audit's report, else find it with `git -C <root> worktree list`, and pass it as
-  `--root`. A repository with no such worktree, or no plan in it, is reported as
-  "no plan found" and skipped.
+  the clone a repository resolves to. The audit keeps one worktree per
+  repository, on the branch `docs-naming/file-names`: select the entry on that
+  branch in `git -C <root> worktree list --porcelain`, never another worktree of
+  the clone, and pass it as `--root`. A repository with no worktree on that
+  branch, or no plan in it, is reported as "no plan found" and skipped.
 - **One repository at a time.** Finish one repository's findings and its closing
   pass before the next starts. Its renames stay uncommitted in that worktree, per
   "Writes stay per repository".

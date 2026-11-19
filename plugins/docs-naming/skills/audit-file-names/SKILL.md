@@ -46,12 +46,17 @@ form selects several repositories, resolved, counted and listed as
 
 - **Audit in the worktree the realign will use.** The plan is checkout-local and
   keyed by branch, so a plan written in another checkout is one the realign never
-  finds. Per repository, create one worktree on a new branch from `origin/HEAD`,
-  by that repository's convention, then run "Facts before judgment" there with
-  `--root` set to it, one subagent per repository ("Fan-out" there). A detached
-  worktree would key the plan by a short SHA that the realign's first commit
-  changes. This worktree and branch are the only thing the audit adds to another
-  repository; the contract's read-only rule holds for every tracked file.
+  finds. Per repository, the audit's worktree is the one on the branch
+  `docs-naming/file-names`, found in `git -C <root> worktree list --porcelain`.
+  Reuse it when it exists, so a re-audit merges into the earlier plan and keeps
+  every decision ("Where the artifact goes"). Only when none exists, create one
+  on that branch by that repository's convention: from the local branch when it
+  is left without a worktree, else from `origin/HEAD`. Run "Facts before
+  judgment" there with `--root` set to it, one subagent per repository
+  ("Fan-out" there). A detached worktree would key the plan by a short SHA that
+  the realign's first commit changes. This worktree and branch are the only
+  thing the audit adds to another repository; the contract's read-only rule
+  holds for every tracked file.
 - **One plan per repository.** Each plan lives in the home "Where the artifact
   goes" names, inside that repository's worktree, never in the invoking
   checkout. A finding id is unique within its repository only, so the report
