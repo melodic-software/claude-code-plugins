@@ -270,10 +270,10 @@ current shapes live:
 
 - **Pointer**: the lane-outcome record and its classes, at the `lane-outcome record contract:`
   line under the Lanes heading (the `lane_outcome_contract_ref` key under `morning_brief:`). With
-  no such line the repo names no contract: the brief reads records with `v` 1, and their `lane`,
-  `outcome`, `class`, `turns`, `maxTurns`, `models`, `handoff`, `shellFailed`, `credential`
-  (`kind`, `role`, `secret`), `fallback` and `costUsd`, from the JSON after the `lane-outcome`
-  marker in a job's annotations.
+  no such line the repo points at no record documentation; the brief reads records with `v` 1,
+  and their `lane`, `outcome`, `class`, `turns`, `maxTurns`, `models`, `handoff`, `shellFailed`,
+  `credential` (`kind`, `role`, `secret`), `fallback` and `costUsd`, from the JSON after the
+  `lane-outcome` marker in a job's annotations.
 - **Pointer**: the turn-cap annotation, claude-code-action
   [`base-action/src/run-claude-sdk.ts`](https://github.com/anthropics/claude-code-action/blob/main/base-action/src/run-claude-sdk.ts).
 
