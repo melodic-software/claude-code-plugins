@@ -2287,18 +2287,106 @@ test("#17354: a reset cut off before a file's write leaves its record restoring,
   assert.deepEqual(w.records(), []);
 });
 
-test("#17354: a file edited after a reset was cut off is reported as edited, not reverted, and its restoring record is removed", () => {
+const CUT_OFF_SKIP = (file) => `Skipped ${file}: an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept.`;
+/** Codex's case: a reset cut off before the file's write, then songwriting put back to its value before the profile by hand. */
+function cutOffThenPutBack(w) {
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  return w.read();
+}
+
+test("#17354: a file changed after a reset was cut off, with an entry still at the profile's value, is not reverted without a yes for it, and its restoring record is kept", () => {
   const w = world();
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   cutOff(w, w.localFile, { written: true });
   const edited = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { ...JSON.parse(LOCAL_BEFORE).enabledPlugins, [`songwriting@${M}`]: false } };
   writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
   const kept = w.read();
+  const [row] = resetJson(w).folders;
+  assert.deepEqual([row.action, row.ask?.file, row.entries], ["finish-cut-off", w.localFile, [`songwriting@${M}`]]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  assert.equal(w.read(), kept);
+  assert.equal(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).phase, "restoring");
+});
+
+test("#17354: a reset cut off before a file's write, then an entry put back by hand, keeps the record and asks; the yes puts back the entries still at the profile's values and removes the record", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  const preview = resetJson(w);
+  const [row] = preview.folders;
+  const still = Object.keys(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).entries).filter((id) => id !== `songwriting@${M}`);
+  assert.deepEqual([row.action, row.recorded, row.entries], ["finish-cut-off", true, still]);
+  assert.deepEqual(row.ask, {
+    file: w.localFile,
+    question: `An earlier reset of ${w.localFile} was cut off and the file changed since. Put back the ${still.length} entries still at the values profile build wrote (${still.slice(0, 3).join(", ")}${still.length > 3 ? ` and ${still.length - 3} more, listed above` : ""}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`,
+    yes: { label: "Put back", flag: "--finish-cut-off" },
+    no: { label: "Keep", flag: "--keep-cut-off" },
+  });
+  assert.deepEqual(row.lines, [
+    `${w.localFile}: an earlier reset of this file was cut off and the file changed since. ${still.length} entries still hold the values profile build wrote: ${still.join(", ")}.`,
+    "  A yes for this file puts those back to their values from before the profile and leaves the entries changed by hand since as they are; a no keeps the file and its record.",
+  ]);
+  assert.equal(preview.question, null, "the one question covers no file here");
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile}: put back the ${still.length} entries still at the values profile build wrote, and left the entries changed by hand since as they are.`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+  assert.deepEqual(resetJson(w).folders, [], "the restored note keeps it off the next preview");
+});
+
+test("#17354: a cut-off reset's changed file answered no, or given --yes alone, or with nobody to answer, writes nothing and keeps its record", () => {
+  const w = world();
+  const changed = cutOffThenPutBack(w);
+  const record = readFileSync(dataRecordOf(w, w.localFile), "utf8");
+  const no = reset(w, ["--yes", "--keep-cut-off", w.localFile]);
+  assert.equal(no.status, 0, no.stderr);
+  assert.deepEqual(resultLines(no.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is, and its record is kept.`]);
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  const nobody = reset(w);
+  assert.equal(nobody.status, 1, nobody.stdout);
+  assert.match(nobody.stderr, /^not reset: nobody to confirm, so nothing was written; a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back$/m);
+  assert.deepEqual(resultLines(nobody.stdout), []);
+  assert.equal(reset(w, ["--yes", "--remove-unrecorded", w.localFile]).status, 1, "the unrecorded flags do not answer this file");
+  assert.equal(w.read(), changed);
+  assert.equal(readFileSync(dataRecordOf(w, w.localFile), "utf8"), record);
+});
+
+test("#17354: a file whose cut-off reset finished and which was then edited, with no entry left at the profile's value, keeps the edit and loses its record", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: true });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const kept = w.read();
   const r = reset(w, ["--yes"]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(resultLines(r.stdout), [`Skipped ${w.localFile}: edited since an earlier reset restored it; left as it is, and its record is removed.`]);
   assert.equal(w.read(), kept);
   assert.deepEqual(w.records(), []);
+});
+
+test("#17354: the preview id changes when a cut-off reset's changed file changes again, and a write given the old id refuses", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  const shown = resetJson(w).previewId;
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`review@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const changed = w.read();
+  assert.notEqual(resetJson(w).previewId, shown);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile, "--preview-id", shown]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: what reset would write changed since that preview /m);
+  assert.equal(w.read(), changed);
 });
 
 test("#17354: a reset cut off before a file's write, then a hand edit of one profile entry, keeps the record and restores the file, naming the edit it overwrites", () => {

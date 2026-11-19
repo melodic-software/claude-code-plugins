@@ -11,8 +11,6 @@ const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
 const RESET = 'Reset'
-const REMOVE = 'Remove'
-const KEEP = 'Keep'
 /** The tool's exit status for a reset that wrote what it could and named each file it skipped. */
 const PARTLY_DONE = 3
 const PICKER = 'plugin-profile-picker'
@@ -36,7 +34,9 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
-type ResetPreview = { sessionProfile: string | null; previewId: string; question: string | null; folders: { action: string; ask?: { file: string; question: string } }[]; unchangedSinceReset?: string[]; lines: string[] }
+/** One answer to a file's own question: the button's label and the flag that passes it to reset. */
+type Answer = { label: string; flag: string }
+type ResetPreview = { sessionProfile: string | null; previewId: string; question: string | null; folders: { action: string; ask?: { file: string; question: string; yes: Answer; no: Answer } }[]; unchangedSinceReset?: string[]; lines: string[] }
 
 const pending = atom({ plugin: 'plugin-profiles', key: 'switch' } as const, null as Switch | null)
 const picker = atom({ plugin: 'plugin-profiles', key: 'picker' } as const, [] as PickerEntry[])
@@ -144,7 +144,7 @@ async function clearProfile($: EngineInterface): Promise<string> {
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
-/** Previews the machine-wide reset, asks once for the recorded files and once per folder without a record, then resets. */
+/** Previews the machine-wide reset, asks once for the recorded files and once per file the tool asks about on its own, then resets. */
 async function resetAll($: EngineInterface): Promise<string> {
   const dry = await cli($, ['reset', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
@@ -157,14 +157,15 @@ async function resetAll($: EngineInterface): Promise<string> {
       : 'Nothing to reset: no profile is recorded anywhere reset can find.'
   if (!preview.question && !askable.length) return 'Nothing to reset; the files above keep their records.'
   if (preview.question && !(await confirmed($, preview.question))) return 'Not reset; nothing changed.'
-  const remove: string[] = []
-  const keep: string[] = []
+  const yes: string[] = []
+  const no: string[] = []
   for (const ask of askable) {
-    if ((await $.ui.ask(ask.question, { options: [REMOVE, KEEP], header: 'Reset' }).catch(() => KEEP)) === REMOVE) remove.push(ask.file)
-    else keep.push(ask.file)
+    const answer = await $.ui.ask(ask.question, { options: [ask.yes.label, ask.no.label], header: 'Reset' }).catch(() => ask.no.label)
+    if (answer === ask.yes.label) yes.push(ask.yes.flag, ask.file)
+    else no.push(ask.no.flag, ask.file)
   }
-  if (!preview.question && !remove.length) return 'Not reset; nothing changed.'
-  const answers = [...remove.flatMap(file => ['--remove-unrecorded', file]), ...keep.flatMap(file => ['--keep-unrecorded', file])]
+  if (!preview.question && !yes.length) return 'Not reset; nothing changed.'
+  const answers = [...yes, ...no]
   const done = await cli($, ['reset', '--yes', '--json', '--preview-id', preview.previewId, ...answers])
   if (done.exitCode !== 0 && done.exitCode !== PARTLY_DONE) return failure(done)
   show($, (JSON.parse(done.stdout) as { lines: string[] }).lines)

@@ -66,6 +66,15 @@ export const holdsEveryEntry = (record, doc) => {
   return written.length > 0 && written.every(([key, name, after]) => record.pending?.[name] !== undefined || (doc[key]?.[name] ?? ABSENT) === after);
 };
 
+/** The record with only the entries doc still holds as the record wrote them, apart from the ones a switch still owes. */
+export function stillWritten(record, doc) {
+  const out = { ...record };
+  for (const [key, section] of Object.entries(SECTIONS)) {
+    out[section] = Object.fromEntries(Object.entries(record[section] ?? {}).filter(([name, { after }]) => record.pending?.[name] === undefined && (doc[key]?.[name] ?? ABSENT) === after));
+  }
+  return out;
+}
+
 export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
 export const saveRecord = (path, record) => replaceFile(path, recordText(record));
 export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });

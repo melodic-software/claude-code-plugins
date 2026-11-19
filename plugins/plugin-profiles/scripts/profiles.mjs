@@ -121,6 +121,7 @@ import {
   restoredHashOf,
   restoringRecord,
   saveRecord,
+  stillWritten,
   swapRecord,
 } from "../lib/record.mjs";
 import {
@@ -155,7 +156,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -165,6 +166,28 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
 
 /** Exit status of a reset that wrote what it could and named each file it skipped; 1 stays "nothing written". */
 const PARTLY_DONE = 3;
+
+/**
+ * The kinds of file reset asks about one at a time: the answer each label and flag gives, what the one question
+ * says it leaves to them, and what reset says when nobody is there to answer.
+ */
+const ASKS = {
+  unrecorded: {
+    yes: { label: "Remove", flag: "--remove-unrecorded" },
+    no: { label: "Keep", flag: "--keep-unrecorded" },
+    covers: "Folders without a record are not covered: each gets its own question.",
+    waits: "a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change",
+  },
+  cutOff: {
+    yes: { label: "Put back", flag: "--finish-cut-off" },
+    no: { label: "Keep", flag: "--keep-cut-off" },
+    covers: "A file whose earlier reset was cut off is not covered: each gets its own question.",
+    waits: "a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back",
+  },
+};
+const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
+const askOf = (kind, file, question) => ({ file, question, yes: kind.yes, no: kind.no });
+const kindOf = (ask) => Object.values(ASKS).find((kind) => kind.yes.flag === ask.yes.flag);
 
 class UsageError extends Error {}
 class NotApplied extends Error {}
@@ -305,15 +328,15 @@ function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (command === "start") return parseStart(rest);
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
-  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, removeUnrecorded: [], keepUnrecorded: [], previewId: null };
+  const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, answers: [], previewId: null };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: ["--remove-unrecorded", "--keep-unrecorded", "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: [...ANSWER_FLAGS, "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (values.includes(arg)) {
       if (rest[i + 1] === undefined) throw new UsageError(`${arg} needs a value`);
-      if (["--remove-unrecorded", "--keep-unrecorded"].includes(arg)) opts[camel(arg)].push(rest[++i]);
+      if (ANSWER_FLAGS.includes(arg)) opts.answers.push({ flag: arg, file: rest[++i] });
       else opts[arg === "--for" ? "target" : camel(arg)] = rest[++i];
     }
     else if (flags.includes(arg)) opts[camel(arg)] = true;
@@ -1172,6 +1195,8 @@ function machineFiles(where, env) {
 }
 
 const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
+const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "values"} profile ${profile} wrote`;
+const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** The first few ids, and how many more the preview line lists. */
@@ -1186,7 +1211,8 @@ function resetQuestion(rows) {
   const n = rows.filter((r) => RESTORES.includes(r.action)).length;
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
-  return rows.some((r) => r.ask) ? `${covers} Folders without a record are not covered: each gets its own question.` : covers;
+  const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
+  return [covers, ...asked.map((kind) => kind.covers)].join(" ");
 }
 
 /** The preview lines naming each entry edited since the apply that a restore changes again. */
@@ -1218,7 +1244,7 @@ function resetRow(where, f, newer) {
       reason: NO_RECORD,
       entries: f.entries,
       settings,
-      ask: { file, question: `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries)})?` },
+      ask: askOf(ASKS.unrecorded, file, `${file} has no profile record. Remove its ${f.entries.length} plugin and skill entries (${fewOf(f.entries)})?`),
       lines: [`${file}: no profile record, and its ${f.entries.length} plugin and skill entries may be your own: ${list(f.entries)}. Reset removes them only after a yes for this folder.`],
     };
   }
@@ -1238,7 +1264,7 @@ function resetRow(where, f, newer) {
         movedPlan,
         folds: newer,
         overwrites: overwritesOf(movedPlan),
-        ask: { file: f.movedTo, question: `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record${folding}?` },
+        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record${folding}?`),
         lines: [
           `${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`,
           ...(newer ? [`  Profile ${newer.record.profile} was applied there since; reset folds in the record of ${f.movedTo} (profile ${newer.record.profile}), so the file goes back to what it held before the first apply, and removes both records.`] : []),
@@ -1260,8 +1286,25 @@ function resetRow(where, f, newer) {
   if (rec.phase === "restoring" && plan.settings.hash === rec.restoredHash) {
     return { ...row, action: "finish-restore", plan, lines: [`${file}: an earlier reset restored it and was cut off before removing its record; reset removes the record.`] };
   }
-  if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc) && !plan.overwrites.length) {
-    return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
+  if (rec.phase === "restoring" && plan.settings.hash !== rec.fromHash && !holdsEveryEntry(rec, plan.settings.doc)) {
+    const still = stillWritten(rec, plan.settings.doc);
+    const entries = [...Object.keys(still.entries), ...Object.keys(still.skillOverrides)];
+    if (!entries.length) {
+      return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
+    }
+    const values = wroteValues(entries, rec.profile);
+    return {
+      ...row,
+      action: "finish-cut-off",
+      reason: CUT_OFF,
+      entries,
+      plan: clearPlan(file, { found: f.recordPath, record: still }),
+      ask: askOf(ASKS.cutOff, file, `An earlier reset of ${file} was cut off and the file changed since. Put back the ${counted(entries.length, "entry", "entries")} still at ${values} (${fewOf(entries)}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`),
+      lines: [
+        `${file}: an earlier reset of this file was cut off and the file changed since. ${counted(entries.length, "entry", "entries")} still ${entries.length === 1 ? "holds" : "hold"} ${values}: ${list(entries)}.`,
+        "  A yes for this file puts those back to their values from before the profile and leaves the entries changed by hand since as they are; a no keeps the file and its record.",
+      ],
+    };
   }
   const what = plan.removes
     ? "removes the file, which the first apply created"
@@ -1323,9 +1366,10 @@ function resetOne(row, { chosen, kept }) {
     const result = guarded(() => clearWrite(row.movedPlan, dropBoth), `Restored ${row.movedTo} from the record of ${file} (profile ${f.record.profile})${folding}.`);
     return { ...result, restored: result.ok, leaves: result.ok ? leaves(row.movedPlan, row.movedTo) : undefined };
   }
-  if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${row.movedTo ? `, and the record of ${file} is kept` : ""}.`, ok: true };
+  const keptRecord = row.movedTo ? `, and the record of ${file} is kept` : row.action === "finish-cut-off" ? ", and its record is kept" : "";
+  if (no) return { line: `Skipped ${row.ask.file}: you answered no, so it is left as it is${keptRecord}.`, ok: true };
   if (row.record) return { line: `Ignored the record ${row.record}: ${file} is not written from it.`, ok: true };
-  if (row.action === "skip" || row.action === "remove-entries") return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
+  if (row.action === "skip" || (row.ask && !yes)) return { line: `Skipped ${file}: ${row.reason}.`, ok: true };
   if (row.action === "finish-restore") {
     dropCopies(original);
     if (row.reason) return { line: `Skipped ${file}: ${row.reason}; left as it is, and its record is removed.`, ok: true, restored: true };
@@ -1344,7 +1388,11 @@ function resetOne(row, { chosen, kept }) {
     }
   };
   const done = {
-    line: plan.removes ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).` : `Restored ${file} (profile ${plan.rec.profile}).`,
+    line: plan.removes
+      ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).`
+      : row.action === "finish-cut-off"
+        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec.profile)}, and left the entries changed by hand since as they are.`
+        : `Restored ${file} (profile ${plan.rec.profile}).`,
     ok: true,
     restored: !f.adopted,
     leaves: leaves(plan),
@@ -1418,26 +1466,27 @@ async function reset(opts, where, env, io) {
   if (opts.previewId && opts.previewId !== previewIdOf(rows)) {
     throw new NotApplied("not reset: what reset would write changed since that preview (a profile was applied, cleared or edited elsewhere); nothing was written. Look at the new preview: reset --dry-run");
   }
-  const asked = rows.filter((r) => r.ask).map((r) => r.ask.file);
-  const askable = new Set(asked.map(realPath));
-  for (const named of [...opts.removeUnrecorded, ...opts.keepUnrecorded]) {
-    if (!askable.has(realPath(resolve(named)))) {
-      throw new NotApplied(`not reset: ${named} is not a file the preview asks about; it asks about ${asked.length ? asked.join(", ") : "none"} (each row's ask.file in reset --dry-run --json); nothing was written`);
+  const asks = rows.filter((r) => r.ask).map((r) => r.ask);
+  const askable = new Set(asks.map((a) => realPath(a.file)));
+  const answers = { chosen: new Set(), kept: new Set() };
+  for (const { flag, file: named } of opts.answers) {
+    const file = realPath(resolve(named));
+    const a = asks.find((s) => realPath(s.file) === file);
+    if (!a) {
+      throw new NotApplied(`not reset: ${named} is not a file the preview asks about; it asks about ${asks.length ? asks.map((s) => s.file).join(", ") : "none"} (each row's ask.file in reset --dry-run --json); nothing was written`);
     }
+    if (a.yes.flag !== flag && a.no.flag !== flag) throw new NotApplied(`not reset: ${named} is answered with ${a.yes.flag} or ${a.no.flag}, not ${flag}; nothing was written`);
+    answers[a.yes.flag === flag ? "chosen" : "kept"].add(file);
   }
-  const answers = { chosen: new Set(opts.removeUnrecorded.map((named) => realPath(resolve(named)))), kept: new Set(opts.keepUnrecorded.map((named) => realPath(resolve(named)))) };
-  const unanswered = [...askable].some((file) => !answers.chosen.has(file) && !answers.kept.has(file));
-  if ((question || answers.chosen.size || unanswered) && !opts.yes) {
+  const unanswered = asks.filter((a) => !answers.chosen.has(realPath(a.file)) && !answers.kept.has(realPath(a.file)));
+  if ((question || answers.chosen.size || unanswered.length) && !opts.yes) {
     if (!interactive()) {
-      throw new NotApplied(
-        question || answers.chosen.size
-          ? "not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt"
-          : "not reset: nobody to confirm, so nothing was written; a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change",
-      );
+      const waits = [...new Set(unanswered.map((a) => kindOf(a).waits))].join("; ");
+      throw new NotApplied(`not reset: nobody to confirm, so nothing was written; ${question || answers.chosen.size ? "pass --yes to reset without a prompt" : waits}`);
     }
     if (question && !["y", "yes"].includes(await ask(`${question} [y/N] `))) throw new NotApplied("not reset: nothing was written");
   }
-  if (!opts.removeUnrecorded.length && !opts.keepUnrecorded.length && !opts.json && askable.size && interactive()) {
+  if (!opts.answers.length && !opts.json && askable.size && interactive()) {
     const answered = new Set([...(await askPerFolder(rows.filter((r) => r.ask).map((r) => r.ask)))].map(realPath));
     answers.chosen = answered;
     answers.kept = new Set([...askable].filter((file) => !answered.has(file)));

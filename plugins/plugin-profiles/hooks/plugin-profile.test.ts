@@ -34,7 +34,9 @@ const clearPreview = (p: { recorded?: boolean; sessionProfile?: string | null; l
 })
 const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the change into this session; a new session starts with it.'
 
-type ResetRow = { file: string; action: string; ask?: { file: string; question: string } }
+type Answer = { label: string; flag: string }
+type ResetRow = { file: string; action: string; ask?: { file: string; question: string; yes: Answer; no: Answer } }
+const UNRECORDED = { yes: { label: 'Remove', flag: '--remove-unrecorded' }, no: { label: 'Keep', flag: '--keep-unrecorded' } }
 const QUESTION = 'Reset the files above that have a record? (the question the tool words)'
 const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.json', action: 'restore' }], sessionProfile: string | null = null): Out => ({
   exitCode: 0,
@@ -560,7 +562,7 @@ test('#17354: Cancel at the reset confirm resets nothing', async ($, on) => {
 })
 
 test('#17354: each folder without a record gets its own question, and only Remove passes it to reset', async ($, on) => {
-  const loose = (file: string) => ({ file, action: 'remove-entries', ask: { file, question: `${file} has no record. Remove its entries?` } })
+  const loose = (file: string) => ({ file, action: 'remove-entries', ask: { file, question: `${file} has no record. Remove its entries?`, ...UNRECORDED } })
   const resetDry = resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, loose('/a/.claude/settings.local.json'), loose('/b/.claude/settings.local.json')])
   const w = world(on, ['Apply', 'Keep', 'Remove'], { resetDry })
   await runPicking($, w, 'Reset')
@@ -570,6 +572,23 @@ test('#17354: each folder without a record gets its own question, and only Remov
     { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Remove', 'Keep'] },
   ])
   expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json', '--keep-unrecorded', '/a/.claude/settings.local.json']])
+})
+
+test('#17354: a file whose earlier reset was cut off gets its own question with the answers the tool names, and each answer passes its own flag', async ($, on) => {
+  const cut = (file: string) => ({
+    file,
+    action: 'finish-cut-off',
+    ask: { file, question: `An earlier reset of ${file} was cut off and the file changed since. Put back?`, yes: { label: 'Put back', flag: '--finish-cut-off' }, no: { label: 'Keep', flag: '--keep-cut-off' } },
+  })
+  const dry = JSON.parse(resetPreview([cut('/a/.claude/settings.local.json'), cut('/b/.claude/settings.local.json')]).stdout as string)
+  const resetDry = { exitCode: 0, stdout: JSON.stringify({ ...dry, question: null }) }
+  const w = world(on, ['Put back', 'Keep'], { resetDry })
+  expect(await runPicking($, w, 'Reset')).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
+  expect(w.asks).toEqual([
+    { question: 'An earlier reset of /a/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Put back', 'Keep'] },
+    { question: 'An earlier reset of /b/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Put back', 'Keep'] },
+  ])
+  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--finish-cut-off', '/a/.claude/settings.local.json', '--keep-cut-off', '/b/.claude/settings.local.json']])
 })
 
 test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {
