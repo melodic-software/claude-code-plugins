@@ -115,6 +115,7 @@ at it, in their own pull requests.
 | `/docs-naming:realign-file-names` | Points here through its plugin-shipped copy; applies one repository's plan at a time |
 | `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
 | `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
+| `/repo-hygiene:clean` (batch forms) | Source of the flags; points here through its plugin-shipped copy; `--repo` and `--repos-from` take local paths only and, alone, keep every clone they name |
 
 ## Plugin-shipped copies
 
