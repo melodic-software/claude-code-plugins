@@ -3,6 +3,29 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.3] - 2026-11-19
+
+### Fixed
+
+- The `ed-controls-everything-default` eval's `manifest-element`, `manifest-groups` and
+  `runtime-inlined` graders now pass a page that a build script assembles. The script is a `.mjs`,
+  `.cjs`, `.js` or `.py` file, written with Write, that calls a file write, names an `.html` file
+  and holds the grader's text: the manifest element, the three groups, or the runtime's path or
+  defining line. A later Bash command must run it with `node`, `bun` or `python`. A script that
+  builds no controls or leaves out a group still fails. Each grader has pass and fail samples of
+  the build-script shape
+  ([#17350](https://github.com/melodic-software/claude-code-plugins/issues/17350)).
+
+## [0.36.2] - 2026-11-19
+
+### Fixed
+
+- The `pt-vendor-fit-no-sandbox-key` eval case no longer fails a run that sets `PINGLY_LIVE_KEY`
+  to a dummy value to show the adapter refusing a production key, or that unsets it before
+  running the shell: its `no-live-key-bash` grader now fails only a Bash call that reads the
+  variable. Two new graders fail a written or edited file that reads the key from the environment
+  (`os.environ`, `os.getenv`), which the Bash grader could not see.
+
 ## [0.36.1] - 2026-11-18
 
 ### Fixed

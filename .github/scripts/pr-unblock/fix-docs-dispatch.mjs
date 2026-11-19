@@ -51,6 +51,7 @@
 // turn: it does not count and leaves the list once it is done, as a run that
 // is gone does.
 
+import { isPrRefineTitle } from "../lib/run-title.mjs";
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { isHandled, markHandled, emptyRecord, sendDispatch } from "./dispatch-record.mjs";
@@ -252,15 +253,11 @@ export function heldHead(run, activity = DEFAULTS.activity) {
   return (run?.jobs ?? []).some((job) => isJob(job, `${activity}-head-held`) && job.conclusion === "success");
 }
 
-// The run-name the workflow gives a dispatch: its file stem, the activity
-// and the PR (pr-refine.yml's run-name).
-const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
-
 // Whether the PR's completed runs among the listed ones make it done: any that
 // ended the PR, a second lost one, or maxRuns red or held ones. A held run is a
 // green one whose jobs show a handoff hold or an unread head.
-async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
-  const ended = runs.filter((run) => run.status === "completed" && run.display_title === title);
+async function docsRunsEnded(runs, titled, readRunJobs, activity, maxRuns) {
+  const ended = runs.filter((run) => run.status === "completed" && titled(run));
   const lost = ended.filter((run) => LOST.has(run.conclusion)).length;
   let again = ended.filter((run) => run.conclusion === "failure").length;
   for (const run of ended) {
@@ -370,10 +367,10 @@ export async function dispatchDocsFixes({
   }
   let sent = 0;
   for (const node of unsettled) {
-    const title = runTitle(workflow, activity, node.number);
+    const titled = (run) => isPrRefineTitle(run.display_title, activity, node.number);
     let runEnded;
     try {
-      runEnded = await docsRunsEnded(runs, title, (id) => api.readLatestJobs(id), activity, maxRunsPerHead);
+      runEnded = await docsRunsEnded(runs, titled, (id) => api.readLatestJobs(id), activity, maxRunsPerHead);
     } catch (error) {
       log(`::warning::#${node.number}: a ${workflow} run's jobs ${error.rateLimited ? "are rate limited" : "could not be read"} (${error.message}); no fix-docs dispatched, a later run retries`);
       continue;
@@ -388,7 +385,7 @@ export async function dispatchDocsFixes({
       log(`defer fix-docs #${node.number}: ${maxDispatch} fix-docs dispatches this run; left for a later run`);
       continue;
     }
-    const inFlight = runs.find((run) => run.status !== "completed" && run.display_title === title);
+    const inFlight = runs.find((run) => run.status !== "completed" && titled(run));
     if (inFlight) {
       log(`skip fix-docs #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
       continue;

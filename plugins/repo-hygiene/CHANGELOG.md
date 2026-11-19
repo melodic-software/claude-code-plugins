@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-19
+
+### Added
+
+- **`clean-batch.sh --owner <owner>` selects one owner's clones.** It keeps the `--fleet` repositories whose origin is `<owner>/*` (case-insensitive on github.com) and dedupes clones of one origin the way `--fleet` does. The batch repository flags now cite the target-scope contract, shipped as `reference/target-scope.md`, as the owner of what they select, and the skill's `argument-hint` shows `[--repo <repo> ...]`. Runs without a repository flag are unchanged.
+
 ## [0.21.40] - 2026-11-19
 
 ### Changed

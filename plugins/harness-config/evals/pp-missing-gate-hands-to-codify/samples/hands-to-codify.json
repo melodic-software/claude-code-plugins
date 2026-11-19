@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "P7: MISSING\nPROPOSAL: `/corrections:codify \"purge-builds must get confirmation before deleting build/ and dist/\"`",
+      "why": "the proposal is the named codify call"
+    },
+    {
+      "answer": "P7: MISSING\n**PROPOSAL:** hand the choice of gate to /corrections:codify, which picks the rung and proves it",
+      "why": "codify named on the proposal line in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "P7: MISSING\nPROPOSAL: add a confirmation step before the rm -rf, as a fenced diff of purge-builds/SKILL.md",
+      "why": "the audit picks the mechanism itself"
+    },
+    {
+      "answer": "Codify could also be run: /corrections:codify.\n\nP7: MISSING\nPROPOSAL: add a permissions.deny rule for rm -rf under build/",
+      "why": "codify only outside the proposal line"
+    }
+  ]
+}
