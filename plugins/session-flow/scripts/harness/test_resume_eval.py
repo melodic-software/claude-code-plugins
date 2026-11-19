@@ -739,6 +739,8 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
             "user.name=t",
             "-c",
             "user.email=t@e",
+            "-c",
+            "commit.gpgsign=false",
             "commit",
             "-q",
             "-m",
@@ -899,6 +901,8 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
             "user.name=t",
             "-c",
             "user.email=t@e",
+            "-c",
+            "commit.gpgsign=false",
             "commit",
             "-q",
             "-m",
@@ -1054,7 +1058,11 @@ def test_base_snapshot_takes_paths_with_spaces_and_shell_metacharacters(
     repo = tmp_path / "src dir;touch PWNED-1"
     repo.mkdir()
     (repo / "kept.txt").write_text("kept\n", encoding="utf-8")
-    for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "seed"]):
+    for args in (
+        ["init", "-q"],
+        ["add", "-A"],
+        ["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"],
+    ):
         subprocess.run(["git", "-C", str(repo), *args], check=True)
     root = tmp_path / "eval root $(touch PWNED-2)"
     root.mkdir()
