@@ -74,26 +74,11 @@ LPD_CWD="${HOOK_JQ_FIELDS[2]}"
 [[ "$LPD_TOOL" == Bash && -n "$LPD_COMMAND" ]] || exit 0
 ((${#LPD_COMMAND} > 16384)) && exit 0
 
-LPD_TEAM_REL="docs/conventions/guardrails.yaml"
-LANE_APP=""
-lpd::lanes_app() {
-  local root text recs key=$'\nlanes_app\t'
-  hook::repo_root_to root "$LPD_CWD" || return 0
-  text=$(hook::git_untrusted -C "$root" show "refs/remotes/origin/HEAD:$LPD_TEAM_REL" 2>/dev/null) || return 0
-  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
-    printf 'guardrails: %s does not parse; lanes_app is unset.\n' "$LPD_TEAM_REL" >&2
-    return 0
-  fi
-  recs=$'\n'"$recs"
-  [[ "$recs" == *"$key"* ]] || return 0
-  LANE_APP="${recs#*"$key"}"
-  LANE_APP="${LANE_APP%%$'\n'*}"
-  LANE_APP="${LANE_APP,,}"
-  LANE_APP="${LANE_APP#app/}"
-  LANE_APP="${LANE_APP%\[bot\]}"
-  [[ -n "$LANE_APP" ]] && LANE_APP="${LANE_APP}[bot]"
-  return 0
-}
+LANE_APP="${CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP:-}"
+LANE_APP="${LANE_APP,,}"
+LANE_APP="${LANE_APP#app/}"
+LANE_APP="${LANE_APP%\[bot\]}"
+[[ -n "$LANE_APP" ]] && LANE_APP="${LANE_APP}[bot]"
 
 LPD_TARGETS=()     # one per disable: "cli <selector> <repo>" or "node <id>"
 LPD_UNRESOLVED=""  # set: why a target cannot be read, and the command is refused
@@ -262,14 +247,16 @@ LPD_SHAPE_RE='pr.*merge.*disable-auto|disablepullrequestautomerge'
 [[ "$LPD_COMMAND" == *'`'* ]] &&
   { ((LPD_FOUND)) || [[ "$LPD_CMD_BARE" =~ $LPD_SHAPE_RE ]]; } && LPD_BT=1
 ((LPD_FOUND || LPD_BT)) || exit 0
-lpd::lanes_app
-[[ -n "$LANE_APP" ]] || exit 0
 
 # lpd::block <line>...: print the lines and the turn-off note, and exit 2.
 lpd::block() {
   printf '%s\n' "$@" 'Only the user can turn this guard off (block_lane_pr_disable_auto_enabled).' >&2
   exit 2
 }
+
+[[ -n "$LANE_APP" ]] ||
+  lpd::block "BLOCKED: guardrails cannot tell which App is the lanes App: block_lane_pr_disable_auto_app is unset." \
+    "Fix: set block_lane_pr_disable_auto_app to the lanes App login. To hold a lanes App pull request, add the do-not-merge label instead."
 
 # shellcheck disable=SC2016  # $(...) is literal text in the message
 LPD_LITERAL_FIX='Fix: write the target literally, gh pr merge <number> -R owner/repo --disable-auto, with no shell variable, $(...) or backticks. To hold a lanes App pull request, add the do-not-merge label instead.'

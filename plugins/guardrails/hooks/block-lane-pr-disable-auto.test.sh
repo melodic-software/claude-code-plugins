@@ -45,19 +45,7 @@ LANE='app/acme-lanes'
 OTHER='octocat'
 REASON_LANE='was opened by the lanes App (acme-lanes[bot])'
 
-team_repo() {
-  local d="$TEST_TMPDIR/$1" f=docs/conventions/guardrails.yaml
-  mkdir -p "$d/docs/conventions"
-  git init -q "$d"
-  printf '%s\n' "$2" >"$d/$f"
-  git -C "$d" add "$f"
-  git -C "$d" -c user.name=t -c user.email=t@example.com commit -qm team
-  git -C "$d" update-ref refs/remotes/origin/main HEAD
-  git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-  printf '%s' "$d"
-}
-TEAM=$(team_repo team 'lanes_app: acme-lanes[bot]')
-CWD="$TEAM"
+export CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP='acme-lanes[bot]'
 REASON_HOLD='hold it with the do-not-merge label instead'
 REASON_UNREAD='could not tell which pull request this auto-merge disable targets'
 
@@ -68,7 +56,7 @@ check() {
   (($#)) && shift
   for via in direct dispatched; do
     : >"$CALLS"
-    guard_invoke --via "$via" --command "$command" --cwd "$CWD" -- \
+    guard_invoke --via "$via" --command "$command" -- \
       PATH="$BIN:$PATH" FAKE_GH_CALLS="$CALLS" FAKE_GH_AUTHOR="$author" "$@"
     assert_exit "$label ($via)" "$expected" "$GUARD_RC"
     [[ -z "$needle" ]] || assert_contains "$label ($via): reason" "$GUARD_ERR" "$needle"
@@ -134,17 +122,9 @@ for via in direct dispatched; do
   assert_exit "the PowerShell tool is not matched ($via)" 0 "$GUARD_RC"
 done
 
-CWD=$(team_repo bare 'lanes_app: app/ACME-Lanes')
-check "an app/ slug in any case names the same App" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
-for spec in "unset:other_key: x" "empty:lanes_app: ''" "broken:lanes_app: a"$'\n'"lanes_app: a"; do
-  CWD=$(team_repo "${spec%%:*}" "${spec#*:}")
-  check "lanes_app ${spec%%:*}: the guard protects no App" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto'
-  assert_eq "lanes_app ${spec%%:*}: gh is never asked" "" "$(calls)"
-  check "lanes_app ${spec%%:*}: an unreadable target passes" 0 "$OTHER" 'gh pr merge "$N" -R acme/widgets --disable-auto'
-done
-CWD=$(team_repo staged 'other_key: x')
-printf 'lanes_app: acme-lanes[bot]\n' >"$CWD/docs/conventions/guardrails.yaml"
-git -C "$CWD" add docs/conventions/guardrails.yaml
-check "lanes_app only in the working tree and index is not read" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto'
+check "an app/ slug in any case names the same App" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=app/ACME-Lanes
+check "the App option unset: every disable is blocked" 2 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "block_lane_pr_disable_auto_app is unset" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
+assert_eq "the App option unset: gh is never asked" "" "$(calls)"
+check "the App option unset: a merge without --disable-auto passes" 0 "$OTHER" 'gh pr merge 42 -R acme/widgets --auto' "" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
 
 report

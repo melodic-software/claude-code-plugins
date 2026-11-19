@@ -17,11 +17,6 @@
       "default": "block",
       "description": "Whether hooks/block-fix-request-post.sh blocks an agent from posting the PR-fix lane fix request. block (default) blocks it; allow lets it through. Any other value keeps block."
     },
-    "lanes_app": {
-      "type": "string",
-      "default": "",
-      "description": "The GitHub App login (slug, app/<slug> or <slug>[bot]) whose pull requests hooks/block-lane-pr-disable-auto.sh protects: turning off auto-merge on one is blocked in favor of the do-not-merge label. Empty or unset (default): the guard protects no App and passes every disable."
-    },
     "unpinned_lease": {
       "enum": ["allow", "block"],
       "default": "allow",
