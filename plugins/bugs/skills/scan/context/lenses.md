@@ -69,15 +69,14 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   belongs to the docs/config drift lane. Do not follow callers.
 - **Sources**: the function bodies and their immediately attached documentation in the assigned files.
 - **Look for**: a documented return that the body can never produce; a parameter documented as optional
-  that is dereferenced unconditionally; a declared-non-null return with a path that returns null/None;
-  an error the docstring promises that no path raises; a range or unit stated in the comment and
-  violated in the arithmetic.
+  that is dereferenced unconditionally; an error the docstring promises that no path raises; a range
+  or unit stated in the comment and violated in the arithmetic.
 
 ## Lens 2: boundary and edge cases
 
 - **Objective**: find inputs at the edges of a domain that the code mishandles: empty, zero, one,
-  negative, maximum, off-by-one, duplicate, unicode, unsorted, `null`/`None`, overflow, timezone and
-  DST edges, leap day, and the empty-collection case.
+  negative, maximum, off-by-one, duplicate, unicode, unsorted, overflow, timezone and DST edges, leap
+  day, and the empty-collection case.
 - **Boundaries**: only report an edge case whose *reachability* you can argue from the code. Name the
   caller, entry point, or input source that can supply the value. A theoretically-possible value with
   no path to it is not a candidate.
@@ -132,10 +131,9 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
 - **Look for**: a plural built by appending a letter, or with no rule for one or zero ("1
   members"); initials taken from the first character or code unit of a split name, which breaks on
   one-word names, leading spaces and characters outside the basic plane; an image with no fallback
-  for a failed or missing source; a large or fractional number rendered without locale formatting,
-  or a null, undefined or not-a-number value rendered literally; text truncated with no way to read
-  the full value; a placeholder dash or empty line left where an optional field was missing; a date
-  shown in a fixed format or time zone the user did not choose.
+  for a failed or missing source; a large or fractional number rendered without locale formatting;
+  text truncated with no way to read the full value; a placeholder dash or empty line left where an
+  optional field was missing; a date shown in a fixed format or time zone the user did not choose.
 
 ## Hotspot reading order (computed in Step 1, not a lens)
 

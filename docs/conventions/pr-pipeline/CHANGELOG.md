@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [10.14.1] - 2026-11-19
+
+### Changed
+
+- pr-unblock-dispatch no longer sends review-dependency for a Dependabot PR whose review-dependency run is still queued or going, as resolve-conflicts and fix-ci already do. Each such second dispatch queued a whole pr-unblock run behind the first. The run listing is read only for a PR about to be sent and is shared with the other passes.
+- The dispatched-run stale-file check (`dispatcher-current.sh`, in pr-unblock.yml and pr-refine.yml) skips its contents read when the dispatcher ran the default branch tip itself, since that commit holds the tip's file.
+
+## [10.14.0] - 2026-11-19
+
+### Added
+
+- `models.routes` takes the run route `verify-capture`, the pr-verify capture's driver leg, on its own `verify-capture` profile: Opus at effort high, 120 turns. The capture drives in one session with no subagent, so its own turns carry the whole drive; it no longer takes `verify-pr`'s 60.
+
+### Fixed
+
+- work-resolve-issue's steps after the model ran wait for the workflow token's rate-limit reset, up to 1200 s (`rate-limit-wait-seconds`), instead of failing the run: the leak scan's reads, report-outcome and apply-issue-patch, Run Checks and Report Statuses. A stop-floor answer GitHub served no longer fails its step when the next call waits the reset out, and Report Statuses names the lane branch a run left when report-outcome did not finish, which the issue's next run reuses.
+
 ## [10.13.1] - 2026-11-19
 
 ### Fixed

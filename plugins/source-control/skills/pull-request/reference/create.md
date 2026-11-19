@@ -477,7 +477,7 @@ A PR that references an issue without closing it carries `Refs: #N` (or `Relates
 
 Before creating the PR, run two independent checks against the body file `$BODY_FILE`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
-A PR create or edit command issued **outside** this skill meets the plugin's `pr-body-linkage-gate` PreToolUse hook instead, where the repository wires in its own contract check (a workflow that `uses:` the `pr-require-checks/check-contract` composite step). The hook blocks only a statically-readable body carrying a negated closing reference, since CI reports a missing closing line or section as advisory; [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) has its scope guard and coverage limits. On this skill's path its gate runs first, and the hook still blocks a drafted body carrying a negated closer.
+A PR create or edit command issued **outside** this skill meets the plugin's `pr-body-linkage-gate` PreToolUse hook instead, where the repository wires in its own contract check (a workflow that `uses:` the `pr-require-checks/check-contract` composite step, or the `pr-require-checks/report-ci-status` composite that runs it). The hook blocks only a statically-readable body carrying a negated closing reference, since CI reports a missing closing line or section as advisory; [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) has its scope guard and coverage limits. On this skill's path its gate runs first, and the hook still blocks a drafted body carrying a negated closer.
 
 #### 2.4.2.1 Verify closing-keyword line
 

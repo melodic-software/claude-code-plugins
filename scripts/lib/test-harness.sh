@@ -102,6 +102,55 @@ test_harness::run_guard() {
   return 1
 }
 
+test_harness::check_case() {
+  local _th_build="$1" _th_script="$2" label="$3" expected="$4" setup="$5"
+  shift 5
+  local tree out rc s
+  "$_th_build" tree || {
+    fail "$label: fixture build failed"
+    return
+  }
+  (cd "$tree" && eval "$setup") || {
+    fail "$label: setup failed"
+    return
+  }
+  out="$(bash "$tree/scripts/$_th_script" --check 2>&1)"
+  rc=$?
+  if [[ $rc -ne $expected ]]; then
+    fail "$label: expected rc=$expected, got rc=$rc: $out"
+    return
+  fi
+  for s in "$@"; do
+    if ! grep -qF -- "$s" <<<"$out"; then
+      fail "$label: '$s' not named in output: $out"
+      return
+    fi
+  done
+  ok "$label"
+}
+
+test_harness::assert_discover_quiet() {
+  local stdout rc
+  stdout="$(bash "$1" 2>/dev/null)"
+  rc=$?
+  if [[ $rc -eq 1 && -z "$stdout" ]]; then
+    ok "discover mode exits 1 with nothing on stdout"
+  else
+    fail "discover mode should exit 1 with an empty stdout (rc=$rc): $stdout"
+  fi
+}
+
+test_harness::assert_unknown_mode() {
+  local rc
+  bash "$1" --bogus >/dev/null 2>&1
+  rc=$?
+  if [[ $rc -eq 2 ]]; then
+    ok "unknown mode exits 2"
+  else
+    fail "unknown mode should exit 2 (rc=$rc)"
+  fi
+}
+
 # test_harness::report
 # Prints PASS/FAIL totals and returns 1 when any fail() was recorded, else 0.
 # Invoke as the suite's last line so the return is the script's exit status.

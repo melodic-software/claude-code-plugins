@@ -23,6 +23,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/ci-step.sh
+. "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -33,19 +35,7 @@ export RUNNER_TEMP="$TMP_ROOT"
 ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
 
 NAME='Require both review lanes on this head'
-step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
-  on && /^      - / { exit }
-  on { print }' "$WORKFLOW")"
-awk '/^        run: \|$/ { on = 1; next }
-  on && /^          / { print substr($0, 11); next }
-  on && /^[[:blank:]]*$/ { print ""; next }
-  on { exit }' <<<"$step" >"$TMP_ROOT/body.sh"
-
-if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
-  fail "no '$NAME' step with a run: | body in $WORKFLOW"
-  test_harness::report
-  exit 1
-fi
+step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}"* ]]; then
   ok "step runs on every ready pull_request run, contract-only ones included"
 else

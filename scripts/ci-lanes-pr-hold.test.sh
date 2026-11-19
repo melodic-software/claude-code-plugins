@@ -22,6 +22,8 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/ci-step.sh
+. "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
 API_PID=
@@ -33,19 +35,7 @@ export RUNNER_TEMP="$TMP_ROOT"
 ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
 
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
-step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
-  on && /^      - / { exit }
-  on { print }' "$WORKFLOW")"
-awk '/^        run: \|$/ { on = 1; next }
-  on && /^          / { print substr($0, 11); next }
-  on && /^[[:blank:]]*$/ { print ""; next }
-  on { exit }' <<<"$step" >"$TMP_ROOT/body.sh"
-
-if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
-  fail "no '$NAME' step with a run: | body in $WORKFLOW"
-  test_harness::report
-  exit 1
-fi
+step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the holds. A merge group has no
 # pull_request.draft, which is not true, so the queue still runs it.

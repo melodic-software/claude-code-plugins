@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
+A Claude Code plugin with twenty skills for managing the lifecycle of a working session. The
 skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
@@ -28,6 +28,8 @@ it for delegation-heavy tasks.
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:recommend-skills` | Which skills fit this moment, and what am I forgetting I could run? |
 | `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |
+| `/session-flow:step-away` | I'm going away for a while. How does this session keep working, refuse every prompt, and show me what it refused when I'm back? |
+| `/session-flow:go-with-recommendations` | I'm back. Are the latest recommendations still right, and can you carry them out? |
 
 ## Contents
 
@@ -49,6 +51,8 @@ it for delegation-heavy tasks.
   - [reanchor](#reanchor)
   - [reconcile](#reconcile)
   - [recommend-skills](#recommend-skills)
+  - [step-away](#step-away)
+  - [go-with-recommendations](#go-with-recommendations)
   - [setup](#setup)
 - [Consumer conventions](#consumer-conventions)
 - [Install](#install)
@@ -426,6 +430,48 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 /session-flow:recommend-skills my-topic   # scope the artifact-grounded reads to a topic slice
 ```
 
+### step-away
+
+Arms the session to keep working while you are away. Anything that would prompt is refused and
+listed in a return report with an id; auto mode denials, blocking questions and MCP server
+questions are listed too, and nothing is approved until you are back. Forks, permission or
+trust-boundary changes, billable actions and unplanned settings changes are parked in the report
+with options and a recommendation while independent work continues. A critical security issue or
+an exposed secret stops the affected work and leads the report. The report exists from launch,
+is refreshed after each finished piece of work, and lists every external action and every stray
+file written in the watched folders. A message that reads as you being back (never a subagent
+report, a scheduled prompt or another session's message) shows the report once and marks it
+delivered. Bare, started inside the night window, the report is due at the next report-by time;
+started outside it, the absence lasts until you return. Launch words override the settings, and an unclear absence
+is asked about at launch. Launch warns when the context is heavy or auto mode is off, and
+proposes a `/goal` line; the Stop hook holds the same condition without one. Asked for a fresh
+session, it offers to stay in this session armed or hand off to a background session unarmed. Opt-in
+only: the plugin's PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks run in every
+session but do nothing until an absence is started, and exit before Python starts while none
+exists. The settings are the five `away_*` options in "Options reference";
+`/session-flow:setup` reports each and checks that every watched folder exists.
+
+```shell
+/session-flow:step-away                           # start now; the night window sets the report-by time
+/session-flow:step-away until 2026-11-20T09:00    # absence with a named report-by time
+```
+
+### go-with-recommendations
+
+The return counterpart to `step-away`. Accepts the recommendations in the agent's latest message,
+plus any exceptions you state in plain words, after a full evidence check (through
+`/discipline:do-your-research full` when that plugin is on, otherwise an inline audit of the
+pending recommendations). A recommendation that changed or cannot be confirmed comes back with
+the old value, the new value and why, instead of being carried out. During an absence it accepts
+recommendations parked in the report, never a refused action, which waits for your return. A bare
+accept never approves a refused action, a permission change or an action that could cost money;
+name such an item as an exception to approve it.
+
+```shell
+/session-flow:go-with-recommendations                       # accept the latest recommendations
+/session-flow:go-with-recommendations except the migration  # accept all but the one named
+```
+
 ### tidy-work
 
 Inventories the gitignored `.work` memory tiers (the repo's memory root, resolved from the concern
@@ -502,7 +548,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 (see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
 keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
 `cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
-session and whether its wrap-up offers a retro; nine more keys tune single skills, and
+session and whether its wrap-up offers a retro; the five `away_*` keys set `/session-flow:step-away`'s
+night start, report-by times, days off and watched folders; nine more keys tune single skills, and
 "Option details" explains `worker_continuation`, `wip_commit`, `retro_lenses` and
 `transcript_scope`. Every key is in the options reference below. The observer keys:
 
@@ -628,6 +675,11 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |
 | `recommend_skills_exclude` | string | `"none"` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
 | `orient_catch_up_word_cap` | number<br>*min 150* | `250` | Most words /session-flow:orient catch-up may use for what happened, visuals excluded; default 250, minimum 150. Every action item is listed in full whatever the cap. The reply opens with what needs you, then what happened, then each decision. |
+| `away_night_start` | string | `"21:00"` | Local time of day, HH:MM, when /session-flow:step-away bed treats the night as starting; default 21:00. The night window runs from this time to the next report-by time. A time named in the launch words wins. |
+| `away_report_by_workday` | string | `"09:00"` | Local time of day, HH:MM, by which /session-flow:step-away has its return report ready on a workday; default 09:00. A time named in the launch words wins. |
+| `away_report_by_day_off` | string | `"10:00"` | Local time of day, HH:MM, by which /session-flow:step-away has its return report ready on a day off; default 10:00. A time named in the launch words wins. |
+| `away_days_off` | string | `"Sat,Sun"` | Comma-separated three-letter weekday names /session-flow:step-away treats as days off when it picks the report-by time; default Sat,Sun. |
+| `away_watched_folders` | string | *(none)* | Comma-separated folders /session-flow:step-away scans for files written while you are away; empty (default) scans the home folder. Dot folders and git work trees are skipped. |
 
 ### How to set these
 

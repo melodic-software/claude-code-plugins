@@ -25,7 +25,7 @@ import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
-import { laneAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
+import { contractAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
@@ -2796,7 +2796,7 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
   for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
   assert.ok(modes.size > 0, "a launcher step names its permission-mode");
   for (const pin of pins) {
-    const { cliArgs } = await laneAtPin(pin);
+    const { cliArgs } = await contractAtPin(pin);
     for (const permissionMode of new Set([...modes, "default"]))
       for (const sandbox of [true, false])
         for (const effort of ["", "high"])
@@ -8643,7 +8643,14 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(step.id, "handoff");
   assert.equal(step.uses, undefined);
   assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue" });
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue", API_BUDGET_WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) });
+  const laneJobs = workflow("work-resolve-issue.yml").jobs;
+  for (const id of ["resolve-issue-handoff", "resolve-issue-subscription-handoff", "resolve-issue-stale"]) {
+    const job = laneJobs[id];
+    const evidence = job.steps.find((s) => s.run?.startsWith("bash .base/.github/scripts/lib/handoff-evidence.sh "));
+    assert.equal(evidence.env.API_BUDGET_WAIT_SECONDS, String(WAIT_BUDGET_SECONDS.workResolveIssue), `${id} waits WAIT_BUDGET_SECONDS.workResolveIssue`);
+    assert.ok(job["timeout-minutes"] * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${id}'s timeout holds ten minutes of reads and the wait`);
+  }
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],

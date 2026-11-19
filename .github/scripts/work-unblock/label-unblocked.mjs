@@ -477,7 +477,7 @@ const HELD_UNTIL = stamped(
 );
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
 const LIMIT_COMPANION = stamped(
-  String.raw`##\[error\](?:\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed$|leak-scan: no finished scan \(HttpError\);)`,
+  String.raw`##\[error\](?:\S+ \S+ failed with status 403$|handoff evidence for \S+ still missing after [0-9]+ reads: the jobs read failed(?:: GitHub.*)?$|leak-scan: no finished scan \(HttpError\);)`,
 );
 const FLOOR_JOB_ENDS = new Set(["success", "skipped", "failure"]);
 const NO_RESET = "rate-limited";
@@ -1779,7 +1779,7 @@ const rateLimitCause = (reset, server = null) => {
 // since the re-fire can come hours after the refusal.
 export const breakerComment = (key, { repo, run, ended, budget = false, earlier = [] }) =>
   budget
-    ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share (limits.api github-token start-gate); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.${earlier.length > 0 ? `\n<!-- work-unblock earlier ${earlier.join(" ")} -->` : ""}`
+    ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share, or the window was projected to have under its start-project share of the header's limit left by the run's expected end (github-token start-gate, start-project and start-run-minutes in rate-limits.json; the run's start-gate notice names which); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.${earlier.length > 0 ? `\n<!-- work-unblock earlier ${earlier.join(" ")} -->` : ""}`
     : `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it finished; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the same limits.stranded-backoff-hours \`kill-switch\` hours after each refused run before re-firing it, never longer.`;
 
 const floorComment = (key, { repo, run, reset, named, server }) => {

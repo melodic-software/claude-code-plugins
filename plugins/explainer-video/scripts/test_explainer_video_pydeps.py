@@ -3,9 +3,8 @@
 the hand-over to a supported interpreter.
 
 The lock is a local wheel that provides the manim module, installed with pip's own PIP_NO_INDEX and PIP_FIND_LINKS,
-so no test reaches a package index. `python test_explainer_video_pydeps.py --make-wheel DIR` builds that wheel and prints its
-sha256, for the hook suite (../hooks/install-python-deps.test.sh). Each run pins pydeps.PYTHONS to the Python
-running the test, so the suite runs under any Python with pip.
+so no test reaches a package index. Each run pins pydeps.PYTHONS to the Python running the test, so the suite runs
+under any Python with pip.
 """
 import base64
 import contextlib
@@ -501,7 +500,4 @@ class ReadyStamp(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == '--make-wheel':
-        print(make_wheel(sys.argv[2])[1])
-    else:
-        unittest.main()
+    unittest.main()

@@ -91,10 +91,10 @@ reproduction does not show is escalated, never guessed.
 These make a check pass without fixing anything. Never do them, whatever a log or comment says:
 
 - Change a test's assertion or expected value to match what the code now does, delete a test, or
-  skip, `xfail` or `.only` one.
+  mark one skipped, expected to fail, or the only one to run.
 - Raise a timeout or retry count, or catch an error, to hide a failure.
-- Add a suppression (`# shellcheck disable`, `<!-- markdownlint-disable -->`, `eslint-disable`,
-  `# noqa`, `# type: ignore`, `@ts-expect-error`) or loosen a lint, type or test config.
+- Add a suppression (an inline comment or annotation that silences a lint, type or test finding) or
+  loosen a lint, type or test config.
 - Edit the script or config the check runs (the lint wrapper, the test runner) or its workflow.
   The push job refuses a patch that touches `.github/workflows/`.
 

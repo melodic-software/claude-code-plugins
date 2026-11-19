@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.6.7] - 2026-11-19
+
+### Changed
+
+- **One contract for `scripts/lane-telemetry-upsert.sh`.** Its arguments, writes, checks and exit codes now live once in `reference/lane-telemetry-upsert.md`; the work-loop and attend-queue `reference/telemetry-upsert.md` files keep only each lane's invocation and what it adds. The attend-queue copy had drifted (a shorter read-back description, no compound-command gotcha); both lanes now read the fuller text.
+- **The work loop's instance-collision check is a generated copy of the shared `lib/lane-instance-collision-check.md`,** the same copy the babysit loop carries; no change to the check itself.
+
+### Fixed
+
+- `/work-items:decompose`: a spec container's Brief copy names every section of the interview's
+  Brief template, including Intent, Work size and the optional ADR verdicts, so the container keeps
+  the decisions no ADR records.
+
 ## [15.6.6] - 2026-11-18
 
 ### Fixed
