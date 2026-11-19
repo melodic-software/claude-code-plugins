@@ -111,7 +111,7 @@ export function part(state: State): Part {
   if (scr === 'tape') {
     style +=
       '@keyframes tv-dg{0%{opacity:1}10%,100%{opacity:0}}.tv-dg{animation:tv-dg 10s steps(1,end) infinite}' +
-      '@keyframes tv-pn{50%{transform:translate(-5px,1.2px)}100%{transform:translate(-1.5px,-.8px)}}.tv-pn{animation:tv-pn 26s ease-in-out infinite alternate}' +
+      '@keyframes tv-pan{50%{transform:translate(-5px,1.2px)}100%{transform:translate(-1.5px,-.8px)}}.tv-pan{animation:tv-pan 26s ease-in-out infinite alternate}' +
       '@keyframes tv-sw{50%{transform:rotate(5deg)}}.tv-sw{transform-origin:1184px 471px;animation:tv-sw 9s ease-in-out infinite}' +
       '@keyframes tv-ff{50%{opacity:.15}}.tv-ff{animation:tv-ff 7s ease-in-out infinite}'
   }
@@ -218,7 +218,7 @@ export function part(state: State): Part {
       rg('pt', fall(PC, 0.3 * pa, 1.5), ' gradientUnits="userSpaceOnUse" cx="1376" cy="604" r="50"') +
       lg('pb', 0, 0, 0, 1, [[0, PC, 0.26 * pa], [0.14, PC, 0.05 * pa], [0.32, PC, 0]]) +
       rg('pw', fall('#9440f0', 0.26 * pa, 1.7)) +
-      rg('pn', fall('#b468ff', 0.2 * pa, 1.4))
+      rg('lavaglow', fall('#b468ff', 0.2 * pa, 1.4))
     if (!on) defs += `<filter id="tv-bf" x="-30%" y="-35%" width="160%" height="170%"><feGaussianBlur stdDeviation="6"/></filter>`
   } else {
     defs += lg('lq', 0, 0, 0, 1, L ? [[0, '#2e1a44'], [1, '#3e2258']] : [[0, '#0c0a12'], [1, '#100c17']])
@@ -235,7 +235,7 @@ export function part(state: State): Part {
       E(1230, 965, 300, 85, u('p')) +
       `</g>`
   }
-  if (state.lava) under += E(1376, 530, 78, 108, u('pw')) + E(1376, 536, 30, 56, u('pn'))
+  if (state.lava) under += E(1376, 530, 78, 108, u('pw')) + E(1376, 536, 30, 56, u('lavaglow'))
   if (L) {
     under +=
       `<g filter="url(#tv-wf)" fill="#0a0608" opacity=".36">` +
@@ -410,7 +410,7 @@ export function part(state: State): Part {
   body += `<g clip-path="url(#tv-cg)">`
   const osd = (x: number, y: number, t: string, anchor = ''): string => `<text x="${f(x)}" y="${f(y)}"${anchor}>${t}</text>`
   if (scr === 'tape') {
-    body += `<g class="tv-pn">`
+    body += `<g class="tv-pan">`
     body += R(1126, 424, 164, 84, u('vs'))
     body += E(1236, 501, 52, 15, u('sun'))
     body += D('M1126 498C1140 494 1150 497 1160 493C1172 495 1180 490 1192 494C1204 491 1214 496 1226 493C1240 497 1252 492 1266 495C1276 492 1284 496 1290 494L1290 512L1126 512Z', '#1a1720', ' filter="url(#tv-vb)"')

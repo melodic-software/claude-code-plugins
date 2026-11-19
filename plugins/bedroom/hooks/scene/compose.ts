@@ -16,7 +16,7 @@ export type ComposeOptions = {
   /** `meet` for a zoomed look; the app always uses `slice`. */
   fit?: 'slice' | 'meet'
   /**
-   * A colour for a small square at the very centre of the scene, drawn last. The mod's shader reads it to tell
+   * A color for a small square at the very center of the scene, drawn last. The mod's shader reads it to tell
    * which room it has been handed, and paints over it, so it shows only where no shader plays.
    */
   marker?: string

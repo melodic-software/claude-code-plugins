@@ -1,4 +1,5 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
+// spellchecker:off
 import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, range, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
 const v = values({ tv: [0, 1], lava: [0, 1], clock: [0, 719], pc: [0, 1], lamp: [0, 1], tape: [0, 1], console: [0, 1], light: [0, 1] })
@@ -738,3 +739,4 @@ export default shader({
   fps: 30,
   passes: [state, picture((p: Pixel) => pic(p.uv))],
 })
+// spellchecker:on

@@ -271,12 +271,12 @@ export function part(state: State = DEFAULT_STATE): Part {
           [0.78, '#020309', 0.28],
           [1, '#020309', 0.62],
         ], 'translate(800 500) scale(1 .64) translate(-800 -500)') +
-    tile('stip', 200, '.6', 2, 4, L6 ? '.28 .35 .6' : '.12 .14 .23', 1.8) +
+    tile('stipple', 200, '.6', 2, 4, L6 ? '.28 .35 .6' : '.12 .14 .23', 1.8) +
     tile('pop', 128, '.75', 2, 9, L6 ? '.32 .31 .32' : '.12 .13 .2', 3) +
     tile('pile', 200, '.6 1.2', 2, 2, L6 ? '.3 .27 .25' : '.12 .13 .2', 3, 'scale(1 .9)') +
     tile('mot', 256, '.03125 .0625', 3, 7, L6 ? '.28 .25 .23' : '.1 .11 .17', 3) +
     tile('grain', 128, '.75', 2, 5, '.75 .77 .85', 3.2) +
-    lin('pn', 262, 130, 499, 175, L6
+    lin('felt', 262, 130, 499, 175, L6
       ? [
           [0, '#1f5a34'],
           [0.6, '#1b5030'],
@@ -311,9 +311,9 @@ export function part(state: State = DEFAULT_STATE): Part {
 
   const pen = 'M271 129.5Q385 146.5 498 160.5Q501 162 498 163.5Q385 175 271 183Z'
   const sleeve = 'M262 129.8L272 129.4L272 183.2L262 182.6Z'
-  let pn = `<path d="${pen}" fill="url(#room-pn)"/>`
-  pn += `<path d="M272 130Q385 146.5 497 161L497 162.6Q385 149.8 272 134Z" fill="#000" opacity=".18"/>`
-  pn += `<path d="${pen}" fill="url(#room-pw)"/>`
+  let flag = `<path d="${pen}" fill="url(#room-felt)"/>`
+  flag += `<path d="M272 130Q385 146.5 497 161L497 162.6Q385 149.8 272 134Z" fill="#000" opacity=".18"/>`
+  flag += `<path d="${pen}" fill="url(#room-pw)"/>`
   defs += lin('pw', 272, 0, 499, 0, [
     [0, '#000', 0.12],
     [0.22, '#fff', L6 ? 0.07 : 0.02],
@@ -321,21 +321,21 @@ export function part(state: State = DEFAULT_STATE): Part {
     [0.72, '#fff', L6 ? 0.05 : 0.015],
     [1, '#000', 0.1],
   ])
-  pn += `<path d="${sleeve}" fill="${L6 ? '#17181c' : '#060608'}"/>`
+  flag += `<path d="${sleeve}" fill="${L6 ? '#17181c' : '#060608'}"/>`
   const ink = L6 ? '#cfcdc2' : '#0c110f'
-  pn +=
+  flag +=
     `<g clip-path="url(#room-pc)"><g fill="${ink}" font-family="Rockwell, Georgia, Times New Roman, serif" font-weight="bold" transform="rotate(1.5 280 160)">` +
     `<text x="283" y="148.5" font-size="8.5" letter-spacing="1.6" textLength="72" lengthAdjust="spacingAndGlyphs">LANTERN HILL</text>` +
     `<text x="281" y="168.5" font-size="17" letter-spacing=".6" textLength="128" lengthAdjust="spacingAndGlyphs">NIGHTJARS</text></g></g>`
   defs += `<clipPath id="room-pc"><path d="${pen}"/></clipPath>`
   const tack = L6 ? '#b8ab8c' : '#121116'
-  pn += `<path d="${pen}" fill="url(#room-stip)" opacity="${L6 ? '.3' : '.15'}"/>`
-  for (const y of [133, 179]) pn += `<circle cx="267" cy="${y}" r="1.9" fill="${tack}"/>`
+  flag += `<path d="${pen}" fill="url(#room-stipple)" opacity="${L6 ? '.3' : '.15'}"/>`
+  for (const y of [133, 179]) flag += `<circle cx="267" cy="${y}" r="1.9" fill="${tack}"/>`
   const pennant =
     `<g filter="url(#room-ps)" opacity="${L6 ? '.5' : '.3'}">` +
     `<path d="${pen}" fill="#02030a" transform="translate(${L6 ? '-3 4.5' : '0 1.5'})"/>` +
     `<path d="${sleeve}" fill="#02030a" transform="translate(${L6 ? '-3 4.5' : '0 1.5'})"/></g>` +
-    `<g filter="url(#room-pf)">${pn}</g>`
+    `<g filter="url(#room-pf)">${flag}</g>`
   defs += blur('pf', 255, 120, 255, 70, 0.3)
 
   body += rect(0, 823, 1425, 27, 'url(#room-base)')
@@ -346,7 +346,7 @@ export function part(state: State = DEFAULT_STATE): Part {
     rect(0, 826.2, 1425, 1, '#05060c', ' opacity=".35"') +
     '</g>'
   body += rect(0, 822.5, 1425, 28.5, 'url(#room-bq)')
-  body += rect(0, CEILING_Y, 1600, FLOOR_Y - CEILING_Y, 'url(#room-stip)', ` opacity="${L6 ? '.18' : '.22'}"`)
+  body += rect(0, CEILING_Y, 1600, FLOOR_Y - CEILING_Y, 'url(#room-stipple)', ` opacity="${L6 ? '.18' : '.22'}"`)
   body += pennant
 
   body += rect(0, FLOOR_Y, 1600, 150, 'url(#room-floor)')
