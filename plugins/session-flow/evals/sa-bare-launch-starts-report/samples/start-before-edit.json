@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": ".work/away/tasks-abc12345.md", "content": "- [ ] Phase 1: greeting ends with !\n"}},
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc123 --kind bed --task-file .work/away/tasks-abc12345.md"}},
+        {"tool": "Edit", "input": {"file_path": "src/greet.py", "old_string": "+ name", "new_string": "+ name + \"!\""}}
+      ],
+      "why": "task file written, start, then the edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/greet.py", "old_string": "+ name", "new_string": "+ name + \"!\""}},
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc123 --kind bed"}}
+      ],
+      "why": "edit before arming"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/greet.py", "old_string": "+ name", "new_string": "+ name + \"!\""}}
+      ],
+      "why": "never arms"
+    }
+  ]
+}

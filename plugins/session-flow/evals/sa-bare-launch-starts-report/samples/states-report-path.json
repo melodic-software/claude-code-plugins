@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Away mode is on. The report is at `/tmp/ws/.work/away/20261118T221500Z-abc12345.md` and is due at 09:00.",
+      "why": "absolute path in a code span"
+    },
+    {
+      "answer": "Report: .work/away/20261118T221500Z-abc12345.md (until you are back).",
+      "why": "relative path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Away mode is on; I will keep a report and show it when you are back.",
+      "why": "no path"
+    },
+    {
+      "answer": "away.py start failed: no data root. The session is not armed.",
+      "why": "launch failed, no report"
+    }
+  ]
+}

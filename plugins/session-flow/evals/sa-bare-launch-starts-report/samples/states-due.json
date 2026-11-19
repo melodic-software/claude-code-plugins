@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The report is due at 09:00 tomorrow.",
+      "why": "report-by time"
+    },
+    {
+      "answer": "No report-by time: the absence lasts until you're back.",
+      "why": "until back, contraction"
+    },
+    {
+      "answer": "Report-by: 10:00 (day off).",
+      "why": "label then time"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Away mode is on. The report is at .work/away/x.md.",
+      "why": "no due time and no until-back"
+    },
+    {
+      "answer": "Started at 22:15.",
+      "why": "a time that is not the due time"
+    }
+  ]
+}

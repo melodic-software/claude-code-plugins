@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: sa-bare-launch-starts-report
+description: 'Step-away bare launch (AC1): with no words, the run arms the absence with away.py start before any edit, then tells the person where the report is and when it is due, either a report-by time or until they are back (which one depends on the clock, so either passes; the time arithmetic is unit-tested in away.py). A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [step-away, launch]
+plugins: ["../.."]
+expected_outcome: 'The run runs away.py start with a kind and a task file before editing src/greet.py, then states the report path under .work/away/ and either the report-by time or that the absence lasts until the person is back, and relays the launch warnings.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:step-away'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: start-runs
+    type: tool_used
+    tool: Bash
+    input_match: 'away\.py(?:\\")?[ \t]+start\b'
+    min: 1
+    arm: both
+  - name: start-before-edit
+    type: tool_order
+    before:
+      tool: Bash
+      input_match: 'away\.py(?:\\")?[ \t]+start\b'
+    after:
+      tool: Edit
+    arm: both
+  - name: states-report-path
+    type: regex
+    pattern: '\.work/away/[^\s`''")]*\.md'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: states-due
+    type: regex
+    pattern: '\buntil you(?:''|’| a)re back\b|\buntil you are back\b|\b(?:report(?:-by)?|due)\b[^\n]{0,60}\b(?:[01]?\d|2[0-3]):[0-5]\d\b|\b(?:[01]?\d|2[0-3]):[0-5]\d\b[^\n]{0,60}\b(?:report(?:-by)?|due)\b'
+    flags: 'i'
+    target: last_message
+    arm: both

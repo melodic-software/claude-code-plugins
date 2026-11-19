@@ -312,6 +312,28 @@ def test_data_root(tmp_path):
     assert away.data_root({}, None) is None
 
 
+def test_data_root_flag_wins(ctx):
+    flag_root = ctx.root / "flag-data" / "session-flow-inline"
+    ctx.start("--kind", "trip", "--data-root", str(flag_root))
+    assert (flag_root / "away" / SESSION / "state.json").is_file(), "the --data-root directory holds the state"
+    assert not ctx.state_dir.exists(), "CLAUDE_PLUGIN_DATA is not used when --data-root is given"
+
+
+def test_data_root_flag_foreign_rejected(ctx):
+    foreign = ctx.root / "flag-data" / "disk-hygiene-inline"
+    result = ctx.cli("start", "--kind", "trip", "--data-root", str(foreign))
+    assert result.returncode != 0, "another plugin's data directory is refused"
+    assert "--data-root" in result.stderr, "the error names the flag"
+    assert not foreign.exists(), "nothing is written under the refused directory"
+    assert not ctx.state_dir.exists(), "a refused flag never falls back to another root"
+
+
+@pytest.mark.parametrize("value", ["${CLAUDE_PLUGIN_DATA}", ""])
+def test_data_root_flag_unexpanded_ignored(ctx, value):
+    ctx.start("--kind", "trip", "--data-root", value)
+    assert (ctx.state_dir / "state.json").is_file(), "an unexpanded or empty flag falls back to CLAUDE_PLUGIN_DATA"
+
+
 def test_cli_without_plugin_data_fails(ctx):
     env = ctx.env()
     env.pop("CLAUDE_PLUGIN_DATA")
@@ -655,6 +677,14 @@ def test_prompt_subagent_report_not_return(ctx):
         assert "only when" in text
         assert "subagent" in text
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
+
+
+def test_hook_note_command_names_data_root(ctx):
+    ctx.start()
+    text = context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
+    assert f'end --session {SESSION} --data-root "{ctx.data}"' in text, (
+        "the printed command reaches the hooks' data root from a Bash tool that lacks CLAUDE_PLUGIN_DATA"
+    )
 
 
 def test_deliver_once(ctx):

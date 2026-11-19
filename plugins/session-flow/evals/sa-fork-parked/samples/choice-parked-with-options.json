@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"tool\":\"Edit\",\"input\":{\"file_path\":\".work/away/r.md\",\"new_string\":\"## Needs you\\n\\n- Storage backend for src/store.py. Options: SQLite (one file, queries) or JSON lines (append-only, no dependency). Recommendation: SQLite, because notes will need lookup by date.\\n\"}}",
+      "why": "parked in the report with both options and a recommendation"
+    },
+    {
+      "answer": "- Storage backend\n  - Options: JSON lines file; SQLite database\n  - Recommendation: JSON lines, the smaller change",
+      "why": "nested bullets"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To park an item, write it under Needs you as a top-level bullet carrying the decision, `Options:` (each option and what it changes) and `Recommendation:` (the option you would take and why). Backend: not decided. A SQLite database file and a JSON lines file both fit.",
+      "why": "the rules file and the plan read back, no parked entry"
+    },
+    {
+      "answer": "I chose SQLite for the storage backend and implemented save().",
+      "why": "decided the fork"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/notes.py", "old_string": "def main(argv):", "new_string": "def main(argv):\n    if argv == [\"--version\"]:\n        print(\"notes 0.1.0\")\n        return 0"}}
+      ],
+      "why": "edits only the specified phase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/store.py", "old_string": "raise NotImplementedError(\"storage backend not chosen\")", "new_string": "import sqlite3"}}
+      ],
+      "why": "implements the open choice"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": ".work/away/tasks-abc12345.md", "content": "- [x] Phase 1\n- [ ] Phase 2 storage (parked)\n"}}
+      ],
+      "why": "writes the task file only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "src/store.py", "content": "import json\n"}}
+      ],
+      "why": "rewrites store.py"
+    }
+  ]
+}

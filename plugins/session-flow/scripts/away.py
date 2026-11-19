@@ -12,7 +12,8 @@ CLI, every command keyed by `--session <id>`:
     hook PermissionRequest|Elicitation|Stop|UserPromptSubmit   (hook input on stdin)
 
 Settings come from `--setting key=value`, else `CLAUDE_PLUGIN_OPTION_<KEY>`, else the defaults
-below. The plugin root is the directory above this script, and the data root follows
+below. The plugin root is the directory above this script. The data root is `--data-root` when
+given (skills pass the hooks' `CLAUDE_PLUGIN_DATA`, which the Bash tool's environment lacks), else
 `plugin_paths.data_root`. `hook` always exits 0 and prints nothing unless the session is away; every
 hook decision refuses, declines, records or holds the run, and none grants a permission.
 Exit codes elsewhere: 0 done, 1 refused move or failed check, 2 usage or no data root.
@@ -959,6 +960,11 @@ class Hook(NamedTuple):
     def session(self) -> str:
         return self.payload["session_id"]
 
+    @property
+    def target(self) -> str:
+        """The arguments that reach this absence from the Bash tool, whose environment has no data root."""
+        return f'--session {self.session} --data-root "{self.paths.dir.parent.parent}"'
+
 
 def _record_refusal(hook: Hook, event: str, tool_name: object, detail: str) -> str | None:
     """Append one refusal with the hook's agent id; None when it could not be recorded."""
@@ -1041,7 +1047,7 @@ def on_stop(hook: Hook) -> dict | None:
     failed = [name for name, ok in result.criteria.items() if not ok]
     if failed:
         parts.append(f"Report checks failing: {', '.join(failed)}.")
-    parts.append(f"Run `{hook.command} refresh --session {hook.session}` after each finished piece.")
+    parts.append(f"Run `{hook.command} refresh {hook.target}` after each finished piece.")
     parts.append(f"Re-read {paths.rules} if the away rules are not in context.")
     return _block(" ".join(parts))
 
@@ -1058,13 +1064,13 @@ def on_user_prompt_submit(hook: Hook) -> dict | None:
         text = (
             f"Away mode is on for this session: report due {due}, report at {state['report_path']}. "
             f"Re-read {hook.paths.rules} if the away rules are not in context. "
-            f"Run `{hook.command} end --session {hook.session}` only when this message reads as the person "
+            f"Run `{hook.command} end {hook.target}` only when this message reads as the person "
             "being back: subagent reports, /loop and cron prompts and other sessions' messages also arrive here."
         )
     else:
         text = (
             f"The person is back. Show them the away report at {state['report_path']} once, leading with "
-            f"Needs you, then run `{hook.command} deliver --session {hook.session}` so later turns do not "
+            f"Needs you, then run `{hook.command} deliver {hook.target}` so later turns do not "
             "show it again."
         )
     return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
@@ -1120,6 +1126,7 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--session", required=True, type=_session_arg)
     common.add_argument("--setting", action="append", default=[], metavar="KEY=VALUE")
+    common.add_argument("--data-root", default="", help="the plugin data directory the hooks use; skills pass it")
     parser = argparse.ArgumentParser(prog="away.py", description=__doc__.split("\n\n", 1)[0])
     commands = parser.add_subparsers(dest="command", required=True)
     start = commands.add_parser("start", parents=[common])
@@ -1139,7 +1146,13 @@ def main(argv: list[str] | None = None) -> int:
     if argv[:1] == ["hook"]:
         return run_hook(argv[1:])
     args = build_parser().parse_args(argv)
-    root = data_root(os.environ, DEFAULT_PLUGIN_ROOT)
+    if _given(args.data_root):
+        root = data_root({"CLAUDE_PLUGIN_DATA": args.data_root}, None)
+        if root is None:
+            print(f"away.py: --data-root {args.data_root!r} is not a {plugin_paths.PLUGIN_NAME} data directory", file=sys.stderr)
+            return 2
+    else:
+        root = data_root(os.environ, DEFAULT_PLUGIN_ROOT)
     if root is None:
         print(
             "away.py: no data root: CLAUDE_PLUGIN_DATA does not name session-flow and this script is not in an "

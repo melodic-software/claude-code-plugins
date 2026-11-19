@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "PR #12 is held: it implements JSON lines, which depends on the parked storage decision.",
+      "why": "held with reason"
+    },
+    {
+      "answer": "I did not merge pull request 12; it waits on your storage choice.",
+      "why": "did not merge"
+    },
+    {
+      "answer": "- feat/json-store: left open until you pick the backend.",
+      "why": "branch name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Merged PR #12 after CI went green.",
+      "why": "merged"
+    },
+    {
+      "answer": "The storage decision is still parked.",
+      "why": "no mention of the pull request"
+    }
+  ]
+}
