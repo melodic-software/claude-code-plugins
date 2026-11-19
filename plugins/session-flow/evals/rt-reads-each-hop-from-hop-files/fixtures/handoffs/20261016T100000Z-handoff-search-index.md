@@ -31,7 +31,6 @@ repo: https://github.com/example/search.git
 Opening ask:
 Make search find hyphenated words.
 
-
 ## Resumption brief
 
 On `main`: the index is rebuilt and search finds e-mail. Nothing remains. Read Current rules first.
@@ -52,16 +51,13 @@ None. Nothing is unknown.
 
 - [R1] The index keeps one term per word as written.
 
-
 ## Standing preferences
 
 None. No standing preference this chain.
 
-
 ## Decisions in force
 
 - [D1] Keep hyphenated words whole in the index.
-
 
 ## Pending commands
 
