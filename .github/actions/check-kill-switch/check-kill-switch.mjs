@@ -85,17 +85,16 @@ function refusal(response, now) {
   };
 }
 
-export function projectionStops(reading, { plan, minutes }, now) {
+export function projectionStops(reading, { share, minutes }, now) {
   const left = projectedLeft(reading, now, minutes * 60);
-  const floor = Math.round((1 - plan) * 100) / 100;
   if (left === null) {
     return { stop: false, text: `projection unreadable for this reading, so it does not hold the start (start-run-minutes=${minutes})` };
   }
-  const stop = left < floor;
+  const stop = left < share;
   const shown = Math.round(left * 100) / 100;
   return {
     stop,
-    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against 1 - plan = ${floor} (plan=${plan} start-run-minutes=${minutes}) stop=${stop}${stop ? ": the run would end in a window spent past its plan share" : ""}`,
+    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against start-project=${share} (start-run-minutes=${minutes}) stop=${stop}${stop ? ": the run would end in a window with under its start-project share of the limit left" : ""}`,
   };
 }
 
@@ -155,11 +154,11 @@ export function startGateShare(path = RATE_LIMITS, log = (line) => console.log(l
 export function projectionGate(path = RATE_LIMITS, log = (line) => console.log(line)) {
   try {
     const entry = JSON.parse(readFileSync(path, "utf8"))?.["github-token"];
-    const plan = entry?.plan;
+    const share = entry?.["start-project"];
     const minutes = entry?.["start-run-minutes"];
-    if (typeof plan !== "number" || !(plan > 0 && plan <= 1)) throw new Error("github-token plan is not a share over 0 up to 1");
+    if (typeof share !== "number" || !(share > 0 && share <= 1)) throw new Error("github-token start-project is not a share over 0 up to 1");
     if (!Number.isInteger(minutes) || minutes < 1) throw new Error("github-token start-run-minutes is not a whole number of minutes");
-    return { plan, minutes };
+    return { share, minutes };
   } catch (error) {
     log(`::warning title=start-gate::the projection gate could not be set up (${clean(error?.code ?? error?.message)}); the lane proceeds on the start-gate share alone`);
     return null;

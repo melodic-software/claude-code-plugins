@@ -288,7 +288,7 @@ test("a window projected to empty before a typical run ends holds the start, wit
   const { lines, outputs } = await runMain(PROJECT, reading(2000, 1800));
   assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "budget", reset: String(NOW_S + 1800) }, "30 min in, 3000 used: 2000 - 3000 x 1260 / 1800 is under 0");
   const notice = lines.find((line) => line.startsWith("::notice title=start-gate::"));
-  assert.match(notice, /stop=true; projected left 0 of the limit 21 min ahead or at the reset, against 1 - plan = 0\.3 \(plan=0\.7 start-run-minutes=21\) stop=true: /);
+  assert.match(notice, /stop=true; projected left 0 of the limit 21 min ahead or at the reset, against start-project=0\.3 \(start-run-minutes=21\) stop=true: /);
 });
 
 test("tonight's 21:51Z start, 86% left 5 min into the window, holds", async () => {
@@ -318,9 +318,9 @@ test("the projection gate adds to the start-gate share and never replaces it", a
 
 test("a projection gate that cannot be set up proceeds on the start-gate share alone, with a warning", async () => {
   for (const [label, rateLimits] of [
-    ["no plan", { "github-token": { "start-gate": 0.1, "start-run-minutes": 21 } }],
-    ["no start-run-minutes", { "github-token": { "start-gate": 0.1, plan: 0.7 } }],
-    ["fractional minutes", { "github-token": { "start-gate": 0.1, plan: 0.7, "start-run-minutes": 1.5 } }],
+    ["no start-project", { "github-token": { "start-gate": 0.1, plan: 0.7, "start-run-minutes": 21 } }],
+    ["no start-run-minutes", { "github-token": { "start-gate": 0.1, "start-project": 0.3 } }],
+    ["fractional minutes", { "github-token": { "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 1.5 } }],
   ]) {
     const { lines, outputs } = await runMain(PROJECT, reading(2000, 1800), { rateLimits });
     assert.equal(outputs.cause, "ok", label);
@@ -328,9 +328,9 @@ test("a projection gate that cannot be set up proceeds on the start-gate share a
   }
 });
 
-test("the shipped projection gate is plan 0.7 over a 21-minute run", () => {
+test("the shipped projection gate is start-project 0.3 over a 21-minute run", () => {
   const gate = projectionGate(fileURLToPath(new URL("../log-api-budget/rate-limits.json", import.meta.url)), () => {});
-  assert.deepEqual([gate.plan, gate.minutes], [0.7, 21]);
+  assert.deepEqual([gate.share, gate.minutes], [0.3, 21]);
 });
 
 test("a failed budget read proceeds", async () => {

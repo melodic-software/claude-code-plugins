@@ -26,10 +26,11 @@ With `project: "true"` as well (the issue lane's first call only), the same read
 lane, with cause `budget` and the window's reset, while the pacer's projection
 ([`projection.mjs`](projection.mjs), the arithmetic
 [`pace.mjs`](../log-api-budget/pace.mjs) uses) of the window's burn rate to github-token's
-`start-run-minutes` from now, or to the reset when that comes first, leaves under `1 - plan` of the
-limit: a run started now would end in a window spent past its `plan` share. Both values are read
-from `rate-limits.json` alone (`plan` 0.7, `start-run-minutes` 21, the p90 of 25 successful issue
-runs' check-broker start to run end, rounded up). The `start-gate` share is checked first and
+`start-run-minutes` from now, or to the reset when that comes first, leaves under `start-project`
+of the header's limit: a run started now would end in a window with less than that share left.
+Both values are read from `rate-limits.json` alone (`start-project` 0.3, `start-run-minutes` 21,
+the p90 of 25 successful issue runs' check-broker start to run end, rounded up). `start-project`
+is a share of the header's limit, like `pace`, not of the planned budget `plan` measures. The `start-gate` share is checked first and
 still stops on its own. A reading that cannot project, or a value that cannot be read, proceeds
 with a warning. The notice names the projected share, the horizon and the threshold. work-unblock's
 sweep re-fires a budget stop after the reset it names, as for a low budget.

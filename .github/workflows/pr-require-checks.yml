@@ -5570,6 +5570,7 @@ jobs:
             /.github/scripts/pr-merge/rotation.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json
             /plugins/formal-verification/scripts/check.mjs
@@ -5729,6 +5730,7 @@ jobs:
             /.github/scripts/lib/admission-comment.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
