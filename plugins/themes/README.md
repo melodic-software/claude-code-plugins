@@ -40,13 +40,23 @@ bottom-left corner of the front of the dresser.
 
 ### The settings card
 
-`/bedroom` alone shows a card in the conversation, so you need not know the words: a button for
-each switch showing whether it is on, steps for dim, glass and blur, a text field for each title
-(Enter sets it; empty puts the default back), and reset, calibrate and the theme on or off. Each
-button runs the same `/bedroom` command you would type, so it costs what that command costs: a
-switch changes in the shader without the room being sent again. The card follows
-changes made by clicks in the room and by typed commands. Close puts it away; `/bedroom` shows it
-again at the end of the conversation. Away from the desktop app, `/bedroom` answers in text alone.
+`/bedroom` alone shows a card in the conversation, so you need not know the words. It is five rows,
+so it fits without scrolling: the theme on or off, reset, calibrate and Close; a button for each
+switch showing whether it is on; dim, glass and blur steps side by side; and the four title fields,
+two to a row (Enter sets one; empty puts the default back). Each button runs the same `/bedroom`
+command you would type, so it costs what that command costs: a switch changes in the shader without
+the room being sent again. A switch's button draws dim, with `…` after its state, until the switch
+has finished changing, about a second (three for the console, which boots), and a press on it
+meanwhile does nothing; clicks in the room are never held back. The card follows changes made by
+clicks in the room and by typed commands. Close puts it away; `/bedroom` shows it again at the end
+of the conversation. Away from the desktop app, `/bedroom` answers in text alone.
+
+### Dim and titles
+
+Dim and the titles are drawn into the room itself, so changing one sends the room again. The room
+then shows as it stands, ceiling light off included, for seven seconds while the app takes the new
+room, and the shader takes it over again after that: the lights, screens and clock move again, and
+clicks are answered at once. A click in those seven seconds still counts and is drawn into the room.
 
 ### The `/bedroom` command
 

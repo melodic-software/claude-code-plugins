@@ -56,20 +56,90 @@ let isInstant = true
 const stats = { renders: 0, roomSends: 0, valueOnly: 0, buildMs: 0, maxBuildMs: 0, askMs: 0, chars: 0 }
 let askedAt: number | undefined
 /** The build /bedroom stats names, so a tester can tell which one the app loaded. */
-const BUILD = 'settings-card-1'
-/** The switches the shader answers by itself in instant mode: every one, since the shader computes the dusk light. */
-const INSTANT: readonly string[] = SWITCHES
+const BUILD = 'settings-card-2'
+/** The number the shader last heard for each switch. It turns a switch the way its number moves, so a click in the room never changes it. */
 let sent: Record<string, number> = {}
-/** False after a render that drew the room without the shader: a shader started again takes its switches from `sent`, so the next one re-seeds it. */
-let isShaderSeeded = false
 const sendAll = (): void => {
   sent = Object.fromEntries(SWITCHES.map(name => [name, saved.state[name] ? 1 : 0]))
 }
 
 sendAll()
+/** The room last drawn, for /bedroom stats to count the times it was sent. */
 let lastSource = ''
+/**
+ * How long a changed room shows alone, without the shader, before the shader starts over it again: a room sent under
+ * a running shader got the shader stopped. The room shown alone is the room as it stands, the ceiling light off
+ * included, so nothing on screen goes back to the lit room while it waits.
+ */
 const SETTLE_MS = 7000
-let holdShaderUntil = 0
+/** The room the running shader was started over; empty while no shader runs. */
+let shaderSource = ''
+/** The room last drawn alone; emptied when a shader stops, so the next room alone waits its full time. */
+let aloneSource = ''
+/** True once the room has shown alone for SETTLE_MS since it last changed: the next render starts the shader. */
+let isSettled = false
+let settling: { cancel: () => void } | undefined
+
+/** The room under the shader: the ceiling light on and the things the shader draws switched as it expects, so a switch never sends it again. */
+function shaderRoom(): string {
+  return bedroomSvg(
+    { ...saved.state, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: true, titles: saved.titles, underShader: true },
+    saved.dim,
+  )
+}
+
+/** The room as it stands, drawn whole: what shows when no shader runs. */
+function wholeRoom(): string {
+  return bedroomSvg({ ...saved.state, titles: saved.titles }, saved.dim)
+}
+
+/** Takes the shader away: the next render shows the room alone and waits SETTLE_MS before starting one again. */
+function dropShader(): void {
+  settling?.cancel()
+  settling = undefined
+  shaderSource = ''
+  aloneSource = ''
+  isSettled = false
+}
+
+/** How long a switch's number sits at the middle when it has to turn back before it can move the way asked. */
+const TURN_MS = 700
+const turning: Partial<Record<Switch, { cancel: () => void }>> = {}
+
+/**
+ * The numbers to send the shader, in turn, to turn a switch on or off from the number it last heard.
+ *
+ * The shader heads a switch the way its number moves. When the number is already on the side asked for, the switch
+ * was clicked the other way in the room since, so the number goes to the middle first (a move toward where the switch
+ * already is changes nothing) and on to the end TURN_MS later. Otherwise one move to the end does it at once.
+ */
+export function moves(last: number, isOn: boolean): readonly number[] {
+  const place = isOn ? 1 : 0
+
+  return (last >= 0.5) === isOn ? [0.5, place] : [place]
+}
+
+/** Orders the shader to turn a switch on or off, and answers how much longer than one move that takes, in ms. */
+function order($: EngineInterface, key: Switch, isOn: boolean): number {
+  const [first = 0, then] = moves(sent[key] ?? 0, isOn)
+
+  turning[key]?.cancel()
+  delete turning[key]
+  sent = { ...sent, [key]: first }
+  if (then === undefined) {
+    return 0
+  }
+  turning[key] = $.clock.after(TURN_MS, () => {
+    delete turning[key]
+    sent = { ...sent, [key]: then }
+    $.ui.invalidate('ui.render')
+  })
+
+  return TURN_MS
+}
+
+/** How much longer than one move the last order to each switch took: the card keeps its button inactive that much longer. */
+const turnMs: Partial<Record<Switch, number>> = {}
 
 const { theme, problems } = makeColors({
   label: 'Bedroom',
@@ -120,6 +190,17 @@ export function hitAt(x: number, y: number): string | undefined {
 /** The switches a viewBox point flips, as the shader flips them: the tape's spine is the tape. */
 export function switchesAt(x: number, y: number): string[] {
   return [...new Set(hitsAt(x, y).map(name => (name === 'spine' ? 'tape' : name)))]
+}
+
+/** The window's shape from a click, given as fractions of the window, on the bottom-left corner of the dresser's front. */
+export function aspectFrom(x: number, y: number): number {
+  const across = x - 0.5
+  const down = y - 0.5
+  const width = across > 0.02 ? (CALIBRATION_POINT.x - 800) / across : 1600
+  const height = down > 0.02 ? (CALIBRATION_POINT.y - 500) / down : 1000
+  const aspect = width < 1590 ? width / 1000 : height < 990 ? 1600 / height : 1.6
+
+  return Math.min(4, Math.max(0.5, aspect))
 }
 
 /** The minute of the half day, 0 to 719, by the computer's own local time: what the VCR clock shows. */
@@ -209,8 +290,12 @@ async function bedroomCommand($: EngineInterface, args: string): Promise<string>
     return 'click the bottom-left corner of the front of the dresser'
   }
   if (word === 'reset') {
+    const was = saved.state
+
     saved = { state: { ...DEFAULT_STATE }, dim: 0, aspect: saved.aspect, glass: DEFAULT_GLASS, blur: DEFAULT_BLUR, titles: saved.titles }
-    sendAll()
+    for (const key of SWITCHES.filter(name => was[name] !== DEFAULT_STATE[name])) {
+      turnMs[key] = order($, key, DEFAULT_STATE[key])
+    }
     await setLook($)
   } else if (word === 'dim') {
     const percent = Number(value)
@@ -231,13 +316,7 @@ async function bedroomCommand($: EngineInterface, args: string): Promise<string>
       return `say on or off, as in /bedroom ${word} off; with neither, it flips`
     }
     saved = { ...saved, state: { ...saved.state, [key]: value === '' ? !saved.state[key] : value === 'on' } }
-    const place = saved.state[key] ? 1 : 0
-
-    sent = { ...sent, [key]: 0.5 }
-    $.clock.after(700, () => {
-      sent = { ...sent, [key]: place }
-      $.ui.invalidate('ui.render')
-    })
+    turnMs[key] = order($, key, saved.state[key])
   } else {
     return `no such setting. The switches are ${SWITCHES.join(', ')}; also status, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), instant, stats, calibrate, reset, on, off`
   }
@@ -285,6 +364,42 @@ async function step($: EngineInterface, name: Stepped, way: 1 | -1): Promise<voi
   }
 }
 
+/**
+ * How long a switch's button on the card stays inactive after a press, turning off and turning on, in ms: the half
+ * second the app takes to hand the shader a new number, the switch's own change in the shader (a fifth to two fifths
+ * of a second), and the console's two-second boot.
+ */
+export const CHANGE_MS: Record<Switch, readonly [number, number]> = {
+  tv: [900, 1000],
+  tape: [900, 900],
+  console: [900, 2900],
+  pc: [900, 1000],
+  light: [1000, 800],
+  lamp: [900, 1000],
+  lava: [1100, 1100],
+}
+/** The switches changing after a press on the card, each with the timer that ends it: their buttons draw dim, and a press on one does nothing. */
+const changing = new Map<Switch, { cancel: () => void }>()
+
+/** Runs a press on the card that changes these switches, their buttons inactive until each has changed. */
+async function pressChanging($: EngineInterface, words: string, keys: readonly Switch[]): Promise<void> {
+  for (const key of keys) {
+    changing.get(key)?.cancel()
+    changing.set(key, { cancel: () => undefined })
+  }
+  await press($, words)
+  for (const key of keys) {
+    const timer = $.clock.after(CHANGE_MS[key][saved.state[key] ? 1 : 0] + (turnMs[key] ?? 0), () => {
+      changing.delete(key)
+      if (isCardOpen) {
+        void refreshCard($).catch(() => undefined)
+      }
+    })
+
+    changing.set(key, timer)
+  }
+}
+
 /** Places a new card row at the transcript's end; where no surface draws it, the card shows above the prompt. */
 async function openCard($: EngineInterface): Promise<void> {
   const count = ((await read($, card)).placed ?? 0) + 1
@@ -306,73 +421,100 @@ async function closeCard($: EngineInterface): Promise<void> {
 
 type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'Input'>
 
+/** The title fields, two to a row. */
+const TITLE_ROWS: readonly (readonly TitleKey[])[] = [
+  ['console', 'tape'],
+  ['pennant', 'pennant-top'],
+]
+
 /**
- * The settings card. The desktop draws a button's `label`, not its children, so each label carries the state it
- * changes. Every press runs `bedroomCommand` with the words the command takes; the card reads the settings afresh
- * at each draw, so it shows a change made by a click in the room or a typed command too.
+ * The settings card, in rows that fit the conversation's width without scrolling: the title with the theme, reset,
+ * calibrate and Close; the switches; dim, glass and blur side by side; the title fields two to a row; and the last
+ * press's answer when it says more than the buttons show. The desktop draws a button's `label`, not its children, so
+ * each label carries the state it changes. Every press runs `bedroomCommand` with the words the command takes; the
+ * card reads the settings afresh at each draw, so it shows a change made by a click in the room or a typed command too.
  */
 function settingsCard($: EngineInterface, { Box, Text, Button, Input }: CardElements, now: BedroomCard) {
   const themeLabel = isThemeOn ? 'theme: on' : 'theme: off'
 
   return (
-    <Box flexDirection="column" borderStyle="round" paddingX={1} gap="md">
-      <Box flexDirection="row" justifyContent="space-between" gap={1}>
+    <Box flexDirection="column" borderStyle="round" paddingX={1} gap="sm">
+      <Box key="head" flexDirection="row" flexWrap="wrap" justifyContent="space-between" alignItems="center" columnGap="sm" rowGap="xs">
         <Text bold>Bedroom settings</Text>
-        <Button key="close" label="Close" role="dismiss" onPress={() => closeCard($)}>
-          Close
-        </Button>
+        <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
+          <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn ? 'off' : 'on')}>
+            {themeLabel}
+          </Button>
+          <Button
+            key="reset"
+            label="reset"
+            onPress={() =>
+              pressChanging(
+                $,
+                'reset',
+                SWITCHES.filter(name => saved.state[name] !== DEFAULT_STATE[name]),
+              )
+            }
+          >
+            reset
+          </Button>
+          <Button key="calibrate" label="calibrate" onPress={() => press($, 'calibrate')}>
+            calibrate
+          </Button>
+          <Button key="close" label="Close" role="dismiss" onPress={() => closeCard($)}>
+            Close
+          </Button>
+        </Box>
       </Box>
-      <Text dimColor>{describe()}</Text>
-      <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
+      <Box key="switches" flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
         {SWITCHES.map(name => {
-          const label = `${name}: ${saved.state[name] ? 'on' : 'off'}`
+          const isChanging = changing.has(name)
+          const label = `${name}: ${saved.state[name] ? 'on' : 'off'}${isChanging ? '…' : ''}`
 
           return (
-            <Button key={`switch-${name}`} label={label} onPress={() => press($, name)}>
+            <Button
+              key={`switch-${name}`}
+              label={label}
+              dimColor={isChanging}
+              onPress={() => (changing.has(name) ? undefined : pressChanging($, name, [name]))}
+            >
               {label}
             </Button>
           )
         })}
       </Box>
-      {STEPPED.map(name => (
-        <Box key={`step-${name}`} flexDirection="row" gap={1}>
-          <Text>{`${name} ${amountOf(name)}`}</Text>
-          <Button key={`${name}-down`} label={`-${STEPS[name].by}`} onPress={() => step($, name, -1)}>
-            {`-${STEPS[name].by}`}
-          </Button>
-          <Button key={`${name}-up`} label={`+${STEPS[name].by}`} onPress={() => step($, name, 1)}>
-            {`+${STEPS[name].by}`}
-          </Button>
+      <Box key="look" flexDirection="row" flexWrap="wrap" columnGap="lg" rowGap="xs">
+        {STEPPED.map(name => (
+          <Box key={`step-${name}`} flexDirection="row" alignItems="center" columnGap="xs">
+            <Text>{`${name} ${amountOf(name)}`}</Text>
+            <Button key={`${name}-down`} label={`-${STEPS[name].by}`} onPress={() => step($, name, -1)}>
+              {`-${STEPS[name].by}`}
+            </Button>
+            <Button key={`${name}-up`} label={`+${STEPS[name].by}`} onPress={() => step($, name, 1)}>
+              {`+${STEPS[name].by}`}
+            </Button>
+          </Box>
+        ))}
+      </Box>
+      {TITLE_ROWS.map(keys => (
+        <Box key={`titles-${keys[0]}`} flexDirection="row" flexWrap="wrap" columnGap="sm" rowGap="xs">
+          {keys.map(key => (
+            <Box key={`field-${key}`} flexGrow={1}>
+              <Input
+                key={`title-${key}`}
+                label={key}
+                placeholder={`default; up to ${TITLE_CAPS[key]}, Enter sets`}
+                value={drafts[key] ?? saved.titles[key] ?? ''}
+                submitLabel="set"
+                onInput={text => {
+                  drafts[key] = text
+                }}
+                onSubmit={text => void press($, `title ${key} ${text}`)}
+              />
+            </Box>
+          ))}
         </Box>
       ))}
-      <Box flexDirection="column" gap="xs">
-        <Text bold>Titles</Text>
-        {TITLE_KEYS.map(key => (
-          <Input
-            key={`title-${key}`}
-            label={`${key} (up to ${TITLE_CAPS[key]})`}
-            placeholder="default"
-            value={drafts[key] ?? saved.titles[key] ?? ''}
-            submitLabel="set"
-            onInput={text => {
-              drafts[key] = text
-            }}
-            onSubmit={text => void press($, `title ${key} ${text}`)}
-          />
-        ))}
-        <Text dimColor>Enter sets a title and sends the room once; an empty one puts the default back. Typed: /bedroom title console|tape|pennant|pennant-top TEXT</Text>
-      </Box>
-      <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
-        <Button key="reset" label="reset" onPress={() => press($, 'reset')}>
-          reset
-        </Button>
-        <Button key="calibrate" label="calibrate" onPress={() => press($, 'calibrate')}>
-          calibrate
-        </Button>
-        <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn ? 'off' : 'on')}>
-          {themeLabel}
-        </Button>
-      </Box>
       {now.said === undefined ? [] : [<Text key="said" dimColor>{now.said}</Text>]}
     </Box>
   )
@@ -427,9 +569,39 @@ export const register: Register = on => {
     }
     const { Shader, Svg } = $.ui.resolve(e)
     const startedAt = performance.now()
-    const source = isInstant
-      ? bedroomSvg({ ...saved.state, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: true, titles: saved.titles }, saved.dim)
-      : bedroomSvg({ ...saved.state, titles: saved.titles }, saved.dim)
+    let source: string
+    let isShader = false
+
+    if (!isInstant) {
+      dropShader()
+      source = wholeRoom()
+    } else {
+      const lit = shaderRoom()
+
+      if (shaderSource !== '' && lit !== shaderSource) {
+        dropShader()
+      }
+      if (shaderSource === lit || isSettled) {
+        if (shaderSource !== lit) {
+          shaderSource = lit
+          sendAll()
+        }
+        source = lit
+        isShader = true
+      } else {
+        source = wholeRoom()
+        if (source !== aloneSource) {
+          aloneSource = source
+          isSettled = false
+          settling?.cancel()
+          settling = $.clock.after(SETTLE_MS, () => {
+            settling = undefined
+            isSettled = true
+            $.ui.invalidate('ui.render')
+          })
+        }
+      }
+    }
     const buildMs = performance.now() - startedAt
 
     stats.renders += 1
@@ -444,25 +616,13 @@ export const register: Register = on => {
       stats.valueOnly += 1
     } else {
       stats.roomSends += 1
-      if (isInstant) {
-        holdShaderUntil = performance.now() + SETTLE_MS
-        $.clock.after(SETTLE_MS + 200, () => {
-          $.ui.invalidate('ui.render')
-        })
-      }
       lastSource = source
     }
     $.ui.log(`bedroom render ${stats.renders}: asked after ${stats.askMs.toFixed(1)} ms, built in ${buildMs.toFixed(1)} ms, ${source.length} chars, room sent ${stats.roomSends} times`, { to: 'debug' })
     const svg = <Svg source={source} alt="A teenager's bedroom in the country just after sunset" isInteractive />
 
-    if (!isInstant || performance.now() < holdShaderUntil) {
-      isShaderSeeded = false
-
+    if (!isShader) {
       return svg
-    }
-    if (!isShaderSeeded) {
-      sendAll()
-      isShaderSeeded = true
     }
 
     return (
@@ -478,13 +638,7 @@ export const register: Register = on => {
     }
     if (isCalibrating) {
       isCalibrating = false
-      const across = e.x - 0.5
-      const down = e.y - 0.5
-      const width = across > 0.02 ? (CALIBRATION_POINT.x - 800) / across : 1600
-      const height = down > 0.02 ? (CALIBRATION_POINT.y - 500) / down : 1000
-      const aspect = width < 1590 ? width / 1000 : height < 990 ? 1600 / height : 1.6
-
-      saved = { ...saved, aspect: Math.min(4, Math.max(0.5, aspect)) }
+      saved = { ...saved, aspect: aspectFrom(e.x, e.y) }
       await $.store.set(STORE_KEY, saved)
       $.ui.toast(`bedroom: clicks calibrated (window shape ${saved.aspect.toFixed(2)})`)
       if (isCardOpen) {
@@ -506,11 +660,13 @@ export const register: Register = on => {
     }
     for (const key of names as Switch[]) {
       saved = { ...saved, state: { ...saved.state, [key]: !saved.state[key] } }
-      if (!(isInstant && INSTANT.includes(key))) {
+      if (!isInstant) {
         sent = { ...sent, [key]: saved.state[key] ? 1 : 0 }
-        askedAt = performance.now()
-        $.ui.invalidate('ui.render')
       }
+    }
+    if (!isInstant || shaderSource === '') {
+      askedAt = performance.now()
+      $.ui.invalidate('ui.render')
     }
     void $.store.set(STORE_KEY, saved).catch(() => undefined)
     if (isCardOpen) {

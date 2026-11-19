@@ -446,7 +446,7 @@ export function part(state: State): Part {
     }
     body += `</g></g>`
   }
-  if (state.titles?.console !== '') body += `<rect x="1164" y="472" width="88" height="16" fill="#04050b"/>@TITLE@`
+  if (state.titles?.console !== '' && (scr === 'game' || state.underShader)) body += `<rect x="1164" y="472" width="88" height="16" fill="#04050b"/>@TITLE@`
   if (on) {
     body += `<path d="M1141 447Q1150 442.5 1161 441.5Q1163 463 1162 485Q1151 487.5 1142 492Q1139.5 470 1141 447Z" fill="#c2b0f0" opacity=".07" filter="url(#tv-sf)"/>`
     body += E(1176, 452, 46, 22, u('hl'), ' transform="rotate(-14 1176 452)"')
