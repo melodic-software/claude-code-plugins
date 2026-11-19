@@ -12,7 +12,7 @@ Create a new work item with labels from the taxonomy.
 ## Usage
 
 ```
-/work-items:track add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] [--label <name>]... [--body-file <path>] [--parent <id>] [--blocked-by <id>[,<id>]] "Item description"
+/work-items:track add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] [--label <name>]... [--body-file <path>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<name>] "Item description"
 ```
 
 ## Flags
@@ -31,6 +31,7 @@ Create a new work item with labels from the taxonomy.
 - `--body-file <path>` -- Use this file, written with the Write tool, as the whole body instead of a template
 - `--parent <id>` -- File the item as a child of this container (seam `create-item --parent`). A child is filed by its container's owner, past intake: the category default, the `needs-triage` floor and the default body template do not apply
 - `--blocked-by <id>[,<id>]` -- Create the item with these blocked-by edges (seam `create-item --blocked-by`); file the blockers first
+- `--repo <owner>/<name>` -- File the item in this repository instead of the bound one, as `/work-items:scan-todos` does for a marker in another repository. The duplicate check searches this repository, the labels are checked against its live set, and `create-item` gets `--repo '<owner>/<name>'`. Without it, the bound repository is the target
 
 ## Workflow
 
@@ -91,7 +92,7 @@ Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` 
 - **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
-For non-recurring items, omit the recurring marker. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
+For non-recurring items, omit the recurring marker. Pass `--parent '<id>'`, `--blocked-by '<id>[,<id>]'` and `--repo '<owner>/<name>'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
 1. **If `--priority` resolved to the field**, set it on the new item, as its own plain Bash call with every value spelled out. A failed write can't undo the filing: report it with the item's id and the value, and never file the item again.
 
