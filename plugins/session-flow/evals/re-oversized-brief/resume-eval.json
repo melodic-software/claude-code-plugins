@@ -1,6 +1,6 @@
 {
   "name": "re-oversized-brief",
-  "task_relation": "boundary",
+  "task_relation": "same",
   "tags": [
     "resume-eval",
     "drift",

@@ -66,8 +66,10 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   hop that must FAIL `validate` with every FAIL line matching the `fail` regex; the build
   continues past it and stops when it validates or fails otherwise. An entry naming `arms`
   holds only for those arms.
-- `task_relation`: `same` (the session continues the task, the compaction flow) or `boundary`
-  (a fresh session resumes from a handoff); `report --subset` selects one.
+- `task_relation`: `same` when the case's next action continues the task in progress (the
+  compaction flow) or `boundary` when it starts the next item or task in a sequence (the
+  handoff flow). Every case is delivered the same way, so the next action alone sets the tag;
+  `report --subset` selects one.
 - `seed.reads.pattern`: overrides the size-based read pattern (`whole`, `paged`, `partial`,
   `partial+constraints`).
 - `seed.history`: `after_reads` (the assistant turn after the reads) and `work` turns, in

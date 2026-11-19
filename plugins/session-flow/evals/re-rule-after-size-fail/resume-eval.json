@@ -1,6 +1,6 @@
 {
   "name": "re-rule-after-size-fail",
-  "task_relation": "boundary",
+  "task_relation": "same",
   "tags": [
     "resume-eval",
     "drift",

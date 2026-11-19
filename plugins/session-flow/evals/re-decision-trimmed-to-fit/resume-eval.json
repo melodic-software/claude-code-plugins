@@ -1,6 +1,6 @@
 {
   "name": "re-decision-trimmed-to-fit",
-  "task_relation": "boundary",
+  "task_relation": "same",
   "tags": [
     "resume-eval",
     "drift",

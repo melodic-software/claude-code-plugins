@@ -1,6 +1,6 @@
 {
   "name": "re-retired-amendment",
-  "task_relation": "boundary",
+  "task_relation": "same",
   "tags": [
     "resume-eval",
     "design",
