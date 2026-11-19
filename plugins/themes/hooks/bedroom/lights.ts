@@ -375,8 +375,8 @@ function pic(uv: vec2): vec4 {
   let tsway = 0.5 + 0.5 * sin(time * 0.33)
   let tlow = clamp((0.05 - tp.y) / 0.65, 0, 1)
   let tgx = tp.x - 0.4 + 0.02 * tlow * tlow * tsway
-  let thw = 0.135 + 0.06 * tlow + 0.008 * tlow * tsway
-  let tdc = max(abs(tgx) - thw, max(tp.y - 0.05, -0.6 - tp.y))
+  let thw = 0.135 + 0.06 * tlow + 0.008 * tlow * tsway // spellchecker:disable-line
+  let tdc = max(abs(tgx) - thw, max(tp.y - 0.05, -0.6 - tp.y)) // spellchecker:disable-line
   let tdsh = (ell(tp, vec2(0.4, 0.05), vec2(0.15, 0.065)) - 1) * 0.06
   let tdcl = max(abs(tp.x - 0.4) - 0.05, abs(tp.y - 0.13) - 0.04)
   let tdhd = (ell(tp, vec2(0.4, 0.215), vec2(0.052, 0.066)) - 1) * 0.05
@@ -493,8 +493,8 @@ function pic(uv: vec2): vec4 {
   let k_ty = 417 + 138 * clamp((mod(time, 24) / 24 - 0.4) / 0.22, 0, 1)
   if (abs(at.y - k_ty) < 11.0) {
   let k_s1 = (at.y - k_ty + 4) / 0.5
-  let k_ba = k_w * (0.21 * (1 - abs(at.y - k_ty) / 11) + 0.12 * exp(-k_s1 * k_s1) * smoothstep(0.2, 0.8, sin(at.x * 0.11 + 1.7) * sin(at.x * 0.037 + 0.4)))
-  con = vec4(vec4(vec3(0.847, 0.878, 1) * k_ba + con.rgb * (1 - k_ba), k_ba + con.a * (1 - k_ba)))
+  let k_ba = k_w * (0.21 * (1 - abs(at.y - k_ty) / 11) + 0.12 * exp(-k_s1 * k_s1) * smoothstep(0.2, 0.8, sin(at.x * 0.11 + 1.7) * sin(at.x * 0.037 + 0.4))) // spellchecker:disable-line
+  con = vec4(vec4(vec3(0.847, 0.878, 1) * k_ba + con.rgb * (1 - k_ba), k_ba + con.a * (1 - k_ba))) // spellchecker:disable-line
   }
   let k_lo = k_on * now_tv * (1 - k_gm)
   if (k_lo > 0.001) {
