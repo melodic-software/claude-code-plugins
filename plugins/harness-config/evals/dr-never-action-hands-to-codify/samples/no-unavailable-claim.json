@@ -5,18 +5,26 @@
       "why": "names the call with codify present"
     },
     {
+      "answer": "Phase 2 item 1 names the /corrections:codify call when it is available; when /corrections:codify is not available, the skill proposes the mechanism itself, marked unproven. Codify is loaded here.\n\nSECTION: hard_deny\nPROPOSAL: run `/corrections:codify \"never force-push to main\"`",
+      "why": "explains the fallback in prose; the PROPOSAL line makes no unavailability claim"
+    },
+    {
       "answer": "SECTION: hard_deny\nPROPOSAL: add a PreToolUse hook that blocks git push --force to main",
       "why": "no claim about codify at all (picks-no-mechanism judges this)"
     }
   ],
   "fail": [
     {
-      "answer": "`/corrections:codify` was not available, so the proposal is unproven.\n\nSECTION: hard_deny\nPROPOSAL: a PreToolUse hook (unproven)",
-      "why": "takes the fallback although codify is loaded"
+      "answer": "SECTION: hard_deny\nPROPOSAL: a PreToolUse hook, unproven because /corrections:codify was not available",
+      "why": "the PROPOSAL line takes the fallback although codify is loaded"
     },
     {
-      "answer": "Since corrections:codify isn't installed here, I recommend the mechanism myself.",
-      "why": "contracted form of the fallback sentence"
+      "answer": "SECTION: hard_deny\nPROPOSAL: corrections:codify isn't installed here, so a permissions.deny rule (unproven)",
+      "why": "contracted form of the fallback sentence on the PROPOSAL line"
+    },
+    {
+      "answer": "SECTION: hard_deny\nPROPOSAL: /corrections:codify is unavailable, so a PreToolUse hook (unproven)",
+      "why": "the word unavailable on the PROPOSAL line"
     }
   ]
 }

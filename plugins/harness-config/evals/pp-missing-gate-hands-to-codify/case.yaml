@@ -16,8 +16,8 @@ graders:
     arm: with-only
   - name: no-unavailable-claim
     type: regex
-    pattern: 'corrections:codify\b[^\n]{0,80}?\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b'
-    flags: 'i'
+    pattern: '^[\s>*`_-]*PROPOSAL[*`_\s]*:[^\n]*?corrections:codify\b[^\n]{0,80}?(?:\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b|\bunavailable\b)'
+    flags: 'im'
     match: 'not_contains'
     target: 'last_message'
     arm: both
