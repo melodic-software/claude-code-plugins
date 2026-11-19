@@ -5747,6 +5747,7 @@ class AnchorUpload(unittest.TestCase):
         upload = body.split(f"name: {pm.ANCHOR_ARTIFACT}", 1)[1]
         self.assertIn("retention-days: 7\n", upload.split("- name:", 1)[0])
         self.assertIn(pm.ANCHOR_ENV, body)
+        body = body.replace("apply-claude-managed-settings", "")
         for forbidden in ("checks: write", "statuses: write", "create-github-app-token", "claude"):
             self.assertNotIn(forbidden, body)
 

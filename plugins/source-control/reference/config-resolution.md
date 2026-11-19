@@ -685,8 +685,9 @@ from its own install path, then the managed settings files, which win. It reads 
 variable and no file in a checkout. A copy run from a checkout instead of the plugin cache reads
 managed settings only. Every key fails closed when unset, unreadable or malformed; the plugin
 README's configuration table gives each key's unset behavior, and its `userConfig` description its
-value grammar. A CI lane passes its values at install with `claude plugin install --config`, which
-writes user settings.
+value grammar. A CI job that runs these scripts from a checkout writes the values, from a file on
+the default branch, into a root-owned `managed-settings.d/` drop-in before runner isolation, so a
+pull request's own head never supplies them.
 
 ## The three layers
 

@@ -399,6 +399,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
   [".github/source-control-settings.json", "trust"],
+  [".github/verify-legacy-fails.json", "trust"],
   [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
   [".github/actions/log-api-budget/api-budget.bash", "gate"],
   [".github/actions/log-api-budget/rate-limits.json", "gate"],

@@ -111,6 +111,11 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
+env:
+  # The legacy FAILs file the verdict reader takes from the default branch:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
+
 jobs:
   # A pr-verify run of main, which only steps of that run could upload to.
   # A run GitHub skipped (pr-require-checks did not pass) ran no judgment and
@@ -372,6 +377,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]

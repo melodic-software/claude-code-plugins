@@ -98,12 +98,16 @@ class Settings:
     notes: tuple[str, ...] = ()
 
 
-def managed_settings_files(platform: str = sys.platform) -> list[Path]:
-    """The managed settings files in merge order, or [] on a platform with no documented path."""
+def managed_settings_files(
+    platform: str = sys.platform, root: Path | None = None
+) -> list[Path]:
+    """The managed settings files in merge order: managed-settings.json, then each
+    non-hidden *.json drop-in in managed-settings.d/ by name. [] on a platform with
+    no documented path. `root` replaces the platform's directory: tests only."""
     base = MANAGED_DIRS.get("linux" if platform.startswith("linux") else platform)
-    if not base:
+    if root is None and not base:
         return []
-    root = Path(base)
+    root = root if root is not None else Path(base)
     dropin = root / "managed-settings.d"
     try:
         names = os.listdir(dropin)

@@ -334,6 +334,7 @@ jobs:
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
         .github/source-control-settings.json
+        .github/verify-legacy-fails.json
         .github/actions/log-api-budget/rate-guard.mjs
         .github/actions/log-api-budget/api-budget.bash
         .github/actions/log-api-budget/rate-limits.json

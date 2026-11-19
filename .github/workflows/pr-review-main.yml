@@ -90,6 +90,7 @@ defaults:
     shell: bash
 
 env:
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
   # How old the collect-trusted-text job's read may be when a leg takes it
   # (take-shared-text.sh): past it the leg reads its own. It covers the read
   # job's 10-minute timeout and the key leg's start; a later leg that waited
@@ -151,6 +152,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       # The main commit the collect-trusted-text job checks out, and a lane's later
       # leg when the credit gate skipped its key leg, which would have
@@ -764,6 +770,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       # The main commit this leg checked out, under the lane's own output
       # name: a later leg for the lane checks out the same commit.
@@ -1719,6 +1730,11 @@ jobs:
           ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       # The main commit this leg checked out, under the lane's own output
       # name: a later leg for the lane checks out the same commit.
@@ -2642,6 +2658,11 @@ jobs:
           ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@0000000000000000000000000000000000000000 # vCIWVER
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       # The main commit this leg checked out, under the lane's own output
       # name, as the earlier legs record it; no later leg reads it here.

@@ -23,7 +23,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_settings as ms
-from tests import REPO_SETTINGS
+from tests import REPO_SETTINGS, REPO_SETTINGS_FILE
 
 SCRIPTS = pathlib.Path(__file__).resolve().parent.parent
 PLUGIN = "source-control@melodic-software"
@@ -146,6 +146,95 @@ class ReadsOnlyTheOperatorsSettings(unittest.TestCase):
             ms.managed_settings_files = managed
         self.assertEqual(got, ms.Settings(notes=got.notes))
         self.assertIn("every trust and cost setting reads unset", got.notes[0])
+
+
+class ReadsTheCiDropIn(unittest.TestCase):
+    """The CI shape: a checkout run by path, with the default branch's
+    settings file written as a managed-settings.d drop-in."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.tmp.name)
+        self.managed = self.root / "etc/claude-code"
+        self.repo = REPO_SETTINGS_FILE
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_drop_ins_are_read_in_name_order_after_the_base_file(self) -> None:
+        _write(self.managed / "managed-settings.json", {"apiKeyHelper": ""})
+        _write(self.managed / "managed-settings.d/50-source-control.json", {})
+        _write(self.managed / "managed-settings.d/10-other.json", {})
+        _write(self.managed / "managed-settings.d/.hidden.json", {})
+        _write(self.managed / "managed-settings.d/notes.txt", {})
+        self.assertEqual(
+            [p.name for p in ms.managed_settings_files(root=self.managed)],
+            ["managed-settings.json", "10-other.json", "50-source-control.json"],
+        )
+
+    def test_the_repository_file_as_a_drop_in_gives_this_repositorys_values(
+        self,
+    ) -> None:
+        dropin = self.managed / "managed-settings.d/50-source-control.json"
+        dropin.parent.mkdir(parents=True)
+        dropin.write_bytes(self.repo.read_bytes())
+        checkout = self.root / "work/.base/plugins/source-control"
+        _write(checkout / ".claude-plugin/plugin.json", {"name": "source-control"})
+        raw = ms.read_operator_options(
+            ms.resolve_install(checkout), ms.managed_settings_files(root=self.managed)
+        )
+        self.assertEqual(ms.parse(raw), REPO_SETTINGS)
+
+    def test_a_later_drop_in_replaces_an_earlier_value(self) -> None:
+        _write(
+            self.managed / "managed-settings.d/50-source-control.json",
+            _config({"unattended_merge_owners": ["a"]}),
+        )
+        _write(
+            self.managed / "managed-settings.d/60-later.json",
+            _config({"unattended_merge_owners": ["b"]}),
+        )
+        checkout = self.root / "co"
+        _write(checkout / ".claude-plugin/plugin.json", {"name": "source-control"})
+        raw = ms.read_operator_options(
+            ms.resolve_install(checkout), ms.managed_settings_files(root=self.managed)
+        )
+        self.assertEqual(raw, {"unattended_merge_owners": ["b"]})
+
+    def test_the_ci_shape_ignores_the_environment_and_the_checkout(self) -> None:
+        dropin = self.managed / "managed-settings.d/50-source-control.json"
+        dropin.parent.mkdir(parents=True)
+        dropin.write_bytes(self.repo.read_bytes())
+        work = self.root / "work"
+        wide = _config({"unattended_merge_owners": ["attacker"]})
+        _write(work / ".claude/settings.json", wide)
+        _write(work / ".github/source-control-settings.json", wide)
+        code = (
+            "import json, pathlib, babysit_merge_settings as s\n"
+            f"root = pathlib.Path({str(self.managed)!r})\n"
+            "s.managed_settings_files = lambda platform=None: "
+            "s.__dict__['_files'](root=root)\n"
+            "print(json.dumps(s.as_json(s.load())))\n"
+        )
+        env = dict(
+            os.environ,
+            CLAUDE_PLUGIN_OPTION_UNATTENDED_MERGE_OWNERS="attacker",
+            CLAUDE_CONFIG_DIR=str(work / ".claude"),
+            HOME=str(work),
+        )
+        prelude = (
+            f"import sys; sys.path.insert(0, {str(SCRIPTS)!r})\n"
+            "import babysit_merge_settings as s; s._files = s.managed_settings_files\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-I", "-c", prelude + code],
+            cwd=work,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(json.loads(out), ms.as_json(REPO_SETTINGS))
 
 
 class APullRequestCannotWidenASetting(unittest.TestCase):
