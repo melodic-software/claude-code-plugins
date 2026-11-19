@@ -4463,11 +4463,13 @@ GENERIC_FAILURE_RE = re.compile(
 CONSEQUENCE_RE = re.compile(
     r"#\d+: pr-verify has not passed this head; .*"
     r"|Cannot verify the merge group's managed files \(\d+ problem\(s\) above\)\."
-    r"|(?:Hygiene check \S+ finished with outcome: failure\. Last lines of its "
-    r"output:\s+(?:::error::)?)?The queued pull request could not be resolved; "
-    r"refusing to pass the .*",
-    re.DOTALL,
+    r"|The queued pull request could not be resolved; refusing to pass the .*"
 )
+HYGIENE_HEADLINE_RE = re.compile(
+    r"Hygiene check \S+ finished with outcome: \w+\. (?:Last lines of its "
+    r"output:|This gate runs as a composite action;[^\n]*:)\s*"
+)
+LINE_WRAPPER_RE = re.compile(r"^(?:::error::|[\w./-]+:(?:\d+:)? )+")
 INFRA_CAUSE_LINES = {
     "rate-limit": re.compile(
         rf"{RATE_LIMIT_ANNOTATION_RE.pattern}|\bAPI rate limit exceeded\b"
@@ -4490,8 +4492,17 @@ DEFAULT_RESET = timedelta(hours=1)
 PASSING_JOB_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 
 
+def _diagnostic_lines(message: str) -> list[str]:
+    """A failure annotation's lines, each judged alone: one annotation can
+    quote a check's output, a real failure beside an infra line. Wrappers
+    (`HYGIENE_HEADLINE_RE`, `LINE_WRAPPER_RE`) are dropped."""
+    body = message[m.end():] if (m := HYGIENE_HEADLINE_RE.match(message)) else message
+    lines = [LINE_WRAPPER_RE.sub("", line.strip(), count=1) for line in body.splitlines()]
+    return [line for line in lines if line] or [message]
+
+
 def _failure_line(message: str) -> dict[str, Any]:
-    """One failure annotation: the infra causes it names, whether it is a
+    """One diagnostic line: the infra causes it names, whether it is a
     generic or consequence line, and the reset times a hold line names."""
     return {
         "causes": [c for c, rx in INFRA_CAUSE_LINES.items() if rx.search(message)],
@@ -4540,9 +4551,10 @@ def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
                     "lines": None
                     if len(annotations) >= 100
                     else [
-                        _failure_line(str(a.get("message") or ""))
+                        _failure_line(line)
                         for a in map(json_object, annotations)
                         if a.get("annotation_level") == "failure"
+                        for line in _diagnostic_lines(str(a.get("message") or ""))
                     ],
                 }
             )
@@ -4553,30 +4565,28 @@ def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 def _job_causes(
     job: dict[str, Any], causes: tuple[str, ...]
-) -> tuple[set[str], list[str]] | None:
-    """The `causes` a failed job's lines name and their reset times, or None
-    when the job failed on its own: a line that is neither one of `causes`,
-    generic nor a consequence, no cause line at all (the gate alone may fail
-    on generic lines, as it does when a lane failed on a cause), or lines
-    that could not all be read."""
+) -> dict[str, list[str]] | None:
+    """Each of `causes` a failed job's lines name, with the reset times its
+    lines name, or None when the job failed on its own: a line that is
+    neither one of `causes`, generic nor a consequence, no cause line at all
+    (the gate alone may fail on generic lines, as it does when a lane failed
+    on a cause), or lines that could not all be read."""
     lines = job.get("lines")
     if not is_json_array(lines):
         return None
-    named: set[str] = set()
-    stamps: list[str] = []
+    named: dict[str, list[str]] = {}
     for line in map(json_object, lines):
         hit = set(json_array(line.get("causes"))) & set(causes)
-        if hit:
-            named |= hit
-            stamps += [str(s) for s in json_array(line.get("stamps"))]
-        elif not (line.get("generic") or line.get("consequence")):
+        for cause in hit:
+            named.setdefault(cause, []).extend(str(s) for s in json_array(line.get("stamps")))
+        if not (hit or line.get("generic") or line.get("consequence")):
             return None
     if not named and not (
         job.get("name") == merge_policy.GATE_CHECK
         and all(json_object(line).get("generic") for line in lines)
     ):
         return None
-    return named, stamps
+    return named
 
 
 def _red_on_main(
@@ -4634,9 +4644,11 @@ def _infra_removal(
     entry (merge-group commit) whose failed run among `runs` ended within
     `REMOVAL_RUN_WINDOW` of it. Each failed job of that entry's failed runs
     must have failed on `causes` alone (`_job_causes`), or, with `MAIN_RED`
-    among them, be a job main failed at the time too (`_red_on_main`). A
-    waiting cause (`WAITING_CAUSES`) excuses it only once its reset passed.
-    Any doubt counts it."""
+    among them, be a job other than the gate that main failed at the time
+    too (`_red_on_main`): on main the gate fails whenever any job does. A
+    waiting cause (`WAITING_CAUSES`) excuses it only once its reset passed:
+    the latest its lines name, or `DEFAULT_RESET` after the removal when
+    they name none. Any doubt counts it."""
     removed = parse_github_timestamp(at)
     if removed is None:
         return None
@@ -4653,29 +4665,31 @@ def _infra_removal(
             near.add(run.get("head_sha"))
     if len(near) != 1 or not next(iter(near)):
         return None
-    found: set[str] = set()
-    stamps: list[str] = []
+    found: dict[str, list[str]] = {}
     for run in (r for r in runs if r.get("head_sha") in near):
         jobs = _entry_jobs(repo, run)
         if jobs is None:
             return None
         for job in map(json_object, jobs):
+            name = str(job.get("name"))
             named = _job_causes(job, causes)
-            if named is not None:
-                found |= named[0]
-                stamps += named[1]
-            elif MAIN_RED in causes and _red_on_main(
-                repo, branch, run, str(job.get("name")), removed
+            if named is None and not (
+                MAIN_RED in causes
+                and name != merge_policy.GATE_CHECK
+                and _red_on_main(repo, branch, run, name, removed)
             ):
-                found.add(MAIN_RED)
-            else:
                 return None
+            for cause, stamps in ({MAIN_RED: []} if named is None else named).items():
+                found.setdefault(cause, []).extend(stamps)
     if not found:
         return None
-    if found & WAITING_CAUSES:
-        named_resets = [t for t in map(parse_github_timestamp, stamps) if t]
-        if _now() < (max(named_resets) if named_resets else removed + DEFAULT_RESET):
-            return None
+    resets = [
+        max(filter(None, map(parse_github_timestamp, stamps)), default=removed + DEFAULT_RESET)
+        for cause, stamps in found.items()
+        if cause in WAITING_CAUSES
+    ]
+    if resets and _now() < max(resets):
+        return None
     return sorted(found)
 
 

@@ -1546,6 +1546,52 @@ class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
         ]
         self.assert_counted()
 
+    def _hygiene_tail(self, *tail: str) -> None:
+        self.jobs[9].append(_job(3, "Check Plugins"))
+        self.annotations |= {
+            2: KILL_SWITCH_GATE,
+            3: [
+                EXIT,
+                _annotation(
+                    "failure",
+                    "Hygiene check generated-files finished with outcome: failure. "
+                    "Last lines of its output:\n" + "\n".join(tail) + "\n",
+                ),
+            ],
+        }
+
+    def test_a_real_failure_quoted_beside_an_infra_line_is_counted(self) -> None:
+        self._hygiene_tail(
+            "AssertionError: incorrect generated files",
+            "gh: API rate limit exceeded for installation.",
+        )
+        self.assert_counted()
+
+    def test_a_quoted_tail_of_infra_lines_alone_is_not_counted(self) -> None:
+        self._hygiene_tail(
+            "::error::gh: API rate limit exceeded for installation.",
+            "Process completed with exit code 1.",
+        )
+        self.assert_excused("kill-switch", "rate-limit")
+
+    def _stamped_rate_limit_beside_unreadable_verify(self) -> None:
+        self.jobs[9].append(_job(3, "Check Plugins"))
+        self.annotations[3] = RATE_LIMITED_PLUGINS
+
+    def test_an_unstamped_waiting_cause_waits_the_default_beside_a_named_reset(
+        self,
+    ) -> None:
+        self._stamped_rate_limit_beside_unreadable_verify()
+        self.now = merge.parse_github_timestamp("2026-11-19T08:00:00Z")
+        self.assert_counted()
+
+    def test_mixed_waiting_causes_are_not_counted_once_both_resets_pass(
+        self,
+    ) -> None:
+        self._stamped_rate_limit_beside_unreadable_verify()
+        self.now = merge.parse_github_timestamp("2026-11-19T09:00:00Z")
+        self.assert_excused("rate-limit", "read-floor", "verify-unreadable")
+
     def test_a_cause_the_config_leaves_out_is_counted(self) -> None:
         self.annotations[2] = KILL_SWITCH_GATE
         self.assert_counted(causes=("rate-limit", "read-floor"))
@@ -1574,6 +1620,12 @@ class InfraQueueRemovalsAreNotCounted(unittest.TestCase):
     def test_a_job_main_failed_at_the_same_time_is_not_counted(self) -> None:
         self._main("failure")
         self.assert_excused("main-red")
+
+    def test_the_gate_s_own_refusal_while_main_is_red_is_counted(self) -> None:
+        self._main("failure")
+        self.jobs[9] = [_job(2, GATE)]
+        self.annotations[2] = [EXIT, UNREADABLE_GATE[2]]
+        self.assert_counted()
 
     def test_a_job_main_passed_at_the_time_is_counted(self) -> None:
         self._main("success")
@@ -1692,7 +1744,7 @@ class AServerErrorHoldsWordingLeavesTheGateVerdictAsItWas(unittest.TestCase):
             ],
         }
         named = merge._job_causes(job, ("rate-limit",))
-        return max(named[1], default="") if named else None
+        return max(named["rate-limit"], default="") if named else None
 
     def test_each_guard_s_old_and_new_wording_give_the_same_verdict(self) -> None:
         for producer, (old, new) in WORDINGS.items():
