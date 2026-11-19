@@ -455,7 +455,16 @@ SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (optional:)?")
 
 
 def _check_shape3_spec(pred: dict, hops: int) -> None:
+    by_id = {item["id"]: item for item in pred.get("injections", [])}
     for item in pred.get("injections", []):
+        held = by_id.get(item.get("reuse", ""), {})
+        if "reuse" in item and not (
+            held.get("section") == item["section"] in ID_PREFIX
+            and int((held.get("retire") or {}).get("hop", hops + 1)) < int(item["hop"])
+        ):
+            raise ValueError(
+                f"injection {item['id']!r}: reuse names an injection in the same id section retired before hop {item['hop']}"
+            )
         if item["section"] not in SHAPE3_SECTIONS:
             raise ValueError(
                 f"injection {item['id']!r}: section {item['section']!r} is not a shape-3 target {SHAPE3_SECTIONS}"
@@ -547,7 +556,8 @@ def _fill_3(
         firsts, rest = _injection_items(pred, hop, section)
 
         def injected(item: dict) -> str:
-            live["refs"][item["id"]] = ref = new_id(prefix)
+            ref = live["refs"][item["reuse"]] if "reuse" in item else new_id(prefix)
+            live["refs"][item["id"]] = ref
             return f"- {ref} {item['text']}"
 
         head = [injected(item) for item in firsts]

@@ -58,7 +58,9 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   `seed_history` refuses a case where they disagree. `shape: 3` builds hot files and hop files
   through `save_point.py fill` instead of the default shape 2; its injections target
   `amendment`, `trail`, `rules`, `open-questions` or `decisions`, and one with
-  `retire: {hop, reason}` is retired at that hop through `fill`'s `retire` list.
+  `retire: {hop, reason}` is retired at that hop through `fill`'s `retire` list. An id-section
+  injection with `reuse: <injection id>` takes the id that injection held, which must be in the
+  same section and retired at an earlier hop.
 - `seed.reads.pattern`: overrides the size-based read pattern (`whole`, `paged`, `partial`,
   `partial+constraints`).
 - `seed.history`: `after_reads` (the assistant turn after the reads) and `work` turns, in

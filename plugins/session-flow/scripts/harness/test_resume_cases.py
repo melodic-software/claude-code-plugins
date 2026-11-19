@@ -600,6 +600,51 @@ def test_a_hop_stated_to_fail_that_validates_stops_the_build(tmp_path):
         resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
 
 
+def _reuse_spec(retire_hop: int) -> dict:
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
+    pred = spec["seed"]["predecessor"]
+    pred["injections"] = [
+        {
+            "id": "old-rule",
+            "hop": 1,
+            "section": "rules",
+            "text": "Export files are written in UTC dates only.",
+            "retire": {
+                "hop": retire_hop,
+                "reason": "dropped at hop 2: dates follow the ledger's zone",
+            },
+        },
+        {
+            "id": "new-rule",
+            "hop": 3,
+            "section": "rules",
+            "text": "Refund rows sort after the sale they reverse.",
+            "reuse": "old-rule",
+        },
+    ]
+    pred["final"] = {}
+    return spec
+
+
+def test_a_reuse_injection_takes_the_id_a_retired_injection_held(tmp_path):
+    chain = resume_cases.build_predecessor_chain(_reuse_spec(2), tmp_path / "repo")
+    hop_file = next((chain[0].parent / "archive").glob("*/h2-*.md"))
+    old = re.search(
+        r"^- (\[R\d+\]) Export files are written in UTC dates only\.$",
+        hop_file.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert old, "the retired rule is listed in hop 2's file"
+    rules = sections(chain[-1])["Current rules"]
+    assert f"- {old.group(1)} Refund rows sort after the sale they reverse." in rules
+    assert "UTC dates only" not in rules
+
+
+def test_a_reuse_of_an_entry_not_yet_retired_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="reuse"):
+        resume_cases.build_predecessor_chain(_reuse_spec(4), tmp_path / "repo")
+
+
 def test_a_steered_build_is_deterministic(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-superseded-rule")
     repo = tmp_path / "repo"
