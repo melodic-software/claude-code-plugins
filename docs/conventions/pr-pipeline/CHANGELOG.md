@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.15.6] - 2026-11-19
+
+### Changed
+
+- The legacy FAILs file is `.github/verify-legacy-fails.json`, which `BABYSIT_VERIFY_LEGACY_FAILS` names for the verdict reader, instead of a file beside the reader.
+
 ## [10.15.5] - 2026-11-19
 
 ### Fixed
