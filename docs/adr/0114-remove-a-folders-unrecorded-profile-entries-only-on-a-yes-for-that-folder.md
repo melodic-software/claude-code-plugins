@@ -24,7 +24,12 @@ gave for the recorded files.
    has asked already (the `/plugin-profile` picker, the profile skill) passes
    `--remove-unrecorded <file>` once per yes and `--keep-unrecorded <file>` once per no, which is
    reported as kept at that answer. A named file the preview did not ask about stops the reset
-   before anything is written, and the refusal names the files it does ask about.
+   before anything is written, and the refusal names the files it does ask about. The same
+   per-file question serves every file reset will not write under the single yes: a moved
+   repository's file, and a file whose earlier reset was cut off and that changed since (ADR 0113,
+   decision 6), answered with `--finish-cut-off <file>` and `--keep-cut-off <file>`. Each question
+   in the `--json` preview carries its own answers, a label and a flag for yes and for no, so a
+   caller asks with the tool's labels and passes the tool's flags.
 3. **`--yes` is the single yes only.** It restores every recorded file and skips each folder without
    a record, saying why.
 4. **User settings are never offered.** User `settings.json` without a record is left alone, and a

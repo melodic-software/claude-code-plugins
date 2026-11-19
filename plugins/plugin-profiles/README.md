@@ -230,7 +230,12 @@ it. A record reset finds in a home that cannot hold it, such as a repository's `
 settings, is listed as ignored and never written from. Reset never writes a
 committed `.claude/settings.json`. Each file is replaced whole, so a reset stopped part way
 leaves each file restored or untouched and the next reset finishes the rest; that holds for a
-process stopped part way, not for a power loss. A one-session file names each installed plugin of
+process stopped part way, not for a power loss. When a file was changed by hand after such a stop,
+reset cannot tell whether the stopped reset wrote it: it keeps the record and asks a yes for that
+file, default no (`--finish-cut-off <file>`, `--keep-cut-off <file>`); the yes puts back only the
+entries still at the profile's values and leaves every entry changed by hand. A file with no entry
+left at the profile's value is left as it is and its record removed. A repository moved more than
+once is one row, folding every record of its file. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's
 plugins; a later `/plugin` toggle of such a plugin reaches only sessions started after it.
 

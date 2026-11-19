@@ -41,11 +41,26 @@ listed the repositories that hold records.
    for it. When a profile was applied at the new place since, that file has two records and gets
    one row and one write: each entry goes back to the older record's before-value, else the
    newer's, and both records are removed after the write, the newer first, so a reset cut off
-   between the two leaves the older record and the next reset finishes. A gone subfolder or
-   linked worktree of a repository still there is only kept.
+   between the two leaves the older record and the next reset finishes. A repository moved more
+   than once is one row from its oldest record, folding every later record oldest first. A gone
+   subfolder or linked worktree of a repository still there is only kept.
 5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
    previewed in one process and writes in another passes it, and the write refuses, writing
    nothing, when what it would write differs from that preview.
+6. **A reset cut off part way.** Before each file's write its record is saved as `restoring`, with
+   the hash of the text it is about to write and the hash of the file it read. The next reset
+   finishes a file holding the written text, and restores one still holding the text read or every
+   entry the profile wrote. A file changed since in any other way is ambiguous: "the write finished,
+   then an entry was edited" and "the write never happened, then entries were put back by hand"
+   look the same. When no recorded entry still holds the value the profile wrote, nothing is left
+   to put back: the file is left as it is and its record removed. Otherwise reset keeps the record,
+   writes nothing by itself and asks a yes for that file through the per-file question of
+   [ADR 0114](0114-remove-a-folders-unrecorded-profile-entries-only-on-a-yes-for-that-folder.md),
+   default no: the yes puts back only the entries still at the profile's values, never one changed
+   by hand, then removes the record; a no, `--yes` alone or nobody to answer keeps the file and
+   its record, and later resets list it again. Owner decision of 2026-11-19 (Q10); it replaces the
+   plan's rule that reset deletes such a record without writing, which left the entries still at
+   the profile's values with no way back when the write had never happened.
 
 ## Considered options
 
@@ -60,6 +75,9 @@ listed the repositories that hold records.
   would race on one file, and no lock exists.
 - **Walk a folder tree for `.git/plugin-profiles`.** Rejected: the tool has no general root, and a
   walk of a home folder is slow.
+- **Delete a cut-off reset's record when the file changed since, writing nothing.** Rejected
+  (owner, Q10): when the earlier write never happened, the entries still at the profile's values
+  lose their only way back.
 - **Delete the record of a folder that cannot be found.** Rejected (owner, P4): a moved repository
   and a gone one look the same, and the record is the only path back.
 

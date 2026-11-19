@@ -80,8 +80,8 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   `lines` as printed. Files in `unchangedSinceReset` are ones an earlier reset put back and nobody
   changed since: reset leaves them, so ask nothing about them. When `question` is set, ask it as
   worded: one yes covers the files a profile record covers, and a no ends the reset. Then ask each `folders[].ask.question` on its own: that row's
-  `ask.file` changes only on a yes for it. Run `reset --yes --json --preview-id <previewId>` with
-  `--remove-unrecorded <ask.file>` for each yes and `--keep-unrecorded <ask.file>` for each no, the
+  `ask.file` changes only on a yes for it, and no is the default. Run `reset --yes --json --preview-id <previewId>` with
+  `<ask.yes.flag> <ask.file>` for each yes and `<ask.no.flag> <ask.file>` for each no, the
   file exactly as `ask.file` names it. Relay its `lines`. When it refuses because the preview changed, nothing was written:
   start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
   **Reset** do the same and reload the session.
