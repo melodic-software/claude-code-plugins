@@ -41,7 +41,7 @@ ad-hoc loop. A skip entry that matches nothing is reported, never silently ignor
 
 ```shell
 # Dry-run the whole ghq tree, skipping one repo (the agent shows the plan first):
-ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
+ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip <owner>/<repo>
 ```
 
 ### Multi-repo audits
