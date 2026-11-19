@@ -100,6 +100,9 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
 When a message reads as the person being back, run `away.py end`, show the report once leading
 with Needs you, then run `away.py deliver`. Who counts as the person is in rules.md "Coming back".
+`deliver` removes the absence's state and prints `report=<path>`, where the report stays: a report
+kept beside the state moves to the plugin data's `away-reports/` folder, so give the person that
+path when it differs from the one shown.
 
 ## Next
 
