@@ -493,11 +493,11 @@ export function part(state: State): Part {
   let over = ''
   if (on) {
     const bc = scr === 'blue' ? '#3354f2' : scr === 'tape' ? '#a88aa0' : '#5a68d0'
-    const ba = ga * (L ? 0.5 : 1)
+    const bloom = ga * (L ? 0.5 : 1)
     over +=
       `<g class="tv-br" opacity="1">` +
-      `<rect x="${GX + 2}" y="${GY + 2}" width="${GW - 4}" height="${GH - 4}" rx="9" fill="${bc}"${o(0.26 * ba)} filter="url(#tv-bf)"/>` +
-      `<rect x="${GX + 6}" y="${GY + 4}" width="${GW - 8}" height="${GH - 10}" rx="9" fill="${bc}"${o(0.12 * ba)} filter="url(#tv-bw)"/>` +
+      `<rect x="${GX + 2}" y="${GY + 2}" width="${GW - 4}" height="${GH - 4}" rx="9" fill="${bc}"${o(0.26 * bloom)} filter="url(#tv-bf)"/>` +
+      `<rect x="${GX + 6}" y="${GY + 4}" width="${GW - 8}" height="${GH - 10}" rx="9" fill="${bc}"${o(0.12 * bloom)} filter="url(#tv-bw)"/>` +
       `</g>`
   }
   if (state.lava) over += E(1376, 528, 15, 32, '#a85cff', `${o(0.24 * (L ? 0.6 : 1))} filter="url(#tv-bf)"`)
