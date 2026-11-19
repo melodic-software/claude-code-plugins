@@ -119,9 +119,13 @@ docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/docs-hygiene/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/repo-hygiene/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh
@@ -938,6 +942,8 @@ lib/worktree-root-legacy.sh plugins/source-control/scripts/worktree-root-legacy.
 lib/hook-test-sink.sh plugins/autonomy/hooks/hook-test-sink.sh
 lib/hook-test-sink.sh plugins/context-usage/hooks/hook-test-sink.sh
 lib/hook-test-sink.sh plugins/desktop-notification/hooks/hook-test-sink.sh
+lib/hook-test-helpers.sh plugins/session-telemetry/hooks/session-telemetry-test-helpers.sh
+lib/hook-test-helpers.sh plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh
 lib/plugin_cache_versions.py plugins/harness-ops/lib/plugin_cache_versions.py
 lib/plugin_cache_versions.py plugins/disk-hygiene/lib/plugin_cache_versions.py
 lib/media-render/media_capture.py plugins/explainer-video/scripts/media_capture.py

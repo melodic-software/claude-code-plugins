@@ -322,6 +322,25 @@ reads the file itself, through a script where the key names one below.
   name whose description sanitizes to nothing (`_`) keeps the name verbatim too. The derivation is
   many-to-one, though: `feat/login` and `feature/login` both give `feat/login`, so while one is
   checked out in a worktree the other exits 4, naming that worktree.
+- `linkage_gate_uses_pattern`: the POSIX ERE that turns on the PR-body linkage hooks
+  (`hooks/pr-body-linkage-gate.sh`, `hooks/pr-linkage-mcp-gate.sh`): each runs only in a
+  repository where a `.github/workflows/*.yml` or `*.yaml` file matches it, usually the `uses:`
+  line of the step that checks PR bodies in CI. Resolution, lowest first: unset, which gates no
+  repository; the `linkage_gate_uses_pattern` `userConfig` value; the key in
+  `docs/conventions/source-control.yaml` in the session's working tree, read by
+  `hooks/pr-linkage-scope.sh` with the shared parser. A YAML the parser rejects, or a pattern bash
+  cannot compile, turns both hooks off with a note on stderr.
+- `runner_policy_paths`, `org_settings_repo` and `review_lane_producer_repo`: where
+  `/source-control:babysit-prs` routes a CI finding. `runner_policy_paths` lists the
+  repository-relative files that record the approved runner labels; `org_settings_repo` is the
+  `owner/repo` that manages organization settings as code; `review_lane_producer_repo` is the
+  `owner/repo` whose reusable workflows the CI review lanes call. No `userConfig` option. Read from
+  the target repository's tracked `docs/conventions/source-control.yaml` on its default branch, the
+  same read as the [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys).
+  Unset, the routing names the repository's own CI docs, the setting and its owner, or the
+  repository's own caller workflows, as
+  [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
+  [safety.md](../skills/babysit-prs/reference/safety.md) say.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 

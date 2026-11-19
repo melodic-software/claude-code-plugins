@@ -52,7 +52,7 @@ No diff, no failing test, no stack trace, no comment marker. It reads resting co
 looks for what is wrong in it.
 
 ```text
-/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended]
+/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]
 ```
 
 | Flag | Effect |
@@ -63,6 +63,7 @@ looks for what is wrong in it.
 | `--track` | File the verified findings as raw intake through the `work-items` plugin |
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
 | `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix. A run is also unattended when `CLAUDE_CODE_REMOTE` is set, under `claude -p`, or in an autonomous loop |
+| `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip` | Scan several repositories, one pass each, per the shipped `reference/target-scope.md`. Lanes, cursor, reports and filing stay per repository |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
 or as a daily routine. Four properties matter before you rely on it:

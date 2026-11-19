@@ -1,6 +1,6 @@
 ---
 description: "Deduplicate repeated markdown (rule files, skill bodies, ADRs, docs) into one named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept recurs across files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching several files. Below the Rule of Three it offers only non-abstracting remedies and refuses a new SSOT artifact."
-argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]"
+argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Deduplicate repeated prose into one named source of truth
 ---
 
-**Arguments.** `[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]`. Full form: [identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--inline] [--parallel-waves] [--commit-mode=<per-wave|single|none>]
+**Arguments.** `[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--repo <repo> ...]`. Full form: [identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--inline] [--parallel-waves] [--commit-mode=<per-wave|single|none>] [--repo <repo> ...|--repos-from <file|->|--owner <owner>|--fleet] [--skip <entry> ...]
 
 # Extract SSOT
 
@@ -50,6 +50,8 @@ Every extraction decision must be grounded in **direct evidence captured this se
 - **Mixed clusters** spanning markdown + code + config. Pick the canonical owner (usually code/schema where runtime authority lives), then each file class cites in its native form. This skill handles the markdown half; the code/config half follows that file class's own conventions.
 
 The 6-test extraction gate (Rule of Three, namable, stable, self-contained, bounded, one level deep) generalizes to all file classes, and `context/decision-framework.md` annotates each test with code/config equivalents. The how (citation contract, rename sweep, encapsulation rule) is markdown-specific.
+
+**Across repositories.** A target form (`--repo <repo>` and the others) widens the scope to those repositories' tracked markdown, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories". `identify` surveys each repository in its own subagent, then rosters a unit found in several repositories as one candidate listing each repository, counting its instances across all of them. That is the strongest SSOT case: the repository that owns the fact keeps it, and each other repository replaces its copy with a pointer at the owner, in its own pull request, after the owner's lands ("Writes stay per repository" there). `plan` names the owner: the repository whose code or config the fact describes, else the one the user picks; it never guesses. A pointer across repositories cannot use a relative path, so it links the owner's file on its default branch, with the heading anchor. Whole files copied between repositories are `/coupling:reduce`'s to measure: when the coupling plugin is enabled, invoke that skill for them; otherwise list them in the report as not measured. Each repository's working notes hold only the candidates that repository acts on, each naming the other repositories it shares the candidate with.
 
 Boundary with single-file refactoring: a rename, inline, or extract confined to one file or one recent diff is ordinary editing, not this skill's job. `/docs-hygiene:extract-ssot` handles cross-file markdown deduplication where the repeated unit needs a stable name and cross-file citations. When work touches both, normalize the call sites first, then lift the named unit.
 
@@ -220,7 +222,7 @@ Per-phase checklist: `context/execution-checklist.md`.
 ## What this skill does NOT do
 
 - Decide for the user whether to migrate a specific cluster (advisory; user picks)
-- Modify files outside the repository it runs in
+- Modify files outside the repository it runs in, or, under a target form, edit one repository from another's change: each repository's edits ship in its own worktree and pull request
 - Skip per-phase user diff review
 - Single-file micro-refactoring (rename, inline, extract confined to one file). Ordinary editing
 - Workitem filing. Route to the repo's issue tracker

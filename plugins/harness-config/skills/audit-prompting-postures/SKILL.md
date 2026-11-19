@@ -130,7 +130,8 @@ absence on a component whose purpose clearly needs it becomes a finding. Three s
   (`permissions.deny` / `ask`), hook config registering a PreToolUse matcher over the action, and
   **the script the component delegates the action to**, following the invocation and reading it, since a
   component whose destructive step runs through a script that performs the approval check is gated.
-  Any one of the three is PRESENT, cited by file and rule, or by script and line.
+  Any one of the three is PRESENT, cited by file and rule, or by script and line. For a MISSING
+  P7, the catalog's P7 "Proposal when MISSING" line names who picks the mechanism.
 - **Repo conventions win on wording.** The proposal adapts the guide's substance to the
   component's own voice and the repo's terseness conventions; it never pastes a guide block
   verbatim into a proposal without trimming to what the component needs.
@@ -229,7 +230,10 @@ Then summarize in chat:
 | # | Posture | Component | Verdict | Proposed addition or pointer |
 |---|---------|-----------|---------|------------------------------|
 
-Verdicts are a closed set of four tokens: `MISSING` (finding, with proposed addition as a fenced diff),
+Verdicts are a closed set of four tokens: `MISSING` (finding, with proposed addition as a fenced diff;
+a MISSING P7 instead carries the catalog's P7 "Proposal when MISSING": the named
+`/corrections:codify "<the rule>"` call when that skill is available, otherwise the strongest
+mechanism as a fenced diff of the file that would carry it, marked unproven),
 `PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a Phase D verifier
 refuted it, always kept as a row, never dropped, never a proposal to apply). Two markers are
 orthogonal and ride **alongside** a verdict, never in place of one: `wording-unverified` (a subpage

@@ -68,7 +68,7 @@ and show the report once and deliver it.
 
 Then carry out every accepted item: unchanged ones, moved ones in their new form, and exceptions in
 the person's words. While the absence stays active, mark each accepted Needs you item `Accepted:` in
-the report and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" refresh --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"`.
+the report; the Stop hook keeps the report's script-owned blocks current.
 
 ## What a bare accept never approves
 

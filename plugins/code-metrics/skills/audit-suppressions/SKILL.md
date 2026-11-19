@@ -1,6 +1,6 @@
 ---
 description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings; and the directives that switch off the evidence a quality bar relies on: coverage exclusions (istanbul, c8, coverage.py), mutation-testing exclusions (Stryker), security-scanner suppressions (bandit nosec, nosemgrep, gitleaks allow). Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit complexity."
-argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...]"
+argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh:*)", "Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py:*)", "Bash(git branch --show-current:*)"]
@@ -49,6 +49,12 @@ span or a fenced code block in a Markdown file is not a suppression.
 The change scope reads committed lines only: a suppression in an uncommitted edit is not in it until
 it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and lane
 opt-outs apply as in the other audits.
+
+A target form (`--repo <repo>` and the others) runs the script once per repository, as
+`${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says, and never passes the form to the
+script. Each repository's `suppressions.correctness_rules` marks its own rows, and a `--findings`
+run writes one findings file per repository, under that repository's memory root and branch; a
+`--memory-dir` given with a target form must be relative, and is read from each root.
 
 Present the markdown report as printed: the scope, the counts, the correctness list with the layer
 that set it, then one row per suppression (correctness rules first, then lines without a reason),

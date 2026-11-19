@@ -57,6 +57,7 @@ runs:
       shell: bash
       env:
         SCAN_PATHS: ${{ inputs.otel-file }}
+        SCAN_TELEMETRY: "true"
         SCAN_WITHHOLDS: the telemetry is left out and the transcript still uploads
       run: node "$GITHUB_ACTION_PATH/../scan-upload/scan-upload.mjs"
 

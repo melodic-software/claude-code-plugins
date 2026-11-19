@@ -110,6 +110,9 @@ git -C "$REPO" init -q 2>/dev/null
 git -C "$REPO" remote add origin https://github.com/melodic-software/claude-code-plugins.git 2>/dev/null
 printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0\n' \
   >"$REPO/.github/workflows/ci.yml"
+mkdir -p "$REPO/docs/conventions"
+printf "linkage_gate_uses_pattern: '%s'\n" '\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)' \
+  >"$REPO/docs/conventions/source-control.yaml"
 
 GOOD_BODY='Closes #1
 
@@ -185,7 +188,7 @@ budget "bash gate / non-PR gh call" "$BASH_GATE" "$WORK/p-nonpr.json" 7 2
 # A PR command the bash gate reads costs one shfmt parse (lib/hook-utils.sh
 # hook::_bps_shfmt_to): 7 processes and 2 execs (shfmt, jq). Those rows are
 # exact: the parse forks the same processes on every run, so any change is one
-# to argue for. Of the 9 and 3, the parse is 7 and 2; the rest is the gate's own.
+# to argue for (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/README.md#measured-cost).
 exact() { # <label> <hook> <payload> <clones> <execs>
   run_hook "$2" "$3"
   if ((CLONES == $4 && EXECS == $5)); then
@@ -194,8 +197,8 @@ exact() { # <label> <hook> <payload> <clones> <execs>
     fail "$1: $CLONES clone-family calls and $EXECS execve, want exactly $4 and $5"
   fi
 }
-exact "bash gate / compliant body (ALLOW)" "$BASH_GATE" "$WORK/p-allow.json" 9 3
-exact "bash gate / failing body (BLOCK)" "$BASH_GATE" "$WORK/p-block.json" 9 3
+exact "bash gate / compliant body (ALLOW)" "$BASH_GATE" "$WORK/p-allow.json" 10 4
+exact "bash gate / failing body (BLOCK)" "$BASH_GATE" "$WORK/p-block.json" 10 4
 budget "mcp gate / unrelated tool" "$MCP_GATE" "$WORK/p-mcp-other.json" 7 2
 budget "mcp gate / compliant body (ALLOW)" "$MCP_GATE" "$WORK/p-mcp-allow.json" 11 4
 budget "mcp gate / failing body (BLOCK)" "$MCP_GATE" "$WORK/p-mcp-block.json" 11 4
@@ -223,7 +226,9 @@ verdict "mcp gate still allows the compliant body" "$MCP_GATE" "$WORK/p-mcp-allo
 # asserting nothing, and is reported as a failure of THIS suite.
 MUT="$WORK/mut"
 mkdir -p "$MUT"
-cp "$HOOK_DIR"/hook-utils.sh "$HOOK_DIR"/pr-linkage-validator.sh "$MUT/"
+cp "$HOOK_DIR"/hook-utils.sh "$HOOK_DIR"/pr-linkage-validator.sh "$HOOK_DIR"/pr-linkage-scope.sh "$MUT/"
+mkdir -p "$WORK/lib"
+cp "$HOOK_DIR"/../lib/yaml-subset.awk "$WORK/lib/"
 
 # Mutant A — the redirect moved back INSIDE the command substitution. Same
 # program, same output, one extra fork; this is the defect class #3779 named.
