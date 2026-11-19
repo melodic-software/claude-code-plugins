@@ -172,7 +172,7 @@ class ReadsTheCiDropIn(unittest.TestCase):
             ["managed-settings.json", "10-other.json", "50-source-control.json"],
         )
 
-    def test_the_repository_file_as_a_drop_in_gives_this_repositorys_values(
+    def test_the_repository_file_as_a_drop_in_gives_its_values(
         self,
     ) -> None:
         dropin = self.managed / "managed-settings.d/50-source-control.json"
