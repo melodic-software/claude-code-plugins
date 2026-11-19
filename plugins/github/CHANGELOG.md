@@ -3,6 +3,13 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.9] - 2026-11-19
+
+### Changed
+
+- The Actions policy recipe no longer names a third-party linter for workflow YAML; it only says that linting workflow files is out of this plugin's scope.
+- The `routing.yaml` example in the change-routing reference no longer names an infrastructure-as-code tool's directory in its `handoff` instructions.
+
 ## [0.5.8] - 2026-11-18
 
 ### Changed
