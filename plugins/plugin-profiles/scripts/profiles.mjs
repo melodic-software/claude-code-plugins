@@ -99,11 +99,11 @@ import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplac
 import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
-import { replaceFile } from "../lib/atomic-file.mjs";
+import { readText, replaceFile } from "../lib/atomic-file.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
-import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, recordPath, recordText, restoreEdits, restoringRecord, saveRecord } from "../lib/record.mjs";
+import { ABSENT, baseline, deleteRecord, findRecord, holdsEveryEntry, nextRecord, realPath, recordPath, recordText, restoreEdits, restoringRecord, saveRecord, swapRecord } from "../lib/record.mjs";
 import {
   SettingsConflict,
   SettingsError,
@@ -1117,14 +1117,6 @@ async function clear(opts, where, env, io) {
 const resetWrites = (where, file) =>
   realPath(file) === realPath(where.paths.user) || (basename(file) === "settings.local.json" && basename(dirname(file)) === ".claude");
 
-const textOf = (path) => {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-};
-
 /** Every settings file reset can reach, the record homes it read, and how many folders each source named. */
 function machineFiles(where, env) {
   const dataDirs = [where.dataDir, ...otherDataDirs(where)];
@@ -1265,7 +1257,7 @@ function resetOne(row, { chosen, kept }) {
   const changedUnder = (path) => ({ line: `Skipped ${path}: it changed during the reset and is left as the other writer left it; run reset again.`, ok: false });
   const original = f.copies.find((c) => c.path === f.recordPath)?.text ?? null;
   const dropCopies = (planned) => {
-    for (const c of f.copies) if (textOf(c.path) === (c.path === f.recordPath ? planned : c.text)) deleteRecord(c.path);
+    for (const c of f.copies) if (readText(c.path) === (c.path === f.recordPath ? planned : c.text)) deleteRecord(c.path);
   };
   const guarded = (write, line) => {
     try {
@@ -1319,17 +1311,16 @@ function resetOne(row, { chosen, kept }) {
       return restoredElsewhere() ? { ...already, restored: false } : changed;
     }
   }
-  if (textOf(f.recordPath) !== original) {
+  const restoring = recordText(restoringRecord(plan.rec, { restoredHash: target, fromHash: plan.settings.hash }));
+  if (!swapRecord(f.recordPath, original, restoring)) {
     if (!restoredElsewhere()) return { line: `Skipped ${file}: its record changed during the reset; run reset again.`, ok: false };
     dropCopies(original);
     return already;
   }
-  const restoring = recordText(restoringRecord(plan.rec, { restoredHash: target, fromHash: plan.settings.hash }));
-  replaceFile(f.recordPath, restoring);
   try {
     clearWrite(plan, () => dropCopies(restoring));
   } catch (error) {
-    if (textOf(f.recordPath) === restoring) replaceFile(f.recordPath, original);
+    swapRecord(f.recordPath, restoring, original);
     if (!(error instanceof SettingsConflict)) throw error;
     if (!restoredElsewhere()) return changed;
     dropCopies(original);

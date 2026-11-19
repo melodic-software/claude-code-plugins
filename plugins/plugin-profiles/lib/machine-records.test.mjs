@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { readdirSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { listRecords, machineSettingsFiles, readPointers, sessionFolders, writePointer } from "./machine-records.mjs";
-import { recordPath } from "./record.mjs";
+import { recordPath, swapRecord } from "./record.mjs";
 import { knownFolders } from "./usage.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
@@ -95,6 +95,17 @@ test("#17354: ~/.claude.json is read tolerantly: a missing file or a missing or 
   for (const text of ["{", "{}", JSON.stringify({ projects: ["/a"] }), JSON.stringify({ projects: "/a" }), JSON.stringify({ projects: null })]) {
     assert.deepEqual(knownFolders("/x", read(text)), [], text);
   }
+});
+
+test("#17354: a record is swapped only while it still holds what reset read, so an apply that saved one first keeps it", () => {
+  const dir = tempDir();
+  const path = join(dir, "records", "r.json");
+  writeTree(dir, { "records/r.json": "applied by another terminal\n" });
+  assert.equal(swapRecord(path, "read by reset\n", "restoring\n"), false);
+  assert.equal(readFileSync(path, "utf8"), "applied by another terminal\n");
+  assert.deepEqual(readdirSync(join(dir, "records")), ["r.json"], "no temp file left behind");
+  assert.equal(swapRecord(path, "applied by another terminal\n", "restoring\n"), true);
+  assert.equal(readFileSync(path, "utf8"), "restoring\n");
 });
 
 test("#17354: session records give the folder each one-session terminal started in", () => {

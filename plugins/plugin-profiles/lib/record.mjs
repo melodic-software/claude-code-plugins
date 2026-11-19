@@ -19,7 +19,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { removeFile, replaceFile } from "./atomic-file.mjs";
+import { readText, removeFile, replaceFile } from "./atomic-file.mjs";
 
 export const SCHEMA = 1;
 export const ABSENT = "absent";
@@ -70,6 +70,23 @@ export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
 export const saveRecord = (path, record) => replaceFile(path, recordText(record));
 export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });
 export const deleteRecord = (path) => removeFile(path);
+
+class RecordChanged extends Error {}
+
+/** Replaces a record only while it still holds expected, checked just before the rename as the settings hash guard is; false when it changed. */
+export function swapRecord(path, expected, text) {
+  try {
+    replaceFile(path, text, {
+      beforeRename: () => {
+        if (readText(path) !== expected) throw new RecordChanged();
+      },
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof RecordChanged) return false;
+    throw error;
+  }
+}
 
 export function baseline(doc, record) {
   const out = {};

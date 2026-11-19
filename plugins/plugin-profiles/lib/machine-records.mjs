@@ -5,21 +5,14 @@
 // session names (scenario rows of
 // https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { replaceFile } from "./atomic-file.mjs";
+import { readText, replaceFile } from "./atomic-file.mjs";
 import { folderLevel } from "./folder-file.mjs";
 import { realPath } from "./record.mjs";
 import { readSettings } from "./settings-io.mjs";
 
 const pointersDir = (configDir) => join(configDir, "plugin-profiles-state", "repositories");
-const readText = (path) => {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-};
 const parsed = (text) => {
   try {
     return JSON.parse(text);
