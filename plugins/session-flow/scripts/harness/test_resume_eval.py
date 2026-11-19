@@ -76,6 +76,28 @@ def test_history_renders_a_tool_call_and_its_result_as_a_pair():
     assert [r["parentUuid"] for r in records[1:]] == [r["uuid"] for r in records[:-1]]
 
 
+def test_interval_and_case_drop_match_plugin_evals_noise_report():
+    import importlib.util
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "evals/skills/plugin-eval/scripts/noise-report.py"
+    )
+    spec = importlib.util.spec_from_file_location("noise_report", path)
+    noise = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(noise)
+    assert resume_eval.DROP == noise.DROP and resume_eval.Z95 == noise.Z95
+    for values, low, high in (
+        ([0.1, -0.2, 0.05, 0.3], -1.0, 1.0),
+        ([0.9, 1.0, 0.95], -1.0, 1.0),
+        ([1200.0, -400.0, 35.0], float("-inf"), float("inf")),
+    ):
+        assert resume_eval.normal_interval(values, low, high) == noise.normal_interval(
+            values, low, high
+        )
+
+
 def test_child_env_turns_off_commit_signing_for_throwaway_repos():
     env = resume_eval.child_env(
         {"PATH": "/usr/bin", "GIT_CONFIG_COUNT": "1"},

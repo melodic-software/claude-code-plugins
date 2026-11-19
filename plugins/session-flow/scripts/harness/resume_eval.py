@@ -1790,15 +1790,17 @@ def run_jobs(
     return 0
 
 
-def _noise_report():
-    """plugin-eval's noise-report.py, whose normal interval and case-drop share the gate uses."""
-    import importlib.util
+Z95 = 1.959963984540054
+DROP = 1.0 / 3.0
 
-    path = HERE.parents[2] / "evals/skills/plugin-eval/scripts/noise-report.py"
-    spec = importlib.util.spec_from_file_location("noise_report", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+
+def normal_interval(values, low, high):
+    """Mean and 95% normal-approximation interval, clamped to [low, high]: the interval and
+    case-drop share plugin-eval's noise-report.py gates on, held equal by a test."""
+    m = sum(values) / len(values)
+    sd = math.sqrt(sum((v - m) ** 2 for v in values) / (len(values) - 1))
+    half = Z95 * sd / math.sqrt(len(values))
+    return m, max(low, m - half), min(high, m + half)
 
 
 def _mean(values) -> float | None:
@@ -1908,14 +1910,14 @@ def _count(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
-def _paired(nr, deltas: list[float], low: float, high: float) -> str:
+def _paired(deltas: list[float], low: float, high: float) -> str:
     if len(deltas) < 2:
         return f"{_mean(deltas) or 0:+.2f} over {_count(len(deltas), 'case')} (an interval needs 2)"
-    m, lo, hi = nr.normal_interval(deltas, low, high)
+    m, lo, hi = normal_interval(deltas, low, high)
     return f"{m:+.2f}, 95% interval {lo:+.2f} to {hi:+.2f}, paired over {len(deltas)} cases"
 
 
-def _token_change(nr, pairs: list[tuple[float, float]]) -> str:
+def _token_change(pairs: list[tuple[float, float]]) -> str:
     if not pairs:
         return "n/a (a side holds no tokens)"
     deltas = [after - before for before, after in pairs]
@@ -1923,12 +1925,12 @@ def _token_change(nr, pairs: list[tuple[float, float]]) -> str:
     rel = f" ({_mean(deltas) / base:+.1%} of baseline)" if base else ""
     text = f"{_mean(deltas):+.0f}{rel}"
     if len(deltas) >= 2:
-        _, lo, hi = nr.normal_interval(deltas, -math.inf, math.inf)
+        _, lo, hi = normal_interval(deltas, -math.inf, math.inf)
         text += f", 95% interval {lo:+.0f} to {hi:+.0f}"
     return text + f" over {_count(len(deltas), 'case')}"
 
 
-def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
+def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
     """One compared pair: shared-probe result files, accuracy and token changes, and
     each case that drops or goes from passing to failing."""
     (b_label, b_cells), (o_label, o_cells) = base, other
@@ -1960,7 +1962,7 @@ def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
         else:
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
-    lines.say(f"pair {pair}: accuracy change {_paired(nr, deltas, -1.0, 1.0)}")
+    lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)}")
     for metric, read in (
         ("reader m1 to first action", Cell.reader_m1),
         ("whole-run reader m1", Cell.whole_m1),
@@ -1970,9 +1972,9 @@ def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
             for n in names
             if read(b_cells[n]) is not None and read(o_cells[n]) is not None
         ]
-        lines.say(f"pair {pair}: {metric} change {_token_change(nr, pairs)}")
+        lines.say(f"pair {pair}: {metric} change {_token_change(pairs)}")
     for name, (b, o) in scored.items():
-        if b - o >= nr.DROP - 1e-9:
+        if b - o >= DROP - 1e-9:
             lines.say(
                 f"case drop: case {name} in {o_label} fell from {b:.2f} to {o:.2f}, a third or more",
                 fail=True,
@@ -1989,7 +1991,6 @@ def cmd_report(args) -> int:
     counts on every case; with `--baseline`, one shared-probe result pair per compared
     group. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `untagged:` or
     `seed mismatch:` line, 2 on an unknown baseline."""
-    nr = _noise_report()
     groups = load_groups(args.graded)
     if args.baseline and args.baseline not in groups:
         print(
@@ -2092,7 +2093,6 @@ def cmd_report(args) -> int:
             )
         for label in sorted(others):
             _compare(
-                nr,
                 lines,
                 out,
                 (base.label, cells[base.label]),
