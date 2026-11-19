@@ -50,7 +50,8 @@ rate_stop_cause() {
 rate_stop_from() {
   local stop seconds=3600
   stop=$(rate_stop_label)
-  if [[ -z $stop ]] && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$1" 2>/dev/null; then
+  if [[ -z $stop ]] && ! grep -qE 'no call to it before|was not sent: GitHub' "$1" 2>/dev/null &&
+    grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$1" 2>/dev/null; then
     ! grep -qiE 'secondary rate limit|abuse detection' "$1" || seconds=60
     api_budget_stop '*' $(($(date +%s) + seconds)) fallback "$2" 2>/dev/null || :
     stop=$(rate_stop_label)
