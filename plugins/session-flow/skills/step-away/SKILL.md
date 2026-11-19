@@ -100,6 +100,14 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
 When a message reads as the person being back, run `away.py end`, show the report once leading
 with Needs you, then run `away.py deliver`. Who counts as the person is in rules.md "Coming back".
+`deliver` removes the absence's state and prints `report=<path>`, where the report stays: a report
+kept beside the state moves to the plugin data's `away-reports/` folder, so give the person that
+path when it differs from the one shown.
+
+A parked Needs-you item runs only once the person accepts it, by naming it or through
+`/session-flow:go-with-recommendations`; until then, answer the person and wait, ending each
+answer with the open Needs-you items and their `Recommendation:` lines, so that skill finds them in
+your latest message.
 
 ## Next
 
@@ -121,8 +129,8 @@ evidence is checked.
   PermissionRequest hook: fetch
   <https://code.claude.com/docs/en/permission-modes#skip-all-checks-with-bypasspermissions-mode>.
 - Keep the machine awake for the whole absence.
-- With the Bash sandbox on, run every `away.py` call that writes (`start`, `refresh`, `end`,
-  `deliver`) outside the sandbox, and run `start` while the person is here in case that asks.
+- With the Bash sandbox on, run `start`, `end` and `deliver` outside it while the person is here;
+  during the absence the Stop hook keeps the report's script-owned blocks current.
   Pointer: when checking where sandboxed commands may write, fetch
   <https://code.claude.com/docs/en/sandboxing#filesystem-isolation>.
 - A second `/session-flow:step-away` during an active absence reconciles with it and keeps its

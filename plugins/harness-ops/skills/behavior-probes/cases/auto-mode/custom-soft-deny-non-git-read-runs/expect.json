@@ -5,8 +5,8 @@
   "platforms": ["linux"],
   "target": {
     "tool": "Bash",
-    "input_match": "\"command\": \"gh secret list --repo melodic-software/claude-code-plugins\"",
-    "example": { "command": "gh secret list --repo melodic-software/claude-code-plugins" }
+    "input_match": "\"command\": \"gh secret list --repo probe-owner[.]invalid/probe-repo\"",
+    "example": { "command": "gh secret list --repo probe-owner.invalid/probe-repo" }
   },
   "outcome": "ran",
   "match": "gh-stub-marker"

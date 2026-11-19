@@ -8,7 +8,9 @@ set -uo pipefail
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # A test must never reach a real OTEL store: drop any inherited store path, and have the prune
@@ -16,21 +18,13 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
 export CC_OTEL_TEST_ROOT="$TEST_TMPDIR"
 
-# Inline test helpers — self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
+# shellcheck source=../../lib/test-helpers.sh
+source "$SCRIPT_DIR/../../lib/test-helpers.sh"
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
-assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
 # --- Fixture: a hook log root ---
 # The shared file plus one per-session file. Every row is one hook event record
@@ -241,7 +235,7 @@ fi
 assert_eq "missing log handled by guard" "0" "$count"
 
 # --- Test 9: clean action — synthetic mixed-age data + dry-run + real run ---
-CLEAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/clean.sh"
+CLEAN="$SCRIPT_DIR/scripts/clean.sh"
 # clean delegates to the OTEL prune; stub its Collector service calls so no run reaches the host's.
 export CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true CC_OTEL_RUNNING_CMD=false
 clean_test_dir="$TEST_TMPDIR/clean-test"

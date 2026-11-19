@@ -271,7 +271,7 @@ Build this table during Phase 2c. Example from per-section repo:
    - What would adoption look like concretely?
    - Effort/impact ratio?
 4. Categorize recommendations using [analysis template](../reference/analysis-template.md):
-   - CLAUDE.md / `.claude/rules/` rule candidates
+   - Rule candidates, each written as a `/corrections:codify "<the rule>"` hand-off. When `/corrections:codify` is among the available skills, hand it the choice of mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and proves the check. Otherwise, propose the strongest mechanism that can decide the rule: a change that makes the mistake impossible first, then a check that blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say that `/corrections:codify` was not available, so the proposal is unproven. Name the call in the output; run codify only when the user asks, after [Freshness verification](#freshness-verification-phase-5-prerequisite).
    - Skill candidates (new `/skill-name` opportunities)
    - Architecture pattern changes
    - Testing practice improvements

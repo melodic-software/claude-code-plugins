@@ -32,17 +32,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-PASS=0
-FAIL=0
-expect() { # <label> <want> <got>
-  if [[ "$2" == "$3" ]]; then
-    echo "ok: $1"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $1: want [$2] got [$3]" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=../lib/git-hooks-test-helpers.sh
+source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
 # Fixtures are assembled at run time, so no real-shape token or machine path
 # sits in this file's own bytes for a scanner to find. Never fold them into

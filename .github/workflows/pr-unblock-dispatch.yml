@@ -391,7 +391,7 @@ jobs:
       group: pr-unblock-dispatch-refine-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       actions: write # list and dispatch pr-refine.yml runs
       contents: read # check out main
@@ -436,6 +436,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_WAIT_SECONDS: "1200"
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SENDER_ID: ${{ github.event.sender.id }}

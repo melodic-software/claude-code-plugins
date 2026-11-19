@@ -18,6 +18,7 @@ readonly _WIT_TESTS_LIB_LOADED=1
 # Strip inherited git-hook context (GIT_DIR, GIT_INDEX_FILE, ...) so a git fixture
 # can never resolve to the real repo instead of its throwaway dir.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 # Defensive counter defaults so the first assertion in a test that forgot to
 # declare them does not trip `set -u`.

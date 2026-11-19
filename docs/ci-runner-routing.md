@@ -154,8 +154,8 @@ are in the header of `scripts/affected-tests.sh`.
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
 the `ci-lanes` commit status on the head SHA, with no carry-forward wait
-(`yield-to-full-run: 'true'`, `yield-wait-seconds: '600'` and
-`carry-forward-wait-seconds: '0'` on the `aggregate-results` composite). It
+(`yield-wait-seconds: '600'` on the `report-ci-status` composite, which fixes
+`yield-to-full-run: 'true'` and `carry-forward-wait-seconds: '0'`). It
 passes only when the newest status the Actions bot wrote is `success`.
 
 A contract-only run waits only on a full run in flight on its SHA:

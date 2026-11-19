@@ -78,8 +78,11 @@ names the parked item), and keep working. Other merges follow the repository's o
 ## Keep the report current
 
 - After each finished piece of work, update the report's own sections (Done, Waiting on me, Found,
-  Additional notes), tick the task-file item, and run `away.py refresh`. The script owns the
-  refused-actions, external-actions and files-written blocks; never edit between their markers.
+  Additional notes) and tick the task-file item. The script owns the refused-actions,
+  external-actions and files-written blocks: the Stop hook rewrites the first two at every turn's
+  end and `end` scans the files, so run no `refresh` while the person is away, and never edit
+  between the blocks' markers. Re-read the report before editing it, since the hook may have
+  rewritten it.
 - Before stopping, run `away.py check`; fix each failing criterion it names.
 - Waiting on me holds only what you can still run yourself, with what it waits on.
 
@@ -111,4 +114,8 @@ work, a new request. These also arrive as messages and are never the person:
   instruction.
 
 When a message reads as the person, run `away.py end`, show the report once with **Needs you**
-first, then run `away.py deliver` so later turns do not show it again.
+first, then run `away.py deliver` so later turns do not show it again. After that, a parked item,
+its recommended command included, runs only once the person accepts it, by naming it or through
+`/session-flow:go-with-recommendations`; until then, answer the person and wait. That skill reads
+only your latest message once the absence has ended, so end each answer with the open Needs-you
+items and their `Recommendation:` lines until each is accepted or declined.

@@ -4,6 +4,8 @@
 One absence is keyed by the Claude Code session id and lives in `<plugin data>/away/<session>/`:
 `state.json` (replaced whole through a temp file), `refused.jsonl` (append-only, one refused
 action per line with its `R<n>` id) and a `lock` file that serializes every read-modify-write.
+`deliver` removes that directory, and `away/` once it is empty, keeping the report: one kept in
+the directory moves to `<plugin data>/away-reports/` first.
 
 CLI, every command keyed by `--session <id>`:
 
@@ -28,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -60,9 +63,11 @@ except ImportError:
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import plugin_paths  # noqa: E402
+from away_launch import launch_warnings  # noqa: E402
 
 DEFAULT_PLUGIN_ROOT = SCRIPT.parent.parent
 RULES = Path("skills") / "step-away" / "reference" / "rules.md"
+REPORTS_DIR = "away-reports"
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 LOCK_WAIT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 10
@@ -231,10 +236,10 @@ def valid_session(value: object) -> bool:
 
 
 @contextlib.contextmanager
-def locked(path: Path) -> Iterator[None]:
+def locked(path: Path, wait: float = LOCK_WAIT_SECONDS) -> Iterator[None]:
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        deadline = time.monotonic() + LOCK_WAIT_SECONDS
+        deadline = time.monotonic() + wait
         while True:
             try:
                 _try_lock(fd)
@@ -476,82 +481,6 @@ def choose_report_path(launch_root: Path | None, state_dir: Path, session: str) 
 
 
 
-def _setting(path: Path, *keys: str) -> object:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    for key in keys:
-        if not isinstance(value, dict):
-            return None
-        value = value.get(key)
-    return value
-
-
-def managed_base() -> Path:
-    """The managed-settings.json this platform reads, as lib/managed-scope.sh locates it."""
-    if sys.platform == "darwin":
-        return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
-    if sys.platform == "win32":
-        return Path(os.environ.get("PROGRAMFILES") or "C:\\Program Files") / "ClaudeCode" / "managed-settings.json"
-    return Path("/etc/claude-code/managed-settings.json")
-
-
-def managed_files(base: Path) -> list[Path]:
-    """The base file, then its managed-settings.d drop-ins in name order, hidden and non-JSON skipped."""
-    try:
-        dropins = sorted(
-            p for p in (base.parent / "managed-settings.d").iterdir() if p.suffix == ".json" and not p.name.startswith(".")
-        )
-    except OSError:
-        dropins = []
-    return [base, *dropins]
-
-
-def _managed_setting(files: list[Path], *keys: str) -> tuple[Path | None, object]:
-    """The last managed file that sets the key, and its value: a later drop-in replaces a single value."""
-    found: tuple[Path | None, object] = (None, None)
-    for path in files:
-        value = _setting(path, *keys)
-        if value is not None:
-            found = (path, value)
-    return found
-
-
-def launch_warnings(config_dir: Path, project: Path, managed: Path | None = None) -> list[str]:
-    """One line per launch warning; `managed` replaces this platform's managed-settings.json."""
-    user = config_dir / "settings.json"
-    local, shared = project / ".claude" / "settings.local.json", project / ".claude" / "settings.json"
-    managed_set = managed_files(managed or managed_base())
-    warnings = []
-    # A project or local file that sets the key turns the feature off when managed and user leave it
-    # unset: https://code.claude.com/docs/en/settings-reference#autocontinueatusagelimit
-    path, value = _managed_setting(managed_set, "autoContinueAtUsageLimit")
-    if value is None:
-        path, value = user, _setting(user, "autoContinueAtUsageLimit")
-    if value is not None:
-        off = path if value is False else None
-    else:
-        off = next((p for p in (local, shared) if _setting(p, "autoContinueAtUsageLimit") is not None), None)
-    if off is not None:
-        warnings.append(
-            f"autoContinueAtUsageLimit is off ({off}): a usage limit ends the run instead of waiting for the reset."
-        )
-    path, value = _managed_setting(managed_set, "sandbox", "enabled")
-    for candidate in (local, shared, user):
-        if value is not None:
-            break
-        path, value = candidate, _setting(candidate, "sandbox", "enabled")
-    if value is True:
-        warnings.append(
-            f"sandboxing is on ({path}): a sandboxed command's network prompt cannot be refused by a "
-            "hook and will wait for the person."
-        )
-    warnings.append("keep the machine awake: after a long sleep the usage-limit resume waits for Enter.")
-    return warnings
-
-
-
 def config_dir(env: Mapping[str, str]) -> Path:
     configured = env.get("CLAUDE_CONFIG_DIR", "")
     return Path(configured) if configured else Path.home() / ".claude"
@@ -608,6 +537,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         state = change(previous or {})
         report = Path(state["report_path"])
         report.parent.mkdir(parents=True, exist_ok=True)
+        state.setdefault("report_dir", os.path.realpath(report.parent))
         if reconciling and report.exists():
             text = report.read_text(encoding="utf-8")
             updated = rewrite_header(text, state)
@@ -905,9 +835,20 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
     write_blocks(state, {"files": file_lines})
 
 
+def guarded_report(state: Mapping) -> Path:
+    """The report path, refused when its folder resolves elsewhere than at start or it is not a
+    regular file, so a link planted by a sandboxed command is never read or written through."""
+    report = Path(state["report_path"])
+    expected = state.get("report_dir") or os.path.realpath(report.parent)
+    planted = os.path.lexists(report) and not stat.S_ISREG(os.lstat(report).st_mode)
+    if planted or os.path.realpath(report.parent) != expected:
+        raise OSError(f"{report} is not a regular file in {expected}; left untouched")
+    return report
+
+
 def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     """Rewrite the named script-owned blocks; the slow file scan writes apart from the others."""
-    report = Path(state["report_path"])
+    report = guarded_report(state)
     report.parent.mkdir(parents=True, exist_ok=True)
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
     for name, lines in blocks.items():
@@ -915,18 +856,8 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     write_atomic(report, text)
 
 
-def files_due(state: Mapping, now: datetime) -> bool:
-    """True for the first refresh after report_by has passed."""
-    due = _instant_or_none(state.get("report_by"))
-    return due is not None and now >= due and not state.get("files_after_due")
-
-
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:
-    state = require_state(paths)
-    due = files_due(state, datetime.now().astimezone())
-    refresh(state, paths, files=args.files or due)
-    if due:
-        update_state(paths, lambda current: current.update(files_after_due=True))
+    refresh(require_state(paths), paths, files=args.files)
     return 0
 
 
@@ -950,16 +881,74 @@ def cmd_end(args: argparse.Namespace, paths: Paths) -> int:
     return 0
 
 
-def cmd_deliver(args: argparse.Namespace, paths: Paths) -> int:
-    def change(state: dict) -> None:
-        move(state, Status.DELIVERED)
-        if status_of(state) is not Status.DELIVERED:
-            state["status"] = Status.DELIVERED.value
-            state["delivered"] = datetime.now().astimezone().isoformat()
+def _clear_held(paths: Paths, state: Mapping) -> Path:
+    """Remove a delivered absence's files while its lock is held; return where the report lasts.
 
-    require_state(paths)
-    update_state(paths, change)
-    print("status=delivered")
+    A report kept beside the state, or the end copy when the original is gone, moves to
+    `<data root>/away-reports/` first, its new path written to the state before the move so a
+    retried delivery reports where it went. On POSIX the lock file is unlinked while still held, so a
+    process waiting on it then finds no state.
+    """
+    report, beside = Path(state["report_path"]), paths.dir / "report.md"
+    inside = os.path.realpath(report.parent) == os.path.realpath(paths.dir)
+    if (inside or not report.exists()) and beside.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        lasting = paths.root / REPORTS_DIR / f"{stamp}-{paths.dir.name[:8]}.md"
+        lasting.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        write_state(paths, dict(state, report_path=str(lasting)))
+        os.replace(beside, lasting)
+        report = lasting
+    for path in (beside, paths.refused, paths.state, *(() if os.name == "nt" else (paths.lock,))):
+        with contextlib.suppress(FileNotFoundError):
+            path.unlink()
+    return report
+
+
+def _remove_dirs(paths: Paths) -> None:
+    """Remove the session dir, then `away/`, each only when empty, so the hooks' shell gate exits early."""
+    if os.name == "nt":
+        with contextlib.suppress(OSError):
+            paths.lock.unlink()
+    for directory in (paths.dir, paths.dir.parent):
+        with contextlib.suppress(OSError):
+            directory.rmdir()
+
+
+def sweep_delivered(root: Path, plugin_root: Path) -> None:
+    """Clear every other delivered absence whose lock is free, such as one an earlier version left."""
+    try:
+        entries = sorted((root / "away").iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if not valid_session(entry.name) or not (entry / "state.json").is_file():
+            continue
+        paths = session_paths(root, entry.name, plugin_root)
+        try:
+            with locked(paths.lock, wait=0):
+                state = read_state(paths)
+                if status_of(state) is not Status.DELIVERED:
+                    continue
+                _clear_held(paths, state)
+            _remove_dirs(paths)
+        except (OSError, ValueError) as exc:
+            _log(f"left {entry.name} in place", exc)
+
+
+def cmd_deliver(args: argparse.Namespace, paths: Paths) -> int:
+    if not paths.state.exists():
+        print("status=none")
+        return 0
+    with locked(paths.lock):
+        state = read_state(paths)
+        if state is None:
+            print("status=none")
+            return 0
+        move(state, Status.DELIVERED)
+        report = _clear_held(paths, state)
+    _remove_dirs(paths)
+    sweep_delivered(paths.root, paths.plugin_root)
+    print(f"status=delivered\nreport={report}")
     return 0
 
 
@@ -1040,20 +1029,18 @@ def on_stop(hook: Hook) -> dict | None:
     if hook.status is not Status.ACTIVE:
         return None
     payload, paths = hook.payload, hook.paths
-    report = Path(hook.state["report_path"])
-    now_digest = digest(report)
     mode = payload.get("permission_mode")
     transcript = payload.get("transcript_path")
 
-    def first_look(state: dict) -> tuple[bool, object]:
+    def first_look(state: dict) -> tuple[bool, dict]:
         if isinstance(transcript, str) and transcript and not payload.get("agent_id"):
             state["transcript_path"] = transcript
         warn = isinstance(mode, str) and mode != "auto" and not state.get("mode_warned")
         if warn:
             state["mode_warned"] = True
-        return warn, state.get("last_block_digest")
+        return warn, dict(state)
 
-    warn, last_digest = update_state(paths, first_look)
+    warn, state = update_state(paths, first_look)
     if warn and mode == "bypassPermissions":
         return _block(
             "Away mode: this session's permission mode is bypassPermissions, where almost nothing prompts, "
@@ -1066,11 +1053,16 @@ def on_stop(hook: Hook) -> dict | None:
             "prompt is refused instead of judged by auto mode. Tell the person now, before they leave, and "
             "offer to continue in auto mode. Then carry on."
         )
+    try:
+        refresh(state, paths, files=False)
+    except Exception as exc:
+        _log("stop refresh failed", exc)
     if payload.get("background_tasks"):
         return None
-    if payload.get("stop_hook_active") is True and now_digest == last_digest:
+    now_digest = digest(Path(state["report_path"]))
+    if payload.get("stop_hook_active") is True and now_digest == state.get("last_block_digest"):
         return None
-    result = check_report(hook.state, paths)
+    result = check_report(state, paths)
     if result.passed:
         return None
     update_state(paths, lambda state: state.update(last_block_digest=now_digest))
@@ -1078,12 +1070,13 @@ def on_stop(hook: Hook) -> dict | None:
     if result.open_items:
         shown = "; ".join(result.open_items[:LIST_LIMIT])
         more = f" (and {len(result.open_items) - LIST_LIMIT} more)" if len(result.open_items) > LIST_LIMIT else ""
-        parts.append(f"Open items in {hook.state.get('task_file')}: {shown}{more}.")
+        parts.append(f"Open items in {state.get('task_file')}: {shown}{more}.")
         parts.append("Work the next one, or mark it parked in the task file once it waits on the person.")
     failed = [name for name, ok in result.criteria.items() if not ok]
     if failed:
         parts.append(f"Report checks failing: {', '.join(failed)}.")
-    parts.append(f"Run `{hook.command} refresh {hook.target}` after each finished piece.")
+    if "blocks_fresh" in failed:
+        parts.append("Keep each `<!-- away:... -->` marker exactly once; this hook rewrites what lies between them.")
     parts.append(f"Re-read {paths.rules} if the away rules are not in context.")
     return _block(" ".join(parts))
 
@@ -1219,7 +1212,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = session_paths(root, args.session, DEFAULT_PLUGIN_ROOT)
     try:
         return COMMANDS[args.command](args, paths)
-    except AwayError as exc:
+    except (AwayError, OSError) as exc:
         print(f"away.py {args.command}: {exc}", file=sys.stderr)
         return 1
     except ValueError as exc:

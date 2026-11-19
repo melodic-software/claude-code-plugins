@@ -17,6 +17,8 @@ from pathlib import Path
 os.environ.pop("GIT_DIR", None)
 os.environ.pop("GIT_WORK_TREE", None)
 os.environ.pop("GIT_CONFIG", None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "setup-apply.py"
