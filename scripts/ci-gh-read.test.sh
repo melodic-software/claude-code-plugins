@@ -60,11 +60,10 @@ if [[ "$got" -ge $((want - 5)) && "$got" -le "$want" ]]; then
 else
   fail "the step set the deadline '$got', want about '$want'"
 fi
-composite_waits="$(sed -nE "s/^          rate-limit-wait-seconds: '([0-9]+)'$/\1/p" <<<"$job" | paste -sd+ -)"
-if [[ "$(grep -c 'rate-limit-wait-seconds:' <<<"$job")" == 2 && -n "$composite_waits" && $((composite_waits)) -le 120 ]]; then
-  ok "the two pinned composites wait at most the 120 s ci-status's timeout holds for them"
+if [[ "$(grep -c 'rate-limit-wait-seconds:' <<<"$job")" == 0 && "$(grep -c 'pr-require-checks/report-ci-status@' <<<"$job")" == 1 ]]; then
+  ok "ci-status runs report-ci-status once and leaves its two inner waits at their 60 s defaults, the 120 s its timeout holds"
 else
-  fail "ci-status passes its composites rate-limit-wait-seconds of '$composite_waits', over the 120 s its timeout holds, or not as two quoted numbers"
+  fail "ci-status passes a rate-limit-wait-seconds the composite does not take, or does not call report-ci-status exactly once"
 fi
 first="$(grep -m1 '^      - name: ' <<<"$job")"
 if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; then
