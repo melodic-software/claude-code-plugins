@@ -8,6 +8,7 @@ copied into any plugin: add a row here, and register the plugin's own copy of `R
 |---|---|
 | `/architecture:improve` (deepening and conventions lenses) | Through `improvement-steps.md` "Scope and fan-out" and its plugin-shipped copy |
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
+| `/code-metrics:audit`, `audit-coverage`, `audit-duplication`, `audit-suppressions` | Through `reference/several-repositories.md` and the plugin-shipped copy; one report per repository, and only `--findings` writes |
 | `/docs-hygiene:audit-derivability` | Through docs-hygiene's `context/clean-tree-fallback.md` "Several repositories" and its plugin-shipped copy |
 | `/docs-hygiene:audit-encapsulation` | Same; `fix` and `file-issues` act in the hit's own repository |
 | `/docs-hygiene:audit-noise` | Same; one `--persist-findings` file per repository |
