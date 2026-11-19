@@ -2748,7 +2748,9 @@ class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
 
     CLOCK = 1_800_000_000
 
-    def judge(self, fake: FakeGitHub, *, reset_in: int, wait: str) -> tuple[Any, list[float], str]:
+    def judge(
+        self, fake: FakeGitHub, *, reset_in: int, wait: str, listing: bool = False
+    ) -> tuple[Any, list[float], str]:
         slept: list[float] = []
         low = [True]
 
@@ -2783,21 +2785,21 @@ class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         stderr = io.StringIO()
+        env = {
+            "API_BUDGET_TOKEN": "github-token",
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_TEMP": tmp.name,
+            gh.READ_FLOOR_STOP_ENV: "1",
+            gh.READ_FLOOR_WAIT_ENV: wait,
+        }
+        if listing:
+            env[ve.LISTING_ENV] = os.path.join(tmp.name, "listing.json")
         with (
             mock.patch.object(gh, "run_command", run_command),
             mock.patch.object(gh, "_is_paged_read", return_value=False),
             mock.patch.object(ve, "_floor_sleep", sleep),
             mock.patch.object(ve, "_floor_clock", return_value=self.CLOCK),
-            mock.patch.dict(
-                os.environ,
-                {
-                    "API_BUDGET_TOKEN": "github-token",
-                    "GITHUB_ACTIONS": "true",
-                    "RUNNER_TEMP": tmp.name,
-                    gh.READ_FLOOR_STOP_ENV: "1",
-                    gh.READ_FLOOR_WAIT_ENV: wait,
-                },
-            ),
+            mock.patch.dict(os.environ, env),
             contextlib.redirect_stderr(stderr),
         ):
             return ve._after_the_read_floor(judged), slept, stderr.getvalue()
@@ -2807,6 +2809,13 @@ class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
         self.assertIsNone(report["refusal"], report)
         self.assertEqual(slept, [301])
         self.assertEqual(gh.read_floor_refusals(), {})
+
+    def test_a_floored_listing_leaves_no_note_that_refuses_the_second_judgment(
+        self,
+    ) -> None:
+        report, slept, _ = self.judge(passing(), reset_in=300, wait="900", listing=True)
+        self.assertIsNone(report["refusal"], report)
+        self.assertEqual(slept, [301])
 
     def test_a_reset_past_the_wait_leaves_the_head_unreadable(self) -> None:
         report, slept, stderr = self.judge(passing(), reset_in=2000, wait="900")

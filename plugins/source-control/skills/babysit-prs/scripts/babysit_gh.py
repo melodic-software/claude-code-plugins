@@ -429,7 +429,7 @@ def _send_once(
         _floored[limits_pool] = _headroom_reset.get(limits_pool)
         raise ReadsFloored(
             f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
-            "is below its read-floor share"
+            f"{READ_FLOOR_REFUSAL}"
         )
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
@@ -588,6 +588,7 @@ class WritesPaused(RuntimeError):
 # (`low_headroom`), so a process that no estimate bounds, such as ci-status's
 # verdict reader, never spends the floor. Unset, only report-only reads skip.
 READ_FLOOR_STOP_ENV = "BABYSIT_READ_FLOOR_STOP"
+READ_FLOOR_REFUSAL = "is below its read-floor share"
 
 
 class ReadsFloored(RuntimeError):

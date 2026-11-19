@@ -311,6 +311,7 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    READ_FLOOR_REFUSAL,
     READ_FLOOR_WAIT_ENV,
     RUN_SEARCH_CAP,
     fetch_paginated_api,
@@ -1882,7 +1883,9 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
-                if self._overcount_mine:
+                if self._overcount_mine and READ_FLOOR_REFUSAL in self._listing_error:
+                    self._release_overcount()
+                elif self._overcount_mine:
                     self._note_overcount(self._listing_error)
                 if self._whole_paged and (
                     isinstance(exc, _CutShort) or not isinstance(exc, _Transient)
@@ -2524,6 +2527,15 @@ class Reader:
         self._overcount_mine = True
         return True
 
+    def _release_overcount(self) -> None:
+        """Best effort: drop this Reader's claim on the job's over-count whole
+        listing (`_claim_overcount`), so a later Reader may take it."""
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
+        if path is not None:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        self._overcount_mine = False
+
     def _note_overcount(self, outcome: str) -> None:
         """Best effort: how the job's over-count whole listing ended, so a
         later Reader's refusal carries a caller-limit refusal's prefix."""
@@ -2534,10 +2546,15 @@ class Reader:
 
     def _note_failed_listing(self, error: str) -> None:
         """Best effort: a failed write leaves the next Reader to list. A
-        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
-        noted: a later caller may have the time."""
+        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) or
+        below a pool's read floor (`READ_FLOOR_REFUSAL`) is not noted: a later
+        caller may have the time, or find the pool reset."""
         path = self._beside(FAILED_LISTING_SUFFIX)
-        if path is not None and not error.startswith(DEADLINE_UNREADABLE):
+        if (
+            path is not None
+            and not error.startswith(DEADLINE_UNREADABLE)
+            and READ_FLOOR_REFUSAL not in error
+        ):
             with contextlib.suppress(OSError):
                 note = f"{error} (an earlier listing in this job)"
                 path.write_text(note, encoding="utf-8")
@@ -2796,7 +2813,7 @@ class Reader:
         try:
             record = self._record(run_id, name, artifact_id)
         except _Unreadable as exc:
-            if shared:
+            if shared and READ_FLOOR_REFUSAL not in str(exc):
                 run_cache.put(UNREAD_RECORD_SECTION, key, str(exc))
             raise
         if shared:
