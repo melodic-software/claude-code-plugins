@@ -113,6 +113,7 @@ at it, in their own pull requests.
 | `/coupling:reduce` | Points here through its plugin-shipped copy; measures cross-repository copies |
 | `/improvement:find` | Points here through its plugin-shipped copy; ranks all repositories' candidates on one scale |
 | `/improvement:improve` | Points here through its plugin-shipped copy; ships one PR per repository |
+| `/work-items:scan-todos` | Points here through its plugin-shipped copy; files each marker in its own repository's tracker |
 
 ## Plugin-shipped copies
 
