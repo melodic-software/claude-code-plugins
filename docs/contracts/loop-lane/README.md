@@ -461,9 +461,9 @@ which carries no marker; a review-lane hold
 [the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)'s own decision
 comment; a HIGH or CRITICAL security stop; an item carrying `security: outside-actor`; and the
 trust, credential, injection and pr-merge person holds above. ci-status cannot tell this removal from the owner's, since a session acts
-under the owner's GitHub login: the comment makes the lift auditable, not provable. The owner's
-answer on 2026-11-19, recorded as a row in that record, asked whether a session may remove a machine-escalated
-`needs-human` label from a pull request on such a record, with that recommended:
+under the owner's GitHub login: the comment makes the lift auditable, not provable. Asked on
+2026-11-19 whether a session may remove a machine-escalated `needs-human` label from a pull request
+on such a record, with that recommended, the owner answered, recorded as a row in that record:
 
 <!-- spellchecker:off -->
 > go w/ recommendations

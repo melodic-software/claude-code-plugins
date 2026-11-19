@@ -16,6 +16,8 @@ Major: the escalation contract changes (§2).
   label stays the owner's. Operator-parked items, review-lane holds, security stops,
   `security: outside-actor` and the trust, credential, injection and pr-merge person holds stay
   the owner's (owner decision 2026-11-19).
+- **Wording only (§3, §4, §6).** Three sentences are reworded with no change in meaning: the
+  capability-tier rationale, the autonomous-pipeline reminder, and the rate-limits backoff note.
 
 ## [19.10.1] - 2026-11-18
 
