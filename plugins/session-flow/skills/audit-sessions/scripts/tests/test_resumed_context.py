@@ -48,6 +48,9 @@ def test_groups_by_version_and_compares_two_versions(copy_fixture):
     assert (comparison["baseline"]["median"], comparison["candidate"]["median"]) == (111241, 90010)
     assert comparison["rise"] is False and comparison["miss_count"] is None, comparison
 
+    md = run_cli("resumed_context.py", *args, "--min-per-side", "1", "--format", "md").stdout
+    assert "- Rise: no\n" in md, f"a decided rise carries no not-yet-decided note: {md}"
+
     short = run_cli("resumed_context.py", *args)
     assert short.returncode == 1, "below the default 10 sessions per side the comparison is a warning"
     assert envelope(short)["data"]["comparison"]["rise"] is None

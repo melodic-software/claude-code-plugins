@@ -233,7 +233,8 @@ def render_md(data: dict) -> str:
             "",
             f"- Baseline `{b['plugin_version']}`: median {_fmt(b['median'])}, n {b['n']}",
             f"- Candidate `{a['plugin_version']}`: median {_fmt(a['median'])}, n {a['n']}",
-            f"- Rise: {_fmt(comparison['rise'])} (n/a until both sides reach {data['min_per_side']})",
+            f"- Rise: {_fmt(comparison['rise'])}"
+            + (f" (decided once both sides reach {data['min_per_side']})" if comparison["rise"] is None else ""),
             "- Miss count: to be filled by a retro or the owner",
         ]
     return "\n".join(lines) + "\n"
