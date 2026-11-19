@@ -1904,11 +1904,13 @@ def _shared_probes(spec: dict | None, a: Cell, b: Cell) -> frozenset[str]:
     return frozenset(seen[0] & seen[1])
 
 
+def _count(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def _paired(nr, deltas: list[float], low: float, high: float) -> str:
     if len(deltas) < 2:
-        return (
-            f"{_mean(deltas) or 0:+.2f} over {len(deltas)} case (an interval needs 2)"
-        )
+        return f"{_mean(deltas) or 0:+.2f} over {_count(len(deltas), 'case')} (an interval needs 2)"
     m, lo, hi = nr.normal_interval(deltas, low, high)
     return f"{m:+.2f}, 95% interval {lo:+.2f} to {hi:+.2f}, paired over {len(deltas)} cases"
 
@@ -1923,7 +1925,7 @@ def _token_change(nr, pairs: list[tuple[float, float]]) -> str:
     if len(deltas) >= 2:
         _, lo, hi = nr.normal_interval(deltas, -math.inf, math.inf)
         text += f", 95% interval {lo:+.0f} to {hi:+.0f}"
-    return text + f" over {len(deltas)} cases"
+    return text + f" over {_count(len(deltas), 'case')}"
 
 
 def _compare(nr, lines: Lines, out: Path, base: dict, other: dict, specs, args):
@@ -2060,7 +2062,7 @@ def cmd_report(args) -> int:
         accuracy = _mean(means.values())
         lines.say(
             f"{label}: {len(kept)} kept, {group.excluded} excluded, {zero} scored 0 for non-delivery;"
-            f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {len(means)} cases;"
+            f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {_count(len(means), 'case')};"
             f" reader m1 {_tokens(_mean(v for c in mine.values() if (v := c.reader_m1()) is not None))};"
             f" whole-run m1 {_tokens(_mean(v for c in mine.values() if (v := c.whole_m1()) is not None))};"
             f" pass count {passing}/{len(means)} at T={threshold:.2f}"
@@ -2071,7 +2073,7 @@ def cmd_report(args) -> int:
                 lines.say(f"  {name}: no run to score")
                 continue
             lines.say(
-                f"  {name}: accuracy {score:.2f} over {len(cell.runs)} runs;"
+                f"  {name}: accuracy {score:.2f} over {_count(len(cell.runs), 'run')};"
                 f" reader m1 {_tokens(cell.reader_m1())}; whole-run m1 {_tokens(cell.whole_m1())};"
                 f" {'pass' if score >= threshold else 'fail'} at T={threshold:.2f}"
             )
