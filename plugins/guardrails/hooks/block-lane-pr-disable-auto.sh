@@ -74,8 +74,26 @@ LPD_CWD="${HOOK_JQ_FIELDS[2]}"
 [[ "$LPD_TOOL" == Bash && -n "$LPD_COMMAND" ]] || exit 0
 ((${#LPD_COMMAND} > 16384)) && exit 0
 
-# The lanes App's login, as the pr-merge lane's merge.agent-identity names it.
-LANE_APP="melodic-automation-lanes[bot]"
+LPD_TEAM_REL="docs/conventions/guardrails.yaml"
+LANE_APP=""
+lpd::lanes_app() {
+  local root text recs key=$'\nlanes_app\t'
+  hook::repo_root_to root "$LPD_CWD" || return 0
+  text=$(hook::git_untrusted -C "$root" show "refs/remotes/origin/HEAD:$LPD_TEAM_REL" 2>/dev/null) || return 0
+  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
+    printf 'guardrails: %s does not parse; lanes_app is unset.\n' "$LPD_TEAM_REL" >&2
+    return 0
+  fi
+  recs=$'\n'"$recs"
+  [[ "$recs" == *"$key"* ]] || return 0
+  LANE_APP="${recs#*"$key"}"
+  LANE_APP="${LANE_APP%%$'\n'*}"
+  LANE_APP="${LANE_APP,,}"
+  LANE_APP="${LANE_APP#app/}"
+  LANE_APP="${LANE_APP%\[bot\]}"
+  [[ -n "$LANE_APP" ]] && LANE_APP="${LANE_APP}[bot]"
+  return 0
+}
 
 LPD_TARGETS=()     # one per disable: "cli <selector> <repo>" or "node <id>"
 LPD_UNRESOLVED=""  # set: why a target cannot be read, and the command is refused
@@ -244,6 +262,8 @@ LPD_SHAPE_RE='pr.*merge.*disable-auto|disablepullrequestautomerge'
 [[ "$LPD_COMMAND" == *'`'* ]] &&
   { ((LPD_FOUND)) || [[ "$LPD_CMD_BARE" =~ $LPD_SHAPE_RE ]]; } && LPD_BT=1
 ((LPD_FOUND || LPD_BT)) || exit 0
+lpd::lanes_app
+[[ -n "$LANE_APP" ]] || exit 0
 
 # lpd::block <line>...: print the lines and the turn-off note, and exit 2.
 lpd::block() {

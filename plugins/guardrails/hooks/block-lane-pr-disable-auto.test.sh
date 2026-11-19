@@ -41,9 +41,23 @@ esac
 FAKE
 chmod +x "$BIN/gh"
 
-LANE='app/melodic-automation-lanes'
+LANE='app/acme-lanes'
 OTHER='octocat'
-REASON_LANE='was opened by the lanes App (melodic-automation-lanes[bot])'
+REASON_LANE='was opened by the lanes App (acme-lanes[bot])'
+
+team_repo() {
+  local d="$TEST_TMPDIR/$1" f=docs/conventions/guardrails.yaml
+  mkdir -p "$d/docs/conventions"
+  git init -q "$d"
+  printf '%s\n' "$2" >"$d/$f"
+  git -C "$d" add "$f"
+  git -C "$d" -c user.name=t -c user.email=t@example.com commit -qm team
+  git -C "$d" update-ref refs/remotes/origin/main HEAD
+  git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  printf '%s' "$d"
+}
+TEAM=$(team_repo team 'lanes_app: acme-lanes[bot]')
+CWD="$TEAM"
 REASON_HOLD='hold it with the do-not-merge label instead'
 REASON_UNREAD='could not tell which pull request this auto-merge disable targets'
 
@@ -54,7 +68,7 @@ check() {
   (($#)) && shift
   for via in direct dispatched; do
     : >"$CALLS"
-    guard_invoke --via "$via" --command "$command" -- \
+    guard_invoke --via "$via" --command "$command" --cwd "$CWD" -- \
       PATH="$BIN:$PATH" FAKE_GH_CALLS="$CALLS" FAKE_GH_AUTHOR="$author" "$@"
     assert_exit "$label ($via)" "$expected" "$GUARD_RC"
     [[ -z "$needle" ]] || assert_contains "$label ($via): reason" "$GUARD_ERR" "$needle"
@@ -69,7 +83,7 @@ assert_contains "lanes PR: gives the label command" "$GUARD_ERR" "gh pr edit 42 
 assert_contains "lanes PR: says the lane re-arms it" "$GUARD_ERR" "re-arms the pull request by itself when the label comes off"
 assert_contains "lanes PR: names the user's escape" "$GUARD_ERR" "block_lane_pr_disable_auto_enabled"
 assert_eq "lanes PR: one author read" "pr view 42 -R acme/widgets --json author --jq .author.login" "$(calls)"
-check "a [bot] login from REST is read the same" 2 'melodic-automation-lanes[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
+check "a [bot] login from REST is read the same" 2 'acme-lanes[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
 check "-R before merge" 2 "$LANE" 'gh pr -R acme/widgets merge 42 --disable-auto' "$REASON_LANE"
 check "a PR URL" 2 "$LANE" 'gh pr merge https://github.com/acme/widgets/pull/42 --disable-auto' "$REASON_LANE"
 check "after an env prefix and in a chain" 2 "$LANE" 'git fetch && GH_PROMPT_DISABLED=1 gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
@@ -119,5 +133,18 @@ for via in direct dispatched; do
     PATH="$BIN:$PATH" FAKE_GH_CALLS="$CALLS" FAKE_GH_AUTHOR="$LANE"
   assert_exit "the PowerShell tool is not matched ($via)" 0 "$GUARD_RC"
 done
+
+CWD=$(team_repo bare 'lanes_app: app/ACME-Lanes')
+check "an app/ slug in any case names the same App" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
+for spec in "unset:other_key: x" "empty:lanes_app: ''" "broken:lanes_app: a"$'\n'"lanes_app: a"; do
+  CWD=$(team_repo "${spec%%:*}" "${spec#*:}")
+  check "lanes_app ${spec%%:*}: the guard protects no App" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto'
+  assert_eq "lanes_app ${spec%%:*}: gh is never asked" "" "$(calls)"
+  check "lanes_app ${spec%%:*}: an unreadable target passes" 0 "$OTHER" 'gh pr merge "$N" -R acme/widgets --disable-auto'
+done
+CWD=$(team_repo staged 'other_key: x')
+printf 'lanes_app: acme-lanes[bot]\n' >"$CWD/docs/conventions/guardrails.yaml"
+git -C "$CWD" add docs/conventions/guardrails.yaml
+check "lanes_app only in the working tree and index is not read" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto'
 
 report

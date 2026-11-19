@@ -11,3 +11,4 @@ unpinned_lease: block
 # let a force push through with only a notice.
 deny_on_crash:
   - block-dangerous-git
+lanes_app: melodic-automation-lanes[bot]
