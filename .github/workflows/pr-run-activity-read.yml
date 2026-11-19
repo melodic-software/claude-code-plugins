@@ -560,6 +560,7 @@ jobs:
           # A first call that starts new work also stops on a low GITHUB_TOKEN
           # budget; a handed-off or fallback leg checks the switches only.
           budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
+          project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
 
       # work-unblock's sweep reads this step's name and conclusion from the
       # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
@@ -569,7 +570,7 @@ jobs:
         if: steps.kill.outputs.cause == 'budget'
         env:
           RESET: ${{ steps.kill.outputs.reset }}
-        run: echo "::notice::the start gate stopped this run on a low GITHUB_TOKEN budget until $RESET (epoch seconds)"
+        run: echo "::notice::the start gate stopped this run on a low or projected-short GITHUB_TOKEN budget until $RESET (epoch seconds); the Check the kill switch step's start-gate notice names which"
 
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.

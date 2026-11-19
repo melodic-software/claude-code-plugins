@@ -3,6 +3,14 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-11-19
+
+### Fixed
+
+- `audit-size.sh --help` lists `--check`, says what each `size.check` rule fails, and gives the
+  exit codes under `--check`. The help text now lives in the script as a string rather than its
+  header comment.
+
 ## [1.4.0] - 2026-11-18
 
 ### Added
