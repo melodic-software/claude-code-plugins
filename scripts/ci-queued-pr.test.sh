@@ -105,10 +105,11 @@ echo $(($(date +%s) + 1)) >"$LIMITED"
 expect "a rate limit whose reset is inside the budget is waited out" 0 \
   "gh-readonly-queue/main/pr-7492-$BASE" "$PR" - "git fetch --no-tags origin $HEAD"
 slept=$(sed -n 's/^sleep //p' "$TMP_ROOT/log" | awk '{ s += $1 } END { print s + 0 }')
-if grep -qxF "waited=$slept" "$TMP_ROOT/output"; then
-  ok "the step outputs the seconds its read waited"
+want="author=dependabot[bot] head_ref=dependabot/npm head_sha=$HEAD waited=$slept"
+if [[ "$(paste -sd' ' "$TMP_ROOT/output")" == "$want" ]]; then
+  ok "the step outputs the successful read's fields and the seconds it waited"
 else
-  fail "expected waited=$slept in '$(paste -sd' ' "$TMP_ROOT/output")'"
+  fail "expected outputs '$want' got '$(paste -sd' ' "$TMP_ROOT/output")'"
 fi
 if [[ $(calls) -eq 2 ]] && grep -q '^sleep ' "$TMP_ROOT/log"; then
   ok "the read is sent again after one wait"
