@@ -292,6 +292,12 @@ seed lock and installing share one cap, WORKTREE_CREATE_DEPS_CAP_SECONDS
 (default 45); npm output goes to stderr. A missing npm, a failed install or the
 cap only warns on stderr; the exit code is unchanged.
 
+Git LFS: when a .gitattributes file in the commit being checked out routes
+paths through filter=lfs, the checkout runs with GIT_LFS_SKIP_SMUDGE=1, so
+those paths arrive as LFS pointer files and nothing is copied out of the LFS
+store. One stderr line names git lfs pull, and git lfs pull --include <paths>
+for part of the content.
+
 Reuse: a worktree already at the target path, on the branch this run would use,
 is printed as it is (no copy, no npm ci) when its lock names --session-id, when
 it is unlocked (claimed first), or when worktree-claim.sh stale proves its
@@ -1275,12 +1281,21 @@ fi
 # record it as the new branch's upstream, so a bare `git push` fails under
 # push.default=simple and push-branch.sh, which sets -u only when no upstream
 # exists, keeps the wrong one. head stays as it was.
+checkout_rev="${base_commit:-}"
+((branch_exists)) && checkout_rev="refs/heads/$branch"
+checkout_env=()
+lfs_skipped=0
+if git -C "$toplevel" grep -q -E -e '^[^#]*[[:space:]]filter=lfs([[:space:]]|$)' "$checkout_rev" -- ':(glob)**/.gitattributes' 2>/dev/null; then
+  checkout_env=(GIT_LFS_SKIP_SMUDGE=1)
+  lfs_skipped=1
+fi
+
 if ((branch_exists)); then
-  git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
+  env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
 elif [[ "$base_ref" == fresh ]]; then
-  git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
+  env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
 else
-  git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
+  env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
 fi || {
   # A concurrent run may have created the target or the branch since the checks
   # above; that run's lock is its claim, so this one refuses rather than share.
@@ -1292,6 +1307,10 @@ fi || {
   fi
   exit 4
 }
+if ((lfs_skipped)); then
+  printf '%s: LFS content was not checked out; Git LFS paths are pointer files. Fetch it with git lfs pull, or git lfs pull --include <paths> for part of it, run in %s\n' \
+    "$PROG" "$worktree_path" >&2
+fi
 
 # Arm the removal guard the moment the worktree exists: a locked worktree makes
 # `git worktree remove` refuse (a single --force included) and its record

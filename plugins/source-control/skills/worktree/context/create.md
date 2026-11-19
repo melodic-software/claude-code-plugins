@@ -39,6 +39,8 @@ Pointer: for every settings layer and its rank, read [settings: settings precede
 
 When a read is refused (a permission rule denies a settings file, for example `Read(./.claude/settings.local.json)`), do not read that file another way: the deny is deliberate, whichever settings layer set it. Name the layer you could not read, resolve from the layers you could, and treat an unknown value as `fresh`. With a user present, ask whether that layer sets `head` before creating. With no user present, create with `fresh` and state in the result that the base assumes `fresh` because that layer was unreadable.
 
+In a repository whose `.gitattributes` routes paths through `filter=lfs`, the helper checks out with `GIT_LFS_SKIP_SMUDGE=1`: those paths arrive as LFS pointer files, nothing is copied out of the LFS store, and one stderr line says so. A session that needs the content runs `git -C <path> lfs pull`, or `git -C <path> lfs pull --include <paths>` for part of it.
+
 A `fresh` branch has no upstream: the helper passes `--no-track`, so the first `push-branch.sh` run sets `<remote>/<branch>`. When a feature branch's upstream is `<remote>/<default>` rather than its own `<remote>/<branch>`, `push-branch.sh` keeps that wrong upstream; repair it once with `git -C <path> branch --unset-upstream` before the first push.
 
 A stacked layer starts from the layer below it, not the default branch; whether to stack at all is "When to stack" in [stacked-prs.md](../../../reference/stacked-prs.md). To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `bash "<scripts-dir>/worktree-claim.sh" claim <path> --session-id "<session-id>"` so the tree is not unclaimed (the PostToolUse hook does this for a Bash-tool add, claiming only the parsed target), then run the Workspace environment `setup` for `<path>` per [Workspace environment setup](#workspace-environment-setup), then `EnterWorktree(path: <path>)`. Before writing in a tree this session did not just create, run `check-enter <path> --session-id "<session-id>"`. A foreign live claim is a stop. Relative paths (including `.` from inside the tree) are canonicalized against the invocation directory.
@@ -53,6 +55,8 @@ Creating worktree (shared helper, external root, outside every repository):
   Branch: <branch>                          (the name, or derived per worktree_branch_naming)
   Local files: .worktreeinclude matches copied in (gitignored ones only)
   Dependencies: node_modules hard-linked from a per-lockfile npm ci seed when package-lock.json exists (non-fatal on failure)
+  Git LFS: paths a .gitattributes routes through filter=lfs arrive as pointer files;
+           fetch the content with git -C <path> lfs pull, or lfs pull --include <paths> for part of it
   Entering: EnterWorktree(path:) switches the session in. Because the path is
             OUTSIDE .claude/worktrees/, Claude Code asks you to APPROVE the move
             (which modes skip that prompt: the EnterWorktree row of
