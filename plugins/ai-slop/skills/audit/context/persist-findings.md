@@ -5,7 +5,7 @@ all" below, and SKILL.md step 5: only an audit that examined tracked files write
 none is written, read nothing.
 
 **Read the producer contract before the first write**:
-[`${CLAUDE_PLUGIN_ROOT}/reference/detector-findings.md`](../../../reference/detector-findings.md).
+[`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 an `ai-slop` run decides for itself and cites the contract for the rest. Where the two

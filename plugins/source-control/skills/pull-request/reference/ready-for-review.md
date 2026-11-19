@@ -8,7 +8,7 @@ This is not [readiness.md](readiness.md), which holds the gates that decide whet
 
 **The order the skill runs follow is the fleet's pre-PR order**, owned by
 the pre-pr-ordering contract, bundled at
-[`${CLAUDE_PLUGIN_ROOT}/reference/pre-pr-ordering.md`](../../../reference/pre-pr-ordering.md).
+[`<plugin-root>/reference/pre-pr-ordering.md`](../../../reference/pre-pr-ordering.md).
 Read it there; this phase cites it and never states a different one.
 
 ## 2.5.1 Refuse without a pull request

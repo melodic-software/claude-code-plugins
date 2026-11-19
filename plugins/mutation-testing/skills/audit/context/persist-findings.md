@@ -14,7 +14,7 @@
 The mechanics of `--persist-findings` (SKILL.md "Phase 6: Persist (opt-in)").
 
 **Read the producer contract before the first write**:
-[`${CLAUDE_PLUGIN_ROOT}/reference/detector-findings.md`](../../../reference/detector-findings.md).
+[`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 a `mutation` run decides for itself and cites the contract for the rest. Where the two

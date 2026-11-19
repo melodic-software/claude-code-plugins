@@ -24,7 +24,7 @@ Resolve it in this order:
    base directory. When `/review:fanout` does not resolve, the root is not known, or a read
    fails, go to rung 2.
 2. **This plugin's bundled copy of the contract**, when rung 1 does not apply:
-   [`${CLAUDE_PLUGIN_ROOT}/reference/detector-findings.md`](../../../reference/detector-findings.md).
+   [`reference/detector-findings.md`](../../../reference/detector-findings.md) in this plugin's root, two directories above this skill's base directory.
 3. **Neither readable → do not write.** Report that the destination and the guard could not be
    resolved from their owner, and say the run is report-only. Inventing a destination reports
    success while the consumer never scans that path.
