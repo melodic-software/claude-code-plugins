@@ -15,7 +15,7 @@ const ROOT = "/home/runner/actions-runner";
 const CALLS = [
   ["Read", { file_path: "/proc/self/environ" }],
   ["Read", { file_path: `${ROOT}/.runner` }],
-  ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }],
+  ["Grep", { pattern: "policy-probe", glob: "environ", path: "/proc/self" }],
   ["Glob", { pattern: "environ", path: "/proc/self" }],
 ];
 const stream = ({ calls = CALLS, denied = calls, subtype = "success" } = {}) =>
@@ -51,6 +51,19 @@ test("a call made and not denied is a policy failure", () => {
   const { code, line } = judgeProbe(stream({ denied: [CALLS[0], CALLS[1], CALLS[3]] }), ROOT);
   assert.equal(code, 1);
   assert.match(line, /^the managed policy did not record a denied Grep of \/proc\/self \(probe: /);
+});
+
+test("a Grep refused by the tool's own process-file check, not the policy, is a policy failure", () => {
+  const grepFile = ["Grep", { pattern: "policy-probe", path: "/proc/self/environ" }];
+  const refused = {
+    type: "user",
+    message: { content: [{ type: "tool_result", is_error: true, content: "<tool_use_error>Cannot read '/proc/self/environ': this path names a device or process file that this tool does not read.</tool_use_error>" }] },
+  };
+  const lines = stream({ calls: [CALLS[0], CALLS[1], grepFile, CALLS[3]], denied: [CALLS[0], CALLS[1], CALLS[3]] }).split("\n");
+  lines.splice(4, 0, JSON.stringify(refused));
+  const { code, line } = judgeProbe(lines.join("\n"), ROOT);
+  assert.equal(code, 1);
+  assert.match(line, /^the managed policy did not record a denied Grep of \/proc\/self \(probe: .* denials=3 /);
 });
 
 test("a session that errored before its calls is its own error, not a policy failure", () => {
