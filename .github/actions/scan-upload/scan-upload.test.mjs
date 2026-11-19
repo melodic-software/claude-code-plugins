@@ -18,13 +18,13 @@ function workDir(t) {
   return dir;
 }
 
-function run(dir, paths) {
+function run(dir, paths, extra = {}) {
   const output = path.join(dir, "github-output");
   const summary = path.join(dir, "step-summary");
   writeFileSync(output, "");
   writeFileSync(summary, "");
   const result = spawnSync(process.execPath, [SCRIPT], {
-    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
+    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extra },
     encoding: "utf8",
   });
   return { ...result, outputs: readFileSync(output, "utf8"), summary: readFileSync(summary, "utf8") };
@@ -62,6 +62,14 @@ test("a planted credential withholds the upload and asks for rotation, never pri
   const result = run(dir, path.join(dir, "out"));
   withheld(result, "GitHub token; nothing is uploaded");
   assert.match(result.stdout, /Rotate this credential/);
+});
+
+test("SCAN_WITHHOLDS names what a hit withholds in place of the whole upload", (t) => {
+  const dir = workDir(t);
+  writeFileSync(path.join(dir, "otel.jsonl"), `{"resourceLogs":[{"body":"${PLANTED}"}]}\n`);
+  const result = run(dir, path.join(dir, "otel.jsonl"), { SCAN_WITHHOLDS: "the telemetry is left out and the transcript still uploads" });
+  withheld(result, "GitHub token; the telemetry is left out and the transcript still uploads");
+  assert.doesNotMatch(result.stdout, /nothing is uploaded/);
 });
 
 test("a block writes only the hit's rule, path and line to the summary, no character of the match", (t) => {
@@ -166,4 +174,9 @@ test("the lane transcript is scanned as plaintext before it is sealed", () => {
   assert.ok(scan > 0 && scan < seal, "the scan step comes before the seal step");
   assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.execution-file \}\}\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
   assert.match(action, /id: seal\n\s+if: steps\.scan\.outputs\.clean == 'true'\n/);
+  const scanOtel = action.indexOf("id: scan-otel\n");
+  const sealOtel = action.indexOf("id: seal-otel\n");
+  assert.ok(seal < scanOtel && scanOtel < sealOtel, "the telemetry is scanned after the transcript is sealed and before its own seal");
+  assert.match(action, /SCAN_PATHS: \$\{\{ inputs\.otel-file \}\}\n.*\n\s+run: node "\$GITHUB_ACTION_PATH\/\.\.\/scan-upload\/scan-upload\.mjs"/);
+  assert.match(action, /id: seal-otel\n\s+if: steps\.scan-otel\.outputs\.clean == 'true'\n/);
 });

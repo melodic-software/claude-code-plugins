@@ -9126,6 +9126,26 @@ test("every model leg is followed by a sealed transcript upload of its own execu
   assert.ok(legs >= 13, `only ${legs} model legs found`);
 });
 
+test("a transcript upload's otel-file is its own leg's, from a launcher with the receiver on", () => {
+  let carried = 0;
+  for (const file of workflowFiles()) {
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      for (const [at, step] of steps.entries()) {
+        if (step.with?.["otel-receiver"] !== undefined) assert.ok(isLauncher(step), `${file}#${jobId} ${step.name}: otel-receiver on a step that is no launcher`);
+        if (!isTranscriptUpload(step) || step.with?.["otel-file"] === undefined) continue;
+        carried++;
+        const leg = /^\$\{\{ steps\.([\w-]+)\.outputs\.execution-file \}\}$/.exec(step.with["execution-file"] ?? "")?.[1];
+        assert.equal(step.with["otel-file"], `\${{ steps.${leg}.outputs.otel-file }}`, `${file}#${jobId} ${step.name}: the otel-file of the leg whose transcript it uploads`);
+        const launcher = steps.slice(0, at).find((s) => s.id === leg);
+        assert.ok(launcher && isLauncher(launcher), `${file}#${jobId} ${step.name}: ${leg} is a launcher before it`);
+        assert.equal(launcher.with?.["otel-receiver"], "true", `${file}#${jobId} ${leg}: the receiver is on`);
+      }
+    }
+  }
+  if (workflowFiles().includes("maintenance-audit-lane-runs.yml")) assert.ok(carried >= 3, `only ${carried} uploads carry telemetry`);
+});
+
 test("every caller of a reusable holding model legs passes the transcript key", () => {
   let callers = 0;
   for (const file of workflowFiles()) {

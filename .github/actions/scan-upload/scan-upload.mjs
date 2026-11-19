@@ -101,7 +101,7 @@ export function main(env = process.env) {
       } catch {}
     }
     process.stdout.write(
-      `::error::scan-upload: ${withheld.label}; nothing is uploaded${withheld.credential ? ". Rotate this credential" : ""}\n`,
+      `::error::scan-upload: ${withheld.label}; ${env.SCAN_WITHHOLDS || "nothing is uploaded"}${withheld.credential ? ". Rotate this credential" : ""}\n`,
     );
     return 1;
   }
