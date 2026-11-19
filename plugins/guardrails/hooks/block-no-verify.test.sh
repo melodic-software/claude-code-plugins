@@ -811,14 +811,6 @@ assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
 # and which executor behavior applies has not been traced.
-#
-# A NUL cannot live in a shell variable, so the payload is assembled inside jq:
-# `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
-# escape on the wire — the form the harness would deliver.
-nul_payload() {
-  jq -n --arg h "$1" --arg t "$2" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}'
-}
 run_nul() {
   local label="$1" head="$2" tail="$3" expected="$4"
   expect "$label" "$expected" --payload "$(nul_payload "$head" "$tail")"
@@ -831,11 +823,6 @@ run_nul "all-NUL command strips to empty (blocked)" "" "" 2
 run_nul "NUL in an otherwise harmless command (blocked)" "echo hi" "; echo bye" 2
 
 # The block has to say what is wrong and what to do about it, not just refuse.
-nul_stderr() {
-  guard_invoke --payload "$(nul_payload "$1" "$2")"
-  printf '%s' "$GUARD_ERR"
-  return "$GUARD_RC"
-}
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
   "Reissue the call without it"

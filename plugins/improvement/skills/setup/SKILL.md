@@ -71,9 +71,13 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
 
 ## `apply` (idempotent)
 
-Run `check`, then interview and write the team file. Proceed non-interactively where the
-invocation and the repo make values unambiguous; ask only where a value genuinely needs the
-user.
+Run `check`, then interview and write the team file. Draft values from the invocation and the
+repo without asking, but write nothing before the user answers: the first interview question,
+with its recommendation, comes before any `Write` to `.claude/improvement.md`, even when every
+value looks unambiguous. A value the invocation names is a draft the interview confirms. When
+the invocation asks to see a proposal instead of a write, showing the whole draft (the file,
+the verification of step 5 and the report) with its recommendations is that question: present
+it in one reply and write nothing.
 
 1. **Read the effective config first, across all layers**, and present the merged baseline with
    per-layer provenance. Exactly as `check` step 2 reports it. When a higher layer's opt-out or
@@ -98,7 +102,7 @@ user.
 3. **Interview, one decision at a time**: window, exclusions, then each telemetry source (name,
    `mcp_server`, `kind`, scope, hints) with a recommendation the user accepts, edits, or
    declines.
-4. **Write the team file** in the file format defined by
+4. **Write the team file**, only after the interview's answers, in the file format defined by
    `${CLAUDE_PLUGIN_ROOT}/reference/config.md`, a fenced YAML block holding only the keys the
    user confirmed. Never write a vendor-specific default the user did not declare.
 5. **Verify after writing.** Re-run the `check` probes on the written file: both

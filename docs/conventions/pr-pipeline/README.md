@@ -389,7 +389,11 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
    the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
    `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
-   within it, inside raised timeouts, since failing there drops finished work (#16642).
+   within it, inside raised timeouts, since failing there drops finished work (#16642). So does
+   ci-status's merge-queue verdict reader after a read it did not send below the read floor,
+   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417), and
+   check-plugins' read of the queued pull request in a merge group, for up to
+   `WAIT_BUDGET_SECONDS.queuedPr`, since four gates refuse without it and eject the group.
    Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
@@ -2337,7 +2341,9 @@ pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(to
 pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
 1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
-read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+read floor (`limits.api` `read-floor` of the header's limit, inlined in the job env), left. The
+reader plans its own floor to that live limit too, not github-token's `limit-cap` (owner decision
+D418).
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the

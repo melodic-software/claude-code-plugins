@@ -100,7 +100,14 @@ const STRANGERS = [
   { repository: { full_name: "someone/fork" } },
   { display_title: `pr-verify-capture 778 ${HEAD}` },
   { display_title: `pr-verify-capture ${UPSTREAM} ${"b".repeat(40)}` },
+  { display_title: `pr verify capture ${UPSTREAM} ${HEAD}` },
+  { display_title: `PR Unblock ${UPSTREAM} ${HEAD}` },
 ];
+
+test("a capture run under the Title Case run-name is found as under the old one", async () => {
+  const { github, options } = fake({ listings: [[run({ display_title: `PR Verify Capture ${UPSTREAM} ${HEAD}` })]] });
+  assert.deepEqual(await findCapture(github, ids, options), { artifactId: "5001", runId: "900" });
+});
 
 test("a run that is not this file's on main by workflow_run for this upstream run and head is never taken", async () => {
   for (const other of STRANGERS) {

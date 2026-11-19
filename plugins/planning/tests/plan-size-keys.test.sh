@@ -11,6 +11,7 @@
 # test-scope: plugins/planning/skills/plan/context/plan-template.md
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP="$PLUGIN_DIR/skills/setup/scripts/setup-apply.mjs"

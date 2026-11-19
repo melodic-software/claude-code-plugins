@@ -596,6 +596,12 @@ test("skips a PR while a resolve-conflicts run for it is queued or going", async
     assert.deepEqual(dispatchedNumbers(api), ["27"], status);
     assert.ok(lines.some((line) => line.includes("#26") && line.includes("run 1")), status);
   }
+  const { api, run } = harness({
+    pages: [[pr(26), pr(27)]],
+    workflowRuns: [{ id: 1, status: "queued", display_title: "PR Unblock resolve-conflicts #26" }],
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["27"], "the Title Case run-name holds as the old one does");
 });
 
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {

@@ -186,6 +186,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
 import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
@@ -265,7 +266,7 @@ const slotEnabled = (resolved, name) => resolved?.lane.slots.some((slot) => slot
 // `since` (ms); a run with no readable creation time counts.
 const runSince = async ({ api, settings }, number, since) =>
   (await api.listWorkflowRuns(settings.workflow)).find(
-    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < since),
+    (run) => isPrUnblockTitle(run.display_title, settings.activity, number) && !(Date.parse(run.created_at ?? "") < since),
   );
 // The reply check skips that leave the head for another round: a lane stop
 // (a stop escalation-routes.json routes to a failing status) is retried on
@@ -461,9 +462,6 @@ export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }
   return runs[0] ?? null;
 }
 
-// pr-unblock.yml's run-name, which names the activity and the PR.
-export const runTitle = (activity, number) => `pr-unblock ${activity} #${number}`;
-
 // Each workflow's run listing is read at most once a run, when a pass first
 // asks; a failed read is shared too, so a rate-limited endpoint is not asked
 // again.
@@ -540,12 +538,12 @@ export async function dispatchFeedback({
   if (cutoff === null && isHandled(record, settings.checkName, head)) {
     return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
   }
-  const title = (number) => runTitle(settings.activity, number);
+  const titled = (run, number) => isPrUnblockTitle(run.display_title, settings.activity, number);
   const reviewStarted = Date.parse(upstream.run_started_at ?? "");
   // A run of this activity for the PR, created after this review started and
   // not done, holds the dispatch (see below).
   const holds = (run, number) =>
-    run.status !== "completed" && run.display_title === title(number) && !(Date.parse(run.created_at ?? "") < reviewStarted);
+    run.status !== "completed" && titled(run, number) && !(Date.parse(run.created_at ?? "") < reviewStarted);
   const pulls = (await api.pullsForCommit(head)).filter(
     (pull) =>
       pull.state === "open" &&
@@ -685,7 +683,7 @@ export async function dispatchFeedback({
     log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
     return null;
   }
-  const waits = (run) => run.status !== "completed" && run.status !== "in_progress" && run.display_title === title(number);
+  const waits = (run) => run.status !== "completed" && run.status !== "in_progress" && titled(run, number);
   const active = runs.filter((run) => (passOnly ? waits(run) : holds(run, number)));
   if (active.length > 0) {
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
@@ -1240,7 +1238,7 @@ async function sweepRefused(context) {
   const head = pull.head.sha;
   const since = (rest.now ?? Date.now()) - FAILED_RUN_WINDOW_HOURS * 3_600_000;
   const [last] = (await api.listWorkflowRuns(settings.workflow))
-    .filter((run) => run.display_title === runTitle(settings.activity, pull.number))
+    .filter((run) => isPrUnblockTitle(run.display_title, settings.activity, pull.number))
     .sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
   if (last?.status !== "completed" || !RUN_ID.test(String(last.id)) || !(Date.parse(last.updated_at ?? "") >= since)) {
     return null;
@@ -1345,7 +1343,7 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   let finished;
   const sentSince = async (number) => {
     finished ??= api.listFinishedRunsSince(settings.workflow, lost.created_at);
-    return (await finished).find((run) => run.display_title === runTitle(settings.activity, number));
+    return (await finished).find((run) => isPrUnblockTitle(run.display_title, settings.activity, number));
   };
   const dispatched = await sweepPulls(context, async (pull) => {
     const sent = await sentSince(pull.number);

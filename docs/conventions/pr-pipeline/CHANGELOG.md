@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [10.15.3] - 2026-11-19
+
+### Fixed
+
+- Check Plugins' merge-group read of the queued pull request waits for a rate limit's reset when it is at most `WAIT_BUDGET_SECONDS.queuedPr` (900 s) away, then reads again, instead of failing at once and making the bump, fragment, release and vendor gates refuse and eject the group. The job's timeout rises from 9 to 24 minutes to hold the wait.
+
+## [10.15.2] - 2026-11-19
+
+### Fixed
+
+- ci-status's merge-group verdict reader plans its read floor to GITHUB_TOKEN's live header limit instead of github-token's 1,000-call `limit-cap`, keeping the 10% `read-floor`, and its cold-read gate reserves that same floor (owner decision D418). Run 44463304120 ejected 21 merge-group runs with 2,766 of 5,000 requests left.
+
+## [10.15.1] - 2026-11-19
+
+### Fixed
+
+- A pull request's Refine dispatch and intake's issue refinement no longer drop on a GitHub token budget stop whose reset is near. pr-unblock-dispatch's refine job waits out a rate-limit stop (up to 1200 s) and then sends the pr-refine dispatch, where before it ended red with nothing to send it again. check-kill-switch takes a new `wait-seconds` input: a budget stop whose reset is inside it waits for the reset and reads the budget once more. Only intake's refine-select sets it, so admission no longer refuses an issue whose refinement the start gate skipped.
+
+## [10.15.0] - 2026-11-19
+
+### Added
+
+- The issue lane's start gate (`check-kill-switch`, new input `project`, set only on the read runner's first call) also holds a run while the pacer's projection of the GITHUB_TOKEN window's burn rate to `start-run-minutes` ahead (21, rate-limits.json), or to the reset when sooner, leaves under `start-project` (0.3, rate-limits.json alone) of the header's limit. The hold is a `budget` stop with the window's reset, so work-unblock's sweep re-fires it after the reset; its notice names the projected share, the horizon and the threshold. The 10% `start-gate` share and the brake stay as they are. The projection lives in `.github/actions/check-kill-switch/projection.mjs`, which `pace.mjs` now uses too.
+- `pace-pr-merge` (0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its scheduled merge and enable-auto-merge sweeps skip every other tick once the window is projected to have under 0.3 of the header's limit left at the reset, before the other timer lanes slow down. `pace` 0 still turns all pacing off.
+
+### Changed
+
+- pr-unblock's resolve-conflicts lane sends a same-head retry after an unresolved-conflict stop only once main changes one of the paths that round left conflicted. The push job's check run now records the round's pinned base and unmerged paths. The dispatcher compares that base with main's tip in one call and skips the head while no commit since touches those paths. A missing record, a failed read, or a new head sends as before.
+
 ## [10.14.1] - 2026-11-19
 
 ### Changed

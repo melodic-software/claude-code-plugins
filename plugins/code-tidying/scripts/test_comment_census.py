@@ -22,6 +22,8 @@ from pathlib import Path
 # caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_git_var
 
 SCRIPT = Path(__file__).with_name("comment-census.py")
@@ -74,6 +76,8 @@ def git_env(**extra: str) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")}
     env.update(
         {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_AUTHOR_NAME": "t",
             "GIT_AUTHOR_EMAIL": "t@x",
             "GIT_COMMITTER_NAME": "t",

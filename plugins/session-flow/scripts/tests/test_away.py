@@ -24,6 +24,8 @@ import pytest
 
 for _leaked_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG", "GIT_INDEX_FILE"):
     os.environ.pop(_leaked_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 del _leaked_var
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -34,6 +36,7 @@ HEADINGS = ("Needs you", "Decided while you were away", "Waiting on me", "Done",
 
 sys.path.insert(0, str(SCRIPTS))
 import away  # noqa: E402
+import away_launch  # noqa: E402
 
 DEFAULTS = {
     "away_night_start": "21:00",
@@ -625,15 +628,15 @@ def test_managed_dropin_turns_auto_continue_off(tmp_path):
     base.write_text('{"autoContinueAtUsageLimit": true}', encoding="utf-8")
     (base.parent / "managed-settings.d" / "20-team.json").write_text('{"autoContinueAtUsageLimit": false}', encoding="utf-8")
     (base.parent / "managed-settings.d" / ".hidden.json").write_text('{"sandbox": {"enabled": true}}', encoding="utf-8")
-    warnings = away.launch_warnings(tmp_path / "config", tmp_path / "project", managed=base)
+    warnings = away_launch.launch_warnings(tmp_path / "config", tmp_path / "project", managed=base)
     assert any("autoContinueAtUsageLimit" in w and "20-team.json" in w for w in warnings), warnings
     assert not any("sandbox" in w for w in warnings), "a hidden drop-in is ignored"
 
 
 def test_managed_base_follows_program_files(monkeypatch):
-    monkeypatch.setattr(away.sys, "platform", "win32")
+    monkeypatch.setattr(away_launch.sys, "platform", "win32")
     monkeypatch.setenv("PROGRAMFILES", "D:\\Apps")
-    assert away.managed_base() == Path("D:\\Apps") / "ClaudeCode" / "managed-settings.json"
+    assert away_launch.managed_base() == Path("D:\\Apps") / "ClaudeCode" / "managed-settings.json"
 
 
 def test_parallel_refusals(ctx):
@@ -691,6 +694,7 @@ def test_stop_open_items(ctx):
     assert "write the docs" in output["reason"]
     assert "fix the flaky test" in output["reason"]
     assert RULES_TAIL in output["reason"]
+    assert " refresh " not in output["reason"], "the hook keeps the blocks current, so it asks for no refresh"
     check = ctx.cli("check")
     assert check.returncode == 1
     assert check_lines(check)["open"] == "2"
@@ -739,14 +743,106 @@ def test_stop_after_mode_warning_still_holds_open_items(ctx):
     assert "write the docs" in json.loads(second)["reason"]
 
 
-def test_stop_blocks_on_unlisted_refusal(ctx):
+def test_stop_lists_a_new_refusal_itself(ctx):
     started_with_tasks(ctx, "- [x] done\n")
     ctx.hook("PermissionRequest", "permission_request_bash")
-    output = json.loads(ctx.hook("Stop", "stop"))
-    assert output["decision"] == "block"
-    assert "refresh" in output["reason"]
-    assert ctx.cli("refresh").returncode == 0
+    assert ctx.hook("Stop", "stop") == "", "the Stop hook lists the refusal, so no refresh is needed to stop"
+    assert "- R1 permission prompt" in block(ctx.report().read_text(encoding="utf-8"), "refused")
+    assert check_lines(ctx.cli("check"))["blocks_fresh"] == "pass"
+
+
+def test_stop_refreshes_blocks_from_the_transcript_and_keeps_the_agents_sections(ctx):
+    started_with_tasks(ctx, "- [x] done\n")
+    fill_report(ctx.report(), "- **Decision:** which database.\n  **Options:** Postgres; SQLite.\n  **Recommendation:** Postgres.\n")
+    before = ctx.report().read_text(encoding="utf-8")
+    ctx.install_transcript()
     assert ctx.hook("Stop", "stop") == ""
+    text = ctx.report().read_text(encoding="utf-8")
+    assert "gh pr create" in block(text, "externals"), "the first Stop records the transcript and lists its external actions"
+    assert "curl -X POST https://example.invalid/api/deploy" in block(text, "refused"), "an auto mode denial is listed"
+    assert [r["id"] for r in ctx.refused()] == ["R1"]
+    assert text.split("<!-- away:refused:begin -->")[0] == before.split("<!-- away:refused:begin -->")[0], (
+        "everything above the script-owned blocks, Needs you included, is left as the agent wrote it"
+    )
+    assert ctx.hook("Stop", "stop") == ""
+    assert [r["id"] for r in ctx.refused()] == ["R1"], "a second Stop adds no duplicate"
+
+
+def test_stop_leaves_the_file_scan_to_end(ctx):
+    watched = ctx.root / "watched"
+    watched.mkdir()
+    task = ctx.repo / "tasks.md"
+    task.write_text("- [x] done\n", encoding="utf-8")
+    ctx.start(
+        "--kind", "until", "--until", "2000-01-01T00:00:00+00:00", "--task-file", str(task),
+        "--setting", f"away_watched_folders={watched}",
+    )
+    fill_report(ctx.report())
+    (watched / "written.txt").write_text("x", encoding="utf-8")
+    assert ctx.hook("Stop", "stop") == ""
+    assert "written.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "the Stop hook runs no file scan"
+    assert ctx.cli("end").returncode == 0
+    assert "written.txt" in block(ctx.report().read_text(encoding="utf-8"), "files"), "end scans the watched folders"
+
+
+def test_stop_still_holds_open_items_when_the_report_cannot_be_written(ctx):
+    started_with_tasks(ctx, "- [ ] write the docs\n")
+    blocker = ctx.root / "not-a-dir"
+    blocker.write_text("", encoding="utf-8")
+    state = ctx.state()
+    (ctx.state_dir / "state.json").write_text(json.dumps(dict(state, report_path=str(blocker / "report.md"))), encoding="utf-8")
+    payload = dict(HOOK_INPUTS["stop"], session_id=SESSION, transcript_path=str(ctx.root / "t.jsonl"))
+    result = ctx.run("hook", "Stop", stdin=json.dumps(payload))
+    assert result.returncode == 0
+    output = json.loads(result.stdout)
+    assert output["decision"] == "block" and "write the docs" in output["reason"], "a failed rewrite keeps the open-items hold"
+    assert "stop refresh failed" in result.stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks need POSIX permissions")
+@pytest.mark.parametrize("swap", ["report", "folder"])
+def test_stop_never_writes_through_a_link_planted_at_the_report(ctx, swap):
+    ignored = Away(ctx.root / "ignored")
+    (ignored.repo / ".gitignore").write_text(".work/\n", encoding="utf-8")
+    task = ignored.repo / "tasks.md"
+    task.write_text("- [x] done\n", encoding="utf-8")
+    ignored.start("--kind", "trip", "--task-file", str(task))
+    report = ignored.report()
+    secret = ctx.root / "secret.txt"
+    secret.write_text("TOP-SECRET-VALUE\n", encoding="utf-8")
+    outside = ctx.root / "outside"
+    outside.mkdir()
+    if swap == "report":
+        report.unlink()
+        report.symlink_to(secret)
+    else:
+        moved = report.parent.with_name("away-real")
+        report.parent.rename(moved)
+        report.parent.symlink_to(outside)
+    ignored.hook("PermissionRequest", "permission_request_bash")
+    ignored.hook("Stop", "stop")
+    assert secret.read_text(encoding="utf-8") == "TOP-SECRET-VALUE\n", "the linked file is left as it was"
+    assert list(outside.iterdir()) == [], "nothing is written into the linked folder"
+    if swap == "report":
+        assert report.is_symlink(), "the link is not replaced by a copy of what it points at"
+    result = ignored.cli("end")
+    assert result.returncode == 1 and "left untouched" in result.stderr, "end reports the refusal"
+    assert "Traceback" not in result.stderr
+    assert secret.read_text(encoding="utf-8") == "TOP-SECRET-VALUE\n" and list(outside.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks need POSIX permissions")
+def test_end_writes_a_report_recorded_through_a_linked_folder_before_report_dir_existed(ctx):
+    ctx.start()
+    via = ctx.root / "via"
+    via.symlink_to(ctx.state_dir)
+    state = ctx.state()
+    state.pop("report_dir")
+    state["report_path"] = str(via / "report.md")
+    (ctx.state_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    result = ctx.cli("end")
+    assert result.returncode == 0, result.stderr
+    assert "Watched:" in block((ctx.state_dir / "report.md").read_text(encoding="utf-8"), "files")
 
 
 def test_stop_records_transcript_path(ctx):
@@ -773,11 +869,6 @@ def test_prompt_subagent_report_not_return(ctx):
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
 
 
-def _stop_note(ctx: Away) -> str:
-    started_with_tasks(ctx, "- [ ] write the docs\n")
-    return json.loads(ctx.hook("Stop", "stop"))["reason"]
-
-
 def _active_note(ctx: Away) -> str:
     ctx.start()
     return context_of(ctx.hook("UserPromptSubmit", "user_prompt_typed"))
@@ -791,8 +882,8 @@ def _back_note(ctx: Away) -> str:
 
 @pytest.mark.parametrize(
     ("note", "verb", "status_after"),
-    [(_stop_note, "refresh", "active"), (_active_note, "end", "ended"), (_back_note, "deliver", "delivered")],
-    ids=["stop-refresh", "active-end", "back-deliver"],
+    [(_active_note, "end", "ended"), (_back_note, "deliver", None)],
+    ids=["active-end", "back-deliver"],
 )
 def test_hook_note_command_names_data_root(ctx, note, verb, status_after):
     text = note(ctx)
@@ -805,7 +896,10 @@ def test_hook_note_command_names_data_root(ctx, note, verb, status_after):
         [sys.executable, *argv[1:]], capture_output=True, text=True, cwd=str(ctx.repo), env=env, timeout=60
     )
     assert result.returncode == 0, f"the printed command reaches the state without CLAUDE_PLUGIN_DATA: {result.stderr}"
-    assert ctx.state()["status"] == status_after
+    if status_after is None:
+        assert not ctx.state_dir.exists(), "delivered: the state is gone"
+    else:
+        assert ctx.state()["status"] == status_after
 
 
 def test_deliver_once(ctx):
@@ -816,10 +910,85 @@ def test_deliver_once(ctx):
     assert str(ctx.report()) in text
     assert "deliver" in text
     assert ctx.cli("deliver").returncode == 0
-    assert ctx.state()["status"] == "delivered"
+    assert not ctx.state_dir.exists(), "a delivered absence leaves no state behind"
     assert ctx.hook("UserPromptSubmit", "user_prompt_typed") == ""
     assert ctx.cli("deliver").returncode == 0, "a second deliver is a no-op"
-    assert ctx.state()["status"] == "delivered"
+
+
+def delivered_report(result) -> Path:
+    assert result.returncode == 0, result.stderr
+    [line] = [line for line in result.stdout.splitlines() if line.startswith("report=")]
+    return Path(line[len("report="):])
+
+
+def test_deliver_moves_a_report_kept_beside_the_state(ctx):
+    ctx.start()
+    assert ctx.report().parent == ctx.state_dir, "not git-ignored: the report starts beside the state"
+    fill_report(ctx.report(), "the person's note\n")
+    assert ctx.cli("end").returncode == 0
+    report = delivered_report(ctx.cli("deliver"))
+    assert "the person's note" in report.read_text(encoding="utf-8"), "the report survives delivery"
+    assert ctx.data / "away" not in report.parents, "the lasting report is outside the away state"
+    assert not (ctx.data / "away").exists(), "the empty away dir goes, so the hook's shell gate exits early"
+
+
+def test_retried_deliver_reports_where_an_interrupted_one_moved_the_report(ctx, monkeypatch):
+    ctx.start()
+    fill_report(ctx.report(), "the person's note\n")
+    assert ctx.cli("end").returncode == 0
+    paths = away.session_paths(ctx.data, SESSION, SCRIPTS.parent)
+
+    def interrupted(self, missing_ok=False):
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", interrupted)
+        with pytest.raises(KeyboardInterrupt), away.locked(paths.lock):
+            away._clear_held(paths, away.read_state(paths))
+    assert not (ctx.state_dir / "report.md").exists(), "interrupted after the move, before any unlink"
+    report = delivered_report(ctx.cli("deliver"))
+    assert "the person's note" in report.read_text(encoding="utf-8"), "the retry names the moved report"
+    assert not ctx.state_dir.exists()
+
+
+def test_deliver_keeps_a_git_ignored_report_in_place(ctx):
+    ignored = Away(ctx.root / "ignored")
+    (ignored.repo / ".gitignore").write_text(".work/\n", encoding="utf-8")
+    ignored.start()
+    report = ignored.report()
+    assert ignored.cli("end").returncode == 0
+    assert delivered_report(ignored.cli("deliver")) == report
+    assert report.exists(), "the report in the launch checkout stays where the person was told"
+    assert not (ignored.data / "away").exists()
+
+
+def test_deliver_keeps_another_sessions_absence(ctx):
+    other = "22222222-3333-4444-5555-666666666666"
+    assert ctx.run("start", "--session", other, "--kind", "trip").returncode == 0
+    ctx.start()
+    ctx.cli("end")
+    assert ctx.cli("deliver").returncode == 0
+    assert not ctx.state_dir.exists()
+    assert ctx.hook("PermissionRequest", "permission_request_bash", session=other) != "", "the other absence still refuses"
+
+
+def test_deliver_sweeps_an_old_delivered_absence_unless_its_lock_is_held(ctx):
+    old = "99999999-8888-7777-6666-555555555555"
+    old_paths = away.session_paths(ctx.data, old, SCRIPTS.parent)
+    assert ctx.run("start", "--session", old, "--kind", "trip").returncode == 0
+    state = json.loads(old_paths.state.read_text(encoding="utf-8"))
+    old_paths.state.write_text(json.dumps(dict(state, status="delivered")), encoding="utf-8")
+
+    ctx.start()
+    ctx.cli("end")
+    with away.locked(old_paths.lock):
+        assert ctx.cli("deliver").returncode == 0
+        assert old_paths.state.exists(), "a dir whose lock another process holds is left alone"
+    ctx.start()
+    ctx.cli("end")
+    assert ctx.cli("deliver").returncode == 0
+    assert not old_paths.dir.exists(), "a delivered absence left by an earlier version is cleared once its lock is free"
+    assert not (ctx.data / "away").exists()
 
 
 def test_end_keeps_a_copy_beside_state(ctx):
@@ -837,6 +1006,8 @@ def test_end_keeps_a_copy_beside_state(ctx):
 def test_start_after_delivery_begins_new_absence(ctx):
     ctx.start()
     first = ctx.state()
+    ctx.hook("PermissionRequest", "permission_request_bash")
+    assert len(ctx.refused()) == 1
     ctx.cli("end")
     ctx.cli("deliver")
     time.sleep(0.01)
@@ -844,6 +1015,7 @@ def test_start_after_delivery_begins_new_absence(ctx):
     second = ctx.state()
     assert second["status"] == "active"
     assert second["started"] != first["started"]
+    assert ctx.refused() == [], "the new absence starts with no refusals from the last one"
 
 
 
@@ -977,18 +1149,6 @@ def test_plain_refresh_keeps_the_files_block(ctx):
     second.write_text("x", encoding="utf-8")
     assert ctx.cli("end").returncode == 0
     assert str(second) in block(ctx.report().read_text(encoding="utf-8"), "files"), "end always rescans"
-
-
-def test_first_refresh_after_report_by_rescans_once(ctx):
-    ctx.start("--kind", "until", "--until", "2000-01-01T00:00:00+00:00")
-    early = ctx.home / "early.txt"
-    early.write_text("x", encoding="utf-8")
-    assert ctx.cli("refresh").returncode == 0
-    assert str(early) in block(ctx.report().read_text(encoding="utf-8"), "files"), "report_by has passed: rescan"
-    late = ctx.home / "late.txt"
-    late.write_text("x", encoding="utf-8")
-    assert ctx.cli("refresh").returncode == 0
-    assert "late.txt" not in block(ctx.report().read_text(encoding="utf-8"), "files"), "only the first one rescans"
 
 
 def test_file_walk_budget(ctx, monkeypatch):

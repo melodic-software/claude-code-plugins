@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.4.0] - 2026-11-19
+
+### Changed
+
+- **`/knowledge:course-digest` hands rule candidates to `/corrections:codify`** (#17175). Phase 5 and the `action-items.md` template no longer send each course rule to a named instruction file. The "CLAUDE.md / .claude/rules/ candidates" section is now "Rule candidates", and each entry names a `/corrections:codify "<the rule>"` call, which the digest runs only when asked. When codify is not available, the entry also proposes the strongest mechanism that can decide the rule and says the proposal is unproven.
+
 ## [3.3.6] - 2026-11-18
 
 ### Changed

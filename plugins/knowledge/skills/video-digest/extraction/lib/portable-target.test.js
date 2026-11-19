@@ -6,6 +6,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { portableTargetName } from "./portable-target.js";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const checkout = (/** @type {string|null} */ origin) => ({
   checkoutOrigin: () => ({ origin }),

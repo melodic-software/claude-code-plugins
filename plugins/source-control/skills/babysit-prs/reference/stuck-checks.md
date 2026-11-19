@@ -129,11 +129,14 @@ judgment call the orchestrator escalates; the categories map to different owners
 - **Branch-CI-config-fixable** (e.g. a wrong `runs-on:` label in the PR branch's own workflow YAML):
   this rides the normal `head_sha_changed` delta: a corrected workflow is a new commit, and the
   next snapshot re-reads checks for the new head. Route the fix to that workflow. When the
-  label is organization-owned, read the standards `runner-policy` component vendored at
-  `.github/standards/runner-policy/policy.json` and `docs/ci-runner-routing.md`, and edit the
-  approved-label list those record rather than guessing a workflow name.
+  label is organization-owned, read the files the target repository's `runner_policy_paths`
+  names (`docs/conventions/source-control.yaml`;
+  [config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)),
+  or, unset, its own CI documentation, and edit the approved-label list they record rather than
+  guessing a workflow name.
 - **Org/settings-class** (an unmatched self-hosted runner pool, an orphaned external status, branch
-  protection): route to `github-iac` / the posting app's configuration. These stay
+  protection): route to the repository the target's `org_settings_repo` names, or, unset, name the
+  setting and its owner; or to the posting app's configuration. These stay
   `material_findings` and are escalated, never auto-fixed from a babysit worker.
 
 Any of these that "belongs in an upstream source-of-truth repository" or touches runners, an

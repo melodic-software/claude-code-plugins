@@ -17,6 +17,7 @@ set -uo pipefail
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/pr-linkage-mcp-gate.sh"
@@ -54,6 +55,8 @@ mkdir -p "$COMPOSITE/.github/workflows"
 printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3\n' >"$COMPOSITE/.github/workflows/pr-require-checks.yml"
 git -C "$COMPOSITE" init -q
 git -C "$COMPOSITE" remote add origin https://github.com/acme-corp/widgets.git
+FIXTURE_RE='\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
+export CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="$FIXTURE_RE"
 
 # run <expected-exit> <name> <payload-json>; the payload carries its own cwd.
 run() {
@@ -129,6 +132,17 @@ run 0 "gated repo with no origin remote allows (undeterminable target)" "$(paylo
 run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$BAD")"
 run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$BAD")"
 run 0 "empty stdin allows" ""
+
+CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="" run 0 "no linkage_gate_uses_pattern: the gate is off" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
+YAML_REPO="$WORK/yaml-repo"
+mkdir -p "$YAML_REPO/.github/workflows" "$YAML_REPO/docs/conventions"
+printf '%s' "$CHECK_CONTRACT_WF" >"$YAML_REPO/.github/workflows/ci.yml"
+git -C "$YAML_REPO" init -q
+git -C "$YAML_REPO" remote add origin https://github.com/acme-corp/widgets.git
+printf "linkage_gate_uses_pattern: '%s'\n" "$FIXTURE_RE" >"$YAML_REPO/docs/conventions/source-control.yaml"
+CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="" run 2 "the team YAML alone turns the gate on" "$(payload "$YAML_REPO" $CREATE $OWNER $REPO "$BAD")"
+printf "linkage_gate_uses_pattern: 'no-such-step'\n" >"$YAML_REPO/docs/conventions/source-control.yaml"
+run 0 "the team YAML wins over the userConfig value" "$(payload "$YAML_REPO" $CREATE $OWNER $REPO "$BAD")"
 
 # A GitHub server bundled by a plugin names its tools
 # mcp__plugin_<plugin>_github__<tool>. Both the hooks.json matcher and the

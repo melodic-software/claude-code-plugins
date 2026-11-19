@@ -25,6 +25,7 @@ set -uo pipefail
 # and latch hook::notice_once across cases. A case that needs a data dir sets
 # its own.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/pr-body-linkage-gate.sh"
@@ -54,10 +55,12 @@ trap cleanup EXIT
 # carry a workflow wiring in the `pr-require-checks/check-contract` composite
 # step, under either extension the hook's glob accepts; `nostep` carries a
 # workflow with no such step; `plain` carries no workflows at all.
+FIXTURE_RE='\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
 new_repo() {
   local r="$1" gated="$2"
-  mkdir -p "$r"
+  mkdir -p "$r/docs/conventions"
   git -C "$r" init -q 2>/dev/null
+  printf "linkage_gate_uses_pattern: '%s'\n" "$FIXTURE_RE" >"$r/docs/conventions/source-control.yaml"
   case "$gated" in
   yml | yaml)
     mkdir -p "$r/.github/workflows"
@@ -141,6 +144,31 @@ assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$BAD")"
 assert_allow "workflows present but none wires check-contract: bad body allowed" "$NOSTEP" "$(gh_body "$BAD")"
 assert_allow "non-gh command allowed" "$GATED" "git commit -m 'x'"
 assert_allow "gh command that is not pr create/edit allowed" "$GATED" "gh pr view 5"
+
+set_yaml() {
+  if [[ "$2" == - ]]; then rm -f "$1/docs/conventions/source-control.yaml"; else printf '%s\n' "$2" >"$1/docs/conventions/source-control.yaml"; fi
+}
+PATTERN_REPO="$WORK/pattern"
+new_repo "$PATTERN_REPO" yml
+set_yaml "$PATTERN_REPO" -
+assert_allow "no linkage_gate_uses_pattern anywhere: the gate is off" "$PATTERN_REPO" "$(gh_body "$BAD")"
+set_yaml "$PATTERN_REPO" "pr_open_state: ready"
+assert_allow "a team YAML without the key leaves the gate off" "$PATTERN_REPO" "$(gh_body "$BAD")"
+export CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="$FIXTURE_RE"
+assert_block "the userConfig value alone turns the gate on" "$PATTERN_REPO" "$(gh_body "$BAD")"
+set_yaml "$PATTERN_REPO" "linkage_gate_uses_pattern: 'no-such-step'"
+assert_allow "the team YAML wins over the userConfig value" "$PATTERN_REPO" "$(gh_body "$BAD")"
+unset CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN
+set_yaml "$PATTERN_REPO" "linkage_gate_uses_pattern: 'actions/checkout|pr-require-checks/check-contract@'"
+assert_block "a consumer's own pattern gates its own step" "$PATTERN_REPO" "$(gh_body "$BAD")"
+set_yaml "$PATTERN_REPO" "linkage_gate_uses_pattern: '(unclosed'"
+assert_allow "an invalid pattern leaves the gate off" "$PATTERN_REPO" "$(gh_body "$BAD")"
+if [[ "$ERR" == *"not a valid POSIX ERE"* ]]; then ok "an invalid pattern says so"; else fail "an invalid pattern gave no note: $ERR"; fi
+set_yaml "$PATTERN_REPO" $'linkage_gate_uses_pattern: a\nlinkage_gate_uses_pattern: b'
+export CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="$FIXTURE_RE"
+assert_allow "a team YAML that does not parse stops the lookup" "$PATTERN_REPO" "$(gh_body "$BAD")"
+if [[ "$ERR" == *"does not parse"* ]]; then ok "an unparsable team YAML says so"; else fail "an unparsable team YAML gave no note: $ERR"; fi
+unset CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN
 
 # --- Advisory contract: a closing line and the four sections ------------------
 # CI reports these as advisory, so a body missing any of them is not blocked.
