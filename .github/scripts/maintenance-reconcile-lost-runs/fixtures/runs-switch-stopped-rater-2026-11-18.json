@@ -1,0 +1,474 @@
+{
+  "switch-stopped-44405002826": {
+    "run": {
+      "conclusion": "success",
+      "created_at": "2026-11-18T21:47:01Z",
+      "event": "workflow_run",
+      "head_branch": "main",
+      "head_sha": "e51740fc6bdd493ff5921b6576fdcd71c04573bf",
+      "id": 44405002826,
+      "path": ".github/workflows/pr-rate-merge-risk.yml",
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-11-18T21:47:22Z"
+    },
+    "jobs": [
+      {
+        "conclusion": "success",
+        "id": 135157764118,
+        "name": "Rate Merge Risk",
+        "status": "completed",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Resolve main's tip",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Check out the default branch tip",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Set up Node",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Check the kill switch",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Resolve the pull request",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Read the key's credit history",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Check the credential",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Report the skipped key leg",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Check the trigger",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Assert the gate and the resolver agree",
+            "number": 11,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Select the trusted PR text",
+            "number": 12,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the rating's data",
+            "number": 13,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Resolve the rater's model",
+            "number": 14,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Read the checker's model",
+            "number": 15,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Stage the review plugin",
+            "number": 16,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Apply the Claude managed settings",
+            "number": 17,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Isolate the runner",
+            "number": 18,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the prompt and schema",
+            "number": 19,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Rate the pull request",
+            "number": 20,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Report the rating's outcome",
+            "number": 21,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the sealed transcript",
+            "number": 22,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the key's credit-stop marker",
+            "number": 23,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Scan the key's credit-stop marker for credentials",
+            "number": 24,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the key's credit-stop marker",
+            "number": 25,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the rating",
+            "number": 26,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Scan the upload for credentials",
+            "number": 27,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the rating",
+            "number": 28,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Pick the next leg",
+            "number": 29,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Log the API budget",
+            "number": 30,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Fail without a rating",
+            "number": 31,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Check out the default branch tip",
+            "number": 62,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 63,
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "conclusion": "skipped",
+        "id": 135157962274,
+        "name": "Rate Merge Risk Subscription",
+        "status": "completed",
+        "steps": []
+      },
+      {
+        "conclusion": "skipped",
+        "id": 135157963018,
+        "name": "Rate Merge Risk Fallback",
+        "status": "completed",
+        "steps": []
+      }
+    ]
+  },
+  "resolved-44405353994": {
+    "run": {
+      "conclusion": "success",
+      "created_at": "2026-11-18T21:49:05Z",
+      "event": "workflow_run",
+      "head_branch": "main",
+      "head_sha": "e51740fc6bdd493ff5921b6576fdcd71c04573bf",
+      "id": 44405353994,
+      "path": ".github/workflows/pr-rate-merge-risk.yml",
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-11-18T21:49:24Z"
+    },
+    "jobs": [
+      {
+        "conclusion": "success",
+        "id": 135158998446,
+        "name": "Rate Merge Risk",
+        "status": "completed",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Resolve main's tip",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Check out the default branch tip",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Set up Node",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Check the kill switch",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Resolve the pull request",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Read the key's credit history",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Check the credential",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Report the skipped key leg",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Check the trigger",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Assert the gate and the resolver agree",
+            "number": 11,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Select the trusted PR text",
+            "number": 12,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the rating's data",
+            "number": 13,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Resolve the rater's model",
+            "number": 14,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Read the checker's model",
+            "number": 15,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Stage the review plugin",
+            "number": 16,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Apply the Claude managed settings",
+            "number": 17,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Isolate the runner",
+            "number": 18,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the prompt and schema",
+            "number": 19,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Rate the pull request",
+            "number": 20,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Report the rating's outcome",
+            "number": 21,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the sealed transcript",
+            "number": 22,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the key's credit-stop marker",
+            "number": 23,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Scan the key's credit-stop marker for credentials",
+            "number": 24,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the key's credit-stop marker",
+            "number": 25,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Write the rating",
+            "number": 26,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Scan the upload for credentials",
+            "number": 27,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Upload the rating",
+            "number": 28,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Pick the next leg",
+            "number": 29,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Log the API budget",
+            "number": 30,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Fail without a rating",
+            "number": 31,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Check out the default branch tip",
+            "number": 62,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 63,
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "conclusion": "skipped",
+        "id": 135159173684,
+        "name": "Rate Merge Risk Subscription",
+        "status": "completed",
+        "steps": []
+      },
+      {
+        "conclusion": "skipped",
+        "id": 135159174587,
+        "name": "Rate Merge Risk Fallback",
+        "status": "completed",
+        "steps": []
+      }
+    ]
+  }
+}

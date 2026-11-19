@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-11-19
+
+### Fixed
+
+- The `confirm-lists-every-verifier-verdict` eval's `final-confirmed` grader passes a report that gives the final verdict in a table cell as `CONFIRMED (final)`. A table whose final verdict is NEEDS WORK still fails, as does an answer that lists CONFIRMED without stating it final.
+
 ## [0.29.0] - 2026-11-19
 
 ### Added

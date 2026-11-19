@@ -2558,8 +2558,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
   The caller's `check-dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
   select job, so nothing runs and the run ends green with no check and no stop, and the next
-  dispatcher finds the head unhandled. A read it cannot make, or a record not yet uploaded, leaves
-  the run to the broker.
+  dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
+  and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
+  run to the broker.
 
 ## Bounds
 

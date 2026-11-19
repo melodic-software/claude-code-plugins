@@ -32,6 +32,7 @@ import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
 import { transcriptMetrics } from "../../../scripts/lane-transcripts/store.mjs";
 import { decide } from "../report-check-run/decide.mjs";
+import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { main as resolveConfig } from "./resolve-config.mjs";
@@ -3944,6 +3945,51 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
 });
 
+test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read within rate-limit-wait-seconds", async (t) => {
+  const root = tempDir("scan-wait-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const step = scanSteps().find((s) => s.id === "leak-scan");
+  assert.equal(step.env.WAIT_SECONDS, "${{ inputs.rate-limit-wait-seconds }}");
+  const run = async (env, answers) => {
+    const notices = [];
+    const branches = [];
+    const file = join(root, "scan-leak-calls");
+    rmSync(file, { force: true });
+    const github = {
+      rest: {
+        repos: {
+          getBranch: async () => {
+            branches.push(answers.length);
+            const answer = answers.shift();
+            if (answer instanceof Error) throw answer;
+            return answer;
+          },
+          getContent: async () => {
+            throw new Error("stop after the gate read");
+          },
+        },
+      },
+    };
+    const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {}, notice: (line) => notices.push(line) };
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { HEAD_SHA: "a".repeat(40), CALLS_FILE: file, ...env },
+    }).catch(() => {});
+    return { calls: existsSync(file) ? readFileSync(file, "utf8") : null, notices, reads: branches.length };
+  };
+  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
+  const tip = { data: { commit: { sha: GATE_TIP } } };
+  const waited = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [limited(), tip]);
+  assert.equal(waited.reads, 2, "getBranch is read again after the wait");
+  assert.equal(waited.calls, "3\n", "both getBranch reads and the gate's getContent");
+  assert.equal(waited.notices.length, 1);
+  const unset = await run({}, [limited(), tip]);
+  assert.equal(unset.reads, 1, "no budget: no second read");
+  assert.equal(unset.calls, "1\n");
+  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
+  assert.equal(other.reads, 1, "a 404 is not a rate limit");
+});
+
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
@@ -4522,7 +4568,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
   const steps = scanSteps();
   const step = (id) => steps.find((s) => s.id === id);
   const scan = step("leak-scan");
-  assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
+  assert.match(String(scan["timeout-minutes"]), /^\$\{\{ inputs\.rate-limit-wait-seconds > 0 && [1-9][0-9]* \|\| [1-9][0-9]* \}\}$/, "a slow scan ends, failing closed");
   assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
   const copy = "${{ steps.leak-scan.outputs.dir }}";
   assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.startsWith(`${copy}/`)));
