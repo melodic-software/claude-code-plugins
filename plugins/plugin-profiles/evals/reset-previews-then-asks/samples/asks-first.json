@@ -8,6 +8,9 @@
     },
     {
       "answer": "Should I proceed with the reset?"
+    },
+    {
+      "answer": "Here's what the reset preview shows.\n\n**Reset the 1 file above that a profile record covers?** (yes/no)"
     }
   ],
   "fail": [
