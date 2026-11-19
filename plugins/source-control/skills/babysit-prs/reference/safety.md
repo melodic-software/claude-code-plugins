@@ -861,12 +861,14 @@ Their names are
 none, from the caller components synced from standards, then the ci-workflows reusable's job.
 
 - **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job names
-  in [pr-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
-  and [pr-review-security.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-security.yml)
-  and the caller job ids in standards `components/claude-lanes/` live.
+  of the reusable review workflows in the repository the target's `review_lane_producer_repo`
+  names (`docs/conventions/source-control.yaml`;
+  [config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)),
+  and the caller job ids in the target repository's own `.github/workflows/`, live. Unset, read
+  the target's caller workflows and the reusable workflows their `uses:` lines name.
 - **As of**: 2026-10-04
-- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable, or a
-  standards change to a lane caller's job id.
+- **Recheck trigger**: a producer-repository release that renames or adds a job in either
+  reusable, or a change to a lane caller's job id.
 
 To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
 ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-rate-limited-review)), never only its failed jobs. A failed-jobs rerun

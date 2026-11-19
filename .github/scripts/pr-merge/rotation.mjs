@@ -32,6 +32,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { PR_MERGE_TITLE } from "../lib/run-title.mjs";
 
 export const CURSOR_ARTIFACT = "pr-merge-gate-cursor";
 const WORKFLOW_PATH = ".github/workflows/pr-merge.yml";
@@ -52,7 +53,7 @@ export function rotate(candidates, last) {
 
 // The run name pr-merge.yml gives a PR-scoped dispatch (`run-name`, from
 // inputs.pr); the capture is the input as given.
-export const WAKE_TITLE = /^pr-merge: arm #(.*)$/s;
+export const WAKE_TITLE = PR_MERGE_TITLE;
 
 // A scheduled or hand-started run of main's copy of pr-merge.yml, or of the
 // workflow at `path`. A PR-scoped dispatch (WAKE_TITLE) reads and arms one
