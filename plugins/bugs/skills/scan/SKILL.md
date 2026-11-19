@@ -1,6 +1,6 @@
 ---
 description: "Proactive hunt for unobserved bugs in resting code: read-only, recall-biased hunter subagents per lens, then a fresh-context refute gate per candidate, reporting only verified five-field findings over a target path, feature or diff, or a rotated lane. Use when the user asks to 'find a bug', 'bug hunt', 'scan for bugs' or 'hunt for bugs in X', or a loop or routine runs the lane rotation. Skip when reviewing a diff (review:code-review), security auditing (review:security-review), root-causing an observed failure (debugging:debug), or checking doc, config, code or architecture claim drift (codebase-health:audit); 'scan repo for issues' is harness-ops:known-issues, and 'file a bug' the user observed is bugs:write."
-argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended]"
+argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -79,6 +79,7 @@ the next run has no filed item to read back.
 | `--track` | **Filing** | After reporting, file verified findings as raw intake, subject to `filing_posture` and the Step 7 ladder. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 | `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. A run is also unattended without the flag when the environment says nobody is present ("Unattended runs" below). |
+| `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip` | **Several repositories** | Runs the mode once per selected repository ("Over several repositories" below). Composable with any mode. |
 
 ### Unattended runs
 
@@ -93,6 +94,39 @@ attended. Steps 4, 6 and 7 read "unattended" this way.
 layers, and merge semantics live only in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
 declares lanes, use the bundled generic default lanes in [`context/lenses.md`](context/lenses.md).
+
+## Over several repositories
+
+With no target form, the run covers this checkout, as it always has. A target form (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the
+whole pipeline below, Steps 1 to 7, with its root anchored. What differs here:
+
+- **Config per repository.** `lanes`, `filing_posture`, the verification level and the consumer
+  gotchas all come from that repository: run `read-verification.sh` (Step 4) and
+  `concat-gotchas.sh` with `CLAUDE_PROJECT_DIR=<root>`. The pre-computed lines above describe
+  this checkout only. The budget, stop condition and gate caps hold per repository.
+- **State per repository, under plugin data.** This skill's state is its persisted reports, kept
+  under `${CLAUDE_PLUGIN_DATA}`, not a working-docs root. `<project-slug>` comes from that
+  repository's root, never `${CLAUDE_PROJECT_DIR}`. Rung 2, the Step 3 seed and the Step 5
+  duplicate scan accept only reports whose `project-root` is that root, since a shared
+  `output_dir` or two clones with one basename put several repositories in one directory. The
+  `.bug-reports/` fallback applies to this checkout only. Another repository with no report
+  directory is not persisted, and the report says so. Rung 1 searches that repository's tracker,
+  and rung 3 indexes its lane list.
+- **Modes per repository.** `--lane <name>` hunts that lane in each repository that declares it;
+  a repository that does not is reported skipped with the reason. A targeted path resolves under
+  each repository's root, and a repository where it does not exist is reported skipped.
+- **Hunter and gate stay separate.** Each repository's subagent dispatches its own hunters and
+  gates. When it cannot spawn agents of its own, run that repository's whole pipeline from the
+  main thread with its root anchored; never collapse hunting and gating into one context
+  (Gotchas).
+- **Filing and fixing per repository.** `--track` files in that repository's tracker. The same
+  finding in several repositories is filed once, in the repository that owns the source. Step 7's
+  local route fixes in this session's branch only when the finding is in this checkout; one in
+  another repository is filed instead.
 
 ## Cursor ladder (rotation mode)
 

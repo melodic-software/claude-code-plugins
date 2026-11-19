@@ -93,7 +93,9 @@ findings still belong in the **human report**.
 
 ## What each cell says
 
-- **`branch:`** is `git branch --show-current` verbatim. With no branch resolvable the script
+- **`branch:`** is `git branch --show-current` verbatim. In a pass over another repository
+  (SKILL.md "Several repositories") it is the branch the pass read, passed as `--branch`, since
+  a detached scratch worktree has no current branch. With no branch resolvable the script
   refuses and writes nothing: the consumer admits a candidate only on an exact branch match, so a
   branch-less file could never match.
 - **`Location`** is `<repo-relative path>:<line>`; never the file alone.

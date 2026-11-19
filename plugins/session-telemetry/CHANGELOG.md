@@ -3,6 +3,12 @@
 All notable changes to the `session-telemetry` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.9] - 2026-11-19
+
+### Changed
+
+- `hooks/session-telemetry-test-helpers.sh` is now a generated copy of the marketplace's `lib/hook-test-helpers.sh`, shared with plugin-diagnostics. Its functions behave as before; the explanatory comments moved out.
+
 ## [0.1.8] - 2026-11-19
 
 ### Changed
