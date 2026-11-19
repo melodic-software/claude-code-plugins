@@ -1878,7 +1878,7 @@ class RunValidityTest(unittest.TestCase):
 
     WORKFLOW_BASH_RAN_GREP = re.compile(
         r"bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*"
-        r"(, unknown [0-9]+)?)"
+        r"(, unknown [0-9]+)?)(, absent tool [0-9]+)?"
     )
 
     def test_the_verdict_names_each_counted_denial_redacted(self):
