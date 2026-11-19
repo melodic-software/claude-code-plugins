@@ -220,9 +220,10 @@ jobs:
         if: steps.config.outputs.app != ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: start
+          role: pr-verify
           key-job: capture
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -235,7 +236,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: pr-verify-capture
@@ -440,7 +441,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success' && steps.match.outputs.applicable != 'false' && steps.reuse.outputs.reused != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
           role: pr-verify
@@ -469,7 +470,7 @@ jobs:
       # token, not the job token.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.credit.outputs.probing-marker == 'key-credit-probing-pr-verify-capture.yml-capture' && steps.credential.outputs.present == 'true'
+        if: always() && steps.credit.outputs.probing-marker == 'key-credit-probing-PR_VERIFY_CLAUDE_API_KEY' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -491,7 +492,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-probing-pr-verify-capture.yml-capture
+          name: key-credit-probing-PR_VERIFY_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-probing/run-id
           if-no-files-found: error
           retention-days: 1
@@ -667,7 +669,7 @@ jobs:
       # too (run-claude-cli managed-settings.cjs checks it on every leg).
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           loopback-base-url: http://127.0.0.1:47101
           settings: >-
@@ -1014,7 +1016,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1079,7 +1081,7 @@ jobs:
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.probe.outcome }}
           execution-file: ${{ steps.probe.outputs.execution-file }}
@@ -1103,7 +1105,7 @@ jobs:
       # retention covers windows up to 24 hours.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-verify-capture.yml-capture' && steps.probe.outputs.handoff-reason == 'credit-stop'
+        if: always() && steps.credit.outputs.marker == 'key-credit-stop-PR_VERIFY_CLAUDE_API_KEY' && steps.probe.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -1125,7 +1127,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-verify-capture.yml-capture
+          name: key-credit-stop-PR_VERIFY_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1
@@ -1218,7 +1221,7 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.probe.outputs.handoff }}
@@ -1432,7 +1435,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 16
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CCD_RUNTIME_DIR: /home/runner/.ccd  # machine-path:allow
@@ -1542,7 +1545,7 @@ jobs:
       - name: Record the capture leg
         if: always() && steps.drive.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.drive.outcome }}
           execution-file: ${{ steps.drive.outputs.execution-file }}

@@ -601,7 +601,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-refine.yml-fix-docs
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-fix-docs/run-id
           if-no-files-found: error
           retention-days: 1

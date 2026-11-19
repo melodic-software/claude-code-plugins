@@ -308,7 +308,7 @@ const stepIn = (id, name) => {
 };
 const indexIn = (id, name) => stepsOf(id).findIndex((s) => s.startsWith(`      - name: ${name}\n`));
 const ifOf = (text) => /^ {8}if: (.*)$/m.exec(text)?.[1];
-const MARKER = "key-credit-stop-upstream-apply-changelog.yml-model";
+const MARKER = "key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY";
 
 // The scrub probe (#12836): capture-probe.mjs on run-claude-cli, on the release.
 const PROBE_JOB = "verify-env-scrub";
@@ -516,7 +516,7 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   assert.match(upload, /^ {10}retention-days: 1$/m);
   const row = JSON.parse(readFileSync(new URL("../../artifact-retention.json", import.meta.url), "utf8")).families[MARKER];
   assert.equal(row["retention-days"], 1);
-  assert.equal(row.scan, "upload");
+  assert.equal(row.scan, "none");
 });
 
 // A step condition of the shapes this workflow uses (string compares joined

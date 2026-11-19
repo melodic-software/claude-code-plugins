@@ -167,9 +167,10 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: start
+          role: maintenance
           key-job: eval
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -180,7 +181,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: eval-browser-dispatch
@@ -338,7 +339,7 @@ jobs:
       # gate did not name the subscription leg.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
           role: maintenance
@@ -491,7 +492,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+          ref: d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -878,7 +879,7 @@ jobs:
       # so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-pr-run-plugin-evals.yml-eval' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -901,7 +902,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-run-plugin-evals.yml-eval
+          name: key-credit-stop-MAINTENANCE_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1
@@ -911,7 +913,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -932,7 +934,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -1083,7 +1085,7 @@ jobs:
       # `present` is whether this leg runs the eval.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: subscription
           role: maintenance
@@ -1193,7 +1195,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+          ref: d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -1506,7 +1508,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -1522,7 +1524,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff }}
@@ -1663,7 +1665,7 @@ jobs:
       # value. `present` is whether this leg runs the eval.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: fallback
           role: maintenance
@@ -1772,7 +1774,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+          ref: d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -2085,7 +2087,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
