@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -252,6 +252,19 @@ test("a patient latch sends a refused GET again after the reset, so the step doe
   assert.deepEqual(gh.sent, [`GET ${URL_A}`, `GET ${URL_A}`]);
   assert.deepEqual(waits, [897_000]);
   assert.equal(failed(), 0);
+});
+
+test("a patient latch leaves a GET whose caller marks its resend to that caller, and fails it on a refusal it will not resend", async () => {
+  for (const [marker, failures] of [[true, 0], [false, 1]]) {
+    const gh = fakeGitHub([refused(896), [200]]);
+    const { latch, lines, waits, failed } = latchFor({ budgetMs: BUDGET_1200 });
+    const response = await latch.guard(gh.fetch)(URL_A, { signal: AbortSignal.timeout(20_000), [RESEND]: marker });
+    assert.equal(response.status, 403, `[RESEND]: ${marker} gets the refusal back`);
+    assert.deepEqual(gh.sent, [`GET ${URL_A}`], `[RESEND]: ${marker} is not sent again inside the caller's timeout`);
+    assert.deepEqual(waits, []);
+    assert.equal(failed(), failures, `[RESEND]: ${marker}`);
+    assert.equal(lines.filter((line) => line.startsWith("::error::")).length, failures, `[RESEND]: ${marker}`);
+  }
 });
 
 test("a patient latch never resends a refused write, and refuses a reset past its budget", async () => {

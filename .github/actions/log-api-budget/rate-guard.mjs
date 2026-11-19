@@ -885,7 +885,7 @@ export function createRateLimitLatch({
       const send = countRequests(fetchImpl, { token });
       return countsRequests(async function guarded(url, init = {}) {
         const method = String(init.method ?? "GET").toUpperCase();
-        for (let again = patient && method === "GET" && init[RESEND] !== true; ; again = false) {
+        for (let again = patient && method === "GET" && init[RESEND] === undefined; ; again = false) {
           await waitOut(url, init.method ?? "GET", wait);
           check(url, init.method);
           if (isContentWrite(url, init.method, init.body)) {
