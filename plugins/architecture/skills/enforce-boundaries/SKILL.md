@@ -27,7 +27,10 @@ With no target form, the skill runs in this repository, exactly as the phases be
 form resolves, counts and fans out the repositories as target-scope.md says. The subagents run
 Phases 1 to 3 read-only, once per repository with its root anchored: that repository's rules, its
 own mechanism and its own plan, each rule row carrying its repository (`owner/name`). A rule
-Phase 1 would append is only proposed there. The questions are then asked once, from the merged
+Phase 1 would append is only proposed there. Phases 1 to 3 read the files on disk under the root;
+when its checked-out `HEAD` is not `origin/HEAD` after the fetch, or its working tree has
+uncommitted changes, the plan says so for that repository, since the writes start from a worktree
+that may not hold what the plan names. The questions are then asked once, from the merged
 plans, and the yes in "Consent" is given per repository, for that repository's plan and appends.
 The writes (the Phase 1 appends, then Phases 4 to 7) run in one repository at a time, as
 target-scope.md "Writes stay per repository" says: for a repository other than the session's own,
