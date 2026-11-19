@@ -9611,7 +9611,7 @@ test("pr-unblock.yml: the group relock runs uv with no token, and only a base-co
   assert.match(relock.steps[1].env.RELOCK_IMAGE, /^python:3\.12-slim@sha256:[0-9a-f]{64}$/, "a digest-pinned image");
   assert.match(relock.steps[1].run, /docker run --rm -v "\$RUNNER_TEMP\/relock-work:\/w" -v "\$RUNNER_TEMP\/relock-request:\/r:ro"/, "uv runs in a container that sees only the work and request directories");
   assert.doesNotMatch(relock.steps[1].run, /--privileged|docker\.sock|--pid|--network[= ]host/, "the container reaches no runner process");
-  assert.equal(relock.steps[2].with.path, "${{ runner.temp }}/relock-work/requirements.txt", "only the relocked lock leaves");
+  assert.equal(relock.steps[2].with.path, "${{ runner.temp }}/relock-out/requirements.txt", "only the copied regular lock leaves");
 
   const patch = jobs["review-dependency-relock-patch"];
   assert.deepEqual(patch.permissions, { contents: "read" });
@@ -9637,6 +9637,28 @@ test("pr-unblock.yml: the group relock runs uv with no token, and only a base-co
   assert.equal(PATCH_RULES["dependency-relock"]["content-rule"], "dependency-version-change", "the fix rule the pr-merge lane's provenance check mirrors");
   assert.equal(PATCH_RULES["dependency-relock"]["max-files"], 2, "one directory's requirements.in and requirements.txt");
   assert.deepEqual(PATCH_RULES["dependency-relock"].escalations, PATCH_RULES["install-script-pin"].escalations, "the pin's stop reasons, which report-escalation already routes");
+});
+
+test("pr-unblock.yml: the relock job uploads only a regular requirements.txt the container left, never what a symlink points at", (t) => {
+  const run = workflow("pr-unblock.yml").jobs["review-dependency-relock"].steps.find((step) => step.name === "Relock the lagging directory").run;
+  const outcome = (leave) => {
+    const root = tempDir("relock-step-");
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const temp = join(root, "temp");
+    const bin = join(root, "bin");
+    mkdirSync(join(temp, "relock-request"), { recursive: true });
+    mkdirSync(bin);
+    writeFileSync(join(temp, "relock-request/requirements.in"), "playwright==1.65.2\n");
+    writeFileSync(join(temp, "relock-request/requirements.txt"), "playwright==1.65.1\n");
+    writeFileSync(join(root, "runner-secret"), "ACTIONS_RUNTIME_TOKEN=leaked\n");
+    writeFileSync(join(bin, "docker"), `#!/usr/bin/env bash\nset -e\ncd "$RUNNER_TEMP/relock-work"\n${leave}\n`, { mode: 0o755 });
+    const result = spawnSync("bash", ["-e", "-c", run], { env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, RELOCK_IMAGE: "image", SECRET: join(root, "runner-secret") }, encoding: "utf8" });
+    const out = join(temp, "relock-out/requirements.txt");
+    return { status: result.status, uploaded: existsSync(out) ? readFileSync(out, "utf8") : null };
+  };
+  assert.deepEqual(outcome(`printf 'playwright==1.65.2\\n' >requirements.txt`), { status: 0, uploaded: "playwright==1.65.2\n" }, "a regular relocked lock is staged for upload");
+  assert.deepEqual(outcome(`rm requirements.txt; ln -s "$SECRET" requirements.txt`), { status: 1, uploaded: null }, "a symlink to a runner file is refused, nothing staged");
+  assert.deepEqual(outcome(`rm requirements.txt; mkdir requirements.txt; ln -s "$SECRET" requirements.txt/x`), { status: 1, uploaded: null }, "a directory in its place is refused");
 });
 
 // The not-run job posts the activity's check on every head the select job

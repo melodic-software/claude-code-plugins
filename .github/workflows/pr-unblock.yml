@@ -3777,12 +3777,20 @@ jobs:
           cp "$RUNNER_TEMP/relock-request/requirements.in" "$RUNNER_TEMP/relock-request/requirements.txt" "$RUNNER_TEMP/relock-work/"
           docker run --rm -v "$RUNNER_TEMP/relock-work:/w" -v "$RUNNER_TEMP/relock-request:/r:ro" \
             -e RELOCK_REQUIREMENTS=/r/requirements-relock.txt "$RELOCK_IMAGE" bash /r/relock-requirements.sh /w
+          lock="$RUNNER_TEMP/relock-work/requirements.txt" out="$RUNNER_TEMP/relock-out/requirements.txt"
+          if [[ -L $lock || ! -f $lock ]]; then
+            echo "::error::the relock left no regular requirements.txt, so nothing is uploaded"
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/relock-out"
+          cp --no-dereference -- "$lock" "$out"
+          [[ -f $out && ! -L $out ]]
 
       - name: Upload the relocked lock
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-relock-result-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/relock-work/requirements.txt
+          path: ${{ runner.temp }}/relock-out/requirements.txt
           retention-days: 1
           if-no-files-found: error
 
