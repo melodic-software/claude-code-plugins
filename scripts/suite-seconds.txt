@@ -77,7 +77,6 @@ plugins/ai-slop/skills/audit/scripts/emit-fix-record.test.sh 1
 plugins/ai-slop/skills/audit/scripts/resolve-targets.test.sh 1
 plugins/ai-slop/skills/audit/scripts/rubric-fanout.test.sh 4
 plugins/ai-slop/skills/audit/scripts/user-scope.test.sh 1
-plugins/animation/hooks/install-python-deps.test.sh 2
 plugins/animation/scripts/animation.test.sh 11
 plugins/animation/scripts/test_inkstats.py 1
 plugins/animation/scripts/test_produce.py 2
@@ -252,7 +251,6 @@ plugins/evals/skills/validate/scripts/test_validate_cases.py 8
 plugins/evals/skills/validate/scripts/validate-cases.test.sh 4
 plugins/event-storming/scripts/board-md.test.sh 1
 plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh 1
-plugins/explainer-video/hooks/install-python-deps.test.sh 3
 plugins/explainer-video/scripts/explainer-video.test.sh 86
 plugins/explainer-video/scripts/test_explainer_video_narration.py 1
 plugins/explainer-video/scripts/test_explainer_video_pydeps.py 6
@@ -674,7 +672,6 @@ plugins/source-control/skills/pull-request/scripts/push-branch.test.sh 1
 plugins/source-control/skills/pull-request/scripts/resolve-remote.test.sh 1
 plugins/source-control/skills/worktree/nesting-invariant-ssot.test.sh 1
 plugins/source-control/skills/worktree/reattach-slice.test.sh 1
-plugins/speech/hooks/install-python-deps.test.sh 2
 plugins/speech/scripts/speech.test.sh 7
 plugins/speech/scripts/test_assets.py 1
 plugins/speech/scripts/test_elevenlabs.py 1

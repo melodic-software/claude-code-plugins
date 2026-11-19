@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Black-box contract test for install-python-deps.sh (the speech SessionStart hook).
-#
-# Proves the install flow end to end against a local wheel (pip's PIP_NO_INDEX and PIP_FIND_LINKS,
-# so nothing reaches a package index): the first session installs the hash-locked set into
-# CLAUDE_PLUGIN_DATA silently, the second session is a no-op, and a failed install is a notice
-# on both channels carrying the repair line. The hook runs from a copy of the plugin's hooks and
-# scripts directories with a fixture lock, so the real numpy and onnxruntime lock is never installed.
 
 set -uo pipefail
 
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="${HOOK_DIR%/*}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PASS=0
 FAIL=0
@@ -46,22 +38,43 @@ native() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 WHEELS="$WORK/wheels"
 EMPTY="$WORK/empty"
 mkdir -p "$WHEELS" "$EMPTY"
-digest="$("$py" "$PLUGIN_DIR/scripts/test_speech_pydeps.py" --make-wheel "$(native "$WHEELS")")" || {
+digest="$(
+  "$py" - "$(native "$WHEELS")" <<'EOF'
+import base64, hashlib, sys, zipfile
+from pathlib import Path
+
+name, version = 'fakedeps', '1.0'
+dist = f'{name}-{version}.dist-info'
+files = {
+    'fakedeps/__init__.py': 'VALUE = 42\n',
+    f'{dist}/METADATA': f'Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n',
+    f'{dist}/WHEEL': 'Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\nTag: py3-none-any\n',
+}
+files[f'{dist}/RECORD'] = ''.join(
+    f'{p},sha256={base64.urlsafe_b64encode(hashlib.sha256(c.encode()).digest()).rstrip(b"=").decode()},{len(c)}\n'
+    for p, c in files.items()) + f'{dist}/RECORD,,\n'
+path = Path(sys.argv[1]) / f'{name}-{version}-py3-none-any.whl'
+with zipfile.ZipFile(path, 'w') as z:
+    for p, c in files.items():
+        z.writestr(p, c)
+print(hashlib.sha256(path.read_bytes()).hexdigest())
+EOF
+)" || {
   echo "FAIL: could not build the fixture wheel" >&2
   exit 1
 }
 
-# new_plugin <name> <digest> -> a plugin root holding the hook, its libs, pydeps.py and a lock for the fixture wheel.
 new_plugin() {
   local root="$WORK/$1"
   mkdir -p "$root/hooks" "$root/scripts"
-  cp "$HOOK_DIR/install-python-deps.sh" "$HOOK_DIR/install-python-deps.conf" "$HOOK_DIR/hook-utils.sh" "$root/hooks/"
-  cp "$PLUGIN_DIR/scripts/pydeps.py" "$PLUGIN_DIR/scripts/pydeps.json" "$root/scripts/"
+  cp "$LIB_DIR/install-python-deps.sh" "$LIB_DIR/hook-utils.sh" "$root/hooks/"
+  cp "$LIB_DIR/pydeps.py" "$root/scripts/"
+  printf "PYDEPS_PLUGIN='fixture'\nPYDEPS_PYTHONS='3.12 or later'\nPYDEPS_USERS='/fixture:run'\nPYDEPS_PACKAGES='Python packages'\n" >"$root/hooks/install-python-deps.conf"
+  printf '{"plugin": "fixture", "python_min": "3.12", "allow_free_threaded": true, "probe": ["fakedeps"], "pip_timeout_s": 240}\n' >"$root/scripts/pydeps.json"
   printf 'fakedeps==1.0 \\\n    --hash=sha256:%s\n' "$2" >"$root/requirements.txt"
   printf '%s' "$root"
 }
 
-# run_hook <plugin root> <find-links dir> [NAME=VALUE ...] -> sets $OUT to the hook's stdout and $RC to its exit code.
 run_hook() {
   local root="$1" links="$2"
   shift 2
@@ -83,7 +96,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpat
   stamp="$data/python/.hook-ready"
   mkdir -p "$WORK/site"
   printf 'with open(%s, "a") as f:\n    f.write("start\\n")\n' "'$(native "$WORK/py-starts.log")'" >"$WORK/site/sitecustomize.py"
-  # win_run <find-links dir> -> runs the hook with the logging sitecustomize; sets OUT, RC and STARTS.
   win_run() {
     rm -f "$WORK/py-starts.log"
     run_hook "$root" "$1" CLAUDE_PLUGIN_DATA="$(native "$data")" PYTHONPATH="$(native "$WORK/site")"
@@ -122,7 +134,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpat
 fi
 echo "SKIP: the real Git Bash ready-stamp case needs Git Bash or Cygwin with cygpath"
 
-# First session: installs, says nothing.
 root="$(new_plugin first "$digest")"
 data="$WORK/data-first"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -142,8 +153,6 @@ else
   fail "second session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# A failed install (wrong hash): a user notice with the reason and the repair line, exit 0, nothing left.
-# Nothing reaches the model: pydeps.py run prints the repair line when a skill runs.
 root="$(new_plugin bad "$(printf '0%.0s' {1..64})")"
 data="$WORK/data-bad"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
@@ -156,7 +165,40 @@ else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# No data directory (a host that sets none): nothing to install into, no output.
+root="$(new_plugin crash "$digest")"
+cat >"$root/scripts/pydeps.py" <<'EOF'
+import sys
+sys.stderr.write('Traceback (most recent call last):\n  File "pydeps.py", line 24, in <module>\n    import subprocess\n'
+                 "AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'\n")
+sys.exit(1)
+EOF
+data="$WORK/data-crash"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
+out="$OUT"
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* &&
+  "$out" == *"the Python handover failed: AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'; repair with: "*"pydeps.py"*"install"*"--data-dir"* &&
+  "$out" != *Traceback* ]]; then
+  ok "a crashed handover surfaces the traceback's last line and a repair line, not the traceback"
+else
+  fail "crashed handover: rc=$RC output=[$out]"
+fi
+
+case "${OSTYPE:-}" in
+  msys* | cygwin*) ;;
+  *)
+    data="$WORK/data o'brien/x y"
+    run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$data"
+    out="$OUT"
+    repair="$("$py" -c 'import json, sys; print(json.loads(sys.stdin.read())["systemMessage"].split("repair with: ", 1)[1], end="")' <<<"$out")"
+    got="$(eval "set -- $repair" && printf '%s|%s|%s|%s|%s|%s' "$#" "$([[ -x "$1" ]] && echo exec)" "$2" "$3" "$4" "$5")"
+    if [[ "$got" == "5|exec|$root/scripts/pydeps.py|install|--data-dir|$data" ]]; then
+      ok "the repair line re-parses to the interpreter and a data directory holding a space and a single quote"
+    else
+      fail "repair line round-trip: repair=[$repair] got=[$got]"
+    fi
+    ;;
+esac
+
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=
 out="$OUT"
@@ -166,7 +208,20 @@ else
   fail "no data dir: rc=$RC output=[$out]"
 fi
 
-# No Python on PATH: a notice naming the floor, not a silent skip.
+shim="$WORK/shim"
+mkdir -p "$shim"
+printf '#!/bin/sh\necho "pyenv: python3.13: command not found" >&2\nexit 127\n' >"$shim/python3.13"
+chmod +x "$shim/python3.13"
+root="$(new_plugin shim "$digest")"
+data="$WORK/data-shim"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="$shim:$PATH"
+out="$OUT"
+if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
+  ok "a candidate that cannot run is skipped for the next one on PATH"
+else
+  fail "unrunnable candidate: rc=$RC installs=$(installs "$data") output=[$out]"
+fi
+
 tools="$WORK/tools"
 mkdir -p "$tools"
 for t in bash cat dirname basename env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink date; do
@@ -177,17 +232,12 @@ done
 root="$(new_plugin nopython "$digest")"
 out="$(env PATH="$tools" CLAUDE_PLUGIN_DATA="$(native "$WORK/data-nopython")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
 rc=$?
-if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* && "$out" == *'Python 3.12 or later was not found'* ]]; then
-  ok "no Python 3.12 on PATH surfaces a notice naming the floor"
+if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* && "$out" == *'fixture: Python 3.12 or later was not found'* ]]; then
+  ok "no Python on PATH surfaces a notice naming the plugin and the Pythons its conf supports"
 else
   fail "no python: rc=$rc output=[$out]"
 fi
 
-# Native Windows Python under Git Bash or Cygwin: pydeps.py and a POSIX data directory reach it as drive-letter
-# paths even with MSYS path conversion switched off, and a cygpath that fails is a notice, never the unconverted
-# path. The stub python3 logs its arguments; the stub cygpath maps -m /dir to C:/dir, or fails.
-# native_hook <ostype> <cygpath body> -> runs the hook with MSYS_NO_PATHCONV=1 and a POSIX data directory; sets OUT,
-# RC and ARGV.
 # shellcheck disable=SC2016  # the stub bodies expand when the stubs run, not here
 native_hook() {
   local stubs="$WORK/stubs-$1"
@@ -222,10 +272,74 @@ else
   fail "linux paths: rc=$RC argv=[$ARGV] output=[$OUT]"
 fi
 
-# The ready stamp: pydeps.py install, started through a candidate found on PATH, writes <data>/python/.hook-ready,
-# and while it holds a session start starts no Python. Every candidate name resolves to a wrapper that logs each start
-# and execs the real interpreter. Each case restores the stamp that install wrote, shows that baseline starts nothing,
-# changes one input and shows the full path runs.
+# Only the py launcher (a python.org install without "Add python.exe to PATH"): under Git Bash or Cygwin the
+# hook asks it only to list (py -0p) and starts pydeps.py with a listed python.exe, never through py, which
+# installs the latest Python on any launch command while none is installed; elsewhere `py` is not taken for Python.
+launcher="$WORK/launcher"
+mkdir -p "$launcher" "$WORK/stub"
+{
+  printf '#!/bin/sh\nWORK="%s"\n' "$WORK"
+  cat <<'EOF'
+printf '%s\n' "$*" >>"$WORK/py.log"
+awk '{ printf "%s\r\n", $0 }' "$WORK/listing"
+EOF
+} >"$launcher/py"
+{
+  printf '#!/bin/sh\nWORK="%s"\n' "$WORK"
+  cat <<'EOF'
+case "$1" in
+-u) printf '%s\n' "$WORK/stub/${2##*\\}" ;;
+*) printf '%s\n' "$2" ;;
+esac
+EOF
+} >"$launcher/cygpath"
+for exe in python.exe python3.13t.exe python3.14.exe; do
+  printf '#!/bin/sh\nprintf "%%s\\n" "%s $*" >>"%s/started.log"\n' "$exe" "$WORK" >"$WORK/stub/$exe"
+done
+chmod +x "$launcher/py" "$launcher/cygpath" "$WORK/stub/"*
+root="$(new_plugin launcher "$digest")"
+launcher_hook() {
+  cat >"$WORK/listing"
+  rm -f "$WORK/py.log" "$WORK/started.log"
+  OUT="$(env PATH="$launcher:$tools" OSTYPE=msys CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+  RC=$?
+  PYLOG="$(tr '\n' '|' <"$WORK/py.log" 2>/dev/null)"
+  STARTED="$(cat "$WORK/started.log" 2>/dev/null)"
+}
+launcher_hook <<<'No installed Pythons found!'
+if [[ "$RC" -eq 0 && "$PYLOG" == '-0p|' && -z "$STARTED" && "$OUT" == *'Python 3.12 or later was not found on the hook PATH or listed by py -0p'* ]]; then
+  ok "under Git Bash, a py launcher that lists no runtime only lists and the hook gives the missing-Python notice"
+else
+  fail "py launcher, no runtime: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+launcher_hook <<'EOF'
+ -V:3.14 *        C:\Py\python3.14.exe
+ -V:3.13t         C:\Py\python3.13t.exe
+ -V:3.13          C:\Py\python.exe
+EOF
+if [[ "$RC" -eq 0 && -z "$OUT" && "$PYLOG" == '-0p|' &&
+  "$STARTED" == "python.exe $root/scripts/pydeps.py install --data-dir "* ]]; then
+  ok "under Git Bash, the hook starts pydeps.py install with the listed regular 3.13 python.exe, not through py"
+else
+  fail "py launcher, 3.13 listed: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+launcher_hook <<'EOF'
+ -V:3.14 *        C:\Py\python3.14.exe
+EOF
+if [[ "$RC" -eq 0 && "$PYLOG" == '-0p|' && "$STARTED" == "python3.14.exe $root/scripts/pydeps.py install --data-dir "* ]]; then
+  ok "under Git Bash, with no 3.12 or 3.13 listed the hook starts pydeps.py with the listed one, which says what is required"
+else
+  fail "py launcher, only 3.14 listed: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+rm -f "$WORK/py.log"
+out="$(env PATH="$tools:$launcher" OSTYPE=linux-gnu CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+rc=$?
+if [[ "$rc" -eq 0 && "$out" == *'Python 3.12 or later was not found'* && ! -e "$WORK/py.log" ]]; then
+  ok "outside Git Bash and Cygwin a py on PATH is not used"
+else
+  fail "py outside Windows: rc=$rc output=[$out]"
+fi
+
 logged="$WORK/logged"
 other="$WORK/other"
 mkdir -p "$logged" "$other"
@@ -238,8 +352,6 @@ chmod +x "$logged/"* "$other/"*
 root="$(new_plugin stamped "$digest")"
 data="$WORK/data-stamped"
 stamp="$data/python/.hook-ready"
-# stamp_run <plugin root> <find-links dir> [PATH prefix] -> runs the hook with the wrappers first on PATH; sets OUT, RC
-# and STARTS, the number of Python starts.
 stamp_run() {
   rm -f "$WORK/starts.log"
   run_hook "$1" "$2" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="${3:-}$logged:$PATH"
@@ -253,13 +365,11 @@ else
   fail "ready stamp write: rc=$RC stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
 fi
 cp "$stamp" "$WORK/good-stamp" 2>/dev/null
-# restore_stamp -> the stamp the install wrote, newer than every input it checks.
 restore_stamp() {
   cp "$WORK/good-stamp" "$stamp"
   touch -t 202001010000 "$root/requirements.txt" "$root/scripts/pydeps.py" "$root/scripts/pydeps.json" "$logged/"* "$other/"*
   touch -t 202101010000 "$stamp"
 }
-# invalidated <what> <mutation command ...> -> the baseline starts no Python; after the mutation the hook starts one.
 invalidated() {
   local what="$1" base
   shift
@@ -295,8 +405,6 @@ invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
 invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
 invalidated "a missing installed set" target_missing
 
-# One directory spelled two ways (a symlink here; an 8.3 short name or another mount on Windows): pydeps.py records
-# the resolved root, the hook's ROOT keeps the spelling it was started through, and the stamp still holds.
 ln -s "$root" "$WORK/stamped-link"
 restore_stamp
 stamp_run "$WORK/stamped-link" "$EMPTY"
@@ -309,7 +417,6 @@ fi
 # Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
 # shape holds under OSTYPE=msys and, paired, not elsewhere. Mounts, 8.3 names and .EXE suffixes need a Windows file
 # system: the real Git Bash case covers them. No case here covers a letter-case difference.
-# windows_form <path> -> the path with backslashes.
 windows_form() { printf '%s' "${1//\//\\}"; }
 target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
