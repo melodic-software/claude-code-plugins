@@ -81,6 +81,7 @@ def test_the_committed_cases_are_the_known_set():
             "re-retired-id-reused",
             "re-oversized-brief",
             "re-shape3-near-cap",
+            "re-late-event",
             "re-retired-amendment",
             "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
@@ -609,6 +610,20 @@ def test_a_stated_failure_naming_arms_holds_only_for_those_arms(tmp_path):
     assert len(chain) == spec["seed"]["predecessor"]["hops"]
     with pytest.raises(SystemExit, match="hop 2 does not validate"):
         resume_cases.build_predecessor_chain(spec, tmp_path / "before", arm="before")
+
+
+def test_an_amend_lands_on_the_newest_hop_through_save_point(tmp_path):
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
+    late = "1. Answer the changes-requested review on PR #4318 before anything else."
+    spec["seed"]["predecessor"]["amend"] = {
+        "sections": {"Remaining actions, in order": late},
+        "next": ["Answer the review on PR #4318."],
+    }
+    chain = resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+    newest = sections(chain[-1])
+    assert late in newest["Remaining actions, in order"]
+    assert "Answer the review on PR #4318." in newest["Resume prompt"]
+    assert late not in chain[-2].read_text(encoding="utf-8")
 
 
 def _reuse_spec(retire_hop: int) -> dict:

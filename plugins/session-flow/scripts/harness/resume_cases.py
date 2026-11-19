@@ -886,6 +886,24 @@ def _build(
             generated = _fill_3(path, pred, hop, lane, live, script, rule_count)
         else:
             generated = _fill(path, pred, hop, width, lane)
+        if hop == hops and pred.get("amend"):
+            amend_file = path.with_suffix(".amend.json")
+            amend_file.write_text(json.dumps(pred["amend"]), encoding="utf-8")
+            amended = run_save_point(
+                [
+                    "amend",
+                    str(path),
+                    "--json",
+                    str(amend_file),
+                    "--now",
+                    _when(pred, hop),
+                ]
+            )
+            amend_file.unlink()
+            if amended.returncode != 0:
+                raise SystemExit(
+                    f"{case}: `amend` failed: {amended.stdout}{amended.stderr}"
+                )
         checked = run_save_point(
             [
                 "validate",

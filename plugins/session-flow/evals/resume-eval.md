@@ -65,7 +65,8 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   same section and retired at an earlier hop. `expected_fail: [{hop, fail, arms?}]` states a
   hop that must FAIL `validate` with every FAIL line matching the `fail` regex; the build
   continues past it and stops when it validates or fails otherwise. An entry naming `arms`
-  holds only for those arms.
+  holds only for those arms. `amend` (the object `save_point.py amend --json` takes) is
+  applied to the newest hop before it validates, as a late event after emit would be.
 - `task_relation`: `same` when the case's next action continues the task in progress (the
   compaction flow) or `boundary` when it starts the next item or task in a sequence (the
   handoff flow). Every case is delivered the same way, so the next action alone sets the tag;
