@@ -518,8 +518,8 @@ printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
 run_dependabot "--check-required exempts a pull request of verified Dependabot commits" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
 run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
-run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'dependabot[bot]' false 0
-run_dependabot "--check-required does not exempt when the signature lookup fails" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 1
+run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "no signature GitHub verified" 'dependabot[bot]' false 0
+run_dependabot "--check-required does not exempt when the signature lookup fails, and advises a re-run" 1 "could not be checked: the git or GitHub API lookup failed" 'dependabot[bot]' true 1
 # The merge queue checks out its own squash commit; CHANGELOG_PR_HEAD names the
 # queued pull request's head, whose commits are the ones the exemption reads.
 dependabot_head="$(git -C "$f" rev-parse HEAD)"
@@ -570,6 +570,36 @@ printf '\n## [1.0.1] - 2026-10-09\n' >>"$f/plugins/beta/CHANGELOG.md"
 GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
   GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+rm -rf "$f"
+
+# A base merge a person's update-branch made stays unexempt, and the gate names
+# it and points at @dependabot recreate instead of a hand-added fragment
+# (https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb dependabot/npm
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+dependabot_commit "$f" "build(deps): bump zod"
+git_test_config "$f" checkout -q main
+printf 'v1\n' >"$f/plugins/beta/skills/b.md"
+commit "$f" "an unrelated change on main"
+git_test_config "$f" checkout -q dependabot/npm
+GIT_AUTHOR_NAME='Kyle Sexton' GIT_AUTHOR_EMAIL='153232337+kyle-sexton@users.noreply.github.com' \
+  GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com \
+  git_test_config "$f" merge -q --no-ff --no-edit main
+merge_sha="$(git -C "$f" rev-parse --short=12 HEAD)"
+out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+rc=$?
+if ((rc == 1)) && [[ "$out" == *"MISSING FRAGMENT"* && "$out" == *"commit $merge_sha by Kyle Sexton"* &&
+  "$out" == *"@dependabot recreate"* && "$out" != *"new-changelog-fragment.sh"* ]]; then
+  ok "--check-required names a base merge on a Dependabot pull request and points at @dependabot recreate"
+else
+  fail "base merge on a Dependabot head: want rc=1, the merge named and @dependabot recreate, got rc=$rc: $out"
+fi
 rm -rf "$f"
 
 # On a runner the signature lookup goes through the api-budget gh wrapper: it

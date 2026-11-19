@@ -286,8 +286,10 @@ changelog_fragments::bump_delivered() {
 # pull_request merge commit resolved to its branch tip. In the merge queue the
 # checked-out commit is the queue's squash, so CI sets CHANGELOG_PR_HEAD to the
 # queued pull request's head commit and the commits are read from there.
+# shellcheck disable=SC2034 # CF_DEPENDABOT_BLOCKER is read by the sourcing script
 changelog_fragments::dependabot_only() {
   local base="$1" tip=HEAD from commits sha an ae ce verified
+  CF_DEPENDABOT_BLOCKER=""
   [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
   if [[ -n "${CHANGELOG_PR_HEAD:-}" ]]; then
     tip="$CHANGELOG_PR_HEAD"
@@ -300,8 +302,12 @@ changelog_fragments::dependabot_only() {
   # shellcheck source=/dev/null
   [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   while IFS=$'\t' read -r sha an ae ce; do
+    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
     [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
+    CF_DEPENDABOT_BLOCKER=""
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
+    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} carries Dependabot's name but no signature GitHub verified"
     [[ "$verified" == true ]] || return 1
   done <<<"$commits"
+  CF_DEPENDABOT_BLOCKER=""
 }
