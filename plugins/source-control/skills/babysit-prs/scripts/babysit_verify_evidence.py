@@ -175,8 +175,9 @@ tie, `INDEX_PREFIX` then `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>` and
 `failIndexNames`), and the FAIL uploads only if every index did; a job with
 no index step (`FAIL_INDEX` unset: a re-run of an older pr-verify.yml) writes
 no FAIL at all. When the
-legacy FAILs file (`LEGACY_FAILS_FILE`, every FAIL uploaded before the index,
-built by `legacy-fails` from the verifier's runs and their artifacts) loads, a
+legacy FAILs file (the file `LEGACY_FAILS_ENV` names, every FAIL uploaded
+before the index, built by `legacy-fails` from the verifier's runs and their
+artifacts) loads, a
 judgment reads no listing (`Reader._targeted`): the name filter returns every
 artifact of an exact name across runs, so it reads the index names of this
 pull request's number and each other pull request that closes one of its
@@ -344,8 +345,6 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
 # `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
 INDEX_PREFIX = "pr-verify-index-"
-# The FAILs uploaded before the index (`Reader._legacy`), committed beside
-# this module once built (`legacy-fails`); its presence turns the index on.
 LEGACY_FAILS_FILE = "verify-legacy-fails.json"
 LEGACY_FAILS_ENV = "BABYSIT_VERIFY_LEGACY_FAILS"
 LEGACY_FAILS_VERSION = 1
@@ -1944,16 +1943,8 @@ class Reader:
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
     # The issue number `link_refusal` took for each pull request.
     linked_issue: dict[int, Any] = field(default_factory=dict)
-    # The legacy FAILs file (`_legacy`): when it loads, judgments read the
-    # FAIL index by exact name instead of the whole listing. `LEGACY_FAILS_ENV`
-    # names another file, or none when empty.
     legacy_path: str | None = field(
-        default_factory=lambda: (
-            os.environ.get(
-                LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
-            )
-            or None
-        )
+        default_factory=lambda: os.environ.get(LEGACY_FAILS_ENV) or None
     )
     _legacy_entries: list[dict[str, Any]] | None = None
     _legacy_loaded: bool = False
