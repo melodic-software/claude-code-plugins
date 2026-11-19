@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json
-# test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/git-hooks/adapters.sh plugins/bash-format/git-hooks/shfmt-rewrite.sh
+# test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/git-hooks/adapters.sh plugins/bash-format/git-hooks/shfmt-rewrite.sh plugins/bash-format/git-hooks/lint.sh plugins/bash-format/git-hooks/lint-full.sh
 # test-scope: plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/install.mjs plugins/bash-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail

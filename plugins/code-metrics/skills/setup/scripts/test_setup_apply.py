@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/code-metrics/scripts/pathglob.py
 """Output-based tests for setup-apply.py at its command line."""
 
 from __future__ import annotations

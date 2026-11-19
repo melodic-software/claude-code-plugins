@@ -287,13 +287,33 @@ describe("a trusted upstream-drift issue", () => {
       ["a listed human's edit", drift({ editor: { __typename: "User", databaseId: OWNER.id }, lastEditedAt: "2026-10-20T00:00:00Z" })],
       ["another bot's issue", drift({ author: { __typename: "Bot", databaseId: 999 } }, { ...DRIFT, user: { id: 999, login: "other[bot]", type: "Bot" } })],
       ["a wrong title", drift({}, { ...DRIFT, title: "Upstream drift: sandcastle" })],
-      ["the vendored lead", drift({}, { ...DRIFT, body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." })],
+      ["a vendored lead for another upstream", drift({}, { ...DRIFT, body: "Upstream `other/repo` no longer matches the copy vendored here." })],
+      [
+        "a well-formed vendored issue for a package-installing upstream",
+        drift({}, { ...DRIFT, title: "Upstream drift: firecrawl/update", body: "Upstream `firecrawl/update` no longer matches the copy vendored here.\n\nRun: 2026-11-18\n" }),
+      ],
     ]) {
       const { code, issue, logged } = await run(github);
       assert.equal(code, 1, name);
       assert.equal(issue, null, name);
       assert.match(logged.join("\n"), /no trusted upstream-drift issue/, name);
     }
+  });
+
+  test("a vendored-copy issue writes the vendored template, not the docs/upstream one", async () => {
+    const vendored = {
+      ...DRIFT,
+      title: "Upstream drift: playwright/playwright",
+      body: ["Upstream `playwright/playwright` no longer matches the copy vendored here.", "", "Run: 2026-11-18, https://example.test/run", "", injected, ""].join("\n"),
+    };
+    const { code, issue } = await run(drift({}, vendored));
+    assert.equal(code, 0);
+    assert.equal(issue.source, "upstream-drift");
+    assert.match(issue.body, /^# Upstream drift: playwright\/playwright\n/);
+    assert.match(issue.body, /`scripts\/upstream-drift-vendored-report\.sh`/);
+    assert.notEqual(issue.body, TEMPLATE);
+    assert.doesNotMatch(issue.body, /docs\/upstream page/);
+    assert.ok(!JSON.stringify(issue).includes("Ignore the page"), "no row of the body reaches issue.json");
   });
 });
 

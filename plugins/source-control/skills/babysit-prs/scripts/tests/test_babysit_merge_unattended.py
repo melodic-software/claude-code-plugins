@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/scripts/branch-update-method.sh plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
 """The unattended merge path of `babysit_merge`, connected end to end.
 
 `evaluate(..., unattended=None)` must leave every existing verdict unchanged,

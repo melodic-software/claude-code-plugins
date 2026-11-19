@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-11-19
+
+### Added
+
+- `standards_repo` in `<home>/plugin-quality.yaml` (`owner/repo`) names the shared standards repository the auditor checks a component against when a local checkout of it exists. Unset, no standards repository resolves; the auditor no longer looks for one organization's standards checkout.
+
 ## [0.21.10] - 2026-11-19
 
 ### Changed

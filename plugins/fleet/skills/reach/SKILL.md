@@ -74,8 +74,9 @@ Converging dotfiles on any fleet lane is not a route in this matrix: run `fleet-
 by its bare name. It does not prompt because dotfiles renders an exact allow rule for that command
 on every lane; no `Bash(ssh …)` rule is added, and the posture below stands for every other verb.
 
-- **Pointer**: for what `fleet-converge` checks and how it reaches each lane, read dotfiles
-  [docs/design-decisions.md, "Converging a lane: `fleet-converge`"](https://github.com/melodic-software/dotfiles/blob/main/docs/design-decisions.md#converging-a-lane-fleet-converge).
+- **Pointer**: for what `fleet-converge` checks and how it reaches each lane, read the page the
+  `converge_docs_url` option names, `${user_config.converge_docs_url}`; empty or still the literal
+  token means unset, and the command's own machine setup is the only reference.
 
 ## Verify the hop before you trust it
 

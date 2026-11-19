@@ -139,7 +139,12 @@ one line per check, detail lines indented under it:
                       pattern, or a Glob whose
                       every segment but * and ** names it; a term matches
                       once its *, ., ^, $ and / ends are stripped, case
-                      ignored (find / -ipath '*markdown-format*'). A
+                      ignored (find / -ipath '*markdown-format*'); so is,
+                      in a without-arm run that finished, a Grep or Glob
+                      whose path is that run's own eval root (the sandbox
+                      holding its out/trace.jsonl), a Glob pattern rooted
+                      or holding `..` excepted, each such call named with
+                      its tool, root and pattern on the verdict line. A
                       with-arm denied compound Bash call whose plugin part
                       a later Bash call in the same trace ran alone and was
                       not denied is set aside the same way:
@@ -2531,6 +2536,26 @@ def absent_plugin_search(run, denial, absent):
     return False
 
 
+def own_root_search(run, denial):
+    """True when a finished without-arm run's denied call is a Grep or Glob whose
+    path is that run's own eval root (sandbox_dir). The arm lacks the plugin it
+    was asked to use and looks for it in its own folder; the denial cannot raise
+    its score. A Glob pattern that is rooted or holds a `..` segment may search
+    elsewhere, so it never qualifies; nor does any other tool, a missing path, or
+    a path under or above the root."""
+    name, eval_root = denial[2], sandbox_dir(run)
+    if run.arm != "without" or name not in ("Grep", GLOB_TOOL) or not eval_root:
+        return False
+    tool_input = own_input(run, denial)
+    path, pattern = tool_input.get("path"), tool_input.get(GLOB_PATTERN)
+    if not isinstance(path, str) or not rooted(path) or "\0" in path or not isinstance(pattern, str):
+        return False
+    if name == GLOB_TOOL and (rooted(pattern) or ".." in re.split(r"[\\/]", pattern)):
+        return False
+    same = os.path.normcase(os.path.realpath(path)) == os.path.normcase(eval_root)
+    return same and finished(run)
+
+
 def command_segments(command):
     """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
     expands) triple: its words as shell_words gives them (quotes removed, same-
@@ -2869,16 +2894,31 @@ def named_calls(found, redactor):
             target = json.loads(target)
             if not isinstance(target, str):
                 target = json.dumps(target, sort_keys=True)
-        text = ""
-        if redactor is not None:
-            text = UNPRINTABLE.sub(" ", redactor.redact(target)).strip().replace("`", "'")
-            if len(text) > TARGET_CHARS:
-                text = text[: TARGET_CHARS - 3] + "..."
+        text = shown_text(target, redactor)
         call = "%s `%s`" % (name or "tool", text) if text else name or "tool"
         counts[call] = counts.get(call, 0) + 1
     shown = [c if n == 1 else "%s x%d" % (c, n) for c, n in counts.items()]
     if len(shown) > DENIED_SHOWN:
         shown = shown[:DENIED_SHOWN] + ["+%d more" % (len(shown) - DENIED_SHOWN)]
+    return ", ".join(shown)
+
+
+def shown_text(text, redactor):
+    """text redacted, collapsed and cut to TARGET_CHARS; "" when redactor is None."""
+    if redactor is None:
+        return ""
+    text = UNPRINTABLE.sub(" ", redactor.redact(text)).strip().replace("`", "'")
+    return text[: TARGET_CHARS - 3] + "..." if len(text) > TARGET_CHARS else text
+
+
+def root_searches(calls, redactor):
+    """Each (run, denial) in calls, in order, as its tool, root and pattern
+    (shown_text), every one listed; the tools only when redactor is None."""
+    shown = []
+    for run, d in calls:
+        tool_input = own_input(run, d)
+        root, pattern = (shown_text(tool_input[k], redactor) for k in ("path", GLOB_PATTERN))
+        shown.append("%s root `%s` pattern `%s`" % (d[2], root, pattern) if root else d[2])
     return ", ".join(shown)
 
 
@@ -2923,6 +2963,18 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
+    rooted_search = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and d not in lacked[r]
+            and own_root_search(r, d)
+        ]
+        for r in traced
+    }
     # A denied compound call whose plugin part a later call ran alone, allowed.
     recovered = {
         r: [
@@ -2932,6 +2984,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and recovered_denial(r, d, roots, {e[3] for e in every[r]})
         ]
         for r in traced
@@ -2944,6 +2997,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and d not in recovered[r]
             and forbidden_denial(r, d, roots, root)
         ]
@@ -2966,6 +3020,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and d not in recovered[r]
             and d not in forbidden[r]
         ]
@@ -3028,6 +3083,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 "denied search" if missing_search == 1 else "denied searches",
             )
         )
+    root_search = [(r, d) for r in denied for d in rooted_search[r]]
+    if root_search:
+        summary += "; %d %s of a finished without-arm run's own eval root, not counted" % (
+            len(root_search),
+            "denied search" if len(root_search) == 1 else "denied searches",
+        )
     rerun = sum(len(recovered[r]) for r in denied)
     if rerun:
         summary += (
@@ -3057,7 +3118,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s which never"
+            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -3068,6 +3129,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 " its case names," if own_copy_search_warns else "",
                 " or a finished without-arm run's search naming only the plugin it"
                 " lacks," if missing_search else "",
+                " or a finished without-arm run's Grep or Glob whose path is its own"
+                " eval root," if root_search else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
                 " or a denied call a failed max-0 tool_used grader of its case forbids,"
@@ -3080,6 +3143,11 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 ", ".join(warned_cases),
             )
         )
+    excused = (
+        "; own eval root searches excused: %s" % root_searches(root_search, load_redactor())
+        if root_search
+        else ""
+    )
     if failed:
         reason = "%s in the traces: %s" % (
             plural(sum(len(found[r]) for r in failed), "permission denial"),
@@ -3087,13 +3155,13 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         )
         if warned:
             reason += " (warnings only, not counted: case %s)" % ", ".join(warned_cases)
-        return FAIL, summary, details, reason
+        return FAIL, summary, details, reason + excused
     if warned and len(traced) == len(runs):
         return (
             WARN,
             summary,
             details,
-            "permission denials in case %s" % ", ".join(warned_cases),
+            "permission denials in case %s%s" % (", ".join(warned_cases), excused),
         )
     if len(traced) < len(runs):
         missing = len(runs) - len(traced)
@@ -3105,8 +3173,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 plural(missing, "trace"),
             ),
             details,
-            "permission denials unchecked in %s with no readable trace"
-            % plural(missing, "run"),
+            "permission denials unchecked in %s with no readable trace%s"
+            % (plural(missing, "run"), excused),
         )
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 

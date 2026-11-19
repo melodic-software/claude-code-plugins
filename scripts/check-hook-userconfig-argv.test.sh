@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: scripts/lib/hook-configs.sh
 # Unit tests for check-hook-userconfig-argv.sh. Builds a tiny synthetic
 # plugins/ tree per scenario in a temp dir and invokes the script against it
 # directly -- the script's own `cd "$(dirname "$0")/.."` makes this work
