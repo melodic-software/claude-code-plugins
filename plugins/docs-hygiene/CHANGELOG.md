@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.4] - 2026-11-19
+
+### Changed
+
+- `audit-derivability`'s recheck trigger for a proven rubric routes it to the shared standards repository, without naming one organization's.
+
 ## [4.2.3] - 2026-11-19
 
 ### Changed
