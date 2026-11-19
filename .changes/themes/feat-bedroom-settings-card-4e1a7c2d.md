@@ -9,5 +9,5 @@ bump: minor
 
 ### Fixed
 
-- Changing dim or a title no longer shows the lit room with the ceiling light off: while the room waits for the shader to come back, it shows as it stands, dusk included, and a click in that time is drawn into it. The console's title card no longer shows on the blue or tape screen of the room drawn without the shader.
+- A dim step darkens a veil over the room and no longer sends the room again, so the shader keeps running through it. Changing a title no longer shows the lit room with the ceiling light off while the room waits for the shader to come back: it shows as it stands, dusk included, and a click in that time is drawn into it. The console's title card no longer shows on the blue or tape screen of the room drawn without the shader.
 - A switch turned from the card or a typed command moves once instead of twice, unless a click in the room has turned it the other way since.
