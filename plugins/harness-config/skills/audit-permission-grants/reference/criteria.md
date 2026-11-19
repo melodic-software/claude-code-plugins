@@ -111,16 +111,16 @@ This detector does not scan `Monitor` allow rules, and that division of labor is
 P1 result as evidence that a repo's Monitor grants are sound.
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
-(`Bash(npm test)`, `Bash(npm run build)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not
-flagged, matching the official "narrow rules carry over" behavior.
+(`Bash(git status)`, `Bash(git diff --stat)`, `Bash(babysit_merge.sh:*)`) is not flagged, matching
+the official "narrow rules carry over" behavior.
 
 **Why**: every P1 shape is interpreter/runner-led rather than the portable bare-name pattern, and the
 **broad forms**, blanket rules, package-manager runners, and interpreters with a wildcarded or
-globbed script target (e.g. `Bash(python "*helper.py":*)`), are the ones auto mode drops, after which
-the grant does nothing and the action falls to the classifier. A grant that invokes one fixed script
-via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authoring anti-pattern even
-where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
-the same. See convention anti-pattern 1.
+globbed script target (e.g. `Bash(<interpreter> "*<script>":*)`), are the ones auto mode drops,
+after which the grant does nothing and the action falls to the classifier. A grant that invokes one
+fixed script via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authoring
+anti-pattern even where the doc's dropped-category wording does not clearly reach it; the fix (a
+bare PATH command) is the same. See convention anti-pattern 1.
 
 **Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap**
 section on step 1's plugin `bin/` delivery), expose the helper as a bare command on PATH and allow the

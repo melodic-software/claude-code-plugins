@@ -37,7 +37,7 @@ A deny rule is not an OS-level control. Per the same permissions page section:
 - Read and Edit denies cover the built-in file tools, the Bash file commands Claude Code recognizes
   (`cat`, `head`, `tail`, `sed`, `tee`) and redirection targets.
 - They do not cover a command that reads files without naming them (`grep -r`), or a subprocess that
-  opens files itself, such as a Python or Node script.
+  opens files itself, such as a script.
 - A `Read` deny does not cover NotebookEdit, so add an `Edit` deny for any path no tool may change.
 
 For OS-level enforcement that blocks all processes from a path, enable the
