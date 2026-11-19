@@ -3727,8 +3727,22 @@ such a job before it reaches a runner, with or without `deployment: false`
   ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)). Until
   ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` name it, the three jobs that call them
   are listed in `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs`.
+- A caller may pass a secret under the reusable workflow's own name for it: the called job in the
+  environment resolves the caller's `secrets.<name>` there ("You can pass a secret by name even if
+  it only exists in the environment",
+  [GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)). The
+  read runner already depends on it: `SCAN_CARRIER_PRIVATE_KEY` exists only in the
+  `pr-pipeline-scan-carrier` environment, its callers pass it as `scan-carrier-private-key`, and
+  the scan job's decode, which refuses an empty key, succeeds
+  ([run](https://github.com/melodic-software/claude-code-plugins/actions/runs/44613075678)).
 - An environment secret shadows an organization or repository secret of the same name, so a job
   in the environment reads the organization copy until the environment holds its own.
+- PR Run Plugin Evals keeps its `eval: run` label without `pull_request_target`: the label runs
+  `pr-record-eval-label.yml`, which holds no secret, and its completion starts the eval legs on
+  `workflow_run` from `main`. That recorder run is the head's copy, so the legs read nothing it
+  wrote: `check-trusted-trigger` resolves the pull request from the run's head, and
+  `check-label-sender.sh` reads the draft state and a `labeled` event by the triggering listed human
+  from the API.
 
 `scripts/check-claude-secrets-environment.sh [--check]` holds these rules in `Lint Repo` over every
 file in `.github/workflows/`, printing one `path:line: finding` per offender on stderr:

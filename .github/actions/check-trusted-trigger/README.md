@@ -39,7 +39,7 @@ condition 1 and the actor and author parts of condition 2).
 - **List.** The file must hold `version: 1` and an `actors` array whose entries have exactly an
   integer `id` of at least 1, a string `login` and a `kind` of `human` or `bot`. Matching is on
   `id`, because a login can be renamed and later registered by someone else.
-- **`pull_request` and `pull_request_target`.** The same payload, judged the same way. Same repository when `pull_request.head.repo.full_name` equals the
+- **`pull_request`.** Same repository when `pull_request.head.repo.full_name` equals the
   repository; a null head repo is a fork. Actor is `sender`.
 - **`workflow_dispatch`.** Fetches the PR named by `pr-number`; a null head repo is a fork.
   Actor is `sender`. `GET /pulls` can lag a push by minutes, so a same-repository PR is re-read

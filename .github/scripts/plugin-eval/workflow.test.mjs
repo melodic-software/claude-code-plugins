@@ -16,7 +16,7 @@ const step = (name) => {
 
 test("a pull request run denies reads of /proc and runner state before sudo is removed", () => {
   const deny = step("Deny the eval's reads of process and runner state");
-  assert.match(deny, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'pull_request_target'\n/);
+  assert.match(deny, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_run'\n/);
   for (const rule of ["Read(//proc/**)", "Read(//sys/**)", "Read(//home/runner/runners/**)", "Read(//home/runner/actions-runner/**)"]) {
     assert.ok(deny.includes(`"${rule}"`), rule);
   }
@@ -32,7 +32,7 @@ test("a pull request run denies reads of /proc and runner state before sudo is r
 
 test("a pull request run proves the policy denies the reads before any case runs", () => {
   const probe = step("Probe that the policy denies those reads");
-  assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'pull_request_target'\n/);
+  assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_run'\n/);
   assert.match(probe, /RUNNER_ROOT: \$\{\{ steps\.deny\.outputs\.runner-root \}\}/);
   assert.match(probe, /--allowedTools Read Grep Glob /);
   // policy-probe.mjs judges the four calls; only its exit 0 lets the step pass.
@@ -88,7 +88,7 @@ test("a dispatched run writes the validity bash ran and verdict lines and the no
 });
 
 test("a pull request run redacts its summary and uploads no results", () => {
-  assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'pull_request_target' && '--redact' \|\| '' \}\}/);
+  assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'workflow_run' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
   // Only a dispatched run scans and uploads, and the upload needs the scan's clean output.
   // A leg that handed off to the next credential uploads nothing.

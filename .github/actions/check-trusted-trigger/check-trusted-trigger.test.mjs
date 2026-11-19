@@ -217,20 +217,6 @@ test("pull_request: a fork PR stops with fork", async () => {
   assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("fork"));
 });
 
-test("pull_request_target: same-repo PR from a listed author and actor proceeds", async () => {
-  assert.deepEqual(
-    await gate({ eventName: "pull_request_target", event: fixture("event-pull-request.json") }),
-    PROCEED,
-  );
-});
-
-test("pull_request_target: a fork PR stops with fork", async () => {
-  const event = fixture("event-pull-request.json");
-  event.pull_request.head.repo.full_name = "stranger/claude-code-plugins";
-  event.pull_request.head.repo.fork = true;
-  assert.deepEqual(await gate({ eventName: "pull_request_target", event }), STOPPED("fork"));
-});
-
 test("pull_request: a null head repo counts as a fork", async () => {
   const event = fixture("event-pull-request.json");
   event.pull_request.head.repo = null;
@@ -1842,7 +1828,7 @@ test("require-pr: true keeps today's PR rules", async () => {
 
 test("an event the gate does not handle stops with no-pr", async () => {
   assert.deepEqual(
-    await gate({ eventName: "pull_request_review", event: fixture("event-pull-request.json") }),
+    await gate({ eventName: "pull_request_target", event: fixture("event-pull-request.json") }),
     STOPPED("no-pr"),
   );
 });

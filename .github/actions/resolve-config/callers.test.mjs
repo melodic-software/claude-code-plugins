@@ -2376,7 +2376,6 @@ function ifTerms(condition) {
 // issue a listed human or the lanes App opened, in a run apply-verdict --check
 // admitted (intake-triage.yml's refine-issue).
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
-const SAME_REPO_PR = "github.event.pull_request.head.repo.full_name == github.repository";
 const DISPATCH = "github.event_name == 'workflow_dispatch'";
 const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
 const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
@@ -2404,7 +2403,7 @@ function everyBranchSameRepo(expression) {
   const branches = orBranches(expression);
   return branches.length > 1 && branches.every((branch) => {
     const terms = ifTerms(branch.replace(/^\((.*)\)$/, "$1"));
-    return terms.includes(DISPATCH) || terms.includes(SAME_REPO_PR);
+    return terms.includes(DISPATCH) || terms.includes(SAME_REPO);
   });
 }
 function jobGates(doc, job) {
@@ -2661,8 +2660,8 @@ test("the stray-reader check names an extra step and an env that reaches every s
 });
 
 test("an either-or gate shows same-repo only when every branch is a dispatch or holds the head repository", () => {
-  const prt = "(github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)";
-  const open = "(github.event_name == 'pull_request_target' && github.event.label.name == 'eval: run')";
+  const prt = "(github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository)";
+  const open = "(github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')";
   const dispatch = "(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')";
   assert.deepEqual(jobGates({}, { if: `${dispatch} || ${prt}` }), ["same-repo"]);
   assert.deepEqual(jobGates({}, { if: `${dispatch} || ${open}` }), []);
@@ -9092,7 +9091,7 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
       // A pull request head checkout is never the source: its npmrc would let the PR set npm's config.
       const checkout = steps
         .slice(0, first)
-        .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\./.test(step.with?.ref ?? ""));
+        .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\.|workflow_run\.head_sha/.test(step.with?.ref ?? ""));
       assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
       assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
       const dir = checkout.with?.path ? `${checkout.with.path}/` : "";
@@ -10459,10 +10458,10 @@ for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
       "github.event_name": "workflow_dispatch",
       "github.ref": "refs/heads/main",
       "github.event.repository.default_branch": "main",
-      "github.event.label.name": "",
-      "github.event.pull_request.head.repo.full_name": "",
+      "github.event.workflow_run.event": "",
+      "github.event.workflow_run.conclusion": "",
+      "github.event.workflow_run.head_repository.full_name": "",
       "github.repository": "melodic-software/claude-code-plugins",
-      "github.event.pull_request.draft": false,
       ...over,
     });
     // The key job starts whatever the gate chose; its credential call holds a
