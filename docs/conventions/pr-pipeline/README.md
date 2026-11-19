@@ -3738,7 +3738,7 @@ such a job before it reaches a runner, with or without `deployment: false`
 - An environment secret shadows an organization or repository secret of the same name, so a job
   in the environment reads the organization copy until the environment holds its own.
 - PR Run Plugin Evals keeps its `eval: run` label without `pull_request_target`: the label runs
-  `pr-record-eval-label.yml`, which holds no secret, and its completion starts the eval legs on
+  `pr-run-plugin-evals-label.yml`, which holds no secret, and its completion starts the eval legs on
   `workflow_run` from `main`. That recorder run is the head's copy, so the legs read nothing it
   wrote: `check-trusted-trigger` resolves the pull request from the run's head, and
   `check-label-sender.sh` reads the draft state and a `labeled` event by the triggering listed human

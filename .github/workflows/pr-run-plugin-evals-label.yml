@@ -1,4 +1,4 @@
-name: PR Record Eval Label
+name: PR Run Plugin Evals Label
 
 # Starts PR Run Plugin Evals: adding the `eval: run` label to a same-repository,
 # non-draft pull request runs this file, and its completion starts the evals on

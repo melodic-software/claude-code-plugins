@@ -11,8 +11,8 @@ if [ "$PROCEED" != true ]; then
   echo "::error::the trigger is not trusted (reason: ${REASON:-unreadable})"
   exit 1
 fi
-if [ "$RUN_PATH" != .github/workflows/pr-record-eval-label.yml ]; then
-  echo "::error::untrusted-actor: the run that started this one is not pr-record-eval-label.yml"
+if [ "$RUN_PATH" != .github/workflows/pr-run-plugin-evals-label.yml ]; then
+  echo "::error::untrusted-actor: the run that started this one is not pr-run-plugin-evals-label.yml"
   exit 1
 fi
 if ! [[ $PR_NUMBER =~ ^[1-9][0-9]*$ && $ACTOR_ID =~ ^[1-9][0-9]*$ ]]; then

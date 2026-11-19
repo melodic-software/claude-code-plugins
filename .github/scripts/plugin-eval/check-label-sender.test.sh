@@ -33,7 +33,7 @@ case_() {
   shift 2
   out=$(env -i PATH="$TMP/bin:$PATH" GITHUB_REPOSITORY=o/r LIST="$TMP/list.json" \
     PROCEED=true REASON=ok PR_NUMBER=7 ACTOR_ID=11 RUN_CREATED_AT=2026-11-19T10:00:20Z \
-    RUN_PATH=.github/workflows/pr-record-eval-label.yml STUB_DRAFT=false STUB_EVENTS="$LABELED" \
+    RUN_PATH=.github/workflows/pr-run-plugin-evals-label.yml STUB_DRAFT=false STUB_EVENTS="$LABELED" \
     "$@" bash "$CHECK" 2>&1) || rc=$?
   if [[ $rc == "$want" ]]; then ok "$label"; else not_ok "$label: expected rc $want, got $rc: $out"; fi
 }

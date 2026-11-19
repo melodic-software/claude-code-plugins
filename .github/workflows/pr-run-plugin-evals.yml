@@ -120,14 +120,14 @@ on:
         required: false
         type: boolean
         default: true
-  # The label starts pr-record-eval-label.yml, which holds no secret; its
+  # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy, so the eval
   # jobs' claude-lanes environment admits the run
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
   # Nothing the recorder run wrote is read: the jobs re-read the PR, its
   # label event and its actors from the API.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [PR Record Eval Label]
+    workflows: [PR Run Plugin Evals Label]
     types: [completed]
 
 permissions: {}
