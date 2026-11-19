@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.22.5] - 2026-11-19
+
+### Fixed
+
+- `BABYSIT_READ_FLOOR_HEADER_LIMIT=1` makes `babysit_gh`'s read floor a share of the header's rate limit rather than the pool's `limit-cap`; ci-status's merge-group verdict reader sets it (owner decision D418).
+
 ## [11.22.4] - 2026-11-19
 
 ### Removed

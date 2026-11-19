@@ -1,6 +1,6 @@
 ---
 description: "Measure duplicated code as clone classes over a change, a path, or the tree, with every instance's file and line range, subtracting replication the repo declares sanctioned. Reports, never gates. Use when: 'is this duplicated', 'find copy-paste code', 'clone detection', 'duplication report', 'how much of this change is copied', 'DRY check', 'redundant code', 'duplicated lines in the diff'. Lines per file: /code-metrics:audit size."
-argument-hint: "[--json] [--keep] [--all] [--base <ref>] [--registry <file>] [<path>...]"
+argument-hint: "[--json] [--keep] [--all] [--base <ref>] [--registry <file>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh:*)", "Bash(git branch --show-current:*)"]
@@ -43,6 +43,12 @@ continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --keep --all   # the document, also kept as the next run's trend baseline
 ```
+
+A target form (`--repo <repo>` and the others) runs the script once per repository, as
+`${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says, and never passes the form to the
+script. Each run finds clones within its own repository and keeps its own trend baseline, and
+each registry path, named or configured, resolves against that repository's root. A file copied between repositories is not this script's to find: `/coupling:reduce`
+measures it when the `coupling` plugin is enabled.
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
 table (lane, collector, status, reason), then one row per clone group, largest first, listing
