@@ -1756,7 +1756,8 @@ describe("decide", () => {
       const [spec] = trustedSpecTexts(driftSpec(vendoredIssue()), humans, APP, RULES["task-list"]);
       assert.match(spec, /^# Upstream drift: playwright\/playwright\n/);
       assert.match(spec, /`scripts\/upstream-drift-vendored-report\.sh`/, "the row table names the skill's update script");
-      assert.match(spec, /release record/);
+      assert.match(spec, /`scripts\/new-changelog-fragment\.sh <plugin> <bump>`/, "the spec names the fragment, not a version bump");
+      assert.match(spec, /`CHANGELOG\.md` and `\.claude-plugin\/plugin\.json` stay as they are/);
       assert.match(spec, /Closes #<this issue>/);
       assert.match(spec, /## Done when\n\n- \[ \] /);
       assert.doesNotMatch(spec, /docs\/upstream page/, "a vendored issue never gets the pinned-page spec");

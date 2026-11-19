@@ -1145,18 +1145,40 @@ def vendored_plugin(text: Any, id: str) -> str | None:
     return plugins.pop()
 
 
+VENDORED_UNSAFE = frozenset(
+    {"scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."}
+)
+
+
+def vendored_path(plugin: Any, name: Any) -> bool:
+    """resolve-pr.mjs vendoredPath: a changelog fragment directly under
+    `.changes/<plugin>/`, or, under `plugins/<plugin>/skills/`, a markdown
+    file or a file in a `vendor/` baseline, with no VENDORED_UNSAFE
+    segment. Pure."""
+    if not isinstance(plugin, str) or not isinstance(name, str):
+        return False
+    fragment = f".changes/{plugin}/"
+    if name.startswith(fragment):
+        return re.fullmatch(r"[^/]+\.md", name[len(fragment) :]) is not None
+    parts = name.split("/")
+    return (
+        name.startswith(f"plugins/{plugin}/skills/")
+        and len(parts) > 4
+        and all(part and part not in VENDORED_UNSAFE for part in parts)
+        and (name.endswith(".md") or "vendor" in parts[4:-1])
+    )
+
+
 def vendored_scope(files: Any, plugin: str) -> bool:
     """resolve-pr.mjs driftSpec's changed-file half for a vendored-copy
     issue: `files` (GET compare's `files`) is non-empty, under GitHub's cap,
-    and every path, and a rename's previous path, sits under
-    `plugins/<plugin>/` or `.changes/<plugin>/`. Pure."""
+    and every path, and a rename's previous path, is a vendored_path of
+    `plugin`. Pure."""
     if not is_json_array(files) or not 0 < len(files) < COMPARE_FILES_CAP:
         return False
 
     def inside(path: Any) -> bool:
-        return isinstance(path, str) and path.startswith(
-            (f"plugins/{plugin}/", f".changes/{plugin}/")
-        )
+        return vendored_path(plugin, path)
 
     return all(
         inside(file.get("filename"))

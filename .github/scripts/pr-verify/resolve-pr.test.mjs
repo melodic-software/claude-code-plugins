@@ -502,12 +502,36 @@ test("a vendored-copy drift issue is the spec of a sync inside its row's plugin,
   assert.doesNotMatch(entry.body, /docs\/upstream page/);
 });
 
+test("a vendored-copy sync that writes a sibling skill's markdown and a vendor/ license still has its spec", async () => {
+  const issue = vendored({ title: "Upstream drift: Dometrain/mcp", body: "Upstream `Dometrain/mcp` no longer matches the copy vendored here.\n" });
+  const changed = [
+    { filename: "plugins/dometrain/skills/update/vendor/tools.md", status: "modified" },
+    { filename: "plugins/dometrain/skills/grounding/SKILL.md", status: "modified" },
+    { filename: "plugins/dometrain/skills/update/vendor/LICENSE", status: "added" },
+    { filename: ".changes/dometrain/sync-0123abcd.md", status: "added" },
+  ];
+  const [entry] = (await resolve({ issues: [issue], changed }, { upstreamPages: PAGES })).specText;
+  assert.equal(entry.source, "upstream-drift");
+  assert.match(entry.body, /^# Upstream drift: Dometrain\/mcp\n/);
+});
+
 test("a vendored-copy drift issue has no spec beyond its row's plugin or from another author", async () => {
   const cases = [
     ["a workflow file beside the sync", vendored(), [...SYNC, { filename: ".github/workflows/pr-verify.yml", status: "modified" }]],
     ["another plugin's files", vendored(), [{ filename: "plugins/firecrawl/skills/update/SKILL.md", status: "modified" }]],
     ["another plugin's fragment", vendored(), [...SYNC, { filename: ".changes/firecrawl/x-0123abcd.md", status: "added" }]],
     ["a rename from outside the plugin", vendored(), [{ filename: "plugins/playwright/x.md", previous_filename: "scripts/x.md", status: "renamed" }]],
+    ["the skill's own update script", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/scripts/update.sh", status: "modified" }]],
+    ["a script inside the vendor baseline", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/vendor/scripts/run.sh", status: "added" }]],
+    ["the plugin's SessionStart hook", vendored(), [...SYNC, { filename: "plugins/playwright/hooks/install-python-deps.sh", status: "modified" }]],
+    ["the plugin's hook config", vendored(), [...SYNC, { filename: "plugins/playwright/hooks/hooks.json", status: "modified" }]],
+    ["the plugin manifest", vendored(), [...SYNC, { filename: "plugins/playwright/.claude-plugin/plugin.json", status: "modified" }]],
+    ["the plugin's MCP config", vendored(), [...SYNC, { filename: "plugins/playwright/.mcp.json", status: "added" }]],
+    ["the plugin's CHANGELOG", vendored(), [...SYNC, { filename: "plugins/playwright/CHANGELOG.md", status: "modified" }]],
+    ["the skill's eval suite", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/evals/evals.json", status: "modified" }]],
+    ["a non-markdown file outside vendor/", vendored(), [...SYNC, { filename: "plugins/playwright/skills/playwright/reference/run.mjs", status: "added" }]],
+    ["a fragment in a subdirectory", vendored(), [...SYNC, { filename: ".changes/playwright/sub/x-0123abcd.md", status: "added" }]],
+    ["a path that climbs out", vendored(), [...SYNC, { filename: "plugins/playwright/skills/../hooks/x.md", status: "added" }]],
     ["a docs/upstream page", vendored(), [{ filename: DRIFT_PAGE, status: "modified" }]],
     ["an id no vendored row names", vendored({ title: "Upstream drift: someone/else", body: "Upstream `someone/else` no longer matches the copy vendored here." }), [{ filename: "plugins/someone/x.md", status: "modified" }]],
     ["the same title and lead from a person", vendored({ author: { __typename: "User", login: "drive-by", databaseId: 999 } }), SYNC],

@@ -289,6 +289,13 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
             **({"files": SYNC} | kwargs),
         )
 
+    def test_a_vendor_license_and_a_skill_markdown_stay_in_scope(self) -> None:
+        extra = [
+            {"filename": "plugins/playwright/skills/playwright/vendor/LICENSE", "status": "added"},
+            {"filename": "plugins/playwright/skills/other/SKILL.md", "status": "modified"},
+        ]
+        self.assertIs(self.vendored(files=[*SYNC, *extra])[0], True)
+
     def test_is_the_spec_of_a_sync_inside_its_rows_plugin(self) -> None:
         trusted, fake = self.vendored()
         self.assertIs(trusted, True)
@@ -305,6 +312,21 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
             ),
             ("a docs/upstream page", PAGE_ONLY),
             ("nothing changed", []),
+            *(
+                (why, [*SYNC, {"filename": path, "status": "modified"}])
+                for why, path in [
+                    ("the skill's update script", "plugins/playwright/skills/playwright/scripts/update.sh"),
+                    ("a script in the vendor baseline", "plugins/playwright/skills/playwright/vendor/scripts/run.sh"),
+                    ("the SessionStart hook", "plugins/playwright/hooks/install-python-deps.sh"),
+                    ("the plugin manifest", "plugins/playwright/.claude-plugin/plugin.json"),
+                    ("the MCP config", "plugins/playwright/.mcp.json"),
+                    ("the plugin CHANGELOG", "plugins/playwright/CHANGELOG.md"),
+                    ("the eval suite", "plugins/playwright/skills/playwright/evals/evals.json"),
+                    ("a non-markdown file outside vendor/", "plugins/playwright/skills/playwright/reference/run.mjs"),
+                    ("a fragment in a subdirectory", ".changes/playwright/sub/x.md"),
+                    ("a path that climbs out", "plugins/playwright/skills/../hooks/x.md"),
+                ]
+            ),
         ]:
             with self.subTest(why):
                 self.assertIs(self.vendored(files=files)[0], False)

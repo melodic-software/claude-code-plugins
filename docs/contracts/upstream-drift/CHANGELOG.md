@@ -14,7 +14,9 @@ the owner's direction of 2026-11-18: github-actions[bot] wrote it, nobody else l
 title is `Upstream drift: <id>` and its first body line is the filer's vendored-copy lead. Its
 fixed spec runs the skill's update procedure, found from the id's row in
 `scripts/upstream-drift-vendored-report.sh`, folds the changes into the skill's distilled files,
-adds the plugin's release record and changes only that plugin. It is trusted only for an id whose
+adds a changelog fragment and changes only markdown and `vendor/` files under the plugin's
+`skills/` plus that fragment, never a script, hook, library, manifest, MCP config or eval suite.
+It is trusted only for an id whose
 every vendored row carries the new `files-only` mark (an apply mode that installs no package), so a
 row whose update runs `npm install` stays with a person. The workflow runs daily instead of
 weekly, so the section is now "Daily drift issues". The "Admission with no owner step" bullet says

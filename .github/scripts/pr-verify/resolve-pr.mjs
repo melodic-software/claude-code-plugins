@@ -778,13 +778,40 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
   return pages;
 }
 
+// Path segments a vendored sync never writes and an agent or a user's
+// machine may run: a skill's own scripts (the next issue-lane run executes
+// its update script), hooks, shared libraries, the plugin manifest and MCP
+// config, and eval suites
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
+const VENDORED_UNSAFE = new Set(["scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."]);
+// Whether `name` is a path a vendored sync of `plugin` may write: a
+// changelog fragment directly under `.changes/<plugin>/`, or, under
+// `plugins/<plugin>/skills/`, a markdown file or a file in a `vendor/`
+// baseline, with no segment of VENDORED_UNSAFE
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Pure.
+export function vendoredPath(plugin, name) {
+  if (typeof plugin !== "string" || typeof name !== "string") {
+    return false;
+  }
+  const fragment = `.changes/${plugin}/`;
+  if (name.startsWith(fragment)) {
+    return /^[^/]+\.md$/.test(name.slice(fragment.length));
+  }
+  const parts = name.split("/");
+  return (
+    name.startsWith(`plugins/${plugin}/skills/`) &&
+    parts.length > 4 &&
+    parts.every((part) => part !== "" && !VENDORED_UNSAFE.has(part)) &&
+    (name.endsWith(".md") || parts.slice(4, -1).includes("vendor"))
+  );
+}
+
 // The spec of an issue the upstream-drift workflow filed, or null. The issue
 // counts when it is a trusted drift issue (admit.mjs driftIssue) and `files`,
 // the pull request's changed files, stay inside its kind's scope: for the
 // hex-pin kind, only modifications of the `pages` (this checkout's) that pin
-// its upstream id; for the vendored kind, only files under the plugin `rows`
-// (vendoredRows) maps the id to, or under that plugin's `.changes/`
-// fragments, any status. The spec is admit.mjs trustedDriftSpec, so a string
+// its upstream id; for the vendored kind, only vendoredPath files of the
+// plugin `rows` (vendoredRows) maps the id to, any status. The spec is admit.mjs trustedDriftSpec, so a string
 // an upstream put in the issue's rows never becomes spec
 // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md).
 export function driftSpec(issue, pages, files, rows = vendoredRows()) {
@@ -794,7 +821,7 @@ export function driftSpec(issue, pages, files, rows = vendoredRows()) {
   }
   if (drift.kind === "vendored") {
     const plugin = rows.get(drift.id);
-    const inside = (name) => typeof name === "string" && (name.startsWith(`plugins/${plugin}/`) || name.startsWith(`.changes/${plugin}/`));
+    const inside = (name) => vendoredPath(plugin, name);
     return typeof plugin === "string" && files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename))) ? trustedDriftSpec(drift) : null;
   }
   const own = [...pages].filter(([, upstream]) => upstream === drift.id).map(([page]) => page);
