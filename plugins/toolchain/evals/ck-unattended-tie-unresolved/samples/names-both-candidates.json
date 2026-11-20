@@ -9,6 +9,7 @@
     {"answer": "typescript.test-cmd unresolved: no record and nothing stated.", "why": "no candidate named"},
     {"answer": "Ran npm test (package.json:6).", "why": "only one candidate, and it ran"},
     {"answer": "`Makefile:3` has the `test` target `bash tools/run.sh typescript make-test`; it ran.", "why": "only the Makefile candidate named"},
-    {"answer": "The `test` script in package.json ran. Makefile ignored.", "why": "only the package.json candidate named; the Makefile is mentioned with no target"}
+    {"answer": "The `test` script in package.json ran. Makefile ignored.", "why": "only the package.json candidate named; the Makefile is mentioned with no target"},
+    {"answer": "skip (unresolved: typescript.test-cmd): Makefile ignored; candidate is npm test (package.json:6).", "why": "only the npm candidate named; the test inside the typescript.test-cmd key is not a target"}
   ]
 }
