@@ -1277,6 +1277,7 @@ limits:
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
+  # github-token defer-project and defer-run-minutes: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md
   # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
   # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
   # window; SLOTS stays default while shadow is set. L steps up 1 after

@@ -1093,6 +1093,17 @@ test("a PR-scoped run the kill switch stopped reports the kill switch", () => {
   assert.match(wakeOutcome({ KILL: "true", WHO: "false" }), /report=none outcome=skipped: the who step stopped it$/);
 });
 
+test("a PR-scoped run the defer gate stopped reports the deferral, its cause and the reset", () => {
+  assert.equal(
+    wakeOutcome({ KILL: "false", KILL_CAUSE: "defer", KILL_RESET: "1794962568" }),
+    "::notice title=pr-merge-wake::pr=7 github-token=0 lanes-app=0 report=none outcome=deferred (cause defer): the GITHUB_TOKEN window is projected to run short before its reset at 1794962568 (epoch seconds); the next sweep, which never defers, arms what this run would",
+  );
+  assert.match(wakeOutcome({ KILL: "false", KILL_CAUSE: "switch" }), /outcome=skipped: the lanes kill switch stopped it$/);
+  const gate = /- name: Check the kill switch\n {8}id: kill\n([\s\S]*?)(?=\n\n)/.exec(job("enable-auto-merge"))[1];
+  assert.match(gate, /\n {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}\n/, "only a PR-scoped run defers; the sweep keeps switches only");
+  assert.match(gate, /\n {10}resolved-config: \$\{\{ runner\.temp \}\}\/defer-config\.json/);
+});
+
 test("a PR-scoped run's outcome names the fresh check's refusal and which report it read", () => {
   const base = { KILL: "true", WHO: "true", STANDS: "false" };
   assert.match(wakeOutcome({ ...base, FRESH: "1" }), /report=fresh outcome=skipped: the fresh post-merge check exited 1$/);
