@@ -121,8 +121,7 @@ on:
         type: boolean
         default: true
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
-  # completion runs this file from main, never the PR's copy, so the eval
-  # jobs' claude-lanes environment admits the run
+  # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
   # Nothing the recorder run wrote is read: the jobs re-read the PR, its
   # label event and its actors from the API.
@@ -211,9 +210,6 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository)) }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -978,9 +974,6 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success'
       && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1569,9 +1562,6 @@ jobs:
     name: Run Eval Fallback
     needs: [check-key-credit, run-eval-subscription]
     if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read

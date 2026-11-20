@@ -350,9 +350,6 @@ jobs:
     name: Fix Docs Handoff
     needs: [select-passes, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
