@@ -17,7 +17,7 @@ import { pathToFileURL } from "node:url";
 import { validateDeck } from "./lib/schema.js";
 import { formatUrlDisplay } from "./lib/url-display.js";
 import { shouldSkipLinkCheck } from "./lib/url-policy.js";
-import { loadSlidesData, meetingsDir, shotsDir } from "./lib/paths.js";
+import { deckPath, loadSlidesData, shotsDir } from "./lib/paths.js";
 
 let slidesData;
 try {
@@ -29,10 +29,10 @@ try {
   process.exit(1);
 }
 const { meta, theme, slides, providerLogos } = slidesData;
-const HTML = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
+const HTML = deckPath(meta.meetingNumber, "html");
 const HTML_URL = pathToFileURL(HTML).href;
-const PDF = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`);
-const PPTX = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pptx`);
+const PDF = deckPath(meta.meetingNumber, "pdf");
+const PPTX = deckPath(meta.meetingNumber, "pptx");
 const SHOTS_DIR = shotsDir();
 // Purge stale screenshots before regen. Without this, section reordering
 // between meetings leaves orphan section-NN-foo.png files alongside the

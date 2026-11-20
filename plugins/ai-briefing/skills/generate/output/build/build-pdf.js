@@ -1,13 +1,12 @@
 // Print HTML deck to PDF via Playwright headless chromium.
 import { chromium } from "playwright";
-import path from "node:path";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { loadSlidesData, meetingsDir } from "./lib/paths.js";
+import { deckPath, loadSlidesData } from "./lib/paths.js";
 
 const { meta } = await loadSlidesData();
-const HTML_PATH = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
-const PDF_PATH = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`);
+const HTML_PATH = deckPath(meta.meetingNumber, "html");
+const PDF_PATH = deckPath(meta.meetingNumber, "pdf");
 
 const url = pathToFileURL(HTML_PATH).href + "?print=1";
 
