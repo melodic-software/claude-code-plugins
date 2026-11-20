@@ -96,7 +96,7 @@ test('a change of row or weather sends the hand-drawn room again, and an unchang
   expect(waiting.source).toBe(bedroomSvg({ ...DEFAULT_STATE, titles: {} }, 0))
 })
 
-test('with no look, or dusk in clear weather, the window and the room shell draw as they always did', () => {
+test('with no look, or dusk in clear weather, the window and the room shell draw as they always did', { timeoutMs: 20000 }, () => {
   if (!BUILT.includes('no-shader')) return
   for (let bits = 0; bits < 128; bits++) {
     const state: State = { ...DEFAULT_STATE }

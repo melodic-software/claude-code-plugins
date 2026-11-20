@@ -270,7 +270,7 @@ test('runs each of the worst accepted extra patterns in time linear in the text 
   }
   for (const pattern of extras) {
     let excess = Infinity
-    for (let pass = 0; pass < 5; pass++) {
+    for (let pass = 0; pass < 5 && excess >= 10; pass++) {
       const small = cost(pattern, 10_000)
       excess = Math.min(excess, cost(pattern, 50_000) - 10 * small)
     }
