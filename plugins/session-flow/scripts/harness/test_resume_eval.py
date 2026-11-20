@@ -1994,3 +1994,13 @@ def test_a_case_with_no_delivered_run_is_left_out_by_name(tmp_path, capsys):
     )
     assert code == 1
     assert "left out: case re-a has no delivered run on one side" in out
+
+
+def test_a_seeded_script_with_a_shebang_is_executable(tmp_path):
+    import os
+
+    script, data = tmp_path / "scripts" / "check.sh", tmp_path / "notes.md"
+    resume_eval.write_fixture(script, "#!/usr/bin/env bash\necho ok\n")
+    resume_eval.write_fixture(data, "# notes\n")
+    assert os.access(script, os.X_OK)
+    assert not os.access(data, os.X_OK)

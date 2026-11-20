@@ -896,6 +896,15 @@ def exclusion_reason(
     return None
 
 
+def write_fixture(path: Path, content: str) -> None:
+    """Write a seeded file; one that starts with a shebang is made executable, so a
+    recipe that runs it directly works as it would in a real checkout."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    if content.startswith("#!"):
+        path.chmod(0o755)
+
+
 def _git(call, repo: Path, env: dict, *args: str) -> None:
     code, out, err = call(["git", *args], str(repo), env)
     if code != 0:
@@ -950,9 +959,7 @@ def seed_run(
     _git(call, repo, env, "config", "worktreeroot.path", str(run_dir / "worktrees"))
     seeded = {}
     for rel, content in case["seed"].get("repo_files", {}).items():
-        path = repo / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        write_fixture(repo / rel, content)
         seeded[rel] = content.encode("utf-8")
     chain = resume_cases.build_predecessor_chain(
         case, repo, save_point=seed_save_point(cfg.copies, arm), arm=arm
@@ -1189,9 +1196,7 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
                     run, session, hop["scripted_agent_turns"], f"hop{hop['hop']}/"
                 )
         for rel, content in (hop.get("effects") or {}).get("files", {}).items():
-            path = run["repo"] / rel
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
+            write_fixture(run["repo"] / rel, content)
         written = _write_hop(case, arm, run, cfg, session, known)
         for key in total:
             total[key] += (written.get("writer_tokens") or {}).get(key, 0)
