@@ -4539,9 +4539,9 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
     }
   };
 
-  test("an unedited drift issue reaches the issue lane with no person step", async () => {
+  test("an unedited drift issue the sweep leaves to a person reaches the issue lane once intake runs on it", async () => {
     const swept = selectCandidates({ issues: [filed({ labels: [] })], now: new Date("2026-10-18T12:00:00Z"), authorIds: new Set([String(HUMAN), String(APP)]) });
-    assert.deepEqual(swept.map((i) => i.number), [7], "the sweep selects it for an intake dispatch");
+    assert.deepEqual(swept, [], "the sweep leaves it to a person, since the token broker refuses its dispatch");
 
     const fake = fakeGitHub({ issue: filed(), spec: graphSpec() });
     assert.equal(await checkRun({ env: verdictEnv, humans, logins, github: fake.github, log: () => {} }), true, "intake's verdict is written for it");
@@ -4556,13 +4556,13 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
     assert.equal(lane["split-child"], "true", "the lane runs it at split-child-size, never splitting it");
   });
 
-  test("an unedited vendored-copy drift issue reaches the issue lane with no person step", async () => {
+  test("an unedited vendored-copy drift issue the sweep leaves to a person reaches the issue lane once intake runs on it", async () => {
     const title = "Upstream drift: playwright/playwright";
     const body = "Upstream `playwright/playwright` no longer matches the copy vendored here.\n\nRun: 2026-11-18, https://example.test/run\n\n### `playwright:playwright`\n";
     const vendored = (over = {}) => filed({ title, body, ...over });
     const spec = { ...graphSpec(), title, body };
     const swept = selectCandidates({ issues: [vendored({ labels: [] })], now: new Date("2026-10-18T12:00:00Z"), authorIds: new Set([String(HUMAN), String(APP)]) });
-    assert.deepEqual(swept.map((i) => i.number), [7], "the sweep selects it for an intake dispatch");
+    assert.deepEqual(swept, [], "the sweep leaves it to a person, since the token broker refuses its dispatch");
 
     const fake = fakeGitHub({ issue: vendored(), spec });
     assert.equal(await checkRun({ env: verdictEnv, humans, logins, github: fake.github, log: () => {} }), true, "intake's verdict is written for it");
