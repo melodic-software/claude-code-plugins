@@ -35,9 +35,12 @@ verdict the RUBRIC, COMMENT BODY, ESCALATION and COST rules call for:
 
 `build-suite.mjs` reads the ci-workflows reusable at the commit the caller's `uses:` ref resolves
 to, takes its compose step's script, and runs it with GitHub stubbed and this repository's
-`allowed-labels` and `instructions`. Each case's `execution.prompt` is the prompt that script
-writes, then one added line asking for the schema's JSON object as the reply (plugin eval has no
-`--json-schema`), then the schema the script wrote. The committed `case.yaml` holds a placeholder.
+`allowed-labels` and `instructions`, then runs the schema step's `verdict.cjs` (from
+`check-intake-triage-verdict` at the same commit) in schema mode with the caller's
+`verdict-schema`, which writes the schema and adds the verdict fields to the prompt. Each case's
+`execution.prompt` is that prompt, then one added line asking for the schema's JSON object as the
+reply (plugin eval has no `--json-schema`), then the schema. The committed `case.yaml` holds a
+placeholder.
 
 The issue files go under `.intake-triage-eval/` in the run's workspace, in the fetch step's
 shape, with `AGENTS.md` copied beside them. Paths are relative, where the lane's are absolute.
