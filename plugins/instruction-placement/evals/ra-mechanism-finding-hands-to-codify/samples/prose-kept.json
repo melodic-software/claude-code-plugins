@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "the prose stays until the mechanism exists"
+    },
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\n**PROSE:** kept (until the check exists)",
+      "why": "bold label with the condition"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: deleted",
+      "why": "deletes the instruction before its replacement exists"
+    }
+  ]
+}

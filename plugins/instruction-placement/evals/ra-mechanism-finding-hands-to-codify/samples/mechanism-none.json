@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "realign picks no mechanism"
+    },
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\n**MECHANISM:** None (codify picks the rung)\nPROSE: kept",
+      "why": "bold label, capitalized, with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "STATUS: blocked\nROUTE: a formatter\nMECHANISM: isort run by a pre-commit hook\nPROSE: kept",
+      "why": "realign picks the mechanism itself, as the text before the follow-on directed"
+    },
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: likely a ruff isort rule\nPROSE: kept",
+      "why": "names codify but still picks a mechanism"
+    }
+  ]
+}
