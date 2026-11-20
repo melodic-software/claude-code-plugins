@@ -34,7 +34,9 @@ slice missed.
 ## Row schema
 
 **Topic** names the item with an ID other files cite; **Ours** is what this repository now does
-and where; **Pointer** is the docs section a reader checks live.
+and where; **Pointer** is the docs section a reader checks live. **Recheck trigger** (a named
+trigger on each row's Ours decision, not on its pointer): the next Sonnet release; re-derive each
+decision for that model.
 
 ## Decisions
 
