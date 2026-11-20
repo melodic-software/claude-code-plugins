@@ -128,8 +128,10 @@ jobs:
   # lookups miss there and only a Windows run exercises that. The
   # code-metrics Python resolver is here for the same reason (#6794): native
   # Windows Python writes CRLF stdout, which the resolver detects and strips
-  # before bash reads a line, and only a Windows run takes that branch. A
-  # host-gated case that cannot run must print a counted SKIP line.
+  # before bash reads a line, and only a Windows run takes that branch. The
+  # plugin-profiles settings writer retries a refused rename only on win32
+  # (plugins/plugin-profiles/lib/atomic-file.mjs), so its suite runs here as
+  # well (#16455). A host-gated case that cannot run must print a counted SKIP line.
   #
   # Keep these jobs small. Adding a platform-agnostic suite here buys no
   # coverage and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on
@@ -151,7 +153,8 @@ jobs:
   #   guards    hardcoded-path-check 63, shfmt install ~3 (est.),
   #             block-root-delete-target-resolve ~30 (est.),
   #             block-main-checkout-edit ~10 (8 and 12 in two runs,
-  #             https://github.com/melodic-software/claude-code-plugins/issues/17027) ~ 106
+  #             https://github.com/melodic-software/claude-code-plugins/issues/17027),
+  #             plugin-profiles atomic-file ~2 (est.)                    ~ 108
   #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
@@ -368,6 +371,9 @@ jobs:
       - name: Test block-main-checkout-edit on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-main-checkout-edit.test.sh')
         run: bash plugins/guardrails/hooks/block-main-checkout-edit.test.sh
+      - name: Test the plugin-profiles settings-file rename retry on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/plugin-profiles/lib/atomic-file.test.mjs')
+        run: node --test plugins/plugin-profiles/lib/atomic-file.test.mjs
 
       - name: Log the API budget at the end
         if: always()
