@@ -2030,7 +2030,7 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
     lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)")
-    nd = [
+    rates = [
         o_cells[n].nondelivery_rate() - b_cells[n].nondelivery_rate()
         for n in names
         if b_cells[n].runs and o_cells[n].runs
@@ -2039,13 +2039,13 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
         sum(bool(r.get("nondelivery")) for n in names for r in cells[n].runs)
         for cells in (b_cells, o_cells)
     ]
-    text, upper = _paired(nd, -1.0, 1.0)
+    text, upper = _paired(rates, -1.0, 1.0)
     lines.say(
         f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {text}"
     )
-    if args.nd_margin is not None and upper is not None and upper > args.nd_margin + 1e-9:
+    if args.nondelivery_margin is not None and upper is not None and upper > args.nondelivery_margin + 1e-9:
         lines.say(
-            f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nd_margin:.2f}",
+            f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nondelivery_margin:.2f}",
             fail=True,
         )
     for metric, read, margin in (
@@ -2173,7 +2173,7 @@ def cmd_report(args) -> int:
     if args.baseline:
         for value, check in (
             (args.threshold, "threshold: none given, so no pass-to-fail check ran"),
-            (args.nd_margin, "nd-margin: none given, so no non-delivery check ran"),
+            (args.nondelivery_margin, "nondelivery-margin: none given, so no non-delivery check ran"),
             (args.token_margin, "token-margin: none given, so no whole-run token check ran"),
         ):
             if value is None:
@@ -2288,9 +2288,9 @@ def main(argv=None) -> int:
         help="T: a case passes at a mean score at or above it (default 1.0; pass-to-fail runs only when given)",
     )
     report.add_argument(
-        "--nd-margin",
+        "--nondelivery-margin",
         type=float,
-        help="M_nd: fail a pair whose per-case non-delivery rate change has a 95%% upper end above it",
+        help="M_nondelivery: fail a pair whose per-case non-delivery rate change has a 95%% upper end above it",
     )
     report.add_argument(
         "--token-margin",

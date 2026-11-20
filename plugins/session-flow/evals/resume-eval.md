@@ -129,7 +129,7 @@ env TMPDIR=<short-dir> python3 -I plugins/session-flow/scripts/harness/resume_ev
   --copy before=<plugin-copy> --codex-model <codex-default-model> --runs 10 -j 4 --out <out-dir>
 python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
   --graded <out-dir>/graded.jsonl [--graded <out-dir-2>/graded.jsonl] --out <report-dir> \
-  [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--nd-margin <M_nd>] \
+  [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--nondelivery-margin <M>] \
   [--token-margin <fraction>] [--subset same|boundary]
 ```
 
@@ -148,8 +148,8 @@ grade. Accuracy and the result files hold delivered runs only; a run that did no
 instead. Compare a pair's accuracy with `/evals:plugin-eval`'s
 `scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`. Each pair
 line prints `h`, the 95% interval's half-width; on an A/A pair of `before` runs, M = 1.43h
-for accuracy and `--nd-margin` = 1.43h for the non-delivery rate, each rounded up to 0.01.
+for accuracy and `--nondelivery-margin` = 1.43h for the non-delivery rate, each rounded up to 0.01.
 `--token-margin` is a fraction of baseline the whole-run reader m1 interval may reach.
 `report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with `--threshold`),
-`non-delivery rise:` (only with `--nd-margin`), `token rise:` (only with `--token-margin`),
+`non-delivery rise:` (only with `--nondelivery-margin`), `token rise:` (only with `--token-margin`),
 `untagged:` or `seed mismatch:` line, and 2 on an unknown `--baseline`.

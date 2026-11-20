@@ -1906,7 +1906,7 @@ def test_a_pair_fails_on_a_case_with_no_probe_both_sides_graded(tmp_path, capsys
     assert f"left out: case re-a has no probe both sides graded ({pair})" in out
 
 
-def _nd_rows(arm, undelivered, whole):
+def _nondelivery_rows(arm, undelivered, whole):
     """Two runs per case on re-a..re-c; `undelivered` maps case to how many did not deliver."""
     rows = []
     for case in ("re-a", "re-b", "re-c"):
@@ -1918,9 +1918,9 @@ def _nd_rows(arm, undelivered, whole):
     return rows
 
 
-def _nd_report(tmp_path, capsys, after_undelivered, after_whole, *extra):
+def _nondelivery_report(tmp_path, capsys, after_undelivered, after_whole, *extra):
     whole = {"re-a": 100, "re-b": 200, "re-c": 300}
-    rows = _nd_rows("before", {}, whole) + _nd_rows(
+    rows = _nondelivery_rows("before", {}, whole) + _nondelivery_rows(
         "after", after_undelivered, after_whole
     )
     graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
@@ -1937,14 +1937,14 @@ def _nd_report(tmp_path, capsys, after_undelivered, after_whole, *extra):
 
 
 def test_non_delivery_leaves_accuracy_alone_and_is_reported_as_a_rate(tmp_path, capsys):
-    code, out = _nd_report(
+    code, out = _nondelivery_report(
         tmp_path, capsys, {"re-a": 1}, {"re-a": 100, "re-b": 200, "re-c": 300}
     )
     assert code == 0, out
     pair = "after.claude-code vs before.claude-code"
     assert f"pair {pair}: accuracy change +0.00" in out and "(delivered runs)" in out
     assert f"pair {pair}: non-delivery 1 vs 0 runs; rate change +0.17" in out
-    assert "nd-margin: none given" in out and "token-margin: none given" in out
+    assert "nondelivery-margin: none given" in out and "token-margin: none given" in out
     folder = tmp_path / "rep" / "pairs" / "after.claude-code--vs--before.claude-code"
     after = json.loads((folder / "after.claude-code.json").read_text())
     re_a = next(c for c in after["cases"] if c["name"] == "re-a")
@@ -1953,18 +1953,18 @@ def test_non_delivery_leaves_accuracy_alone_and_is_reported_as_a_rate(tmp_path, 
 
 def test_non_delivery_rise_past_the_margin_fails_and_within_it_passes(tmp_path, capsys):
     whole = {"re-a": 100, "re-b": 200, "re-c": 300}
-    code, out = _nd_report(
-        tmp_path / "1", capsys, {"re-a": 2, "re-b": 2, "re-c": 1}, whole, "--nd-margin", "0.10"
+    code, out = _nondelivery_report(
+        tmp_path / "1", capsys, {"re-a": 2, "re-b": 2, "re-c": 1}, whole, "--nondelivery-margin", "0.10"
     )
     assert code == 1
     assert "non-delivery rise: after.claude-code's rate interval reaches" in out
-    code, out = _nd_report(tmp_path / "2", capsys, {}, whole, "--nd-margin", "0.10")
+    code, out = _nondelivery_report(tmp_path / "2", capsys, {}, whole, "--nondelivery-margin", "0.10")
     assert code == 0, out
     assert "non-delivery rise" not in out
 
 
 def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
-    code, out = _nd_report(
+    code, out = _nondelivery_report(
         tmp_path / "1",
         capsys,
         {},
@@ -1974,7 +1974,7 @@ def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
     )
     assert code == 1
     assert "token rise: after.claude-code's whole-run reader m1 interval reaches" in out
-    code, out = _nd_report(
+    code, out = _nondelivery_report(
         tmp_path / "2",
         capsys,
         {},
@@ -1986,7 +1986,7 @@ def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
 
 
 def test_a_case_with_no_delivered_run_is_left_out_by_name(tmp_path, capsys):
-    code, out = _nd_report(
+    code, out = _nondelivery_report(
         tmp_path, capsys, {"re-a": 2}, {"re-a": 100, "re-b": 200, "re-c": 300}
     )
     assert code == 1
