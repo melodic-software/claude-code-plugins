@@ -3,10 +3,10 @@
 """Save-point engine for /session-flow:handoff: new / fill / amend / validate / emit.
 
 Owns every deterministic field of a handoff file so the model writes only the
-reasoning slots. `new` writes shape 3 by default: a hot file plus one archive
+reasoning slots. `new` writes shape 4 by default: a hot file plus one archive
 file per hop, `handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, holding
-the predecessor sections the hot file does not carry; a shape-4 predecessor
-continues as shape 4, and `--shape 4` starts one. Shape 2 (`--shape 2`)
+the predecessor sections the hot file does not carry and any section `fill`
+moved; `--shape 3` keeps the shape-3 layout. Shape 2 (`--shape 2`)
 stays writable, and shape-1 and shape-2 files validate and read unchanged.
 Stdlib only; Python 3.10+. Read-only on the repository except the files `new`
 creates (it never writes a `.gitignore` and never rewrites an existing

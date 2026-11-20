@@ -1,6 +1,5 @@
-"""Shape-4 chains built for tests. `new` writes shape 3 until the shape-4 writer
-lands, so each hop is written by `new` and `fill` as shape 3 and then rewritten in
-the shape-4 section order (PLAN.md Design, the shape-4 table, an external
+"""Shape-4 chains built for tests without the shape-4 writer: each hop is written
+by `new` and `fill` as shape 3 and then rewritten in the shape-4 section order (PLAN.md Design, the shape-4 table, an external
 contract); chosen sections then move to the hop's own file under a hop-tagged
 heading, as the writer will move them."""
 

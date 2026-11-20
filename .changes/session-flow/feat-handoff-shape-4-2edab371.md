@@ -11,7 +11,7 @@ bump: minor
   files and hop files, which `save_point.py` and `parse_transcript.py --chain-from` now share.
 - `save_point.py validate`, `emit` and the new `read` and `chain` commands read shape-4 handoffs,
   whose binding sections stay whole in the hot file while Direction changes, Observations and
-  Suggested skills may move to the hop file. `new` still writes shape 3 by default.
+  Suggested skills may move to the hop file.
 - `save_point.py new --shape 4` writes a shape-4 skeleton and prints its byte budget on stderr,
   and a bare `new --previous` continues a shape-4 chain as shape 4. `fill` on a shape-4 file
   moves whole Observations, Suggested skills and Direction changes sections to the hop file
@@ -31,6 +31,8 @@ bump: minor
 
 ### Changed
 
+- `save_point.py new` writes shape-4 handoffs by default; `--shape 3` keeps the shape-3 layout,
+  and a bare `new --previous` continues an older chain as shape 4.
 - `save_point.py new --previous` with a missing or unreadable predecessor writes the handoff
   anyway, names the file as `previous_handoff` with `previous_status`, and prints one WARN line;
   it used to exit 1.
