@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { CUE_START_SLACK_MS } from '../core/schedule.js'
 import { CUES, EVENTS, WORLD } from '../core/signals.gen.js'
 import { QUIET, startRoom, type Room } from '../core/testing.js'
 import { BUILT } from './index.js'
@@ -21,7 +22,7 @@ const QUIET_BUT_HALL = { time: QUIET.time, weather: QUIET.weather, signal: QUIET
 test('hall pass, hall light and weather strike each send their cue once, then the atmosphere again', { timeoutMs: 60000, options: QUIET_BUT_HALL }, async ($, on) => {
   if (!BUILT.includes('hallway') || !BUILT.includes('weather')) return
   const room = await startRoom($, on)
-  await room.clock.advance(EVENTS.after * 1000)
+  await room.clock.advance(EVENTS.after * 1000 + CUE_START_SLACK_MS)
   const calm = (await room.values())?.world
   expect(calm).toBe(0)
 
@@ -55,16 +56,16 @@ test('a cue the shader would drop is not sent, and the answer says when it can b
   const stormy = (await room.values())?.world
 
   const early = await track(room, 'weather strike', 3000)
-  expect(early.reply).toMatch(/^no strike: the shader takes nothing in its first 30 s after it starts, and it started just now: try again in (2[7-9]|30) s$/)
+  expect(early.reply).toMatch(/^no strike: the shader takes nothing in its first 30 s after it starts, and it started just now: try again in 3[2-5] s$/)
   expect(early.codes).toEqual([stormy])
   expect(await room.run('hall pass')).toMatch(/^not now: the shader takes nothing in its first 30 s/)
 
-  await room.clock.advance(EVENTS.after * 1000)
+  await room.clock.advance(EVENTS.after * 1000 + CUE_START_SLACK_MS)
   expect(await room.run('weather strike')).toMatch(/^lightning strikes in about \d+ s$/)
 
   await room.run('dim 20')
   expect(await room.values()).toBeUndefined()
-  expect(await room.run('hall pass')).toMatch(/^not now: the shader takes nothing in its first 30 s after it starts, and it has not started again yet: try again in 3[0-7] s$/)
+  expect(await room.run('hall pass')).toMatch(/^not now: the shader takes nothing in its first 30 s after it starts, and it has not started again yet: try again in (3[5-9]|4[0-2]) s$/)
 
   await room.run('shader off')
   expect(await room.values()).toBeUndefined()

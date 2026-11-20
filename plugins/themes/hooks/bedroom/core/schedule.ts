@@ -41,12 +41,18 @@ export function noteShaderStart(at: number | undefined): void {
 }
 
 /**
+ * Margin for the app starting the shader after the mod draws it, which no test has measured: a cue is answered as ready
+ * this long after EVENTS.after has run out on the mod's clock.
+ */
+export const CUE_START_SLACK_MS = 5000
+
+/**
  * Why a cue sent now would show nothing, with when it can: the shader draws every cue's event, and in its first
  * EVENTS.after seconds it takes none, so a cue sent then is lost. Undefined when the shader takes it.
  */
 export function cueRefusal(now: number): string | undefined {
   if (shaderFrom === undefined) return 'the shader is not running, and only the shader draws it: say /bedroom shader on'
-  const ready = shaderFrom + EVENTS.after * 1000
+  const ready = shaderFrom + EVENTS.after * 1000 + CUE_START_SLACK_MS
   if (now >= ready) return undefined
   return `the shader takes nothing in its first ${EVENTS.after} s after it starts, and it ${now < shaderFrom ? 'has not started again yet' : 'started just now'}: try again in ${Math.ceil((ready - now) / 1000)} s`
 }
