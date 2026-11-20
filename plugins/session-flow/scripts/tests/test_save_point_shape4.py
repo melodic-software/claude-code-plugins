@@ -85,6 +85,18 @@ def test_every_movable_section_moved_validates_hops_1_to_5(tmp_path):
         assert result.returncode == 0, f"hop {k}: {out(result)}"
 
 
+def test_a_hand_added_previous_status_does_not_hide_a_dropped_rule(tmp_path):
+    paths = s4_chain(make_repo(tmp_path), tmp_path, 2)
+    hop2 = paths[1]
+    edit(hop2, "- [R2] Never push to main.\n", "")
+    dropped = validate(hop2)
+    assert dropped.returncode == 1 and any("[R2]" in line for line in fails(dropped))
+    edit(hop2, "\nchain_root:", "\nprevious_status: missing\nchain_root:")
+    hidden = validate(hop2)
+    assert hidden.returncode == 1, out(hidden)
+    assert any("previous_status" in line for line in fails(hidden)), out(hidden)
+
+
 def test_a_3_to_4_transition_validates(tmp_path):
     paths = s4_chain(make_repo(tmp_path), tmp_path, 3, shape3_hops=2)
     assert "handoff_shape: 3" in paths[1].read_text(encoding="utf-8")

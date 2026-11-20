@@ -1173,6 +1173,14 @@ def validate_doc(
                 f.fail(
                     f"frontmatter: previous_handoff {previous!r} resolves outside this file's directory ({here}); a predecessor lives beside its successor"
                 )
+            elif (
+                gone is not None
+                and _readable(pred_path)
+                and not _starts_afresh(doc, previous)
+            ):
+                f.fail(
+                    f"frontmatter: previous_status says predecessor {previous!r} was {gone}, but it is beside this file and readable, and this file does not start a fresh chain the way `new` does at a broken link; drop previous_status so the checks against the predecessor run"
+                )
             elif gone is not None:
                 f.warn(
                     f"frontmatter: predecessor {previous!r} was {gone} when this file was written (previous_status), so the checks against it are skipped; the chain is broken at that link"
@@ -1565,6 +1573,28 @@ def _fm_int(doc: Doc, key: str) -> int | None:
 
 def _stem(name: str) -> str:
     return name[: -len(".md")] if name.endswith(".md") else name
+
+
+def _readable(path: Path) -> bool:
+    try:
+        parse_doc(path)
+    except (OSError, UnicodeDecodeError):
+        return False
+    return True
+
+
+def _starts_afresh(doc: Doc, previous: str) -> bool:
+    """Whether a file whose predecessor is beside it still has the position
+    `new` gives a successor of a missing or unreadable predecessor: a shape-3 or
+    shape-4 file that roots its own chain at hop 1. A shape-2 file's chain list
+    reads the same either way, so it never qualifies."""
+    return (
+        doc.shape in HOP_FILE_SHAPES
+        and doc.frontmatter.get("chain_root") == doc.basename
+        and _fm_int(doc, "hop") == 1
+        and _fm_int(doc, "archive_from") == 1
+        and previous != doc.basename
+    )
 
 
 def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
