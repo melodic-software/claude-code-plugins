@@ -1,4 +1,5 @@
 import { proj, unit, f, DEFAULT_STATE, type Part, type State } from '../lib.ts'
+import { outside } from '../sky.ts'
 
 type V = [number, number]
 
@@ -30,6 +31,19 @@ function sub(x0: number, y0: number, x1: number, y1: number, s: number): string 
   return `M${g(ax)} ${g(ay)}H${g(bx)}V${g(by)}H${g(ax)}Z`
 }
 const box = (x0: number, y0: number, x1: number, y1: number, s: number, a: string): string => `<path d="${sub(x0, y0, x1, y1, s)}" ${a}/>`
+
+/** Rain's defs: one tile of streaks, the same offset for a second fall, the opening they are seen in, and beads on the glass. */
+const RAIN_DEFS =
+  '<pattern id="window-rp" width="24" height="44" patternUnits="userSpaceOnUse"><path d="M3 0l-.8 10M15 19l-.7 8M9 31l-.6 7M21 7l-.5 6" stroke="#cdd4e0" stroke-width=".45"/></pattern>' +
+  '<pattern id="window-rq" href="#window-rp" patternTransform="translate(11 21)"/>' +
+  '<clipPath id="window-ro"><rect x="266" y="232" width="246" height="366"/></clipPath>' +
+  '<pattern id="window-bp" width="17" height="21" patternUnits="userSpaceOnUse"><g fill="#dfe6f2"><circle cx="3" cy="4" r=".6"/><circle cx="11" cy="13" r=".45"/><ellipse cx="7" cy="18.5" rx=".4" ry=".7"/><circle cx="15" cy="8" r=".35"/></g></pattern>'
+/** The rain's falls beyond the glass, light then heavy: each moves down one tile and starts again. */
+const RAIN = [
+  '<g class="window-ra"><rect x="266" y="188" width="246" height="410" fill="url(#window-rp)" opacity=".3"/></g>',
+  '<g class="window-rb"><rect x="266" y="188" width="246" height="410" fill="url(#window-rq)" opacity=".24"/></g>',
+]
+const RAIN_STYLE = '.window-ra{animation:window-rn 2.8s linear infinite}.window-rb{animation:window-rn 2s linear infinite}@keyframes window-rn{to{transform:translateY(44px)}}'
 
 /** A clockwise outline roughened by midpoint displacement into a leaf edge; segments listed in `plain` stay straight. */
 function rough(keys: V[], seed: number, amp: number, min: number, plain: number[] = []): string {
@@ -93,6 +107,12 @@ export function part(state: State = DEFAULT_STATE): Part {
   const L1 = state.tv && !L6
   const L7 = state.lamp
   const gop = L6 ? '.09' : '.04'
+  const out = outside(state.look ?? { sun: 0, weather: 0 })
+  const [hz0, hz1, fd0, fd1, tree, pole] = out.land
+  /** The dusk's warm horizon stops, scaled by the hour's glow. */
+  const warm = (list: Stop[]): Stop[] => list.map(([o, c, a]) => [o, c, (a ?? 1) * out.glow])
+  /** The outside is brighter than the lamp-lit room by day, so the lit room lowers the glass less. */
+  const exposure = (v: number): string => d2(v * (1 - 0.7 * out.day))
 
   const cloud = (cx: number, cy: number, w: number, h: number, seed: number, n: number): string => {
     let s = ''
@@ -135,21 +155,19 @@ export function part(state: State = DEFAULT_STATE): Part {
   const casing = 'M243 207H531V593H504V234H270V593H243Z'
 
   let defs =
-    lin('sky', 0, 234, 0, 563, [
-      [0, '#08112c'], [0.18, '#0c1638'], [0.38, '#161d48'], [0.55, '#241f50'], [0.68, '#3a2853'],
-      [0.78, '#563354'], [0.86, '#7a4650'], [0.93, '#8b5541'], [0.97, '#955e43'], [1, '#8a5844'],
-    ]) +
-    rad('ag', 452, 556, 150, [[0, '#b8744e', 0.24], [1, '#b8744e', 0]], ' gradientTransform="matrix(1 0 0 .4 0 333.6)"') +
-    lin('cl', 0, 0, 0, 1, [[0, '#2a2650', 0.35], [0.55, '#6a4462', 0.55], [1, '#d08a6c', 0.9]], false) +
-    lin('hz', 0, 547, 0, 565, [[0, '#3a2c4c'], [1, '#1e1a32']]) +
-    lin('fd', 0, 560, 0, 594, [[0, '#171426'], [1, '#08090f']]) +
+    lin('sky', 0, 234, 0, 563, out.sky) +
+    (out.glow > 0 ? rad('ag', 452, 556, 150, warm([[0, '#b8744e', 0.24], [1, '#b8744e', 0]]), ' gradientTransform="matrix(1 0 0 .4 0 333.6)"') : '') +
+    lin('cl', 0, 0, 0, 1, out.cloud, false) +
+    lin('hz', 0, 547, 0, 565, [[0, hz0], [1, hz1]]) +
+    lin('fd', 0, 560, 0, 594, [[0, fd0], [1, fd1]]) +
     lin('sk', 0, 474, 0, 590, [[0, '#2a2638', 0], [0.75, '#4a3a4a', 0.13], [1, '#2a2638', 0.06]]) +
     lin('sn', 0, 594, 0, 602.7, [[0, '#28243a', 0.7], [0.3, '#18161f', 0.3], [1, '#07080f', 0.6]]) +
-    lin('mg', 0, 0, -26, -4.3, [[0, '#f2f4ff', 0.95], [1, '#f2f4ff', 0]]) +
-    rad('ff', 0, 0, 4, [[0, '#f6ffc0'], [0.16, '#d6f07a', 0.9], [0.45, '#9ccf45', 0.16], [1, '#9ccf45', 0]]) +
-    rad('yl', 0, 0, 9, [[0, '#dfe9ff', 0.5], [0.3, '#9fb6ff', 0.14], [1, '#9fb6ff', 0]]) +
+    (out.stars ? lin('mg', 0, 0, -26, -4.3, [[0, '#f2f4ff', 0.95], [1, '#f2f4ff', 0]]) : '') +
+    (out.rain > 0 ? RAIN_DEFS : '') +
+    (out.flies ? rad('ff', 0, 0, 4, [[0, '#f6ffc0'], [0.16, '#d6f07a', 0.9], [0.45, '#9ccf45', 0.16], [1, '#9ccf45', 0]]) : '') +
+    (out.yard ? rad('yl', 0, 0, 9, [[0, '#dfe9ff', 0.5], [0.3, '#9fb6ff', 0.14], [1, '#9fb6ff', 0]]) : '') +
     lin('gl', 0, 0, 1, 1, [[0, '#8a96c8', 0], [0.42, '#8a96c8', 0], [0.5, '#8a96c8', 0.05], [0.62, '#8a96c8', 0]], false) +
-    rad('hb', 438, 546, 128, [[0, '#b06e4c', 0.16], [0.5, '#8a5244', 0.06], [1, '#8a5244', 0]], ' gradientTransform="matrix(1 0 0 .27 0 398.6)"') +
+    (out.glow > 0 ? rad('hb', 438, 546, 128, warm([[0, '#b06e4c', 0.16], [0.5, '#8a5244', 0.06], [1, '#8a5244', 0]]), ' gradientTransform="matrix(1 0 0 .27 0 398.6)"') : '') +
     `<filter id="window-nf" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency=".04 .7" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .8 0 0 0 0 .8 0 0 0 0 .9 0 0 0 1.8 -.75"/></filter>` +
     `<pattern id="window-gr" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" filter="url(#window-nf)"/></pattern>` +
     `<pattern id="window-gv" href="#window-gr" patternTransform="rotate(90)"/>` +
@@ -211,24 +229,27 @@ export function part(state: State = DEFAULT_STATE): Part {
   const flies: [number, number, number, string][] = [[306, 488, 7.3, 'a'], [329, 497, 8.9, 'b'], [349, 523, 6.6, 'a'], [447, 541, 9.6, 'b'], [474, 538, 7.9, 'a'], [490, 534, 8.4, 'b'], [455, 546, 9.1, 'a']]
 
   let body = ''
-  body += `<rect x="266" y="232" width="246" height="366" fill="url(#window-sky)"/><rect x="266" y="470" width="246" height="102" fill="url(#window-ag)"/>`
-  body += stars.map(([x, y, r], i) => `<circle class="window-tw" cx="${x}" cy="${y}" r="${r}" fill="#dfe4ff" opacity=".5" style="animation-delay:-${i * 2 + 2}s;animation-duration:${7 + (i % 3) * 2}s"/>`).join('')
-  body += `<g transform="translate(300 343)"><g class="window-met" opacity="0"><path d="M0 0L-26-4.3" stroke="url(#window-mg)" stroke-width=".9" stroke-linecap="round"/><circle r=".9" fill="#f6f7ff"/></g></g>`
+  body += `<rect x="266" y="232" width="246" height="366" fill="url(#window-sky)"/>${out.glow > 0 ? '<rect x="266" y="470" width="246" height="102" fill="url(#window-ag)"/>' : ''}`
+  if (out.stars) {
+    body += stars.map(([x, y, r], i) => `<circle class="window-tw" cx="${x}" cy="${y}" r="${r}" fill="#dfe4ff" opacity=".5" style="animation-delay:-${i * 2 + 2}s;animation-duration:${7 + (i % 3) * 2}s"/>`).join('')
+    body += `<g transform="translate(300 343)"><g class="window-met" opacity="0"><path d="M0 0L-26-4.3" stroke="url(#window-mg)" stroke-width=".9" stroke-linecap="round"/><circle r=".9" fill="#f6f7ff"/></g></g>`
+  }
   body += `<g filter="url(#window-cb)" fill="url(#window-cl)">${cloud(350, 437, 110, 5, 1, 4)}${cloud(446, 454, 100, 4, 2, 3)}${cloud(380, 404, 96, 3, 3, 3)}${cloud(318, 471, 70, 3, 4, 2)}</g>`
   const tb = '<g filter="url(#window-tb)">'
   const holes = [[300, 452, 0.9, 0.6], [318, 449.5, 0.6, 0.5], [335, 455, 1.1, 0.7], [344, 466, 0.7, 0.5], [350, 489, 1, 0.6], [357, 500, 0.6, 0.5], [353, 515, 0.9, 0.6], [359, 526, 0.6, 0.4], [347, 538, 1.2, 0.7], [452, 528, 0.8, 0.5], [471, 522, 1.1, 0.6], [487, 513, 0.6, 0.5], [440, 541, 0.7, 0.5]]
   body += `${tb}<path d="${far}" fill="url(#window-hz)"/>`
   body += `<path d="M266 562L300 561L340 562.5L380 560.5L420 562L460 561L510 562V600H266Z" fill="url(#window-fd)"/></g>`
-  body += `<g transform="translate(384 557)"><circle r="9" fill="url(#window-yl)"/><circle r=".8" fill="#e8f0ff"/></g>`
-  body += `<path d="M422.9 584L423.4 436H425.3L425.9 584ZM418.5 441.6H430V442.8H418.5Z" fill="#07080e"/>`
-  body += `<path d="M419 441.4Q380 452 338 460M429.5 441.4Q470 448 512 446" stroke="#07080e" stroke-width=".5" fill="none"/>`
-  body += `${tb}<path d="${crown}" fill="#06070c"/><path d="${right}" fill="#06070c"/>`
+  if (out.yard) body += `<g transform="translate(384 557)"><circle r="9" fill="url(#window-yl)"/><circle r=".8" fill="#e8f0ff"/></g>`
+  body += `<path d="M422.9 584L423.4 436H425.3L425.9 584ZM418.5 441.6H430V442.8H418.5Z" fill="${pole}"/>`
+  body += `<path d="M419 441.4Q380 452 338 460M429.5 441.4Q470 448 512 446" stroke="${pole}" stroke-width=".5" fill="none"/>`
+  body += `${tb}<path d="${crown}" fill="${tree}"/><path d="${right}" fill="${tree}"/>`
   body += `<g fill="url(#window-sky)">${holes.map(([x, y, a, b]) => `<ellipse cx="${x}" cy="${y}" rx="${a}" ry="${b}"/>`).join('')}</g></g>`
-  body += flies.map(([x, y, d, k], i) => `<g transform="translate(${x} ${y})"><circle class="window-f${k}" r="4" fill="url(#window-ff)" opacity="${i % 3 === 0 ? 0.45 : 0}" style="animation-duration:${d}s;animation-delay:-${i * 2 + 2}s"/></g>`).join('')
+  if (out.rain > 0) body += `<g clip-path="url(#window-ro)" opacity="${d2(out.drops)}">${RAIN.slice(0, out.rain).join('')}</g>`
+  if (out.flies) body += flies.map(([x, y, d, k], i) => `<g transform="translate(${x} ${y})"><circle class="window-f${k}" r="4" fill="url(#window-ff)" opacity="${i % 3 === 0 ? 0.45 : 0}" style="animation-duration:${d}s;animation-delay:-${i * 2 + 2}s"/></g>`).join('')
   body += `<rect x="289" y="474" width="216" height="116" fill="#0b0d18" opacity=".36"/><rect x="289" y="474" width="216" height="116" fill="#2a2238" opacity=".07"/><rect x="289" y="474" width="216" height="116" fill="url(#window-sk)"/>`
   const scr = 'M289.1 474H292V589.6H289.1ZM289.1 585.8H505V589.6H289.1Z'
   body += `<path d="${scr}" fill="#191a2a"/><rect x="292" y="585.8" width="213" height=".8" fill="#3c3148" opacity=".7"/>`
-  if (L6) body += `<rect x="270" y="234" width="234" height="240" fill="#06070c" opacity=".5"/><rect x="266" y="474" width="246" height="124" fill="#06070c" opacity=".32"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rf)"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rg)"/><rect x="289" y="474" width="216" height="116" fill="#6a6258" opacity=".13"/><path d="${scr}" fill="#5a524a" opacity=".7"/>`
+  if (L6) body += `<rect x="270" y="234" width="234" height="240" fill="#06070c" opacity="${exposure(0.5)}"/><rect x="266" y="474" width="246" height="124" fill="#06070c" opacity="${exposure(0.32)}"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rf)"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rg)"/><rect x="289" y="474" width="216" height="116" fill="#6a6258" opacity=".13"/><path d="${scr}" fill="#5a524a" opacity=".7"/>`
   if (L7) body += `<rect x="440" y="520" width="66" height="72" fill="url(#window-lq)"/>`
   const jamb = `270,234 270,593 ${pts([proj(270, 593, SS), proj(270, 234, SS)])}`
   /** Dusk fill, or the lit fill when L6 is on. */
@@ -242,6 +263,7 @@ export function part(state: State = DEFAULT_STATE): Part {
   body += sashFill('s1') + sUd
   body += `<g transform="rotate(.22 390 384)">`
   body += box(270, 292, 504, 474, SL, 'fill="#0a0d22" opacity=".12"')
+  if (out.rain > 0) body += `<rect x="277" y="334" width="232" height="140" fill="url(#window-bp)" opacity="${d2((out.rain > 1 ? 0.5 : 0.32) * out.drops)}"/>`
   if (L1) body += `<rect x="392" y="304" width="100" height="148" fill="url(#window-tv)"/>`
   body += sashFill('s2') + sLd
   if (L1) body += `<rect x="392" y="452" width="112" height="22" fill="url(#window-tv)" opacity=".5"/>`
@@ -274,18 +296,22 @@ export function part(state: State = DEFAULT_STATE): Part {
     ? `<rect x="222" y="192" width="21" height="452" fill="url(#window-sh)"/><rect x="216" y="601" width="342" height="16" fill="url(#window-sv)"/>` + under
     : `<rect x="40" y="100" width="720" height="750" fill="url(#window-sp)"/><rect x="100" y="850" width="460" height="110" fill="url(#window-fl)"/>` + under
 
-  const over = `<rect x="262" y="510" width="262" height="72" fill="url(#window-hb)"${L6 ? ' opacity=".4"' : ''}/>`
+  const over = out.glow > 0 ? `<rect x="262" y="510" width="262" height="72" fill="url(#window-hb)"${L6 ? ' opacity=".4"' : ''}/>` : ''
 
   const style =
-    `.window-tw{animation:window-tw 9s ease-in-out infinite alternate}` +
-    `@keyframes window-tw{from{opacity:.25}to{opacity:.7}}` +
-    `.window-fa{animation:window-fa 8s ease-in-out infinite}.window-fb{animation:window-fb 8s ease-in-out infinite}` +
-    `@keyframes window-fa{0%{opacity:0;transform:translate(0,0)}22%{opacity:.9}48%{opacity:.12}62%,100%{opacity:0;transform:translate(3px,-2.5px)}}` +
-    `@keyframes window-fb{0%{opacity:0;transform:translate(0,0)}25%{opacity:.85}50%{opacity:.1}64%,100%{opacity:0;transform:translate(-2.5px,-1.5px)}}` +
+    (out.stars ? `.window-tw{animation:window-tw 9s ease-in-out infinite alternate}` + `@keyframes window-tw{from{opacity:.25}to{opacity:.7}}` : '') +
+    (out.flies
+      ? `.window-fa{animation:window-fa 8s ease-in-out infinite}.window-fb{animation:window-fb 8s ease-in-out infinite}` +
+        `@keyframes window-fa{0%{opacity:0;transform:translate(0,0)}22%{opacity:.9}48%{opacity:.12}62%,100%{opacity:0;transform:translate(3px,-2.5px)}}` +
+        `@keyframes window-fb{0%{opacity:0;transform:translate(0,0)}25%{opacity:.85}50%{opacity:.1}64%,100%{opacity:0;transform:translate(-2.5px,-1.5px)}}`
+      : '') +
     `.window-cy{transform-origin:466.7px 244.6px;animation:window-cy 11s ease-in-out infinite alternate}` +
     `@keyframes window-cy{from{transform:rotate(-.04deg)}to{transform:rotate(.06deg)}}` +
-    `.window-met{animation:window-met 3600s linear infinite}` +
-    `@keyframes window-met{0%,6.66%{opacity:0;transform:translate(0,0)}6.668%{opacity:.85}6.712%{opacity:.5}6.722%,100%{opacity:0;transform:translate(128px,21px)}}`
+    (out.stars
+      ? `.window-met{animation:window-met 3600s linear infinite}` +
+        `@keyframes window-met{0%,6.66%{opacity:0;transform:translate(0,0)}6.668%{opacity:.85}6.712%{opacity:.5}6.722%,100%{opacity:0;transform:translate(128px,21px)}}`
+      : '') +
+    (out.rain > 0 ? RAIN_STYLE : '')
 
   return { style, defs, under, body, over }
 }
