@@ -162,7 +162,7 @@ For each chapter/concept, extract:
 - **Decision tables**, when the author presents trade-offs, capture them as markdown tables
 - **Practical guidelines**. Actionable rules a developer can apply immediately
 
-Target 60-160 lines per file. Include the author's name in section headers when the file will eventually be shared across authors.
+Target 60-160 lines per file, so the target skill can load one concept whole without pulling in the others. Include the author's name in section headers when the file will eventually be shared across authors.
 
 ### After writing each file
 

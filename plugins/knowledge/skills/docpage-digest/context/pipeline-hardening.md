@@ -150,7 +150,7 @@ copy of the ladder; every other file points here.
    agent. Do not re-dispatch at once. If
    this run has agents of its own running, wait for one to return. If it has
    none, do phase work that needs no agent, or wait a few minutes with a
-   Monitor wait (the Bash tool blocks a foreground `sleep`). Then dispatch the
+   Monitor wait, never a foreground `sleep`. Then dispatch the
    refused units once more, and record each wait and each refusal on the
    checklist. A unit refused again falls to rung 2 with the refusals recorded.
    Rung 1 does not apply to a refusal.
