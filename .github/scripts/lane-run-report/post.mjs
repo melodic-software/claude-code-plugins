@@ -84,13 +84,14 @@ const validRow = (row) =>
   row.status <= 599;
 
 // A 404 on a tag-ref lookup means the tag does not exist yet
-// (check-trusted-trigger.mjs readDefaultBranchTip), not a failure.
+// (check-trusted-trigger.mjs readDefaultBranchTip), not a failure, so
+// failureRows neither lists it nor counts it as dropped:
+// https://docs.github.com/en/rest/git/refs#get-a-reference
 const TAG_REF = /^(\/api\/v3)?\/repos\/\{repo\}\/git\/ref\/tags(\/\*)+$/;
 const expectedMiss = (row) => row.method === "GET" && row.status === 404 && TAG_REF.test(row.path);
 
 // The carried rows that have the recorded shape, each distinct row once, at
-// most MAX_ROWS, each path as its template (templatePath), leaving out each
-// expected miss; dropped counts the rest and the run job's own dropped count.
+// most MAX_ROWS, each path as its template (templatePath); dropped counts the rest and the run job's own dropped count.
 export function failureRows(text) {
   let carried;
   try {
