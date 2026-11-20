@@ -3,6 +3,17 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.0] - 2026-11-20
+
+### Added
+
+- `/code-tidying:audit-comment-residue`, `audit-dead-code`, `batch-simplify`, `remove-comments` and `tidy` take the shared target forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run once per repository, with findings merged into one report. Writes, worktrees, pull requests and per-repository state (findings files, run state, lane anchor commit, throttle) stay in each repository. With no target form, each skill runs as before. The plugin now ships the contract as `reference/target-scope.md`.
+- `dead-code-scan.sh --root <dir>` scans the repository that holds `<dir>` and resolves relative targets against it. A `--root` that is not a directory is a usage error (exit 2).
+
+### Changed
+
+- The argument hints of `remove-comments`, `batch-simplify` and `tidy` drop tokens to make room for `[--repo <repo> ...]` within the 100-character budget: `--pipeline` and `--base` (remove-comments), `docs` and `override` (batch-simplify) and `dry-run`'s scope (tidy). Each skill body still documents every token.
+
 ## [0.54.0] - 2026-11-20
 
 ### Changed
