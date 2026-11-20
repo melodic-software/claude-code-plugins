@@ -248,6 +248,33 @@
       }
     },
     {
+      "why": "a region over content with no test ids: the holder's child elements it crosses",
+      "note": {
+        "kind": "region",
+        "anchor": {
+          "tag": "article",
+          "cssPath": "article:nth-of-type(1)"
+        },
+        "elements": [
+          {
+            "tag": "p",
+            "cssPath": "article:nth-of-type(1) > p:nth-of-type(1)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "article:nth-of-type(1) > p:nth-of-type(2)"
+          }
+        ],
+        "rect": {
+          "x": 10,
+          "y": 20,
+          "w": 50,
+          "h": 15
+        },
+        "text": "These two paragraphs say the same thing."
+      }
+    },
+    {
       "why": "an empty data log and an empty elements list",
       "note": {
         "kind": "region",
