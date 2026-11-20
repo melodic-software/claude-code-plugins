@@ -851,6 +851,7 @@ jobs:
       # term, because a shell file under a docs-only prefix is still ShellCheck
       # input (scripts/docs-only-paths.txt).
       run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
+      run_check_tests: ${{ steps.base.outputs.ref == '' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -1112,6 +1113,7 @@ jobs:
               scripts/check-discriminating-test-skips*
               scripts/check-fixture-git-isolation*
               scripts/fixture-git-isolation-baseline.txt
+              scripts/fixture-git-global-baseline.txt
               scripts/check-drive-root-litter*
               scripts/check-shell-portability*
               scripts/shell-portability-*
@@ -1124,6 +1126,10 @@ jobs:
               **/*.bash
               **/*.bats
               **/*.py
+              **/*.test.mjs
+              **/*.test.js
+              **/*.test.cjs
+              **/*.test.ts
               **/hooks/**
               **/bin/**
               **/agents/**
@@ -1305,6 +1311,12 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh loop-lane-floor-drift {0}
         run: scripts/check-loop-lane-floor-drift.sh --check
+
+      - name: Check shipped plugin content names no unexcused organization repository
+        id: org_repo_tokens
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh org-repo-tokens {0}
+        run: scripts/check-org-repo-tokens.sh --check
 
       - name: Check the conformance registry resolves
         id: conformance_registry
@@ -1980,6 +1992,7 @@ jobs:
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
+            org-repo-tokens=${{ steps.org_repo_tokens.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
@@ -2153,9 +2166,11 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh fixture-git-isolation {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/pr-require-checks.yml) &&
+            '*.sh' '*.py' '*.test.mjs' '*.test.js' '*.test.cjs' '*.test.ts' scripts/lib/fixture-git-isolation-scan.awk \
+            scripts/fixture-git-isolation-baseline.txt \
+            scripts/fixture-git-global-baseline.txt .github/workflows/pr-require-checks.yml) &&
             [ -z "$changed" ]; then
-            echo "::notice::No shell or Python file changed since $DIFF_BASE; the scheduled run scans the whole tree."
+            echo "::notice::No shell, Python or JS test file changed since $DIFF_BASE; the scheduled run scans the whole tree."
             exit 0
           fi
           scripts/check-fixture-git-isolation.sh --check
@@ -4099,18 +4114,19 @@ jobs:
   # schedule, a dispatch, and a pull request or merge group that
   # `select-tests` resolves to the whole tree (no usable base, or a manifest
   # change). With a base, `check-plugins` scans the changed test files and
-  # this job returns at once. The whole tree took 133 and 132 s on a hosted
+  # this job skips on its `run_check_tests` row, an ordered skip `ci-status`
+  # checks, since a skipped job reports success
+  # (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions).
+  # The whole tree took 133 and 132 s on a hosted
   # runner, serial, with 1301 test files, which no existing job's timeout
-  # holds. The job branches in the shell, not in `if:` (see `lint-repo`), so
-  # with a base it costs its setup and checkout and stays off the critical
-  # path. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
+  # holds. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
   # minutes. Sharded over 4 cores the scan took 64 s, for 3 minutes, but needs
   # a second fail-closed denominator: a shard with no test file exits 2.
   check-tests:
     name: Check Tests
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_check_tests == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -4121,13 +4137,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check every test for tests that cannot fail
-        env:
-          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
-          if [ -n "$DIFF_BASE" ]; then
-            echo "::notice::check-plugins scans the test files changed since $DIFF_BASE."
-            exit 0
-          fi
           scripts/check-cant-fail-scan.sh
       - name: Log the API budget at the end
         if: always()
@@ -7048,12 +7058,15 @@ jobs:
             echo "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict."
             exit 1
           fi
-      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
-      # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
-      # row says the change gives it no work. Its `skipped` becomes `success`
+      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, `lint-shell`
+      # on its `run_shell` row, or `check-tests` on `run_check_tests`, skips as
+      # a job when `select-tests`'s `run_<x>` row says the change gives it no
+      # work. Its `skipped` becomes `success`
       # for the aggregate only when `select-tests` succeeded and that row is
       # exactly 'false'; every other result passes through as it is, so a
-      # skip that hid work stays `skipped` and the aggregate fails it. Pinned
+      # skip that hid work stays `skipped` and the aggregate fails it, where
+      # branch protection alone would count it a success
+      # (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions). Pinned
       # by scripts/ci-ordered-skips.test.sh, which runs this body.
       - name: Check each skipped lane against scope
         id: lanes
@@ -7066,8 +7079,8 @@ jobs:
             | to_entries
             | map(.key as $lane | .value.result as $r
                 | if $r == "skipped" and $s.result == "success"
-                    and ($lane | test("^(test-[a-z]+|lint-shell)$"))
-                    and ($s.outputs["run_" + ($lane | sub("^(test|lint)-"; ""))] == "false")
+                    and ($lane | test("^(test-[a-z]+|lint-shell|check-tests)$"))
+                    and ($s.outputs["run_" + ($lane | sub("^(test|lint)-"; "") | gsub("-"; "_"))] == "false")
                   then "success" else $r end)
             | join(" ")' <<<"$LANES")
           if [ -z "$results" ]; then

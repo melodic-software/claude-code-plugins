@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.0] - 2026-11-20
+
+### Changed
+
+- `/planning:design` no longer suggests writing a project-wide principle that design discussion surfaces into the project's own rules files. Both places that raise it, the discussion round's step 4 and "Codify rules when discovered", hand the principle to `/corrections:codify` when that skill is available, which picks the strongest mechanism that can decide it and proves the check. Otherwise the skill proposes the strongest mechanism itself, an instruction only when nothing a machine runs can decide the rule, and says the proposal is unproven. It proposes the same way, saying codify stopped, when codify stops with no proposal below its recurrence threshold. When the skill raises a principle does not change.
+
 ## [5.9.5] - 2026-11-19
 
 ### Fixed
