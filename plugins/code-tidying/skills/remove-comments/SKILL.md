@@ -1,6 +1,6 @@
 ---
 description: "Edits code so its comments earn their keep under a posture (none or 'strip', necessary or 'aggressive', explanatory): deletes zero-information comments, renames or restructures so explanatory ones can go, keeps terse load-bearing ones; a 'safe' mode, and an edit-free 'report'. Use when asked to 'remove comments' or 'dissolve comments', when code has too many or agent-written comments, or to make code self-documenting. Read-only residue flagging is /code-tidying:audit-comment-residue."
-argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [target] [--repo…]"
+argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [target] [--repo <repo> ...]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/added-lines.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/settings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(git ls-files:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
@@ -30,7 +30,7 @@ the argument names an explicit target**, and the tooling line is re-derived in t
 
 Arguments: `$ARGUMENTS`
 
-The argument-hint in full: `[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [target] [--repo <repo> ...]`, plus `--added-since <base>`, `--base <ref>` and `--notes <path>` from the action router.
+The argument-hint in full: `[audit|report|safe] [none|necessary|explanatory] [override] [target] [--repo <repo> ...]`, plus `--pipeline`, `--added-since <base>`, `--base <ref>` and `--notes <path>` from the action router.
 
 Each key resolves through four layers, lowest first, a later one winning: the default below,
 `userConfig`, the team layer `<home>/code-tidying.yaml`, and the personal override
