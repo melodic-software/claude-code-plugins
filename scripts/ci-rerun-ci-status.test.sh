@@ -216,12 +216,6 @@ case "$*" in
   # STUB_JOBS_LATER answers once a poll has read the run by id.
   if [[ -n "${STUB_JOBS_LATER:-}" ]] && grep -qE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG"; then ok200 "$STUB_JOBS_LATER"; else ok200 "$STUB_JOBS"; fi
   ;;
-*/commits/*/check-runs\?check_name=*)
-  # The index check runs named for a lane on the head: STUB_INDEX, else none.
-  [[ -z "${STUB_INDEX_FAIL:-}" ]] || exit 1
-  ok200 "${STUB_INDEX:-{\"total_count\":0,\"check_runs\":[]\}}"
-  ;;
-"api -i repos/o/r/actions/runs/${STUB_BOUND_ID:-none}") ok200 "$STUB_BOUND" ;;
 "api -i repos/o/r/actions/runs/"[0-9]*)
   n=$(grep -c '^api -i repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
   total=$(wc -l <<<"$STUB_RUN_SEQ")
@@ -363,38 +357,6 @@ STUB_JOBS="$(cijob completed)"
 STUB_LANE_RUNS="$(runs "$(run 4 completed "$HEAD" "$CODE")")"
 LANE_PATH=$SEC expect "the security lane finishing last reads the code lane" 0 "Re-running ci-status (job 77)"
 if [[ "$(listings head) $(listings file)" == "1 0" ]]; then ok "the security lane's run reads the code lane's runs from the head's listing"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
-LANE_RUN_PATH=.github/workflows/pr-review-security-hosted-lane.yml MAIN_TIP=9999999999999999999999999999999999999999
-lane_upstream() {
-  LANE_PATH=$LANE_RUN_PATH LANE_EVENT=${LANE_EVENT-workflow_run} LANE_BRANCH=${LANE_BRANCH-main} \
-    LANE_TITLE=${LANE_TITLE-"PR Review Security Hosted Lane #42 $HEAD"} HEAD_SHA=$MAIN_TIP PR_NUMBER='' expect "$@"
-}
-lane_upstream "a lane run bound to #42 at the head re-runs that head's ci-status" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
-check_reran 1 "the lane run's ci-status re-run names the head its run-name names"
-for bad in "LANE_BRANCH=feature/x" "LANE_EVENT=pull_request" "LANE_TITLE=PR Review Security Hosted Lane #42" "LANE_TITLE=PR Review Hosted Lane #42 $HEAD"; do
-  export "${bad?}"
-  lane_upstream "a lane run with $bad re-runs nothing" 1 "names no pull request head in its run-name"
-  unset "${bad%%=*}"
-done
-bound() { jq -cn --arg sha "$HEAD" --argjson change "${1:-{\}}" '{id: 61, status: "in_progress", updated_at: "2026-10-23T10:06:00Z", run_attempt: 1,
-  path: ".github/workflows/pr-review-security-hosted-lane.yml", event: "workflow_run", head_branch: "main", repository: {full_name: "o/r"},
-  head_repository: {full_name: "o/r"}, display_title: "PR Review Security Hosted Lane #42 \($sha)"} + $change'; }
-export STUB_INDEX STUB_BOUND STUB_BOUND_ID=61
-STUB_INDEX='{"total_count":1,"check_runs":[{"external_id":"61"}]}' STUB_BOUND="$(bound)"
-STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
-expect "a pull_request run's completion reads no index" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
-if grep -q 'check_name=' "$TMP_ROOT/log"; then fail "a pull_request run's completion read an index"; else ok "a pull_request run's completion reads no index, as the job holds no checks: read"; fi
-LANE_RUN_PATH=.github/workflows/pr-review-hosted-lane.yml LANE_TITLE="PR Review Hosted Lane #42 $HEAD" \
-  lane_upstream "the other lane's bound lane run, still running, is waited for" 0 "pr-review-security-hosted.yml has not finished on $HEAD; its completion re-runs ci-status."
-for change in '{"display_title":"PR Review Security Hosted Lane #43 0123456789abcdef0123456789abcdef01234567"}' \
-  '{"head_branch":"feature/x"}' '{"event":"pull_request"}' '{"path":".github/workflows/pr-review-security-hosted.yml"}'; do
-  STUB_BOUND="$(bound "$change")"
-  LANE_RUN_PATH=.github/workflows/pr-review-hosted-lane.yml LANE_TITLE="PR Review Hosted Lane #42 $HEAD" \
-    lane_upstream "a lane run with $change is not the other lane's review" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
-done
-STUB_INDEX='{"total_count":2,"check_runs":[{"external_id":"61"}]}'
-LANE_RUN_PATH=.github/workflows/pr-review-hosted-lane.yml LANE_TITLE="PR Review Hosted Lane #42 $HEAD" \
-  lane_upstream "an index page that is not whole fails the step" 1 "check runs on $HEAD did not read whole"
-STUB_INDEX='' STUB_BOUND=''
 # A listing cut short (total_count above the runs on the page) can leave the
 # pr-require-checks run off it; each file's own runs are read instead, so the
 # head is re-run, never left as having no run.

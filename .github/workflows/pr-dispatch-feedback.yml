@@ -716,10 +716,6 @@ jobs:
       && ((github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'
       || github.event.workflow_run.path == '.github/workflows/pr-review-security-hosted.yml')
       && github.event.workflow_run.event == 'pull_request'
-      || (github.event.workflow_run.path == '.github/workflows/pr-review-hosted-lane.yml'
-      || github.event.workflow_run.path == '.github/workflows/pr-review-security-hosted-lane.yml')
-      && github.event.workflow_run.event == 'workflow_run'
-      && github.event.workflow_run.head_branch == 'main'
       || github.event.workflow_run.path == '.github/workflows/pr-review-approved.yml'
       && github.event.workflow_run.event == 'pull_request_review')
       && github.event.workflow_run.conclusion != 'skipped'
@@ -803,9 +799,6 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           LANE_PATH: ${{ github.event.workflow_run.path }}
-          LANE_EVENT: ${{ github.event.workflow_run.event }}
-          LANE_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          LANE_TITLE: ${{ github.event.workflow_run.display_title }}
           LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
           POLL_SECONDS: '60'
           POLL_LIMIT_SECONDS: '600'
@@ -827,22 +820,6 @@ jobs:
           budget() {
             ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "$(! declare -F api_budget_route >/dev/null || api_budget_route api "$2")" <<<"$1" >/dev/null
           }
-          # A review lane's workflow_run lane run ran on main's tip, so only its
-          # own record, its event, branch and run-name `<name> #<pull request>
-          # <head>`, names the pull request and head it reviewed; it stands for
-          # its caller below.
-          case $LANE_PATH in
-          .github/workflows/pr-review-hosted-lane.yml) lane_name='PR Review Hosted Lane' ;;
-          .github/workflows/pr-review-security-hosted-lane.yml) lane_name='PR Review Security Hosted Lane' ;;
-          *) lane_name='' ;;
-          esac
-          if [ -n "$lane_name" ]; then
-            if [[ $LANE_EVENT != workflow_run || $LANE_BRANCH != main || ! $LANE_TITLE =~ ^"$lane_name #"([1-9][0-9]{0,9})" "([0-9a-f]{40})$ ]]; then
-              echo "::error::run $REVIEW_RUN_ID of $LANE_PATH names no pull request head in its run-name '$LANE_TITLE'."
-              exit 1
-            fi
-            PR_NUMBER=${BASH_REMATCH[1]} HEAD_SHA=${BASH_REMATCH[2]} LANE_PATH=${LANE_PATH%-lane.yml}.yml
-          fi
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
             exit 1
@@ -987,45 +964,10 @@ jobs:
                 "repos/$GITHUB_REPOSITORY/actions/workflows/$1/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
             fi
           }
-          # newest_review <file>: sets lane to ci-status's own choice for <file>'s
-          # review: the newest run an index check run named for its lane on the
-          # head names whose own record binds it to #$PR_NUMBER at the head
-          # (path, event workflow_run, head branch main, both repositories,
-          # run-name), else its newest pull_request run, or empty. Only a lane
-          # run's completion reads the index: the job holds no checks: read.
-          newest_review() {
-            local name index id one found=''
-            if [ -z "$lane_name" ]; then
-              file_runs "$1"
-              lane=$(newest "$1" <<<"$runs")
-              return 0
-            fi
-            case $1 in
-            pr-review-hosted.yml) name='PR Review Hosted Lane' ;;
-            pr-review-security-hosted.yml) name='PR Review Security Hosted Lane' ;;
-            esac
-            read_api index "the $name check runs on $HEAD_SHA" \
-              "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=${name// /%20}&filter=all&per_page=100"
-            if ! jq -e '(.check_runs | arrays | length) as $n | .total_count == $n and $n < 100' <<<"$index" >/dev/null 2>&1; then
-              echo "::error::the $name check runs on $HEAD_SHA did not read whole; re-run this run." >&2
-              exit 1
-            fi
-            for id in $(jq -r '[.check_runs[].external_id | strings | select(test("^[1-9][0-9]{0,15}$"))] | unique[]' <<<"$index"); do
-              read_api one "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
-              found=$(jq -c --argjson run "$one" --arg id "$id" --arg path ".github/workflows/${1%.yml}-lane.yml" --arg title "$name #$PR_NUMBER $HEAD_SHA" \
-                --arg repo "$GITHUB_REPOSITORY" '[., ($run | select((.id | tostring) == $id and .path == $path and .event == "workflow_run"
-                  and .head_branch == "main" and .repository.full_name == $repo and .head_repository.full_name == $repo
-                  and .display_title == $title))] | map(values) | max_by(.id) // empty' <<<"${found:-null}")
-            done
-            lane=$found
-            if [ -z "$lane" ]; then
-              file_runs "$1"
-              lane=$(newest "$1" <<<"$runs")
-            fi
-          }
           done_at=$LANE_DONE_AT
           for other in $others; do
-            newest_review "$other"
+            file_runs "$other"
+            lane=$(newest "$other" <<<"$runs")
             if [ -n "$lane" ]; then
               if [ "$(jq -r .status <<<"$lane")" != completed ]; then
                 echo "$other has not finished on $HEAD_SHA; its completion re-runs ci-status."
