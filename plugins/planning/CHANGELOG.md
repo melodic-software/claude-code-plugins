@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.1] - 2026-11-20
+
+### Changed
+
+- The shared page's `proto-pin.js` copy takes the ui-feedback frame helper's new rules: a data-log
+  replay returns -1 when a press finds no control and the page marks no data control, and a region over content with no test
+  ids lists the holding element's children it crosses as its `elements`
+  ([#17010](https://github.com/melodic-software/claude-code-plugins/issues/17010)).
+
 ## [5.10.0] - 2026-11-20
 
 ### Changed
