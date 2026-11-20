@@ -47,7 +47,8 @@ WHERE metric_name = 'claude_code.token.usage';
 
 CREATE TEMP TABLE ev AS
 SELECT session_id, ccr_session_id, event_name,
-  cc_attr(cc_attr_map(cc_attr_entries(attributes_list)), 'autonomy.work_item.url') AS item_url
+  cc_attr(cc_attr_map(cc_attr_entries(attributes_list)), 'autonomy.work_item.url') AS item_url,
+  cc_attr(cc_attr_map(cc_attr_entries(attributes_list)), 'delivery.mode') AS delivery_mode
 FROM cc_logs_from(getvariable('logs_src'));
 
 CREATE TEMP TABLE ccr_map AS
@@ -72,7 +73,7 @@ WITH t AS (
 ),
 e AS (
   SELECT resolved_item(x.item_url, c.item_url, c.items) AS item,
-    COALESCE(x.ccr_session_id, '') AS ccr, x.session_id, x.event_name
+    COALESCE(x.ccr_session_id, '') AS ccr, x.session_id, x.event_name, x.delivery_mode
   FROM ev x LEFT JOIN ccr_map c ON c.ccr_session_id = x.ccr_session_id
 ),
 tokens AS (
@@ -87,7 +88,7 @@ tokens AS (
 turns AS (
   SELECT item, ccr, count(*) AS turns
   FROM e
-  WHERE event_name = 'user_prompt'
+  WHERE event_name = 'user_prompt' AND delivery_mode IS DISTINCT FROM 'mid_turn'
   GROUP BY item, ccr
 ),
 sessions AS (
