@@ -498,8 +498,8 @@ export function draftJudgments(github, repository, head) {
 //   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
 //   "Use conditional requests".
 //   As-of: 2026-11-12.
-//   Recheck trigger: the not-modified count on the pr-verify check intent and
-//   pr-verify-capture capture jobs' api-calls notices falls to 0.
+//   Recheck trigger: the not-modified count on the pr-verify check intent
+//   jobs' api-calls notices falls to 0.
 const emptyListingTags = new WeakMap();
 const ETAG_FORM = /^(W\/)?"[!#-~]{1,200}"$/;
 

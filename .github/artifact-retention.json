@@ -83,16 +83,6 @@
         ".github/workflows/pr-verify.yml#check-intent-fallback"
       ]
     },
-    "pr-capture-*": {
-      "retention-days": 30,
-      "readers": [
-        ".github/scripts/pr-verify/find-capture.mjs reads it by exact name from the pr-verify-capture.yml run its judge jobs wait for, at most 35 minutes after the capture starts",
-        "docs/conventions/pr-pipeline.yaml merge.verify-capture.retention-days sets how long a reviewer can open it"
-      ],
-      "reason": "The judges read it within the hour; the rest is the review round's window, which merge.verify-capture.retention-days sets (30, its default, judgment). computed-by: the capture workflow's Read the capture config step, which accepts 1 to 30, so 30 is the most any capture lasts.",
-      "scan": "upload",
-      "computed-by": ".github/workflows/pr-verify-capture.yml"
-    },
     "pr-merge-risk-*": {
       "retention-days": 7,
       "readers": [
@@ -106,23 +96,19 @@
     "key-credit-stop-PR_VERIFY_CLAUDE_API_KEY": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/maintenance-verify-whole-map.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers",
         ".github/workflows/pr-rate-merge-risk.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers",
-        ".github/workflows/pr-verify-capture.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers",
         ".github/workflows/pr-verify.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
-      "reason": "The marker only says PR_VERIFY_CLAUDE_API_KEY hit a credit stop, in any job of this repository that runs it (written by .github/workflows/maintenance-verify-whole-map.yml, .github/workflows/pr-rate-merge-risk.yml, .github/workflows/pr-verify-capture.yml, .github/workflows/pr-verify.yml); the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key.",
+      "reason": "The marker only says PR_VERIFY_CLAUDE_API_KEY hit a credit stop, in any job of this repository that runs it (written by .github/workflows/pr-rate-merge-risk.yml, .github/workflows/pr-verify.yml); the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key.",
       "scan": "upload"
     },
     "key-credit-probing-PR_VERIFY_CLAUDE_API_KEY": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/maintenance-verify-whole-map.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads, once the credit-stop marker is past its window, the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)",
         ".github/workflows/pr-rate-merge-risk.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads, once the credit-stop marker is past its window, the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)",
-        ".github/workflows/pr-verify-capture.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads, once the credit-stop marker is past its window, the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)",
         ".github/workflows/pr-verify.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads, once the credit-stop marker is past its window, the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)"
       ],
-      "reason": "The probe only says one run is trying PR_VERIFY_CLAUDE_API_KEY after a credit stop's window (written by .github/workflows/maintenance-verify-whole-map.yml, .github/workflows/pr-verify-capture.yml, .github/workflows/pr-verify.yml); the gate counts it for probe-minutes, at most 1440, so a day covers it and an expired probe runs the key.",
+      "reason": "The probe only says one run is trying PR_VERIFY_CLAUDE_API_KEY after a credit stop's window (written by .github/workflows/pr-verify.yml); the gate counts it for probe-minutes, at most 1440, so a day covers it and an expired probe runs the key.",
       "scan": "upload"
     },
     "key-credit-stop-INTAKE_CLAUDE_API_KEY": {
@@ -150,32 +136,6 @@
         ".github/workflows/pr-run-plugin-evals.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
       "reason": "The marker only says MAINTENANCE_CLAUDE_API_KEY hit a credit stop, in any job of this repository that runs it (written by .github/workflows/maintenance-measure-skill-edit-pass.yml, .github/workflows/maintenance-measure-skill-edit.yml, .github/workflows/pr-run-plugin-evals.yml); the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key.",
-      "scan": "upload"
-    },
-    "map-findings": {
-      "retention-days": "max",
-      "readers": [
-        ".github/workflows/maintenance-verify-whole-map.yml \"Find the baseline\" takes the newest successful pass's unexpired map-findings as the next pass's baseline, however long ago that pass ran"
-      ],
-      "max-reader": ".github/workflows/maintenance-verify-whole-map.yml",
-      "reason": "It is the only record a later pass compares against (owner decision on #16564: the repository's retention, 90 days, and no paid storage); a pass dispatched after it expires finds no baseline and reports every finding NEW.",
-      "scan": "upload"
-    },
-    "map-findings-narrowed": {
-      "retention-days": "max",
-      "readers": [
-        ".github/workflows/maintenance-verify-whole-map.yml its run summary names it for a person comparing passes narrowed by features; \"Find the baseline\" never takes it"
-      ],
-      "max-reader": ".github/workflows/maintenance-verify-whole-map.yml",
-      "reason": "Owner decision on #16564: every pass keeps findings.json at the repository's retention, 90 days. A pass narrowed by features keeps it under this name so a later whole-map pass does not take it as its baseline and report the other features' findings NEW.",
-      "scan": "upload"
-    },
-    "map-evidence": {
-      "retention-days": 7,
-      "readers": [
-        ".github/workflows/maintenance-verify-whole-map.yml its run summary points a person reviewing the pass at it, soon after the dispatch"
-      ],
-      "reason": "Only the dispatcher reads it, in the days after a pass, as with the lane transcripts' 7 days; findings.json, which the next pass needs, is kept apart in map-findings.",
       "scan": "upload"
     },
     "pr-review-main-*": {

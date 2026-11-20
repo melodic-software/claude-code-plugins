@@ -52,7 +52,6 @@ SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
 SETTINGS_CLI = "skills/babysit-prs/scripts/babysit_merge_settings.py"
 VERIFY_EVIDENCE_CLI = "skills/babysit-prs/scripts/babysit_verify_evidence.py"
 WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
-EVIDENCE_COMMENT_CLI = "skills/babysit-prs/scripts/babysit_evidence_comment.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 REPO_CONFIG_CLI = "skills/babysit-prs/scripts/babysit_repo_config.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
@@ -1355,15 +1354,6 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("convertPullRequestToDraft", "markPullRequestReadyForReview"),
     ),
     Mechanism(
-        id="evidence-comment.upserts-a-comment",
-        claim=(
-            "babysit_evidence_comment.py post performs a GitHub write: it posts or "
-            "rewrites the lane identity's one evidence-verification comment."
-        ),
-        entry_point=EVIDENCE_COMMENT_CLI,
-        must_contain=("upsert_marker_comment", "<!-- evidence-verification -->"),
-    ),
-    Mechanism(
         id="review.posts-a-comment",
         claim=(
             "request_review.py --apply performs a GitHub write: it POSTs an issue comment "
@@ -1708,23 +1698,6 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "held, printed on stdout; no write of any kind and no GitHub call."
         ),
         backed_by=(),
-    ),
-    EntryPoint(
-        path=EVIDENCE_COMMENT_CLI,
-        wrapper=None,
-        mutation=MUTATING,
-        mutates_what="a pull request's evidence-verification comment",
-        gate=(
-            "enable-auto-merge.mjs runs `post` with the lane token before it "
-            "arms a pull request, live mode only"
-        ),
-        claim=(
-            "`post` reads the head's pr-capture artifact and its run under "
-            "BABYSIT_VERIFY_GH_TOKEN and, when a pr-verify-capture run on main "
-            "uploaded it, posts or rewrites the lane identity's one "
-            "evidence-verification comment linking it."
-        ),
-        backed_by=("evidence-comment.upserts-a-comment",),
     ),
     EntryPoint(
         path=WHOLE_REVIEW_CLI,

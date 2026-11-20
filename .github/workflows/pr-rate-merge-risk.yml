@@ -329,14 +329,13 @@ jobs:
 
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome step; "Fail without a rating" carries the red. Under
-      # dontAsk only the one skill may run, and Agent is allowed bare, as
-      # pr-verify-capture.yml allows it, for the skill's blind checker. The
+      # dontAsk only the one skill may run, and Agent is allowed bare, for the
+      # skill's blind checker. The
       # allow rules do not bound Read once the skill runs: its frontmatter
       # allowed-tools pre-approves bare Read. The deny rules do, since a deny
-      # beats any allow: .base, the runner's temp directory (the reads and the
-      # prompt), the home's credential and Claude files (as
-      # pr-verify-capture.yml denies them; the workspace itself sits under the
-      # home, so the home is not denied whole) and /proc, /sys and /etc stay
+      # beats any allow (https://code.claude.com/docs/en/permissions#manage-permissions): .base, the runner's temp directory (the reads and the
+      # prompt), the home's credential and Claude files (the workspace itself
+      # sits under the home, so the home is not denied whole) and /proc, /sys and /etc stay
       # unreadable. --restricted keeps the file tools inside the workspace,
       # which holds nothing else but the data directory and the plugin copy.
       # Only Read, Skill and Agent exist (tools:), so nothing writes or runs

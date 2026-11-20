@@ -5,7 +5,7 @@
 Posts one evidence comment on the pull request, or updates it in place for a new head. The comment
 leads with the run's text result, the record of what was verified. The publishable captures follow
 as support: a Before/After table for a small change, one collapsed section per acceptance
-criterion for a larger one. A link to the retained CI capture artifact closes it when one exists.
+criterion for a larger one. A link to a retained CI artifact closes it when one is given.
 It posts only after the verifier passed for the PR's current head and only when a leak scan of the
 comment body finds nothing. Every refusal below posts nothing and names its reason in the report.
 
@@ -18,13 +18,6 @@ not a requirement this step meets.
 
 Screenshots and recordings of a regulated product show synthetic data only, never real records:
 no step here checks a capture's image content for real records.
-
-In CI the pr-merge lane posts the same marked comment, not this step: the pr-verify jobs hold read
-tokens only. The comment goes up after a passing verdict and before each merge path's merge, the
-`merge-pr` gate's enqueue and the `enable-auto-merge` arm, from the `/source-control:babysit-prs`
-merge gate. It links the head's `pr-capture-<pr>-<head>`
-artifact and its expiry date, and attaches no file. With no capture artifact it posts nothing and
-the merge goes on.
 
 ## Contents
 
@@ -43,7 +36,7 @@ the merge goes on.
 | `--summary <file>` | Optional: the run's text summary. Without it, the summary is the `entry_points` lines and the `capture` status of `e2e-summary.json`, or each step's `action`, `entry_point` and `outcome` from `report.json`, never its `observed` text, `command` or `process` |
 | `--verified-by <name>` | Optional: who ran the verification, for the record block (step 4). Without it, `not recorded` |
 | `--issues <file>` | Optional: each issue the verification found and its resolution, one per line, for the record block |
-| `--artifact-url <url>` | Optional: the link to the CI capture artifact, named `pr-capture-<pr>-<head>` |
+| `--artifact-url <url>` | Optional: the link to a retained CI artifact that holds the run's captures |
 | `--retention-days <n>` | Optional, with `--artifact-url`: the days the artifact is kept |
 
 The evidence files, the summary, the issues file, the verdict record's rows and the PR body are

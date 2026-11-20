@@ -168,9 +168,7 @@ a tool, or deploy it as a chatbot or support assistant, read the guide's section
 
 ## API requests carried over from Haiku 4.5
 
-Our decision: the only code in this repository that sends API requests is the pr-verify key proxy
-(`.github/scripts/pr-verify/key-proxy.mjs`), and its model allowlist (the proxy `models` list under `proxy:` in
-`docs/conventions/pr-pipeline.yaml`) names no Haiku 4.5 model, so there are no Haiku 4.5 request
+Our decision: no code in this repository sends API requests, so there are no Haiku 4.5 request
 settings to carry over. `[CC: direct]`
 
 Trigger: before you move an API integration you author from Haiku 4.5 to this model, or when a
@@ -181,8 +179,7 @@ what's-new page at the pointers. `[CC: API-side]`
   [Haiku 5.5 migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)
   and
   [What's new in Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5).
-- **Recheck trigger**: this repository gaining other code that sends API requests, or that allowlist
-  adding a Haiku 4.5 model.
+- **Recheck trigger**: this repository gaining code that sends API requests.
 
 ## Which surfaces we author as system prompt
 

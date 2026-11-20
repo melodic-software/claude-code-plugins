@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.3] - 2026-11-20
+
+### Fixed
+
+- `/harness-ops:observability items` no longer counts a message sent while a turn runs as a new turn: since Claude Code 2.1.325 such a message emits its own `user_prompt` event marked `delivery.mode` `mid_turn`, and the turn count now leaves those out (#16035).
+
+- behavior-probes record 8 and its sandbox cases follow the Claude Code 2.1.325 change to sandboxed Bash, which now goes through the normal permission flow unless `sandbox.autoAllowBashIfSandboxed` is true: the two auto-mode cases set it, and a new default-mode pair measures the default itself (#16035).
+
 ## [10.5.2] - 2026-11-20
 
 ### Fixed

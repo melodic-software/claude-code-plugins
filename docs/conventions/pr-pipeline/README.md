@@ -2611,7 +2611,7 @@ failure signals.
   read 2026-11-06), so only the pull request body could carry the line into the squash commit
   (`squash_merge_commit_message=PR_BODY`). A body edit would be a `pull_request: edited` event,
   which starts a contract-only pr-require-checks run whose completion starts pr-verify,
-  pr-verify-capture, pr-rate-merge-risk and pr-review-main runs that only confirm answers already
+  pr-rate-merge-risk and pr-review-main runs that only confirm answers already
   given, about 36 `GITHUB_TOKEN` core calls per arm (the job-call records of the five body edits
   from 04:53 to 05:38 UTC on 2026-11-12), and the queue would wait about 50 seconds for that run's
   `ci-status`: run 42173684490 (2026-11-06, every lane job skipped) reported `ci-status` 50
@@ -2818,52 +2818,11 @@ line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
-`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`, a
-blocked capture's `cause` when the capture recorded one (below), `capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+ran on, never the pull request's live head. `evidence` records `capture: no-app` with the reason
+"no app check ran", `capture_count` 0 and empty `features`, since no CI job drives the app, and
+`local_loop`, the count `k` from an `Evidence loop: k/3` line
 in the trusted pull request body, which the author reports and the writer reads as data only (`null`
-with no such line or a withheld body). With the app unset the writer records `no-app` ("no app
-check ran"). With it set and no capture summary (no capture run, one that ended other than success,
-one still running at the bound, no artifact, a failed read or download), it records `blocked` with
-the reason `find-capture.mjs` wrote. The later judge jobs carry a miss that cannot change (a
-malformed input, or a completed run's outcome) and search again after one that can; a
-summary it cannot read, that fails its schema, or whose text matches a shared
-credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
-no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-*` row in
-`.github/artifact-retention.json`), how long each capture artifact lasts. `proxy` configures the
-key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
-`driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
-tokens the driven session of one capture job may spend, cache tokens counted in full),
-`driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
-`max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
-`max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
-`max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
-`upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. The capture
-installs the Claude Code version `package-lock.json` pins, the one source of that version. The three
-lists were measured from the driven session's requests; the proxy refuses a value they do not list
-and names it, so the first capture after a version bump says what to add. The job reads the
-key's credit history first, right after the capture config and before the resolver. When the
-credit gate skips the key, the job runs no resolver, trigger gate or match step and makes no GitHub
-read; it uploads a capture recorded `blocked` with the cause `credit-stop`, named from the
-triggering event's pull request and head (none when the event names no pull request, and the
-verdict then records find-capture's `no-artifact` reason). Before the key call, the job's match step runs
-main's `affected_features.py` over the changed path names the compare API lists: a change that
-touches no feature of main's control skill uploads a capture recorded `not-applicable`, and the
-job sets up no key and starts no model session. A read or script that fails, or a compare at the
-API's 300-file limit, leaves the decision to the capture session. Both of the capture's legs stay
-on the key, so when the key cannot capture the job runs no model and no fallback job follows it: it
-uploads a capture recorded `blocked` whose `cause` is `credit-stop` (the credit gate's
-credit-stop marker held the key off, or its probe hit a credit stop), `empty-key`, `probe-handoff`
-(the probe handed off on auth), or `unrecognized` (a next-leg reason outside those, which is printed
-nowhere), each with its own reason. The job writes the cause from its credit read and next-leg call;
-the collect step drops a `cause` from the driven session's summary in either shape the writer
-reads, and the writer records one only in the nested shape the job writes, on a `blocked` capture
-and from that list, so `evidence` carries `cause` exactly when the capture recorded one. The cause
-is advisory: the strip that keeps it the job's own runs after the head checkout, so it informs an
-operator and gates nothing. The verdict step's `pr-verify capture` annotation names the outcome and,
-for a blocked capture, the cause (`none` when it recorded none). A credit stop on the probe raises
-the warning annotation every lane raises on its key's handoff, naming the pr-verify role's key and
-the run, also in the run summary. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+with no such line or a withheld body). A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
@@ -3311,14 +3270,6 @@ no verdict. On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
-
-### The whole-map pass
-
-`.github/workflows/maintenance-verify-whole-map.yml` runs `/testing:run-e2e map` over
-`merge.verify-capture.app`'s control skill on the default branch, only on a listed human's
-dispatch, in the capture's sandbox, launch broker and key proxy on the pr-verify key, under the
-capture's token caps and driven model. Its driver leg takes the `verify-map` run route. Its header
-says what it runs and keeps.
 
 ## Review-lane holds
 
@@ -3771,8 +3722,7 @@ run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triag
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
-([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
-[whole-map pass](#the-whole-map-pass)'s driver leg, and `verify-capture` for the pr-verify capture's driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
@@ -3914,9 +3864,7 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. `pr-verify-capture` has one job, `capture`, on
-the key; when the key cannot capture it records the capture `blocked` and runs no model
-([Verifier verdict](#verifier-verdict)). The lane sweep's judge, on the `automations`
+with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
 role, has the same three legs per unit (`assess-units`, `assess-units-subscription`, `assess-units-fallback`), each
 started by a route job from the previous leg's handoff markers
 ([The lane sweep](#the-lane-sweep)). The read runner's callers

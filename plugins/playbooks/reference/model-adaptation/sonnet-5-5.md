@@ -172,9 +172,7 @@ read the guide's sections at the pointers. `[CC: API-side]`
 
 ## API requests carried over from Sonnet 5
 
-Our decision: the only code in this repository that sends API requests is the pr-verify key proxy
-(`.github/scripts/pr-verify/key-proxy.mjs`), and its model allowlist (the proxy `models` list under `proxy:` in
-`docs/conventions/pr-pipeline.yaml`) names no Sonnet 5 model, so there are no Sonnet 5 request
+Our decision: no code in this repository sends API requests, so there are no Sonnet 5 request
 settings to carry over. `[CC: direct]`
 
 Trigger: before you move an API integration you author from Sonnet 5 to this model, or when a
@@ -183,8 +181,7 @@ request that worked on Sonnet 5 is rejected on this one, read the migration guid
 
 - **Pointer**: see the
   [Sonnet 5.5 migration guide](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide).
-- **Recheck trigger**: this repository gaining other code that sends API requests, or that allowlist
-  adding a Sonnet 5 model.
+- **Recheck trigger**: this repository gaining code that sends API requests.
 
 ## Dense images
 
