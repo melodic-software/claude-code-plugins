@@ -7510,7 +7510,7 @@ jobs:
                 elif $s.conclusion == "success" then
                   if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
                   elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted \($s.id)" end
-                elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
+                elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion) \($s.id)"
                 elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
                 elif $run_status != "completed" then "pending"
                 elif $k.conclusion == "failure" and any($k.steps[]?; .name == "Stop on upstream status" and .conclusion == "failure") then "upstream"
@@ -7713,7 +7713,20 @@ jobs:
               failed=1
               ;;
             red\ *)
-              echo "::error::'$check' ended ${verdict#red } on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
+              read -r _ conclusion status_job <<<"$verdict"
+              # A partial review (publish-review's `<lane>: failure-class=partial:`
+              # failure) stays partial on a re-run, so name its files and the remedy.
+              # An unreadable annotation list falls back to the plain message.
+              partial=''
+              if [ "$conclusion" = failure ] && notes=$(read_api "the annotations of job $status_job" "repos/$GITHUB_REPOSITORY/check-runs/$status_job/annotations?per_page=100"); then
+                partial=$(jq -r --arg want "$lane: failure-class=partial: " 'first(.[]? | select(.annotation_level == "failure") | .message // ""
+                  | select(startswith($want)) | ltrimstr($want) | gsub("[\r\n%]"; " ")) // empty' <<<"$notes")
+              fi
+              if [ -n "$partial" ]; then
+                echo "::error::'$check' did not review all of $HEAD_SHA ($url): $partial. A re-run reads the same diff and stays partial. A file no review reads as text (audio, an image, other binary data) goes in scripts/review-generated-data.txt by a pull request of its own, merged first, since the lanes read that list at the merge base; then update this branch from main. A text diff over the read budget is split into smaller pull requests."
+              else
+                echo "::error::'$check' ended $conclusion on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
+              fi
               failed=1
               ;;
             *)
