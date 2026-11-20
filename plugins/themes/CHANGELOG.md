@@ -3,6 +3,12 @@
 All notable changes to the `themes` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-11-20
+
+### Fixed
+
+- Clicks on the bedroom room work again in the desktop app. Dim is drawn into the room once more instead of a veil laid over it, which caught every click; a dim step shows the room drawn without the shader until it settles, then the shader takes the room back at the new dim.
+
 ## [0.2.0] - 2026-11-20
 
 ### Added

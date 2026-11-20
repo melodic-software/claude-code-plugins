@@ -69,10 +69,14 @@ text and research alone.
 
 **The two 0-cases are not equally rich.** The no-link case comes from a real post info JSON, so
 post text, title, and counts are all present. The link-post case does not: the extractor allow-list
-refuses the delegated URL before any fetch, and yt-dlp writes no info JSON for an intermediate
-url-result, so the post's own text and title are unrecoverable in that invocation, and provenance
-is the URL's status id plus the refused outbound link (recorded under `source:blockedDelegations`
-and appended to harvested links). Do not promise a link post's text to a downstream phase.
+refuses the delegated URL before any fetch and the adapter gets no post payload, so the post's own
+text and title are unrecoverable in that invocation, and provenance is the URL's status id plus the
+refused outbound link (recorded under `source:blockedDelegations` and appended to harvested links).
+Do not promise a link post's text to a downstream phase.
+
+- **Pointer**: when deciding whether a link post's own text could be recovered, read how
+  `process_ie_result` handles a `url` result in yt-dlp's
+  [`yt_dlp/YoutubeDL.py`](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/YoutubeDL.py) live.
 
 Envelope shape: 0..N `entries` plus one shared `metadata` object, whose namespace is open with
 `source:`-prefixed keys reserved for source-specific fields. Transcripts travel as replayable

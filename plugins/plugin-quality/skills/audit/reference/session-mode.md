@@ -51,8 +51,8 @@ Run at session end, over what the session used.
 2. **Read `plugin_usage`.** The ledger's frontmatter key `plugin_usage` is one line of JSON:
    `skills` maps `<plugin>:<skill>` to an invocation count, from the model's Skill tool calls and
    the operator's typed `/<plugin>:<skill>` commands, as of the last checkpoint. Discovery is by
-   skill invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot
-   be attributed to a plugin. No ledger, or no such key: tell the operator to run
+   skill invocations only, because `plugin_usage` counts skills and attributes no hook run to a
+   plugin. No ledger, or no such key: tell the operator to run
    `/session-flow:running-retro` and re-run this mode, name the by-name form above, and stop, with
    no second parser: no count over the transcript by any tool. An
    armed observer writes the ledger only after the session ends, so inside the live session the

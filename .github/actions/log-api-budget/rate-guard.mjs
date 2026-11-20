@@ -507,7 +507,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   }
   const nowSeconds = Math.floor(now / 1000);
   const candidates = [
-    retryAfter !== null ? [nowSeconds + retryAfter, "retry-after"] : null,
+    retryAfter !== null ? [retryAfter > 0 ? Math.ceil(now / 1000) + retryAfter : nowSeconds, "retry-after"] : null,
     (remaining === 0 || floored) && reset !== null ? [reset, "x-ratelimit-reset"] : null,
   ].filter(Boolean);
   const best = candidates.length ? candidates.reduce((top, next) => (next[0] > top[0] ? next : top)) : null;
@@ -736,7 +736,7 @@ export function createRateLimitLatch({
   // Whether a call to url would wait out its pool's stop rather than be refused.
   const waits = (url) => {
     const reset = resetMs(url);
-    return reset !== null && waited + reset <= budgetMs;
+    return reset !== null && waited + reset < budgetMs + 1000;
   };
 
   async function waitOut(url, method, wait = sleep) {

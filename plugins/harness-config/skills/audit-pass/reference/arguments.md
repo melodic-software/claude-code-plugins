@@ -17,24 +17,20 @@ Parse `$ARGUMENTS`:
   has already been resolved. Work from what you can observe: the resolved path, or a command you run.
   The sibling `audit-prompting-postures` states this same rule where it derives its report path.
 
-  **`target` must resolve to the active project root, and a path that does not is refused.** The
-  delegated interfaces accept no target: `audit-instructions` takes a surface scope and inventories
-  the active project, and `harness-memory:audit` takes an action verb. This pass dispatches skills and
-  never reads inside one, so there is no channel through which it could tell a delegate to look
-  elsewhere. A run given `../other-repo` would key, lock, and report against that path while every
-  delegated finding came from the active project. Findings attributed to the wrong repository are
-  worse than a refusal, because nothing downstream can detect the mismatch.
+  **A `target` that resolves to another repository runs as `--repo <target>`**, through the
+  per-repository pass in [multi-repository.md](multi-repository.md). This pass dispatches skills
+  and never reads inside one, so a delegate can look at another repository only through its own
+  target argument. `audit-instructions` and `harness-memory:audit` take `--repo`; the other
+  delegates take none and inventory the active project. A pass over `../other-repo` that ran those
+  would key, lock, and report against that path while their findings came from the active project.
+  Findings attributed to the wrong repository are worse than a gap, because nothing downstream can
+  detect the mismatch, so outside the active project those lanes are listed in `skipped` with the
+  reason `delegate takes no target`, never run. A delegate that gains a target argument gains its
+  lane in every repository's pass. The state key, the lock, and the report are keyed on the
+  resolved root, which is what lets each repository's pass keep its own.
 
-  So the argument is validated rather than silently reinterpreted: a `target` that does not resolve
-  to the active project root exits non-zero, naming both paths and the reason. Auditing another
-  repository means opening it as the project. Lifting the restriction is a change to the
-  **delegated** interfaces, each of which would have to accept and honor a target root, and belongs to
-  those skills rather than this one. The argument itself survives because the state key, the lock,
-  and the report are already keyed on the resolved root.
-
-  **The gate enforces both halves of that first sentence: the active project root, *and* a git
-  repository.** A `target` that is not inside a git repository is refused the same way: non-zero,
-  before Phase 0 does any work, naming the path and the reason, writing nothing.
+  **`target` must be a git repository.** A `target` that is not inside a git repository is refused:
+  non-zero, before Phase 0 does any work, naming the path and the reason, writing nothing.
 
   **Name the directory, not an empty string.** In the case this refusal is *for*, the default
   resolution above produces nothing: with no explicit `target` and no session-resolved project root,

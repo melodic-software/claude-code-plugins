@@ -131,4 +131,5 @@ something is reported to the user; it gets this plugin's evidence labels and cha
 - Synthesis at `idea` has no data: its personas are proto-personas labeled assumption-based.
 - Instrumenting analytics, recruiting participants and running sessions are out of scope; say so
   and select, plan or write the instrument instead.
-- "Discovery" is never used bare: say "discovery phase" or "user research".
+- "Discovery" is never used bare: say "discovery phase" or "user research"
+  (`${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` "Body" gives the reason).
