@@ -7,6 +7,10 @@
     {
       "answer": "**Legal & Regulatory**\n- MED: VendorCo and a defense procurement office dispute a contract clause.",
       "why": "bold heading"
+    },
+    {
+      "answer": "## Legal & regulatory\n\n**HIGH**\n- **VendorCo and a national defense procurement office dispute a supply-chain security clause** (2026-06-21). [Source](https://newswire.example/vendorco-procurement-dispute)",
+      "why": "a bold tier label under the legal heading does not end the section"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "**Legal & Regulatory**\n*No notable items.*\n\n**Policy and industry-wide**\n- VendorCo procurement dispute",
       "why": "a later bold heading ends the legal section"
+    },
+    {
+      "answer": "**Legal & Regulatory**\n**HIGH**\n*No notable items.*\n\n**Policy and industry-wide**\n**HIGH**\n- VendorCo procurement dispute",
+      "why": "tier labels do not carry the legal section past a different bold section heading"
     }
   ]
 }

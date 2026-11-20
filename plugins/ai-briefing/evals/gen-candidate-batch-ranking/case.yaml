@@ -9,12 +9,12 @@ graders:
     target: last_message
   - name: vendorco-kept
     type: regex
-    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\b(?:legal|regulat\w*)\b[^\n]*|\*\*[^*\n]*\b(?:legal|regulat\w*)\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\bVendorCo\b'
+    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\b(?:legal|regulat\w*)\b[^\n]*|\*\*[^*\n]*\b(?:legal|regulat\w*)\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*(?!(?:HIGH|MEDIUM|MED|LOW)\*\*[ \t]*$)[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\bVendorCo\b'
     flags: 'im'
     target: last_message
   - name: robotics-extras
     type: regex
-    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\bEXTRAS?\b[^\n]*|\*\*[^*\n]*\bEXTRAS?\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\b(?:Anchorpoint|Unit-7)\b'
+    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\bEXTRAS?\b[^\n]*|\*\*[^*\n]*\bEXTRAS?\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*(?!(?:HIGH|MEDIUM|MED|LOW)\*\*[ \t]*$)[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\b(?:Anchorpoint|Unit-7)\b'
     flags: 'im'
     target: last_message
   - name: impact-annotation
