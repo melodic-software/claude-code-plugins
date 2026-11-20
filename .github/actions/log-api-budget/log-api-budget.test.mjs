@@ -1342,7 +1342,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "intake-label-outside-actor-activity.yml": { "label-outside-actor": "github-token" },
     "pr-dispatch-feedback.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
-    "pr-refine.yml": { "fix-docs-head": "github-token" },
+    "pr-refine.yml": { "select-passes": "github-token" },
     "post-merge-file-demotion-issues.yml": { "file-demotion-issue": "github-token", "report-red-main": "github-token" },
     // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
     "pr-unblock.yml": Object.fromEntries(

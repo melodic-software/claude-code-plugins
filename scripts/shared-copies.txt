@@ -127,6 +127,7 @@ docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/ai-slop/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/attribution/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
@@ -136,6 +137,7 @@ docs/contracts/target-scope/README.md plugins/harness-memory/reference/target-sc
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/instruction-placement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/repo-hygiene/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/testing/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/overengineering/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/work-items/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh

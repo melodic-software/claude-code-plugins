@@ -75,7 +75,7 @@ permissions, and passes no App key.
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt and its thread file's SHA-256 |
 | `patch-replies-attempt`, `patch-replies-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the read file's `feedback-attempt` and `feedback-sha256` outputs, which name the scanned replies whose `VALID` threads the commit's `Lane-Thread` lines name and bind their bytes |
-| `patch-human-gate` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict on the human-gated hold of this push, the gate it worked past: `fix-request` (the review-threads select job's `human-gate` when every kept thread carries a write-access fix request) lifts it; `lane-escalation` (that output, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head`, when a lane's escalation put the label on) lifts it only while `gate-recheck.mjs`, re-running for `patch-activity` the check its select job ran, still lets it past right before the push; anything else keeps it |
+| `patch-human-gate` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict on the human-gated hold of this push, the gate it worked past: `fix-request` (the review-threads select job's `human-gate` when every kept thread carries a write-access fix request) lifts it; `lane-escalation` (that output, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `pr-refine.yml`'s `select-passes`, when a lane's escalation put the label on) lifts it only while `gate-recheck.mjs`, re-running for `patch-activity` the check its select job ran, still lets it past right before the push; anything else keeps it |
 | `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
 | `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
@@ -1854,11 +1854,11 @@ outputs are sent), so the report job differs:
 - pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
   at apply time and pushes only while the branch is still there. Both `fix-docs` calls pass the
-  head `fix-docs-head` reads, a job that runs no head code, as `head-sha`, so a push while the run
+  head `select-passes` reads, a job that runs no head code, as `head-sha`, so a push while the run
   goes posts its check on the head it ran on, not failure on the new head. They also pass
   `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
   trigger gate posts no `not-assessed` neutral, and its green run counts as the PR's one run; and
-  `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
+  `apply-docs-patch` passes `select-passes`'s head as `patch-head-sha`, never the read runner's
   run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
   `docs` row's refusals from there.
 
@@ -2556,8 +2556,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
   is the run's head, or for a `pull_request_target` run the one its
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
-  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
-  select job, so nothing runs and the run ends green with no check and no stop, and the next
+  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`; in `pr-refine.yml`, a step of
+  `select-passes`) compares the two before any select job or step, so nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
   and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
   run to the broker.

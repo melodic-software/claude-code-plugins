@@ -11,6 +11,8 @@
 # Duplicated per plugin by design, not drift. See
 # docs/contracts/shell-test-helpers/README.md at the repo root.
 
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
 FAILED=0
 CASE_NUM=0
 

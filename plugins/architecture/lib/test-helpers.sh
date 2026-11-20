@@ -1,5 +1,7 @@
 # shellcheck shell=bash
 
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
 FAILED=0
 CASE_NUM=0
 

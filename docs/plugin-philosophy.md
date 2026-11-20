@@ -86,8 +86,16 @@ site either reads it or is a documented narrowing/extension of it:
   that file's D4 zero-vendored-knowledge sweeps, not one of them. The validator fails if that
   test file is missing while the plugin exists, or if its regex drifts from the `github` class.
   An unknown class name in the token file is a hard error.
+- **repository path**: an extension outside the token file. An `<org>/<repo>` token or
+  `<org>.github.io/<repo>` URL in a tracked text file under `plugins/`, agent and schema content
+  included, fails unless its line is a `Pointer:`, `Basis:` or `As of` citation, it links into this
+  repository's own pages, it is the `marketplace add <org>/<own repo>` install command, or a counted
+  entry with a reason in `scripts/org-repo-tokens-allow.tsv` covers it
+  (`scripts/check-org-repo-tokens.sh`). Not scanned: each plugin's `CHANGELOG.md` and
+  `.claude-plugin/plugin.json`, `*.test.*` and `test_*.py` files, and anything under an `evals/`,
+  `tests/`, `test/` or `fixtures/` directory.
 
-Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
+Outside the repository-path class, agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
 deliberate narrowing of enforcement to the classes above, so a green build does not mean these
 were checked.
 The independent `portability-lint` job stages a related publisher-token class in
