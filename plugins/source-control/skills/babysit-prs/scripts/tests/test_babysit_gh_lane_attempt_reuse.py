@@ -66,7 +66,15 @@ class LaneAttemptReuseTests(unittest.TestCase):
             "&event=pull_request&per_page=100"
         )
         number = run["pull_requests"][0]["number"]
-        answers: dict[str, Any] = {listing: [{"workflow_runs": [run]}], base: run}
+        index = (
+            f"repos/{self.REPO}/commits/{run['head_sha']}/check-runs"
+            "?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100"
+        )
+        answers: dict[str, Any] = {
+            listing: [{"workflow_runs": [run]}],
+            index: {"total_count": 0, "check_runs": []},
+            base: run,
+        }
         for n in range(1, run["run_attempt"] + 1):
             answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
                 {"jobs": (jobs or {}).get(n, [])}
@@ -143,7 +151,7 @@ class LaneAttemptReuseTests(unittest.TestCase):
         self.assertEqual(second[1]["annotations"], [])
         cancelled = {1: [{"id": 13, "name": "Kill Switch", "conclusion": "cancelled"}]}
         self.collect(rerun, {1: self.attempt}, cancelled)
-        self.assertFalse(any("check-runs" in path for path in self.reads))
+        self.assertFalse(any("/annotations" in path for path in self.reads))
 
     def test_an_earlier_attempts_upstream_stop_is_read(self) -> None:
         # The upstream-status gate failed attempt 1's kill-switch job with its

@@ -870,6 +870,35 @@ export function unranHead(activity, ran, decided, at) {
   return gap ? `${gap.after} was pushed after the decided head with no run of every review lane before the decision` : null;
 }
 
+export const LANE_RUN_NAMES = Object.freeze({ "pr-review-hosted.yml": "PR Review Hosted Lane", "pr-review-security-hosted.yml": "PR Review Security Hosted Lane" });
+
+async function laneRunsAt(read, repo, pr, file, head) {
+  const name = LANE_RUN_NAMES[file];
+  const page = await read("GET", `/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`);
+  const index = page?.check_runs;
+  if (!Array.isArray(index) || page.total_count !== index.length || index.length >= 100) {
+    throw new Error(`the ${name} check runs on ${head} did not read whole`);
+  }
+  const runs = [];
+  for (const id of new Set(index.map((check) => String(check?.external_id ?? "")).filter((id) => /^[1-9][0-9]{0,15}$/.test(id)))) {
+    const run = await read("GET", `/repos/${repo}/actions/runs/${id}`);
+    if (
+      String(run?.id) === id &&
+      Number.isSafeInteger(pr) &&
+      pr > 0 &&
+      run.path === `.github/workflows/${file.replace(/\.yml$/, "-lane.yml")}` &&
+      run.event === "workflow_run" &&
+      run.head_branch === "main" &&
+      run.repository?.full_name === repo &&
+      run.head_repository?.full_name === repo &&
+      run.display_title === `${name} #${pr} ${head}`
+    ) {
+      runs.push(run);
+    }
+  }
+  return runs;
+}
+
 // The head a decision made at `at` decided, from the review lanes' check-run
 // annotations, never a comment (any GITHUB_TOKEN workflow posts as
 // github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
@@ -881,7 +910,7 @@ export function unranHead(activity, ran, decided, at) {
 // history shows no lane run missing since the decided head (unranHead). A
 // run on a head that fails the vet, or a read that fails, decides nothing.
 // `read` holds contents: read, actions: read and checks: read.
-async function noticedHead(read, repo, branch, base, at) {
+async function noticedHead(read, repo, pr, branch, base, at) {
   const cutoff = Date.parse(at);
   if (!Number.isFinite(cutoff) || typeof branch !== "string" || !BRANCH.test(branch)) {
     return null;
@@ -890,10 +919,9 @@ async function noticedHead(read, repo, branch, base, at) {
   const vetted = new Set();
   const ran = [];
   for (const [file, checks] of REVIEW_LANES) {
-    const runs = await pages(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
-    const heads = [];
-    ran.push(heads);
-    for (const run of runs) {
+    const listed = await pages(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
+    const runs = [];
+    for (const run of listed) {
       if (run?.head_repository?.full_name !== repo || !(Date.parse(run.created_at) < cutoff)) {
         continue;
       }
@@ -901,6 +929,18 @@ async function noticedHead(read, repo, branch, base, at) {
       if (!isSha(head)) {
         return null;
       }
+      runs.push({ run, head });
+    }
+    for (const head of new Set(runs.map((item) => item.head))) {
+      for (const run of await laneRunsAt(read, repo, pr, file, head)) {
+        if (Date.parse(run.created_at) < cutoff) {
+          runs.push({ run, head });
+        }
+      }
+    }
+    const heads = [];
+    ran.push(heads);
+    for (const { run, head } of runs) {
       heads.push(head);
       if (!vetted.has(head)) {
         if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
@@ -1306,13 +1346,13 @@ async function pages(github, path, key = null) {
 // to its tip commit (baseTip), which the lane-change vet and every compare
 // name, so no tag of the same name stands in for it. No decided head, an
 // unusable base name or a read that fails carries nothing.
-async function carries(github, actions, repo, comment, head, base, branch) {
+async function carries(github, actions, repo, number, comment, head, base, branch) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
     }
     const tip = await baseTip(github, repo, base);
-    const decided = await noticedHead(actions, repo, branch, tip, comment.created_at);
+    const decided = await noticedHead(actions, repo, number, branch, tip, comment.created_at);
     if (decided === null) {
       return false;
     }
@@ -1422,7 +1462,7 @@ export async function costDecision(github, repo, number, body, humans, head, act
   // comment never stands in for a newer one that lacks either.
   const gaps = decision ? decisionGaps(decision.comment.body) : [];
   missing?.push(...gaps);
-  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
+  return decision && !gaps.length && (await carries(github, actions, repo, number, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
 }
 
 // A GitHub REST and GraphQL reader on fetch, for costDecision.

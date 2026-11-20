@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
+import shutil
 import pathlib
 import re
 import sys
@@ -86,7 +88,10 @@ class FakeActions:
 
     def get_pull(self, pr: int | None) -> dict[str, Any]:
         self.calls.append(("pull", 0))
-        return {"head": {"ref": BRANCH, "repo": {"full_name": REPOSITORY}}}
+        return {
+            "head": {"ref": BRANCH, "repo": {"full_name": REPOSITORY}},
+            "base": {"repo": {"full_name": REPOSITORY}},
+        }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         self.calls.append(("run", int(run_id)))
@@ -99,6 +104,9 @@ class FakeActions:
             "head_sha": run.get("head_sha", HEAD),
             "head_branch": run.get("head_branch", BRANCH),
             "head_repository": {"full_name": run.get("head_repository", REPOSITORY)},
+            "repository": {"full_name": run.get("repository", REPOSITORY)},
+            "event": run.get("event", "pull_request"),
+            "display_title": run.get("display_title"),
             "status": run.get("status", "completed"),
             "run_attempt": run.get("run_attempt", 1),
             "created_at": run.get("created_at"),
@@ -382,3 +390,93 @@ class CheckerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+MAIN_TIP = "c" * 40
+LANE_PATH = ".github/workflows/pr-review-hosted-lane.yml"
+
+
+def lane_record(**change: Any) -> dict[str, Any]:
+    """A code-lane lane run as GitHub lists it: main's copy, started on
+    workflow_run, on main's tip, named for pull request 7 at HEAD."""
+    return {
+        "id": RUN,
+        "path": LANE_PATH,
+        "event": "workflow_run",
+        "head_branch": "main",
+        "head_sha": MAIN_TIP,
+        "repository": {"full_name": REPOSITORY},
+        "head_repository": {"full_name": REPOSITORY},
+        "display_title": f"PR Review Hosted Lane #7 {HEAD}",
+        **change,
+    }
+
+
+REFUSED = {
+    "another pull request": {"display_title": f"PR Review Hosted Lane #8 {HEAD}"},
+    "another head": {"display_title": f"PR Review Hosted Lane #7 {'b' * 40}"},
+    "another branch": {"head_branch": BRANCH},
+    "another event": {"event": "pull_request"},
+    "another path": {"path": WORKFLOWS["claude-review"]},
+}
+
+
+class LaneRunTests(unittest.TestCase):
+    def test_a_lane_run_binds_on_its_own_record_alone(self) -> None:
+        caller = WORKFLOWS["claude-review"]
+        self.assertTrue(lb.bound_lane_run(lane_record(), REPOSITORY, 7, HEAD, caller))
+        refused = REFUSED | {
+            "another repository": {"repository": {"full_name": "f/r"}},
+            "another head repository": {"head_repository": {"full_name": "f/r"}},
+        }
+        for label, change in refused.items():
+            with self.subTest(label):
+                self.assertFalse(
+                    lb.bound_lane_run(lane_record(**change), REPOSITORY, 7, HEAD, caller)
+                )
+        self.assertFalse(lb.bound_lane_run(lane_record(), REPOSITORY, 7, HEAD, ".github/workflows/x.yml"))
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_the_two_ports_name_the_same_lane_runs(self) -> None:
+        module = pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/lib/lane-binding.mjs"
+        script = f"import {{ LANE_RUNS }} from {json.dumps(module.as_uri())}; console.log(JSON.stringify(LANE_RUNS));"
+        out = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, check=True).stdout
+        self.assertEqual(
+            {caller: (lane["path"], lane["name"]) for caller, lane in json.loads(out).items()},
+            lb.LANE_RUNS,
+        )
+
+    def test_lane_runs_at_reads_each_indexed_run_and_keeps_the_bound_ones(self) -> None:
+        runs = {
+            RUN: lane_record(),
+            RUN + 1: lane_record(id=RUN + 1),
+            RUN + 2: lane_record(id=RUN + 2, display_title=f"PR Review Hosted Lane #8 {HEAD}"),
+        }
+        reads: list[str] = []
+
+        def read(path: str) -> Any:
+            reads.append(path)
+            if "/check-runs?" in path:
+                ids = [{"external_id": str(i)} for i in (RUN, RUN + 1, RUN + 2, RUN)] + [{"external_id": "x"}]
+                return {"total_count": len(ids), "check_runs": ids}
+            return runs[int(path.rsplit("/", 1)[1])]
+
+        found = lb.lane_runs_at(read, REPOSITORY, 7, HEAD, WORKFLOWS["claude-review"])
+        self.assertEqual([run["id"] for run in found], [RUN + 1, RUN])
+        self.assertEqual(
+            reads[0],
+            f"repos/{REPOSITORY}/commits/{HEAD}/check-runs?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100",
+        )
+        self.assertEqual(len(reads), 4, "each run id is read once")
+        with self.assertRaises(RuntimeError):
+            lb.lane_runs_at(lambda path: {"total_count": 1, "check_runs": []}, REPOSITORY, 7, HEAD, WORKFLOWS["claude-review"])
+
+    def test_a_comment_a_bound_lane_run_posted_counts(self) -> None:
+        body = bound("Off by one.")
+        lane = {"path": LANE_PATH, "event": "workflow_run", "head_branch": "main", "head_sha": MAIN_TIP,
+                "display_title": f"PR Review Hosted Lane #7 {HEAD}"}
+        self.assertTrue(FakeActions({RUN: lane_run([record_entry(body)], **lane)}).checker()(comment(body)))
+        for label, change in REFUSED.items():
+            with self.subTest(label):
+                api = FakeActions({RUN: lane_run([record_entry(body)], **(lane | change))})
+                self.assertFalse(api.checker()(comment(body)))

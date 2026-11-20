@@ -57,6 +57,7 @@ import sys
 import unittest
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import quote, unquote
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -614,10 +615,13 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
         self.assertTrue(_hold_patterns())
 
     def test_each_list_covers_every_floor_entry(self) -> None:
-        lists = {
-            workflow: (_hold_paths(workflow), risk.glob_match)
-            for workflow in ("pr-review-hosted.yml", "pr-review-security-hosted.yml")
-        }
+        callers = [
+            path.removeprefix(".github/workflows/")
+            for path, blocks in _sync_hold_floor().BLOCKS.items()
+            if "hold-floor hold-paths" in blocks
+        ]
+        self.assertEqual(len(callers), 2, "each review lane's caller holds a list")
+        lists = {workflow: (_hold_paths(workflow), risk.glob_match) for workflow in callers}
         lists["hold_patterns"] = (
             _hold_patterns(),
             lambda pattern, entry: fnmatch.fnmatchcase(entry, pattern),
@@ -941,6 +945,73 @@ def _run(
     }
 
 
+LANE_NAMES = {
+    "pr-review-hosted.yml": "PR Review Hosted Lane",
+    "pr-review-security-hosted.yml": "PR Review Security Hosted Lane",
+}
+
+
+def _lane_run(sha: str, *, lane: str = "pr-review-hosted.yml", **record: Any) -> dict[str, Any]:
+    """A run of `lane`'s workflow_run lane whose index check run sits on `sha`:
+    `_run(sha)`'s status job and notice, served by id as main's copy run on
+    main's tip, bound by its run-name to pull request 7 at `sha` unless
+    `record` says otherwise."""
+    run = _run(sha, lane=lane)
+    return run | {
+        "lane_run": {
+            "path": f".github/workflows/{lane.removesuffix('.yml')}-lane.yml",
+            "event": "workflow_run",
+            "head_branch": "main",
+            "head_sha": "9" * 40,
+            "repository": {"full_name": "o/r"},
+            "head_repository": {"full_name": "o/r"},
+            "display_title": f"{LANE_NAMES[lane]} #7 {sha}",
+            "created_at": run["created"],
+        }
+        | record
+    }
+
+
+def _trigger(sha: str, lane: str = "pr-review-hosted.yml") -> dict[str, Any]:
+    """The pull_request run on `sha` that starts `lane`'s lane run: no status job."""
+    return _run(sha, lane=lane, job="Trigger", criteria="trust-gate")
+
+
+def _listed(runs: list[dict[str, Any]], lane: str) -> list[dict[str, Any]]:
+    """`lane`'s pull_request runs as GitHub lists them by branch."""
+    return [
+        {
+            "id": i + 1,
+            "head_sha": r["sha"],
+            "created_at": r["created"],
+            "head_repository": r["repo"] and {"full_name": r["repo"]},
+        }
+        for i, r in enumerate(runs)
+        if r["lane"] == lane and "lane_run" not in r
+    ]
+
+
+def _lane_answer(runs: list[dict[str, Any]], endpoint: str) -> Any:
+    """The answer to an index check-run read or a lane run read by id, else None."""
+    index = re.fullmatch(
+        r"/?repos/o/r/commits/([0-9a-f]{40})/check-runs\?check_name=([^&]+)&filter=all&per_page=100",
+        endpoint,
+    )
+    if index:
+        ids = [
+            {"external_id": str(i + 1)}
+            for i, r in enumerate(runs)
+            if "lane_run" in r
+            and r["sha"] == index[1]
+            and LANE_NAMES[r["lane"]] == unquote(index[2])
+        ]
+        return {"total_count": len(ids), "check_runs": ids}
+    one = re.fullmatch(r"/?repos/o/r/actions/runs/([0-9]+)", endpoint)
+    if one and "lane_run" in runs[int(one[1]) - 1]:
+        return runs[int(one[1]) - 1]["lane_run"] | {"id": int(one[1])}
+    return None
+
+
 def _push(after: str, timestamp: str) -> dict[str, Any]:
     return {"after": after, "timestamp": timestamp, "activity_type": "push"}
 
@@ -1182,6 +1253,40 @@ CARRIES = {
             },
         },
     },
+    "a notice from a bound lane run": {"runs": [_trigger(HEAD), _lane_run(HEAD)]},
+    "a notice from the security lane's bound lane run": {
+        "runs": [
+            _trigger(HEAD, "pr-review-security-hosted.yml"),
+            _lane_run(HEAD, lane="pr-review-security-hosted.yml"),
+        ]
+    },
+    "a lane run bound to another pull request": {
+        "runs": [
+            _trigger(HEAD),
+            _lane_run(HEAD, display_title=f"PR Review Hosted Lane #8 {HEAD}"),
+        ]
+    },
+    "a lane run bound to another head": {
+        "runs": [
+            _trigger(HEAD),
+            _lane_run(HEAD, display_title=f"PR Review Hosted Lane #7 {OLD}"),
+        ]
+    },
+    "a lane run on another branch": {
+        "runs": [_trigger(HEAD), _lane_run(HEAD, head_branch="b")]
+    },
+    "a lane run of another event": {
+        "runs": [_trigger(HEAD), _lane_run(HEAD, event="pull_request")]
+    },
+    "a lane run of another workflow": {
+        "runs": [
+            _trigger(HEAD),
+            _lane_run(HEAD, path=".github/workflows/pr-review-hosted.yml"),
+        ]
+    },
+    "a lane run started after it": {
+        "runs": [_trigger(HEAD), _lane_run(HEAD, created_at="2026-01-03T01:00:00Z")]
+    },
     "a patchless pure rename": {
         "runs": [_run(OLD)],
         "compares": {
@@ -1233,7 +1338,7 @@ def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
 
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
+const [body, comment, issue, heads, answers, activity, lanes] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   const tip = "3".repeat(40);
@@ -1246,8 +1351,9 @@ const github = async (method, path, data) => {
   }
   const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
   if (method === "GET" && runs) {
-    return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created, head_repository: r.repo && { full_name: r.repo } }] : [])) };
+    return { workflow_runs: lanes.listed[runs[1]] };
   }
+  if (method === "GET" && path in lanes.answers) return lanes.answers[path];
   const jobs = /\\/actions\\/runs\\/([0-9]+)\\/jobs\\?filter=all&per_page=100&page=1$/.exec(path);
   if (method === "GET" && jobs) {
     const r = heads.runs[Number(jobs[1]) - 1];
@@ -1264,6 +1370,22 @@ const github = async (method, path, data) => {
 };
 console.log(JSON.stringify(await costDecision(github, "o/r", 7, body, new Set([1]), %s)));
 """
+
+
+def _lane_reads(heads: dict[str, Any]) -> dict[str, Any]:
+    """What the JS fake serves of the review lanes: each caller's listing,
+    and every index and lane-run read the decision can make."""
+    runs = heads["runs"]
+    paths = {
+        f"/repos/o/r/commits/{r['sha']}/check-runs?check_name={quote(name)}&filter=all&per_page=100"
+        for r in runs
+        for name in LANE_NAMES.values()
+    } | {f"/repos/o/r/actions/runs/{i + 1}" for i in range(len(runs))}
+    answers = {path: _lane_answer(runs, path) for path in paths}
+    return {
+        "listed": {lane: _listed(runs, lane) for lane in LANE_NAMES},
+        "answers": {path: answer for path, answer in answers.items() if answer is not None},
+    }
 
 
 def js_decision(
@@ -1284,6 +1406,7 @@ def js_decision(
                     DEFAULT_HEADS | heads,
                     _answers(DEFAULT_HEADS | heads),
                     _activity(DEFAULT_HEADS | heads),
+                    _lane_reads(DEFAULT_HEADS | heads),
                 ]
             ),
         ],
@@ -1312,6 +1435,9 @@ def py_decision(
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
+        lane = _lane_answer(heads["runs"], endpoint)
+        if lane is not None:
+            return 200, lane
         return 200, comment
 
     def get_pages(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
@@ -1328,16 +1454,7 @@ def py_decision(
             assert endpoint.endswith(
                 "/runs?event=pull_request&branch=b&per_page=100"
             ), endpoint
-            return [
-                {
-                    "id": i + 1,
-                    "head_sha": r["sha"],
-                    "created_at": r["created"],
-                    "head_repository": r["repo"] and {"full_name": r["repo"]},
-                }
-                for i, r in enumerate(heads["runs"])
-                if r["lane"] == lane
-            ]
+            return _listed(heads["runs"], lane)
         if "/jobs?" in endpoint:
             n = int(endpoint.split("/actions/runs/", 1)[1].split("/", 1)[0])
             r = heads["runs"][n - 1]
@@ -1413,6 +1530,8 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a status job under its planned name",
             "a status job under its planned name and its caller id",
             "the security lane's status job under its planned name",
+            "a notice from a bound lane run",
+            "a notice from the security lane's bound lane run",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

@@ -134,6 +134,13 @@ case "$*" in
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
 */check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
+*/commits/*/check-runs\?check_name=*)
+  # The index check runs on a commit by name: STUB_INDEX keyed "<sha> <name>", else none.
+  failing index
+  args="$*" sha="${args#*/commits/}" name="${args#*check_name=}"
+  jq -c --arg k "${sha%%/*} ${name%%&*}" '.[$k] // {total_count: 0, check_runs: []}' <<<"${STUB_INDEX:-{\}}"
+  ;;
+*/actions/runs/*) failing lanerun; from "${STUB_LANE_RUNS:-{\}}" "$(key runs "$@")" ;;
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
 *graphql*COMMENT_DELETED_EVENT*) failing deleted; printf '%s\n' "$STUB_DELETED" ;;
 *graphql*closingIssuesReferences*) failing closing; printf '%s\n' "$STUB_CLOSING" ;;
@@ -254,8 +261,20 @@ ran() {
   export STUB_RUNS STUB_JOBS STUB_NOTES STUB_COMPARE
 }
 
+lane_decided() {
+  local id=$DECIDED
+  STUB_RUNS="$(jq -c --argjson id "$id" '.["pr-review-hosted.yml"].workflow_runs |= map(if .id == $id then .id += 500 else . end)' <<<"$STUB_RUNS")"
+  STUB_JOBS="$(jq -c --arg id "$((id + 500))" '. + {($id): {jobs: []}}' <<<"$STUB_JOBS")"
+  STUB_LANE_RUNS="$(jq -cn --argjson id "$id" --arg sha "$HEAD" --argjson change "${1:-{\}}" '{($id | tostring): ({id: $id,
+    path: ".github/workflows/pr-review-hosted-lane.yml", event: "workflow_run", head_branch: "main", head_sha: "9999999999999999999999999999999999999999",
+    repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}, display_title: "PR Review Hosted Lane #6419 \($sha)",
+    created_at: "2026-10-23T13:00:00Z", updated_at: "2026-10-23T13:10:00Z"} + $change)}')"
+  STUB_INDEX="$(jq -cn --argjson id "$id" --arg k "$HEAD PR%20Review%20Hosted%20Lane" '{($k): {total_count: 1, check_runs: [{external_id: ($id | tostring)}]}}')"
+  export STUB_RUNS STUB_JOBS STUB_LANE_RUNS STUB_INDEX
+}
+
 reset() {
-  export STUB_ACTIVITY='[]'
+  export STUB_ACTIVITY='[]' STUB_INDEX='{}' STUB_LANE_RUNS='{}'
   export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5},{\"kind\":\"bot\",\"id\":$APP_ID,\"login\":\"melodic-automation-lanes[bot]\"}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"base\":{\"ref\":\"main\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
@@ -318,6 +337,11 @@ expect() {
 
 reset
 expect "a cost-only hold with the owner's recorded decision is cleared" yes yes yes "$LINK"
+if grep -qxF "api repos/o/r/commits/$HEAD/check-runs?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100" "$TMP_ROOT/log"; then
+  ok "each head's lane runs are found through the index check runs named for the lane"
+else
+  fail "the code lane's index on $HEAD was not read: '$(grep check_name "$TMP_ROOT/log")'"
+fi
 post="$(sed -n '/-X POST/,/-X DELETE/p' "$TMP_ROOT/log" | grep -v -- '-X DELETE')"
 if [[ "$post" == *"$LINK"* && "$post" != *"claude-lane-hold"* && "$post" != *"claude-lane:"* ]]; then
   ok "the removal comment cites the decision and is not itself a hold"
@@ -340,6 +364,23 @@ else
   fail "the label came off before the comment"
 fi
 
+reset
+lane_decided
+expect "a cost notice from a lane run bound to this pull request at the head is cleared" yes yes yes "$LINK"
+for change in '{"display_title":"PR Review Hosted Lane #6420 0123456789abcdef0123456789abcdef01234567"}' \
+  '{"display_title":"PR Review Hosted Lane #6419 fedcba9876543210fedcba9876543210fedcba98"}' \
+  '{"head_branch":"fix/cost"}' '{"event":"pull_request"}' '{"path":".github/workflows/pr-review-hosted.yml"}'; do
+  reset
+  lane_decided "$change"
+  expect "a cost notice from a lane run with $change decides nothing" no no no "covering this head"
+done
+reset
+lane_decided
+STUB_FAIL=lanerun expect "an unreadable lane run keeps the hold" no no no "lane runs on $HEAD are unreadable"
+reset
+lane_decided
+STUB_INDEX='{"0123456789abcdef0123456789abcdef01234567 PR%20Review%20Hosted%20Lane":{"total_count":2,"check_runs":[{"external_id":"1"}]}}' \
+  expect "an index check-run page that is not whole keeps the hold" no no no "lane runs on $HEAD are unreadable"
 reset
 STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->
 ci-status took it off.')]"

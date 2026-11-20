@@ -118,9 +118,15 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
             | {sync.TRUSTED_ACTORS}
             | set(sync.SCRUTINY_ONLY)
         )
-        for name in ("pr-review-hosted.yml", "pr-review-security-hosted.yml"):
+        callers = [
+            path
+            for path, blocks in sync.BLOCKS.items()
+            if "hold-floor hold-paths" in blocks
+        ]
+        self.assertEqual(len(callers), 2, "each review lane's caller holds a copy")
+        for name in callers:
             with self.subTest(name):
-                text = (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
+                text = (ROOT / name).read_text(encoding="utf-8")
                 block = hold_paths.search(text)[1].splitlines()[1:]
                 self.assertEqual({line.strip() for line in block}, wanted)
         merge_holds = (ROOT / sync.MERGE_HOLDS).read_text(encoding="utf-8")

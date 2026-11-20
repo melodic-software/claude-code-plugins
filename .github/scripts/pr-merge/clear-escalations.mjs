@@ -176,7 +176,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
+import { laneChecker, laneFooter, laneRunsAt, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {
   CLEARED,
@@ -556,13 +556,16 @@ async function reviewLanesClean(context) {
   const head = pull.head.sha;
   for (const { file, lane, jobs: names, whole } of LANE_RECORDS) {
     const scope = await read(async (reader) => {
-      const runs = (await reader("GET", `/repos/${repo}/actions/workflows/${file}/runs?head_sha=${head}&event=pull_request&per_page=100`))?.workflow_runs;
+      const [laneRun] = await laneRunsAt((path) => reader("GET", path), { repo, pr: pull.number, head, caller: `.github/workflows/${file}` });
+      const runs = laneRun === undefined ? (await reader("GET", `/repos/${repo}/actions/workflows/${file}/runs?head_sha=${head}&event=pull_request&per_page=100`))?.workflow_runs : [];
       if (!Array.isArray(runs) || runs.length >= 100) {
         return null;
       }
-      const run = newestById(
-        runs.filter((item) => item?.path === `.github/workflows/${file}` && item.head_sha === head && item.event === "pull_request" && item.head_repository?.full_name === repo),
-      );
+      const run =
+        laneRun ??
+        newestById(
+          runs.filter((item) => item?.path === `.github/workflows/${file}` && item.head_sha === head && item.event === "pull_request" && item.head_repository?.full_name === repo),
+        );
       if (run?.status !== "completed" || run.conclusion !== "success") {
         return null;
       }
@@ -1014,14 +1017,15 @@ async function laneThreads({ github, repo, number, check }) {
 // One review caller's verdict at `head`, read with the job token: { findings,
 // inline, whole } from its review-complete notice, or { held } saying why it
 // has not passed there.
-async function laneReview({ checks, repo, head }, [file, names]) {
+async function laneReview({ checks, repo, head, number }, [file, names]) {
   const lane = LANE_OF[file];
   try {
-    const runs = (await checks("GET", `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&head_sha=${head}&per_page=100`))?.workflow_runs;
+    const [laneRun] = await laneRunsAt((path) => checks("GET", path), { repo, pr: number, head, caller: `.github/workflows/${file}` });
+    const runs = laneRun === undefined ? (await checks("GET", `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&head_sha=${head}&per_page=100`))?.workflow_runs : [];
     if (!Array.isArray(runs) || runs.length >= 100) {
       return { held: `${lane}'s runs on ${head} did not read whole` };
     }
-    const run = runs.filter((item) => item?.head_sha === head && item.head_repository?.full_name === repo).sort((a, b) => b.id - a.id)[0];
+    const run = laneRun ?? runs.filter((item) => item?.head_sha === head && item.head_repository?.full_name === repo).sort((a, b) => b.id - a.id)[0];
     if (run === undefined) {
       return { held: `${lane} has not run on ${head}` };
     }
@@ -1268,7 +1272,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
   }
   const reviews = [];
   for (const lane of REVIEW_LANES) {
-    const review = await laneReview({ checks, repo, head }, lane);
+    const review = await laneReview({ checks, repo, head, number }, lane);
     if (review.held !== undefined) {
       return { reason: review.held };
     }

@@ -233,6 +233,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { laneRunsAt } from "../lib/lane-binding.mjs";
 import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
@@ -1511,9 +1512,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           // a person's head the same way. ci-status's own pick of each review:
           // the newest pull_request run on the head. Every lane must have one,
           // completed: a lane with none would fail the re-run again.
-          const reviews = [...GATED_REVIEWS].map((path) =>
-            own.filter((r) => r.path === path && r.event === "pull_request").reduce((a, r) => (a && a.id > r.id ? a : r), undefined),
-          );
+          const reviews = [];
+          for (const path of GATED_REVIEWS) {
+            const [bound] = await laneRunsAt((apiPath) => call("GET", apiPath), { repo, pr: pull.number, head: pull.head.sha, caller: path });
+            reviews.push(bound ?? own.filter((r) => r.path === path && r.event === "pull_request").reduce((a, r) => (a && a.id > r.id ? a : r), undefined));
+          }
           const last = Math.max(...reviews.map((r) => Date.parse(r?.updated_at)));
           if (reviews.every((r) => r?.status === "completed") && now - last >= PENDING_BACKOFF_MINUTES * 60_000) {
             set.push({ kind: "pending", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (review since finished)", attempt: 1, head: pull.head.sha });

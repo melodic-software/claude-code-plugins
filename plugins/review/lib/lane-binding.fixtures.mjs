@@ -77,7 +77,7 @@ export function zipOf(files) {
 
 // A fake Actions API: runs by id, each with artifacts { name, expired, entries };
 // the pull request's head is BRANCH in REPOSITORY unless `pull` says otherwise.
-export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_name: REPOSITORY } } }) {
+export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_name: REPOSITORY } }, base: { repo: { full_name: REPOSITORY } } }) {
   const calls = [];
   const blobs = new Map();
   let next = 1;
@@ -105,6 +105,9 @@ export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_nam
         head_sha: run.head_sha ?? HEAD,
         head_branch: run.head_branch ?? BRANCH,
         head_repository: { full_name: run.head_repository ?? REPOSITORY },
+        repository: { full_name: run.repository ?? REPOSITORY },
+        event: run.event ?? "pull_request",
+        display_title: run.display_title,
         status: run.status ?? "completed",
         run_attempt: run.run_attempt ?? 1,
         created_at: run.created_at,

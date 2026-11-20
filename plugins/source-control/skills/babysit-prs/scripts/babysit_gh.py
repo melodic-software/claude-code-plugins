@@ -3058,7 +3058,10 @@ def collect_lane_runs(
     `babysit_review_evidence.LANES` holds them.
     Each workflow's `pull_request` runs are listed by `head_ref` with no
     `head_sha` filter and kept when their `pull_requests` name `number`, so
-    earlier heads' reviews are included. `created_at`, the pull request's
+    earlier heads' reviews are included. On each kept run's head, the
+    caller's workflow_run lane runs bound to `number` there are kept too
+    (`babysit_lane_binding.lane_runs_at`), each stood on that head
+    (`_on_head`). `created_at`, the pull request's
     creation time, bounds the listing to runs created since: GitHub labels a
     reused branch's older runs with whichever pull request is open on it now,
     so without the bound a long-lived branch reads every earlier pull
@@ -3128,12 +3131,23 @@ def collect_lane_runs(
                 f"{workflow} runs: total_count {total}, {len(listing)} returned, "
                 f"at the {RUN_SEARCH_CAP}-run search cap"
             )
-        for item in listing:
-            if not any(
+        kept = [
+            item
+            for item in listing
+            if any(
                 json_object(pr).get("number") == number
                 for pr in json_array(item.get("pull_requests"))
-            ):
-                continue
+            )
+        ]
+        bound: list[tuple[dict[str, Any], str]] = []
+        for head in dict.fromkeys(item.get("head_sha") for item in kept):
+            if isinstance(head, str):
+                bound += [
+                    (dict(run), head)
+                    for run in lane_binding.lane_runs_at(read, repo, number, head, path)
+                ]
+        trees: dict[str, str] = {}
+        for item, head in [(item, None) for item in kept] + bound:
             run_id = item.get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
                 raise RuntimeError(f"{workflow} run without an id")
@@ -3150,7 +3164,7 @@ def collect_lane_runs(
                     ),
                 )
                 if saved is not None:
-                    runs.append({**item, "attempts": saved})
+                    runs.append(_on_head({**item, "attempts": saved}, head, trees, read, repo))
                     continue
             latest = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
             count = latest.get("run_attempt")
@@ -3203,8 +3217,41 @@ def collect_lane_runs(
                     lane_run_key(repo, run_id, count, job_suffix),
                     lane_run_value(latest, attempts),
                 )
-            runs.append({**item, "attempts": attempts})
+            runs.append(_on_head({**item, "attempts": attempts}, head, trees, read, repo))
     return runs
+
+
+def _on_head(
+    run: dict[str, Any],
+    head: str | None,
+    trees: dict[str, str],
+    read: Callable[[str], Any],
+    repo: str,
+) -> dict[str, Any]:
+    """`run` as `babysit_review_evidence.bind()` reads a pull_request run. A
+    lane run (`head` set) ran, with its attempts and jobs, on main's tip, so it
+    stands on the head its run-name names, with that commit's tree, read once
+    per head into `trees`."""
+    if head is None:
+        return run
+    if head not in trees:
+        tree = json_object(json_object(read(f"repos/{repo}/git/commits/{head}")).get("tree")).get("sha")
+        if not isinstance(tree, str) or not re.fullmatch(r"[0-9a-f]{40}", tree):
+            raise RuntimeError(f"commit {head}: no tree")
+        trees[head] = tree
+
+    def moved(record: Any) -> dict[str, Any]:
+        return {**json_object(record), "head_sha": head}
+
+    return {
+        **run,
+        "head_sha": head,
+        "head_commit": {"id": head, "tree_id": trees[head]},
+        "attempts": [
+            {**moved(attempt), "jobs": [moved(job) for job in json_array(json_object(attempt).get("jobs"))]}
+            for attempt in run["attempts"]
+        ],
+    }
 
 
 def fetch_unresolved_review_comments(repo: str, number: int) -> list[dict[str, Any]]:

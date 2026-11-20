@@ -53,6 +53,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_dependabot as dependabot
+import babysit_lane_binding as lane_binding
 import babysit_merge_settings as merge_settings
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
@@ -3841,12 +3842,16 @@ def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     return None
 
 
-def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str | None:
+def _noticed_head(
+    owner: str, name: str, pr: Any, branch: Any, base: str, at: Any
+) -> str | None:
     """The head a decision made at `at` decided, from the review lanes'
     check-run annotations, never a comment (any GITHUB_TOKEN workflow posts as
     github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
     the head `branch` of `owner`/`name` started before `at` (a run from
     another repository's same-named branch speaks for another pull request),
+    and every lane run of pull request `pr` on one of those runs' heads
+    started before `at` (`babysit_lane_binding.lane_runs_at`),
     each run's head vetted against `base`, the base branch's tip commit
     (`lane_change`), its status job's cost notices (`cost_notices`)
     from jobs done before `at`, then `decided_head`, kept only while the
@@ -3861,17 +3866,25 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     notices: list[tuple[str, Any]] = []
     vetted: set[str] = set()
     ran: list[list[str]] = []
+
+    def read(endpoint: str) -> Any:
+        status, body = _get(endpoint, env)
+        if status != 200:
+            raise PolicyReadError(f"{endpoint} is unreadable")
+        return body
+
     for file, checks in REVIEW_LANES:
         heads: list[str] = []
         ran.append(heads)
-        runs = _paginated(
+        listed = _paginated(
             f"repos/{owner}/{name}/actions/workflows/{file}/runs"
             f"?event=pull_request&branch={quote(branch, safe='')}&per_page=100",
             f"{file} runs",
             items_key="workflow_runs",
             env=env,
         )
-        for run in runs:
+        runs: list[tuple[Mapping[str, Any], str]] = []
+        for run in listed:
             started = parse_timestamp(run.get("created_at"))
             head_repo = json_object(run.get("head_repository")).get("full_name")
             if head_repo != f"{owner}/{name}" or started is None or started >= cutoff:
@@ -3879,6 +3892,19 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
             head = str(run.get("head_sha") or "")
             if not SHA_RE.fullmatch(head):
                 return None
+            runs.append((run, head))
+        for head in dict.fromkeys(head for _, head in runs):
+            try:
+                bound = lane_binding.lane_runs_at(
+                    read, f"{owner}/{name}", pr, head, f".github/workflows/{file}"
+                )
+            except RuntimeError as exc:
+                raise PolicyReadError(str(exc)) from exc
+            for run in bound:
+                started = parse_timestamp(run.get("created_at"))
+                if started is not None and started < cutoff:
+                    runs.append((run, head))
+        for run, head in runs:
             heads.append(head)
             if head not in vetted:
                 status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
@@ -4568,7 +4594,9 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     owner, name = _split_repo(repo)
     try:
         tip = carry_base_tip(owner, name, base)
-        decided = _noticed_head(owner, name, branch, tip, comment.get("created_at"))
+        decided = _noticed_head(
+            owner, name, pr.get("number"), branch, tip, comment.get("created_at")
+        )
     except PolicyReadError:
         return False
     if decided is None:

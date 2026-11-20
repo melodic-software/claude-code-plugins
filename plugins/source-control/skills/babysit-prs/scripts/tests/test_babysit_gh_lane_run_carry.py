@@ -56,6 +56,14 @@ def carry(source: pathlib.Path, target: pathlib.Path) -> None:
     )
 
 
+def index(sha: str) -> str:
+    """The read of the code lane's index check runs on `sha`."""
+    return (
+        f"repos/{REPO}/commits/{sha}/check-runs"
+        "?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100"
+    )
+
+
 class LaneRunCarryTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -110,6 +118,7 @@ class LaneRunCarryTests(unittest.TestCase):
         )
         return {
             listing: [{"workflow_runs": [run]}],
+            index(run["head_sha"]): {"total_count": 0, "check_runs": []},
             base: run,
             f"{base}/attempts/1/jobs?per_page=100": [{"jobs": self.jobs}],
             f"repos/{REPO}/check-runs/22/annotations?per_page=100": [self.annotations],
@@ -165,17 +174,18 @@ class LaneRunCarryTests(unittest.TestCase):
         carry(first, carried)
         return carried
 
-    def test_a_warm_carry_reads_only_the_listing(self) -> None:
+    def test_a_warm_carry_reads_only_the_listing_and_the_lane_run_index(self) -> None:
         _, cold = self.collect(self.dir / "cold.json")
-        self.assertEqual(len(cold), 4)
+        self.assertEqual(len(cold), 5)
         _, warm = self.collect(self.warm())
-        self.assertEqual(len(warm), 1)
+        self.assertEqual(len(warm), 2)
         self.assertIn("/actions/workflows/", warm[0])
+        self.assertEqual(warm[1], index(self.run["head_sha"]))
 
     def test_warm_and_cold_reads_decide_alike(self) -> None:
         cold, _ = self.collect(None)
         warm, reads = self.collect(self.warm())
-        self.assertEqual(len(reads), 1)
+        self.assertEqual(len(reads), 2)
         sha = self.run["head_sha"]
         self.assertEqual(self.decide(warm, sha), self.decide(cold, sha))
         self.assertTrue(self.decide(cold, sha)[0].bound)
@@ -231,7 +241,7 @@ class LaneRunCarryTests(unittest.TestCase):
                         entry = {"at": at, "value": value}
                         path.write_text(json.dumps({section: {key: entry}}))
                     runs, reads = self.collect(path)
-                    self.assertEqual(len(reads), 4)
+                    self.assertEqual(len(reads), 5)
                     self.assertEqual(self.decide(runs, sha), self.decide(cold, sha))
 
     def saved(self, section: str, value: Any) -> pathlib.Path:
@@ -260,7 +270,7 @@ class LaneRunCarryTests(unittest.TestCase):
             }
         ]
         runs, reads = self.collect(self.saved(gh.LANE_RUN_SECTION, forged))
-        self.assertEqual(len(reads), 4)
+        self.assertEqual(len(reads), 5)
         self.assertFalse(self.decide(runs, sha)[0].bound)
 
     def test_a_saved_job_the_listed_run_disagrees_with_is_read_fresh(self) -> None:
@@ -278,7 +288,7 @@ class LaneRunCarryTests(unittest.TestCase):
                     forged["attempts"][0]["jobs"][job][field] = wrong
                     path = self.saved(gh.CARRIED_LANE_RUN_SECTION, forged)
                     runs, reads = self.collect(path)
-                    self.assertEqual(len(reads), 4)
+                    self.assertEqual(len(reads), 5)
                     self.assertEqual(self.decide(runs, sha), self.decide(cold, sha))
 
 
@@ -289,7 +299,7 @@ class HeldLegAnnotationTests(unittest.TestCase):
     def setUp(self) -> None:
         import test_babysit_review_evidence as suite
 
-        self.carry = LaneRunCarryTests("test_a_warm_carry_reads_only_the_listing")
+        self.carry = LaneRunCarryTests("test_a_warm_carry_reads_only_the_listing_and_the_lane_run_index")
         self.carry.setUp()
         self.addCleanup(self.carry.doCleanups)
         run = self.carry.run
@@ -357,7 +367,7 @@ class HeldLegAnnotationTests(unittest.TestCase):
     def test_a_warm_carry_keeps_the_held_leg_s_annotations(self) -> None:
         self.with_leg("skipped")
         runs, reads = self.carry.collect(self.carry.warm())
-        self.assertEqual(len(reads), 1, "the carried v2 record is served")
+        self.assertEqual(len(reads), 2, "the carried v2 record is served: only the listing and the lane-run index are read")
         self.assertEqual(
             [a["message"] for a in self.leg(runs)["annotations"]],
             [a["message"] for a in self.leg_notes],
@@ -512,3 +522,115 @@ class BindReadsOnlyTheSavedFields(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+MAIN_TIP = "9" * 40
+
+
+class LaneRunGateTests(unittest.TestCase):
+    """The merge gate binds a lane's review from the caller's workflow_run lane
+    run: found through the index check run on the head, collected only when
+    its own record binds it to this pull request at that head, and read as a
+    run on that head. The head's pull_request run only started it, so it has
+    no status job."""
+
+    def setUp(self) -> None:
+        self.carry = LaneRunCarryTests(
+            "test_a_warm_carry_reads_only_the_listing_and_the_lane_run_index"
+        )
+        self.carry.setUp()
+        self.addCleanup(self.carry.doCleanups)
+        self.trigger = self.carry.run
+        self.sha = self.trigger["head_sha"]
+        self.pr = self.trigger["pull_requests"][0]["number"]
+        self.lane_id = self.trigger["id"] + 1
+
+    def lane_run(self, change: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "id": self.lane_id,
+            "path": ".github/workflows/pr-review-hosted-lane.yml",
+            "event": "workflow_run",
+            "head_branch": "main",
+            "head_sha": MAIN_TIP,
+            "head_commit": {"id": MAIN_TIP, "tree_id": "8" * 40},
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-23T05:00:00Z",
+            "updated_at": "2026-10-23T05:01:39Z",
+            "run_started_at": "2026-10-23T05:00:00Z",
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+            "display_title": f"PR Review Hosted Lane #{self.pr} {self.sha}",
+            **change,
+        }
+
+    def collect(self, change: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+        trigger, lane = self.trigger, self.lane_run(change)
+        kill = {**self.carry.jobs[0]}
+        lane_jobs = [
+            {**job, "id": job["id"] + 10, "head_sha": MAIN_TIP, "run_id": self.lane_id}
+            for job in self.carry.jobs
+        ]
+        listing = (
+            f"repos/{REPO}/actions/workflows/pr-review-hosted.yml/runs"
+            f"?branch={trigger['head_branch'].replace('/', '%2F')}"
+            "&event=pull_request&per_page=100"
+        )
+        answers: dict[str, Any] = {
+            listing: [{"workflow_runs": [trigger]}],
+            f"repos/{REPO}/actions/runs/{trigger['id']}": trigger,
+            f"repos/{REPO}/actions/runs/{trigger['id']}/attempts/1/jobs?per_page=100": [{"jobs": [kill]}],
+            f"repos/{REPO}/check-runs/21/annotations?per_page=100": [[]],
+            index(self.sha): {"total_count": 1, "check_runs": [{"external_id": str(self.lane_id)}]},
+            f"repos/{REPO}/actions/runs/{self.lane_id}": lane,
+            f"repos/{REPO}/actions/runs/{self.lane_id}/attempts/1/jobs?per_page=100": [{"jobs": lane_jobs}],
+            f"repos/{REPO}/check-runs/32/annotations?per_page=100": [self.carry.annotations],
+            f"repos/{REPO}/git/commits/{self.sha}": {"sha": self.sha, "tree": {"sha": TREE}},
+        }
+        reads: list[str] = []
+
+        def fake(args: list[str]) -> Any:
+            reads.append(args[1])
+            if args[1] not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+            return copy.deepcopy(answers[args[1]])
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            os.environ.pop("BABYSIT_RUN_CACHE", None)
+            runs = gh.collect_lane_runs(REPO, self.pr, trigger["head_branch"], LANES)
+        return runs, reads
+
+    def test_a_bound_lane_run_binds_the_lane_on_the_head_it_names(self) -> None:
+        runs, reads = self.collect({})
+        lane = next(run for run in runs if run["id"] == self.lane_id)
+        self.assertEqual(lane["head_sha"], self.sha, "the lane run stands on the head its run-name names")
+        self.assertEqual(lane["head_commit"]["tree_id"], TREE, "with that head's tree, not main's")
+        self.assertEqual(
+            {job["head_sha"] for attempt in lane["attempts"] for job in attempt["jobs"]},
+            {self.sha},
+        )
+        self.assertIn(index(self.sha), reads)
+        evidence = self.carry.decide(runs, self.sha)[0]
+        self.assertTrue(evidence.bound, evidence)
+
+    def test_a_lane_run_bound_elsewhere_is_never_collected(self) -> None:
+        for label, change in {
+            "another pull request": {"display_title": f"PR Review Hosted Lane #{self.pr + 1} {self.sha}"},
+            "another head": {"display_title": f"PR Review Hosted Lane #{self.pr} {'0' * 40}"},
+            "another branch": {"head_branch": self.trigger["head_branch"]},
+            "another event": {"event": "pull_request"},
+            "another path": {"path": ".github/workflows/pr-review-hosted.yml"},
+            "another repository": {"head_repository": {"full_name": "fork/claude-code-plugins"}},
+        }.items():
+            with self.subTest(label):
+                runs, _ = self.collect(change)
+                self.assertEqual([run["id"] for run in runs], [self.trigger["id"]])
+                evidence = self.carry.decide(runs, self.sha)[0]
+                self.assertEqual((evidence.bound, evidence.unbound_reason), (False, "no-lane-job"))
+
+    def test_an_index_that_does_not_read_whole_fails_the_collection(self) -> None:
+        with mock.patch.object(
+            gh.lane_binding, "lane_runs_at", side_effect=RuntimeError("did not read whole")
+        ), self.assertRaises(RuntimeError):
+            self.collect({})

@@ -444,7 +444,9 @@ def bind(
     Caller contract (`babysit_gh.collect_lane_runs` meets it): list each lane
     workflow's runs by branch, with no `head_sha` filter, and keep those whose
     `pull_requests` name this pull request, so the earlier whole reviews an
-    incremental chain leads back to are included. Read each run's attempt
+    incremental chain leads back to are included, with each lane's
+    workflow_run lane runs bound to it on those heads, stood on their head.
+    Read each run's attempt
     numbers from a fresh `GET actions/runs/{id}` taken after the listing, not
     from the listing's `run_attempt`, so a re-run that starts in between is
     seen; except that a run the listing shows completed may be taken from a
@@ -1049,6 +1051,11 @@ def _run_order(item: Mapping[str, Any]) -> tuple[str, int]:
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """The lane's runs among `runs`: its workflow_run lane runs
+    `babysit_gh.collect_lane_runs` bound to this pull request and stood on the
+    head their run-name names (`_lane_run`), and its caller's pull_request runs
+    on every other head. A head with a lane run reads only those: its
+    pull_request run is the one that started them."""
     path = LANES[lane][0]
     if not isinstance(runs, list | tuple):
         raise Unbound("evidence-error")
@@ -1056,14 +1063,41 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     for item in runs:
         if not isinstance(item, Mapping):
             raise Unbound("evidence-error")
-        if item.get("path") != path or item.get("event") != "pull_request":
+        if not (
+            item.get("path") == path and item.get("event") == "pull_request"
+        ) and not _lane_run(path, item):
             continue
         if not isinstance(item.get("id"), int) or not isinstance(
             item.get("head_sha"), str
         ):
             raise Unbound("evidence-error")
         selected.append(item)
-    return selected
+    laned = {item["head_sha"] for item in selected if item.get("event") == "workflow_run"}
+    return [
+        item
+        for item in selected
+        if item.get("event") == "workflow_run" or item["head_sha"] not in laned
+    ]
+
+
+def _lane_run(caller: str, item: Mapping[str, Any]) -> bool:
+    """Whether `item` is `caller`'s lane run on its own record, standing on
+    the head its run-name names (the pull request number is bound when it is
+    collected)."""
+    lane = lane_binding.LANE_RUNS.get(caller)
+    title = item.get("display_title")
+    return (
+        lane is not None
+        and item.get("path") == lane[0]
+        and item.get("event") == "workflow_run"
+        and item.get("head_branch") == lane_binding.LANE_RUN_BRANCH
+        and isinstance(title, str)
+        and re.fullmatch(
+            rf"{re.escape(lane[1])} #[1-9][0-9]* {re.escape(str(item.get('head_sha')))}",
+            title,
+        )
+        is not None
+    )
 
 
 # Whether a lane posted on a head between two times (`lane_posted`, bound to

@@ -74,7 +74,21 @@ const pushes = [
 ];
 
 // One token answers every read, as ci-status's job token does.
-function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [], checks = {} } = {}) {
+const LANE_NAMES = { "pr-review-hosted.yml": "PR Review Hosted Lane", "pr-review-security-hosted.yml": "PR Review Security Hosted Lane" };
+const laneRun = (file, change = {}) => ({
+  id: file.length,
+  path: `.github/workflows/${file.replace(/\.yml$/, "-lane.yml")}`,
+  event: "workflow_run",
+  head_branch: "main",
+  head_sha: "d".repeat(40),
+  repository: { full_name: REPO },
+  head_repository: { full_name: REPO },
+  display_title: `${LANE_NAMES[file]} #7 ${HEAD}`,
+  name: LANE_NAMES[file],
+  ...change,
+});
+
+function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [], checks = {}, laneRuns = [] } = {}) {
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
@@ -108,6 +122,15 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequest: { reviewThreads: { nodes: threads, pageInfo: { hasNextPage: false } } } } } };
+    }
+    const index = new RegExp(`^/repos/${REPO}/commits/${HEAD}/check-runs\\?check_name=([^&]+)&filter=all$`).exec(route);
+    if (method === "GET" && index) {
+      const listed = laneRuns.filter((r) => r.name === decodeURIComponent(index[1]));
+      return { total_count: listed.length, check_runs: listed.map((r) => ({ external_id: String(r.id) })) };
+    }
+    const byId = laneRuns.find((r) => route === `/repos/${REPO}/actions/runs/${r.id}`);
+    if (method === "GET" && byId) {
+      return byId;
     }
     for (const [file, { check, lane }] of Object.entries(LANES)) {
       const id = file.length;
@@ -175,6 +198,27 @@ test("ci-status's recheck fails a valid marker when a lane has no run at the hea
   const { code, log } = await run(world({ notRun: "pr-review-security-hosted.yml" }));
   assert.equal(code, 1);
   assert.match(log, new RegExp(`claude-security-review has not run on ${HEAD}`));
+});
+
+test("ci-status's recheck reads a lane's verdict from its bound lane run when it has no pull_request run", async () => {
+  const file = "pr-review-security-hosted.yml";
+  const { code, log } = await run(world({ notRun: file, laneRuns: [laneRun(file)] }));
+  assert.equal(code, 0, log);
+});
+
+test("ci-status's recheck refuses a lane run bound to another pull request, head, branch, event or path", async () => {
+  const file = "pr-review-security-hosted.yml";
+  for (const [why, change] of Object.entries({
+    "another pull request": { display_title: `PR Review Security Hosted Lane #8 ${HEAD}` },
+    "another head": { display_title: `PR Review Security Hosted Lane #7 ${OLD}` },
+    "another branch": { head_branch: "feat/x" },
+    "another event": { event: "pull_request" },
+    "another path": { path: `.github/workflows/${file}` },
+  })) {
+    const { code, log } = await run(world({ notRun: file, laneRuns: [laneRun(file, change)] }));
+    assert.equal(code, 1, why);
+    assert.match(log, new RegExp(`claude-security-review has not run on ${HEAD}`), why);
+  }
 });
 
 test("ci-status's recheck fails when the pull request's head is not the event's", async () => {

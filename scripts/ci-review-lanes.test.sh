@@ -243,6 +243,15 @@ case "$*" in
   ;;
 */pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" --argjson c "${STUB_COMMIT_COUNT:-0}" --arg u "${STUB_AUTHOR:-kyle-sexton}" \
   '{changed_files: $n, commits: $c, user: {login: $u}}' ;;
+*/commits/*/check-runs\?check_name=*)
+  # The index check runs named for a lane: INDEX_CODE or INDEX_SEC by name, else none.
+  [[ -z "${STUB_INDEX_FAIL:-}" ]] || exit 1
+  case "$*" in
+  *check_name=PR%20Review%20Hosted%20Lane\&*) printf '%s\n' "${INDEX_CODE:-{\"total_count\":0,\"check_runs\":[]\}}" ;;
+  *check_name=PR%20Review%20Security%20Hosted%20Lane\&*) printf '%s\n' "${INDEX_SEC:-{\"total_count\":0,\"check_runs\":[]\}}" ;;
+  *) exit 1 ;;
+  esac
+  ;;
 */check-runs/*/annotations*)
   [[ -z "${STUB_NOTES_FAIL:-}" ]] || exit 1
   id="$*"
@@ -336,6 +345,40 @@ if [[ "$(listings head) $(listings file)" == "1 0" ]]; then
 else
   fail "nothing waited, yet the head's runs were listed $(listings head) times and a file's $(listings file) times, want 1 and 0"
 fi
+
+lane_rec() { jq -cn --argjson id "$1" --argjson change "${2:-{\}}" --arg sha "$HEAD" '{id: $id, path: ".github/workflows/pr-review-hosted-lane.yml",
+  event: "workflow_run", head_branch: "main", head_sha: "9999999999999999999999999999999999999999", status: "completed",
+  repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}, display_title: "PR Review Hosted Lane #77 \($sha)",
+  html_url: "https://github.com/o/r/actions/runs/\($id)"} + $change'; }
+export INDEX_CODE INDEX_SEC RUN_30 RUN_31 JOBS_30 JOBS_31
+INDEX_CODE='{"total_count":1,"check_runs":[{"external_id":"30"}]}' RUN_30="$(lane_rec 30)" JOBS_30="$PASS_CODE"
+RUNS_CODE='{"workflow_runs":[]}'
+expect "a lane with no pull_request run passes on its bound lane run" 0 "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/30)" "::error::"
+if grep -qxF "api repos/o/r/commits/$HEAD/check-runs?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100" "$TMP_ROOT/log" &&
+  grep -qxF "api repos/o/r/actions/runs/30" "$TMP_ROOT/log"; then
+  ok "the lane run is found through the index check run named for the lane, then read by id"
+else
+  fail "the lane run reads: '$(grep -E 'check_name|runs/30' "$TMP_ROOT/log")'"
+fi
+for change in '{"display_title":"PR Review Hosted Lane #78 0123456789abcdef0123456789abcdef01234567"}' \
+  '{"display_title":"PR Review Hosted Lane #77 fedcba9876543210fedcba9876543210fedcba98"}' \
+  '{"head_branch":"feature/x"}' '{"event":"pull_request"}' '{"path":".github/workflows/pr-review-hosted.yml"}' \
+  '{"head_repository":{"full_name":"fork/r"}}'; do
+  RUN_30="$(lane_rec 30 "$change")"
+  expect "a lane run with $change does not count" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
+done
+RUN_30="$(lane_rec 30)" RUNS_CODE="$(runs "$(run 10 $CODE)")"
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
+INDEX_CODE='{"total_count":2,"check_runs":[{"external_id":"30"},{"external_id":"31"}]}' RUN_31="$(lane_rec 31)"
+JOBS_31="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
+expect "the newest bound lane run is the one read" 1 "::error::'$CODE_CHECK' has not finished on $HEAD (https://github.com/o/r/actions/runs/31)."
+INDEX_CODE='{"total_count":1,"check_runs":[{"external_id":"30"}]}'
+expect "a bound lane run is read before the head's pull_request run" 0 "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/30)" "::error::"
+INDEX_CODE='{"total_count":2,"check_runs":[{"external_id":"30"}]}'
+expect "an index page that is not whole fails closed" 1 "the PR Review Hosted Lane check runs on $HEAD did not read whole"
+INDEX_CODE='{"total_count":1,"check_runs":[{"external_id":"30"}]}'
+STUB_INDEX_FAIL=1 expect "an unreadable index fails closed" 1 "could not read the PR Review Hosted Lane check runs on $HEAD"
+INDEX_CODE='' RUN_30='' RUN_31='' JOBS_30='' JOBS_31='' RUNS_CODE="$(runs "$(run 10 $CODE)")" JOBS_10="$PASS_CODE"
 
 # A head tested before the rename lists the caller job ids.
 JOBS_10="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_CODE_CHECK" completed success)")"
@@ -939,7 +982,7 @@ STUB_AUTHOR="$APP" expect "an App-authored pull request changing a trust-gate pa
 # shared list for an App author too, so no App hold applies and the review
 # lanes decide.
 STUB_AUTHOR="$APP" BODY="$TMP_ROOT/body.live.sh" expect "with path-holds off an App-authored trust-gate change is not held" 0
-if grep -q '/commits' "$TMP_ROOT/log"; then fail "with path-holds off the App hold read the commits"; else ok "with path-holds off the App hold reads no commit"; fi
+if grep -q 'pulls/77/commits' "$TMP_ROOT/log"; then fail "with path-holds off the App hold read the commits"; else ok "with path-holds off the App hold reads no commit"; fi
 STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")" "$(commit $SHA_B Melodic-Agent[bot] web-flow '')")" STUB_COMMIT_COUNT=2 \
   expect "a commit the App authored, in any letter case, is held" 1 "an agent App authored or committed bbbbbbbbbbbb"
 STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com")")" \
@@ -1012,10 +1055,10 @@ printf 'merge:\n  trust-path-hold-apps: melodic-agent[bot]\n' >"$TMP_ROOT/bare-c
 BASE_CONFIG="$TMP_ROOT/bare-config" expect "a malformed App list is held" 1 "could not read merge.trust-path-hold-apps"
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
 STUB_AUTHOR="$APP" BASE_CONFIG="$TMP_ROOT/bare-config" expect "a base naming no App holds nothing" 0 "'$CODE_CHECK' passed" "::error::"
-if grep -q '/commits\|/activity' "$TMP_ROOT/log"; then fail "a base naming no App read the commits"; else ok "a base naming no App reads no commit or push"; fi
+if grep -q 'pulls/77/commits\|/activity' "$TMP_ROOT/log"; then fail "a base naming no App read the commits"; else ok "a base naming no App reads no commit or push"; fi
 STUB_FILES="$(files README.md docs/a.md)" STUB_AUTHOR="$APP"
 expect "an App's pull request changing no trust-gate path still needs both lanes" 0 "'$SEC_CHECK' passed" "::error::"
-if grep -qE '/commits|/activity|pulls/77$' "$TMP_ROOT/log"; then fail "a change with no trust-gate path read the pull request, commits or pushes"; else ok "a change with no trust-gate path makes no extra read"; fi
+if grep -qE 'pulls/77/commits|/activity|pulls/77$' "$TMP_ROOT/log"; then fail "a change with no trust-gate path read the pull request, commits or pushes"; else ok "a change with no trust-gate path makes no extra read"; fi
 RUNS_CODE="$(runs)"
 STUB_AUTHOR="$APP" expect "an App's pull request with no trust-gate path and no review fails as before" 1 "'$CODE_CHECK' is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")"

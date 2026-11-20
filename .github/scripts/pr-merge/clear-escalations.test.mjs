@@ -1279,15 +1279,45 @@ const PLANNED_STATUS_JOBS = { "claude-review": "PR Review / Publish Review", "cl
 const PLANNED_ID_STATUS_JOBS = { "claude-review": "pr-review / Publish Review", "claude-security-review": "pr-review-security / Publish Review" };
 // The status job names pr-review-cli.yml gave before it named both review-status.
 const RETIRED_STATUS_JOBS = { "claude-review": "pr-review / claude-review-status", "claude-security-review": "pr-review-security / security-review" };
-function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed", jobs = STATUS_JOBS } = {}) {
+const LANE_RUN_NAMES = { "claude-review": "PR Review Hosted Lane", "claude-security-review": "PR Review Security Hosted Lane" };
+function laneReader({
+  pushes = [pushedBy(APP_ACTOR)],
+  scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" },
+  runStatus = "completed",
+  jobs = STATUS_JOBS,
+  laneRuns = {},
+  pullRequestRuns = true,
+} = {}) {
   const fallback = readerFor({ pushes });
   return async (method, path) => {
     for (const [index, [lane, file]] of Object.entries(REVIEW_FILES).entries()) {
       const job = jobs[lane];
       const runId = 800 + index;
       const jobId = 900 + index;
+      const name = LANE_RUN_NAMES[lane];
+      if (path === `/repos/${REPO}/commits/${HEAD}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`) {
+        return lane in laneRuns ? { total_count: 1, check_runs: [{ external_id: String(runId) }] } : { total_count: 0, check_runs: [] };
+      }
+      if (path === `/repos/${REPO}/actions/runs/${runId}` && lane in laneRuns) {
+        return {
+          id: runId,
+          path: `.github/workflows/${file.replace(/\.yml$/, "-lane.yml")}`,
+          event: "workflow_run",
+          head_branch: "main",
+          head_sha: OLD,
+          repository: { full_name: REPO },
+          head_repository: { full_name: REPO },
+          display_title: `${name} #7 ${HEAD}`,
+          status: runStatus,
+          conclusion: runStatus === "completed" ? "success" : null,
+          ...laneRuns[lane],
+        };
+      }
       if (path === `/repos/${REPO}/actions/workflows/${file}/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
-        const runs = lane in scopes ? [{ id: runId, path: `.github/workflows/${file}`, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPO }, status: runStatus, conclusion: runStatus === "completed" ? "success" : null }] : [];
+        const runs =
+          pullRequestRuns && lane in scopes
+            ? [{ id: runId, path: `.github/workflows/${file}`, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPO }, status: runStatus, conclusion: runStatus === "completed" ? "success" : null }]
+            : [];
         return { workflow_runs: runs };
       }
       if (path === `/repos/${REPO}/actions/runs/${runId}/jobs?filter=latest&per_page=100`) {
@@ -1327,6 +1357,30 @@ test("feedback-not-landed comes off after a lanes App push once both review lane
     assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`, label);
     assert.match(comment.body.body, /both review lanes completed a review of it/);
     assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, label);
+  }
+});
+
+test("feedback-not-landed comes off after a lanes App push once both lanes' bound lane runs read the new head clean", async () => {
+  const reader = laneReader({ pullRequestRuns: false, laneRuns: { "claude-review": {}, "claude-security-review": {} } });
+  const w = world({ timeline: notLandedTimeline(), reader });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("feedback-not-landed stays when a lane's only run is a lane run bound to another pull request, head, branch, event or path", async () => {
+  for (const [label, change] of Object.entries({
+    "another pull request": { display_title: `PR Review Security Hosted Lane #8 ${HEAD}` },
+    "another head": { display_title: `PR Review Security Hosted Lane #7 ${KEY}` },
+    "another branch": { head_branch: "feat/x" },
+    "another event": { event: "pull_request" },
+    "another path": { path: ".github/workflows/pr-review-security-hosted.yml" },
+  })) {
+    const reader = laneReader({ pullRequestRuns: false, laneRuns: { "claude-review": {}, "claude-security-review": change } });
+    const w = world({ timeline: notLandedTimeline(), reader });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes(WAITING)), `${label}: ${logs.join("\n")}`);
   }
 });
 

@@ -131,6 +131,7 @@ function fakes() {
       { isResolved: false, comments: { nodes: [{ author: CLAUDE, pullRequestReview: { author: CLAUDE, commit: { oid: HEAD } } }], pageInfo: { hasNextPage: false } } },
     ],
     listCheckRuns: async () => [],
+    laneRunsAt: async () => [],
     listWorkflowRuns: async () => [],
     dispatchWorkflow: async (request) => {
       dispatched.push(request);

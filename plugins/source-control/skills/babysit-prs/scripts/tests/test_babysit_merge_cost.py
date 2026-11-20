@@ -163,6 +163,8 @@ class Lanes:
 
     def get(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
         self.reads.append(endpoint)
+        if "/check-runs?check_name=" in endpoint:
+            return 200, {"total_count": 0, "check_runs": []}
         if "/git/ref/heads/" in endpoint:
             return (404, None) if self.unreadable == "ref" else (200, {"object": {"sha": TIP}})
         if endpoint.endswith(f"...{TIP}"):
@@ -251,7 +253,7 @@ class CostDecision(unittest.TestCase):
         self.reads = lanes.reads
 
         def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-            if "/compare/" in endpoint or "/git/ref/" in endpoint:
+            if any(k in endpoint for k in ("/compare/", "/git/ref/", "/check-runs?")):
                 return lanes.get(endpoint, env)
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
@@ -288,6 +290,8 @@ class CostDecision(unittest.TestCase):
                 f"repos/owner/repo/git/ref/heads/{BASE}",
                 "repos/owner/repo/actions/workflows/pr-review-hosted.yml/runs"
                 "?event=pull_request&branch=fix%2Fcost&per_page=100",
+                f"repos/owner/repo/commits/{HEAD}/check-runs"
+                "?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100",
                 f"repos/owner/repo/compare/{TIP}...{HEAD}",
                 "repos/owner/repo/actions/runs/1/jobs?filter=all&per_page=100",
                 "repos/owner/repo/check-runs/1/annotations?per_page=100",
@@ -935,7 +939,7 @@ class CostDecision(unittest.TestCase):
             lanes = Lanes(runs, changed)
 
             def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-                if any(k in endpoint for k in ("/compare/", "/git/ref/")):
+                if any(k in endpoint for k in ("/compare/", "/git/ref/", "/check-runs?")):
                     return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 

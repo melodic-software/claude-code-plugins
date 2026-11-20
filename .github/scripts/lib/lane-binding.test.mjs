@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeActions as api, bound, HEAD, recordEntry as entry, RUN, zipOf } from "./lane-binding.fixtures.mjs";
 
-import { bindingOf, laneChecker, laneFooter, legacyCounts, wasEdited, withoutBinding, withoutLaneFooters, zipEntry } from "./lane-binding.mjs";
+import { bindingOf, boundLaneRun, laneChecker, laneFooter, laneRunsAt, legacyCounts, wasEdited, withoutBinding, withoutLaneFooters, zipEntry } from "./lane-binding.mjs";
 
 const OLD = "b".repeat(40);
 
@@ -212,4 +212,89 @@ test("an attempt whose record was cut off before it closed is proved by time", a
   assert.equal(await laneChecker({ pr: 7, ...cut })({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T12:00:00Z" }), true);
   const closed = api({ [RUN]: { path: PATH, ...window, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [] }] } });
   assert.equal(await laneChecker({ pr: 7, ...closed })({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T12:00:00Z" }), false);
+});
+
+const MAIN_TIP = "c".repeat(40);
+const LANE_PATH = ".github/workflows/pr-review-hosted-lane.yml";
+const laneRunRecord = (overrides = {}) => ({
+  id: RUN,
+  path: LANE_PATH,
+  event: "workflow_run",
+  head_branch: "main",
+  head_sha: MAIN_TIP,
+  repository: { full_name: "o/r" },
+  head_repository: { full_name: "o/r" },
+  display_title: `PR Review Hosted Lane #7 ${HEAD}`,
+  ...overrides,
+});
+const BINDS = { repo: "o/r", pr: 7, head: HEAD, caller: PATH };
+
+test("a lane run binds on its path, event, branch, repositories and run-name alone", () => {
+  assert.equal(boundLaneRun(laneRunRecord(), BINDS), true);
+  assert.equal(
+    boundLaneRun(laneRunRecord({ path: ".github/workflows/pr-review-security-hosted-lane.yml", display_title: `PR Review Security Hosted Lane #7 ${HEAD}` }), {
+      ...BINDS,
+      caller: ".github/workflows/pr-review-security-hosted.yml",
+    }),
+    true,
+  );
+  const refused = {
+    "another pull request": laneRunRecord({ display_title: `PR Review Hosted Lane #8 ${HEAD}` }),
+    "another head": laneRunRecord({ display_title: `PR Review Hosted Lane #7 ${OLD}` }),
+    "another branch": laneRunRecord({ head_branch: "feature/x" }),
+    "another event": laneRunRecord({ event: "pull_request" }),
+    "another path": laneRunRecord({ path: PATH }),
+    "the other lane's path": laneRunRecord({ path: ".github/workflows/pr-review-security-hosted-lane.yml" }),
+    "another repository": laneRunRecord({ repository: { full_name: "fork/r" } }),
+    "another head repository": laneRunRecord({ head_repository: { full_name: "fork/r" } }),
+    "a run-name with more after the head": laneRunRecord({ display_title: `PR Review Hosted Lane #7 ${HEAD} x` }),
+  };
+  for (const [why, run] of Object.entries(refused)) {
+    assert.equal(boundLaneRun(run, BINDS), false, why);
+  }
+  assert.equal(boundLaneRun(laneRunRecord(), { ...BINDS, caller: ".github/workflows/other.yml" }), false, "a caller with no lane");
+  assert.equal(boundLaneRun(laneRunRecord({ display_title: `PR Review Hosted Lane #0 ${HEAD}` }), { ...BINDS, pr: 0 }), false, "pull request 0");
+});
+
+test("laneRunsAt reads each run an index check run names and keeps the bound ones, newest first", async () => {
+  const runs = {
+    [RUN]: laneRunRecord(),
+    [RUN + 1]: laneRunRecord({ id: RUN + 1 }),
+    [RUN + 2]: laneRunRecord({ id: RUN + 2, display_title: `PR Review Hosted Lane #8 ${HEAD}` }),
+  };
+  const calls = [];
+  const get = async (path) => {
+    calls.push(path);
+    if (path.startsWith(`/repos/o/r/commits/${HEAD}/check-runs?`)) {
+      const index = [RUN, RUN + 1, RUN + 2, RUN].map((id) => ({ external_id: String(id) })).concat([{ external_id: "x" }, {}]);
+      return { total_count: index.length, check_runs: index };
+    }
+    return runs[path.split("/").at(-1)];
+  };
+  assert.deepEqual(
+    (await laneRunsAt(get, BINDS)).map((run) => run.id),
+    [RUN + 1, RUN],
+  );
+  assert.equal(calls[0], `/repos/o/r/commits/${HEAD}/check-runs?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100`);
+  assert.equal(calls.filter((path) => path.includes("/actions/runs/")).length, 3, "each run id is read once");
+  assert.deepEqual(await laneRunsAt(async () => ({ total_count: 0, check_runs: [] }), BINDS), []);
+  await assert.rejects(laneRunsAt(async () => ({ total_count: 1, check_runs: [] }), BINDS), /did not read whole/);
+  await assert.rejects(laneRunsAt(async () => ({ message: "Server Error" }), BINDS), /did not read whole/);
+});
+
+test("a comment a bound lane run posted counts; one whose lane run names another pull request or head does not", async () => {
+  const body = bound("Off by one.");
+  const record = { artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] };
+  const lane = { path: LANE_PATH, event: "workflow_run", head_branch: "main", head_sha: MAIN_TIP, display_title: `PR Review Hosted Lane #7 ${HEAD}` };
+  assert.equal(await laneChecker({ pr: 7, ...api({ [RUN]: { ...lane, ...record } }) })({ kind: "review_comment", id: 11, body }), true);
+  for (const [why, change] of Object.entries({
+    "another pull request": { display_title: `PR Review Hosted Lane #8 ${HEAD}` },
+    "another head": { display_title: `PR Review Hosted Lane #7 ${OLD}` },
+    "another branch": { head_branch: "feature/x" },
+    "another event": { event: "push" },
+    "another path": { path: ".github/workflows/other.yml" },
+  })) {
+    const fake = api({ [RUN]: { ...lane, ...change, ...record } });
+    assert.equal(await laneChecker({ pr: 7, ...fake })({ kind: "review_comment", id: 11, body }), false, why);
+  }
 });

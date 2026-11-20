@@ -39,6 +39,14 @@ export const LANE_WORKFLOWS = Object.freeze({
   "claude-review": ".github/workflows/pr-review-hosted.yml",
   "claude-security-review": ".github/workflows/pr-review-security-hosted.yml",
 });
+export const LANE_RUNS = Object.freeze({
+  ".github/workflows/pr-review-hosted.yml": Object.freeze({ path: ".github/workflows/pr-review-hosted-lane.yml", name: "PR Review Hosted Lane" }),
+  ".github/workflows/pr-review-security-hosted.yml": Object.freeze({
+    path: ".github/workflows/pr-review-security-hosted-lane.yml",
+    name: "PR Review Security Hosted Lane",
+  }),
+});
+export const LANE_RUN_BRANCH = "main";
 export const RECORD_PREFIX = "claude-lane-comments-";
 export const RECORD_FILE = "comments.jsonl";
 // The largest record read: far above one run's comments, small enough that a
@@ -183,6 +191,50 @@ export function recordEntries(text) {
     });
 }
 
+export function laneRunTarget(run, { repo, caller }) {
+  const lane = LANE_RUNS[caller];
+  if (
+    lane === undefined ||
+    run?.path !== lane.path ||
+    run.event !== "workflow_run" ||
+    run.head_branch !== LANE_RUN_BRANCH ||
+    run.repository?.full_name !== repo ||
+    run.head_repository?.full_name !== repo ||
+    typeof run.display_title !== "string" ||
+    !run.display_title.startsWith(`${lane.name} #`)
+  ) {
+    return null;
+  }
+  const named = /^([1-9][0-9]{0,15}) ([0-9a-f]{40})$/.exec(run.display_title.slice(lane.name.length + 2));
+  return named && Number.isSafeInteger(Number(named[1])) ? { pr: Number(named[1]), head: named[2] } : null;
+}
+
+export function boundLaneRun(run, { repo, pr, head, caller }) {
+  const target = laneRunTarget(run, { repo, caller });
+  return target !== null && target.pr === pr && target.head === head;
+}
+
+export async function laneRunsAt(get, { repo, pr = null, head, caller }) {
+  const lane = LANE_RUNS[caller];
+  if (lane === undefined) {
+    return [];
+  }
+  const page = await get(`/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(lane.name)}&filter=all&per_page=100`);
+  const index = page?.check_runs;
+  if (!Array.isArray(index) || page.total_count !== index.length || index.length >= 100) {
+    throw new Error(`the ${lane.name} check runs on ${head} did not read whole`);
+  }
+  const runs = [];
+  for (const id of new Set(index.map((check) => String(check?.external_id ?? "")).filter((id) => /^[1-9][0-9]{0,15}$/.test(id)))) {
+    const run = await get(`/repos/${repo}/actions/runs/${id}`);
+    const target = String(run?.id) === id ? laneRunTarget(run, { repo, caller }) : null;
+    if (target !== null && target.head === head && (pr === null || target.pr === pr)) {
+      runs.push(run);
+    }
+  }
+  return runs.sort((a, b) => b.id - a.id);
+}
+
 // A checker for one pull request's lane comments. `getPull(pr)` reads
 // /pulls/<pr>, `getRun(id)` /actions/runs/<id>, `listArtifacts(id)` that
 // run's artifacts (every page), `download(artifactId)` an artifact's zip
@@ -227,14 +279,17 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
       return legacyCounts(comment, cutoff);
     }
     const { run, entries, recorded } = await readRun(binding.runId);
-    const head = (await readPull())?.head;
+    const pull = await readPull();
+    const head = pull?.head;
+    const headRun =
+      run?.path === workflows[lane] &&
+      run?.head_sha === binding.sha &&
+      typeof run?.head_branch === "string" &&
+      run.head_branch === head?.ref &&
+      run.head_repository?.full_name === head?.repo?.full_name;
     if (
       String(run?.id) !== binding.runId ||
-      run?.path !== workflows[lane] ||
-      run?.head_sha !== binding.sha ||
-      typeof run?.head_branch !== "string" ||
-      run.head_branch !== head?.ref ||
-      run.head_repository?.full_name !== head?.repo?.full_name
+      !(headRun || boundLaneRun(run, { repo: pull?.base?.repo?.full_name, pr: Number(pr), head: binding.sha, caller: workflows[lane] }))
     ) {
       return false;
     }

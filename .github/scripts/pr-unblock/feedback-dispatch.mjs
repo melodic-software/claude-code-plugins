@@ -188,6 +188,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { laneRunsAt, laneRunTarget } from "../lib/lane-binding.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
@@ -450,26 +451,42 @@ export async function relayUpstream({ api, upstream, repository, appSenderId, tr
 // Its pull_request_target run follows a label coming off a PR (see main).
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
+export function reviewedHead(run, repository, settings = DEFAULTS) {
+  if (settings.reviewWorkflows.includes(run?.path) && run.event === "pull_request") {
+    return { head: run.head_sha, pr: null };
+  }
+  for (const caller of settings.reviewWorkflows) {
+    const target = laneRunTarget(run, { repo: repository, caller });
+    if (target !== null) {
+      return target;
+    }
+  }
+  return null;
+}
+
 // The newest completed review run of this repository's head at `head` that
 // reviewed something (not skipped or cancelled), or null. A fork PR at the
 // same SHA lists its runs too; one must not stand in for this repository's.
 export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
+  const reviewed = (run) => run.status === "completed" && !["skipped", "cancelled"].includes(run.conclusion);
+  const newest = (runs) => runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""))[0] ?? null;
+  const laneRuns = [];
+  for (const caller of settings.reviewWorkflows) {
+    laneRuns.push(...(await api.laneRunsAt(caller, head)).filter(reviewed));
+  }
+  if (laneRuns.length > 0) {
+    return newest(laneRuns);
+  }
   // One workflow's listing at a time: element 6's serial reads.
   const listings = [];
   for (const path of settings.reviewWorkflows) {
     listings.push(await api.listCompletedRuns(path, head));
   }
-  const runs = listings
-    .flat()
-    .filter(
-      (run) =>
-        run.head_sha === head &&
-        run.event === "pull_request" &&
-        run.head_repository?.full_name === repository &&
-        !["skipped", "cancelled"].includes(run.conclusion),
-    );
-  runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
-  return runs[0] ?? null;
+  return newest(
+    listings
+      .flat()
+      .filter((run) => run.head_sha === head && run.event === "pull_request" && run.head_repository?.full_name === repository && reviewed({ ...run, status: "completed" })),
+  );
 }
 
 // Each workflow's run listing is read at most once a run, when a pass first
@@ -532,18 +549,17 @@ export async function dispatchFeedback({
     throw new Error("the lanes App sender id is not a positive integer");
   }
   const relayed = upstream?.path === RELAY_WORKFLOW;
+  const reviewed = relayed ? upstream.event === RELAY_EVENT && upstream.conclusion === "success" && { head: upstream.head_sha, pr: null } : reviewedHead(upstream, repository, settings);
   if (
-    !(relayed
-      ? upstream.event === RELAY_EVENT && upstream.conclusion === "success"
-      : settings.reviewWorkflows.includes(upstream.path) && upstream.event === "pull_request") ||
+    !reviewed ||
     upstream.status !== "completed" ||
     upstream.repository?.full_name !== repository ||
     upstream.head_repository?.full_name !== repository ||
-    !SHA.test(upstream.head_sha ?? "")
+    !SHA.test(reviewed.head ?? "")
   ) {
     return skip(`run ${upstreamRunId} is not a completed same-repository review or relay run`);
   }
-  const head = upstream.head_sha;
+  const { head } = reviewed;
   const cutoff = notesSince ?? requestSince;
   if (cutoff === null && isHandled(record, settings.checkName, head)) {
     return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
@@ -572,6 +588,9 @@ export async function dispatchFeedback({
   // The gate and the broker check the same: the relayed comment was on this PR.
   if (relayed && !(upstream.pull_requests ?? []).some((entry) => entry?.number === number)) {
     return skip(`relay run ${upstreamRunId} does not name #${number}`);
+  }
+  if (reviewed.pr !== null && reviewed.pr !== number) {
+    return skip(`lane run ${upstreamRunId} reviewed #${reviewed.pr}, not #${number}`);
   }
   // A lanes App PR, or an adopted owner PR once idle. A pass-only round
   // resolves threads as the lanes App, which only its own PRs allow.
@@ -1126,6 +1145,9 @@ async function sweepUnsent(context) {
   for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"], [RELAY_WORKFLOW, RELAY_EVENT]]) {
     triggers.push(...(await api.listCompletedRuns(path, head, event)).filter((run) => run.head_sha === head && run.event === event));
   }
+  for (const caller of settings.reviewWorkflows) {
+    triggers.push(...(await api.laneRunsAt(caller, head, pull.number)).filter((run) => run.status === "completed"));
+  }
   const commented = unresolved.flatMap((thread) => thread.comments?.nodes ?? []).map((comment) => Date.parse(comment.createdAt ?? "")).filter(Number.isFinite);
   const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")), ...commented);
   if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
@@ -1585,6 +1607,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         after = page.pageInfo.endCursor;
       }
     },
+    laneRunsAt: (caller, head, pr = null) => laneRunsAt((path) => request(`${apiUrl}${path}`), { repo: repository, pr, head, caller }),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,

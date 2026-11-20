@@ -36,7 +36,20 @@ import zipfile
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
+LANE_RUNS: dict[str, tuple[str, str]] = {
+    ".github/workflows/pr-review-hosted.yml": (
+        ".github/workflows/pr-review-hosted-lane.yml",
+        "PR Review Hosted Lane",
+    ),
+    ".github/workflows/pr-review-security-hosted.yml": (
+        ".github/workflows/pr-review-security-hosted-lane.yml",
+        "PR Review Security Hosted Lane",
+    ),
+}
+LANE_RUN_BRANCH = "main"
+_SHA = re.compile(r"[0-9a-f]{40}")
 RECORD_PREFIX = "claude-lane-comments-"
 RECORD_FILE = "comments.jsonl"
 # The largest record read: far above one run's comments, small enough that a
@@ -221,6 +234,74 @@ def review_comment_view(comment: Mapping[str, Any]) -> dict[str, Any]:
 Check = Callable[[Mapping[str, Any]], bool]
 
 
+def _full_name(repository: Any) -> Any:
+    return repository.get("full_name") if isinstance(repository, Mapping) else None
+
+
+def bound_lane_run(run: Any, repo: Any, pr: Any, head: Any, caller: Any) -> bool:
+    """Whether `run` is `caller`'s lane run (LANE_RUNS) for pull request `pr`
+    at `head`, on the run's own record alone: its path, event workflow_run,
+    head branch main, both repositories `repo`, and its run-name."""
+    lane = LANE_RUNS.get(caller) if isinstance(caller, str) else None
+    return (
+        lane is not None
+        and isinstance(run, Mapping)
+        and _is_int(pr)
+        and pr > 0
+        and isinstance(head, str)
+        and _SHA.fullmatch(head) is not None
+        and isinstance(repo, str)
+        and run.get("path") == lane[0]
+        and run.get("event") == "workflow_run"
+        and run.get("head_branch") == LANE_RUN_BRANCH
+        and _full_name(run.get("repository")) == repo
+        and _full_name(run.get("head_repository")) == repo
+        and run.get("display_title") == f"{lane[1]} #{pr} {head}"
+    )
+
+
+def lane_runs_at(
+    read: Callable[[str], Any], repo: str, pr: int, head: str, caller: str
+) -> list[Mapping[str, Any]]:
+    """`caller`'s lane runs bound to pull request `pr` at `head`
+    (`bound_lane_run`), newest first. They are found through the index check
+    runs named for the lane on `head`, whose external_id is a run id; the
+    index proves nothing, so each run is read and bound on its own record.
+    `read(endpoint)` answers a GET of an API path with no leading slash; an
+    index page that is not whole raises, as a failed read does."""
+    lane = LANE_RUNS.get(caller)
+    if lane is None:
+        return []
+    page = read(
+        f"repos/{repo}/commits/{head}/check-runs"
+        f"?check_name={quote(lane[1], safe='')}&filter=all&per_page=100"
+    )
+    index = page.get("check_runs") if isinstance(page, Mapping) else None
+    if (
+        not isinstance(index, list)
+        or not _same_int(page.get("total_count"), len(index))
+        or len(index) >= 100
+    ):
+        raise RuntimeError(f"the {lane[1]} check runs on {head} did not read whole")
+    ids = dict.fromkeys(
+        str(check.get("external_id") or "")
+        for check in index
+        if isinstance(check, Mapping)
+    )
+    runs = []
+    for run_id in ids:
+        if not re.fullmatch(r"[1-9][0-9]{0,15}", run_id):
+            continue
+        run = read(f"repos/{repo}/actions/runs/{run_id}")
+        if (
+            isinstance(run, Mapping)
+            and str(run.get("id")) == run_id
+            and bound_lane_run(run, repo, pr, head, caller)
+        ):
+            runs.append(run)
+    return sorted(runs, key=lambda run: run["id"], reverse=True)
+
+
 def lane_checker(
     *,
     pr: int,
@@ -240,16 +321,17 @@ def lane_checker(
     own; a comment with no lane footer is not a lane comment. A run counts
     only when it ran on the pull request's own head branch: a pull_request
     run takes its workflow from the head, so a run of another branch could
-    have written any record. The pull request is read once, and only for a
-    comment that carries a binding."""
+    have written any record. A lane run counts when it is bound to the pull
+    request at the binding's head (`bound_lane_run`). The pull request is
+    read once, and only for a comment that carries a binding."""
     runs: dict[str, tuple[Any, BaseException | None]] = {}
     pulls: list[Mapping[str, Any]] = []
     number = _int(pr)
 
-    def head() -> Mapping[str, Any]:
+    def side(name: str) -> Mapping[str, Any]:
         if not pulls:
             pulls.append(get_pull(number))
-        found = pulls[0].get("head") if isinstance(pulls[0], Mapping) else None
+        found = pulls[0].get(name) if isinstance(pulls[0], Mapping) else None
         return found if isinstance(found, Mapping) else {}
 
     def read_run(run_id: str) -> Any:
@@ -287,20 +369,18 @@ def lane_checker(
             return legacy_counts(comment, cutoff)
         run_id, sha = binding
         run, entries, recorded = read_run(run_id)
-        if (
-            not isinstance(run, Mapping)
-            or str(run.get("id")) != run_id
-            or run.get("path") != workflows.get(lane)
-            or run.get("head_sha") != sha
-        ):
+        if not isinstance(run, Mapping) or str(run.get("id")) != run_id:
             return False
-        pull_head = head()
-        repo = pull_head.get("repo") if isinstance(pull_head.get("repo"), Mapping) else {}
-        run_repo = run.get("head_repository") if isinstance(run.get("head_repository"), Mapping) else {}
-        if (
-            not isinstance(run.get("head_branch"), str)
-            or run.get("head_branch") != pull_head.get("ref")
-            or run_repo.get("full_name") != repo.get("full_name")
+        pull_head = side("head")
+        head_run = (
+            run.get("path") == workflows.get(lane)
+            and run.get("head_sha") == sha
+            and isinstance(run.get("head_branch"), str)
+            and run.get("head_branch") == pull_head.get("ref")
+            and _full_name(run.get("head_repository")) == _full_name(pull_head.get("repo"))
+        )
+        if not head_run and not bound_lane_run(
+            run, _full_name(side("base").get("repo")), number, sha, workflows.get(lane)
         ):
             return False
         digest = body_digest(body)

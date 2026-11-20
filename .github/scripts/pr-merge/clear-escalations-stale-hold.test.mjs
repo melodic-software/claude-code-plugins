@@ -153,6 +153,9 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
   };
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
+    if (path.startsWith(`/repos/${REPO}/commits/${HEAD}/check-runs?check_name=`)) {
+      return { total_count: 0, check_runs: [] };
+    }
     for (const [file, lane] of Object.entries(lanes)) {
       const id = file.length;
       if (path === `/repos/${REPO}/actions/workflows/${file}/runs?event=pull_request&head_sha=${HEAD}&per_page=100`) {

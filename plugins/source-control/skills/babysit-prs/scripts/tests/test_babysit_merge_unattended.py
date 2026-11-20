@@ -5122,6 +5122,8 @@ class LaneEvidenceReadToken(unittest.TestCase):
             return [[]]
         if endpoint.endswith("/annotations?per_page=100"):
             return [[]]
+        if "/check-runs?check_name=" in endpoint:
+            return {"total_count": 0, "check_runs": []}
         raise AssertionError(f"unexpected gh call: {args}")
 
     def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
@@ -5284,6 +5286,8 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                         }
                     ]
                 ]
+        if "/check-runs?check_name=" in endpoint:
+            return {"total_count": 0, "check_runs": []}
         raise AssertionError(f"unexpected gh call: {endpoint}")
 
     def read(self) -> tuple[list[tuple[str, str]], Any]:

@@ -129,6 +129,11 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
     if (method === "GET" && notes) {
       return runs.flatMap((r) => r.jobs ?? []).find((j) => j.id === Number(notes[1]))?.notes ?? [];
     }
+    const index = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-f]{40})\/check-runs\?check_name=([^&]+)&filter=all&per_page=100$/.exec(path);
+    if (method === "GET" && index) {
+      const found = runs.filter((r) => r.indexedOn === index[1] && r.name === decodeURIComponent(index[2]));
+      return { total_count: found.length, check_runs: found.map((r) => ({ external_id: String(r.id) })) };
+    }
     const listed = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-f]{40})\/statuses\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listed) {
       return (statuses[listed[1]] ?? []).slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
@@ -3225,6 +3230,41 @@ test("a pending-only red on a lanes App PR is a Pending re-run", async (t) => {
   const lines = log.mock.calls.map((c) => String(c.arguments[0]));
   assert.ok(lines.includes("reconcile: #1: re-ran the failed jobs of run 101 (.github/workflows/pr-require-checks.yml) attempt 1: ci-status failed on a review that has since finished"));
   assert.ok(!lines.some((l) => l.includes("kill switch")));
+});
+
+const laneReviewRuns = (change = {}) =>
+  [
+    [301, "pr-review-hosted-lane.yml", "PR Review Hosted Lane"],
+    [302, "pr-review-security-hosted-lane.yml", "PR Review Security Hosted Lane"],
+  ].map(([id, file, name]) => ({
+    ...run(id, MAIN_TIP, { path: `.github/workflows/${file}`, event: "workflow_run", conclusion: "success", updated: "2026-10-19T19:30:00Z" }),
+    head_branch: "main",
+    repository: { full_name: REPO },
+    name,
+    indexedOn: sha(1),
+    display_title: `${name} #1 ${sha(1)}`,
+    ...change,
+  }));
+
+test("a pending-review ci-status is re-run once both lanes' bound lane runs finished, whatever the head's pull_request runs show", async () => {
+  const { failedJobReruns } = await reconcile({
+    pulls: [pr(1)],
+    runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ status: "in_progress" }), ...laneReviewRuns()],
+  });
+  assert.deepEqual(failedJobReruns, [101]);
+  for (const [label, change] of Object.entries({
+    "another pull request": { display_title: `PR Review Security Hosted Lane #2 ${sha(1)}` },
+    "another branch": { head_branch: "feature/x" },
+    "another event": { event: "pull_request" },
+    "another path": { path: SECURITY_REVIEW },
+  })) {
+    const lanes = laneReviewRuns();
+    const { failedJobReruns: none } = await reconcile({
+      pulls: [pr(1)],
+      runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ status: "in_progress" }), lanes[0], { ...lanes[1], ...change }],
+    });
+    assert.deepEqual(none, [], label);
+  }
 });
 
 test("the pending backoff ends exactly PENDING_BACKOFF_MINUTES after the last review completed", async () => {

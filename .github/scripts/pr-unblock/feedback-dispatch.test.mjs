@@ -10,6 +10,7 @@ import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { laneRunTarget } from "../lib/lane-binding.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
@@ -117,10 +118,16 @@ function fakeApi({
   reviewComments = [],
   reviews = [],
   timeline = [],
+  laneRuns = [],
 } = {}) {
   const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
     calls,
+    laneRunsAt: async (caller, head, pr = null) =>
+      laneRuns.filter((one) => {
+        const target = laneRunTarget(one, { repo: REPOSITORY, caller });
+        return target?.head === head && (pr === null || target.pr === pr);
+      }),
     // The event's workflow_run, which the script takes in place of a read.
     upstream: upstreamRun(run),
     async pullsForCommit() {
@@ -456,6 +463,49 @@ test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feed
       inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID },
     },
   ]);
+});
+
+const laneUpstream = (overrides = {}) => ({
+  path: ".github/workflows/pr-review-hosted-lane.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  head_sha: "9".repeat(40),
+  display_title: `PR Review Hosted Lane #42 ${HEAD}`,
+  ...overrides,
+});
+
+test("a completed lane run bound to the PR at its head dispatches address-feedback for that head", async () => {
+  const api = fakeApi({ run: laneUpstream() });
+  const { result, asked } = await decide(api);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(asked, [{ number: 42, head: HEAD }]);
+});
+
+test("a lane run bound to another PR, or not bound on its own record, dispatches nothing", async () => {
+  for (const [label, overrides, reason] of [
+    ["another pull request", { display_title: `PR Review Hosted Lane #43 ${HEAD}` }, /lane run \d+ reviewed #43, not #42/],
+    ["another branch", { head_branch: "feature/x" }, /is not a completed same-repository review or relay run/],
+    ["another event", { event: "push" }, /is not a completed same-repository review or relay run/],
+    ["another path", { path: ".github/workflows/other-lane.yml" }, /is not a completed same-repository review or relay run/],
+    ["a run-name with no head", { display_title: "PR Review Hosted Lane #42" }, /is not a completed same-repository review or relay run/],
+  ]) {
+    const api = fakeApi({ run: laneUpstream(overrides) });
+    const { result, lines } = await decide(api);
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.match(lines.at(-1), reason, label);
+  }
+});
+
+test("reviewRunAt takes the head's newest bound lane run over its pull_request run, and a lane run of another head not at all", async () => {
+  const lane = (id, created_at, head = HEAD) =>
+    laneUpstream({ id, status: "completed", conclusion: "success", created_at, repository: { full_name: REPOSITORY }, head_repository: { full_name: REPOSITORY }, display_title: `PR Review Hosted Lane #42 ${head}` });
+  const api = fakeApi({ laneRuns: [lane(5, "2026-10-28T06:00:00Z"), lane(6, "2026-10-28T06:30:00Z"), lane(7, "2026-10-28T07:00:00Z", "f".repeat(40))] });
+  api.listCompletedRuns = async () => [upstreamRun({ id: 4, conclusion: "success", created_at: "2026-10-28T09:00:00Z" })];
+  assert.equal((await reviewRunAt({ api, head: HEAD, repository: REPOSITORY })).id, 6);
+  const none = fakeApi({ laneRuns: [lane(7, "2026-10-28T07:00:00Z", "f".repeat(40))] });
+  none.listCompletedRuns = api.listCompletedRuns;
+  assert.equal((await reviewRunAt({ api: none, head: HEAD, repository: REPOSITORY })).id, 4);
 });
 
 test("the address-feedback slot is resolved for the PR and the reviewed head", async () => {
@@ -3841,6 +3891,11 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
   const run = (id, created_at) => ({ id, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPOSITORY }, conclusion: "success", created_at });
   const listings = { "a.yml": [run(1, "2026-10-28T07:00:00Z")], "b.yml": [run(2, "2026-10-28T08:00:00Z")] };
   const api = {
+    laneRunsAt: async (caller) => {
+      events.push(`${caller} lane runs`);
+      await new Promise((resolve) => setImmediate(resolve));
+      return [];
+    },
     listCompletedRuns: async (path) => {
       events.push(`${path} start`);
       await new Promise((resolve) => setImmediate(resolve));
@@ -3850,7 +3905,7 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
   };
   const upstream = await reviewRunAt({ api, head: HEAD, repository: REPOSITORY, settings: { reviewWorkflows: ["a.yml", "b.yml"] } });
   assert.equal(upstream.id, 2);
-  assert.deepEqual(events, ["a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
+  assert.deepEqual(events, ["a.yml lane runs", "b.yml lane runs", "a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
 });
 
 test("a PR two passes would each send is sent once a tick", async (t) => {

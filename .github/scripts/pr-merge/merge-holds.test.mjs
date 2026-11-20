@@ -22,6 +22,7 @@ import { test } from "node:test";
 import * as holdsModule from "./merge-holds.mjs";
 import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { LANE_RUNS } from "../lib/lane-binding.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -131,6 +132,9 @@ function world({
     if (parent) {
       reads.push(`base ${parent[1]}`);
       return { status: parent[1] === MAIN ? "ahead" : "diverged" };
+    }
+    if (/^\/repos\/owner\/repo\/commits\/[0-9a-f]{40}\/check-runs\?check_name=[^&]+&filter=all&per_page=100$/.test(path)) {
+      return { total_count: 0, check_runs: [] };
     }
     const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
     const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
@@ -1897,5 +1901,13 @@ test("a member naming the do-not-merge label is no veto; saying not to merge is"
     "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
   ]) {
     assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
+  }
+});
+
+test("each review caller's lane run has the name and path lane-binding.mjs binds it on", () => {
+  const callers = Object.keys(holdsModule.LANE_RUN_NAMES).map((file) => `.github/workflows/${file}`);
+  assert.deepEqual(callers.sort(), Object.keys(LANE_RUNS).sort());
+  for (const [file, name] of Object.entries(holdsModule.LANE_RUN_NAMES)) {
+    assert.deepEqual({ path: `.github/workflows/${file.replace(/\.yml$/, "-lane.yml")}`, name }, { ...LANE_RUNS[`.github/workflows/${file}`] }, file);
   }
 });
