@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.19.3] - 2026-11-20
+
+### Changed
+
+- Run titles start with the workflow's Title Case name: `PR Merge: arm #<n>`, `PR Rate Merge Risk #<n> <sha>`, `PR Refine <activity> #<n>`, `PR Unblock <activity> #<n>` and `PR Verify Capture <run-id> <sha>`. Every reader still accepts the old lowercase titles, so runs started before this change keep matching.
+
 ## [10.19.2] - 2026-11-20
 
 ### Fixed

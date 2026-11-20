@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.1] - 2026-11-20
+
+### Changed
+
+- `audit` session mode gives its own reason for discovering targets by skill invocations only: the
+  ledger's `plugin_usage` counts skills and attributes no hook run to a plugin. It no longer
+  restates the claim about how a transcript records hook commands.
+
 ## [0.22.0] - 2026-11-19
 
 ### Added
