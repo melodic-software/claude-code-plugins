@@ -1344,7 +1344,7 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   if (lost === null) {
     return null;
   }
-  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its ${DISPATCH_JOB} job started`);
+  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its Dispatch job started`);
   const context = { api, repository, appSenderId, log, settings, rest };
   // A round that ended before posting its check does not handle the head, and
   // the lost run stays in the window for a day, so each lost run sends at most
