@@ -1057,4 +1057,21 @@ expect "an unreadable job list fails closed" 1 "::error::could not read the jobs
 unset STUB_JOBS_FAIL
 HEAD_SHA=main expect "a head that is not a commit SHA fails closed" 1 "::error::the head 'main' is not a commit SHA."
 
+RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")" JOBS_20="$PASS_SEC"
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
+export NOTES_9
+NOTES_9="$(notes "$(note failure '' 'claude-review: failure-class=partial: the review read only part of the pull request, so the head is not reviewed (read 65 of 81 changed file(s); 17 binary file(s) not reviewable as text: a.wav)')")"
+expect "a partial review names its files and the remedy" 1 \
+  "::error::'$CODE_CHECK' did not review all of $HEAD (https://github.com/o/r/actions/runs/10): the review read only part of the pull request, so the head is not reviewed (read 65 of 81 changed file(s); 17 binary file(s) not reviewable as text: a.wav). A re-run reads the same diff and stays partial. A file no review reads as text" "Re-run the lane"
+if grep -qxF "api repos/o/r/check-runs/9/annotations?per_page=100" "$TMP_ROOT/log"; then ok "a red status job's annotations are read"; else fail "a red status job's annotations were not read"; fi
+NOTES_9="$(notes "$(note failure '' 'claude-security-review: failure-class=partial: the review read only part')")"
+expect "another lane's partial note is not this lane's" 1 "'$CODE_CHECK' ended failure on $HEAD (https://github.com/o/r/actions/runs/10): the review did not complete. Re-run the lane."
+NOTES_9="$(notes "$(note failure '' 'claude-review: failure-class=timeout: the review leg reached its time limit')")"
+expect "a red review of another class asks for a re-run" 1 "'$CODE_CHECK' ended failure on $HEAD (https://github.com/o/r/actions/runs/10): the review did not complete. Re-run the lane." "stays partial"
+NOTES_9="" STUB_NOTES_FAIL=1 expect "an unreadable annotation list on a red review still fails, asking for a re-run" 1 "the review did not complete. Re-run the lane."
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed cancelled)")"
+expect "a cancelled status job asks for a re-run and reads no annotations" 1 "'$CODE_CHECK' ended cancelled on $HEAD"
+if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a cancelled status job read annotations"; else ok "a cancelled status job reads no annotations"; fi
+JOBS_10="$PASS_CODE" NOTES_9=""
+
 test_harness::report

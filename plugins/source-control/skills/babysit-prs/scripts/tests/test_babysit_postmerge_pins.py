@@ -227,6 +227,18 @@ class PinShape(unittest.TestCase):
             f"<!-- babysit-merge-pin sha={sha(1)} -->",
         )
 
+    def test_the_pin_claims_only_the_request_since_github_can_still_refuse(
+        self,
+    ) -> None:
+        said = pm.pin_comment(sha(1)).split("\n", 1)[1]
+        self.assertEqual(
+            said,
+            "The unattended merge path is about to ask GitHub to enqueue this pull "
+            f"request at head `{sha(1)}`. GitHub can still refuse it after "
+            "accepting the request.",
+        )
+        self.assertNotIn("enqueued", said)
+
     def test_old_and_new_pins_read_back_their_sha(self) -> None:
         for line in (
             f"<!-- babysit-merge-pin sha={sha(2)} -->",
