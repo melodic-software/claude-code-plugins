@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.11] - 2026-11-20
+
+### Fixed
+
+- The babysit merge gate's vendored-copy sync check treats a skill file named `SKILL.md` in any case as a `SKILL.md`, so a lowercase `skill.md` a sync adds or changes no longer keeps the drift issue's spec.
+
 ## [13.1.10] - 2026-11-20
 
 ### Fixed
