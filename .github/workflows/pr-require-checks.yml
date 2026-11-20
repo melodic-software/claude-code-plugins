@@ -1289,10 +1289,10 @@ jobs:
       # calls that keep `./...` carry `# zizmor: ignore[self-repository]`,
       # because `$/` always loads the running commit
       # (https://docs.zizmor.sh/audits/#self-repository):
-      # - a path under a checkout the job makes at run time (`./.base/`, the
-      #   default-branch tip; `./.lane-trusted/`; `./.lane-seal`, the sealer
-      #   copy), and a step whose job checks out the live default-branch tip
-      #   at the workspace root: `$/` would load other code than that checkout;
+      # - a path under a checkout or copy the job makes at run time
+      #   (`./.base/`, `./.lane-trusted/`, `./.lane-seal`), often the live
+      #   default-branch tip, and a step whose job checks out that tip at the
+      #   workspace root: it can differ from the running commit;
       # - a job-level reusable workflow call: it already runs the running
       #   commit, and scripts/check-read-caller-keys.mjs and the runner policy
       #   find callers only by `./` or `owner/repo/...@ref`.
