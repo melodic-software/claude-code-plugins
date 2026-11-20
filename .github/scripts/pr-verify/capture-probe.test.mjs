@@ -1,5 +1,7 @@
-// capture-probe.mjs, pr-verify-capture.yml's reach probe: it must name every
-// credential a process in the app's position can read, never print a value,
+// capture-probe.mjs, the reach probe
+// (https://github.com/melodic-software/claude-code-plugins/issues/12836): it
+// must name every credential a Bash child of a Claude Code leg can read, never
+// print a value,
 // and never pass when its own scan cannot be shown to work (the canary).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

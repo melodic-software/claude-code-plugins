@@ -56,7 +56,7 @@ test("a pull skips fork runs, records bound to another run, a wrong key, odd zip
     artifact(11, { record: sealed(publicLine, { runId: 99 }) }),
     artifact(12, { record: sealed(other.publicLine) }),
     artifact(13, { entries: { [ENTRY]: "x", "extra.txt": "y" } }),
-    artifact(14, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) }),
+    artifact(14, { jobId: "rate-merge-risk", record: sealed(publicLine, { jobId: "rate-merge-risk" }) }),
   ];
   let deps = fakeDeps(page);
   const first = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
@@ -233,7 +233,7 @@ test("a pull where every transcript fails to open for the key fails, so the stal
   const { privateText } = generate();
   const other = generate();
   const sink = sinkDir();
-  const deps = fakeDeps([artifact(21, { record: sealed(other.publicLine) }), artifact(22, { jobId: "capture", record: sealed(other.publicLine, { jobId: "capture" }) })]);
+  const deps = fakeDeps([artifact(21, { record: sealed(other.publicLine) }), artifact(22, { jobId: "rate-merge-risk", record: sealed(other.publicLine, { jobId: "rate-merge-risk" }) })]);
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: key-mismatch: 2 transcript/);
@@ -248,7 +248,7 @@ test("a metrics append cut short leaves a tail the next pull drops and replaces"
   writeFileSync(paths(sink).metrics, '{"artifact_id":32,"run_id":4', { flag: "a" });
   assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([]) }).code, 0);
   assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31]);
-  const page = [artifact(32, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) }), artifact(31, { record: sealed(publicLine) })];
+  const page = [artifact(32, { jobId: "rate-merge-risk", record: sealed(publicLine, { jobId: "rate-merge-risk" }) }), artifact(31, { record: sealed(publicLine) })];
   const again = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps(page) });
   assert.equal(again.code, 0, again.err);
   assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31, 32]);
@@ -320,7 +320,7 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
     // Older than OVERLAP (6 hours) at the failed pull, so a cutoff taken from that pull would miss it.
     const failing = artifact(51, { runId: 51, createdAt: NOW - 10 * 3600_000, record: sealed(publicLine, { runId: 51 }) });
-    const healthy = artifact(52, { jobId: "capture", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "capture" }) });
+    const healthy = artifact(52, { jobId: "rate-merge-risk", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "rate-merge-risk" }) });
 
     const partial = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([failing, healthy], { failures }) });
     assert.equal(partial.code, 0, partial.err);
@@ -332,7 +332,7 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     assert.equal(state.last_tally.fetch_failed, 1);
     assert.equal(state.last_attempt_at, new Date(NOW).toISOString());
     assert.equal(state.cursors["lane-transcript-check-intent-1"], cursor, "the failed artifact's name keeps its cursor");
-    assert.equal(state.cursors["lane-transcript-capture-1"], new Date(NOW).toISOString(), "a name listed through moves its cursor");
+    assert.equal(state.cursors["lane-transcript-rate-merge-risk-1"], new Date(NOW).toISOString(), "a name listed through moves its cursor");
     for (const text of [partial.out, partial.err, JSON.stringify(state)]) assert.ok(!text.includes(MARKER), "no call's error text is stored or printed");
 
     const later = NOW + 3600_000;
@@ -360,7 +360,7 @@ test("a rate limit on an artifact's call stops the pull at once, with no retry a
   const sink = sinkDir();
   const last = iso(NOW - 86400_000);
   seedState(sink, { last_success_at: last });
-  const fake = fakeDeps([artifact(54, { record: sealed(publicLine) }), artifact(55, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) })]);
+  const fake = fakeDeps([artifact(54, { record: sealed(publicLine) }), artifact(55, { jobId: "rate-merge-risk", record: sealed(publicLine, { jobId: "rate-merge-risk" }) })]);
   const gh = (args) => {
     if (!args[1].endsWith("/zip")) return fake.gh(args);
     fake.calls.push(args.join(" "));
@@ -414,7 +414,7 @@ test("a fetch failure beside transcripts that do not open for the key still fail
   const { privateText } = generate();
   const other = generate();
   const sink = sinkDir();
-  const page = [artifact(71, { record: sealed(other.publicLine) }), artifact(72, { jobId: "capture", record: sealed(other.publicLine, { jobId: "capture" }) })];
+  const page = [artifact(71, { record: sealed(other.publicLine) }), artifact(72, { jobId: "rate-merge-risk", record: sealed(other.publicLine, { jobId: "rate-merge-risk" }) })];
   const deps = fakeDeps(page, { failures: { "artifacts/72/zip": FOREVER } });
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
