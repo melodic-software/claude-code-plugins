@@ -49,14 +49,24 @@ position only. `relocate-note.mjs` reads one note from the bridge's log, checks 
 `note.schema.json`, and writes a `playwright-cli run-code` script that carries it as one JSON
 literal. The script opens the host page, so the mockup stays in its sandboxed frame, sets the
 note's viewport, restores the view through the switcher's `vs:show` event, replays the note's
-data log, scrolls the frame to the note's scroll position, and cuts the shot from inside the frame's box, so no host-page pixel is in it. A
+data log, sets its controls, scrolls the frame to the note's scroll position, and cuts the shot from inside the frame's box, so no host-page pixel is in it. A
 region note's shot is its box. Shot files are named from the bridge's integer `seq` only.
+
+The result's `restored.data` and `restored.controls` are false when the page still marks data
+controls or carries the controls runtime but no longer has one the note names. When the page marks
+no data control, or has no controls runtime, the part is left out of `restored` and listed in
+`unmarked` instead (`"data"`, `"controls"`), so a removed control reads apart from a page that marks
+none.
+
+A region note's `elements` are the elements with a test id that the region crosses. When it
+crosses none, they are the children of the element holding it that it crosses, so a region over
+unmarked content still names what it covers.
 
 The frame helper owns both rules a re-located note depends on: the data log (the presses of the
 controls the page marks with `data-data-control`, and each content set the switcher shows) and the
 text quote (the selection with whitespace collapsed, plus visible text of the scope either side,
 matched with whitespace ignored). It takes them when the note is made and exposes
-`window.uiFeedbackRelocate` (`replay`, `findQuote`) for the script, so no second copy of either
+`window.uiFeedbackRelocate` (`replay`, `findQuote`, `setControls`) for the script, so no second copy of either
 rule exists. A model-written page's Seed is deterministic, record *i* from index *i*, so a
 replayed log rebuilds the same rows and a test id's index or a quote finds the same row.
 
