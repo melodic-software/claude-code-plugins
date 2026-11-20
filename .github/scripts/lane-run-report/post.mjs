@@ -83,6 +83,13 @@ const validRow = (row) =>
   row.status >= 0 &&
   row.status <= 599;
 
+// A 404 on a tag-ref lookup means the tag does not exist yet
+// (check-trusted-trigger.mjs readDefaultBranchTip), not a failure, so
+// failureRows neither lists it nor counts it as dropped:
+// https://docs.github.com/en/rest/git/refs#get-a-reference
+const TAG_REF = /^(\/api\/v3)?\/repos\/\{repo\}\/git\/ref\/tags(\/\*)+$/;
+const expectedMiss = (row) => row.method === "GET" && row.status === 404 && TAG_REF.test(row.path);
+
 // The carried rows that have the recorded shape, each distinct row once, at
 // most MAX_ROWS, each path as its template (templatePath); dropped counts the rest and the run job's own dropped count.
 export function failureRows(text) {
@@ -96,15 +103,20 @@ export function failureRows(text) {
   const before = Number.isSafeInteger(carried?.dropped) && carried.dropped >= 0 ? carried.dropped : 0;
   const seen = new Set();
   const rows = [];
+  let misses = 0;
   for (const row of given) {
     if (!validRow(row)) continue;
-    const path = templatePath(row.path);
-    const key = `${row.method} ${path} ${row.status}`;
+    const templated = { method: row.method, path: templatePath(row.path), status: row.status };
+    if (expectedMiss(templated)) {
+      misses += 1;
+      continue;
+    }
+    const key = `${templated.method} ${templated.path} ${templated.status}`;
     if (seen.has(key) || rows.length >= MAX_ROWS) continue;
     seen.add(key);
-    rows.push({ method: row.method, path, status: row.status });
+    rows.push(templated);
   }
-  return { rows, dropped: before + given.length - rows.length };
+  return { rows, dropped: before + given.length - misses - rows.length };
 }
 
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };

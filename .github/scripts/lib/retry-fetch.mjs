@@ -27,7 +27,9 @@
 // $RUNNER_TEMP/lane-run-report/api-failures.jsonl for the lane run report
 // comment: the URL's path only, never its query, headers or body. A fetch
 // that already counts its answers (rate-guard.mjs countsRequests) writes its
-// HTTP failures there itself, so here only its network errors are added.
+// HTTP failures there itself, so here only its network errors are added. A
+// GET 404 on a tag ref is no line: the tag does not exist yet
+// (https://docs.github.com/en/rest/git/refs#get-a-reference).
 
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -80,10 +82,14 @@ export function isGraphQLRead(url, init = {}) {
   }
 }
 
+const TAG_REF_PATH = /^(\/api\/v3)?\/repos\/[^/]+\/[^/]+\/git\/ref\/tags\/./;
+
 export function recordFailure({ method, url, status, dir = process.env.RUNNER_TEMP }) {
   if (!dir) return;
   try {
     const path = new URL(String(url?.url ?? url), "https://api.github.com").pathname;
+    const verb = String(method ?? "GET").toUpperCase();
+    if (verb === "GET" && status === 404 && TAG_REF_PATH.test(path)) return;
     mkdirSync(join(dir, "lane-run-report"), { recursive: true });
     appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
   } catch {
