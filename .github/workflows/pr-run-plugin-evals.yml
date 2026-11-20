@@ -553,9 +553,11 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
+          probe_prompt=$(<.base/.github/scripts/plugin-eval/policy-probe-prompt.txt)
+          probe_prompt=${probe_prompt//RUNNER_ROOT/"$RUNNER_ROOT"}
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "$probe_prompt" \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
@@ -1245,9 +1247,11 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
+          probe_prompt=$(<.base/.github/scripts/plugin-eval/policy-probe-prompt.txt)
+          probe_prompt=${probe_prompt//RUNNER_ROOT/"$RUNNER_ROOT"}
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "$probe_prompt" \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"
@@ -1829,9 +1833,11 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
+          probe_prompt=$(<.base/.github/scripts/plugin-eval/policy-probe-prompt.txt)
+          probe_prompt=${probe_prompt//RUNNER_ROOT/"$RUNNER_ROOT"}
           for attempt in 1 2 3; do
             status=0
-            claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe, glob environ and path /proc/self; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
+            claude -p "$probe_prompt" \
               --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
             if grep -qF "$credential" "$out"; then
               echo "::error::the probe's result holds the credential, so no pull request case runs"

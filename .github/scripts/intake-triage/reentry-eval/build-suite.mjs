@@ -26,6 +26,7 @@ import { parseArgs } from "node:util";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, "../../../..");
 const CALLER = join(REPO_ROOT, ".github/workflows/intake-triage.yml");
+const RUBRIC = join(REPO_ROOT, ".github/scripts/intake-triage/triage-rubric.txt");
 const WORKDIR = ".intake-triage-eval";
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // Labels the stubbed label listing reports besides the caller's allowed set.
@@ -86,7 +87,6 @@ export function composeScript(reusable) {
   return scripts[0];
 }
 
-// The caller job's `with:` block scalars the compose step reads.
 export function callerInputs(caller, job = "intake-triage") {
   const lines = caller.split("\n");
   const at = lines.findIndex((line) => line === `  ${job}:`);
@@ -101,7 +101,6 @@ export function callerInputs(caller, job = "intake-triage") {
   return {
     ref: uses?.split("@")[1]?.split(/\s/u)[0] ?? "",
     allowedLabels: blockScalar(lines, /^\s+allowed-labels: \|\s*$/u, at).text,
-    instructions: blockScalar(lines, /^\s+instructions: \|\s*$/u, at).text,
   };
 }
 
@@ -211,6 +210,7 @@ export async function build({
   instructions = true,
   casesDir = join(HERE, "cases"),
   callerText = readFileSync(CALLER, "utf8"),
+  rubricText = readFileSync(RUBRIC, "utf8"),
 }) {
   const script = composeScript(reusable);
   const inputs = callerInputs(callerText);
@@ -252,7 +252,7 @@ export async function build({
         DUPLICATE_LIMIT: "200",
         MERGED_PULLS_FILE: `${WORKDIR}/merged-pulls.json`,
         MERGED_LIMIT: "100",
-        INSTRUCTIONS: instructions ? inputs.instructions : "",
+        INSTRUCTIONS: instructions ? rubricText : "",
       });
       const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema}\n`;
       const caseFile = join(dst, "case.yaml");
