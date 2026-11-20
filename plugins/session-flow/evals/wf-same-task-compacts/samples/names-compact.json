@@ -25,6 +25,14 @@
     {
       "answer": "Next step: /compacting the session",
       "why": "a different token sharing the prefix"
+    },
+    {
+      "answer": "Instead of a /compact, write a plan first.",
+      "why": "negated with a filler word"
+    },
+    {
+      "answer": "No need for /compact here.",
+      "why": "negated with a preposition"
     }
   ]
 }

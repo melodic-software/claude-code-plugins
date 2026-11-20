@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-clear
     type: regex
-    pattern: '^(?![^\n]*\b(?:not|never|no|skip|don''t|do not|instead of|rather than|no need to)\b(?:\s+(?:run|use|do|try|need|needed))?[\s`]*/clear)[^\n]*(?<![\w/-])/clear(?![\w-])'
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip|don''t|do not|instead of|rather than|no need to)\b[^\n,.;:]{0,30}?/clear)[^\n]*(?<![\w/-])/clear(?![\w-])'
     flags: 'mi'
     arm: both
   - name: one-recommendation

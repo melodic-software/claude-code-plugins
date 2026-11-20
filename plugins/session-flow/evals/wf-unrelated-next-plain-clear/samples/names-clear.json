@@ -25,6 +25,14 @@
     {
       "answer": "Next step: /clearance check",
       "why": "a different token sharing the prefix"
+    },
+    {
+      "answer": "Instead of a /clear, write a plan first.",
+      "why": "negated with a filler word"
+    },
+    {
+      "answer": "No need for /clear here.",
+      "why": "negated with a preposition"
     }
   ]
 }
