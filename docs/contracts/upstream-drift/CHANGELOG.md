@@ -4,6 +4,17 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.7.0] - 2026-11-20
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+The hourly triage sweep no longer dispatches intake for a trusted drift issue. The lanes token
+broker refuses a github-actions[bot] dispatch for an issue no listed human or lanes App wrote, so
+every such run failed after the model ran and then handed the issue to a maintainer. A person now
+triages a drift issue; admission still accepts it as its author with its fixed spec. The
+"Admission with no owner step" bullet says so.
+
 ## [6.6.0] - 2026-11-18
 
 Changed guidance; minor under this contract's own rule. No required part, canonical name, or
