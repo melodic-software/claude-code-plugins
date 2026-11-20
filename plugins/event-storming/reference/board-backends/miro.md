@@ -127,7 +127,7 @@ gives each of them one EventStorming role. Correlate that list with Miro's own
 
 *\*Partial = color matches but size cannot be controlled via MCP, because the bundled server's sticky tools take no size. Shape (`rectangle` vs `square`) is the workaround for size differentiation.*
 
-**Shape strategy:** Use `rectangle` for "large" building blocks (Read Model, External System) and markers (Pivotal Event, Temporal Milestone). Use `square` for everything else. This provides the visual size signal that distinguishes actors (small square) from read models (large rectangle) even though both can't be resized via MCP.
+**Shape strategy:** Use `rectangle` for "large" building blocks (Read Model, External System) and markers (Pivotal Event, Temporal Milestone). Use `square` for everything else. That shows a size difference between actors (small square) and read models (large rectangle), though neither can be resized via MCP.
 
 **Limitations:**
 
