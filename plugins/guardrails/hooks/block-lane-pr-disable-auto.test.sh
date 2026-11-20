@@ -35,7 +35,11 @@ if [[ -n "${FAKE_GH_FAIL:-}" ]]; then
 fi
 case "$1 $2" in
 "pr view") printf '%s\n' "$FAKE_GH_AUTHOR" ;;
-"api graphql") printf 'acme/widgets#42 %s\n' "${FAKE_GH_AUTHOR#app/}" ;;
+"api graphql")
+  t=User
+  [[ "$FAKE_GH_AUTHOR" == app/* ]] && t=Bot
+  printf 'acme/widgets#42 %s %s\n' "${FAKE_GH_AUTHOR#app/}" "$t"
+  ;;
 *) exit 3 ;;
 esac
 FAKE
@@ -123,8 +127,18 @@ for via in direct dispatched; do
 done
 
 check "an app/ slug in any case names the same App" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=app/ACME-Lanes
-check "the App option unset: every disable is blocked" 2 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "block_lane_pr_disable_auto_app is unset" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
-assert_eq "the App option unset: gh is never asked" "" "$(calls)"
-check "the App option unset: a merge without --disable-auto passes" 0 "$OTHER" 'gh pr merge 42 -R acme/widgets --auto' "" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
+UNSET=CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
+REASON_UNSET='opened by a GitHub App, and block_lane_pr_disable_auto_app is unset'
+check "unset: an App author is blocked" 2 'app/dependabot' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_UNSET" "$UNSET"
+check "unset: a [bot] login is blocked" 2 'dependabot[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_UNSET" "$UNSET"
+check "unset: a GraphQL Bot author is blocked" 2 'app/dependabot' \
+  'gh api graphql -f query='"'"'mutation{disablePullRequestAutoMerge(input:{pullRequestId:"PR_kw1"}){clientMutationId}}'"'"'' "$REASON_UNSET" "$UNSET"
+check "unset: a person's PR passes" 0 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "" "$UNSET"
+check "unset: a person's PR through GraphQL passes" 0 "$OTHER" \
+  'gh api graphql -f query='"'"'mutation{disablePullRequestAutoMerge(input:{pullRequestId:"PR_kw1"}){clientMutationId}}'"'"'' "" "$UNSET"
+check "unset: an author read that fails is blocked" 2 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "could not read the author" "$UNSET" FAKE_GH_FAIL=1
+check "unset: an unreadable target is blocked" 2 "$OTHER" 'gh pr merge "$N" -R acme/widgets --disable-auto' "$REASON_UNREAD" "$UNSET"
+check "set: the matching App login is blocked" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
+check "set: another App passes" 0 'app/dependabot' 'gh pr merge 42 -R acme/widgets --disable-auto'
 
 report

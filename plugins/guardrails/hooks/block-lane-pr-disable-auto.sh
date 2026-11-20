@@ -254,10 +254,6 @@ lpd::block() {
   exit 2
 }
 
-[[ -n "$LANE_APP" ]] ||
-  lpd::block "BLOCKED: guardrails cannot tell which App is the lanes App: block_lane_pr_disable_auto_app is unset." \
-    "Fix: set block_lane_pr_disable_auto_app to the lanes App login. To hold a lanes App pull request, add the do-not-merge label instead."
-
 # shellcheck disable=SC2016  # $(...) is literal text in the message
 LPD_LITERAL_FIX='Fix: write the target literally, gh pr merge <number> -R owner/repo --disable-auto, with no shell variable, $(...) or backticks. To hold a lanes App pull request, add the do-not-merge label instead.'
 ((LPD_BT)) &&
@@ -301,15 +297,15 @@ LPD_GHREPO=0
 # lpd::check <target>: read one target's author and block when it is the
 # lanes App.
 lpd::check() {
-  local kind sel repo what login hold
+  local kind sel repo what login kindof="" hold
   read -r kind sel repo <<<"$1"
   if [[ "$kind" == node ]]; then
     what="node $sel"
     # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
-    lpd::gh api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner} author{login}}}}' \
-      -f id="$sel" --jq '.data.node | "\(.repository.nameWithOwner)#\(.number) \(.author.login)"' ||
+    lpd::gh api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner} author{login __typename}}}}' \
+      -f id="$sel" --jq '.data.node | "\(.repository.nameWithOwner)#\(.number) \(.author.login) \(.author.__typename)"' ||
       lpd::block "BLOCKED: guardrails could not read the author of pull request $what ($LPD_ERR), so it cannot tell whether the lanes App opened it." "$LPD_LITERAL_FIX"
-    read -r what login <<<"$LPD_OUT"
+    read -r what login kindof <<<"$LPD_OUT"
   else
     what="$sel"
     if [[ "$repo" == - ]]; then
@@ -327,6 +323,7 @@ lpd::check() {
     login="$LPD_OUT"
   fi
   login="${login,,}"
+  [[ "$kindof" == Bot || "$login" == app/* || "$login" == *"[bot]" ]] && kindof=Bot
   login="${login#app/}"
   login="${login%\[bot\]}[bot]"
   if [[ "$login" == "$LANE_APP" ]]; then
@@ -334,6 +331,10 @@ lpd::check() {
     [[ "$kind" == cli && -n "$repo" && "$sel" =~ ^[0-9]+$ ]] && hold="gh pr edit $sel -R $repo --add-label do-not-merge"
     lpd::block "BLOCKED: pull request $what was opened by the lanes App ($LANE_APP). Turning off its auto-merge from this session reads as the owner's veto, and the pr-merge lane then never arms it again." \
       "Fix: hold it with the do-not-merge label instead ($hold). The lane disarms auto-merge while the label is on, and re-arms the pull request by itself when the label comes off."
+  fi
+  if [[ -z "$LANE_APP" && "$kindof" == Bot ]]; then
+    lpd::block "BLOCKED: pull request $what was opened by a GitHub App, and block_lane_pr_disable_auto_app is unset, so guardrails cannot tell whether it is the lanes App." \
+      "Fix: set block_lane_pr_disable_auto_app to the lanes App login. To hold a lanes App pull request, add the do-not-merge label instead."
   fi
   return 0
 }
