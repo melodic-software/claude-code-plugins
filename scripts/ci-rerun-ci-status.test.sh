@@ -79,20 +79,31 @@ if [[ -z "$admit_if" ]] || grep -qvE '^([[:space:]]|github\.[a-z_.]+|==|!=|&&|\|
 else
   admits() {
     local got
-    got="$(ADMIT_IF="$admit_if" RUN="$3" node -e '
+    got="$(ADMIT_IF="$admit_if" RUN="$3" REF="${4:-refs/heads/main}" node -e '
       const run = JSON.parse(process.env.RUN);
-      const github = { ref: "refs/heads/main", repository: "o/r", event: { workflow_run: run } };
+      const github = { ref: process.env.REF, repository: "o/r", event: { workflow_run: run } };
       process.stdout.write(new Function("github", "return (" + process.env.ADMIT_IF + ")")(github) ? "1" : "0");')"
     if [[ "$got" == "$1" ]]; then ok "if: $2"; else fail "if: $2 (got $got, want $1)"; fi
   }
   review_run() {
     jq -cn --arg path ".github/workflows/$1" --arg c "${2:-success}" --argjson n "${3:-1}" --arg by "${4:-kyle}" --arg hr "${5:-o/r}" \
-      '{path: $path, event: "pull_request", conclusion: $c, run_attempt: $n, triggering_actor: {login: $by},
-        repository: {full_name: "o/r"}, head_repository: {full_name: $hr}}'
+      --arg ev "${6:-pull_request}" --arg r "${7:-o/r}" \
+      '{path: $path, event: $ev, conclusion: $c, run_attempt: $n, triggering_actor: {login: $by},
+        repository: {full_name: $r}, head_repository: {full_name: $hr}}'
   }
-  admits 1 "a code-lane review completion is admitted" "$(review_run pr-review-hosted.yml)"
+  admits 1 "a code-lane review completion, or one the kill switch stopped (completes as success), is admitted" \
+    "$(review_run pr-review-hosted.yml)"
   admits 1 "a security-lane review completion is admitted" "$(review_run pr-review-security-hosted.yml)"
-  admits 1 "a review the kill switch stopped (completes as success) is admitted" "$(review_run pr-review-hosted.yml success)"
+  admits 1 "an approval review completion (pull_request_review) is admitted" \
+    "$(review_run pr-review-approved.yml success 1 kyle o/r pull_request_review)"
+  admits 0 "an approval review on pull_request is not admitted" "$(review_run pr-review-approved.yml)"
+  admits 0 "a hosted review on pull_request_review is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r pull_request_review)"
+  admits 0 "a hosted review on any other event is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r workflow_dispatch)"
+  admits 0 "a run on a non-main ref is not admitted" "$(review_run pr-review-hosted.yml)" refs/heads/feature
+  admits 0 "a run from another repository is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r pull_request other/r)"
   admits 1 "a failed review completion is admitted" "$(review_run pr-review-security-hosted.yml failure)"
   admits 1 "the reconciler's re-run of a review (attempt 2, pull_request) is admitted" \
     "$(review_run pr-review-hosted.yml success 2 'github-actions[bot]')"
