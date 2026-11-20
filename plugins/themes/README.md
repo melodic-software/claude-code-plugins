@@ -117,8 +117,9 @@ Changing the time or the weather by command shows within a few seconds and eases
 `/bedroom` alone shows a card in the conversation, so you need not know the words. It is six rows
 whatever is open, so it fits without scrolling: the theme on or off, reset, calibrate, titles and
 Close; a button for each switch showing whether it is on, then `pass` (someone passes the door),
-`door` (the hall light) and `bolt` (a lightning strike), each dim while its command would only say
-why not, the hallway off or no storm; the time of day (auto, then each phase
+`door` (the hall light's switch, checked while the light is on; the next press turns it off) and
+`bolt` (a lightning strike), each dim while its command would only say why not, the hallway off or
+no storm; `pass` and `bolt` run once; the time of day (auto, then each phase
 from the gray before dawn to night, the chosen one checked) and the weather (auto and each kind);
 dim, glass and blur steps beside on/off buttons for the television's signal and the hallway; and
 sound on or off with its volume, the bed playing, a sounds button and the last press's answer.

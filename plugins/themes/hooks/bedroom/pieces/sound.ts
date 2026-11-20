@@ -4,7 +4,7 @@ import { minuteOfHalfDay } from '../core/clock.js'
 import { ctxOf } from '../core/context.js'
 import type { Ctx, Piece, Switch } from '../core/piece.js'
 import { volumeOf, type Saved } from '../core/saved.js'
-import { forcedStrikeAt, scheduledStrikeShows, strike } from '../core/schedule.js'
+import { forcedStrikeAt, scheduledEventShows, strike } from '../core/schedule.js'
 import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
@@ -595,7 +595,7 @@ async function scheduledStrike($: EngineInterface, ctx: Ctx): Promise<void> {
   const second = strike(minute)
   if (second === undefined) return
   const at = ctx.nowMs + TAKEN_MS + second * 1000
-  if (!scheduledStrikeShows(at, worldMove().hurryAt + COMMAND_LAG_MS.screen)) return
+  if (!scheduledEventShows(at, worldMove().hurryAt)) return
   await thunderFor($, { at, delayS: strikeDelayS(minute) })
 }
 

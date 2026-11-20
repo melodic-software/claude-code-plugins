@@ -1,4 +1,4 @@
-import { EVENTS, HURRY, STRIKE } from './signals.gen.js'
+import { ACCEPT, EVENTS, HURRY, STRIKE } from './signals.gen.js'
 
 /**
  * The one storm schedule the mod and the shader share: a strike in a minute where (minute * every + shift) mod modulo
@@ -40,13 +40,22 @@ export function noteShaderStart(at: number | undefined): void {
   shaderFrom = at
 }
 
+/** When the shader started, or undefined while none runs: its own events start again from nothing then. */
+export function shaderStartedAt(): number | undefined {
+  return shaderFrom
+}
+
+/** From a hurry flip sent to the shader taking it: the app eases screen about 510 ms after the redraw, then holds ACCEPT.screen s. */
+const HURRY_TAKEN_MS = 510 + ACCEPT.screen * 1000
+
 /**
- * Whether the shader draws a minute's scheduled strike that falls at `at`: its weather column draws none in its first
- * EVENTS.after seconds, nor for HURRY.seconds after the hurry flip it took at `hurriedAt`.
+ * Whether the shader runs one of its own timed events (a scheduled strike, the hallway's pass or light) that falls at
+ * `at`: it runs none in its first EVENTS.after seconds, nor for HURRY.seconds after it takes the hurry flip sent at
+ * `hurrySentAt`.
  */
-export function scheduledStrikeShows(at: number, hurriedAt: number): boolean {
+export function scheduledEventShows(at: number, hurrySentAt: number): boolean {
   if (shaderFrom === undefined || at < shaderFrom + EVENTS.after * 1000) return false
-  return at >= hurriedAt + HURRY.seconds * 1000
+  return at >= hurrySentAt + HURRY_TAKEN_MS + HURRY.seconds * 1000
 }
 
 /**

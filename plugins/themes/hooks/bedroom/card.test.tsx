@@ -339,6 +339,38 @@ test('pass, door and bolt run the hallway\'s and the storm\'s commands, each dim
   await ui.unmount()
 })
 
+test('door is the hall light\'s switch: checked while the light is on, and the next press turns it off; pass and bolt stay plain', { timeoutMs: CARD_START_MS }, async ($, on) => {
+  const placed: string[] = []
+  const clock = engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, 'hall on')
+  await bedroom($, 'weather storm')
+  await bedroom($, '')
+  const room = await $.ui.mount(BACKDROP)
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+  const label = async (key: string): Promise<unknown> => (await ui.find({ key }))?.props.label
+  await clock.advance(60_000)
+
+  expect(await label('event-door')).toBe('door')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door ✓')
+  await ui.press({ key: 'event-pass' })
+  await ui.press({ key: 'event-bolt' })
+  expect([await label('event-pass'), await label('event-bolt')]).toEqual(['pass', 'bolt'])
+  await clock.advance(30_000)
+  expect(await label('event-door')).toBe('door ✓')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door ✓')
+  await clock.advance(4 * 60_000)
+  await bedroom($, 'status')
+  expect(await label('event-door')).toBe('door')
+  await bedroom($, 'weather clear')
+  await ui.unmount()
+  await room.unmount()
+})
+
 test('a pressed switch moves the shader\'s number once, straight to the end, and a typed order to the state it is in sends nothing', async ($, on) => {
   const placed: string[] = []
   const clock = engine(on, ['desktop'], placed)

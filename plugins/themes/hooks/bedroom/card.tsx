@@ -8,6 +8,7 @@ import { SWITCHES, type Switch } from './core/piece.js'
 import { isThemeOn } from './core/render.js'
 import { volumeOf } from './core/saved.js'
 import { WEATHERS } from './core/settings.js'
+import { hallLightOn } from './pieces/hallway.js'
 import { bedName } from './pieces/sound.js'
 import { chosenName, namesOf, type Kind } from './pieces/sound-bank.js'
 import { DEFAULT_STATE } from './scene/lib.ts'
@@ -58,7 +59,8 @@ export const CHANGE_MS: Record<Switch, readonly [number, number]> = {
 /**
  * The buttons after the switches that run one of the shader's events now, each through its command: someone passing
  * the door, the hall light behind the door, a lightning strike. One draws dim while its command would only say why not
- * (the hallway off, the weather not a storm); a press then shows that answer.
+ * (the hallway off, the weather not a storm); a press then shows that answer. `door` is the hall light's switch, so it
+ * carries a check while the light is on, as the time and weather rows mark the one in force; `pass` and `bolt` run once.
  */
 export const EVENT_BUTTONS = [
   { key: 'event-pass', label: 'pass', words: 'hall pass' },
@@ -259,11 +261,14 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
             </Button>
           )
         })}
-        {EVENT_BUTTONS.map(({ key, label, words }) => (
-          <Button key={key} label={label} dimColor={words === 'weather strike' ? weather !== 'storm' : !ctx.setting('hall')} onPress={() => press($, words)}>
-            {label}
-          </Button>
-        ))}
+        {EVENT_BUTTONS.map(({ key, label, words }) => {
+          const shown = key === 'event-door' && hallLightOn(ctx.nowMs) ? `${label} ✓` : label
+          return (
+            <Button key={key} label={shown} dimColor={words === 'weather strike' ? weather !== 'storm' : !ctx.setting('hall')} onPress={() => press($, words)}>
+              {shown}
+            </Button>
+          )
+        })}
       </Box>
       {now.titles === true
         ? TITLE_ROWS.map((keys, row) => (

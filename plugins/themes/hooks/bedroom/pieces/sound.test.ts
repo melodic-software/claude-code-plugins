@@ -5,7 +5,7 @@ import { minuteOfHalfDay, readNow } from '../core/clock.js'
 import { ctxOf, usePieces } from '../core/context.js'
 import type { Ctx, Fields, Piece } from '../core/piece.js'
 import { load, savedOf } from '../core/saved.js'
-import { noteForcedStrike, noteShaderStart, scheduledStrikeShows, strike } from '../core/schedule.js'
+import { noteForcedStrike, noteShaderStart, scheduledEventShows, strike } from '../core/schedule.js'
 import { useOptions } from '../core/settings.js'
 import { WORLD } from '../core/signals.gen.js'
 import { EVENING, startRoom } from '../core/testing.js'
@@ -613,11 +613,11 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
   const strikes = Array.from({ length: 240 }, (_, i) => 480 + i).filter(minute => strike(minute) !== undefined)
   const tickAt = (minute: number): number => new Date(evening.getFullYear(), evening.getMonth(), evening.getDate(), 20, minute - 480, 0, 50).getTime()
   const first = tickAt(strikes[0] ?? 0)
-  expect(scheduledStrikeShows(first, -Infinity)).toBe(false)
+  expect(scheduledEventShows(first, -Infinity)).toBe(false)
   noteShaderStart(first - 20_000)
-  expect(scheduledStrikeShows(first, -Infinity)).toBe(false)
-  expect(scheduledStrikeShows(first + 10_000, -Infinity)).toBe(true)
-  expect(scheduledStrikeShows(first + 10_000, first - 15_000)).toBe(false)
+  expect(scheduledEventShows(first, -Infinity)).toBe(false)
+  expect(scheduledEventShows(first + 10_000, -Infinity)).toBe(true)
+  expect(scheduledEventShows(first + 10_000, first - 15_000)).toBe(false)
   noteShaderStart(first - 120_000)
   const s = await stand(first - 1000)
   onWindows(s)
