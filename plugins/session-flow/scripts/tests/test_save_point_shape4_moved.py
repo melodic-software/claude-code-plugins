@@ -6,6 +6,7 @@ Writer contract: a moved section's body lives in this hop's file under
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from shape4_chain import SIDS
@@ -59,3 +60,42 @@ def test_retry_new_rewrites_a_hop_file_with_nothing_moved(tmp_path):
     )
     assert retry.returncode == 0, err(retry)
     assert Path(out(retry).strip()).is_file()
+
+
+TRAIL = [
+    f"- [h1] turn {n}: narrowed the scope again (agent-initiated)" for n in range(400)
+]
+
+
+def moved_trail_hop(tmp_path: Path) -> Path:
+    path = hop(
+        make_repo(tmp_path),
+        tmp_path,
+        values={
+            "observations": prose("observation", 9_000),
+            "skills": prose("skill", 9_000),
+            "trail": "\n".join(TRAIL),
+        },
+    )
+    assert body(path, "Direction changes").startswith("- Moved: archive/")
+    return path
+
+
+def amend(path: Path, tmp_path: Path, payload: dict):
+    file = tmp_path / "amend.json"
+    file.write_text(json.dumps(payload), encoding="utf-8")
+    return run("amend", str(path), "--json", str(file), "--now", "2026-09-01T11:00:00Z")
+
+
+def test_amend_appends_into_a_moved_direction_changes_body(tmp_path):
+    path = moved_trail_hop(tmp_path)
+    pointer = body(path, "Direction changes")
+    late = "- [h1] turn 400: the owner dropped the export step (user-initiated)"
+
+    result = amend(path, tmp_path, {"append": {"Direction changes": [late]}})
+
+    assert result.returncode == 0, err(result) + out(result)
+    assert body(path, "Direction changes") == pointer
+    read = run("read", str(path), "--section", "Direction changes")
+    assert out(read).strip("\n").split("\n") == [*TRAIL, late]
+    assert run("validate", str(path)).returncode == 0

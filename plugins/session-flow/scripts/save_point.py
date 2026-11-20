@@ -3270,9 +3270,24 @@ def cmd_amend(args: argparse.Namespace) -> int:
         else:
             hot[start + 1 : end] = [term, *(line + term for line in new), term]
 
+    hop_term = (_line_parts(hop[0])[1] if hop else "") or "\n"
     for title, items in append.items():
-        end = _section_end(_content_doc(hot), title)
         lines = [line for item in items for line in _value_lines(item)]
+        current = _content_doc(hot)
+        held = [line for line in current.section(title) or [] if line.strip()]
+        pointer = MovePointer.parse(held[0]) if len(held) == 1 else None
+        if pointer is not None and pointer.moves(title):
+            end = _section_end(_content_doc(hop), pointer.heading)
+            if pointer.file != rel or end < 0:
+                return _die(
+                    1,
+                    f"section {title!r} moved to {pointer.file}#{pointer.heading}, which this hop's file {rel} does not hold; nothing written",
+                )
+            if end == len(hop) and hop and not _line_parts(hop[-1])[1]:
+                hop[-1] += hop_term
+            hop[end:end] = [line + hop_term for line in lines]
+            continue
+        end = _section_end(current, title)
         # A blank line keeps an appended amendment from joining the unit above.
         lead = [term] if title == "Original goal" else []
         hot[end:end] = [*lead, *(line + term for line in lines)]
@@ -3352,7 +3367,6 @@ def cmd_amend(args: argparse.Namespace) -> int:
                     )
 
     if replaced:
-        hop_term = (_line_parts(hop[0])[1] if hop else "") or "\n"
         if hop and not _line_parts(hop[-1])[1]:
             hop[-1] += hop_term
         stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
