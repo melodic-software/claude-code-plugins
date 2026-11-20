@@ -735,7 +735,7 @@ export function createRateLimitLatch({
   // Whether a call to url would wait out its pool's stop rather than be refused.
   const waits = (url) => {
     const reset = resetMs(url);
-    return reset !== null && waited + reset <= budgetMs;
+    return reset !== null && waited + reset < budgetMs + 1000;
   };
 
   async function waitOut(url, method, wait = sleep) {

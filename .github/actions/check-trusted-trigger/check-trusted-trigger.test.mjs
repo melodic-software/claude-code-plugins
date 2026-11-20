@@ -2448,6 +2448,15 @@ test("a read answered retry-after 1 at the end of a second waits it out, not ref
   assert.equal(gh.sent.length, 2);
 });
 
+test("a read answered retry-after 60 mid-second still fits the 60 s budget and is resent", async () => {
+  const gh = flaky([secondaryLimit(60), { status: 200, body: '[{"number":7}]' }]);
+  const { failed, slept, options } = latchClock({ start: 500 });
+  const github = createGitHub({ ...gh.options, ...options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.equal(failed(), 0);
+  assert.deepEqual(slept, [61_500]);
+});
+
 // The same ride-out end to end on the process-wide latch: a read answered
 // retry-after 1 waits 2 s, is sent again and answered, and the process exits
 // with main's code, with no error annotation.
