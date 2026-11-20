@@ -2884,6 +2884,48 @@ test("a sent-round listing that cannot be read holds the PR", async (t) => {
   assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("more than 1000")), lines.join("\n"));
 });
 
+
+test("one run reads a URL or GraphQL query once until it writes, and a failed read is read again", async () => {
+  const sent = [];
+  let fail = true;
+  let graphqlAnswer;
+  const github = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example.test",
+    graphqlUrl: "https://api.example.test/graphql",
+    fetch: async (url, init) => {
+      sent.push(`${init.method} ${url}`);
+      if (String(url).endsWith("/runs/9") && fail) {
+        fail = false;
+        return new Response("{}", { status: 502 });
+      }
+      if (init.method === "POST" && String(url).endsWith("/dispatches")) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify(String(url).endsWith("/graphql") ? graphqlAnswer : { id: 7, labels: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const first = await github.getWorkflowRun(7);
+  first.labels.push("mutated");
+  assert.deepEqual((await github.getWorkflowRun(7)).labels, []);
+  const page = { data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } };
+  graphqlAnswer = page;
+  await github.listReviewThreads(5);
+  await github.listReviewThreads(5);
+  assert.equal(sent.length, 2);
+  graphqlAnswer = { errors: [{ message: "Something went wrong" }] };
+  await assert.rejects(github.listReviewThreads(6), /Something went wrong/);
+  graphqlAnswer = page;
+  await github.listReviewThreads(6);
+  assert.equal(sent.filter((s) => s.endsWith("/graphql")).length, 3);
+  await assert.rejects(github.getWorkflowRun(9));
+  await github.getWorkflowRun(9);
+  assert.equal(sent.filter((s) => s.endsWith("/runs/9")).length, 2);
+  await github.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "main", inputs: {} });
+  await github.getWorkflowRun(7);
+  assert.equal(sent.filter((s) => s.endsWith("/runs/7")).length, 2);
+});
 test("the finished-run listing reads every page of the window, and refuses a window past the API's 1,000 results", async () => {
   const urls = [];
   let rows = (page) => Array.from({ length: page === 1 ? 100 : 1 }, (_, i) => ({ id: page * 1000 + i }));
@@ -2898,7 +2940,8 @@ test("the finished-run listing reads every page of the window, and refuses a win
   assert.deepEqual(urls, [`${base}&page=1`, `${base}&page=2`]);
   rows = () => Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
   urls.length = 0;
-  await assert.rejects(api.listFinishedRunsSince("pr-unblock.yml", since), /more than 1000 finished runs/);
+  const fresh = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  await assert.rejects(fresh.listFinishedRunsSince("pr-unblock.yml", since), /more than 1000 finished runs/);
   assert.equal(urls.length, 10);
 });
 
