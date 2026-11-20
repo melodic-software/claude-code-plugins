@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 function rawFetches(source) {
   const code = source
     .split("\n")
@@ -87,4 +90,13 @@ test("every lane script that reaches GitHub gets its fetch from the rate guard, 
       .filter(([, found]) => found.length > 0),
   );
   assert.deepEqual(raw, Object.fromEntries(Object.entries(UNGUARDED).map(([file, { found }]) => [file, found])), "a raw fetch a listed file does not name, or a listed one that is gone");
+});
+
+test("modules copied without .github/actions load the rate guard only at run time", () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  for (const file of [".github/scripts/pr-unblock/address-feedback.mjs"]) {
+    const source = readFileSync(join(root, file), "utf8");
+    assert.doesNotMatch(source, /^import\s[^;]*["'][^"']*actions\/log-api-budget\//m, `${file} is imported from a copy of its directory alone, so a static import of the rate guard cannot resolve there`);
+    assert.match(source, /await import\(["']\.\.\/\.\.\/actions\/log-api-budget\/rate-guard\.mjs["']\)/, `${file} keeps its run-time import of the rate guard`);
+  }
 });
