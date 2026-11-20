@@ -12,18 +12,18 @@ The default audience is a **software engineering team** thinking about **pragmat
 AI in everyday development, engineering, and life**, not pure research breakthroughs, not
 speculative AGI debates. When ranking HIGH/MED/LOW, weight items by:
 
-- **Will an engineer use this next week?** → HIGH bias
+- **Will an engineer use this next week?** (a shipped tool, CLI, IDE or SDK release they can install now) → HIGH, even when the change is incremental; novelty does not demote it
 - **Does it change cost/access economics?** (model pricing, compute deals, chip launches that drop $/token) → HIGH bias
 - **Does it shift the legal/regulatory landscape with industry-wide impact?** (governance trials, copyright suits, AI-Act enforcement) → HIGH bias
 - **Is it real-world AI deployment at scale?** (robotaxi launches, humanoid production, AI-in-cars) → HIGH for production, MED for prototypes
-- **Is it pure research speculation or vibe?** (alignment thought-pieces, viral tweets) → LOW bias
+- **Is it pure research speculation or vibe?** (alignment thought-pieces, viral tweets) → LOW; list it, do not drop it
 
 This filter is the difference between "noise from the AI hype cycle" and "things that affect how a team ships".
 
 ## Apolitical filter: drop partisan content
 
 **Rule:** stay away from purely political / partisan material. Political-themed AI memes
-(politician deepfakes, campaign-AI controversies, partisan policy debates) get dropped.
+(politician deepfakes, campaign-AI controversies, partisan policy debates) get dropped. A dropped item is counted, never named, described, or linked anywhere in the briefing or the run report.
 They alienate part of the audience and don't serve "pragmatic use of AI in development".
 
 **Exception: true industry-wide controversy** that materially affects AI access, cost, or
