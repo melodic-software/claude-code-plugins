@@ -13,7 +13,8 @@ Seven skills, one capability:
   payload), under a posture: `necessary` (the default) keeps only machine-read
   directives, license headers, `TODO(#issue)` markers, paired comment-and-test
   records and a keep list (shipped: public-API doc comments, verified
-  outside-constraint comments and one-line ADR pointers; a repository can
+  outside-constraint comments, one-line ADR pointers and a script header's
+  exit-code list; a repository can
   supply its own), turning every other warning into a reshape flag;
   `explanatory` (opt-in) keeps every terse,
   load-bearing comment code cannot express; `none` (opt-in) keeps only the
@@ -283,7 +284,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `hard_exclusions` | string | `"enforce"` | How tidy, remove-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
 | `comment_posture` | string | `"auto"` | Which comments remove-comments keeps. auto (default): necessary. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: those plus the keep list (comment_keep_list). explanatory: whatever passes the earn-its-keep test. |
-| `comment_keep_list` | string | `"default"` | What the necessary posture keeps above the floor. default: the shipped list (public-API doc comments, verified outside-constraint comments, one-line ADR pointers). A repository-relative path: that file's criteria replace the shipped list; the floor always stays. |
+| `comment_keep_list` | string | `"default"` | What the necessary posture keeps above the floor. default: the shipped list (public-API doc comments, verified outside-constraint comments, one-line ADR pointers, a script header's exit-code list). A repository-relative path: that file's criteria replace the shipped list; the floor always stays. |
 | `comment_edit_scope` | string | `"diff"` | Which comments remove-comments triages on the uncommitted and branch scope rungs. diff (default): only comments on the lines the change adds. files: every comment in each changed file. An explicit target and the repository rung are always whole files. |
 | `encode_constraints_unattended` | boolean | `false` | When true, an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking, behind its tier's gate. When false (default), it offers the encoding in its report. |
 | `class_c_max_lines` | number<br>*min 1, max 40* | `2` | Lines a kept (class-C) comment may run before remove-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
