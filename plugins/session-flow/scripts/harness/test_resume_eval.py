@@ -206,7 +206,7 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
     assert doc["enabledPlugins"] == {"session-flow@melodic-software": False}
     deny = doc["permissions"]["deny"]
     assert "Bash(curl *)" in deny and "Bash(wget *)" in deny
-    assert not {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} & set(deny)
+    assert {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} <= set(deny)
     from fnmatch import fnmatchcase
 
     trailing_colon_star_reads_as_space_star = ":*)"
@@ -226,7 +226,7 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
         "git fetch git@h:x",
     ):
         assert any(fnmatchcase(remote, p) for p in patterns), remote
-    for local in ("git ls-remote origin", "git ls-remote --heads origin", "git fetch origin"):
+    for local in ("git fetch origin", "git fetch --prune origin"):
         assert not any(fnmatchcase(local, p) for p in patterns), local
     assert "WebFetch" in deny
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
