@@ -186,9 +186,11 @@ form, nothing in this skill changes. What differs here:
   run that repository's Phases 1 and 2 from the main thread with its root anchored. Never let one
   context both discover and validate the findings.
 - **Phase 0 and the config are resolved per repository.** Read the `.claude/rules/` files of each
-  repository's tree. Resolve the team and personal config layers
-  (`.claude/codebase-health.md`, `.claude/codebase-health.local.md`) from that tree, with the
-  user-global layer shared by all repositories. Run `read-verification.sh` as
+  repository's tree. Resolve the team config layer (`.claude/codebase-health.md`) from that tree.
+  Read the personal layer (`.claude/codebase-health.local.md`) from the clone's own root, never
+  from a scratch worktree: it is gitignored, so a detached worktree of `origin/HEAD` never holds
+  it, and reading it there would drop a clone's override only because the clone is behind or
+  dirty. The user-global layer is shared by all repositories. Run `read-verification.sh` as
   `CLAUDE_PROJECT_DIR=<tree> bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" ...`, because
   it otherwise reads the session's own project.
 - **A claim about another repository in scope is checked against that repository.** A claim in
