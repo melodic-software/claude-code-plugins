@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.1] - 2026-11-20
+
+### Changed
+
+- The behavior probes' review-bot thread scaffold gives its scratch repository the neutral origin `probe-owner/probe-repo` instead of a repository name of the publishing organization.
+
 ## [10.5.0] - 2026-11-19
 
 ### Added
