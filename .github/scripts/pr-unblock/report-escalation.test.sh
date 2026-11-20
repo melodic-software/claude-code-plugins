@@ -175,31 +175,14 @@ context_of() {
   if [[ $activity == resolve-conflicts ]]; then echo pr-unblock/conflict; else echo "pr-unblock/$activity"; fi
 }
 
-# The routes: a person only for the owner's three reasons (an intent or
-# design question, a CRITICAL security risk or a billing risk, a person's own
-# thread or hold) and a severity the lane cannot read. feedback-uncertain and
-# feedback-disputed are the findings no adjudicator judges: CRITICAL, a
-# security-review finding rated CRITICAL or unrated, one of no known
-# lane, or a person's own thread. feedback-round-cap is a person's hold or a
-# thread only a person decides. dependency-fix-refused is a commit of untrusted
-# provenance, a trust hold the owner keeps. Every other stop is a failing
-# status, and SESSION_REASONS, a change the lane cannot make (a protected
-# path, a weakened required check after its fresh fixer round, a check the
-# rung-up retry could not fix, a dependency update the review could not
-# finish, a review thread the lane left open with no verdict to settle it),
-# also put the PR in the session-builder
-# queue with needs-session instead of in front of a person.
 HOLD_REASONS=(feedback-round-cap-security feedback-uncertain-security feedback-disputed-security
   feedback-question-intent feedback-question-design feedback-question-security
-  dependency-security-close dependency-escalate dependency-fix-refused
+  dependency-security-close dependency-escalate
   dependency-escalate-intent dependency-escalate-design dependency-escalate-security dependency-escalate-cost
   superseded-by-main)
-# Each hold row's owner reason, the stop-reason code its comment carries: the
-# security rows and dependency-fix-refused (untrusted provenance, a trust hold
-# the owner keeps) are security; a feedback question is its own question.
 declare -A OWNER_REASONS=([feedback-round-cap-security]=security [feedback-uncertain-security]=security
   [feedback-disputed-security]=security [feedback-question-intent]=intent [feedback-question-design]=design
-  [feedback-question-security]=security [dependency-security-close]=security [dependency-fix-refused]=security [dependency-escalate]=intent
+  [feedback-question-security]=security [dependency-security-close]=security [dependency-escalate]=intent
   [dependency-escalate-intent]=intent [dependency-escalate-design]=design
   [dependency-escalate-security]=security [dependency-escalate-cost]=cost [superseded-by-main]=intent)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
@@ -207,7 +190,7 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
   dependency-pin-invalid dependency-pin-not-applied dependency-pin-protected-path
-  dependency-escalate-none
+  dependency-escalate-none dependency-fix-refused
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
   feedback-untaken-threads feedback-unadjudicated feedback-already-addressed

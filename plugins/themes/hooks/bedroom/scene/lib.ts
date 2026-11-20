@@ -75,6 +75,11 @@ export type State = {
   posters: 'plain'
   /** Titles written in the room. Absent, the made-up defaults show. */
   titles?: Titles
+  /**
+   * The room is drawn for the shader to run over: the console's title card stays on every screen, for the shader to
+   * show while the console plays and paint over at other times. Absent, the card shows only on the console's screen.
+   */
+  underShader?: true
 }
 
 /** The titles written in the room, kept on this machine only: the console game's on the screen, the tape's on its spine, and the pennant's two lines. */

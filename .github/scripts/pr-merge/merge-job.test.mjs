@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const text = readFileSync(join(root, ".github/workflows/pr-merge.yml"), "utf8");
 const jobBlock = (id) => {

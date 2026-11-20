@@ -413,12 +413,11 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: credit-marker$/m);
   const condition = /^ {8}if: (.*)$/m.exec(writeStep)[1];
-  // gate.cjs markerName at 09cf6f2: `key-credit-stop-${workflow file}-${key-job}`.
   // The upload writes it out so its retention row claims it; the write runs only
   // while the gate's `marker` output equals it, so a contract change uploads none.
-  const keyJob = /^ {10}key-job: (\S+)$/m.exec(step("Read the key's credit history"))[1];
-  const marker = `key-credit-stop-pr-verify.yml-${keyJob}`;
-  assert.equal(marker, "key-credit-stop-pr-verify.yml-check-intent");
+  const role = /^ {10}role: (\S+)$/m.exec(step("Read the key's credit history"))[1];
+  const marker = `key-credit-stop-${role.toUpperCase().replaceAll("-", "_")}_CLAUDE_API_KEY`;
+  assert.equal(marker, "key-credit-stop-PR_VERIFY_CLAUDE_API_KEY");
   assert.equal(condition, `always() && steps.credit.outputs.marker == '${marker}' && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
   assert.match(writeStep, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
   const scanStep = step(scan);
@@ -457,8 +456,7 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
 // uploads it right after the read; this key job does the same once its
 // credential check shows a judge step will start.
 test("the key job writes, scans and uploads the gate's probing marker once a judge step will start", () => {
-  // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
-  const probe = "key-credit-probing-pr-verify.yml-check-intent";
+  const probe = "key-credit-probing-PR_VERIFY_CLAUDE_API_KEY";
   const [write, scan, upload] = PROBE_STEPS;
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: probe-marker$/m);
@@ -1989,8 +1987,8 @@ test("the no-real-key check fails on the real key in the managed settings or a p
 // workflow file and key-job (gate.cjs markerName and probeName:
 // `key-credit-stop-<file>-<key-job>`,
 // `key-credit-probing-<file>-<key-job>`), so this workflow writes its own.
-const CAP_MARKER = "key-credit-stop-pr-verify-capture.yml-capture";
-const CAP_PROBING = "key-credit-probing-pr-verify-capture.yml-capture";
+const CAP_MARKER = "key-credit-stop-PR_VERIFY_CLAUDE_API_KEY";
+const CAP_PROBING = "key-credit-probing-PR_VERIFY_CLAUDE_API_KEY";
 const CAP_PROBING_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
 const CAP_MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const CAP_HANDOFF = "Report the key's handoff";
@@ -2210,7 +2208,7 @@ test("the capture writes, scans and uploads the probing marker once its probe wi
   assert.equal(stepIf(write), `always() && steps.credit.outputs.probing-marker == '${CAP_PROBING}' && steps.credential.outputs.present == 'true'`);
   const writes = (output, present) => runs(write, { steps: { credit: { outputs: { "probing-marker": output } }, credential: { outputs: { present } } } });
   assert.ok(writes(CAP_PROBING, "true"));
-  for (const [output, present] of [["", "true"], ["key-credit-probing-pr-verify.yml-check-intent", "true"], [CAP_PROBING, "false"], [CAP_PROBING, ""]]) {
+  for (const [output, present] of [["", "true"], ["key-credit-probing-REVIEWS_CLAUDE_API_KEY", "true"], [CAP_PROBING, "false"], [CAP_PROBING, ""]]) {
     assert.ok(!writes(output, present), `${output} ${present}`);
   }
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
@@ -2243,7 +2241,7 @@ test("the capture writes the credit-stop marker only after its probe's credit st
   const writes = (marker, reason) => runs(write, { steps: { credit: { outputs: { marker } }, probe: { outputs: { "handoff-reason": reason } } } });
   assert.ok(writes(CAP_MARKER, "credit-stop"));
   // An auth handoff says nothing of the key's credit; a marker the gate does not name is never written.
-  for (const [marker, reason] of [[CAP_MARKER, "auth"], [CAP_MARKER, ""], ["", "credit-stop"], ["key-credit-stop-pr-verify.yml-check-intent", "credit-stop"]]) {
+  for (const [marker, reason] of [[CAP_MARKER, "auth"], [CAP_MARKER, ""], ["", "credit-stop"], ["key-credit-stop-REVIEWS_CLAUDE_API_KEY", "credit-stop"]]) {
     assert.ok(!writes(marker, reason), `${marker} ${reason}`);
   }
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);

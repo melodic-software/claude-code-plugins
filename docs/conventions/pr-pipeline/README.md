@@ -17,6 +17,7 @@
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
 - [Write identities](#write-identities)
+- [Claude secrets](#claude-secrets)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -389,12 +390,12 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
    the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
    `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
-   within it, inside raised timeouts, since failing there drops finished work (#16642). So does
-   ci-status's merge-queue verdict reader after a read it did not send below the read floor,
-   for up to `WAIT_BUDGET_SECONDS.ciStatusVerify`, then judges again (owner decision D417), and
-   check-plugins' read of the queued pull request in a merge group, for up to
-   `WAIT_BUDGET_SECONDS.queuedPr`, since four gates refuse without it and eject the group.
-   Non-idempotent writes are never retried.
+   within it, inside raised timeouts, since failing there drops finished work (#16642). So do
+   a merge group's two waits, sharing `WAIT_BUDGET_SECONDS.mergeGroup` so that together they
+   stay inside the merge queue's check timeout: check-plugins' read of the queued pull request
+   first, since four gates refuse without it and eject the group, then ci-status's verdict
+   reader after a read it did not send below the read floor, for what the first left, before
+   it judges again (owner decision D417). Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
@@ -522,7 +523,7 @@ too, and a failed read holds it), and no escalation since then names a reason of
 own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
 `feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
 `resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
-`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+`pr-refine.yml`'s `select-passes` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
 else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
 their `labels-absent`. `check-signed-commits`' escalation holds the PR too, even under a lane
 escalation: a `github-actions[bot]` comment whose first line is `<!-- check-signed-commits hold -->`,
@@ -716,7 +717,7 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+`fix-docs-head-held` job succeeded, which runs only when `select-passes` could not read the head
 or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for its next event.
 
@@ -2454,9 +2455,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
-  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  branch and hands the pull request to a session builder. The verdict job posts no merge marker unless
   every commit is Dependabot's own or a commit that passes the fix rule,
-  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`, a
+  `needs-session` stop: a session builder drops or rebuilds the commit, and the new head starts clean)
   ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit; any other commit, a
   `github-actions[bot]` one included, is `commit-not-dependabot:<sha>`. On a reviewed pull request the lanes App's
@@ -3715,6 +3717,69 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml`, `maintenance-repin-ci-workflows.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
+## Claude secrets
+
+Every job that reads a Claude secret (an API key or Claude Code OAuth token) names the `claude-lanes`
+environment as `environment: { name: claude-lanes, deployment: false }`. The environment's
+deployment branch policy admits `main` alone, so the job starts only in a run whose ref is `main`:
+a workflow file changed on any other branch never reaches a secret stored there. GitHub refuses
+such a job before it reaches a runner, with or without `deployment: false`
+([probe run](https://github.com/melodic-software/claude-code-plugins/actions/runs/44604030055):
+"Branch ... is not allowed to deploy to claude-lanes due to environment protection rules"), and
+`deployment: false` keeps the job out of the deployment history
+([GitHub](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)).
+
+- A lane that reads one starts from an event whose run is on `main`: `workflow_run`,
+  `pull_request_target`, `schedule`, `issues`, a push to `main`, or a dispatch on `main`. GitHub
+  checks a `pull_request` run against `refs/pull/<n>/merge` and a `pull_request_target` run against
+  the default branch
+  ([changelog](https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/)).
+- A job that calls a reusable workflow cannot name an environment, so the called workflow's jobs
+  do; the caller still passes each secret by name
+  ([GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
+  ci-workflows' `intake-triage.yml` and `pr-review-cli.yml` take the environment as their
+  `environment` input, so a caller passes `with: environment: claude-lanes`. Three callers stay
+  listed in `PENDING_REMOTE` in `scripts/check-claude-secrets-environment.mjs`: Intake Triage
+  until the standards runner-policy contract for its reusable allows that input, and the two
+  hosted review callers, which start on `pull_request`, until they move to `workflow_run`
+  ([#17537](https://github.com/melodic-software/claude-code-plugins/issues/17537)).
+- A caller may pass a secret under the reusable workflow's own name for it: the called job in the
+  environment resolves the caller's `secrets.<name>` there ("You can pass a secret by name even if
+  it only exists in the environment",
+  [GitHub](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)). The
+  read runner already depends on it: `SCAN_CARRIER_PRIVATE_KEY` exists only in the
+  `pr-pipeline-scan-carrier` environment, its callers pass it as `scan-carrier-private-key`, and
+  the scan job's decode, which refuses an empty key, succeeds
+  ([run](https://github.com/melodic-software/claude-code-plugins/actions/runs/44613075678)).
+- An environment secret shadows an organization or repository secret of the same name, so a job
+  in the environment reads the organization copy until the environment holds its own.
+- PR Run Plugin Evals keeps its `eval: run` label without `pull_request_target`: the label runs
+  `pr-run-plugin-evals-label.yml`, which holds no secret, and its completion starts the eval legs on
+  `workflow_run` from `main`. That recorder run is the head's copy, so the legs read nothing it
+  wrote: `check-trusted-trigger` resolves the pull request from the run's head, and
+  `check-label-sender.sh` reads the draft state and a `labeled` event by the triggering listed human
+  from the API.
+
+`scripts/check-claude-secrets-environment.sh [--check]` holds these rules in `Lint Repo` over every
+file in `.github/workflows/`, printing one `path:line: finding` per offender on stderr:
+
+1. A job that reads a Claude secret names environment `claude-lanes`, as a bare name or a map
+   whose `name` is `claude-lanes`. A job reads one when a `${{ }}` expression in it, or in the
+   workflow-level `env`, reads `secrets.<name>` with `claude` or `oauth` in the name (any case),
+   reads the secrets context by a computed name or whole (`secrets[...]`, `toJSON(secrets)`), or
+   reads a name a local caller passes such a secret under.
+2. A job that passes such a secret, or `secrets: inherit`, to a reusable workflow in this
+   repository moves rule 1 onto the called jobs. Passing one to a reusable workflow elsewhere fails
+   unless the job sets `with: environment: claude-lanes` (the literal name, not an expression) or
+   `PENDING_REMOTE` names the job, and an entry that stops matching fails too.
+3. A job naming `claude-lanes`, or passing it as `with: environment`, is in no workflow a `pull_request`, `pull_request_review`,
+   `pull_request_review_comment`, `merge_group` or off-`main` push starts. A push is off-`main`
+   unless its filter is exactly `branches` naming only `main`. A `workflow_call` workflow takes
+   the triggers of every local caller.
+
+It exits 0 when clean, 1 on any offender, and 2 on a usage error or a missing `node`, `yaml`
+package (`npm ci --prefix .github/standards/runner-policy`) or workflows directory.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -4579,6 +4644,9 @@ finds the run. Read its result against three limits before counting it as eviden
   `pr-run-activity-write.yml` differs from the default branch
   ([request-lane-token](../../../.github/actions/request-lane-token/README.md#a-workflow-file-the-pr-changes)),
   so for such a lane the run proves only the steps before the mint.
+- A job that reads a Claude secret runs in the `claude-lanes` environment, which refuses a run
+  on any ref but `main` ([Claude secrets](#claude-secrets)), so a branch run proves only the jobs
+  that read none.
 - A run a dispatcher sends must name the default branch as its ref
   ([check-trusted-trigger](../../../.github/actions/check-trusted-trigger/README.md#rules)), so a
   branch run tests the dispatcher or the lane started by hand, never the pair.
