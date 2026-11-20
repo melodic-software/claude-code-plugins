@@ -150,13 +150,17 @@ copy of the ladder; every other file points here.
    agent. Do not re-dispatch at once. If
    this run has agents of its own running, wait for one to return. If it has
    none, do phase work that needs no agent, or wait a few minutes with a
-   Monitor wait, never a foreground `sleep`. Then dispatch the
+   Monitor wait, never a foreground `sleep`: a foreground sleep holds the
+   turn, so nothing else in the run moves until it ends, while a Monitor wait
+   leaves the session free and wakes it when the wait is over. Then dispatch the
    refused units once more, and record each wait and each refusal on the
    checklist. A unit refused again falls to rung 2 with the refusals recorded.
    Rung 1 does not apply to a refusal.
    - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
      (the refusal text, what it tells the caller, and when spawning succeeds
      again).
+   - **Pointer**: <https://code.claude.com/docs/en/tools-reference#monitor-tool>
+     (what a Monitor wait does and where it is unavailable).
 1. **Retry window** (an agent that died, not a refusal): re-dispatch the same
    brief once; record the death and the retry.
 2. **Inline-with-disclosure**: if the retry also dies, or a unit was refused

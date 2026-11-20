@@ -201,9 +201,9 @@ path stays inside `<work-root>/digests/` before writing.
   names its own directory.
 - **Exact bytes:** write a source's literal `\uXXXX` escape with a script file run as
   `python3 <script>.py`, never with Edit or Write (the script spells the backslash as `\x5c`,
-  never as a literal escape), then confirm the bytes with `od -c`. Edit and Write take their text
-  through a JSON parameter, which decodes the escape, and they have written such an escape as its
-  decoded character; verifiers diff quotes character-for-character, so that write fails the diff. A
+  never as a literal escape), then confirm the bytes with `od -c`. We rule out Edit and Write
+  because agent edits through them have been seen writing such an escape as its decoded character;
+  verifiers diff quotes character-for-character, so that write fails the diff. A
   write made that way skips the content guards that run on Edit and Write, so keep the route for
   these bytes only.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a fence payload is an exact contiguous
