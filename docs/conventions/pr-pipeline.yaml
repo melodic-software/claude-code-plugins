@@ -1921,6 +1921,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/lib/lane-binding.mjs"
         class: enforcement
+      - glob: ".github/scripts/pr-unblock/lane-record-cache.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-unblock/dispatch-record.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/verify-cap.mjs"

@@ -619,6 +619,14 @@
         ".github/workflows/pr-dispatch-feedback.yml#dispatch"
       ]
     },
+    "pr-feedback-lane-records": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-unblock/lane-record-cache.mjs LANE_RECORD_CACHE, the newest one, on a Dispatch tick's first bound lane comment"
+      ],
+      "reason": "Read by the next Dispatch tick, which writes its own; 1 day is the minimum. It holds settled lane runs' fields and their comment records (ids and body digests), no model text.",
+      "scan": "upload"
+    },
     "pr-feedback-deferred-*": {
       "retention-days": 1,
       "readers": [

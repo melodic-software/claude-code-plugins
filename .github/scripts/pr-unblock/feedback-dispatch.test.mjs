@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
@@ -34,6 +35,7 @@ const CLAUDE = { databaseId: 209825114 };
 const KYLE = { databaseId: 153232337 };
 const UPSTREAM_RUN_ID = "38779135732";
 const RUN_ID = "38779143370";
+const LANE_RUN = 4242;
 
 const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
@@ -803,6 +805,41 @@ test("main writes run-id and takes the upstream run from the event file", async 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+async function laneRecordsMain(api, actions) {
+  const dir = tempDir("pr-dispatch-feedback-");
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const path = join(dir, "lane-records.json");
+  const listed = [];
+  api.listArtifactsNamed = async (name) => {
+    listed.push(name);
+    return [];
+  };
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: eventFile(dir), APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir), FEEDBACK_LANE_RECORDS_PATH: path };
+  await main(env, { api, actions, resolveSlot: async () => resolvedLane(), log: () => {} });
+  return { listed, output: readFileSync(output, "utf8"), saved: existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null };
+}
+
+test("a tick with no bound lane comment reads and writes no lane record cache", async () => {
+  const actions = fakeActions({});
+  const { listed, output, saved } = await laneRecordsMain(fakeApi(), actions);
+  assert.deepEqual(listed, [], "no cache listing");
+  assert.equal(saved, null, "no cache file");
+  assert.doesNotMatch(output, /lane-records=/, "nothing to upload");
+});
+
+test("a tick that checks a bound lane comment saves the settled run for the next tick", async () => {
+  const body = bound("Off by one.", { run: LANE_RUN });
+  const comment = { id: 11, user: ACTIONS_BOT, body, created_at: "2026-10-17T10:00:00Z", updated_at: "2026-10-17T10:00:00Z" };
+  const actions = fakeActions({ [LANE_RUN]: { path: ".github/workflows/pr-review-hosted.yml", artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(body, { pr: 42, kind: "issue_comment" })] }] } });
+  const listArtifacts = actions.listArtifacts;
+  actions.listArtifacts = async (id) => (await listArtifacts(id)).map((row) => ({ ...row, expires_at: "2099-01-01T00:00:00Z" }));
+  const { listed, output, saved } = await laneRecordsMain(fakeApi({ comments: [marker("claude-review"), marker("claude-security-review"), comment] }), actions);
+  assert.deepEqual(listed, ["pr-feedback-lane-records"], "one cache listing");
+  assert.match(output, /^lane-records=true$/m, "the file is named for upload");
+  assert.deepEqual(Object.keys(saved.runs), [`${LANE_RUN}/1`], "the settled lane run, at its attempt");
 });
 
 // A pr-verify run ran on main: its head is main's, so main takes the head its
