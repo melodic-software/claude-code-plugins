@@ -1,18 +1,5 @@
 // GENERATED from lib/ui-feedback/proto-pin.js by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Pin helper for a framed non-final page (docs/contracts/ui-feedback). The host appends it as an inline script: the
-// planning shared page's server.py when it frames /assets/<id>.html?pin=1, the notes bridge when it hands host.html the
-// page. It runs inside the page's sandbox (scripts, no same origin), so it can reach nothing but the page and its
-// parent window. It answers the host by postMessage only: when the person pins an element, its path, box and up to 60
-// characters of its label, plus its structural anchor (variant and state keys, content set, nearest test id and its
-// index in that scope, role attribute, tag, and its path from that scope) and the view snapshot; never the page's
-// markup. Hosts that ask for more get more: a region the person drags or moves with the keys (its box, the element
-// holding it and the elements it crosses), and the selected text as a quote with a little visible text either
-// side, both only on a model-written page (docs/contracts/rendered-views, rule 9). The host checks every message it
-// receives and keeps only what its contract admits. For a script re-locating a note, window.uiFeedbackRelocate
-// replays a data log, finds a quote and sets the controls, with the same rules this file takes them by. When the page
-// carries the controls runtime (controls.js), the ready message also carries its manifest and the data controls and
-// content sets it marks, and the host page's Controls tab sets values and presses data controls through this file.
 (() => {
   if (window.parent === window) return;
   const root = document.documentElement;
