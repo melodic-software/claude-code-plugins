@@ -878,6 +878,7 @@ class Unattended(unittest.TestCase):
         self.pr_commits: list[dict[str, Any]] | None = None
         self.compare_answers: dict[str, Any] = {}
         self.pr_labels: list[dict[str, Any]] = []
+        self.pr_stack: Any = None
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
         # Reads of the pipeline config at `main_head` when it is not the
@@ -980,6 +981,7 @@ class Unattended(unittest.TestCase):
             "mergeable_state": self.pr_mergeable_state,
             "user": self.pr_user,
             "labels": self.pr_labels,
+            "stack": self.pr_stack,
             **(
                 {"state": self.pr_rest_state[0], "merged": self.pr_rest_state[1]}
                 if self.pr_rest_state
@@ -1477,6 +1479,13 @@ class LaneMode(Unattended):
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
         )
+
+    def test_the_lane_neither_pins_nor_enqueues_a_native_stack_layer(self) -> None:
+        self.pr_stack = {"number": 401, "base": {"ref": "main"}}
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.capture.assert_not_called()
+        self.assertEqual(self.log, [])
 
     def test_the_pin_names_the_rung_the_lane_enqueued_under(self) -> None:
         # The publisher credits a merge to its rung's cells, read
@@ -2395,6 +2404,26 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(self.log, ["disarm"])
         self.assertIs(out["unattended"]["enqueue"]["disarmed"], True)
+
+    def test_a_native_stack_layer_gets_no_pin_and_no_enqueue(self) -> None:
+        self.pr_stack = {"number": 401, "base": {"ref": "main"}}
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.capture.assert_not_called()
+        self.assertEqual(self.log, [])
+        self.assertTrue(
+            any(
+                b.startswith("unattended merge refused: native-stack-layer:")
+                for b in out["blockers"]
+            ),
+            out["blockers"],
+        )
+
+    def test_a_null_stack_still_enqueues(self) -> None:
+        self.pr_stack = None
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
     def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
