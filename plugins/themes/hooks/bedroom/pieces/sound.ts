@@ -9,7 +9,7 @@ import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
 import { KINDS, OBJECTS, PURR, SILENCE, chosen, chosenName, lengthOf, namesOf, shotsOf, type Kind } from './sound-bank.js'
-import { PING_MS, fileOf, linesOf, mixerScript, type MixerCommand } from './sound-mixer.js'
+import { PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, powershellArgv, type MixerCommand } from './sound-mixer.js'
 
 /**
  * Sound, off by default (/bedroom sound): a bed (cicadas from dusk through night in dry weather; rain, a downpour or a
@@ -165,7 +165,8 @@ function openOut($: EngineInterface, player: Player): Out {
 /** The mixer's child, read for its life: its lines, then how it ended. Leaving the loop ends the child. */
 async function runMixer($: EngineInterface, o: Out, m: Mixer): Promise<void> {
   if (o.player.kind !== 'mixer') return
-  const child = $.process.spawn({ argv: ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', mixerScript(o.player.root)] })
+  const started = await $.clock.now()
+  const child = $.process.spawn({ argv: powershellArgv(mixerScript(o.player.root)) })
   child.result.catch(() => undefined)
   m.kill = () => void child.return(undefined as never).catch(() => undefined)
   if (o.isDone) m.kill()
@@ -196,6 +197,16 @@ async function runMixer($: EngineInterface, o: Out, m: Mixer): Promise<void> {
   }
   if (o.isDone) return
   const { code } = await child.result
+  if (code === 0 && (await $.clock.now()) - started >= QUIET_MS) {
+    o.isDone = true
+    if (out === o) {
+      out = undefined
+      bed = undefined
+    }
+    ctxOf($).note(`sound: the mixer stopped after ${QUIET_MS / 1000} s with no command; the next sound starts it again`)
+    flush($)
+    return
+  }
   const last = said.split(/[\r\n]+/).filter(line => line.trim() !== '').at(-1)?.trim() ?? ''
   fail($, `the mixer exited ${code}${last === '' ? '' : `: ${last.slice(0, 160)}`}`)
 }
@@ -208,7 +219,7 @@ function writeCommands($: EngineInterface, m: Mixer): void {
   if (path === undefined) return
   m.writing = m.writing
     .then(() => $.fs.write(path, fileOf(m.pending)))
-    .catch(error => fail($, `writing the mixer's commands failed: ${error instanceof Error ? error.message : String(error)}`))
+    .catch(error => fail($, `writing the mixer's commands to ${path} failed: ${error instanceof Error ? error.message : String(error)}`))
 }
 
 function mixerSend($: EngineInterface, o: Out, command: MixerCommand): void {
@@ -642,7 +653,7 @@ export async function engineCommand($: EngineInterface, ctx: Ctx, word: string, 
         return `${player.name} played ${SILENCE}`
       }
       if (player.kind === 'mixer') {
-        const { exitCode } = await $.process.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName PresentationCore'], { timeoutMs: 20_000 })
+        const { exitCode } = await $.process.run(powershellArgv('Add-Type -AssemblyName PresentationCore'), { timeoutMs: 20_000 })
         return `${player.name} loaded its player and exited ${exitCode}`
       }
       const { exitCode } = await $.process.run(player.argv(SILENCE, 0, false), { timeoutMs: lengthOf(SILENCE) + 15_000 })

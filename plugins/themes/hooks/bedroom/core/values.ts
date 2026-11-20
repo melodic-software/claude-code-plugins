@@ -308,13 +308,17 @@ export async function send($: EngineInterface, why: string, fields: Fields, opti
   await ask($, why)
 }
 
-/** Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes. */
+/**
+ * Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes.
+ * The same cue while its code still shows goes WORLD_GAP_MS after the atmosphere is sent back.
+ */
 export async function sendCue($: EngineInterface, id: number, why: string): Promise<number> {
   const delay = offerCue(id, await readNow($))
   const sentNow = cueWaiting === undefined
   if (!worldTimer) armWorld($, delay)
   await ask($, why)
-  return sentNow ? 0 : delay
+  if (sentNow) return 0
+  return worldSent === WORLD.top + id ? delay + WORLD_GAP_MS : delay
 }
 
 /** Offers the world that waits once its 6 s have passed; a shader start since the timer was armed moves them later. */

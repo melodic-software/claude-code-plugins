@@ -13,7 +13,7 @@ import { rebuild, startShader } from '../core/values.js'
 import { DEFAULT_STATE } from '../scene/lib.ts'
 import { BUILT, WITHOUT } from './index.js'
 import { BANK, LENGTH_MS, OBJECTS, PURR, chosenName, lengthOf, namesOf } from './sound-bank.js'
-import { BEAT_MS, PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, wordsOf } from './sound-mixer.js'
+import { BEAT_MS, PING_MS, QUIET_MS, STEADY_MS, encodedOf, fileOf, linesOf, mixerScript, powershellArgv, wordsOf } from './sound-mixer.js'
 import {
   COMMAND_LAG_MS,
   HURRIED_MS,
@@ -100,7 +100,11 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
   let clockNow = (): number => 0
   on('process.spawn', async function* (_, e) {
     const m: FakeMixer = { ran: [], outbox: [], ended: false, last: 0 }
-    if (e.argv[0] === 'powershell.exe') mixers.push(m)
+    if (e.argv[0] === 'powershell.exe') {
+      mixers.push(m)
+      expect(e.argv.slice(0, 4)).toEqual(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand'])
+      expect(e.argv.some(word => word.includes('$') || word.includes('MediaPlayer'))).toBe(false)
+    }
     yield* mixerChild(m, () => clockNow(), wake => void setTimeout(wake, 20))
   })
   const room = await startRoom($, on, { fakes: false, onWrite: (path, text) => (path === COMMANDS ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
@@ -167,7 +171,17 @@ test("the mixer's command file, its answers and its script", () => {
   expect(script).toContain(`if($now-$seen -gt ${QUIET_MS}){break}`)
   expect(script).toContain(`if($now-$beat -ge ${BEAT_MS})`)
   expect(script).toContain('Remove-Item -LiteralPath $dir')
+  expect(script).toContain(`if($key -ne $stamp -or $now -ge $reread){$reread=$now+${STEADY_MS};`)
+  expect(script).not.toContain('else{break}')
+  expect(script.endsWith(';exit $code')).toBe(true)
   expect(PING_MS * 3).toBeLessThan(QUIET_MS)
+
+  expect([encodedOf('a'), encodedOf('ab'), encodedOf('abc'), encodedOf('é')]).toEqual(['YQA=', 'YQBiAA==', 'YQBiAGMA', '6QA='])
+  const argv = powershellArgv(script)
+  expect(argv.slice(0, 4)).toEqual(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand'])
+  expect(argv[4]).toMatch(/^[A-Za-z0-9+/]+=*$/)
+  expect(argv.length).toBe(5)
+  expect(argv.join(' ').length).toBeLessThan(32_767)
 })
 
 /** What the weather and time pieces would give: the fields the sound follows. */
@@ -461,6 +475,31 @@ test('S2: the mixer pings while it runs, and a mixer that exits by itself is one
   expect(s.mixers.length).toBe(1)
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['on'])).toMatch(/^sound is on/)
   await s.settle()
+  expect(s.mixers.length).toBe(2)
+  await quiet(s)
+})
+
+test('a mixer that stops by itself after its idle limit is started again with sound still on; an early clean exit is a failure', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 6, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.advance(QUIET_MS + 10)
+  s.mixers[0]!.exitCode = 0
+  s.mixers[0]!.wake?.()
+  await s.advance(WATCH_MS + 10)
+  expect(s.mixers[0]!.ended).toBe(true)
+  expect(s.notes()).toEqual([expect.stringMatching(/sound: the mixer stopped after 20 s with no command; the next sound starts it again$/)])
+  expect(s.mixers.length).toBe(2)
+  expect(ranBy(s).some(line => line.startsWith('bed '))).toBe(true)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).not.toMatch(/stopped:/)
+
+  await s.advance(1000)
+  s.mixers[1]!.exitCode = 0
+  s.mixers[1]!.wake?.()
+  await s.advance(WATCH_MS + 10)
+  expect(s.notes().at(-1)).toMatch(/sound: the mixer exited 0; nothing plays until \/bedroom sound on$/)
   expect(s.mixers.length).toBe(2)
   await quiet(s)
 })

@@ -85,7 +85,10 @@ bottom-left corner of the front of the dresser.
     excepted.
   - On Windows, and under WSL through Windows, one player process runs for as long as sound is on
     and mixes everything, so a sound plays within about a tenth of a second of its click; it ends
-    when sound goes off, the plugin unloads or the session ends. On macOS the app plays the
+    when sound goes off, the plugin unloads or the session ends. If it stops by itself after 20
+    seconds without a command from the mod, sound stays on and the next sound starts it again; if
+    it fails, sound turns off and `/bedroom sound` gives the reason. It takes its commands through
+    a file in the Windows temporary folder. On macOS the app plays the
     sounds. Elsewhere the mod runs a player it finds on `PATH` (`ffplay`, `paplay` or `aplay`) once
     for each sound: there a bed changes with a cut, not a fade.
   - The `soundPlayer` setting, when it is not empty, is used in place of all of these, on every
