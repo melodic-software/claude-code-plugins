@@ -438,6 +438,37 @@ def test_stub_gh_answers_from_the_fixture_in_order(tmp_path):
     ]
 
 
+@pytest.mark.parametrize(
+    ("name", "number", "head"),
+    [
+        ("re-late-event", 4460, "feat/stop-reason"),
+        ("re-superseded-rule", 4231, "ci/shared-spend-alarm"),
+    ],
+)
+def test_stub_pr_view_of_an_open_pr_names_its_head_branch(tmp_path, name, number, head):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", [name])[0]
+    stub = resume_eval.write_stub_gh(
+        tmp_path / "bin",
+        tmp_path / "fixture.json",
+        tmp_path / "gh-calls.log",
+        case["seed"]["gh_fixture"],
+        sys.executable,
+    )
+    done = subprocess.run(
+        [str(stub), "pr", "view", str(number), "--json", "state,headRefName"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    answer = json.loads(done.stdout)
+    assert (answer["state"], answer["headRefName"]) == ("OPEN", head)
+
+
 def test_history_can_continue_an_existing_chain():
     first = [
         json.loads(x)
