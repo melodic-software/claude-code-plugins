@@ -2877,6 +2877,11 @@ test("one run reads a URL or GraphQL query once until it writes, and a failed re
   await github.listReviewThreads(5);
   await github.listReviewThreads(5);
   assert.equal(sent.length, 2);
+  graphqlAnswer = { errors: [{ message: "Something went wrong" }] };
+  await assert.rejects(github.listReviewThreads(6), /Something went wrong/);
+  graphqlAnswer = page;
+  await github.listReviewThreads(6);
+  assert.equal(sent.filter((s) => s.endsWith("/graphql")).length, 3);
   await assert.rejects(github.getWorkflowRun(9));
   await github.getWorkflowRun(9);
   assert.equal(sent.filter((s) => s.endsWith("/runs/9")).length, 2);

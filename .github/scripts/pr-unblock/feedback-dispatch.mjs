@@ -1519,7 +1519,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     if (!reads.has(key)) {
       const read = answer(url, method, body, signal);
       reads.set(key, read);
-      read.catch(() => reads.delete(key));
+      read.then(
+        (data) => data?.errors?.length && reads.delete(key),
+        () => reads.delete(key),
+      );
     }
     return reads.get(key).then((data) => structuredClone(data));
   }
