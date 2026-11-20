@@ -1087,8 +1087,8 @@ telemetry comment, and re-reads them at each cycle start. Every counter in the b
 experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
-lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
-correctly declines to spend a worker, and nothing notices the aggregate is zero. Each unattended
+lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
+spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
 durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
@@ -1440,8 +1440,8 @@ copy and drift unwatched. With the exception list in the check, a new data carri
 the gate, which is the review the exception needs.
 
 **Neither half is optional, and path shape cannot supply either.**
-`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
-construction: it skips `SKILL.md` by basename, and it clusters copies by identical
+`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, cannot catch this
+case: it skips `SKILL.md` by basename, and it clusters copies by identical
 path-within-plugin, while these copies sit at unrelated paths. Copies can stay identical to each
 other, which is the half a reviewer notices, while all of them drift from the reader contract, so
 the check compares each copy against the contract. The scan exists because a registry alone can
@@ -1450,8 +1450,8 @@ miss a copy nobody registered.
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
-way for the guard to detect it. Same-machine account rotation is real operating practice, not a
-hypothetical.
+way for the guard to detect it. Same-machine account rotation happens: the owner rotates accounts
+by hand on the rate-limit alerts.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
 built, not a rule, and it fails open in a contract that fails closed on every other unresolvable

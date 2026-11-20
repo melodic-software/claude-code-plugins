@@ -470,7 +470,7 @@ strength. `portability-ok: <reason>` records one site: the coupling on that line
 a comment block carrying it) is excused and nothing else in the file is. `portability-scope:
 <reason>` declares the whole file inherently locked, the case a forge-locked capability under a
 forge-neutral name actually needs. Reach is the entire distinction, so the choice is a claim about
-what is true: a per-site annotation on a file that is genuinely scope-locked buries the boundary,
+what is true: a per-site annotation on a file that is genuinely scope-locked leaves the file's real scope undeclared,
 and a whole-file declaration used to silence one awkward line exempts every future coupling added to
 that file, including ones nobody reviewed. Neither is a frontmatter field; both are ordinary
 comments a reviewer reads in the diff. `scripts/check-skill-portability.sh` enforces this, with the
@@ -660,7 +660,7 @@ config file or an external tool and whose manifest carries only a kill switch.
 declared option is trivial** by the test above *and* neither (a) nor (b) holds. Declaring
 `userConfig` at all is not the trigger, and neither is the option count. The blunter rule
 "declares `userConfig` ⇒ ships a setup skill" reads as a coverage gap wherever a plugin's whole
-manifest is one kill switch, and closing that "gap" ships the ceremony this section forbids. Applied
+manifest is one kill switch, and closing that "gap" adds a setup skill with nothing to verify, which this section forbids. Applied
 to a real case (#3111): `context-budget` and `repo-hygiene` each earn one on (b), for a `node`-launched
 hook and a `git`-dependent tier set whose absence the native prompt cannot see, while
 `visualization`, whose lone `medium` option is a self-contained scalar whose out-of-set values fall
