@@ -667,6 +667,7 @@ async function changedFiles(github, slug, number) {
 // A listing past MAX_FILE_PAGES: no lane can ever judge its hold and cost
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
+export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes are already on main";
 
 // The verifier refusals that never clear for the pull request
 // (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap. decide closes
@@ -1530,6 +1531,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   }
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
+  }
+  if (Array.isArray(detail.files) && detail.files.length === 0) {
+    return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REASON, clears: "lane" };
   }
   // A head a pr-unblock lane stopped is never queued: only this job reads the
   // stop. A status list that did not read holds it too.

@@ -60,6 +60,7 @@ import {
   readRoom,
   TRUST_REFUSALS,
   FILES_CAPPED_REASON,
+  EMPTY_DIFF_REASON,
   UNARMED_OUTPUT,
   WAKE_OUTPUT,
   verifyClears,
@@ -838,6 +839,27 @@ test("a listing past the page cap is a person's refusal; one that did not read i
     reason: "its changed files could not all be read",
     clears: "lane",
   });
+});
+
+test("a pull request whose diff against main is empty is refused with the lane's note, never verified or armed", async () => {
+  const empty = await run([pull(1, { files: [] })]);
+  assert.equal(empty.code, 0);
+  assert.deepEqual(empty.writes, [], "an empty diff is not armed");
+  assert.deepEqual(empty.verified, [], "an empty diff spends no verifier read");
+  assert.deepEqual(empty.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote("its diff against main is empty, so its changes are already on main") } }]);
+  const changed = await run([pull(1, { files: [{ filename: "plugins/work-items/README.md" }] })]);
+  assert.deepEqual(changed.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "a non-empty diff arms as before");
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  assert.deepEqual(decide(pull(1, { autoMergeRequest: { enabledAt: NOW } }), options, { ...detail(), files: [], filesCapped: false, verify: PASSED }), { action: "disarm", reason: EMPTY_DIFF_REASON, clears: "lane" }, "an armed empty diff is disarmed");
+});
+
+test("a changed-files list that is unread or capped never reads as an empty diff", async () => {
+  const unread = await run([pull(1, { files: [] })], {}, { filesError: new Error("GET files failed with status 502") });
+  assert.deepEqual(unread.writes, []);
+  assert.ok(!unread.lines.some((line) => String(line).includes(EMPTY_DIFF_REASON)), "an unread listing is not refused as empty");
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  assert.equal(decide(pull(1), options, { ...detail(), files: null, filesCapped: false, verify: PASSED }).reason, "its changed files could not all be read");
+  assert.equal(decide(pull(1), options, { ...detail(), files: [], filesCapped: true, verify: PASSED }).reason, FILES_CAPPED_REASON);
 });
 
 test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes at the head, and an arm or a person's refusal a passing one", async () => {
@@ -1844,7 +1866,7 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
     // Files outside the hold paths, so only the body decides.
-    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: [], verify: PASSED });
+    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: ["docs/a.md"], verify: PASSED });
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
@@ -1886,8 +1908,8 @@ test("an armed pull request a member now vetoes is disarmed", async () => {
 test("a pull request whose discussion cannot all be read is not armed", async () => {
   const cut = { totalCount: 101, nodes: [] };
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
-  assert.equal(decide(pull(1), options, { ...detail(), files: [], verify: PASSED }).action, "arm");
-  const held = (pr) => decide(pull(1), options, { ...detail(), files: [], ...pr });
+  assert.equal(decide(pull(1), options, { ...detail(), files: ["docs/a.md"], verify: PASSED }).action, "arm");
+  const held = (pr) => decide(pull(1), options, { ...detail(), files: ["docs/a.md"], ...pr });
   assert.equal(held({ comments: cut }).action, "none");
   assert.equal(held({ reviews: cut }).action, "none");
   assert.equal(held({ reviewThreads: cut }).action, "none");
@@ -1908,7 +1930,7 @@ test("auto-merge a person turned off stays off; one the lanes App turned off is 
 test("a person's later enable or merge-queue add clears their auto-merge disable", async () => {
   const off = autoMergeEvent("AutoMergeDisabledEvent", "kyle-sexton");
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
-  const decided = (autoMerge) => decide(pull(1), options, { ...detail({ autoMerge }), files: [], verify: PASSED });
+  const decided = (autoMerge) => decide(pull(1), options, { ...detail({ autoMerge }), files: ["docs/a.md"], verify: PASSED });
   assert.deepEqual(AUTO_MERGE_TYPES, ["AutoMergeDisabledEvent", "AutoMergeEnabledEvent", "AddedToMergeQueueEvent"]);
   assert.equal(decided([autoMergeEvent("AutoMergeEnabledEvent", "kyle-sexton"), off]).reason, "a person turned its auto-merge off");
   assert.equal(decided([off, autoMergeEvent("AutoMergeEnabledEvent", "kyle-sexton")]).action, "arm");
