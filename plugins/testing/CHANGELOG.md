@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.9.0] - 2026-11-20
+
+### Changed
+
+- `setup`: when reporting `check`, the skill names `/corrections:codify "<the test pattern>"` for the user to run, for a can't-fail test pattern in a detected language that has no shipped test-lint rule, and for a test rule a check could decide in place of the optional instruction line. When `/corrections:codify` is available, it gets the choice of mechanism; otherwise the skill proposes the strongest mechanism that can decide the rule and says the proposal is unproven. `setup.sh` and its output are unchanged.
+
 ## [5.8.0] - 2026-11-20
 
 ### Added
