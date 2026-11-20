@@ -6364,10 +6364,6 @@ def cached_pull_request(
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits the commits-API fallback reads per page for the
-# enabling commit, and the pages it reads before refusing: a run of enabled
-# commits longer than all of them has no readable start. The local git
-# history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
 CONFIG_HISTORY_PAGES = 50
 
