@@ -2,7 +2,7 @@
 description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, a branch, or the whole repository, grouped by ecosystem in dependency order. Use when asked to 'batch simplify' or simplify recent changes, to catch up on simplify after a multi-session sprint, or to sweep a branch, directory or repo."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]"
+argument-hint: "[time-window|branch|repo] [--unattended] [path...] [in-place[=commit]] [--repo <repo> ...]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
@@ -48,7 +48,7 @@ Outside-scope changes: none | <paths>
 **`--unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
 block records `State: skipped (unattended)` without asking.
 
-**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
+**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [in-place[=commit]] [--repo <repo> ...]`, plus `docs` and `override`, which the hint leaves out to stay within its length budget. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
 
 ## Repository context. Gather first
 
@@ -113,6 +113,34 @@ Resolve each path against the **invocation directory**, then express it **repo-r
 A token counts as a path only if it **resolves** to an existing file or directory. A token that resolves to nothing is neither a path nor a scope, so it falls through to the ask-the-user rule, which is what keeps a mistyped scope or path an explicit question instead of a silent sweep of nothing.
 
 `repo <lane>` is deliberately **not** accepted; use a path. Rationale in [context/reference.md](context/reference.md) "Why narrowing is a path, not a lane".
+
+### Over several repositories
+
+With no target form, the sweep covers this checkout, as it always has. A target form (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Strip the target-form
+tokens with the flags, before the detection heuristic reads the scope, so `--repo <repo>` is never
+read as the `repo` scope or a path. What differs here:
+
+- **Repo mode only.** A target form runs with an explicit `repo` scope, which then runs in each
+  repository. A time window, `branch`, or no scope token with a target form stops and names
+  `repo`, since those scopes read one checkout's recent history and repo mode is never entered
+  without being asked for. `in-place` with a target form stops too, since
+  it names the session's current branch. A trailing path narrows each repository's sweep and
+  resolves under its root; a repository where it does not exist is reported skipped.
+- **One branch and one pull request per repository.** Each repository runs Phases 1 to 7 with its
+  root anchored, one repository's writes at a time, as target-scope.md "Writes stay per
+  repository" says: for a repository other than the session's own, in a worktree that
+  repository's convention creates, never its main checkout. [context/repo-mode.md](context/repo-mode.md)
+  "Delivery" applies inside each repository. The confirmation gate lists every repository's
+  inventory and takes one answer per repository.
+- **Run state per repository.** Each repository's checklist and repo-mode run state go in that
+  repository's working-notes location, so a resume reads only its own groups.
+- **One report.** Phase 8 merges the per-repository reports: one results table with a repository
+  column, the remaining deferrals each carrying its repository, and the repositories that failed
+  or were skipped with the reason.
 
 ### Flag: `docs`
 
