@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- setup's Windows surfaces record limits the `sandbox.failIfUnavailable` startup exit to local sessions; Anthropic-hosted sessions start anyway since Claude Code 2.1.325 (#16035).
+- setup's Windows surfaces record reads what `sandbox.failIfUnavailable` does at startup, locally and in Anthropic-hosted sessions, from its settings reference section instead of restating it, after Claude Code 2.1.325 added a hosted-session exception (#16035).

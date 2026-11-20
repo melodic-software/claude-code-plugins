@@ -1697,10 +1697,10 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
 # where `CLAUDE_CODE_MAX_CONTEXT_TOKENS` needs `DISABLE_COMPACT`: the variable
 # wins only when `DISABLE_COMPACT` is also set; else a truthy
 # `CLAUDE_CODE_DISABLE_1M_CONTEXT` forces 200k; else the active model decides,
-# which from outside the session means both windows. For an unrecognized ID,
-# such as a gateway alias, the product applies the variable on its own; this
-# script cannot tell the ID from outside the session, so the operator pins
-# `--context-window`. Which IDs need what:
+# which from outside the session means both windows. This script models
+# recognized IDs only and cannot tell the ID from outside the session, so for
+# any other ID, such as a gateway alias, the operator pins `--context-window`.
+# Which IDs the product treats how:
 # https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to
 
 WINDOW_BAND: tuple[int, ...] = (200_000, 1_000_000)
@@ -1731,8 +1731,8 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
         effect = "unset"
     elif not _env_truthy(disable_compact):
         effect = (
-            "ignored: for a recognized model ID it applies only when "
-            "DISABLE_COMPACT is also set; for a gateway alias pin --context-window"
+            "ignored: DISABLE_COMPACT is not set; for a gateway alias "
+            "pin --context-window"
         )
     elif not max_tokens.strip().isdigit() or int(max_tokens) <= 0:
         effect = "ignored: not a positive integer"
