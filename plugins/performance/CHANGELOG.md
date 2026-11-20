@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-20
+
+### Fixed
+
+- go-faster's sandbox auto-allow remedy names `sandbox.autoAllowBashIfSandboxed` and points at its settings reference section for the default and where managed settings set it, since Claude Code 2.1.325 changed that default (#16035).
+
 ## [0.16.0] - 2026-11-18
 
 ### Changed
