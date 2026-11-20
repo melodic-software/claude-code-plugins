@@ -131,12 +131,15 @@
 # The verdict is ORDERED, not per file: a set that comes after the first git
 # command, or a later `unset` (a loop over GIT_CONFIG_* names included), fails
 # the suite and names the line. Shell is read top to bottom; a sourced harness
-# grants both at its `source` line when it leaves both set, resolved by path
-# (suite directory, its ancestors, then the repository root) and, when the
-# path cannot be resolved, only if every tracked file of that basename sets
-# both. Python and JS module-level code is read in order too, but a call in an
-# indented (function or test) body runs after the module loads, so it is
-# judged against the end-of-file state. A git call handed an `env=` (Python)
+# grants both at its `source` line when it leaves both set and runs no git of
+# its own before setting them (unless it declares the scope below), resolved
+# by path (suite directory, its ancestors, then the repository root) and, when
+# the path cannot be resolved, only if every tracked file of that basename
+# does. Statements on one line are read in order. Python and JS module-level
+# code is read in order too, but a call in an indented (function or test)
+# body runs after the module loads, so it is judged against the end-of-file
+# state; a set inside such a body counts for those calls only, never for
+# module-level code. A git call handed an `env=` (Python)
 # or `env:` (JS) dict is judged by that dict: one naming both passes, one
 # that spreads the process environment inherits it, and one built fresh, or
 # filtered of GIT_*, without both fails outright.
@@ -154,7 +157,8 @@
 # Implementation: the awk scan emits `G` events per file, in order (S/U set
 # or unset GIT_CONFIG_GLOBAL or GIT_CONFIG_NOSYSTEM, R a git command, F one in
 # a function body, B one handed a dict that drops both, D one handed a named
-# dict, C a sourced file, K a dict's end-of-file class). g_eval replays them
+# dict, C a sourced file, K a dict's end-of-file class; lowercase s/u are a
+# set or unset inside a function body, which only F calls see). g_eval replays them
 # to the first offending line; g_resolve maps a `source` token to a tracked
 # file without forking; g_harness memoizes each harness's verdict.
 set -uo pipefail
@@ -236,7 +240,7 @@ while IFS=$'\t' read -r kind file extra; do
 done < <(scan "${tracked[@]}" ${js_suites[@]+"${js_suites[@]}"})
 
 g_eval() {
-  local ev kind rest ln arg state=0 bad="" bit late="" deferred
+  local ev kind rest ln arg state=0 fstate=0 bad="" bit late="" deferred
   local -A fin=()
   for ev in ${GEV["$1"]:-}; do
     [[ "$ev" == K:* ]] || continue
@@ -249,8 +253,10 @@ g_eval() {
     bit=1
     [[ "$arg" == N ]] && bit=2
     case "$kind" in
-    S) state=$((state | bit)) ;;
-    U) state=$((state & ~bit)) ;;
+    S) state=$((state | bit)) fstate=$((fstate | bit)) ;;
+    U) state=$((state & ~bit)) fstate=$((fstate & ~bit)) ;;
+    s) fstate=$((fstate | bit)) ;;
+    u) fstate=$((fstate & ~bit)) ;;
     D)
       deferred=0
       [[ "$arg" == *:F ]] && arg="${arg%:F}" deferred=1
@@ -273,7 +279,7 @@ g_eval() {
     *) ;;
     esac
   done
-  ((state == 3)) || [[ -n "$bad" || -z "$late" ]] || bad="$late"
+  ((fstate == 3)) || [[ -n "$bad" || -z "$late" ]] || bad="$late"
   G_STATE=$state G_BAD=$bad
 }
 
@@ -317,7 +323,7 @@ g_harness() {
       GHARNESS["$key"]=1
       for f in $files; do
         g_eval "$f" "$3"
-        ((G_STATE == 3)) || {
+        ((G_STATE == 3)) && [[ -z "$G_BAD" || -n "${SCOPED[$f]:-}" ]] || {
           GHARNESS["$key"]=0
           break
         }

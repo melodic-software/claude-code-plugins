@@ -43,6 +43,7 @@ BEGIN {
 # that drops both, C a sourced file. Consecutive R events collapse: bash
 # only needs the first git command after each state change.
 function g_ev(kind, ln, arg) {
+  if (PJ_BODY && (kind == "S" || kind == "U")) kind = tolower(kind)
   if ((kind == "R" || kind == "F") && G_LAST == kind) return
   G_LAST = kind
   print "G\t" cur "\t" kind "\t" ln "\t" arg
@@ -74,35 +75,46 @@ function sh_global_env(seg, ln) {
     if (seg ~ /[ \t]GIT_CONFIG_GLOBAL(=|[ \t]|$)/) g_ev("S", ln, "G")
     if (seg ~ ("[ \t]" NOSYS_ON)) g_ev("S", ln, "N")
   }
-  if (seg ~ /^[ \t]*unset[ \t]/) {
+  if (seg ~ /^[ \t]*(do[ \t]+|then[ \t]+)?unset[ \t]/) {
     if (seg ~ /GIT_CONFIG_GLOBAL/) g_ev("U", ln, "G")
     if (seg ~ /GIT_CONFIG_NOSYSTEM/) g_ev("U", ln, "N")
   }
 }
 
-# The git commands of one shell logical line. Quoted text is dropped
-# first so a `|`, `;` or the word git inside a message or a `bash -c`
-# string is not read as a command: single-quoted spans always, and
-# double-quoted spans that hold no command substitution. Heredoc bodies
-# still count (conscription is the safe direction), but only a command
-# word: a backtick in a markdown body is not command substitution.
-function sh_global_git(s, ln, data,   t, parts, np, k, m) {
-  if (!index(s, "git")) return
+# The sets, unsets and git commands of one shell logical line, in
+# statement order. Quoted text is neutralized first so a `|`, `;` or the
+# word git inside a message or a `bash -c` string is not read as a
+# command: a single-quoted span is dropped, a double-quoted span with no
+# command substitution keeps its text with its separators blanked (so
+# `GIT_CONFIG_NOSYSTEM="1"` still reads as a set), and one with a command
+# substitution is kept. `loop` marks a line holding an unset loop over
+# GIT_CONFIG_* names, whose name pattern sits in the dropped quotes.
+# Heredoc bodies still count for git (conscription is the safe
+# direction), but only a command word, and never for sets or unsets.
+function sh_global(s, ln, data, loop,   t, parts, np, k, m) {
+  if (!index(s, "git") && !index(s, "GIT_CONFIG_")) return
   t = s
   gsub(/\\[$`"]/, "", t)
   while (match(t, QSPAN)) {
     m = substr(t, RSTART, RLENGTH)
-    if (substr(m, 1, 1) == SQ || (m !~ /\$\(/ && m !~ /`/)) m = "_"
+    if (substr(m, 1, 1) == SQ) m = "_"
+    else if (m !~ /\$\(/ && m !~ /`/) { gsub(/[|;&]/, "_", m); sub(/^"/, "\002", m); sub(/"$/, "\002", m) }
     else m = "\001" substr(m, 2, RLENGTH - 2) "\001"
     t = substr(t, 1, RSTART - 1) m substr(t, RSTART + RLENGTH)
   }
   # A quote left open is text the comment strip cut short (`# 9` inside
   # a string); the rest of the line is that string, not code.
   if (match(t, ("[\"" SQ "]"))) t = substr(t, 1, RSTART - 1)
+  gsub(/\002/, "\"", t)
   np = split(t, parts, /[ \t]*(\|\|?|&&|;)[ \t]*/)
-  for (k = 1; k <= np; k++)
+  for (k = 1; k <= np; k++) {
+    if (!data) {
+      sh_global_env(parts[k], ln)
+      if (loop && parts[k] ~ /^[ \t]*(do[ \t]+)?unset[ \t]/) { g_ev("U", ln, "G"); g_ev("U", ln, "N") }
+    }
     if (sh_runs_git(parts[k], data) && !(parts[k] ~ /GIT_CONFIG_GLOBAL=/ && parts[k] ~ NOSYS_ON))
       g_ev("R", ln, "")
+  }
 }
 
 # Classify an environment-dict expression: "inherit" keeps the process
@@ -113,9 +125,13 @@ function env_rhs(r) {
   if (r ~ /\*\*[ \t]*(os[ \t]*\.[ \t]*)?environ/ || r ~ /\.\.\.[ \t]*process[ \t]*\.[ \t]*env/ ||
       r ~ /^(os[ \t]*\.[ \t]*)?environ[ \t]*\.[ \t]*copy/ || r ~ /^dict[ \t]*\([ \t]*(os[ \t]*\.[ \t]*)?environ[ \t]*[,)]/)
     return "inherit"
+  if (r ~ /^[{]/ || r ~ /^dict[ \t]*\(/) {
+    if (r ~ /environ[ \t]*\.[ \t]*items[ \t]*\(/ || r ~ /entries[ \t]*\([ \t]*process[ \t]*\.[ \t]*env/)
+      return (r ~ /GIT_/ ? "fresh" : "inherit")
+    return "fresh"
+  }
   if (r ~ /environ|process[ \t]*\.[ \t]*env/)
     return (r ~ /GIT_/ ? "fresh" : "inherit")
-  if (r ~ /^[{]/ || r ~ /^dict[ \t]*\(/) return "fresh"
   return ""
 }
 
@@ -182,6 +198,7 @@ function js_runs_git(s) {
 # One Python or JS logical line, in that order: process-environment sets
 # and unsets, env-dict bindings, then any git call.
 function pj_global(s, ln, js,   nm, rhs, cls, v, i, t) {
+  PJ_BODY = (s ~ /^[ \t]/)
   # The process environment updated from a bound dict that names both:
   # `Object.assign(process.env, gitEnv)`, `os.environ.update(GIT_ENV)`.
   if (match(s, /(Object[ \t]*\.[ \t]*assign[ \t]*\([ \t]*process[ \t]*\.[ \t]*env|environ[ \t]*\.[ \t]*update[ \t]*\()[ \t]*,?[ \t]*[A-Za-z_][A-Za-z0-9_.]*[ \t]*\)/)) {
@@ -249,6 +266,7 @@ function pj_global(s, ln, js,   nm, rhs, cls, v, i, t) {
     else if (cls ~ /^defer:/) { G_LAST = "D"; print "G\t" cur "\tD\t" ln "\t" substr(cls, 7) (s ~ /^[ \t]/ ? ":F" : "") }
     else if (cls != "full") g_ev(s ~ /^[ \t]/ ? "F" : "R", ln, "")
   }
+  PJ_BODY = 0
 }
 
 function ncount(s, re,   t) { t = s; return gsub(re, "", t) }
@@ -504,15 +522,8 @@ function sh_logical(s,   rest, path, fixture, n, i, segs) {
   # is two commands: the wrap applies only to the first (GNU env:
   # removals apply while it runs COMMAND). A file-wide name presence
   # test on the joined string would credit the unwrapped write.
-  # GLOBAL RULE: a loop that unsets every GIT_CONFIG_* name the
-  # environment holds (`for v in $(env | sed … GIT_CONFIG_…); do unset`)
-  # spans statements, so it is matched on the whole logical line.
-  n = split(s, segs, /[ \t]*(\|\||&&|;)[ \t]*/)
-  if (!SH_DATA_ONLY && s ~ /GIT_CONFIG_([^A-Za-z0-9_]|$)/)
-    for (i = 1; i <= n; i++)
-      if (segs[i] ~ /^[ \t]*(do[ \t]+)?unset[ \t]/) { g_ev("U", SH_LN, "G"); g_ev("U", SH_LN, "N"); break }
-  if (!SH_DATA_ONLY) for (i = 1; i <= n; i++) sh_global_env(segs[i], SH_LN)
-  sh_global_git(s, SH_LN, SH_DATA_ONLY)
+    n = split(s, segs, /[ \t]*(\|\||&&|;)[ \t]*/)
+  sh_global(s, SH_LN, SH_DATA_ONLY, s ~ /GIT_CONFIG_([^A-Za-z0-9_]|$)/ && s ~ /unset/)
   for (i = 1; i <= n; i++) {
     fixture = is_fixture(segs[i])
     if (fixture) print "FIXTURE\t" FILENAME

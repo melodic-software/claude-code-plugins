@@ -1240,7 +1240,31 @@ global_case "a harness that exports nothing grants nothing" fail lib/g-src-none.
 . "$(dirname "$0")/h.sh"
 git -C "$(mktemp -d)" status
 SH
+# shellcheck disable=SC2016  # literal fixture text, not an expansion
+gc_harness_late() { printf '# shellcheck shell=bash\nTOP="$(git rev-parse --show-toplevel)"\nexport GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1\n' >"$1/lib/h.sh"; }
+# shellcheck disable=SC2016  # literal fixture text, not an expansion
+gc_harness_late_scoped() { printf '# shellcheck shell=bash\n# fixture-isolation-scope: reads the host config once on purpose\nTOP="$(git rev-parse --show-toplevel)"\nexport GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1\n' >"$1/lib/h.sh"; }
+GC_EXTRA=gc_harness_late
+global_case "a harness that runs git before its own export grants nothing" fail lib/g-src-hlate.test.sh <<'SH'
+#!/usr/bin/env bash
+. "$(dirname "$0")/h.sh"
+git -C "$(mktemp -d)" status
+SH
+GC_EXTRA=gc_harness_late_scoped
+global_case "the same harness declaring the scope keeps its credit" pass lib/g-src-hscoped.test.sh <<'SH'
+#!/usr/bin/env bash
+. "$(dirname "$0")/h.sh"
+git -C "$(mktemp -d)" status
+SH
 GC_EXTRA=''
+global_case "statements on one line are read in order: git before the export fails" fail g-oneline.test.sh <<'SH'
+#!/usr/bin/env bash
+git -C "$(mktemp -d)" status; export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+SH
+global_case "statements on one line are read in order: an unset after git passes" pass g-oneline-ok.test.sh <<'SH'
+#!/usr/bin/env bash
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM="1"; git -C "$(mktemp -d)" status; unset GIT_CONFIG_GLOBAL
+SH
 
 global_case "python: a suite that sets neither fails" fail test_g_none.py <<'PY'
 import subprocess
@@ -1292,6 +1316,29 @@ ENV.update(GIT_CONFIG_GLOBAL=os.environ["GIT_CONFIG_GLOBAL"], GIT_CONFIG_NOSYSTE
 def check(d):
     subprocess.run(["git", "-C", d, "status"], check=True, env=ENV)
 PY
+global_case "python: a set inside an uncalled function does not cover module-level git" fail test_g_defset.py test_g_defset.py:5 <<'PY'
+import os, subprocess
+def unused():
+    os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+    os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+subprocess.run(["git", "status"])
+PY
+global_case "python: a set in setUp covers git in test bodies" pass test_g_setup.py <<'PY'
+import os, subprocess, unittest
+from unittest import mock
+class T(unittest.TestCase):
+    def setUp(self):
+        mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}).start()
+    def test_x(self):
+        subprocess.run(["git", "status"])
+PY
+global_case "python: an env= literal that only reads values from os.environ fails" fail test_g_envread.py <<'PY'
+import os, subprocess
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], env={"PATH": os.environ["PATH"], "HOME": os.environ["HOME"]})
+PY
 global_case "python: an env= literal naming both passes on its own" pass test_g_envlit.py <<'PY'
 import os, subprocess
 def check(d):
@@ -1322,6 +1369,14 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 const env = { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: "1" };
 test("x", () => {
   execFileSync("git", ["status"], { env });
+});
+JS
+global_case "js: an env literal that only reads values from process.env fails" fail g-envread.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+test("x", () => {
+  execFileSync("git", ["status"], { env: { PATH: process.env.PATH, HOME: process.env.HOME } });
 });
 JS
 global_case "js: a bound env dict naming both passes, even bound after its helper" pass g-bound.test.mjs <<'JS'
