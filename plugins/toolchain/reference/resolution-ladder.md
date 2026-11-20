@@ -119,7 +119,10 @@ in this order, stopping at the first that yields it:
    as found with no flag added: a manifest script (`package.json` `scripts.test`, run through the
    package manager its lockfile names, `npm` with no lockfile), a task-runner target (a `Makefile`
    target, a `justfile` recipe), or the build tool's own verb on a named entry point
-   (`dotnet build Cart.sln`, `cargo build` beside the one `Cargo.toml`).
+   (`dotnet build Cart.sln`, `cargo build` beside the one `Cargo.toml`). A lockfile counts only
+   when it is present and `git ls-files` lists it, so an untracked lockfile names no package
+   manager. Outside a git repository, or when git cannot list the files, every lockfile present
+   counts.
 
 Nothing else supplies a command. An unattended run never asks (rung 3), never runs a bundled
 default's command or gate (rung 4), and copies no command text out of a CI workflow file. A bundled
