@@ -272,6 +272,10 @@ def both_markers(sha: str = S) -> list[dict[str, Any]]:
     return [marker(lane, sha) for lane in LANES]
 
 
+RETARGET = "2026-01-01T12:00:00Z"
+AFTER_RETARGET = "2026-01-01T12:00:01Z"
+
+
 def by_lane(result: tuple[Any, ...]) -> dict[str, Any]:
     return {item.lane: item for item in result}
 
@@ -455,21 +459,74 @@ class LostEvidenceTests(Base):
     """A review whose findings can no longer be counted unbinds the lane; it
     never lowers the count (the #7325 security review's carry-forward)."""
 
-    def test_a_retargeted_pull_request_binds_no_lane(self) -> None:
-        result = by_lane(
+    def test_a_review_from_before_the_retarget_binds_no_lane(self) -> None:
+        result = self.retarget_bind([whole(lane, S) for lane in LANES])
+        for lane in LANES:
+            self.assertUnbound(result[lane], "base-retargeted")
+
+    def test_a_whole_review_after_the_retarget_binds_beside_older_runs(
+        self,
+    ) -> None:
+        runs = [whole(lane, S) for lane in LANES]
+        runs += [{**whole(lane, S), "created_at": AFTER_RETARGET} for lane in LANES]
+        result = self.retarget_bind(runs)
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertEqual(result[lane].open_findings, 0)
+
+    def test_a_run_created_at_the_retarget_second_does_not_bind(self) -> None:
+        runs = [{**whole(lane, S), "created_at": RETARGET} for lane in LANES]
+        for lane, item in self.retarget_bind(runs).items():
+            self.assertUnbound(item, "base-retargeted")
+
+    def test_an_incremental_review_on_a_pre_retarget_whole_one(self) -> None:
+        """The chain's root predates the retarget: the lane reports the
+        retarget, which a whole review clears, not an incremental gap."""
+        runs = [whole(lane, S1) for lane in LANES] + [
+            {
+                **run(lane, S, f"findings=0 inline=0 scope=incremental since={S1}"),
+                "created_at": AFTER_RETARGET,
+            }
+            for lane in LANES
+        ]
+        comments = [*both_markers(S1), *both_markers()]
+        result = self.retarget_bind(runs, comments)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "base-retargeted")
+
+    def test_an_earlier_heads_marker_from_before_the_retarget(self) -> None:
+        runs = [whole(lane, S1) for lane in LANES]
+        runs += [{**whole(lane, S), "created_at": AFTER_RETARGET} for lane in LANES]
+        result = self.retarget_bind(runs, [*both_markers(S1), *both_markers()])
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+
+    def test_an_unreadable_retarget_time_binds_no_lane(self) -> None:
+        runs = [{**whole(lane, S), "created_at": AFTER_RETARGET} for lane in LANES]
+        for value in ("", "yesterday", "2026-01-01T12:00:00"):
+            with self.subTest(value=value):
+                result = self.retarget_bind(runs, at=value)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "evidence-error")
+
+    def retarget_bind(
+        self,
+        runs: list[dict[str, Any]],
+        comments: list[dict[str, Any]] | None = None,
+        at: str = RETARGET,
+    ) -> dict[str, Any]:
+        return by_lane(
             ev.bind(
                 S,
-                [whole(lane, S) for lane in LANES],
-                both_markers(),
+                runs,
+                both_markers() if comments is None else comments,
                 [],
                 is_human=is_human,
-                base_changed=True,
+                retargeted_at=at,
                 changed_paths=(),
                 floor=risk.floor_for(),
             )
         )
-        for lane in LANES:
-            self.assertUnbound(result[lane], "base-retargeted")
 
     def test_a_reviewed_head_whose_run_is_gone_unbinds_the_lane(self) -> None:
         # S0 was reviewed (its marker stands) but its run, and the findings it
@@ -1492,23 +1549,49 @@ class MainRunReviewTests(Base):
                     result["claude-security-review"], "lane-source-changed"
                 )
 
-    def test_a_retargeted_pull_request_still_binds_nothing(self) -> None:
-        result = by_lane(
+    def retarget_bind(self, reviews: list[dict[str, Any]]) -> dict[str, Any]:
+        return by_lane(
             ev.bind(
                 S,
                 [],
                 [],
                 [],
                 is_human=is_human,
-                base_changed=True,
+                retargeted_at=RETARGET,
                 changed_paths=(self.SOURCE,),
-                main_reviews=[main_review(lane) for lane in LANES],
-                main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
+                main_reviews=reviews,
+                main_context=recorded(reviews, CONTEXT),
                 floor=risk.floor_for(),
             )
         )
+
+    def test_a_main_run_review_from_before_the_retarget_binds_nothing(
+        self,
+    ) -> None:
+        for created in ({}, {"created_at": RETARGET}, {"created_at": "2026-01-01T00:00:00Z"}):
+            with self.subTest(created=created):
+                result = self.retarget_bind(
+                    [main_review(lane, **created) for lane in LANES]
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_main_run_review_after_the_retarget_binds(self) -> None:
+        result = self.retarget_bind(
+            [main_review(lane, created_at=AFTER_RETARGET) for lane in LANES]
+        )
         for lane in LANES:
-            self.assertUnbound(result[lane], "base-retargeted")
+            self.assertTrue(result[lane].bound, lane)
+
+    def test_a_pre_retarget_main_run_finding_still_counts(self) -> None:
+        old = main_review(self.SEC_LANE, findings=2, critical=1)
+        new = main_review(self.SEC_LANE, created_at=AFTER_RETARGET)
+        code = main_review("claude-review", created_at=AFTER_RETARGET)
+        result = self.retarget_bind([code, old, new])
+        self.assertTrue(result[self.SEC_LANE].bound)
+        self.assertEqual(result[self.SEC_LANE].blocking_findings, 1)
+
+    SEC_LANE = "claude-security-review"
 
     def test_a_clean_main_run_review_makes_an_ordinary_workflow_edit_mergeable(
         self,
@@ -4157,7 +4240,7 @@ class CarriedBlockingTests(Base):
                 is_human=is_human,
                 head_file=fixed_head,
                 changed_paths=(),
-                base_changed=True,
+                retargeted_at=RETARGET,
                 floor=risk.floor_for(),
             )
         )
