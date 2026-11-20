@@ -1811,6 +1811,21 @@ test("one pass spends at most EARLIER_FAIL_READS verifier reads on PRs with no u
   assert.equal(withThread.calls.dispatch.length, 1);
 });
 
+test("one pass reads a head's verifier once and spends one read on it", async () => {
+  const earlierFailReads = { left: EARLIER_FAIL_READS };
+  const verifyReads = new Map();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+  };
+  for (let i = 0; i < 2; i += 1) {
+    await decide(fakeApi({ threads: [failNote(true)] }), resolvedLane(), { verifyCapped, earlierFailReads, verifyReads });
+  }
+  assert.equal(reads, 1);
+  assert.equal(earlierFailReads.left, EARLIER_FAIL_READS - 1);
+});
+
 test("a round with a thread also names the FAILed heads; a pass-only round never does", async () => {
   const earlier = { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
   const withThread = fakeApi();
