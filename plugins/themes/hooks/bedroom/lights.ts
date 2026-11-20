@@ -393,7 +393,7 @@ let wx_id = vec2(floor(wx_q))
 let wx_h = hsh(vec2(wx_id.x, mod(wx_id.y, 256)))
 let wx_o = vec2((fract(wx_q) - vec2(0.3 + 0.4 * fract(wx_h * 7.31), 0.3 + 0.4 * fract(wx_h * 3.17))) * 7)
 let wx_r = (0.9 + 1.4 * fract(wx_h * 13.7)) * (0.7 + 0.5 * wx_wet)
-let wx_bead = clamp((1 - dot(wx_o, wx_o) / (wx_r * wx_r)) * 2, 0, 1) * step(1 - 0.6 * wx_wet, wx_h) * step(fract(time * (0.04 + 0.07 * fract(wx_h * 5.1)) + wx_h * 9), 0.7) * 0.3 * wx_wet * w_pane
+let wx_bead = clamp((1 - dot(wx_o, wx_o) / (wx_r * wx_r)) * 2, 0, 1) * step(1 - 0.6 * wx_wet, wx_h) * step(fract(time * (0.04 + 0.07 * fract(wx_h * 5.1)) + wx_h * 9), 0.7) * 0.4 * wx_wet * w_pane
 acc = vec4(vec4(acc.rgb * (1 - wx_bead) + (wx_cc * (1.9 - wx_o.y / wx_r) + vec3(0.07, 0.07, 0.09)) * wx_bead, acc.a * (1 - wx_bead) + wx_bead))
 // Rain beyond the glass, drawn a pixel wide at any size, in 2.5-unit columns slanted by the storm's wind. Half the
 // columns are slow and short (160 units a second, a sixth of each 60-unit run) and half fast and long (300 a second,
@@ -405,7 +405,7 @@ let wx_u = (at.x - (0.1 + 0.36 * wx_storm) * at.y) / 2.5
 let wx_hs = thash(floor(wx_u))
 let wx_fast = step(0.5, wx_hs)
 let wx_run = fract((at.y - mix(160, 300, wx_fast) * mod(time, 3)) / 60 + wx_hs * 5.3)
-let wx_streak = clamp(1 + (0.3 - abs(fract(wx_u) - 0.2 - 0.6 * fract(wx_hs * 3.1)) * 2.5) * s, 0, 1) * clamp(min(wx_run, mix(0.17, 0.45, wx_fast) - wx_run) * 10, 0, 1) * step(fract(wx_hs * 9.7), mix(0.75 * wx_wet, 0.9 * wx_heavy, wx_fast)) * (0.12 * wx_wet + 0.06 * wx_heavy) * wx_glass
+let wx_streak = clamp(1 + (0.3 - abs(fract(wx_u) - 0.2 - 0.6 * fract(wx_hs * 3.1)) * 2.5) * s, 0, 1) * clamp(min(wx_run, mix(0.17, 0.45, wx_fast) - wx_run) * 10, 0, 1) * step(fract(wx_hs * 9.7), mix(0.75 * wx_wet, 0.9 * wx_heavy, wx_fast)) * (0.22 * wx_wet + 0.08 * wx_heavy) * wx_glass
 acc = vec4(vec4(acc.rgb * (1 - wx_streak) + (wx_cc * 1.5 + vec3(0.12, 0.13, 0.16)) * wx_streak, acc.a * (1 - wx_streak) + wx_streak))
 // A strike lights the sky in the panes; the trees, the field and the pole stay dark against it.
 let wx_f = 0.15 * state.at(vec2(13, 0)).w * w_sky * wx_glass
