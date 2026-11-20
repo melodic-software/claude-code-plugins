@@ -312,11 +312,11 @@ export async function bindTimeline(timeline, check) {
 // (listReviewThreads, feedback-dispatch.mjs) and of a thread's re-read
 // (readThread). `actions` ({ getRun, listArtifacts, download }) reads the lane
 // runs' comment records; one checker per pull request reads each run once.
-export function withLaneBinding(api, actions) {
+export function withLaneBinding(api, actions, store) {
   const checkers = new Map();
   const checkerFor = (pr) => {
     if (!checkers.has(Number(pr))) {
-      checkers.set(Number(pr), laneChecker({ pr: Number(pr), ...actions }));
+      checkers.set(Number(pr), laneChecker({ pr: Number(pr), ...actions, store }));
     }
     return checkers.get(Number(pr));
   };

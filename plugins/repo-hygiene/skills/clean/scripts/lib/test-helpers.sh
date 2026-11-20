@@ -12,6 +12,7 @@ readonly _CLEAN_TEST_HELPERS_LOADED=1
 # resolves to the mktemp fixture, never the real repo (a git-hook chain exports
 # GIT_DIR / GIT_INDEX_FILE etc.).
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"

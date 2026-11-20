@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.0] - 2026-11-20
+
+### Changed
+
+- `block-lane-pr-disable-auto` reads the lanes App login from the new `block_lane_pr_disable_auto_app` option instead of naming one publisher's App. Unset, the default, the guard blocks a disable on any pull request a GitHub App opened (`app/<slug>` or `<slug>[bot]`), since it cannot tell which App is the lanes App; a pull request a person opened passes, and one whose author cannot be read stays blocked.
+
 ## [3.11.0] - 2026-11-20
 
 ### Changed

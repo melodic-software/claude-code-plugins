@@ -465,6 +465,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
   [".github/scripts/lib/lane-outcome.mjs", "enforcement"],
   [".github/scripts/lib/lane-binding.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/lane-record-cache.mjs", "enforcement"],
   [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
   [".github/scripts/pr-unblock/verify-cap.mjs", "enforcement"],
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],

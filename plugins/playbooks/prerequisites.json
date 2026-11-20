@@ -109,26 +109,6 @@
       "check": "/harness-ops:prerequisites"
     },
     {
-      "id": "yarn",
-      "kind": "cli",
-      "need": "optional",
-      "for": [
-        "skill:boris"
-      ],
-      "detect": {
-        "any": [
-          "yarn"
-        ]
-      },
-      "degrade": "Without yarn, the boris playbook's example install command cannot be run; nothing else changes.",
-      "install": {
-        "docs": "https://yarnpkg.com/getting-started/install",
-        "brew": "yarn",
-        "winget": "Yarn.Yarn"
-      },
-      "check": "/harness-ops:prerequisites"
-    },
-    {
       "id": "node",
       "kind": "cli",
       "need": "optional",

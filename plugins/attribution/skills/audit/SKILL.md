@@ -1,6 +1,6 @@
 ---
 description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or stamped pointer records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed near-verbatim copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
-argument-hint: "[audit|fix|sweep] [target]"
+argument-hint: "[audit|fix|sweep] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
@@ -52,6 +52,7 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
 | *(empty)* or `audit [target]` | Read-only audit (default). Empty target = repo-wide |
 | `fix [target]` | Explicit fix pass over the target's fix-eligible findings (guarded; below) |
 | `sweep [target]` | The fix pipeline under per-file closure accounting, for a repo-wide pass |
+| Any action with `--repo`, `--repos-from`, `--owner`, `--fleet` or `--skip` | The same action once per selected repository, per [Several repositories](#several-repositories); `fix` and `sweep` write one pull request per repository |
 
 `audit` never edits. Mutation rides only the explicit `fix` or `sweep` argument.
 
@@ -60,7 +61,8 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
 1. **Scope the corpus.** `${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh [target]` gives tracked
    markdown minus the categorical carve-outs, plus a declined block naming what was excluded and
    why. Report the declined counts; never silently skip. Write the file list to a temp path with
-   `jq -r '.files[]'` so later steps read a list rather than re-deriving one.
+   `jq -r '.files[]'` so later steps read a list rather than re-deriving one. A target form runs
+   this flow once per repository, per [Several repositories](#several-repositories).
 
 2. **Inventory breadcrumbs, per directory.**
    `${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh --dir <D>` for each directory in scope.
@@ -247,6 +249,59 @@ so no other checkout can see it. A sweep resumed where the ledger is not is a ne
 there says so, it carries no closures, no spend, and no cache, and the report says so rather than
 presenting itself as a continuation. The ledger names the sweep id and the checkout it started
 in, so a copy carried to another checkout is refused (exit 3) rather than resumed.
+
+## Several repositories
+
+A target form from [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others its "Target forms" lists, or the same request in words) runs
+`audit`, `fix` or `sweep` once per repository. Its "Target forms", "Resolving repositories",
+"Fan-out", "Merging findings" and "Writes stay per repository" sections own how. With no target
+form, nothing in this skill changes. What differs here:
+
+- **The target is per repository.** A target form takes an empty target or a path, the path read
+  relative to each repository root.
+- **Anchor every script at the repository's tree.** `check-stamps.sh`, `sweep-ledger.sh` and
+  `read-verification.sh` read their config layers from `CLAUDE_PROJECT_DIR`, else the working
+  directory's git top level, and `list-corpus.sh` from `CLAUDE_PROJECT_DIR`, else its target's top
+  level, so an unanchored run in another repository configures from the session's own project. For
+  an audit, the tree is the session's own checkout, read in place; another clone when it has no
+  uncommitted change and its `HEAD` is `origin/HEAD` after the fetch; otherwise a detached
+  worktree of `origin/HEAD` under the session scratchpad (`git -C <root> worktree add --detach
+  <scratch path> origin/HEAD`), removed after the pass. For `fix` and `sweep`, the tree is the
+  worktree that pass writes to. Pass `list-corpus.sh` the tree's absolute path, or the path under
+  it, as its target, and run each bundled script and `read-verification.sh` as
+  `CLAUDE_PROJECT_DIR=<tree> <script> ...`. `allowed-tools` does not grant that prefixed form, so
+  the call may prompt.
+- **Config per repository.** The pre-computed config lines are the session's project. Per
+  repository, run `CLAUDE_PROJECT_DIR=<tree> list-corpus.sh --show-config` and read step 7's
+  `.separation` and the per-candidate budgets from the layers it lists.
+- **Paths.** `list-corpus.sh` lists files relative to its `.root`. Prefix each with that root
+  before writing the list `check-stamps.sh --paths-file` reads, and pass `extract-breadcrumbs.sh
+  --dir` an absolute directory, since both resolve a relative path against the working directory.
+  `sweep-ledger.sh close` takes the repository-relative path. Write the sidecar's file paths
+  relative to the repository root, since `emit-findings.sh` relativizes only against the working
+  directory's repository.
+- **State per repository.** Each repository gets its own corpus list, breadcrumb inventories,
+  report sidecar and fetch cache. Its findings file resolves under that repository's clone root
+  (`git -C <clone root>`), never inside a scratch worktree. Pass `emit-findings.sh --branch
+  <branch>`: the branch `fix` or `sweep` works on; for an audit, the clone's current branch when
+  the tree is the clone or the session's checkout and that branch has a name, else the default
+  branch `origin/HEAD` names.
+- **In-estate copies name the owner.** When step 5 resolves a passage's source to a file in
+  another in-scope repository, the passage is an in-estate copy: read that file from its
+  repository's tree in place of a fetch, and report the owning repository and path as the source.
+  The disposition is chosen by `reference/dispositions.md` as usual, with the owner's file as the
+  pointer target, never a second copy. A tree read is not an identity-checked live fetch, so an
+  in-estate finding never reaches `fingerprint-confirmed` and stays report-only. The contract's
+  "Cross-repository signals" says which copies a mechanism owns, and whole-file duplicates across
+  repositories are `/coupling:reduce`'s measurement.
+- **Report.** One report across all repositories, merged as "Merging findings" says. Declined
+  counts, stamp declines, budget telemetry and the verification line are stated per repository,
+  since each reads its own config.
+- **`fix` and `sweep` per repository.** Each runs in that repository's own worktree, with its own
+  pull request, as "Writes stay per repository" says; a scratch worktree is never edited. Run
+  `sweep-ledger.sh` with that worktree as the working directory, because it keeps the ledger under
+  the working directory's checkout, so each repository's ledger, spend and cache stay its own.
 
 ## Configuration
 

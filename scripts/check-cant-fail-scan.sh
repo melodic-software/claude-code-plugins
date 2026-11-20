@@ -54,7 +54,7 @@ if [[ -z "$all" ]]; then
     printf '::notice::Not applicable: HEAD is %s, so there is no change to scan.\n' "$1"
     exit 0
   fi
-  printf 'ERROR: no file changed since %s, yet HEAD is not %s, so there was nothing to check; pass no base to scan the whole tree.\n' "$1" "$1" >&2
+  printf '::error::no file changed since %s, yet HEAD is not %s: its commits change nothing the base lacks, so the pull request is most likely superseded by work already on the base. Close it, or rebase it if it should still add something.\n' "$1" "$1" >&2
   exit 2
 fi
 total="$(grep -c '' <<<"$all")"

@@ -46,7 +46,7 @@ name: PR Unblock
 # feedback-dispatch.mjs and dispatch.mjs read this title to skip a second
 # dispatch while one for the same activity and PR is still queued or going.
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
-run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
+run-name: "PR Unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
 # API_BUDGET_HOLD (outage posture element 2): only the two human-gated hold
 # steps set it, since lane-hold.mjs holds green on a fault and starts nothing.

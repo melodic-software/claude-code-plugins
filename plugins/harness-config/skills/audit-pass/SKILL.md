@@ -1,6 +1,6 @@
 ---
 description: "Run one coordinated, resumable audit pass over a repo: a three-scope inventory, then each owning plugin's checks lane by lane, presence-gated, with findings persisted per lane and one human gate for the whole pass. Read-only unless --fix. Use when: 'audit pass', 'run one pass over this repo', 'coordinate the audit skills', 'audit this repo end to end', 'resume the audit', 'one reconciled findings report', 'sweep all three scopes', or a release needs one diffable findings artifact."
-argument-hint: "[target] [--fix] [--opinion] [--postures] [--lanes <list>] [--resume] [--report-to <dir>]"
+argument-hint: "[target] [--repo <repo> ...] [--fix] [--opinion] [--postures] [--lanes <list>] [--resume]"
 user-invocable: true
 disable-model-invocation: false
 disallowed-tools: Edit, NotebookEdit
@@ -26,6 +26,7 @@ for the pass. All of it is specified in [reference/run-contract.md](reference/ru
 | [reference/finding-identity.md](reference/finding-identity.md) | Emitting, comparing, or suppressing a finding: the `(check, claim, sites)` tuple, `surface`, `anchor`, and the derived `finding_id`. |
 | [reference/run-contract.md](reference/run-contract.md) | Deciding which contract file owns a rule, or resolving a `§N` cross-reference from inside one. |
 | [reference/arguments.md](reference/arguments.md) | A run is invoked with an argument whose precedence, default, or refusal is not settled by the `Arguments` table. |
+| [reference/multi-repository.md](reference/multi-repository.md) | A run names a target form or another repository: what each repository's pass, its delegates, its state and `--fix` do. |
 | [reference/exclusion-set.md](reference/exclusion-set.md) | Deriving the scan set, or justifying why a path was skipped. |
 | [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) | Starting, leasing, or resuming a run, and diagnosing a lock that outlived its holder. |
 | [reference/report-location-and-schema.md](reference/report-location-and-schema.md) | Writing the report, or judging what `--report-to` may target. |
@@ -94,7 +95,7 @@ Parse `$ARGUMENTS`. The names and their one-line meanings:
 
 | Argument | Meaning |
 |---|---|
-| `target` | The git repository to audit. Defaults to the active project root; a `target` resolving anywhere else is refused non-zero. |
+| `target`, or a target form (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`) | The git repository to audit, by default the active project root. A target form, or a `target` naming another repository, runs one pass per repository per [reference/multi-repository.md](reference/multi-repository.md). |
 | `--fix` | The explicit mutation override. Absent, the pass writes nothing into the target. |
 | `--opinion` | Run the `OPINION`-tier checks the delegated catalogs declare default-off. |
 | `--postures` | Dispatch the opt-in posture lane. Off by default: it is the additive catalog and the largest fan-out in the pass. |

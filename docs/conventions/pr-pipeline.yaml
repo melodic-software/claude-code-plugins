@@ -27,7 +27,8 @@ activities:
       paths: ["**/*.md"]
       # A changelog fragment alone is no reason to tidy.
       paths-ignore: [".changes/**"]
-      # The human-gated label holds it in pr-refine.yml's fix-docs-head job
+      # The human-gated label holds it in pr-refine.yml's select-passes job
+      # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review)
       # unless a lane escalation put it on (lane-hold.mjs), so one lane's
       # escalation does not stop this fixer.
       labels-absent: [do-not-merge, "security: outside-actor"]
@@ -1919,6 +1920,8 @@ merge:
       - glob: ".github/scripts/lib/lane-outcome.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/lane-binding.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/lane-record-cache.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/dispatch-record.mjs"
         class: enforcement

@@ -42,7 +42,7 @@ For each changed upstream file, locate the corresponding distilled file:
 | `references/test-generation.md` | `reference/test-generation.md` |
 | `references/playwright-tests.md` | referenced from `reference/test-generation.md` |
 
-The distilled files are **not verbatim copies**. Apply what genuinely changed (new commands, new flags, removed/renamed APIs). Leave the editorial structure intact: shorter sections, the Windows and orchestrator overlays. `reference/windows-quirks.md` and `reference/e2e-orchestrator-recipe.md` are original material with no upstream counterpart.
+The distilled files are **not verbatim copies**. Apply what genuinely changed (new commands, new flags, removed/renamed APIs). Leave the editorial structure intact: shorter sections and the Windows overlay, `reference/windows-quirks.md`, which is original material with no upstream counterpart.
 
 For a large or breaking diff (new files, removed sections), read the upstream GitHub releases between the previous `upstream-version` and the new one for breaking-change notes before integrating.
 

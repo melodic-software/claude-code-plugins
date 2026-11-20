@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
@@ -34,6 +35,7 @@ const CLAUDE = { databaseId: 209825114 };
 const KYLE = { databaseId: 153232337 };
 const UPSTREAM_RUN_ID = "38779135732";
 const RUN_ID = "38779143370";
+const LANE_RUN = 4242;
 
 const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
@@ -415,6 +417,33 @@ test("a dispatch whose connection broke is not sent again when the run it starte
   assert.deepEqual(since, [["pr-unblock.yml", "2026-10-30T15:31:38Z"]]);
 });
 
+
+test("one run reads a head's check runs once for every check name, and by name past one page", async () => {
+  const urls = [];
+  const answer = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const run = (name) => ({ id: name.length, name, head_sha: HEAD });
+  const github = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example.test",
+    graphqlUrl: "https://api.example.test/graphql",
+    fetch: async (url) => {
+      urls.push(String(url));
+      const named = new URL(url).searchParams.get("check_name");
+      if (String(url).includes(OLD_HEAD)) {
+        return answer(named ? { total_count: 1, check_runs: [run(named)] } : { total_count: 101, check_runs: [run("other")] });
+      }
+      return answer({ total_count: 2, check_runs: [run("a"), run("b")] });
+    },
+  });
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "b", appId: 1 })).map((r) => r.name), ["b"]);
+  assert.deepEqual(await github.listCheckRuns({ sha: HEAD, checkName: "c", appId: 1 }), []);
+  assert.equal(urls.length, 1);
+  assert.equal(new URL(urls[0]).searchParams.get("check_name"), null);
+  assert.deepEqual((await github.listCheckRuns({ sha: OLD_HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.equal(new URL(urls.at(-1)).searchParams.get("check_name"), "a");
+});
 test("a dispatch is sent at most twice, and an HTTP error answer never again", async () => {
   const twice = fakeApi();
   twice.listRecentRuns = async () => [];
@@ -776,6 +805,41 @@ test("main writes run-id and takes the upstream run from the event file", async 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+async function laneRecordsMain(api, actions) {
+  const dir = tempDir("pr-dispatch-feedback-");
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const path = join(dir, "lane-records.json");
+  const listed = [];
+  api.listArtifactsNamed = async (name) => {
+    listed.push(name);
+    return [];
+  };
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: eventFile(dir), APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir), FEEDBACK_LANE_RECORDS_PATH: path };
+  await main(env, { api, actions, resolveSlot: async () => resolvedLane(), log: () => {} });
+  return { listed, output: readFileSync(output, "utf8"), saved: existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null };
+}
+
+test("a tick with no bound lane comment reads and writes no lane record cache", async () => {
+  const actions = fakeActions({});
+  const { listed, output, saved } = await laneRecordsMain(fakeApi(), actions);
+  assert.deepEqual(listed, [], "no cache listing");
+  assert.equal(saved, null, "no cache file");
+  assert.doesNotMatch(output, /lane-records=/, "nothing to upload");
+});
+
+test("a tick that checks a bound lane comment saves the settled run for the next tick", async () => {
+  const body = bound("Off by one.", { run: LANE_RUN });
+  const comment = { id: 11, user: ACTIONS_BOT, body, created_at: "2026-10-17T10:00:00Z", updated_at: "2026-10-17T10:00:00Z" };
+  const actions = fakeActions({ [LANE_RUN]: { path: ".github/workflows/pr-review-hosted.yml", artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(body, { pr: 42, kind: "issue_comment" })] }] } });
+  const listArtifacts = actions.listArtifacts;
+  actions.listArtifacts = async (id) => (await listArtifacts(id)).map((row) => ({ ...row, expires_at: "2099-01-01T00:00:00Z" }));
+  const { listed, output, saved } = await laneRecordsMain(fakeApi({ comments: [marker("claude-review"), marker("claude-security-review"), comment] }), actions);
+  assert.deepEqual(listed, ["pr-feedback-lane-records"], "one cache listing");
+  assert.match(output, /^lane-records=true$/m, "the file is named for upload");
+  assert.deepEqual(Object.keys(saved.runs), [`${LANE_RUN}/1`], "the settled lane run, at its attempt");
 });
 
 // A pr-verify run ran on main: its head is main's, so main takes the head its
@@ -1811,6 +1875,21 @@ test("one pass spends at most EARLIER_FAIL_READS verifier reads on PRs with no u
   assert.equal(withThread.calls.dispatch.length, 1);
 });
 
+test("one pass reads a head's verifier once and spends one read on it", async () => {
+  const earlierFailReads = { left: EARLIER_FAIL_READS };
+  const verifyReads = new Map();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+  };
+  for (let i = 0; i < 2; i += 1) {
+    await decide(fakeApi({ threads: [failNote(true)] }), resolvedLane(), { verifyCapped, earlierFailReads, verifyReads });
+  }
+  assert.equal(reads, 1);
+  assert.equal(earlierFailReads.left, EARLIER_FAIL_READS - 1);
+});
+
 test("a round with a thread also names the FAILed heads; a pass-only round never does", async () => {
   const earlier = { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
   const withThread = fakeApi();
@@ -2416,7 +2495,7 @@ test("a lost run started before the rename, its dispatch job named by its id, is
   const { lines } = await sweepMain(t, api, TICK, NOW);
   assert.deepEqual(api.jobReads, [600]);
   assert.equal(api.calls.dispatch.length, 1);
-  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600") && line.includes("after its Dispatch job started")), lines.join("\n"));
 });
 
 test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {

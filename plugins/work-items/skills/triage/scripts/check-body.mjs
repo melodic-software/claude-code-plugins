@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Checks an issue body against one type of the issue-body contract
-// (plugins/work-items/reference/issue-body-contract.json, synced from melodic-software/standards).
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/reference/issue-body-contract.json).
 // A field counts as present under a heading at any of the contract's `headingLevels` (`##` from a
 // skill, `###` from an issue form), with text other than the contract's `emptyAnswer` before the
 // next heading at that level or shallower, deeper sub-sections included. HTML comments and fenced

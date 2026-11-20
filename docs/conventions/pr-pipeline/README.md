@@ -284,7 +284,7 @@ each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep th
 such head as for its newest completed review run, under three such skips at that head, and
 sends up to five rounds a tick (`SWEEP_TICK_CAP`) once every decision is made, each PR at most
 once), and no `pr-unblock.yml` run titled
-`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+`PR Unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
@@ -523,7 +523,7 @@ too, and a failed read holds it), and no escalation since then names a reason of
 own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
 `feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
 `resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
-`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+`pr-refine.yml`'s `select-passes` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
 else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
 their `labels-absent`. `check-signed-commits`' escalation holds the PR too, even under a lane
 escalation: a `github-actions[bot]` comment whose first line is `<!-- check-signed-commits hold -->`,
@@ -717,7 +717,7 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+`fix-docs-head-held` job succeeded, which runs only when `select-passes` could not read the head
 or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for its next event.
 
@@ -2190,7 +2190,7 @@ pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `lin
 edited after arming to drop its link or name another issue does not merge on that pass. A pass
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
 reads the pull request once and, for a lanes App one that is not already armed and carries no
-`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `PR Merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `dispatch-post-merge-runs` and every other sweep job. That report stands only
 while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
@@ -2455,9 +2455,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
-  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  branch and hands the pull request to a session builder. The verdict job posts no merge marker unless
   every commit is Dependabot's own or a commit that passes the fix rule,
-  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`, a
+  `needs-session` stop: a session builder drops or rebuilds the commit, and the new head starts clean)
   ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit; any other commit, a
   `github-actions[bot]` one included, is `commit-not-dependabot:<sha>`. On a reviewed pull request the lanes App's

@@ -6,6 +6,9 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "probe-state-issue.mjs");
 
 function repo({ team, personal } = {}) {

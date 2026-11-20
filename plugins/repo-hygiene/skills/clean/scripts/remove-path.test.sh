@@ -185,8 +185,8 @@ assert_contains "SSOT secret-class block reason" "$out" "Blocked: secrets"
 # from the (test-scoped) global config.
 FAKE_HOME="$TEST_TMPDIR/fake-home"
 mkdir -p "$FAKE_HOME" "$ROOT/default-root-dir"
-HOME="$FAKE_HOME" git config --global ghq.root "$ROOT"
-out="$(HOME="$FAKE_HOME" bash "$REMOVE" "$ROOT/default-root-dir")"
+HOME="$FAKE_HOME" GIT_CONFIG_GLOBAL="$FAKE_HOME/.gitconfig" git config --global ghq.root "$ROOT"
+out="$(HOME="$FAKE_HOME" GIT_CONFIG_GLOBAL="$FAKE_HOME/.gitconfig" bash "$REMOVE" "$ROOT/default-root-dir")"
 rc=$?
 assert_exit "default ghq.root resolution exits 0" 0 "$rc"
 # The script resolves paths physically (pwd -P), so the reported Root is the
