@@ -16,6 +16,10 @@ export type BedroomCard = {
 
 declare module 'claude-code' {
   interface PluginState {
-    themes: { 'bedroom-card': Shaped<BedroomCard> }
+    themes: {
+      'bedroom-card': Shaped<BedroomCard>
+      /** The bedroom's minute chain: the time the newest copy of the module started it, so an older copy left running after a reload stops. */
+      'bedroom-chain': number
+    }
   }
 }

@@ -8,6 +8,64 @@
   "version": "0.2.1",
   "license": "MIT",
   "types": "./types/index.d.ts",
+  "userConfig": {
+    "time": {
+      "type": "string",
+      "title": "Bedroom: time of day",
+      "description": "auto follows the clock; a phase holds that light all day.",
+      "options": ["auto", "dusk", "evening", "night", "predawn", "dawn", "morning", "noon", "golden"],
+      "default": "auto"
+    },
+    "sunrise": {
+      "type": "string",
+      "title": "Bedroom: sunrise",
+      "description": "Local time of sunrise, HH:MM from 04:00 to 09:00.",
+      "default": "06:30"
+    },
+    "sunset": {
+      "type": "string",
+      "title": "Bedroom: sunset",
+      "description": "Local time of sunset, HH:MM from 16:00 to 22:00.",
+      "default": "20:30"
+    },
+    "weather": {
+      "type": "string",
+      "title": "Bedroom: weather",
+      "description": "auto changes by itself every three hours and never picks a storm.",
+      "options": ["auto", "clear", "overcast", "rain", "downpour", "storm"],
+      "default": "auto"
+    },
+    "sound": {
+      "type": "boolean",
+      "title": "Bedroom: sound",
+      "description": "The television's click, cicadas, rain and thunder. Off by default.",
+      "default": false
+    },
+    "soundPlayer": {
+      "type": "string",
+      "title": "Bedroom: sound player",
+      "description": "Empty: found at run time. Else a command line with {file} where the sound file goes.",
+      "default": ""
+    },
+    "signal": {
+      "type": "boolean",
+      "title": "Bedroom: television reacts to Claude",
+      "description": "The screen flickers while Claude works, and a band rolls down it as the context fills.",
+      "default": true
+    },
+    "hall": {
+      "type": "boolean",
+      "title": "Bedroom: hallway",
+      "description": "Now and then someone passes the door, or the hall light comes on.",
+      "default": true
+    },
+    "shader": {
+      "type": "boolean",
+      "title": "Bedroom: shader",
+      "description": "Off: the hand-drawn room alone, sent again on every change.",
+      "default": true
+    }
+  },
   "keywords": [
     "mod",
     "theme",

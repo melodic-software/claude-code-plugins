@@ -102,7 +102,7 @@ test('/bedroom alone keeps its answer and shows a card listing every switch with
   await ui.unmount()
 })
 
-test('the card is five rows: title and actions, switches, dim glass and blur together, and the titles two to a row', async ($, on) => {
+test('the card is seven rows: title and actions, switches, time, weather, the steps with the four settings, and the titles two to a row', async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
@@ -113,7 +113,10 @@ test('the card is five rows: title and actions, switches, dim glass and blur tog
   const drawn = await ui.drawn()
   const rows = 'children' in drawn ? (drawn.children ?? []) : []
 
-  expect(rows).toHaveLength(5)
+  const order = ['head', 'switches', 'time', 'weather', 'look', 'titles-console', 'titles-pennant']
+
+  expect(rows).toHaveLength(order.length)
+  order.forEach((key, i) => expect(JSON.stringify(rows[i])).toContain(`"key":"${key}"`))
   expect(await ui.find({ type: 'Text', text: STATUS })).toBeUndefined()
 
   const head = await ui.find({ key: 'head' })
@@ -122,9 +125,17 @@ test('the card is five rows: title and actions, switches, dim glass and blur tog
   for (const key of ['theme', 'reset', 'calibrate', 'close']) {
     expect(JSON.stringify(head)).toContain(`"key":"${key}"`)
   }
-  for (const key of ['dim-down', 'dim-up', 'glass-down', 'glass-up', 'blur-down', 'blur-up']) {
+  for (const key of ['dim-down', 'dim-up', 'glass-down', 'glass-up', 'blur-down', 'blur-up', 'toggle-signal', 'toggle-hall', 'toggle-shader', 'toggle-sound']) {
     expect(JSON.stringify(look)).toContain(`"key":"${key}"`)
   }
+  for (const word of ['auto', 'dusk', 'evening', 'night', 'predawn', 'dawn', 'morning', 'noon', 'golden']) {
+    expect((await ui.find({ key: `time-${word}` }))?.props.label).toBe(word === 'auto' ? 'auto ✓' : word)
+  }
+  for (const word of ['auto', 'clear', 'overcast', 'rain', 'downpour', 'storm']) {
+    expect((await ui.find({ key: `weather-${word}` }))?.props.label).toBe(word === 'auto' ? 'auto ✓' : word)
+  }
+  expect((await ui.find({ key: 'toggle-sound' }))?.props.label).toBe('sound: off')
+  expect((await ui.find({ key: 'toggle-shader' }))?.props.label).toBe('shader: on')
   expect(JSON.stringify(await ui.find({ key: 'titles-console' }))).toContain('"key":"title-tape"')
   expect(JSON.stringify(await ui.find({ key: 'titles-pennant' }))).toContain('"key":"title-pennant-top"')
   await ui.unmount()
@@ -165,7 +176,7 @@ test('a pressed switch is inactive until its change has had time to finish, then
   await ui.unmount()
 })
 
-test('a pressed switch moves the shader\'s number once, straight to the end, and a typed order the same way turns it back first', async ($, on) => {
+test('a pressed switch moves the shader\'s number once, straight to the end, and a typed order to the state it is in sends nothing', async ($, on) => {
   const placed: string[] = []
   const clock = engine(on, ['desktop'], placed)
 
@@ -185,9 +196,9 @@ test('a pressed switch moves the shader\'s number once, straight to the end, and
   await clock.advance(1000)
   expect(await tv()).toBe(0)
 
-  await bedroom($, 'tv off')
-  expect(await tv()).toBe(0.5)
-  await clock.advance(700)
+  expect(await bedroom($, 'tv off')).toContain('the tv is already off')
+  expect(await tv()).toBe(0)
+  await clock.advance(1500)
   expect(await tv()).toBe(0)
   await ui.unmount()
   await room.unmount()
