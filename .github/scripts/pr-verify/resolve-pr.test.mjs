@@ -610,6 +610,7 @@ test("a vendored-copy sync that adds or changes anything in a SKILL.md that runs
     ["a frontmatter left unclosed", skillSync(skillText(SYNCED).replace("\n---\n", "\n"))],
     ["a new skill's SKILL.md", { changed: [...SYNC, { filename: "plugins/playwright/skills/new/SKILL.md", status: "added" }] }],
     ["a new skill named vendor", { changed: [...SYNC, { filename: "plugins/playwright/skills/vendor/SKILL.md", status: "added" }] }],
+    ["a new skill's lowercase skill.md", { changed: [...SYNC, { filename: "plugins/playwright/skills/new/skill.md", status: "added" }] }],
     ["a file renamed into a SKILL.md", { changed: [...SYNC, { filename: SKILL, previous_filename: "plugins/playwright/skills/playwright/reference/x.md", status: "renamed" }] }],
     ["a SKILL.md renamed away", { changed: [...SYNC, { filename: "plugins/playwright/skills/playwright/reference/x.md", previous_filename: SKILL, status: "renamed" }] }],
     ["a SKILL.md whose texts were not read", { changed: [...SYNC, { filename: SKILL, status: "modified" }], texts: { [`${BASE}:${SKILL}`]: skillText(), [`${HEAD}:${SKILL}`]: skillText(SYNCED) }, unread: true }],
