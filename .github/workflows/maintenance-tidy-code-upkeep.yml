@@ -76,7 +76,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
 

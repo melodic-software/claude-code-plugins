@@ -733,6 +733,7 @@ class LowRatedShapes(_Finding):
         # A local call, and a model leg, whose line pass once held every number.
         for uses in (
             "./.github/actions/judge",
+            "$/.github/actions/judge",
             "o/r/.github/actions/run-claude-cli@abc",
         ):
 
