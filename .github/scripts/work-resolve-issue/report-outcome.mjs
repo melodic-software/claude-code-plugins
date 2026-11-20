@@ -1366,6 +1366,12 @@ function fileList(files, holdPaths) {
   ].join("\n");
 }
 
+const humanPullStop = (humanPull, args) =>
+  routeStop("blocked-by-pr", {
+    outcome: stopped(`A listed human's open pull request #${humanPull} names this issue, so the lane pushed no branch and opened no pull request.`),
+    ...args,
+  });
+
 // A lane branch an earlier run left with commits and no report, whose outcome
 // this run cannot read: a PR listing the files it changes, held on mustHold's
 // conditions. With the summary pass's summary it carries that text; without
@@ -1381,9 +1387,15 @@ export function reusePlan({
   changedFiles = null,
   holdPaths = null,
   humanMerge = false,
+  humanLabel = "needs-human",
+  runId = "",
+  humanPull = "",
   checks = null,
   linkage = [],
 }) {
+  if (humanPull) {
+    return humanPullStop(humanPull, { issueNumber, branch, humanLabel, runUrl, runId, onResumed: false });
+  }
   const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused: true });
   const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
   const [about, fix, earlierChecks, leftOut] = summary
@@ -1502,15 +1514,7 @@ export function decide({
     return routeStop(outcome.stop, { outcome, issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
   }
   if (humanPull && outcome.exit === "done") {
-    return routeStop("blocked-by-pr", {
-      outcome: stopped(`A listed human's open pull request #${humanPull} names this issue, so the lane pushed no branch and opened no pull request.`),
-      issueNumber,
-      branch: branch || resumed,
-      humanLabel,
-      runUrl,
-      runId,
-      onResumed,
-    });
+    return humanPullStop(humanPull, { issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
   }
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -2725,6 +2729,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           changedFiles: await compare().catch(() => null),
           holdPaths,
           humanMerge,
+          humanLabel,
+          runId,
+          humanPull,
           checks,
           linkage,
         })
