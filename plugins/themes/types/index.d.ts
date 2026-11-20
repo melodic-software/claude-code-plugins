@@ -12,8 +12,10 @@ export type BedroomCard = {
   seen?: number
   /** What the last press on the card answered. */
   said?: string
-  /** The four title fields show, as the card's last row. */
+  /** The four title fields show, on two rows in place of the time and the weather. */
   titles?: boolean
+  /** The sound bank's pickers show, on two rows in place of the time and the weather. */
+  sounds?: boolean
 }
 
 declare module 'claude-code' {
