@@ -51,9 +51,8 @@ available marketplace first, then enabled** (enabling alone does not install it)
    Never write the token into `settings.json` by hand. Get a token from
    https://miro.com/app/settings/user-profile/apps. Grant only the scopes that cover the board,
    item, connector and tag endpoints the bundled server's tools call, and nothing broader: any
-   extra scope only widens what a leaked token exposes. Take the scope names from the OAuth guide
-   that [Permission scopes](https://developers.miro.com/reference/scopes)
-   lists.
+   extra scope only widens what a leaked token exposes. Take the scope names from
+   [Permission scopes](https://developers.miro.com/reference/scopes).
    - **Pointer**: when a user asks how the token is collected or stored, fetch
      [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
      (the `sensitive` option) live.
