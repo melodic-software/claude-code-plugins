@@ -103,6 +103,18 @@ out="$(run STUB_EXIT=2 'STUB_REPORT=[ERROR] https://host.test/ | Network error' 
 rc=$?
 grep -qx '::error::broken link https://host.test/: Network error' "$TMP_ROOT/err" && grep -q '1 of 3 added or changed external link(s) broken' < <(tail -n 1 "$TMP_ROOT/err")
 check $? "a broken URL no changed file holds verbatim gets a file-less annotation and the count" "rc=$rc err=$(cat "$TMP_ROOT/err")"
+lychee_0_24_2_report=$'[/tmp/x.md]:\n[404] https://new.test/page#section (at 2:2) | Rejected status code: 404 Not Found\n[TIMEOUT] https://wiki.test/Rule_(programming) (at 3:2) | Request timed out\n[404] https://new.test/page#section (at 2:2) | Rejected status code: 404 Not Found'
+out="$(run STUB_EXIT=2 "STUB_REPORT=$lychee_0_24_2_report" -- "$base" 2>"$TMP_ROOT/err")"
+grep -qE '^::error file=docs/a\.md,line=[0-9]+::broken link https://new\.test/page#section: Rejected status code: 404 Not Found$' "$TMP_ROOT/err" &&
+  grep -qE '^::error file=docs/a\.md,line=[0-9]+::broken link https://wiki\.test/Rule_\(programming\): Request timed out$' "$TMP_ROOT/err"
+check $? "a status-code or TIMEOUT failure is annotated at its changed file and line, its location stripped" "$(cat "$TMP_ROOT/err")"
+grep -q '2 of 3 added or changed external link(s) broken' < <(tail -n 1 "$TMP_ROOT/err")
+check $? "a URL lychee lists twice counts once" "$(tail -n 2 "$TMP_ROOT/err")"
+
+out="$(run STUB_EXIT=2 'STUB_REPORT=something lychee never printed before' -- "$base" 2>"$TMP_ROOT/err")"
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'in a form this script does not parse' < <(tail -n 1 "$TMP_ROOT/err") && ! grep -q '0 of' "$TMP_ROOT/err"
+check $? "a failing run with no parsable finding says so instead of counting 0 broken" "rc=$rc err=$(cat "$TMP_ROOT/err")"
 
 run STUB_EXIT=3 -- "$base" >/dev/null 2>&1
 rc=$?

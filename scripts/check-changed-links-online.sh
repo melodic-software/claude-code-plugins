@@ -94,9 +94,13 @@ case $rc in
   2)
     printf '%s\n' "$report" >&2
     broken=0
+    declare -A seen=()
     while IFS='|' read -r head reason; do
-      url=${head#*\[ERROR\] }
+      url=${head#*\] }
+      url=${url%%' (at '*}
       url=${url%"${url##*[![:space:]]}"}
+      [[ -n ${seen[$url]:-} ]] && continue
+      seen[$url]=1
       at=$(grep -HnF -- "$url" "${files[@]}" 2>/dev/null | head -n 1) || true
       file=${at%%:*} line=${at#*:} line=${line%%:*}
       reason=${reason#"${reason%%[![:space:]]*}"}
@@ -106,8 +110,12 @@ case $rc in
         echo "::error::broken link $url: $reason" >&2
       fi
       broken=$((broken + 1))
-    done < <(grep -E '^\[ERROR\] ' <<<"$report")
-    echo "$me: $broken of ${#urls[@]} added or changed external link(s) broken" >&2
+    done < <(grep -E '^\[([0-9]{3}|ERROR|TIMEOUT)\] ' <<<"$report")
+    if ((broken == 0)); then
+      echo "$me: lychee reported broken links in a form this script does not parse; see its report above" >&2
+    else
+      echo "$me: $broken of ${#urls[@]} added or changed external link(s) broken" >&2
+    fi
     exit 1
     ;;
   *) printf '%s\n' "$report" >&2; echo "$me: lychee failed (exit $rc)" >&2; exit 2 ;;
