@@ -15,6 +15,12 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$SCRIPT_DIR/setup-apply.mjs"
 READER="$SCRIPT_DIR/parse-concern-value.sh"
 
@@ -43,17 +49,11 @@ new_repo() {
   printf '%s\n' "$dir"
 }
 
-seeded_repo() { # seeded_repo <content>: set repo to a new repo whose settings file f holds <content>
+seeded_repo() {
   repo="$(new_repo)"
   f="$repo/docs/conventions/discipline.yaml"
   mkdir -p "$repo/docs/conventions"
   printf '%s' "$1" >"$f"
-}
-
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
-settings() {
-  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
 
 OUT=""
