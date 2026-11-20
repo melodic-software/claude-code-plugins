@@ -56,7 +56,7 @@ let isInstant = true
 const stats = { renders: 0, roomSends: 0, valueOnly: 0, buildMs: 0, maxBuildMs: 0, askMs: 0, chars: 0 }
 let askedAt: number | undefined
 /** The build /bedroom stats names, so a tester can tell which one the app loaded. */
-const BUILD = 'settings-card-3'
+const BUILD = 'settings-card-2'
 /** The number the shader last heard for each switch. It turns a switch the way its number moves, so a click in the room never changes it. */
 let sent: Record<string, number> = {}
 const sendAll = (): void => {
@@ -80,30 +80,17 @@ let aloneSource = ''
 let isSettled = false
 let settling: { cancel: () => void } | undefined
 
-/**
- * The room under the shader: the ceiling light on and the things the shader draws switched as it expects, so a switch
- * never sends it again. Drawn without dim: the veil over the backdrop dims it, so a dim step never sends it either.
- */
+/** The room under the shader: the ceiling light on and the things the shader draws switched as it expects, so a switch never sends it again. */
 function shaderRoom(): string {
   return bedroomSvg(
     { ...saved.state, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: true, titles: saved.titles, underShader: true },
-    0,
+    saved.dim,
   )
 }
 
-/** The room as it stands, drawn whole: what shows when no shader runs. Drawn without dim, as the shader's room is. */
+/** The room as it stands, drawn whole: what shows when no shader runs. */
 function wholeRoom(): string {
-  return bedroomSvg({ ...saved.state, titles: saved.titles }, 0)
-}
-
-/**
- * The color of the dark veil a dim lays over the whole backdrop, the room's own night blue at dim's opacity:
- * `#rrggbbaa`. The veil stays in the tree at every dim, clear at 0, so a dim step changes one color and nothing else.
- */
-export function veilColor(dim: number): string {
-  const alpha = Math.round(Math.min(1, Math.max(0, dim)) * 255)
-
-  return `#07080f${alpha.toString(16).padStart(2, '0')}`
+  return bedroomSvg({ ...saved.state, titles: saved.titles }, saved.dim)
 }
 
 /** Takes the shader away: the next render shows the room alone and waits SETTLE_MS before starting one again. */
@@ -580,7 +567,7 @@ export const register: Register = on => {
     if (e.props.plugin !== $.plugin.name || e.props.scene !== SCENE || e.surface !== 'desktop') {
       return next(e)
     }
-    const { Box, Shader, Svg } = $.ui.resolve(e)
+    const { Shader, Svg } = $.ui.resolve(e)
     const startedAt = performance.now()
     let source: string
     let isShader = false
@@ -633,19 +620,15 @@ export const register: Register = on => {
     }
     $.ui.log(`bedroom render ${stats.renders}: asked after ${stats.askMs.toFixed(1)} ms, built in ${buildMs.toFixed(1)} ms, ${source.length} chars, room sent ${stats.roomSends} times`, { to: 'debug' })
     const svg = <Svg source={source} alt="A teenager's bedroom in the country just after sunset" isInteractive />
-    const veil = <Box key="veil" position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor={veilColor(saved.dim)} />
+
+    if (!isShader) {
+      return svg
+    }
 
     return (
-      <Box key="room" width="100%" height="100%">
-        {isShader ? (
-          <Shader module="./lights.ts" values={{ ...sent, clock: minuteOfHalfDay() }}>
-            {svg}
-          </Shader>
-        ) : (
-          svg
-        )}
-        {veil}
-      </Box>
+      <Shader module="./lights.ts" values={{ ...sent, clock: minuteOfHalfDay() }}>
+        {svg}
+      </Shader>
     )
   })
 
