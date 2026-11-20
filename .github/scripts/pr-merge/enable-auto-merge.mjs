@@ -2503,6 +2503,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           continue;
         }
         try {
+          const fresh = await github("GET", `/repos/${repo[0]}/pulls/${pull.number}`);
+          if (fresh?.head?.sha !== pull.headRefOid) {
+            console.log(`enable-auto-merge: #${pull.number} left open: its head moved to ${fresh?.head?.sha ?? "an unread head"} after its diff read empty`);
+            continue;
+          }
           if (pull.autoMergeRequest != null) {
             await sendSettled("disarm", pull);
           }
