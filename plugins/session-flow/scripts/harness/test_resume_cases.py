@@ -483,13 +483,13 @@ def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path)
     assert resume_cases.seed_shape(spec, three) == 2
 
 
-def test_shape_4_is_an_unsupported_seed_shape(tmp_path):
+def test_shape_5_is_an_unsupported_seed_shape(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
     spec["seed"]["predecessor"].pop("shape", None)
-    four = _stub_copy(tmp_path / "four", "X = 1\nHANDOFF_SHAPE = 4\n")
+    five = _stub_copy(tmp_path / "five", "X = 1\nHANDOFF_SHAPE = 5\n")
     repo = tmp_path / "repo"
-    with pytest.raises(ValueError, match="unsupported seed shape 4"):
-        resume_cases.build_predecessor_chain(spec, repo, save_point=four)
+    with pytest.raises(ValueError, match="unsupported seed shape 5"):
+        resume_cases.build_predecessor_chain(spec, repo, save_point=five)
     assert not (repo / ".work" / "handoffs").exists()
 
 
@@ -534,6 +534,20 @@ def test_a_shape3_chain_is_steered_to_its_target_hot_file_size(tmp_path):
     newest = chain[-1]
     assert "handoff_shape: 3" in newest.read_text(encoding="utf-8")
     assert abs(newest.stat().st_size - target) <= 0.10 * target
+
+
+def test_a_shape4_chain_is_steered_to_its_target_hot_file_size(tmp_path):
+    target = 20_000
+    spec = _shape3_target_spec(target)
+    spec["seed"]["predecessor"]["shape"] = 4
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", arm=CHECKOUT_ARM
+    )
+    newest = chain[-1]
+    assert "handoff_shape: 4" in newest.read_text(encoding="utf-8")
+    assert abs(newest.stat().st_size - target) <= 0.10 * target
+    hop_files = list((newest.parent / "archive").glob("*/h*-*.md"))
+    assert len(hop_files) == len(chain)
 
 
 def test_a_steered_shape3_build_is_deterministic(tmp_path):

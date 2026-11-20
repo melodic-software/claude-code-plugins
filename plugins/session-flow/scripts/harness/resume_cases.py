@@ -8,7 +8,7 @@ A case directory under `plugins/session-flow/evals/re-<name>/` holds one
 - `build_predecessor_chain` writes the case's handoff chain through the real
   `save_point.py new`, hop by hop, with deterministic lane-like content, plus the
   case's injected entries at their hops. Shape 2, sized like the audited chains, is
-  the default; `"shape": 3` builds hot files and hop files filled through
+  the default; `"shape": 3` or `4` builds hot files and hop files filled through
   `save_point.py fill`, whose `retire` moves each injection with a `retire` hop
   into that hop's file. Every hop passes `save_point.py validate --strict-transcript`.
 - `seed_history` returns the session the writer resumes from: the pasted resume
@@ -47,7 +47,7 @@ from hop_chain import (  # noqa: E402
 from resume_history import _section_span, read_turns, seed_history  # noqa: E402,F401
 
 CASE_FILE = "resume-eval.json"
-SEED_SHAPES = (2, 3)
+SEED_SHAPES = (2, 3, 4)
 TASK_RELATIONS = ("same", "boundary")
 HANDOFF_SHAPE_RE = re.compile(r"^HANDOFF_SHAPE = (\d+)$", re.MULTILINE)
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
@@ -843,7 +843,7 @@ def _build(
         raise ValueError(
             f"{case}: unsupported seed shape {shape}; the seeder builds {SEED_SHAPES}"
         )
-    if shape == 3:
+    if shape >= 3:
         _check_shape3_spec(pred, hops)
     expected_fail = _expected_fail(pred, case, hops, arm)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
@@ -891,7 +891,7 @@ def _build(
                 f"{case}: `new` failed at hop {hop}: {made.stdout}{made.stderr}"
             )
         path = Path(made.stdout.strip())
-        if shape == 3:
+        if shape >= 3:
             generated = _fill_3(
                 path, pred, hop, lane, live, script, rule_count, hop in expected_fail
             )
@@ -951,7 +951,7 @@ def _build(
             overheads.append(sizes[-1] - sizes[-2] - generated)
             overhead = sorted(overheads)[len(overheads) // 2]
             need = (int(target) - sizes[-1]) / (hops - hop)
-            if shape == 3:
+            if shape >= 3:
                 per_rule = generated / rule_count if rule_count else BASE_WIDTH
                 rule_count = max(0, round((need - overhead) / per_rule))
             else:
