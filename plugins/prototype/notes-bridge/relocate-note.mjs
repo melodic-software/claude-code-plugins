@@ -39,6 +39,7 @@ export async function relocate(page, input, decide) {
   const { note, url, shot } = input;
   const a = note.anchor;
   const out = { seq: input.seq, restored: {}, rungs: [], matched: null, confirmed: false, positionOnly: false, shot: null };
+  const UNMARKED = -1, unmarked = [];
   const p = await page.context().newPage();
   try {
     const vp = note.viewport;
@@ -64,14 +65,18 @@ export async function relocate(page, input, decide) {
     await show({ variant: note.variant?.key, state: note.state?.key, content: flips ? undefined : note.content });
     if (log) {
       // The frame helper presses each data control the log names; it returns how many it could not find.
-      const missed = await frame.evaluate((l) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.replay(l) : -1), log);
-      out.restored.data = missed === 0;
+      const missed = await frame.evaluate((l) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.replay(l) : null), log);
+      if (missed === UNMARKED) unmarked.push("data");
+      else out.restored.data = missed === 0;
       if (flips) await show({ content: note.content });
     }
     if (note.controls) {
       // The frame helper sets each control the note carries; it returns how many the page has no control for.
-      out.restored.controls = (await frame.evaluate((v) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.setControls(v) : -1), note.controls)) === 0;
+      const missed = await frame.evaluate((v) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.setControls(v) : null), note.controls);
+      if (missed === UNMARKED) unmarked.push("controls");
+      else out.restored.controls = missed === 0;
     }
+    if (unmarked.length) out.unmarked = unmarked;
     if (vp) {
       // The person's scroll, once the view and data give the page its size; false when the page no longer scrolls that far.
       out.restored.scroll = await frame.evaluate((s) => {

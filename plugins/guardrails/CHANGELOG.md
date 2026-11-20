@@ -3,6 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.0] - 2026-11-20
+
+### Changed
+
+- `block-lane-pr-disable-auto` reads the lanes App login from the new `block_lane_pr_disable_auto_app` option instead of naming one publisher's App. Unset, the default, the guard blocks a disable on any pull request a GitHub App opened (`app/<slug>` or `<slug>[bot]`), since it cannot tell which App is the lanes App; a pull request a person opened passes, and one whose author cannot be read stays blocked.
+
+## [3.11.0] - 2026-11-20
+
+### Changed
+
+- The git-hooks remote plan names the git URL of the marketplace the plugin was installed from (its GitHub or git source), so a fork's install fetches the fork; the publisher URL in `entries.json` stays the default when the marketplace has no such source.
+
+## [3.10.6] - 2026-11-19
+
+### Changed
+
+- `block-noncanonical-commit.sh`'s header names the configure command as `/plugin configure guardrails@<marketplace>`, not one publisher's marketplace.
+
 ## [3.10.5] - 2026-11-19
 
 ### Changed

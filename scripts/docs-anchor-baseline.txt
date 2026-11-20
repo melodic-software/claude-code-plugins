@@ -90,7 +90,7 @@ plugins/mutation-testing/skills/principles/reference/tooling.md 4
 plugins/naming/skills/name-it-better/context/sources.md 1
 plugins/performance/skills/go-faster/reference/catalog/ci-cd.md 13
 plugins/performance/skills/go-faster/reference/catalog/git.md 11
-plugins/performance/skills/go-faster/reference/catalog/harness.md 6
+plugins/performance/skills/go-faster/reference/catalog/harness.md 5
 plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
 plugins/planning/skills/design/reference/design-defaults.md 1
 plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2

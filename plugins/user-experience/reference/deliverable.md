@@ -38,6 +38,9 @@ Analyst: <role, never a name>   (optional)
   could identify someone.
 - **Synthetic output is a hypothesis.** Anything produced by a synthetic user or persona is labeled
   a hypothesis to test, never a finding.
+- **Never a bare "Discovery".** Say "discovery phase" for the lifecycle stage
+  (`reference/discovery-phase.md`) or "user research" for the activity, which runs at any stage.
+  The bare word fits both, so a reader cannot tell whether the record means a stage or a method.
 
 ## Closing list
 

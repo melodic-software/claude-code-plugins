@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/seeds/*/capabilities.json
 # Tests for the core dispatcher: usage, binding resolution, capability gating, and
 # list-frontier derivation — all against a fake adapter (no network, no gh).
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/* plugins/work-items/tools/work-item-tracker/adapters/*/capabilities.json

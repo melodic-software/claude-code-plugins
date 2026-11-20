@@ -5,8 +5,9 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.36.3",
+  "version": "0.36.6",
   "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
   "userConfig": {
     "described_problem": {
       "type": "string",

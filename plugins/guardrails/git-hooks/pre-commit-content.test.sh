@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/git-hooks/pre-push-content.sh
 # Contract tests for the guardrails pre-commit entry (git-hooks/pre-commit-content.sh):
 # a secret or machine-specific path on a line the commit adds blocks with
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,

@@ -676,7 +676,7 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
   // Its error line and another title's held: text are no hold.
   const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
   assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
-  assert.equal(parseHold("pr-verify-capture", "held: pr-verify-capture could not resolve the pull request: x failed with status 502"), null);
+  assert.equal(parseHold("other-lane", "held: other-lane could not resolve the pull request: x failed with status 502"), null);
   assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
 });
 

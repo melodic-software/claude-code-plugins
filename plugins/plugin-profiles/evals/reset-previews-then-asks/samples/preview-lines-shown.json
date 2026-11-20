@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Here is what reset would do:\n\n```\nReset looked for profile records in user settings, this folder, 0 data folders, 1 repository pointer, 0 folders Claude Code has opened, 0 one-session records and 0 live sessions.\nIt found 1 settings file:\n/work/.claude/settings.local.json: profile build applied Nov 1, 2026, 12:00 AM UTC; reset puts back 1 plugin entry and 0 skill entries to their values before the first apply.\n```\n\nReset the 1 file above that a profile record covers?\n\n1. No\n2. Yes (Recommended): You asked for a reset: a yes puts back the 1 file above as its lines say, and applying a profile again undoes it.",
+      "why": "every preview line exactly as printed, then the question"
+    },
+    {
+      "answer": "Reset looked for profile records in user settings, this folder, 0 data folders, 1 repository pointer, 0 folders Claude Code has opened, 0 one-session records and 0 live sessions.\nIt found 1 settings file:\n/work/.claude/settings.local.json: profile build applied Nov 1, 2026, 12:00 AM UTC; reset puts back 1 plugin entry and 0 skill entries to their values before the first apply.\n\nReset the 1 file above that a profile record covers? No / Yes (Recommended)",
+      "why": "the lines without a code block are still the lines as printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reset found one file, /work/.claude/settings.local.json, with profile build; it removes it directly.\n\nReset the 1 file above that a profile record covers?\n\n1. No\n2. Yes (Recommended)",
+      "why": "a one-line summary in place of the preview lines"
+    },
+    {
+      "answer": "The preview found 1 settings file: /work/.claude/settings.local.json, where reset would put back 1 plugin entry to its value before profile build. Should I go ahead? No / Yes",
+      "why": "a paraphrase of the lines"
+    },
+    {
+      "answer": "Reset the 1 file above that a profile record covers? No / Yes (Recommended)",
+      "why": "asks with no preview lines at all"
+    },
+    {
+      "answer": "Should I reset? Here is the preview:\nReset looked for profile records in user settings, this folder, 0 data folders, 1 repository pointer, 0 folders Claude Code has opened, 0 one-session records and 0 live sessions.\nIt found 1 settings file:\n/work/.claude/settings.local.json: profile build applied Nov 1, 2026, 12:00 AM UTC; reset puts back 1 plugin entry and 0 skill entries to their values before the first apply.",
+      "why": "asks before showing the lines"
+    }
+  ]
+}

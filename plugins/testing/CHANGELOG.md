@@ -3,6 +3,27 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.8.0] - 2026-11-20
+
+### Added
+
+- `/testing:audit` and `/testing:cleanup` accept the target-scope contract's forms (`--repo`,
+  `--repos-from`, `--owner`, `--fleet`, `--skip`), and their `argument-hint` shows
+  `[--repo <repo> ...]`. The audit scans each repository with its root anchored, merges the
+  findings with each row's repository, and writes `--persist-findings` files per repository;
+  `--check`, `--file` and `--judge` stay single-repository. Cleanup plans batches per
+  repository in that repository's own worktree and lists the command that runs each other
+  repository's batches in a session opened there, since the mutation gate and the `test-weaken`
+  hook read the session's own project. Each repository's pull request stays in that repository.
+  With no target form, both skills behave as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
+## [5.7.8] - 2026-11-19
+
+### Fixed
+
+- `check-visual-parity`: outside a marketplace checkout and without `CLAUDE_PLUGIN_DATA`, `visual-compare.sh` installs under the data directory named from the install's own marketplace (`testing-<marketplace>`, or `testing-inline` outside the plugin cache) instead of one fixed publisher marketplace.
+
 ## [5.7.7] - 2026-11-19
 
 ### Fixed

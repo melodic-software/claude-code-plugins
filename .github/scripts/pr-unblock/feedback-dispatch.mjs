@@ -18,7 +18,9 @@
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it, or a person on the base's
 //   trusted-actors list did under an `adoption` section, with no `Hold:` body
-//   line and the PR and its head commit idle-hours old; on such an owner PR
+//   line and either auto-merge armed (`auto_merge`,
+//   https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or the PR
+//   and its head commit idle-hours old; on such an owner PR
 //   only a thread the select job keeps dispatches;
 // - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
@@ -196,6 +198,7 @@ export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { laneRecordStore } from "./lane-record-cache.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
 
@@ -232,15 +235,22 @@ export const DEFAULTS = Object.freeze({
 const SHA = /^[0-9a-f]{40}$/;
 const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
+export const autoMergeArmed = (pull) => pull?.auto_merge != null;
+
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
 // (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
-// job checks it again, as the round starts), and both
-// the PR's last update and its head commit at least idle-hours old, so the
-// lane does not push onto a branch a session is still working on. An
-// unreadable date is not idle.
+// job checks it again, as the round starts), and either auto-merge armed (the
+// session handed the PR to the merge gates; `auto_merge`,
+// https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or both the
+// PR's last update and its head commit at least idle-hours old, so the lane
+// does not push onto a branch a session is still working on. An unreadable
+// date is not idle.
 export async function ownerSkip({ api, pull, adoption, now }) {
   if (HOLD_LINE.test(String(pull.body ?? ""))) {
     return "held by a Hold: line";
+  }
+  if (autoMergeArmed(pull)) {
+    return "";
   }
   const since = now - adoption.idleHours * 3_600_000;
   if (!(Date.parse(pull.updated_at ?? "") <= since) || !(Date.parse(await api.headCommittedAt(pull.head.sha)) <= since)) {
@@ -322,6 +332,7 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
       firstAuthorId: nodes[0].author?.databaseId,
       review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
       heads,
+      rootBoundHead: nodes[0].boundHead,
     });
   if (!kept) {
     return null;
@@ -500,6 +511,7 @@ export async function dispatchFeedback({
   // The verifier reads this pass may still spend on PRs with no unresolved
   // thread (EARLIER_FAIL_READS); main shares one across the pass's sweeps.
   earlierFailReads = { left: EARLIER_FAIL_READS },
+  verifyReads = new Map(),
   // The sweep decides every PR before it sends any: the decision then
   // returns { number, send } and send() posts it.
   defer = false,
@@ -748,13 +760,17 @@ export async function dispatchFeedback({
   // inside one 10-minute job, so a pass reads at most EARLIER_FAIL_READS heads
   // that have no thread; the rest wait for a later pass inside
   // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
-  if (noThread) {
+  const readKey = `${number}:${head}:${pull.base?.sha}:${expected.join(",")}`;
+  if (noThread && !verifyReads.has(readKey)) {
     if (earlierFailReads.left <= 0) {
       return skip(`#${number} has no unresolved review thread, and this pass's ${EARLIER_FAIL_READS} verifier reads for an earlier FAIL are spent; the next pass reads it`);
     }
     earlierFailReads.left -= 1;
   }
-  const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  const read = owner ? null : verifyReads.get(readKey) ?? (await verifyCapped({ number, head, base: pull.base?.sha, expected }));
+  if (read !== null && typeof read === "object" && !read.readFailed) {
+    verifyReads.set(readKey, read);
+  }
   const { cap: capped, supersededAtHead, earlierFailHeads = [], readFailed = false } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (noThread && (readFailed || (capped && !capFinal(capped)))) {
     return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
@@ -943,8 +959,9 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
 export const IDLE_OWNER_WINDOW_HOURS = 2;
 
 // An owner PR's review completes while the person's session is still on it,
-// so its review-run dispatch skips the idle test; once idle, the tick sends
-// it. A PR still active by the listing's last update spends no read; an idle
+// so its review-run dispatch skips the idle test unless auto-merge is armed
+// (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests,
+// `auto_merge`); once idle or armed, the tick sends it. A PR still active by the listing's last update spends no read; an idle
 // one spends one check-run read. A head with no round is decided by
 // dispatchFeedback (both markers on the head, a thread the lane works, about
 // six reads) only within IDLE_OWNER_WINDOW_HOURS of turning idle, so each
@@ -956,7 +973,7 @@ export const IDLE_OWNER_WINDOW_HOURS = 2;
 // PR, with no window, since resolving a thread may not move the update time.
 async function sweepIdleOwner(context) {
   const { api, pull, rest, settings } = context;
-  const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
+  const since = (rest.now ?? Date.now()) - (autoMergeArmed(pull) ? 0 : (rest.adoption?.idleHours ?? 0) * 3_600_000);
   const updated = Date.parse(pull.updated_at ?? "");
   if (!(updated <= since)) {
     return null;
@@ -1333,7 +1350,7 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   if (lost === null) {
     return null;
   }
-  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its ${DISPATCH_JOB} job started`);
+  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its Dispatch job started`);
   const context = { api, repository, appSenderId, log, settings, rest };
   // A round that ended before posting its check does not handle the head, and
   // the lost run stays in the window for a day, so each lost run sends at most
@@ -1470,6 +1487,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   const repo = `${apiUrl}/repos/${owner}/${name}`;
+  const checkRunsByHead = new Map();
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
@@ -1492,7 +1510,25 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       throw Object.assign(error, { call });
     });
 
-  async function request(url, method = "GET", body, signal) {
+  const reads = new Map();
+  function request(url, method = "GET", body, signal) {
+    const key = method === "GET" ? url : url === graphqlUrl && !/^\s*mutation\b/.test(body?.query ?? "") ? `${url}\n${JSON.stringify(body)}` : null;
+    if (key === null) {
+      reads.clear();
+      return answer(url, method, body, signal);
+    }
+    if (!reads.has(key)) {
+      const read = answer(url, method, body, signal);
+      reads.set(key, read);
+      read.then(
+        (data) => data?.errors?.length && reads.delete(key),
+        () => reads.delete(key),
+      );
+    }
+    return reads.get(key).then((data) => structuredClone(data));
+  }
+
+  async function answer(url, method, body, signal) {
     const response = await send(url, {
       method,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
@@ -1575,13 +1611,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
     },
     async listCheckRuns({ sha, checkName, appId }) {
-      const query = new URLSearchParams({
-        check_name: checkName,
-        app_id: String(appId),
-        filter: "all",
-        per_page: "100",
-      });
-      return (await request(`${repo}/commits/${sha}/check-runs?${query}`)).check_runs;
+      const read = (filters) => request(`${repo}/commits/${sha}/check-runs?${new URLSearchParams({ ...filters, app_id: String(appId), filter: "all", per_page: "100" })}`);
+      const key = `${sha}:${appId}`;
+      if (!checkRunsByHead.has(key)) {
+        const all = read({});
+        checkRunsByHead.set(key, all);
+        all.catch(() => checkRunsByHead.delete(key));
+      }
+      const { total_count: total = 0, check_runs: runs = [] } = await checkRunsByHead.get(key);
+      if (total > runs.length) {
+        return (await read({ check_name: checkName })).check_runs;
+      }
+      return runs.filter((run) => run.name === checkName);
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
@@ -1673,36 +1714,58 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 // Writes run-id, the dispatched run, as a step output (a tick's later sends as
 // run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
 // upstream run id as an artifact on this run.
-export async function main(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
+export async function main(env, deps = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
+  const upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  const tick = {};
+  try {
+    return await dispatchTick(env, deps, tick, upstream);
+  } finally {
+    if (tick.store?.save(env.FEEDBACK_LANE_RECORDS_PATH)) {
+      appendFileSync(env.GITHUB_OUTPUT, "lane-records=true\n");
+    }
+  }
+}
+
+async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
+  const reads =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: budget.fetch,
+    });
+  const laneReads = actions ?? laneReader(env, { fetch: budget?.fetch });
+  if (env.FEEDBACK_LANE_RECORDS_PATH) {
+    tick.store = laneRecordStore({
+      workflow: DISPATCH_WORKFLOW,
+      repository: env.GITHUB_REPOSITORY,
+      listArtifactsNamed: (name) => reads.listArtifactsNamed(name),
+      getRun: (id) => reads.getWorkflowRun(id),
+      download: (id) => laneReads.download(id),
+      log,
+      now,
+    });
+  }
   // Every comment read binds the review lanes' comments to their runs
   // (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
-  const client = shareWorkflowRuns(
-    withLaneBinding(
-      api ??
-        createGitHubApi({
-          token: env.GITHUB_TOKEN,
-          repository: env.GITHUB_REPOSITORY,
-          apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-          graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-          fetch: budget.fetch,
-        }),
-      actions ?? laneReader(env, { fetch: budget?.fetch }),
-    ),
-  );
-  let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  const client = shareWorkflowRuns(withLaneBinding(reads, laneReads, tick.store));
+  let upstream = eventRun;
   const common = {
     api: client,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
     // One read budget for every dispatch this pass decides.
     earlierFailReads: { left: EARLIER_FAIL_READS },
+    verifyReads: new Map(),
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.

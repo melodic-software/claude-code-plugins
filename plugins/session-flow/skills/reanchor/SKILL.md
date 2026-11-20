@@ -78,15 +78,23 @@ back up.
    that process is the thing that drifted. Ask for it in the user's own words.
    Where the next actions cannot be tied to the goal in a sentence, that is the
    finding, not a wording problem.
+6. **Inherited security and design decisions.** For each `Decisions in force`
+   entry tagged `[security]` or `[design]` after its id, print its id with its
+   `buys:`, `surface:` and `cost:` values as the handoff records them. Then apply
+   the rule: when `cost` exceeds `buys`, or `surface` is `none` for a
+   `[security]` decision, bring the decision back to the owner before building
+   on it. An inherited decision is a premise like any other; executing it on its
+   id alone is how a reversed decision wastes a session's work. A tagged entry
+   missing a field is that `validate` FAIL; report it as the decision's finding.
 
 ## Flow
 
 1. Gather the session's inputs, the handoff / plan / memory files, the
-   `Original goal` they record, and any PRs, issues, branches, skills, or plugin
+   `Original goal` they record, the tagged decisions they carry, and any PRs, issues, branches, skills, or plugin
    versions they name. When an input chains from a prior handoff, the goal check
    compares links, which a single document cannot do: validate a shape-3 input,
    and open the prior file for an older one (check 5).
-2. Run the five checks above against live reality. Fetch/read the live source
+2. Run the six checks above against live reality. Fetch/read the live source
    (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
    When a check cannot reach what it needs (no network, no `gh`, no fetch),
    report that premise as **unverifiable** rather than assuming it is unchanged;

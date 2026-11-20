@@ -107,6 +107,13 @@
           "default": 2,
           "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
         },
+        "refire-budget-per-slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 1,
+          "description": "Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget, per issue-lane slot (SLOTS): a work-unblock sweep re-fires budget-stopped issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, so each one can start inside its window's FLOOR_SPAN_MIN minutes. They also count toward refire-queue-per-slot's room."
+        },
         "stale-queued-minutes": {
           "type": "integer",
           "minimum": 1,
@@ -1029,7 +1036,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["profiles", "default-profile"],
-      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; a run that is no activity takes a run route: verify-pr for pr-verify.yml, merge-risk for pr-rate-merge-risk.yml, review-code and review-security for the code and security review lanes, triage-issue for intake triage, summarize-reuse for work-resolve-issue's summary of a reused lane branch, adjudicate-feedback for pr-unblock's judge of a disputed review finding, verify-map for the whole-map pass's driver. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
+      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; a run that is no activity takes a run route: verify-pr for pr-verify.yml, merge-risk for pr-rate-merge-risk.yml, review-code and review-security for the code and security review lanes, triage-issue for intake triage, summarize-reuse for work-resolve-issue's summary of a reused lane branch, adjudicate-feedback for pr-unblock's judge of a disputed review finding. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
       "properties": {
         "profiles": {
           "type": "object",
@@ -1045,7 +1052,7 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback, verify-map, verify-capture); a value is a key of profiles. The config reader rejects any other key or value."
+          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, merge-risk, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback); a value is a key of profiles. The config reader rejects any other key or value."
         },
         "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" },
         "issue-status": { "$ref": "#/$defs/issue-status" }
@@ -1432,110 +1439,6 @@
           "enum": ["lane", "lane-or-owner", "any"],
           "default": "lane",
           "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; lane-or-owner: those and the owner account's (a User matched by account id), whose idle pull requests the pr-merge lane adopts; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
-        },
-        "verify-capture": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Evidence capture for pr-verify: the app it drives to show the change working, and how long each capture artifact lasts. Each verdict records the capture's outcome in its evidence block (README.md, Verifier verdict).",
-          "properties": {
-            "app": {
-              "type": "string",
-              "minLength": 1,
-              "description": "The app the capture drives. Absent: no capture runs, and the verdict records `capture: no-app`."
-            },
-            "retention-days": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 30,
-              "default": 30,
-              "description": "Days each capture artifact lasts. At most 30, the pr-capture-* row's days in .github/artifact-retention.json (README.md, Verifier verdict)."
-            },
-            "proxy": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
-              "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
-              "properties": {
-                "driven-model": {
-                  "type": "string",
-                  "pattern": "^claude-[a-z0-9-]+$",
-                  "description": "The driven session's main model, one of models (README.md, Verifier verdict)."
-                },
-                "driven-small-model": {
-                  "type": "string",
-                  "pattern": "^claude-[a-z0-9-]+$",
-                  "description": "The driven session's small model (titles and the like), one of models (README.md, Verifier verdict)."
-                },
-                "models": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": { "type": "string", "pattern": "^claude-[a-z0-9-]+$" },
-                  "description": "The model ids the proxy forwards; any other is refused (README.md, Verifier verdict)."
-                },
-                "token-cap": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Tokens the driven session of one capture job may spend through the proxy, input, cache and output counted in full; past it the proxy refuses (README.md, Verifier verdict)."
-                },
-                "driver-token-cap": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "The same budget for the capture job's driver legs, which reach the proxy on its loopback port (README.md, Verifier verdict)."
-                },
-                "max-tokens-ceiling": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "The largest max_tokens a request may ask for, also the driven session's CLAUDE_CODE_MAX_OUTPUT_TOKENS (README.md, Verifier verdict)."
-                },
-                "max-body-bytes": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "The largest request body the proxy accepts (README.md, Verifier verdict)."
-                },
-                "max-in-flight": {
-                  "type": "integer",
-                  "minimum": 2,
-                  "description": "Requests the proxy forwards at once; at least 2, since the main and title requests run together (README.md, Verifier verdict)."
-                },
-                "max-count-tokens-requests": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Client count_tokens requests the proxy forwards per job (README.md, Verifier verdict)."
-                },
-                "max-preflight-requests": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Messages requests per job that may reach the proxy's upstream count_tokens preflight, which the token cap does not count; past it the proxy refuses (README.md, Verifier verdict)."
-                },
-                "upstream-timeout-ms": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Idle milliseconds after which the proxy aborts a stalled upstream request; longer than the longest non-streaming generation and gap between stream pings (README.md, Verifier verdict)."
-                },
-                "betas": {
-                  "type": "array",
-                  "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 },
-                  "description": "The anthropic-beta values a request may name, measured from the driven session on the Claude Code package-lock.json pins (README.md, Verifier verdict)."
-                },
-                "body-keys": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 },
-                  "description": "The top-level request body keys a request may carry, measured from the driven session (README.md, Verifier verdict)."
-                },
-                "block-types": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 },
-                  "description": "The content block types a request may carry in messages and system (README.md, Verifier verdict)."
-                }
-              }
-            }
-          }
         },
         "agent-identity": {
           "type": "string",

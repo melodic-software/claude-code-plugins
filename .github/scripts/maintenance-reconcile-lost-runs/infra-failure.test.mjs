@@ -166,7 +166,7 @@ test("the reconciler keeps a run whose failed jobs' steps did not list, inside i
     assert.equal(reconcilerOwns({ run: run(2), jobs: [job] }, now), "");
     assert.equal(reconcilerOwns({ run: run(1, "2026-10-18T19:00:00Z"), jobs: [job] }, now), "");
     // Past RERUN_DUE_MINUTES, or with no readable end time, fix-ci takes it.
-    assert.equal(reconcilerOwns({ run: run(1, "2026-10-19T17:00:00Z", "2026-10-19T18:00:00Z"), jobs: [job] }, now), "");
+    assert.equal(reconcilerOwns({ run: run(1, "2026-10-19T17:00:00Z", "2026-10-19T17:30:00Z"), jobs: [job] }, now), "");
     assert.equal(reconcilerOwns({ run: run(1, undefined, "not a date"), jobs: [job] }, now), "");
   }
   assert.equal(reconcilerOwns({ run: run(1), jobs: [job("failure", "Lint markdown")] }, now), "");

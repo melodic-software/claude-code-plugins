@@ -1,8 +1,8 @@
 // The reach probe: run as a Bash child of a Claude Code leg holding a key or
-// a subscription token. In pr-verify-capture.yml that is where the app under
-// test and its hooks will run, before any pull request code is checked out;
-// upstream-apply-changelog.yml runs it on each new Claude Code release to
-// check the subprocess scrub. It reports whether a process in that position
+// a subscription token. upstream-apply-changelog.yml runs it on each new
+// Claude Code release to check the subprocess scrub
+// (https://github.com/melodic-software/claude-code-plugins/issues/12836). It
+// reports whether a process in that position
 // can read a credential or the job's runtime token: in its own environment,
 // in any process environment /proc lets it read, or in a git, gh or Claude
 // Code credential file. It writes RESULT_FILE
@@ -18,9 +18,10 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-// Every variable that carries a credential pr-verify's capture holds or the
+// Every variable that carries a credential a pr-verify leg holds or the
 // runner hands a step: the role's three Claude secrets, the names
-// run-claude-cli passes or sets them under (lane.cjs CREDENTIAL_VARIABLES),
+// run-claude-cli passes or sets them under (lane.cjs CREDENTIAL_VARIABLES,
+// https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/run-claude-cli/lane.cjs),
 // the job token and the runtime and OIDC request tokens. A job holding another
 // role's secret names it in CAPTURE_PROBE_EXTRA_NAMES, space separated; the
 // result lists every name probed, so its caller can see the names arrived.

@@ -540,40 +540,39 @@ test("a drift-shaped github-actions issue is a candidate; any other github-actio
     driftIssue(1),
     issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->" }),
     driftIssue(3, { title: "Upstream drift: sandcastle" }),
-    driftIssue(4, { body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
+    driftIssue(4, { title: "Upstream drift: playwright/playwright", body: "Upstream `playwright/playwright` no longer matches the copy vendored here." }),
+    driftIssue(9, { title: "Upstream drift: firecrawl/update", body: "Upstream `firecrawl/update` no longer matches the copy vendored here." }),
     driftIssue(5, { user: { id: OUTSIDER } }),
     driftIssue(6, { body: `<!-- factory-monitor key=x -->\n${DRIFT_LEAD_TEXT}` }),
+    driftIssue(7, { body: "Upstream `other/repo` no longer matches the copy vendored here." }),
+    driftIssue(8, { user: { id: OUTSIDER }, body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
   ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [1],
+    [1, 4],
+    "the hex-pin lead and a files-only row's vendored lead from github-actions[bot] are candidates; a package-installing row, another id or another author is not",
   );
 });
 
-test("a drift candidate is dispatched only when GraphQL shows no one but github-actions[bot] edited it", async () => {
-  const issues = [driftIssue(1), driftIssue(2), driftIssue(3)];
-  const editors = {
-    1: { editor: null, lastEditedAt: null },
-    2: { editor: { __typename: "Bot", databaseId: BOT.id }, lastEditedAt: "2026-10-18T10:00:00Z" },
-    3: { editor: { __typename: "User", databaseId: HUMAN }, lastEditedAt: "2026-10-18T10:00:00Z" },
-  };
-  const gh = fakeGitHub({ issues });
+test("a drift candidate is skipped before any read, since the broker refuses its dispatch, and none is handed off", async () => {
+  const issues = [driftIssue(1), driftIssue(2), issue(3)];
+  const gh = fakeGitHub({
+    issues,
+    comments: { 2: [{ id: 5, user: BOT, body: renderState({ runs: [11, 12], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "failure" }, 12: { status: "completed", conclusion: "failure" } },
+  });
   const reads = [];
   const call = (method, path, body) => {
-    if (method === "POST" && path === "/graphql" && body?.variables?.number !== undefined) {
-      const n = body.variables.number;
-      reads.push(`spec ${n}`);
-      const found = issues.find((i) => i.number === n);
-      return { data: { repository: { issue: { title: found.title, body: found.body, author: { __typename: "Bot", databaseId: BOT.id }, ...editors[n], comments: { totalCount: 0, nodes: [] } } } } };
-    }
-    if (method === "GET" && /\/comments\?/.test(path)) reads.push(path);
+    reads.push(body?.variables?.number ?? path);
     return gh.call(method, path, body);
   };
   const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
-  assert.deepEqual(result.dispatched, [1, 2]);
+  assert.deepEqual(result.refused, [1, 2]);
+  assert.deepEqual(result.dispatched, [3]);
+  assert.deepEqual(result.handed, []);
   assert.deepEqual(result.failed, []);
-  assert.ok(reads.includes("spec 3"), "the human-edited issue's edit history was read");
-  assert.ok(!reads.some((p) => p.startsWith("/repos/o/r/issues/3/")), "the human-edited issue is skipped before its comments are read");
+  assert.ok(!reads.some((r) => r === 1 || r === 2 || /\/issues\/[12]\//.test(String(r))), "no edit-history, comment or run read for a drift issue");
+  assert.ok(!gh.writes.some((w) => /\/issues\/(comments|[12]\/)/.test(w.path)), "no state comment or Work status write");
 });
 
 // Row S3: an intake comment with no verdict label left the issue untriaged.

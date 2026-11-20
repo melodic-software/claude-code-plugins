@@ -298,9 +298,10 @@ jobs:
   dispatch:
     # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
     # cancelled one (most often superseded by a newer push) finished no review.
-    # The lanes App opens PRs only from work-resolve-issue lane branches
-    # (work-resolve-issue/report-outcome.mjs), so a review run on any other
-    # branch is not on a lanes App PR. A pr-verify run dispatches only once its
+    # A review run on any same-repository branch but Dependabot's starts it:
+    # the script serves lanes App PRs and adopted owner PRs (`adoption`,
+    # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline.yaml).
+    # A pr-verify run dispatches only once its
     # notes are on the PR, or, for a pass, once its job found a stale fail-note
     # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
     # schedule started it on main. A pr-merge.yml run counts whatever its
@@ -325,7 +326,7 @@ jobs:
       && github.event.workflow_run.repository.full_name == github.repository
       || github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      && !startsWith(github.event.workflow_run.head_branch, 'dependabot/')
       && github.event.workflow_run.conclusion != 'skipped'
       && github.event.workflow_run.conclusion != 'cancelled'
       || github.event.workflow_run.path == '.github/workflows/pr-merge.yml'
@@ -378,7 +379,7 @@ jobs:
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -460,6 +461,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-dispatch-feedback-record.json
+          FEEDBACK_LANE_RECORDS_PATH: ${{ runner.temp }}/feedback-lane-records.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: |
@@ -644,6 +646,25 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      - name: Scan the lane record cache for credentials
+        id: scan-lane-records
+        if: always() && steps.dispatch.outputs.lane-records == 'true'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/feedback-lane-records.json
+
+      - name: Carry the lane record cache
+        if: >-
+          (always() && steps.dispatch.outputs.lane-records == 'true') && steps.scan-lane-records.outputs.clean == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-feedback-lane-records
+          path: ${{ runner.temp }}/feedback-lane-records.json
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -801,6 +822,7 @@ jobs:
           LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
           POLL_SECONDS: '60'
           POLL_LIMIT_SECONDS: '600'
+          RATE_WAIT_SECONDS: '720'
           RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
@@ -863,8 +885,10 @@ jobs:
           # (403 or 429) waits retry-after seconds, else, with
           # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
           # both read from the refused response's headers, when the wait fits
-          # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
-          # A wait past it fails the job, naming the reset: no other run here
+          # in what is left of RATE_WAIT_SECONDS, counted with the poll's
+          # waits: twelve minutes fit the job's timeout, and the brake holds
+          # the pool a median 12 minutes (7 days to 2026-11-19). A wait past
+          # it fails the job, naming the reset: no other run here
           # re-runs a ci-status this job leaves stale (a later lane's
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
@@ -914,8 +938,8 @@ jobs:
                 wait=
               fi
               if [ -n "$wait" ]; then
-                if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
-                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+                if [ $((waited + wait)) -gt "$RATE_WAIT_SECONDS" ]; then
+                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${RATE_WAIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
                   exit 1
                 fi
                 echo "Rate limited reading $2; waiting ${wait}s for the reset."

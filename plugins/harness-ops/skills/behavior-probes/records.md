@@ -160,17 +160,29 @@ streams were not kept. The recheck trigger and expiry above apply.
 
 ## 8. The sandbox blocks unlisted hosts inside the command
 
-**Claim.** On Linux with `sandbox.enabled`, Bash runs with no prompt; a request to a host outside
-the allowlist fails inside the sandbox (curl exit 7, a `sandbox_violations` note) and is not a
-permission denial.
+**Claim.** On Linux with `sandbox.enabled` alone, a sandboxed Bash write goes through the normal
+permission flow: in default mode under `claude -p` it is denied as needing approval. With
+`sandbox.autoAllowBashIfSandboxed: true` as well, it runs with no prompt. A request to a host
+outside the allowlist fails inside the sandbox (curl exit 7, a `sandbox_violations` note) and is
+not a permission denial. The default itself is read live from
+[settings: `sandbox.autoAllowBashIfSandboxed`](https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed).
+
+**Basis.** The two auto-mode cases now set `autoAllowBashIfSandboxed: true`, since in auto mode a
+pass cannot tell an auto-allow from a classifier allow; the default-mode pair measures the default.
+`probe.py run --live --cases <copy of this area>` with the launch above, the settings, prompts and
+expected outcomes as committed here (only the claim and tag text was reworded after the run),
+Linux (WSL2), Claude Code **2.1.329**, 2026-11-20: 4 runs, one attempt each. Raw streams were not
+kept.
 
 **Recheck trigger.** A release note naming the sandbox network proxy, `allowed_domains`, or
 `autoAllowBashIfSandboxed`.
 
-| Case | Expected | Observed | Verdict |
+| Case | Expected | Observed (2.1.329) | Verdict |
 |---|---|---|---|
 | `sandbox/network-blocked-outside-allowlist` | refused | refused, sandbox violation | pass |
 | `sandbox/write-in-cwd-runs` | ran | ran | pass |
+| `sandbox/default-mode-write-denied` | deny | deny, "needs approval" | pass |
+| `sandbox/default-mode-write-autoallow-runs` | ran | ran | pass |
 
 ## Basis for records 9 and 10
 

@@ -155,7 +155,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
-       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]...
+       profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]... [--put-back-moved <file>]... [--keep-moved <file>]...
        profiles.mjs list [--json]
        profiles.mjs inventory [--json]
        profiles.mjs usage [--json]
@@ -184,6 +184,13 @@ const ASKS = {
     covers: "A file whose earlier reset was cut off is not covered: each gets its own question.",
     some: "files whose earlier reset was cut off",
     waits: "a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back",
+  },
+  moved: {
+    yes: { label: "Put back", flag: "--put-back-moved" },
+    no: { label: "Keep", flag: "--keep-moved" },
+    covers: "A file in a repository that moved is not covered: each gets its own question.",
+    some: "files in a repository that moved",
+    waits: "a file in a repository that moved changes only after a yes for it: run reset in a terminal, or pass --yes with --put-back-moved <file> for each file to put back",
   },
 };
 const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
@@ -418,7 +425,8 @@ function prepare(opts, where, catalog, records) {
   }
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
-  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded };
+  const moved = opts.target === "folder" ? movedRecordsOf(where, file) : [];
+  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
 }
 
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
@@ -465,6 +473,10 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
   }
   const writes = `${Object.keys(p.edits.enabledPlugins).length} plugin entries and ${Object.keys(p.edits.skillOverrides).length} skill entries`;
   lines.push(left.length ? `Writes ${writes} now, and ${left.length} off ${left.length === 1 ? "entry" : "entries"} in the second write.` : `Writes ${writes}.`);
+  if (p.moved.length) {
+    const kept = list(p.moved.map((f) => `${f.settingsFile} (profile ${f.record.profile})`));
+    lines.push(`Reset keeps the ${p.moved.length === 1 ? "record" : "records"} of ${kept} from before this repository moved; after this apply, reset puts this file back one layer per run, newest first.`);
+  }
   if (r.repositorySkills.length) lines.push(`Hides skills a repository profile names: ${list(r.repositorySkills)}`);
   if (r.hookPluginsOff.length) lines.push(`Switches off plugins that ship hooks or a mod: ${list(r.hookPluginsOff)}`);
   if (r.mcpOrLspOn.length) lines.push(`Switches on plugins with an MCP or language server: ${list(r.mcpOrLspOn)}`);
@@ -1195,6 +1207,27 @@ async function clear(opts, where, env, io) {
 const resetWrites = (where, file) =>
   realPath(file) === realPath(where.paths.user) || (basename(file) === "settings.local.json" && basename(dirname(file)) === ".claude");
 
+/** The settings files the records in homes name, as reset reads them; a file whose records cannot be read has none. */
+function settingsFilesIn(where, homes, knownFiles = []) {
+  const quietly = (read, none) => (file) => {
+    try {
+      return read(where, file);
+    } catch {
+      return none;
+    }
+  };
+  return machineSettingsFiles({ homes, homesOf: quietly(homesOf, []), recordOf: quietly(recordOf, null), knownFiles });
+}
+
+/** The records of a repository's root file from before the repository moved, oldest first, found as reset finds them. */
+function movedRecordsOf(where, file) {
+  const home = repositoryHome(dirname(dirname(file)), { home: where.home });
+  if (!home) return [];
+  return settingsFilesIn(where, [home])
+    .filter((f) => f.record && f.movedTo && realPath(f.movedTo) === realPath(file))
+    .sort((a, b) => String(a.record.appliedAt).localeCompare(String(b.record.appliedAt)));
+}
+
 /** Every settings file reset can reach, the record homes it read, and how many folders each source named. */
 function machineFiles(where, env) {
   const dataDirs = [where.dataDir, ...otherDataDirs(where)];
@@ -1211,26 +1244,14 @@ function machineFiles(where, env) {
       return [];
     }
   });
-  const lookup = (file) => {
-    try {
-      return recordOf(where, file);
-    } catch {
-      return null;
-    }
-  };
-  const holding = (file) => {
-    try {
-      return homesOf(where, file);
-    } catch {
-      return [];
-    }
-  };
-  const files = machineSettingsFiles({ homes, homesOf: holding, recordOf: lookup, knownFiles });
+  const files = settingsFilesIn(where, homes, knownFiles);
   return { files, homes, counts: { dataDirs: dataDirs.length, pointers: pointerHomes.length, ...Object.fromEntries(Object.entries(named).map(([k, v]) => [k, v.length])) } };
 }
 
 const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
-const wroteValues = (ids, profile) => `the ${ids.length === 1 ? "value" : "values"} profile ${profile} wrote`;
+/** The values a cut-off row's entries still hold: the ones the profile wrote, or, for an entry an unfinished switch still owes, the one it had yet to change. */
+const wroteValues = (ids, rec) =>
+  `the ${ids.length === 1 ? "value" : "values"} profile ${rec.profile} wrote${ids.some((id) => rec.pending?.[id] !== undefined) ? " or its unfinished switch had yet to change" : ""}`;
 const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -1251,7 +1272,8 @@ function resetQuestion(rows) {
   if (!n) return null;
   const covers = `Reset the ${counted(n, "file")} above that a profile record covers?`;
   const asked = Object.values(ASKS).filter((kind) => rows.some((r) => r.ask && kindOf(r.ask) === kind));
-  const kinds = asked.map((kind) => kind.some).join(" and ");
+  const some = asked.map((kind) => kind.some);
+  const kinds = `${some.slice(0, -1).join(", ")} and ${some.at(-1)}`;
   return {
     text: asked.length < 2 ? [covers, ...asked.map((kind) => kind.covers)].join(" ") : `${covers} ${kinds[0].toUpperCase()}${kinds.slice(1)} are not covered: each gets its own question.`,
     recommend: {
@@ -1261,11 +1283,14 @@ function resetQuestion(rows) {
   };
 }
 
-/** What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another value. */
-const recommendFrom = (profile, overwrites) =>
+/**
+ * What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another
+ * value. at names where a moved repository's profile was applied.
+ */
+const recommendFrom = (profile, overwrites, at = "") =>
   overwrites.length
-    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied, so the file may hold changes you want; a no changes nothing.` }
-    : { answer: "yes", reason: `Each entry profile ${profile} wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
+    ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied${at}, so the file may hold changes you want; a no changes nothing.` }
+    : { answer: "yes", reason: `Each entry profile ${profile} wrote${at && `${at},`} is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
 
 /** The preview lines naming each entry edited since the apply that a restore changes again. */
 const overwriteLines = (plan) =>
@@ -1327,7 +1352,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
         movedTo: f.movedTo,
         movedPlan,
         overwrites: overwritesOf(movedPlan),
-        ask: askOf(ASKS.unrecorded, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites)),
+        ask: askOf(ASKS.moved, f.movedTo, `The folder of ${file} is gone, and its repository is now at ${now}. Put back ${f.movedTo} from that record?`, recommendFrom(rec.profile, movedPlan.overwrites, ` at ${file}, before the repository moved`)),
         lines: [`${file}: folder not found; record kept. The repository is now at ${now}; reset puts back ${f.movedTo} from this record only after a yes for it.`, ...overwriteLines(movedPlan)],
       };
     } catch (error) {
@@ -1351,7 +1376,7 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
     if (!entries.length) {
       return { ...row, action: "finish-restore", plan, reason: "edited since an earlier reset restored it", lines: [`${file}: edited since an earlier reset restored it; reset leaves it as it is and removes its record.`] };
     }
-    const values = wroteValues(entries, rec.profile);
+    const values = wroteValues(entries, rec);
     const changed = [...Object.keys(rec.entries), ...Object.keys(rec.skillOverrides)].filter((id) => !entries.includes(id));
     return {
       ...row,
@@ -1444,7 +1469,7 @@ function resetOne(row, { chosen, kept, keepRecorded }) {
     line: plan.removes
       ? `Removed ${file}, which the first apply created (profile ${plan.rec.profile}).`
       : row.action === "finish-cut-off"
-        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec.profile)}, and left the entries changed by hand since as they are.`
+        ? `Restored ${file}: put back the ${counted(row.entries.length, "entry", "entries")} still at ${wroteValues(row.entries, plan.rec)}, and left the entries changed by hand since as they are.`
         : `Restored ${file} (profile ${plan.rec.profile}).`,
     ok: true,
     restored: !f.adopted,
@@ -1514,7 +1539,7 @@ async function reset(opts, where, env, io) {
     `Reset looked for profile records in user settings, this folder, ${counted(counts.dataDirs, "data folder")}, ${counted(counts.pointers, "repository pointer")}, ${counted(counts.projects, "folder")} Claude Code has opened, ${counted(counts.sessions, "one-session record")} and ${counted(counts.live, "live session")}.`,
     rows.length ? `It found ${counted(rows.length, "settings file")}:` : "No profile is recorded anywhere reset can find; nothing to reset.",
     ...rows.flatMap((r) => r.lines),
-    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset restored earlier ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}.`] : []),
+    ...(unchanged.length ? [`${counted(unchanged.length, "file")} that reset already handled ${one ? "is" : "are"} unchanged since; reset leaves ${one ? "it" : "them"}: ${fewOf(unchanged)}.`] : []),
     ...(keeps ? [keeps] : []),
   ];
   const covering = resetQuestion(rows);

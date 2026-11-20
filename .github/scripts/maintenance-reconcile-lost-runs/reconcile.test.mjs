@@ -818,7 +818,8 @@ test("after a 10-hour outage, a run held 9 hours ago is re-run, listed from the 
   assert.equal(settled.held_since, "2026-10-19T11:00:00.000Z");
 });
 
-// pr-verify's three jobs run in turn, each up to 346 minutes, so a run can
+// pr-verify's three jobs run in turn, each up to its timeout-minutes
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-verify.yml), so a run can
 // hold in its last job long after FAULT_HELD_HOURS from its creation.
 test("a run created 10 hours ago, still going at one pass and held at the next, is re-run once", async () => {
   const going = { ...verifyRun(501, { status: "in_progress", created: "2026-10-19T10:00:00Z" }), jobs: [] };
@@ -1754,8 +1755,6 @@ test("an intake run where any job but the floor label failed, or none did, is le
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
-// A run left alone stays a failed first attempt for the whole lookback, so
-// its jobs are listed only while it is recent, not on every half-hourly pass.
 test("an intake run that ended over 2 hours ago gets no job listing and no re-run", async () => {
   const { failedJobReruns, calls } = await reconcile({ pulls: [], runs: [intakeRun(301, { created: "2026-10-19T17:00:00Z", updated: "2026-10-19T17:59:00Z" })] });
   assert.deepEqual(failedJobReruns, []);
@@ -2691,7 +2690,7 @@ test("a stopped review run from before the job rename is read by its old job nam
   assert.deepEqual(reviewed.reruns, []);
 });
 
-test("both stopped lanes of a head go in one pass and one place; a head whose two records do not fit the uploads left waits", async (t) => {
+test("both stopped lanes of a head go in one pass; a head whose two records do not fit the uploads left waits", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const runs = [1, 2, 3].flatMap((n) => [redChecks(100 + n, sha(n)), stoppedRun(200 + n, sha(n)), stoppedRun(300 + n, sha(n), { path: SECURITY_REVIEW })]);
   const { code, outputs, reruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
@@ -2702,6 +2701,60 @@ test("both stopped lanes of a head go in one pass and one place; a head whose tw
   for (const n of [2, 3]) {
     assert.ok(said.includes(`reconcile: #${n}: deferred, no record upload left this pass`), `#${n} waits`);
   }
+});
+
+const SWITCHES_OFF = { CLAUDE_REVIEW_DISABLED: "false", CLAUDE_SECURITY_REVIEW_DISABLED: "false" };
+const bothLanesStopped = (n) => [redChecks(100 + n, sha(n)), stoppedRun(200 + n, sha(n)), stoppedRun(300 + n, sha(n), { path: SECURITY_REVIEW })];
+const windowsLost = (n) => run(400 + n, sha(n), { path: WINDOWS });
+
+test("both lanes a kill switch stopped on one head are re-run whole in one pass, each with its own attempt-2 record and its own place", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [...bothLanesStopped(1), windowsLost(2), windowsLost(3)];
+  const { code, reruns, failedJobReruns, outputs } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs, env: SWITCHES_OFF });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201, 301, 402], "each lane's whole run, so its attempt 1 stays the stopped one the merge gate reads");
+  assert.deepEqual(failedJobReruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, ""]);
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #3: deferred, all 3 re-run places taken"), "the two lanes took two of the three places");
+  assert.equal(outputs.clean, "");
+});
+
+test("a stopped lane with no place left is deferred, not skipped, and the pass writes no clean", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [windowsLost(1), windowsLost(2), windowsLost(3), ...bothLanesStopped(4)];
+  const full = await reconcile({ pulls: [1, 2, 3, 4].map((n) => pr(n)), runs, env: SWITCHES_OFF });
+  assert.deepEqual(full.reruns, [401, 402, 403]);
+  assert.deepEqual(records(full.outputs), ["", "", ""]);
+  assert.equal(full.outputs.clean, "");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #4: deferred, all 3 re-run places taken"));
+  log.mock.resetCalls();
+  const one = await reconcile({ pulls: [1, 2, 4].map((n) => pr(n)), runs: [windowsLost(1), windowsLost(2), ...bothLanesStopped(4)], env: SWITCHES_OFF });
+  assert.deepEqual(one.reruns, [401, 402], "a head's two lanes wait together, so their completions cost ci-status one attempt");
+  assert.equal(one.outputs.clean, "");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #4: deferred, only 1 of 3 re-run places left"));
+});
+
+test("a stopped lane on a head whose checks run is still going waits for that run, and the pass writes no clean", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const going = run(101, sha(1), { status: "in_progress" });
+  const runs = [going, stoppedRun(201, sha(1)), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
+  const { code, calls, outputs } = await reconcile({ pulls: [pr(1)], runs, env: SWITCHES_OFF });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.equal(outputs.clean, "");
+  const said = log.mock.calls.map((c) => String(c.arguments[0]));
+  for (const [id, path] of [[201, REVIEW], [301, SECURITY_REVIEW]]) {
+    assert.ok(said.includes(`reconcile: #1: review run ${id} (${path}) was stopped by a kill switch; waiting for checks run 101 (${CHECKS}) to finish`), `${id} waits`);
+  }
+  log.mock.resetCalls();
+  const rerunGoing = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { status: "in_progress", attempt: 2 }), stoppedRun(201, sha(1))], env: SWITCHES_OFF });
+  assert.deepEqual(rerunGoing.calls.filter((c) => c.startsWith("POST ")), []);
+  assert.equal(rerunGoing.outputs.clean, "", "a checks re-run still going holds the stopped lane too");
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).includes(`review run 201 (${REVIEW}) was stopped by a kill switch; waiting for checks run 101`)));
+  log.mock.resetCalls();
+  const reviewed = await reconcile({ pulls: [pr(1)], runs: [going, stoppedRun(201, sha(1), {}, stoppedJobs({ review: "success" }))], env: SWITCHES_OFF });
+  assert.equal(reviewed.outputs.clean, "true", "a review that ran leaves nothing to wait for");
+  assert.ok(!log.mock.calls.some((c) => String(c.arguments[0]).includes("waiting for checks run")));
 });
 
 test("the second stopped lane goes on the next pass, after the first has its re-run", async () => {
@@ -3609,7 +3662,17 @@ test("a floor-failed checks run and both reviews a kill switch stopped on its he
   ]);
 });
 
-test("at the 21:50 pass, a set whose reviews do not fit the record uploads left re-runs its floor alone, and the merge-risk run still gets a place", async (t) => {
+test("with a re-run in flight, that floor and its two reviews need three places, so the set waits whole rather than send the floor alone", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const inFlight = run(110, sha(10), { status: "in_progress", attempt: 2 });
+  const { code, calls, outputs } = await reconcile({ pulls: [pr(10), switchedPull], runs: [inFlight, floorChecks, ...switchedReviews()], now: PASS_2150 });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.equal(outputs.clean, "");
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]) === "reconcile: #17282: deferred, only 2 of 3 re-run places left"));
+});
+
+test("at the 21:50 pass, a set short of places and uploads after an earlier set in the pass waits whole, and the merge-risk run still gets a place", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const otherFloor = failed(44403126378, sha(17280), { jobs: floorStatus(), created: "2026-11-18T21:36:00Z", updated: "2026-11-18T21:40:00Z" });
   const { code, reruns, failedJobReruns, outputs } = await reconcile({
@@ -3618,14 +3681,28 @@ test("at the 21:50 pass, a set whose reviews do not fit the record uploads left 
     now: PASS_2150,
   });
   assert.equal(code, 0);
-  assert.deepEqual(failedJobReruns, [44403126378, 44403903762]);
+  assert.deepEqual(failedJobReruns, [44403126378], "the floor does not go without its reviews");
   assert.deepEqual(reruns, [44402781806]);
-  assert.deepEqual(records(outputs), [
-    `reconcile-rerun-44403126378-2-${sha(17280)}`,
-    `reconcile-rerun-44403903762-2-${SWITCHED_HEAD}`,
-    `reconcile-rerun-44402781806-2-${RATER_TIP}`,
-  ]);
-  assert.equal(outputs.clean, "", "the deferred reviews keep the next tick");
+  assert.deepEqual(records(outputs), [`reconcile-rerun-44403126378-2-${sha(17280)}`, `reconcile-rerun-44402781806-2-${RATER_TIP}`, ""]);
+  assert.equal(outputs.clean, "", "the deferred set keeps the next tick");
+  const said = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.ok(said.includes("reconcile: #17282: deferred, no record upload left this pass"));
+  assert.ok(!said.some((line) => line.includes("its stopped reviews deferred")));
+});
+
+test("a floor and its review that fit the places left but not the record uploads re-run the floor alone", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const when = { created: "2026-11-18T21:36:00Z", updated: "2026-11-18T21:40:00Z" };
+  const { code, reruns, failedJobReruns, outputs } = await reconcile({
+    pulls: [pr(1), switchedPull],
+    runs: [gated(201, sha(1), when), gated(301, sha(1), { path: SECURITY_REVIEW, ...when }), floorChecks, switchedReviews()[0]],
+    now: PASS_2150,
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [201, 301, 44403903762]);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, `reconcile-rerun-44403903762-2-${SWITCHED_HEAD}`]);
+  assert.equal(outputs.clean, "");
   assert.ok(log.mock.calls.some((c) => String(c.arguments[0]) === "reconcile: #17282: its stopped reviews deferred, no record upload left this pass"));
 });
 
@@ -3647,13 +3724,12 @@ test("a floor's reset is the latest real reset its refusals name, a guessed one 
   assert.equal(floorReset([...statusNotes, ...markLanesNotes]), Date.parse("2026-11-18T21:46:49Z"));
 });
 
-test("every workflow whose trigger check takes this workflow's record is a recorded lane, or left out for a stated reason", () => {
-  const leftOut = new Map([[".github/workflows/pr-verify-capture.yml", "a missing capture never fails a verdict"]]);
+test("every workflow whose trigger check takes this workflow's record is a recorded lane", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   const taking = readdirSync(dir)
     .filter((f) => f.endsWith(".yml") && /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/.test(readFileSync(new URL(f, dir), "utf8")))
     .map((f) => `.github/workflows/${f}`);
-  assert.deepEqual(taking.filter((p) => !leftOut.has(p)).sort(), [...RECORDED_LANES.keys()].sort());
+  assert.deepEqual(taking.sort(), [...RECORDED_LANES.keys()].sort());
 });
 
 test("pr-rate-merge-risk still names its rate and write steps as the reconciler reads them, and takes its record, in every leg", () => {

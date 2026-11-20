@@ -3,6 +3,20 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.23] - 2026-11-20
+
+### Removed
+
+- The playwright skill no longer ships `reference/e2e-orchestrator-recipe.md`, its how-to for .NET Aspire, docker compose, tilt and Blazor. The skill's quick start, conventions and `reference/sessions.md` already carry the generic session flow, cleanup and per-worktree session names. The skill's routing row for the page and the network-mocking pointer to it are removed, and the update action's note and the README no longer name it.
+
+## [2.0.22] - 2026-11-19
+
+### Changed
+
+- The `update` action's safety table states the current rule: the marketplace's daily drift workflow runs `--check` and files an `Upstream drift: playwright/playwright` issue when upstream moves, the issue lane runs `--apply` and the reference integration, and the change merges through a reviewed pull request. It no longer says nothing runs on a schedule. The README says the check runs daily and that the issue lane works the issue.
+- The update action's finishing steps and `update.sh --apply` mark the global `npm install -g @playwright/cli@latest` upgrade as a step a person runs; the upstream-drift issue lane never runs it.
+- The update action's finishing steps and `update.sh --apply` name a changelog fragment as the release record, since the plugin is in fragment mode, in place of a `plugin.json` version bump.
+
 ## [2.0.21] - 2026-11-19
 
 ### Changed

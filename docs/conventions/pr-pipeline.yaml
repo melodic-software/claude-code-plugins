@@ -27,7 +27,8 @@ activities:
       paths: ["**/*.md"]
       # A changelog fragment alone is no reason to tidy.
       paths-ignore: [".changes/**"]
-      # The human-gated label holds it in pr-refine.yml's fix-docs-head job
+      # The human-gated label holds it in pr-refine.yml's select-passes job
+      # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review)
       # unless a lane escalation put it on (lane-hold.mjs), so one lane's
       # escalation does not stop this fixer.
       labels-absent: [do-not-merge, "security: outside-actor"]
@@ -994,19 +995,6 @@ models:
       effort: high
       subagent-model: opus
       max-turns: 40
-    # The whole-map pass's driver, at review's model and effort. An entry
-    # takes about three turns (two date calls and the dispatch, map.md
-    # Measures), so 300 covers the default 40 entries with room, and a pass
-    # near the 100-entry ceiling can run out; provisional until a measured
-    # pass (https://github.com/melodic-software/claude-code-plugins/issues/16564).
-    verify-map:
-      model: opus
-      effort: high
-      max-turns: 300
-    verify-capture:
-      model: opus
-      effort: high
-      max-turns: 120
   default-profile: standard
   routes:
     # Resolves code conflicts, a fix on code like address-feedback's.
@@ -1018,8 +1006,6 @@ models:
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
-    verify-map: verify-map
-    verify-capture: verify-capture
     # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
     # through subagent-model its blind checker's model; the checker's effort
     # stays its agent file's pin (owner decision Q1).
@@ -1233,6 +1219,12 @@ limits:
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).
   refire-queue-per-slot: 2
+  # Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget keep
+  # the unfinished runs at this many per slot, inside that room: a second run
+  # per slot often waited past the 20-minute window after the reset and the
+  # gate stopped it again (owner decision, 2026-11-19:
+  # https://github.com/melodic-software/architecture/blob/c3a36f0e86c268cd6a427abd344c69d76c03d654/docs/owner-decisions.md#L237).
+  refire-budget-per-slot: 1
   # A work-resolve-issue run still `queued` this many minutes after it was
   # created is not counted toward that room. The check-admission job runs on a
   # GitHub-hosted runner and the slot wait comes after it, so a healthy run
@@ -1383,7 +1375,9 @@ post-merge:
 # (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last
 # update). fix-ci fixes its failed ci-status; address-feedback answers a
 # person's PR's lane review threads as the lanes App, under fix-ci's idle
-# rule; pr-merge merges it under its usual gates. Without this section nothing
+# rule, or at once when auto-merge is armed (`auto_merge`,
+# https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request); pr-merge
+# merges it under its usual gates. Without this section nothing
 # is adopted.
 adoption:
   # 2: a session waiting in the GITHUB_TOKEN gate can be idle up to 2 h during a
@@ -1661,48 +1655,6 @@ merge:
   # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
   # the owner account's; `lane` judges the App's alone, `any` every author's.
   verify-authors: lane-or-owner
-  # The app pr-verify drives to capture evidence of a change working, and how
-  # long each capture artifact lasts. `app` unset: no capture runs, and each
-  # verdict's evidence records `capture: no-app`; set, a capture that is
-  # missing records `blocked` with why. retention-days is 1 to 30, the most
-  # the pr-capture-* row in .github/artifact-retention.json allows; 30 is
-  # judgment: long enough for a review round, short of the 90-day verdict.
-  # This repository's app is claude-code-plugins, the control skill
-  # .claude/skills/control-claude-code-plugins, which drives each changed
-  # plugin through harness-ops' control-claude-code.
-  # `proxy` is the key proxy, the driven Claude Code's only route to the
-  # API (pr-verify-capture.yml). The capture installs the Claude Code version
-  # package-lock.json pins; `betas`, `body-keys` and `block-types` are
-  # measured from the driven session's requests, and the proxy refuses any
-  # value they do not list and names it, so a capture after a version bump
-  # says what to add. token-cap bounds the driven session,
-  # which runs pull request code; driver-token-cap bounds the trusted driver
-  # legs. Both are provisional until a full measured capture sets them, at
-  # measured use × 1.5 rounded up to the next 100,000 (#13724).
-  # max-tokens-ceiling is also the driven session's CLAUDE_CODE_MAX_OUTPUT_TOKENS, so it never asks
-  # for more than the proxy allows. max-in-flight is at least 2: the main and
-  # title requests run at once. max-preflight-requests bounds the messages
-  # requests that reach the proxy's upstream count_tokens call, which the
-  # token cap does not count; 1000 is a provisional judgment well above a
-  # capture's few hundred turns. upstream-timeout-ms matches the driver's log
-  # timeout.
-  verify-capture:
-    retention-days: 30
-    proxy:
-      driven-model: claude-opus-5-5
-      driven-small-model: claude-haiku-5-5
-      models: [claude-opus-5-5, claude-haiku-5-5]
-      token-cap: 1500000
-      driver-token-cap: 6000000
-      max-tokens-ceiling: 16000
-      max-body-bytes: 8388608
-      max-in-flight: 4
-      max-count-tokens-requests: 50
-      max-preflight-requests: 1000
-      upstream-timeout-ms: 600000
-      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15, fallback-credit-2026-06-01]
-      body-keys: [context_management, max_tokens, messages, metadata, model, output_config, stream, system, thinking, tools]
-      block-types: [text, image, document, tool_use, tool_result, thinking, redacted_thinking]
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
@@ -1878,6 +1830,8 @@ merge:
         class: enforcement
       - glob: "docs/upstream/**"
         class: enforcement
+      - glob: "scripts/upstream-drift-vendored-report.sh"
+        class: enforcement
       - glob: ".github/scripts/recurring-schedule/file-due.mjs"
         class: enforcement
       - glob: ".github/scripts/maintenance-monitor-signals/issues.mjs"
@@ -1909,6 +1863,8 @@ merge:
       - glob: ".github/scripts/lib/lane-outcome.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/lane-binding.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/lane-record-cache.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/dispatch-record.mjs"
         class: enforcement
@@ -1962,8 +1918,6 @@ merge:
         class: gate
       - glob: ".github/workflows/maintenance-tidy-code-upkeep.yml"
         class: gate
-      - glob: ".github/workflows/maintenance-verify-whole-map.yml"
-        class: gate
       - glob: ".github/workflows/post-merge-file-demotion-issues.yml"
         class: gate
       - glob: ".github/workflows/post-merge-test-mutation.yml"
@@ -1997,8 +1951,6 @@ merge:
       - glob: ".github/workflows/pr-unblock-dispatch.yml"
         class: gate
       - glob: ".github/workflows/pr-unblock.yml"
-        class: gate
-      - glob: ".github/workflows/pr-verify-capture.yml"
         class: gate
       - glob: ".github/workflows/pr-verify.yml"
         class: gate

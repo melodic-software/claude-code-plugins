@@ -1,6 +1,6 @@
 # audit-automation-gaps: per-category gap checklists
 
-**Hooks**: For each language with production code (`.cs`, `.py`, `.ts`, `.sh`, `.ps1`, `.md`):
+**Hooks**: For each language with production code (the Phase 1.1 file counts name them):
 
 - Does a formatter rewrite once per batch of edits (one `PostToolBatch` hook that sends the model nothing) and again in a git `pre-commit` hook that re-stages the files? Recommend the per-batch hook only while its median per fire stays at or under 1 s; a slower formatter goes to `pre-commit` only.
 - Does a report-only check (a linter, spell checker or scanner that only prints findings) run from a per-edit `PostToolUse` hook? Never recommend one. Flag an existing one with its placement: a git `pre-commit` hook that blocks on findings in changed lines, `pre-push` when the measured run is over the commit budget but within 60 s, CI beyond that. A git hook covers every author, and the findings stop reaching the model on in-between states.

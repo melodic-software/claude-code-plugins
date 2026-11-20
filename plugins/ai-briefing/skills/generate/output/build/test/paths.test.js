@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-import { activeProfile, configDir, stateRoot, validateProfileName } from "../lib/paths.js";
+import { activeProfile, configDir, deckPath, stateRoot, validateProfileName } from "../lib/paths.js";
 
 function withEnvironment(values, fn) {
   const keys = Object.keys(values);
@@ -83,6 +83,10 @@ test("state and project paths remain under their configured roots", () => {
     () => {
       assert.equal(stateRoot("team"), path.join(dataRoot, "team"));
       assert.equal(configDir("team"), path.join(projectRoot, ".claude", "ai-briefing", "team"));
+      assert.equal(
+        deckPath(21, "pdf", "team"),
+        path.join(dataRoot, "team", "output", "meetings", "ai-meeting-21.pdf"),
+      );
     },
   );
 });

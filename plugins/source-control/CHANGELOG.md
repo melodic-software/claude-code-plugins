@@ -3,6 +3,68 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.5] - 2026-11-20
+
+### Changed
+
+- babysit-prs: the secondary-rate-limits pointer behind the worker concurrency cap no longer carries a recheck trigger. It stores no copied limit, so whoever re-sizes the cap fetches the section live.
+
+## [13.1.4] - 2026-11-20
+
+### Removed
+
+- The merge gate's CI evidence comment, `babysit_evidence_comment.py`, which only linked a `pr-capture-<pr>-<head>` artifact: CI no longer captures a pull request's app, so the `merge-pr` enqueue and the `enable-auto-merge` arm post no evidence comment ([#17281](https://github.com/melodic-software/claude-code-plugins/issues/17281)). The `/source-control:pull-request evidence` comment is unchanged; its `--artifact-url` links any retained CI artifact.
+
+## [13.1.3] - 2026-11-20
+
+### Fixed
+
+- worktree cleanup no longer says the session carries on from a directory that still exists after it removes its own worktree; since Claude Code 2.1.325 the next shell command fails and is re-issued with `git -C` or an absolute path (#16035).
+
+## [13.1.2] - 2026-11-20
+
+### Changed
+
+- `pr-linkage-validator.sh`'s header and the `workflow_display_name` docstring in `babysit_review_evidence.py` describe the upstream validator and naming lint without naming one organization's repositories.
+
+## [13.1.1] - 2026-11-19
+
+### Changed
+
+- The route `babysit_gh.py` records for a `gh api` reading keeps a workflow file name after `workflows/` (`repos/{repo}/actions/workflows/pr-verify.yml/runs`) instead of `{x}`, so a job's `api-routes` notice shows which workflow's runs were listed. Only a lowercase `.yml` or `.yaml` file name is kept; a numeric workflow id stays `{n}`, any other segment stays `{x}`, and a route that would pass 80 characters keeps `{x}` there.
+
+## [13.1.0] - 2026-11-19
+
+### Changed
+
+- The babysit merge gate trusts a vendored-copy upstream-drift issue as it trusts a hex-pin one: github-actions[bot] wrote it, nobody else last edited it, its title is `Upstream drift: <id>` and its first body line is the filer's vendored-copy lead for that id. It counts only for a pull request whose changed files, renames' old paths included, are markdown under the `skills/` of the plugin that id's row in the default branch's `scripts/upstream-drift-vendored-report.sh` names, markdown, `.jsonc` or `LICENSE` files in a `vendor/` baseline there, or fragments directly under that plugin's `.changes/`, with no `scripts`, `hooks`, `lib`, `.claude-plugin`, `.mcp.json` or `evals` path segment, and whose `SKILL.md` files outside `vendor/` change no frontmatter but the sync stamps and no `` !` `` line or fenced ```` ```! ```` block, and that touch no skill's `actions/update.md` and no file of the plugin's `update` skill outside `vendor/`, matching pr-verify's `driftSpec`. An id no row names, that two plugins claim, or with a row lacking the `files-only` mark (its update may install a package) is not trusted.
+
+### Fixed
+
+- lift a read-back record on a C2 or C3 merge pin
+
+  The merge policy's read-back check matched only a pin comment with no
+  rung, so a pull request merged at rung C2 or C3, whose pin carries
+  `rung=C2` or `rung=C3`, never read back, and its read-back record could
+  never lift. The pin pattern now accepts the optional rung, as the
+  post-merge reader already does.
+
+## [13.0.2] - 2026-11-19
+
+### Fixed
+
+- stop counting infra merge-queue removals toward merge.max-queue-ejections
+
+  The babysit-prs gate and enable-auto-merge no longer count a removal whose
+  merge-group run failed on infra alone: a GitHub rate limit, the API read
+  or stop floor, a verify:unreadable refusal, the lanes kill switch, a lost
+  runner, or a job main failed at the same time. Every failed job must name
+  such a cause, so a real check failure beside one still counts. The new
+  merge.queue-ejection-infra-causes list names which causes apply (default
+  all); every cause excuses a removal only after its reset
+  or an hour. Each excused removal gets a queue-ejection notice, and older
+  removals are found past the newest page of failed merge-group runs.
+
 ## [13.0.1] - 2026-11-19
 
 ### Changed

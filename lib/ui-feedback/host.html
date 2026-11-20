@@ -233,7 +233,7 @@
       const q = [...a.textQuote.exact];
       parts.push(`text “${q.slice(0, 60).join("")}${q.length > 60 ? "…" : ""}”`);
     } else if (n.kind === "region") {
-      parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements.length} marked element(s)`);
+      parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements.length} element(s)`);
     } else parts.push(a.testid ? `${a.testid} #${a.testidIndex + 1}` : `<${a.tag}>${a.cssPath ? ` at ${a.cssPath}` : ""}`);
     return parts.join(" · ");
   }

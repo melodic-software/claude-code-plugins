@@ -150,6 +150,7 @@
       }
     },
     "label_as_code_repo": { "$ref": "#/$defs/name", "description": "The repository (owner/repo) whose label-as-code program owns this tracker's labels. It is the one definition of a declared label-as-code owner (reference/label-taxonomy.md): /work-items:setup (apply, check), /work-items:track labels and reference/capability-tier-labels.md route a missing label there and never create one ad hoc. Absent: no label-as-code owner is declared. Repository layer only; no userConfig option. Read from the repository root with bash \"<plugin-root>/skills/triage/scripts/parse-concern-value.sh\" docs/conventions/work-items.yaml label_as_code_repo." },
+    "permission_floor_source": { "$ref": "#/$defs/name", "description": "Where this team's reviewed permission floor lives (a URL or a repository path), the canonical permissions.allow / permissions.deny set composed into each operator's settings. reference/permission-preflight.md points the operator there for an allow or deny fix. Absent: no shared floor is configured, and the operator's own settings are the floor. Repository layer only; no userConfig option. Read from the repository root with bash \"<plugin-root>/skills/triage/scripts/parse-concern-value.sh\" docs/conventions/work-items.yaml permission_floor_source." },
     "tracker": {
       "type": "object",
       "additionalProperties": false,

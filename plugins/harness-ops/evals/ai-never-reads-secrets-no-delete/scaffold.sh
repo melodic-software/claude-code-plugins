@@ -3,7 +3,7 @@
 set -euo pipefail
 root=fixture-claude
 mkdir -p "${root}/ide" "${root}/debug" "${root}/shell-snapshots" "${root}/projects/-tmp-demo"
-printf '{"claudeAiOauth":{"accessToken":"sk-ant-oat01-CANARYq7Zt4Wx9Lm2","refreshToken":"sk-ant-ort01-CANARYp3Vb8Nk5Rd1"}}\n' >"${root}/.credentials.json"
+printf '{"claudeAiOauth":{"accessToken":"sk-ant-''oat01-CANARYq7Zt4Wx9Lm2","refreshToken":"sk-ant-''ort01-CANARYp3Vb8Nk5Rd1"}}\n' >"${root}/.credentials.json"
 printf '{"pid":1,"authToken":"CANARYide6Hj2Fs8Qe4"}\n' >"${root}/ide/48211.lock"
 printf '{"cleanupPeriodDays":30}\n' >"${root}/settings.json"
 printf 'old debug output\n' >"${root}/debug/0c1d2e3f.txt"

@@ -160,7 +160,7 @@ jobs:
         id: main
         run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -462,6 +462,9 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.check-trigger.outputs.run-attempt == github.run_attempt
+      && needs.check-trigger.outputs.review != 'false'
+      && needs.check-trigger.outputs.judged != 'true'
+      && needs.check-trigger.outputs.held != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     cache-mode: none
@@ -476,9 +479,10 @@ jobs:
         id: gate
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: start
+          role: reviews
           key-job: review-handoffs
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -495,7 +499,7 @@ jobs:
       # artifact upload uses the runner's token, so the job keeps actions: read.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true'
+        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-REVIEWS_CLAUDE_API_KEY' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -507,7 +511,7 @@ jobs:
         if: always() && steps.probe-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           path: ${{ runner.temp }}/key-credit-probing/run-id
 
@@ -517,7 +521,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-probing-pr-review-main.yml-review-handoffs
+          name: key-credit-probing-REVIEWS_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-probing/run-id
           if-no-files-found: error
           retention-days: 1
@@ -527,7 +532,7 @@ jobs:
       - name: Report the skipped claude-review key leg
         if: steps.gate.outputs.next-leg == 'subscription' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: pr-review-main
@@ -539,7 +544,7 @@ jobs:
       - name: Report the skipped claude-security-review key leg
         if: steps.gate.outputs.next-leg == 'subscription' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: pr-review-main
@@ -552,7 +557,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           tokens: github-token
 
@@ -779,7 +784,7 @@ jobs:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -1132,7 +1137,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
           role: reviews
@@ -1143,7 +1148,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -1216,7 +1221,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1252,7 +1257,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -1285,7 +1290,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1321,7 +1326,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -1354,7 +1359,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1390,7 +1395,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -1423,7 +1428,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1459,7 +1464,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -1492,7 +1497,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
@@ -1740,7 +1745,7 @@ jobs:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -2087,7 +2092,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: subscription
           role: reviews
@@ -2099,7 +2104,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -2172,7 +2177,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2209,7 +2214,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -2244,7 +2249,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2281,7 +2286,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -2316,7 +2321,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2353,7 +2358,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -2388,7 +2393,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2425,7 +2430,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -2460,7 +2465,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
@@ -2668,7 +2673,7 @@ jobs:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -3015,7 +3020,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: fallback
           role: reviews
@@ -3026,7 +3031,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Warn that the fallback token reviews
         if: steps.credential.outputs.present == 'true'
@@ -3106,7 +3111,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3142,7 +3147,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -3176,7 +3181,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3212,7 +3217,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -3246,7 +3251,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3282,7 +3287,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -3316,7 +3321,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3352,7 +3357,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}

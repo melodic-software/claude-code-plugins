@@ -398,7 +398,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
       assert.equal(r.status, 0, r.stdout + r.stderr);
     }
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/pr-require-checks.yml/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
     assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-by-reset=9999999999:2 core-unread=0\n");
   } finally {
@@ -614,7 +614,7 @@ test("the eval-release wake runs on what the merge job released, whatever its re
 test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run", () => {
   assert.match(merge, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}pr:\n(?: {8}.*\n)*? {8}type: string\n {8}required: false\n/);
   assert.match(merge, /\n {4}- cron: "11,41 \* \* \* \*"\n/);
-  assert.match(merge, /\nrun-name: "\$\{\{ inputs\.pr && format\('pr-merge: arm #\{0\}', inputs\.pr\) \|\| '' \}\}"\n/);
+  assert.match(merge, /\nrun-name: "\$\{\{ inputs\.pr && format\('PR Merge: arm #\{0\}', inputs\.pr\) \|\| '' \}\}"\n/);
   const arm = job("enable-auto-merge");
   assert.match(arm, /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \|\| inputs\.pr \}\}\n/);
   assert.equal((arm.match(/\n {10}DISPATCH_PR: \$\{\{ inputs\.pr \}\}\n/g) ?? []).length, 2);

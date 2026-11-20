@@ -26,14 +26,12 @@
 // each nullable but the number), which the pr-merge
 // lane's reader checks. Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
-// reaches a shell. The file's evidence block (buildEvidence) is the one
-// exception: it records the capture and the author's evidence-loop count, and
-// a capture that is missing, blocked or malformed never fails the verdict.
-// The capture is run-e2e's e2e-summary.json from pr-verify-capture.yml's
-// artifact (fromE2eSummary), or a summary in this file's own capture keys.
+// reaches a shell. The file's evidence block (buildEvidence) records that no
+// app check ran and the author's evidence-loop count, and never fails the
+// verdict (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
 
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -82,78 +80,8 @@ function checkIssues(issues) {
   return issues;
 }
 
-// The capture outcomes a capture summary may record (merge.verify-capture).
-export const CAPTURES = Object.freeze(["ran", "skipped", "blocked", "not-applicable", "no-app"]);
-// Why the key could not capture, which only the capture job's own "Write the
-// blocked capture" step records (its collect step strips one from the driven
-// session's summary).
-export const CAUSES = Object.freeze(["credit-stop", "empty-key", "probe-handoff", "unrecognized"]);
-const CAPTURE_KEYS = "capture,capture_count,features,reason";
-const CAUSED_KEYS = "capture,capture_count,cause,features,reason";
-const REASON_MAX = 1000;
-const FEATURE_MAX = 200;
-const FEATURES_MAX = 30;
-const noApp = () => ({ capture: "no-app", reason: "no app check ran", capture_count: 0, features: [] });
-const unreadable = () => ({
-  capture: "blocked",
-  reason: "the capture summary is unreadable or outside its schema",
-  capture_count: 0,
-  features: [],
-});
-
-// run-e2e's e2e-summary.json (its Step 5), which pr-verify-capture.yml
-// uploads and the judge jobs download: `capture` {status, reason, count, and
-// on a blocked capture the job wrote, cause} and the touched feature ids in
-// `affected`, read into this file's capture keys. Anything else passes
-// through unchanged, for the schema check to judge.
-export function fromE2eSummary(summary) {
-  if (!isObject(summary) || !isObject(summary.capture)) {
-    return summary;
-  }
-  return {
-    capture: summary.capture.status,
-    capture_count: summary.capture.count,
-    features: summary.affected,
-    reason: summary.capture.reason,
-    ...(Object.hasOwn(summary.capture, "cause") ? { cause: summary.capture.cause } : {}),
-  };
-}
-
-// The capture summary as recorded, and anything outside the schema,
-// credential-shaped text included, blocked. A cause stands only in run-e2e's
-// nested shape, the one the capture job writes, on a blocked capture and
-// from CAUSES; it is advisory. With no summary, find-capture's
-// blocked reason (CAPTURE_BLOCKED, which it writes for every miss with the
-// app set) is blocked with that reason, and only no reason at all, the app
-// unset, is no-app.
-function captureEvidence(raw, blocked) {
-  if (raw === undefined) {
-    return blocked ? captureEvidence({ capture: "blocked", reason: blocked, capture_count: 0, features: [] }) : noApp();
-  }
-  const summary = fromE2eSummary(raw);
-  const nested = isObject(raw) && isObject(raw.capture);
-  if (
-    !isObject(summary) ||
-    !(nested ? [CAPTURE_KEYS, CAUSED_KEYS] : [CAPTURE_KEYS]).includes(Object.keys(summary).sort().join()) ||
-    (Object.hasOwn(summary, "cause") && (summary.capture !== "blocked" || !CAUSES.includes(summary.cause))) ||
-    !CAPTURES.includes(summary.capture) ||
-    !stringOrNull(summary.reason) ||
-    !Number.isSafeInteger(summary.capture_count) ||
-    summary.capture_count < 0 ||
-    !Array.isArray(summary.features) ||
-    !summary.features.every((feature) => typeof feature === "string") ||
-    [summary.reason ?? "", ...summary.features].some((text) => findSecret(text))
-  ) {
-    return unreadable();
-  }
-  return {
-    capture: summary.capture,
-    reason: summary.reason === null ? null : summary.reason.slice(0, REASON_MAX),
-    ...(Object.hasOwn(summary, "cause") ? { cause: summary.cause } : {}),
-    capture_count: summary.capture_count,
-    features: summary.features.slice(0, FEATURES_MAX).map((feature) => feature.slice(0, FEATURE_MAX)),
-  };
-}
+// Today's no-app record, unchanged (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
+const NO_APP = Object.freeze({ capture: "no-app", reason: "no app check ran", capture_count: 0 });
 
 // The author's own count from the trusted PR body's `Evidence loop: k/3`
 // line, or the `Evidence loop: 3/3 cap reached, last NEEDS WORK` line
@@ -164,15 +92,8 @@ export function localLoop(body) {
   return match ? Number(match[1] ?? match[2]) : null;
 }
 
-export function buildEvidence({ capture, captureBlocked, prBody } = {}) {
-  return { ...captureEvidence(capture, captureBlocked), local_loop: localLoop(prBody) };
-}
-
-// The verdict's capture as an annotation, from the closed lists alone: the
-// reason, which a driven session may have written, stays in the verdict file.
-export function captureLine(pr, evidence) {
-  const cause = evidence.capture === "blocked" ? ` cause=${evidence.cause ?? "none"}` : "";
-  return `::notice title=pr-verify capture::pr=${pr} capture=${evidence.capture}${cause}`;
+export function buildEvidence({ prBody } = {}) {
+  return { ...NO_APP, features: [], local_loop: localLoop(prBody) };
 }
 
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
@@ -368,7 +289,7 @@ function readParts(text, partBytes) {
   return parts;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, captureBlocked, prBody }) {
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], prBody }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
@@ -403,7 +324,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
     ...(parsed[WITHHELD] ? { withheld: true } : {}),
-    evidence: buildEvidence({ capture, captureBlocked, prBody }),
+    evidence: buildEvidence({ prBody }),
     run_id: Number(runId),
   };
 }
@@ -809,19 +730,6 @@ export function main(env = process.env) {
   const output = headOutput(env, count, results);
   const linkedIssues = readJson(env.SPEC_FILE, "the linked issues file is unreadable");
   const specText = env.SPEC_TEXT_FILE ? readJson(env.SPEC_TEXT_FILE, "the spec text file is unreadable") : [];
-  // The evidence inputs are optional: no capture summary file is blocked
-  // with find-capture's reason (CAPTURE_BLOCKED), or no-app with none, and
-  // an unreadable one is blocked (null); a trusted PR text file
-  // (select-trusted-text's context) that is unreadable or for another pull
-  // request leaves local_loop null.
-  let capture;
-  if (env.CAPTURE_FILE && existsSync(env.CAPTURE_FILE)) {
-    try {
-      capture = JSON.parse(readFileSync(env.CAPTURE_FILE, "utf8"));
-    } catch {
-      capture = null;
-    }
-  }
   let prBody = null;
   if (env.CONTEXT_FILE) {
     try {
@@ -840,8 +748,6 @@ export function main(env = process.env) {
     headRef: env.HEAD_REF,
     linkedIssues,
     specText,
-    capture,
-    captureBlocked: env.CAPTURE_BLOCKED || undefined,
     prBody,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
@@ -863,7 +769,6 @@ export function main(env = process.env) {
       `index-names<<INDEX_NAMES\n${index.join("\n")}\nINDEX_NAMES\n`,
   );
   results.forEach(({ k, output: one }) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${k}/${count} verdict=${one?.verdict ?? "none"}`));
-  console.log(captureLine(verdict.pr, verdict.evidence));
   console.log(`write-verdict: ${name}`);
 }
 

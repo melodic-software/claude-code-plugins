@@ -12,6 +12,8 @@
 # Duplicated per plugin by design, not drift; see
 # docs/contracts/shell-test-helpers/README.md at the repo root.
 
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
+
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"

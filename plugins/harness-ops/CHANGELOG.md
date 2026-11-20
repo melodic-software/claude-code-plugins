@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.3] - 2026-11-20
+
+### Fixed
+
+- `/harness-ops:observability items` no longer counts a message sent while a turn runs as a new turn: since Claude Code 2.1.325 such a message emits its own `user_prompt` event marked `delivery.mode` `mid_turn`, and the turn count now leaves those out (#16035).
+
+- behavior-probes record 8 and its sandbox cases follow the Claude Code 2.1.325 change to sandboxed Bash, which now goes through the normal permission flow unless `sandbox.autoAllowBashIfSandboxed` is true: the two auto-mode cases set it, and a new default-mode pair measures the default itself (#16035).
+
+## [10.5.2] - 2026-11-20
+
+### Fixed
+
+- audit-skill-visibility says its `CLAUDE_CODE_MAX_CONTEXT_TOKENS` rule (applied only with `DISABLE_COMPACT`) assumes a model ID Claude Code recognizes, points at the model config section that lists which IDs need what, and tells the operator to pin `--context-window` for a gateway alias, which since Claude Code 2.1.325 includes unrecognized `claude-` IDs (#16035).
+
+## [10.5.1] - 2026-11-20
+
+### Changed
+
+- The behavior probes' review-bot thread scaffold gives its scratch repository the neutral origin `probe-owner/probe-repo` instead of a repository name of the publishing organization.
+
 ## [10.5.0] - 2026-11-19
 
 ### Added

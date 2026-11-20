@@ -10,8 +10,8 @@
 #   blank lines skipped; the URL https, with no query, fragment or trailing slash). A cloud
 #   session tied to more than one item is left unattributed and named.
 #
-# Turns are user_prompt events. Tokens are claude_code.token.usage by type. No price: the rollup
-# reads no cost metric or cost attribute.
+# Turns: user_prompt events less mid-turn ones (https://code.claude.com/docs/en/changelog#2-1-325).
+# Tokens: claude_code.token.usage by type. No price: it reads no cost metric or cost attribute.
 #
 # Exit: 0 rendered, 2 cannot evaluate (bad arguments or map file, no duckdb, no store, no token
 # or user_prompt rows, or a non-delta token metric).
@@ -117,7 +117,7 @@ END {
   }
   iw = width("item", iw)
   printf "Usage per work item (hot store %s)\n", ENVIRON["STORE"]
-  print "Item: autonomy.work_item.url, or the ccr.session.id map for a cloud session without it. Turns: user_prompt events. Tokens: claude_code.token.usage. No price.\n"
+  print "Item: autonomy.work_item.url, or the ccr.session.id map for a cloud session without it. Turns: user_prompt events, less mid-turn messages. Tokens: claude_code.token.usage. No price.\n"
   fmt = "%-" iw "s  %8s  %5s  %6s  %10s  %10s  %12s  %13s  %12s\n"
   printf fmt, "item", "sessions", "cloud", "turns", "input", "output", "cacheRead", "cacheCreation", "tokens"
   for (k = 1; k <= ni; k++) {

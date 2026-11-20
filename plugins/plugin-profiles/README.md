@@ -212,8 +212,8 @@ that asked already; with nobody at a terminal, `--yes` alone leaves each such fo
 and with neither a terminal nor `--yes` reset writes nothing and exits 1, as it does for recorded
 files.
 A file reset put back is not listed that way again while it holds the bytes reset left: reset notes
-their hash beside where that file's record is saved, and the preview counts such files in one
-line. An edit to the file, or an apply, ends that, and a record always wins over the note.
+their hash beside where that file's record is saved, and the preview names such files in one
+line, the first three and how many more. An edit to the file, or an apply, ends that, and a record always wins over the note.
 Inside a session, `/plugin-profile` and **Reset** do the same and reload the session; the profile
 skill's reset action previews and asks the same way. Both pass the preview's `previewId` with
 `--preview-id`, and the write refuses, writing nothing, when what it would write no longer matches
@@ -238,7 +238,7 @@ submodule known only from its superproject, until a session starts there; an app
 plain terminal in a folder Claude Code never opened; or another config folder or lane. A record
 whose folder is gone is kept, never deleted; when it was a repository root's and the repository
 moved, the preview names the root file where it is now, which reset puts back only after a yes for
-it. A record reset finds in a home that cannot hold it, such as a repository's `.git` naming user
+it, asked as its own question with Keep first (`--put-back-moved <file>`, `--keep-moved <file>`). A record reset finds in a home that cannot hold it, such as a repository's `.git` naming user
 settings, is listed as ignored and never written from. Reset never writes a
 committed `.claude/settings.json`. Each file is replaced whole, so a reset stopped part way
 leaves each file restored or untouched and the next reset finishes the rest; that holds for a
@@ -250,7 +250,8 @@ left at the profile's value is left as it is and its record removed. One reset w
 from one record only. When a profile was applied at a moved repository's new place, reset first
 puts back that newest record, to the values from before that profile was applied, and keeps the
 older one waiting, saying so; it exits 3 and says to run reset again, and the next run offers the
-file from the older record. A repository moved more than
+file from the older record. An apply at the new place says so in its preview, naming each older
+record and its profile. A repository moved more than
 once goes back the same way, one layer per run, newest first, until the file holds what it held
 before the first apply; a no at any layer leaves the file and every record. A one-session file names each installed plugin of
 every marketplace a profile governs, so a reset elsewhere never changes a running terminal's

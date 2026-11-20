@@ -104,4 +104,5 @@ after the record.
   the decision is costly.
 - A request to evaluate a plugin, skill, prompt or model output is not a UX evaluation; say this
   skill does not cover it.
-- "Discovery" is never used bare: say "discovery phase" or "user research".
+- "Discovery" is never used bare: say "discovery phase" or "user research"
+  (`${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` "Body" gives the reason).

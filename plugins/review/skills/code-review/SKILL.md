@@ -175,7 +175,7 @@ record from the prompt's `loosened_check_verdict:`, `loosened_check_patterns:` a
 `fail` and no consumer entries, and say so in the summary. Without the decision-record line, ask for
 no citation and say in the summary that the citation requirement was not checked. The only spec is
 the closing-issue text in the PR context file ("Closing issue" above); with none, no loosening has
-a reason. Report its `Loosened-check verdict:` line in the summary.
+a reason. Report the criterion file's `Loosened checks would be marked:` line in the summary.
 
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:

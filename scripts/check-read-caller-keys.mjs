@@ -387,7 +387,8 @@ function checkReadShape(file, doc, lineCounter) {
 }
 
 // Exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`: the
-// environment's secret and branch policy, and no deployment record.
+// environment's secret and branch policy, and no deployment record:
+// https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments
 function isCarrierEnvironment(node) {
   return (
     yaml.isMap(node) &&

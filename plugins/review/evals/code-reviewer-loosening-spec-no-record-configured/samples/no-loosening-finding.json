@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nThe branch coverage minimum drops from 90 to 80 at jest.config.js:8; the spec (#41) names it and gives the reason, and no decision record is configured, so it passes the loosened-check criterion.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "answer": "Loosened checks would be marked: fail (default); patterns: 0\n\nThe branch coverage minimum drops from 90 to 80 at jest.config.js:8; the spec (#41) names it and gives the reason, and no decision record is configured, so it passes the loosened-check criterion.\n\nNo findings.\n\nCoverage: all changed files reviewed",
       "why": "passes the reasoned lowering with no citation asked for"
     },
     {

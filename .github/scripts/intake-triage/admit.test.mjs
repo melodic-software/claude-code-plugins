@@ -3,7 +3,8 @@ import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
 import { WRITTEN_STATUS_REREADS, WRITTEN_STATUS_WAIT_MS } from "./admit.mjs";
-import { driftSpecText } from "./admit.mjs";
+import { driftSpecText, trustedSpecTexts } from "./admit.mjs";
+import { ACTIONS_BOT_ID, ownAgentIds } from "./admit.mjs";
 import { runCode, stopRoute } from "../work-resolve-issue/stop-routes.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
@@ -280,12 +281,17 @@ describe("decide", () => {
       const path = join(dir, "bare.json");
       writeFileSync(path, JSON.stringify(bare));
       assert.deepEqual(loadRules(path)["own-agents"], { identities: ["lanes-app"], "source-cap": 5 });
-      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["cap", { "source-cap": 0 }]]) {
+      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["actions bot id", { identities: [ACTIONS_BOT_ID] }], ["cap", { "source-cap": 0 }]]) {
         const bad = join(dir, `${name}.json`);
         writeFileSync(bad, JSON.stringify({ ...bare, "own-agents": value }));
         assert.throws(() => loadRules(bad), /own-agents/, name);
       }
       rmSync(dir, { recursive: true, force: true });
+    });
+
+    test("ownAgentIds never counts github-actions[bot], listed or as the App id", () => {
+      assert.deepEqual([...ownAgentIds({ "own-agents": { identities: ["lanes-app", ACTIONS_BOT_ID, 7] } }, 5)], [5, 7]);
+      assert.deepEqual([...ownAgentIds(undefined, ACTIONS_BOT_ID)], []);
     });
   });
 
@@ -952,10 +958,10 @@ describe("decide", () => {
       assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
       assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
       // A lane's subscription leg or token is its Claude OAuth credential.
-      assert.deepEqual(decide(facts({ issue: issueOf({ title: "Give the capture the subscription and fallback legs the other Claude lanes have" }) })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(decide(facts({ issue: issueOf({ title: "Give the rater the subscription and fallback legs the other Claude lanes have" }) })), { verdict: "admit", reasons: [] });
       for (const text of [
-        "- [ ] The fixed \"subscription token cannot go behind the proxy\" reason is removed.",
-        "Give the driver legs subscription and fallback tokens.",
+        "- [ ] The fixed \"subscription token cannot reach the API\" reason is removed.",
+        "Give the review legs subscription and fallback tokens.",
         "The lane tries its subscription leg, then the subscription fallback.",
         "Each lane holds two subscription legs and two Subscription Tokens.",
         "The probe reads the subscription OAuth token.",
@@ -1722,15 +1728,65 @@ describe("decide", () => {
       }
     });
 
-    test("one without the hex-pin lead line is refused for security", () => {
-      const vendored = "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here.\n\nA clean run closes this issue.\n";
+    test("one without either of the filer's lead lines is refused for security", () => {
       for (const [name, body] of [
-        ["the vendored-copy lead", vendored],
         ["no lead at all", DRIFT_BODY.split("\n").slice(2).join("\n")],
         ["the lead below a first line", `<!-- note -->\n${DRIFT_BODY}`],
+        ["the vendored lead without its full stop", "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here\n"],
+        ["the vendored lead for another upstream", "Upstream `other/repo` no longer matches the copy vendored here.\n"],
+        ["the vendored lead reworded", "Upstream `mattpocock/sandcastle` no longer matches the copy vendored in this repository.\n"],
+        ["the vendored lead below a first line", "<!-- note -->\nUpstream `mattpocock/sandcastle` no longer matches the copy vendored here.\n"],
       ]) {
         refusedForAuthor(run(driftIssue({ body })), name);
       }
+    });
+
+    const VENDORED_TITLE = "Upstream drift: playwright/playwright";
+    const VENDORED_BODY = [
+      "Upstream `playwright/playwright` no longer matches the copy vendored here.",
+      "",
+      "Run: 2026-11-18, https://github.com/example-org/example-repo/actions/runs/1",
+      "",
+      "### `playwright:playwright`",
+      "",
+      "Run `plugins/playwright/skills/playwright/scripts/update.sh`; restore or re-vendor what it names; its output is in the run's job summary.",
+      "",
+      "",
+      "A clean run closes this issue.",
+      "",
+    ].join("\n");
+    const vendoredIssue = (over = {}) => driftIssue({ title: VENDORED_TITLE, body: VENDORED_BODY, ...over });
+
+    test("a vendored-copy issue the workflow filed is admitted with the vendored spec, not the docs one", () => {
+      assert.deepEqual(run(vendoredIssue()), { verdict: "admit", reasons: [] });
+      const [spec] = trustedSpecTexts(driftSpec(vendoredIssue()), humans, APP, RULES["task-list"]);
+      assert.match(spec, /^# Upstream drift: playwright\/playwright\n/);
+      assert.match(spec, /`scripts\/upstream-drift-vendored-report\.sh`/, "the row table names the skill's update script");
+      assert.match(spec, /`scripts\/new-changelog-fragment\.sh <plugin> <bump>`/, "the spec names the fragment, not a version bump");
+      assert.match(spec, /`CHANGELOG\.md` and `\.claude-plugin\/plugin\.json` stay as they are/);
+      assert.match(spec, /Closes #<this issue>/);
+      assert.match(spec, /## Done when\n\n- \[ \] /);
+      assert.doesNotMatch(spec, /docs\/upstream page/, "a vendored issue never gets the pinned-page spec");
+    });
+
+    test("a vendored-copy issue for a row whose apply mode installs a package is refused for security", () => {
+      for (const id of ["firecrawl/update", "upstash/context7", "nobody/vendors-this"]) {
+        const body = `Upstream \`${id}\` no longer matches the copy vendored here.\n\nA clean run closes this issue.\n`;
+        refusedForAuthor(run(driftIssue({ title: `Upstream drift: ${id}`, body })), id);
+      }
+    });
+
+    test("a pinned-page issue still gets the docs/upstream spec", () => {
+      const [spec] = trustedSpecTexts(driftSpec(driftIssue()), humans, APP, RULES["task-list"]);
+      assert.match(spec, /docs\/upstream page/);
+      assert.doesNotMatch(spec, /upstream-drift-vendored-report/);
+    });
+
+    test("a vendored-copy issue from anyone but github-actions[bot], or edited by anyone else, is refused for security", () => {
+      const other = { __typename: "Bot", databaseId: 999 };
+      refusedForAuthor(decide(facts({ issue: vendoredIssue({ user: { id: 999 } }), spec: driftSpec(vendoredIssue(), { author: other }) })), "another bot");
+      refusedForAuthor(decide(facts({ issue: vendoredIssue({ user: { id: OUTSIDER } }), spec: driftSpec(vendoredIssue(), { author: USER(OUTSIDER) }) })), "a stranger");
+      refusedForAuthor(run(vendoredIssue(), { editor: USER(HUMAN), lastEditedAt: "2026-11-18T00:00:00Z" }), "human edit");
     });
 
     test("the same title and lead from another bot or a stranger are refused for security", () => {
@@ -4498,6 +4554,26 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
     assert.equal(lane.proceed, "true", JSON.stringify(lane));
     assert.equal(lane.outsider, undefined);
     assert.equal(lane["split-child"], "true", "the lane runs it at split-child-size, never splitting it");
+  });
+
+  test("an unedited vendored-copy drift issue reaches the issue lane with no person step", async () => {
+    const title = "Upstream drift: playwright/playwright";
+    const body = "Upstream `playwright/playwright` no longer matches the copy vendored here.\n\nRun: 2026-11-18, https://example.test/run\n\n### `playwright:playwright`\n";
+    const vendored = (over = {}) => filed({ title, body, ...over });
+    const spec = { ...graphSpec(), title, body };
+    const swept = selectCandidates({ issues: [vendored({ labels: [] })], now: new Date("2026-10-18T12:00:00Z"), authorIds: new Set([String(HUMAN), String(APP)]) });
+    assert.deepEqual(swept.map((i) => i.number), [7], "the sweep selects it for an intake dispatch");
+
+    const fake = fakeGitHub({ issue: vendored(), spec });
+    assert.equal(await checkRun({ env: verdictEnv, humans, logins, github: fake.github, log: () => {} }), true, "intake's verdict is written for it");
+
+    const admitted = await go(fake);
+    assert.equal(admitted.outcome, "admitted", JSON.stringify(admitted));
+    assert.ok(writes(fake.calls).includes(STATUS(AGENT_READY)), writes(fake.calls).join("\n"));
+
+    const lane = await blockersRun(fake.github);
+    assert.equal(lane.proceed, "true", JSON.stringify(lane));
+    assert.equal(lane.outsider, undefined);
   });
 
   test("the same issue a person last edited stops at every gate", async () => {

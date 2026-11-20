@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.10.0] - 2026-11-20
+
+### Added
+
+- `permission_floor_source` in `docs/conventions/work-items.yaml` names where a team's reviewed permission floor lives. The permission preflight points the operator there for an allow or deny fix. Unset, it says no shared floor is configured and the operator's own settings are the floor; it no longer names one organization's standards repository.
+
+### Changed
+
+- the lane-binding checker takes an optional store of settled lane runs
+
+  `laneChecker` accepts a `store` that answers a finished run whose every
+  attempt left a complete record without reading that run again. A stored
+  run binds only a comment its records list; any other comment reads the run
+  live. Callers that pass no store behave as before.
+
+## [15.9.4] - 2026-11-20
+
+### Changed
+
+- `check-body.mjs`'s header names the bundled issue-body contract without naming the repository it is synced from.
+
 ## [15.9.3] - 2026-11-19
 
 ### Changed
