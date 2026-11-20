@@ -124,9 +124,6 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     # The probe's and the driver's step timeouts (7 + 16), the credit steps'
     # (the gate's 2, each marker step's 1) and the proxy, install and

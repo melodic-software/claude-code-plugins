@@ -184,9 +184,6 @@ jobs:
     # A key the credit gate skipped runs nothing here; collect-key-handoffs routes
     # every unit to assess-units-subscription.
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.next-leg != 'subscription'
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -597,9 +594,6 @@ jobs:
     name: Assess Units Subscription
     needs: collect-key-handoffs
     if: ${{ !cancelled() && needs.collect-key-handoffs.result == 'success' && needs.collect-key-handoffs.outputs.count != '' && needs.collect-key-handoffs.outputs.count != '0' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -965,9 +959,6 @@ jobs:
     name: Assess Units Fallback
     needs: collect-subscription-handoffs
     if: ${{ !cancelled() && needs.collect-subscription-handoffs.result == 'success' && needs.collect-subscription-handoffs.outputs.count != '' && needs.collect-subscription-handoffs.outputs.count != '0' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read

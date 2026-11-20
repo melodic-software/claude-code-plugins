@@ -3,7 +3,7 @@ name: PR Run Plugin Evals Label
 # Starts PR Run Plugin Evals: adding the `eval: run` label to a same-repository,
 # non-draft pull request runs this file, and its completion starts the evals on
 # workflow_run from main, which holds the Claude credentials
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#claude-secrets).
+# (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
 # This run is the head's copy, holds no secret and no write token, and the
 # evals read nothing it writes.
 on:

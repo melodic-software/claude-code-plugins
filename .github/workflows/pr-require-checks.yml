@@ -1934,13 +1934,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
-      - name: Check every Claude secret is read in the claude-lanes environment
-        id: claude_secrets_environment
-        if: needs.select-tests.outputs.run_workflows == 'true'
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh claude-secrets-environment {0}
-        run: scripts/check-claude-secrets-environment.sh --check
-
       # Every upload-artifact step keeps its artifact for the days its family's
       # row in .github/artifact-retention.json names. Parses workflows with the
       # yaml package the runner-policy install above provides, so it gates on
@@ -2002,7 +1995,6 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
-            claude-secrets-environment=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.claude_secrets_environment.outcome }}
             artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}

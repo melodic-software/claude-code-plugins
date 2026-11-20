@@ -574,9 +574,6 @@ jobs:
     name: Resolve Conflicts Handoff
     needs: [resolve-conflicts-select, resolve-conflicts]
     if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1704,9 +1701,6 @@ jobs:
     name: Address Feedback Handoff
     needs: [address-feedback-select, address-feedback]
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -2042,9 +2036,6 @@ jobs:
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     cache-mode: read
@@ -3492,9 +3483,6 @@ jobs:
     name: Review Dependency Handoff
     needs: [review-dependency-select, review-dependency]
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -4218,9 +4206,6 @@ jobs:
     name: Fix CI Handoff
     needs: [fix-ci-context, fix-ci]
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -4524,9 +4509,6 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
       && needs.fix-ci-rung-up.result != 'skipped' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
