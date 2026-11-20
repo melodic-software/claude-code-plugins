@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Your teammate is wrong: a rule is guidance Claude reads during its own session. It blocks nothing and never runs in CI.\n", "why": "the hub's reasoning"},
+    {"answer": "A path-scoped rule file doesn't run in CI, so I emitted the gate.\n", "why": "paraphrase"},
+    {"answer": "A rule can't enforce anything on a human editor; the checker can.\n", "why": "enforce form"},
+    {"answer": "A rule file is text loaded into Claude's context, and nothing fails when a bad name gets through.\n", "why": "states the limit in other words"}
+  ],
+  "fail": [
+    {"answer": "Your teammate is right: a path-scoped rule file is all you need.\n", "why": "agrees with the teammate"},
+    {"answer": "I emitted scripts/check-file-names.sh and its suite.\n", "why": "no reasoning about the rule"},
+    {"answer": "A rule file blocks bad names in every editor and runs in CI.\n", "why": "states the opposite"},
+    {"answer": "", "why": "empty"}
+  ]
+}
