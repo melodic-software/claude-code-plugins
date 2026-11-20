@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [11.0.0] - 2026-11-20
+
+### Changed
+
+- `enable-auto-merge.mjs` no longer arms a lanes App pull request whose diff against main is empty, because its changes already landed. It disarms one already armed, comments that the diff is empty, and closes it, with no fresh attempt at its issue, so it never takes a merge-queue slot, a merge-group run or its review lanes. A person who reopens it decides it: the lane does not close it again at that head, and a member's veto in the discussion stands over the close. A changed-files list that did not read, or was capped, never counts as empty.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `merge.verify-capture`, and the config reader no longer admits the `verify-map` and `verify-capture` run routes, so a `pr-pipeline.yaml` that sets either fails validation; delete them. `pr-verify-capture.yml`, the pr-verify judges' capture find and download steps, and the `maintenance-verify-whole-map.yml` pass are gone ([#17281](https://github.com/melodic-software/claude-code-plugins/issues/17281)). Every verdict records `capture: no-app`, as a run with no app set did before.
+
 ## [10.19.4] - 2026-11-20
 
 ### Removed
