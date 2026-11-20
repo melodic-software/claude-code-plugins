@@ -86,6 +86,7 @@ jobs:
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
       run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
+      run_check_tests: ${{ steps.base.outputs.ref == '' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -528,6 +529,21 @@ f="$scratch/ordered-skip-lint-repo.yml"
 xform_replace_line "$scratch/ordered-skip-lint-shell.yml" "  lint-shell:" "  lint-repo:" "$scratch/lr1.yml"
 xform_replace_line "$scratch/lr1.yml" "      - lint-shell" "      - lint-repo" "$f"
 expect "another lint lane may not borrow run_shell" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+f="$scratch/ordered-skip-check-tests.yml"
+xform_replace_line "$ordered" "  test-python:" "  check-tests:" "$scratch/ct1.yml"
+xform_replace_line "$scratch/ct1.yml" "      - test-python" "      - check-tests" "$scratch/ct2.yml"
+xform_replace_line "$scratch/ct2.yml" "    if: $skip_form" "    if: ${skip_form/run_python/run_check_tests}" "$f"
+expect "check-tests skipping on its run_check_tests row, checked by the aggregate, is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/ordered-skip-check-plugins.yml"
+xform_replace_line "$scratch/ordered-skip-check-tests.yml" "  check-tests:" "  check-plugins:" "$scratch/cp1.yml"
+xform_replace_line "$scratch/cp1.yml" "      - check-tests" "      - check-plugins" "$f"
+expect "another check lane may not borrow run_check_tests" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+f="$scratch/check-tests-row-inverted.yml"
+xform_replace_line "$scratch/ordered-skip-check-tests.yml" "      run_check_tests:" "      run_check_tests: \${{ steps.base.outputs.ref != '' }}" "$f"
+expect "a run_check_tests row that is true beside a diff base is rejected" 1 "publishes 'run_check_tests: \${{ steps.base.outputs.ref != '' }}', expected exactly" --check "$f"
 
 f="$scratch/ordered-skip-other-row.yml"
 xform_replace_line "$ordered" "    if: $skip_form" "    if: ${skip_form/run_python/run_bash}" "$f"
