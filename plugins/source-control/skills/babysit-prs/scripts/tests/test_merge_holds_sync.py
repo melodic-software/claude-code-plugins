@@ -416,6 +416,9 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "REVIEW.md",
             "docs/standards/**",
             "docs/review/**",
+            ".github/scripts/intake-triage/triage-rubric.txt",
+            ".github/scripts/intake-triage/refine-schema.json",
+            ".github/scripts/plugin-eval/policy-probe-prompt.txt",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -425,7 +428,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 22)
+        self.assertEqual(len(FLOOR.author_review), 19)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
