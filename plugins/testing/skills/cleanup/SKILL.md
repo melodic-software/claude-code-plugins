@@ -1,6 +1,6 @@
 ---
 description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. An attended run commits the batch once it is shown; an unattended one does not. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
-argument-hint: "<<folder>|<repo root>> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
+argument-hint: "<<folder>|<repo root>> [--max <n>] [--flaky <test> ...] [--cannot-fail-only] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -24,7 +24,8 @@ Collect each with its own Bash call:
 cap, default 100), `--flaky <test>` (repeatable; flaky tests the user names, also taken from the
 conversation), `--cannot-fail-only` (run [Cannot-fail-only mode](#cannot-fail-only-mode) instead of
 steps 1 to 6). No folder: run the plan when the user asked for the whole repository, otherwise ask
-for one.
+for one. A target form (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same
+request in words) runs [Over several repositories](#over-several-repositories).
 
 ## Working files
 
@@ -73,6 +74,39 @@ run each through the single-folder steps below. The plan edits and runs no test.
    this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch
    that stops records why, and the plan goes on only on the user's yes. Unattended, run only the first `pending` batch whose kind
    is not `unknown`.
+
+## Over several repositories
+
+With no target form, cleanup runs on the folder or repository root given, as it always has. A
+target form selects several repositories, which resolve and count as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms" and "Resolving repositories" say; their writes follow its "Writes stay per repository".
+What differs here:
+
+- **A worktree per repository first.** Before its plan, each repository gets one worktree that its
+  own convention creates from `origin/HEAD`, on a non-default branch, never its main checkout.
+  That worktree's root is `<root>` below.
+- **Plan per repository.** A folder given with a target form must be relative, and is read from
+  each `<root>`; a repository that lacks it is reported skipped. With no folder, each repository
+  runs the [Repository plan](#repository-plan) for its own `<root>`. Plan step 1's scans may fan
+  out, one subagent per repository as the contract's "Fan-out" says, each running the scanner
+  with `CANT_FAIL_SCAN_ROOT=<root>` and returning its table; the main thread writes each
+  repository's `findings.md`.
+- **Batches run in that repository's session.** `/mutation-testing:audit` and the `test-weaken`
+  hook read the session's own project, so steps 0 to 7 for a repository run in a session whose
+  project is its `<root>`. This session's project is the checkout it started in, never a `<root>`
+  created above, the invoking repository's own included, so under a target form this session runs
+  the plans and no batch. For every repository, this one included, list its chosen batches with
+  the `/testing:cleanup <folder>` command to run in a session opened in that repository's
+  `<root>`, one repository at a time; that session runs them with no target form.
+- **State per repository.** `<work>`, `.work/testing-cleanup-plan/` and the step 7 findings file
+  live under that repository's `<root>`, never the invoking repository's.
+- **Pull requests per repository.** A repository's committed batches go to its own pull request,
+  sized by the PR scope budget, still only when the user asks.
+- **Merged report.** Show one plan table across the repositories, each row carrying its
+  `owner/name`, ordered by finding count as plan step 3 orders one repository.
+- **Unattended.** This session still runs no batch. Each repository's list names only its first
+  `pending` batch whose kind is not `unknown`, the one plan step 4 lets an unattended run take.
 
 ## Steps
 

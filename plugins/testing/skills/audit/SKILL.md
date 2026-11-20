@@ -1,6 +1,6 @@
 ---
 description: "Find tests that cannot fail or check little: assertion-free, tautological, vacuous, recomputed or mock-only expectations, asserts that never run, snapshot-only oracles, change detectors, retry-masking runner configs (Playwright, pytest, Vitest, Jest), stray `test.only`. JS/TS, Python, C#, Bash, PowerShell, Go. Use when: 'find tests that prove nothing', 'audit test quality', a CI gate on can't-fail tests (`--check`, `--strict`), or findings for the fix pass (`--persist-findings`, `--judge`). Read-only: nothing edits a test."
-argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>] [--judge [<base>]]"
+argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>] [--judge [<base>]] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -102,6 +102,33 @@ file.
 
 Present the script's findings and coverage block as reported. A run that examined 0 test files
 says so and is never presented as a clean bill.
+
+## Over several repositories
+
+With no target form, the scan covers the repository above, as it always has. A target form
+(`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects
+several repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. What differs here:
+
+- **One scan per repository.** Each repository's subagent runs the detector with
+  `CANT_FAIL_SCAN_ROOT=<root>`, so the scan root, the adapters' walk and the `--findings` branch
+  all come from that repository. The detector reads the working tree, so a repository that is not
+  the session's own checkout is scanned only when, after the one `git -C <root> fetch origin`, its
+  checkout is clean (`git -C <root> status --porcelain` prints nothing) and `HEAD` is the commit
+  `origin/HEAD` names. Any other checkout, or a clone with no `origin/HEAD`, is reported skipped
+  with the reason.
+- **Merged report.** Each repository keeps its own coverage block, headed by its `owner/name`, and
+  a repository that examined 0 test files says so there. The merged findings keep the "Project
+  context" order across repositories, each row carrying its repository.
+- **Findings files stay per repository.** Under `--persist-findings`, each repository's findings
+  file goes to its own memory root (`<root>/.work/reviews/<branch-slug>/` unless that
+  repository's instructions declare another root), for that repository's checked-out branch.
+  A checkout with no current branch fails `--findings` there; report it as that repository's
+  failure.
+- **Single-repository modes.** `--check` gates the repository it runs in, since a CI gate runs in
+  its own repository; `--file` names one file; `--judge` judges this session's change against its
+  base. Each refuses a target form, naming the conflict.
 
 ## Project context
 
