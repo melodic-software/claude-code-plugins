@@ -155,9 +155,10 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 // filesError: what every changed-files GET throws.
 // A pull request's `after` is its auto-merge state as the read-back sees it
 // (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
-function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null, dequeueError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], closeErrors = [], disarmError = null, pinError = null, dequeueError = null } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
+  const closeThrows = [...closeErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const disarmThrows = Object.fromEntries(Object.entries(disarmErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
@@ -263,6 +264,9 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     }
     if (method === "PATCH" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+$/.test(path)) {
       notes.push({ method, path, body });
+      if (closeThrows.length > 0) {
+        throw closeThrows.shift();
+      }
       return {};
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
@@ -854,8 +858,8 @@ test("a pull request whose diff against main is empty is closed plainly, never v
   assert.deepEqual(empty.verified, [], "an empty diff spends no verifier read");
   assert.deepEqual(empty.closed, [], "no capped close, so no fresh attempt at its issue");
   assert.deepEqual(empty.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: emptyDiffNote(HEAD) } },
     { method: "PATCH", path: `${ISSUES}/1`, body: { state: "closed" } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: emptyDiffNote(HEAD) } },
   ]);
   const changed = await run([pull(1, { files: [{ filename: "plugins/work-items/README.md" }] })]);
   assert.deepEqual(changed.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "a non-empty diff arms as before");
@@ -877,6 +881,14 @@ test("an empty-diff pull request a person reopened or vetoed is not closed again
   assert.equal(decide(pull(1), options, { ...detail({ comments: [veto] }), files: [], filesCapped: false }).action, "none", "a person's veto stands over the close");
   const earlier = said(LANES.login, emptyDiffNote("e".repeat(40)), "2026-10-23T10:00:00Z", "NONE", "Bot");
   assert.equal(decide(pull(1), options, { ...detail({ comments: [earlier] }), files: [], filesCapped: false }).action, "close-empty", "a close at another head does not count");
+});
+
+test("an empty-diff close that fails posts no note, so the next sweep closes it again", async () => {
+  const failed = await run([pull(1, { files: [] })], {}, { closeErrors: [new Error("PATCH issues failed with status 502")] });
+  assert.equal(failed.code, 1, "a failed close counts as a failure");
+  assert.deepEqual(failed.notes, [{ method: "PATCH", path: `${ISSUES}/1`, body: { state: "closed" } }], "no note claims a close that did not happen");
+  const again = await run([pull(1, { files: [] })]);
+  assert.ok(again.notes.some(({ method }) => method === "PATCH"), "the next sweep retries the close");
 });
 
 test("a changed-files list that is unread or capped never reads as an empty diff", async () => {

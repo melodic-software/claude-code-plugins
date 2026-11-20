@@ -2446,8 +2446,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             await sendSettled("disarm", pull);
           }
           const issue = `/repos/${repo[0]}/issues/${pull.number}`;
-          await github("POST", `${issue}/comments`, { body: emptyDiffNote(pull.headRefOid) });
           await github("PATCH", issue, { state: "closed" });
+          await github("POST", `${issue}/comments`, { body: emptyDiffNote(pull.headRefOid) });
           console.log(`enable-auto-merge: #${pull.number} closed: ${escapeCommand(reason)}`);
         } catch (error) {
           failed += 1;
