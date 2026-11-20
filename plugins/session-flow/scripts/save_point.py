@@ -149,6 +149,7 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     hop_file_path,
     id_of,
     journey,
+    moved_heading,
     read_chain,
     read_link,
     read_frontmatter,
@@ -2562,7 +2563,9 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
     while i < len(lines):
         line = lines[i]
         if RAIL_RE.match(line):
-            end = next((j for j in range(i + 1, len(lines)) if RAIL_RE.match(lines[j])), None)
+            end = next(
+                (j for j in range(i + 1, len(lines)) if RAIL_RE.match(lines[j])), None
+            )
             if end is not None:
                 region = lines[i + 1 : end]
                 runs = [len(m) for text in region for m in re.findall(r"`+", text)]
@@ -3073,12 +3076,19 @@ def _next_span(doc: Doc) -> tuple[int, int] | None:
 
 
 def _held_heading(doc: Doc) -> str | None:
-    """The first `## Amended …` or retire heading in a hop file with content
-    under it: what `amend` and `retire` wrote, which a rewrite would erase."""
+    """The first `## Amended …`, retire or hop-tagged moved-section heading in
+    a hop file with content under it: what `amend`, `retire` and a shape-4
+    `fill` wrote, which a rewrite would erase."""
+    hop = _fm_int(doc, "hop")
+    moved = (
+        {moved_heading(name, hop) for name in handoff_fit.MOVE_ORDER} if hop else set()
+    )
     for title, start, end in doc.sections:
-        if (title.startswith(AMENDED_HEADING) or title in RETIRE_HEADINGS) and any(
-            line.strip() for line in doc.lines[start + 1 : end]
-        ):
+        if (
+            title.startswith(AMENDED_HEADING)
+            or title in RETIRE_HEADINGS
+            or title in moved
+        ) and any(line.strip() for line in doc.lines[start + 1 : end]):
             return title
     return None
 
@@ -3405,7 +3415,9 @@ def cmd_amend(args: argparse.Namespace) -> int:
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
     sys.stdout.flush()
-    return cmd_emit(argparse.Namespace(file=str(path), format=getattr(args, "format", "rails")))
+    return cmd_emit(
+        argparse.Namespace(file=str(path), format=getattr(args, "format", "rails"))
+    )
 
 
 def _unstage(staged: list[tuple[Path, str]]) -> None:
@@ -3824,7 +3836,9 @@ def build_skeleton(
 
     section(
         "Resume prompt",
-        _resume_prompt(target, session_id, origin, origin_path, settings_file, start_command),
+        _resume_prompt(
+            target, session_id, origin, origin_path, settings_file, start_command
+        ),
     )
 
     return "\n".join(fm + body) + "\n"
@@ -4020,6 +4034,7 @@ def build_skeleton_3(
             "six lines max: when written and against which branch or commit, where the work stands, the single next action and the section that governs it; close with the obligation to read Current rules first",
         ),
     )
+
     def id_body(title: str, name: str, instruction: str) -> list[str]:
         """A slot, or for a question or decision section `new` carries
         (`_carries`), the predecessor's entries copied off disk above an
@@ -4151,7 +4166,9 @@ def build_skeleton_3(
 
     section(
         "Resume prompt",
-        _resume_prompt(target, session_id, origin, origin_path, settings_file, start_command),
+        _resume_prompt(
+            target, session_id, origin, origin_path, settings_file, start_command
+        ),
     )
     body = [line for title in SHAPES[shape].names for line in bodies[title]]
     return "\n".join(fm + body) + "\n"
@@ -4469,7 +4486,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_new.add_argument(
         "--settings-file",
-        help="the session's plugin profile settings file (the `file` of `/plugin-profiles:profile launch --json`); the resume line then carries --settings \"<file>\"",
+        help='the session\'s plugin profile settings file (the `file` of `/plugin-profiles:profile launch --json`); the resume line then carries --settings "<file>"',
     )
     p_new.add_argument(
         "--start-command",
