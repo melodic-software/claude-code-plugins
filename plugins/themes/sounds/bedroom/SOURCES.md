@@ -5,13 +5,13 @@ Neither asks for credit; each page is linked so anyone can check. The freesound 
 not the originals. Every file is mono 16-bit PCM WAV. A bed is a 20 s loop whose last 1.5 s is faded into its start at
 equal power. Loudness is integrated (EBU R 128), measured with ffmpeg's `ebur128`.
 
-Licence statements, as each page shows them:
+License statements, as each page shows them:
 
 - freesound: "Creative Commons 0", linking <http://creativecommons.org/publicdomain/zero/1.0/>.
 - archive.org (radio aporee): "Public Domain Mark 1.0", linking <https://creativecommons.org/publicdomain/mark/1.0/>,
   applied by the recordist.
 
-| File | From | Range | Processing | Page | Licence |
+| File | From | Range | Processing | Page | License |
 |---|---|---|---|---|---|
 | `cicadas/chorus.wav` (default) | the page's WAV, cicadas in a backyard | 28.25 to 49.75 s | high-pass 900 Hz; 22,050 Hz; -34 LUFS | <https://archive.org/details/aporee_30403_34990> | Public Domain Mark 1.0 |
 | `cicadas/river.wav` | the page's WAV, cicadas by a river at dusk | 45.25 to 66.75 s | high-pass 900 Hz; 22,050 Hz; -34 LUFS | <https://archive.org/details/aporee_45599_51781> | Public Domain Mark 1.0 |
@@ -37,7 +37,7 @@ the tape sliding in, the motor and the mechanism's clunk, and the reverse), all 
 The downpour and the storm are the accepted rain, heavier: denser, louder and with more of the roof's and walls'
 rumble, never closer. Measured over each whole file, the spectrum averaged over 4,096-point windows:
 
-| Bed | LUFS | Crest factor (peak / RMS) | 99.9th percentile / RMS | Energy 4 to 8 kHz | Spectral centroid | Sharpest peak 1 to 5 kHz over its neighbours |
+| Bed | LUFS | Crest factor (peak / RMS) | 99.9th percentile / RMS | Energy 4 to 8 kHz | Spectral centroid | Sharpest peak 1 to 5 kHz over its neighbors |
 |---|---|---|---|---|---|---|
 | `rain/roof-rain.wav` (reference) | -30 | 18.5 dB | 11.5 dB | 5.1 % | 1,053 Hz | 1.1 dB |
 | `rain/roof-downpour.wav` | -25 | 14.7 dB | 10.5 dB | 2.3 % | 686 Hz | 3.9 dB |
