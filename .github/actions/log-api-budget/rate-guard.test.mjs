@@ -97,15 +97,6 @@ test("classify reads a Headers object as it reads a plain one", () => {
   assert.deepEqual(classify({ ...vector.input, headers }, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
 });
 
-test("retry-after 0 takes the fallback on a clock between whole seconds, as on a whole second", () => {
-  const input = { url: "https://api.github.com/repos/o/r/pulls", status: 403, headers: { "retry-after": "0" }, body: '{"message":"You have exceeded a secondary rate limit."}' };
-  for (const now of [NOW, NOW + 500]) {
-    const verdict = classify(input, { now });
-    assert.equal(verdict.reset_source, "fallback", `now=${now}`);
-    assert.equal(verdict.reset, Math.floor(NOW / 1000) + 60, `now=${now}`);
-  }
-});
-
 test("poolOf and entryOf name the resource and its config entry", () => {
   assert.equal(poolOf("https://api.github.com/graphql"), "graphql");
   assert.equal(poolOf("https://api.github.com/search/issues?q=a"), "search");
