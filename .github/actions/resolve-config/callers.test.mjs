@@ -3510,7 +3510,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
   assert.deepEqual(Object.keys(on), ["workflow_dispatch"], "dispatch only, no pull_request trigger");
   assert.deepEqual(on.workflow_dispatch.inputs.activity.options, ["fix-docs"]);
   // fix-docs-dispatch.mjs matches this title to skip a PR whose run is not done.
-  assert.equal(runName, "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}");
+  assert.equal(runName, "PR Refine ${{ inputs.activity }} #${{ inputs.pr-number }}");
   for (const id of ["fix-docs", "fix-docs-subscription", "apply-docs-patch"]) {
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);

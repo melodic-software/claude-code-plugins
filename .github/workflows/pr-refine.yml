@@ -23,7 +23,7 @@ name: PR Refine
 # fix-docs-dispatch.mjs reads this title to skip a second dispatch while one
 # for the same activity and PR is still queued or going. Quoted: unquoted,
 # " #" would start a YAML comment and drop the PR number.
-run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
+run-name: "PR Refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
 # API_BUDGET_HOLD (outage posture element 2,
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/outage-posture-audit.md): only

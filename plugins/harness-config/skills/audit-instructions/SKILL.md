@@ -1,6 +1,6 @@
 ---
 description: "When the bundled claude-api skill resolves in this session, prefer its prompt-audit for application-code prompts and model migration; this skill for Claude Code instruction surfaces. Report-only audit of CLAUDE.md, AGENTS.md, rules, skills, agents and hook text for stale, misstated, or conflicting instructions. Use when: 'audit instructions', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'which instruction wins'. Missing text: audit-prompting-postures."
-argument-hint: "[scope] [--target-model <version>] [--opinion] [--persist-findings] [--unattended]"
+argument-hint: "[scope] [--repo <repo> ...] [--target-model <ver>] [--opinion] [--persist-findings] [--unattended]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
@@ -131,7 +131,7 @@ Records: [reference/native-doctor.md](reference/native-doctor.md).
 
 ## Arguments
 
-Full form: `[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]`; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all). Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
+Full form: `[scope] [--repo <repo> ...] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]`; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all). Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
@@ -196,6 +196,7 @@ invocation; a run never infers it, and a run without the flag asks.
 
 `--resume` continues the latest run under this project's state key, re-running only the lanes whose
 report is incomplete or whose inputs changed; Phase B's "Run files and resume" owns the mechanics.
+`--repo <repo>`, or another target form (`--repos-from`, `--owner`, `--fleet`, `--skip`), runs one pass per repository: read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/context/multi-repository.md` first. With none, the audit covers this project.
 
 ## Phase A: Inventory
 

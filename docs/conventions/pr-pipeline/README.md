@@ -284,7 +284,7 @@ each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep th
 such head as for its newest completed review run, under three such skips at that head, and
 sends up to five rounds a tick (`SWEEP_TICK_CAP`) once every decision is made, each PR at most
 once), and no `pr-unblock.yml` run titled
-`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+`PR Unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
@@ -2190,7 +2190,7 @@ pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `lin
 edited after arming to drop its link or name another issue does not merge on that pass. A pass
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
 reads the pull request once and, for a lanes App one that is not already armed and carries no
-`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `PR Merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `dispatch-post-merge-runs` and every other sweep job. That report stands only
 while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the

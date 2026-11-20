@@ -41,7 +41,7 @@ const list = (block, key) =>
 
 test("the run-name renders as runTitle, so a run still going is found for its head", () => {
   const line = /^run-name: (.+)$/m.exec(text)[1];
-  assert.equal(line, `"merge-risk #\${{ github.event.workflow_run.pull_requests[0].number || 'none' }} \${{ github.event.workflow_run.head_sha }}"`);
+  assert.equal(line, `"PR Rate Merge Risk #\${{ github.event.workflow_run.pull_requests[0].number || 'none' }} \${{ github.event.workflow_run.head_sha }}"`);
   const rendered = JSON.parse(line.replaceAll(/\$\{\{ github\.event\.workflow_run\.pull_requests\[0\]\.number \|\| 'none' \}\}/g, "7").replaceAll("${{ github.event.workflow_run.head_sha }}", "a".repeat(40)));
   assert.equal(rendered, runTitle(7, "a".repeat(40)));
 });
