@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: `/corrections:codify \"rates_table.json must stay in step with the rate card\"`",
+      "why": "the measured value"
+    },
+    {
+      "answer": "**CEILING:** shipping-quotes = 1 in .performance/ratchets.json (the measured value, no headroom)\nGUARDRAIL: generate the table from the source and add a drift test",
+      "why": "ceiling line with the file; the guardrail wording is another grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CEILING: 2 (1 measured plus one of headroom)\nGUARDRAIL: `/corrections:codify \"keep the table in step\"`",
+      "why": "headroom above the measured value"
+    },
+    {
+      "answer": "CEILING: none, the guardrail covers it\nGUARDRAIL: `/corrections:codify \"keep the table in step\"`",
+      "why": "no ceiling proposed"
+    },
+    {
+      "answer": "CEILING: 9\nGUARDRAIL: `/corrections:codify \"keep the table in step\"`",
+      "why": "the old value"
+    }
+  ]
+}
