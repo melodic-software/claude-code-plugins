@@ -62,6 +62,7 @@ import {
   FILES_CAPPED_REASON,
   EMPTY_DIFF_REASON,
   emptyDiffNote,
+  EMPTY_DIFF_REOPENED_REASON,
   UNARMED_OUTPUT,
   WAKE_OUTPUT,
   verifyClears,
@@ -864,6 +865,18 @@ test("a pull request whose diff against main is empty is closed plainly, never v
   assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_1" }], "an armed empty diff is disarmed before the close");
   const reportOnly = await run([pull(1, { files: [] })], { REPORT_ONLY: "true" });
   assert.deepEqual(reportOnly.notes, [], "a report-only run closes nothing");
+});
+
+test("an empty-diff pull request a person reopened or vetoed is not closed again", async () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const closedOnce = said(LANES.login, emptyDiffNote(HEAD), "2026-10-23T10:00:00Z", "NONE", "Bot");
+  assert.deepEqual(decide(pull(1), options, { ...detail({ comments: [closedOnce] }), files: [], filesCapped: false }), { action: "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" });
+  const reopened = await run([pull(1, { files: [], discussion: { comments: [closedOnce] } })]);
+  assert.ok(!reopened.notes.some(({ method }) => method === "PATCH"), "a reopened pull request is not closed again");
+  const veto = said("kyle-sexton", "Please don't merge this yet.", "2026-10-23T10:00:00Z");
+  assert.equal(decide(pull(1), options, { ...detail({ comments: [veto] }), files: [], filesCapped: false }).action, "none", "a person's veto stands over the close");
+  const earlier = said(LANES.login, emptyDiffNote("e".repeat(40)), "2026-10-23T10:00:00Z", "NONE", "Bot");
+  assert.equal(decide(pull(1), options, { ...detail({ comments: [earlier] }), files: [], filesCapped: false }).action, "close-empty", "a close at another head does not count");
 });
 
 test("a changed-files list that is unread or capped never reads as an empty diff", async () => {

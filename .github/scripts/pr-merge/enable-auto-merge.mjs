@@ -668,6 +668,7 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes are already on main";
+export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reopened after the lane closed it at this head, so a person decides it`;
 export const emptyDiffNote = (head) =>
   `Unattended merge: closed at head \`${head}\`. ${EMPTY_DIFF_REASON[0].toUpperCase()}${EMPTY_DIFF_REASON.slice(1)}: the base...head diff lists no file, so closing loses no work, and no fresh attempt starts. Reopen it to reverse this.`;
 
@@ -1535,6 +1536,13 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
   if (Array.isArray(detail.files) && detail.files.length === 0) {
+    const vetoed = discussionHold(detail);
+    if (vetoed !== null) {
+      return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+    }
+    if (newestAppComment(detail.comments?.nodes, bot, (c) => c.body === emptyDiffNote(pull.headRefOid)) !== undefined) {
+      return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" };
+    }
     return { action: "close-empty", reason: EMPTY_DIFF_REASON };
   }
   // A head a pr-unblock lane stopped is never queued: only this job reads the
