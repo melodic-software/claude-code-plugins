@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.30.0] - 2026-11-20
+
+### Added
+
+- **Several repositories in one run.** `/discipline:point-dont-copy`, `/discipline:recheck-against-upstream`, `/discipline:follow-our-standards` and `/discipline:reuse-or-replace` now accept the target-scope forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`) and run their audit once per repository, with findings from all repositories in one report. Each repository is read at `origin/HEAD` and audited against its own rules and verification level: its own standards index, paved-path file and pinned upstream versions. The shared method in `context/re-anchor-audit-correct.md` has a new "Several repositories" section that states what changes in the loop. `point-dont-copy` treats a file copied between repositories as a second copy. It gets those copies from `/coupling:reduce dry-run`, and when that skill is not enabled it says they were not measured. `reuse-or-replace` reports one concern solved two ways in two repositories. `recheck-against-upstream` runs its fan-out tier in each repository unless a scope narrows it to one surface, and keeps each repository's checkpoint and divergence ledger in that repository. A fix in another repository is drafted as that repository's own pull request and opened only when the user says so. With no target form, each skill behaves as before. The plugin now ships `reference/target-scope.md`, a generated copy of the contract ([#17243](https://github.com/melodic-software/claude-code-plugins/issues/17243)).
+
 ## [0.29.1] - 2026-11-20
 
 ### Changed
