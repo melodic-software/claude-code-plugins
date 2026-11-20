@@ -370,9 +370,8 @@ td_land = vec3(mix(td_land, vec3(0.30, 0.26, 0.22) + vec3(0.09, 0.08, 0.06) * sm
 td_land = vec3(td_land * mix(vec3(1), vec3(1.2, 0.93, 0.66), td_warm) * mix(vec3(1), vec3(0.74, 0.68, 0.80), td_dawn) * (1 - 0.28 * td_open))
 // At night the land darkens under the darker sky, the room's own yard light and fireflies showing faintly through.
 td_land = vec3(mix(vec3(0.010, 0.013, 0.026), td_land, td_d))
-// One layer: by day the whole view, the land opaque from day 0.63; at night the sky, and the land in part. The glass
-// takes in, at night, the strip under the upper sash's bottom rail, which the base's pane mask leaves out.
-let td_a = mix(max(min(1, 1.6 * td_day), 0.62 * td_late), max(min(1, 1.3 * td_day), td_late * max(0.35 + 0.57 * td_v, td_disk)), w_sky) * max(w_pane + td_open, sbox(at, vec2(393.5, 417), vec2(96.5, 1.8), 0.5) * td_late)
+// One layer: by day the whole view, the land opaque from day 0.63; at night the sky, and the land in part.
+let td_a = mix(max(min(1, 1.6 * td_day), 0.62 * td_late), max(min(1, 1.3 * td_day), td_late * max(0.35 + 0.57 * td_v, td_disk)), w_sky) * (w_pane + td_open)
 let td_col = vec3(mix(td_land, td_sc, w_sky))
 acc = vec4(vec4(acc.rgb * (1 - td_a) + td_col * td_a, acc.a * (1 - td_a) + td_a))
 let wx_wet = state.at(vec2(13, 0)).y
@@ -642,11 +641,10 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   }
   if (abs(c.x) < 86.0 && abs(c.y) < 68.0) {
   acc = vec4(vec4(acc.rgb * (1 - tv.a) + tv.rgb, acc.a * (1 - tv.a) + tv.a))
-// While Claude works, a black layer of 2.5 to 5% that drifts with slow noise: the screen only darkens, softly.
+// While Claude works, a black layer of 2.5 to 5% that drifts with two slow waves: the screen only darkens, softly.
 let ct_d = vec2(abs(c) - vec2(73, 55.5))
 let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * now_tv
-let ct_q = vec2(vec2(time * 2.5, 0))
-let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.025 * vn(ct_q))
+let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.0125 * (1 + sin(time * 2.9) * sin(time * 1.7 + 1.3)))
 acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
   }
   if (abs(at.x - 1376.0) < 85.0 && abs(at.y - 530.0) < 112.0) {
@@ -693,6 +691,12 @@ acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
   }
   let bloom = 0.24 * exp(-2.2 * ell(at, vec2(1376, 528), vec2(15, 32)) * ell(at, vec2(1376, 528), vec2(15, 32))) * wall * on
   acc = vec4(vec4(acc.rgb * (1 - bloom) + vec3(0.66, 0.36, 1) * bloom, acc.a * (1 - bloom) + bloom))
+  // The wall switch's toggle, inside this block's box: the room under the shader draws it up (the ceiling light on).
+  // Once the light is under half on it snaps down: the plate and the slot cover where it stood, and it stands below.
+  let swl = sbox(at, vec2(1411.8, 497), vec2(1.3, 3.5), 0.3)
+  let swp = max(sbox(at, vec2(1411.8, 489), vec2(1.6, 3.8), 0.3), swl) * (1 - step(0.5, now_light))
+  let swc = vec3(mix(mix(vec3(0.082, 0.09, 0.188), vec3(0.047, 0.059, 0.153), step(488.4, at.y)), vec3(0.15, 0.16, 0.27) - vec3(0.08) * smoothstep(494, 500.5, at.y), swl))
+  acc = vec4(vec4(acc.rgb * (1 - swp) + swc * swp, acc.a * (1 - swp) + swp))
   }
   if (at.x < 345.0 && abs(at.y - 568.0) < 54.0) {
   let dark = 1 - state.at(vec2(2, 0)).x
