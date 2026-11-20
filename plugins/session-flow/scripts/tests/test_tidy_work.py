@@ -1098,7 +1098,7 @@ def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
 
 
 def test_a_finished_chain_keeps_its_newest_hot_file_and_its_archive(env):
-    """PLAN.md D7: the shrink removes older hot files only."""
+    """The shrink removes older hot files only."""
     archive = three_chain(env)
     _, _, repo = env
     items = report(env, *links(env[0], STATE))

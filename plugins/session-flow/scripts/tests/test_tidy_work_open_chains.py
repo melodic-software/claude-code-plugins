@@ -117,7 +117,7 @@ def test_every_hot_file_of_an_open_chain_carries_the_open_chain_reason(env):
 
 def test_a_finished_chain_still_leaves_by_the_age_and_pr_rules(env):
     """A finished shape-2 chain leaves whole; a finished shape-3 chain shrinks to
-    its newest hot file and its archive (PLAN.md D7)."""
+    its newest hot file and its archive."""
     two = two_chain(env, (OPEN_NEXT, CLOSED_NEXT))
     root3, newest3, archive = open_three_chain(env, (OPEN_NEXT, CLOSED_NEXT))
     state = links(env[0], MERGED)

@@ -1,7 +1,7 @@
-"""Shape-4 chains built for tests without the shape-4 writer: each hop is written
-by `new` and `fill` as shape 3 and then rewritten in the shape-4 section order (PLAN.md Design, the shape-4 table, an external
-contract); chosen sections then move to the hop's own file under a hop-tagged
-heading, as the writer will move them."""
+"""Shape-4 chains whose moved sections each test chooses: each hop is written by
+`new` and `fill` as shape 3, rewritten in the shape-4 section order
+(reference/structure.md, "Shape 4"), and the chosen sections then move to the
+hop's own file under a hop-tagged heading, as the shape-4 writer moves them."""
 
 from __future__ import annotations
 
