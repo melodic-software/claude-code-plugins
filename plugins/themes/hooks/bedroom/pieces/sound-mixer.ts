@@ -1,0 +1,108 @@
+/**
+ * The Windows sound mixer: one PowerShell process for as long as sound is on, playing through WPF's MediaPlayer, one
+ * player per sound, mixed by Windows. It loops a bed, crossfades one bed into the next, fades the bed's level, and plays
+ * one-shots from players opened ahead, so a one-shot only seeks and plays.
+ *
+ * `$.process.spawn` closes a child's standard input once its `input` is written, so commands reach the mixer through a
+ * file instead: the mixer makes `commands.txt` in a folder of its own under the Windows temp folder, says `ready <path>`
+ * on its output, and polls the file every POLL_MS. The mod writes the whole file each time, every command it has not
+ * seen answered, each line `<seq> <verb> <words>`, then `end`; the mixer runs each line whose seq is above the last it
+ * ran, and answers `ok <seq>`, then `sounding <seq>` once a one-shot's position has moved. It writes a dot every
+ * BEAT_MS: once its output is closed (the engine ends the child when sound goes off, the module unloads or the session
+ * ends) the write fails and it stops. It stops too when no command has come for QUIET_MS, and deletes its folder.
+ */
+
+/** How often the mixer reads the command file and steps its fades, in ms. */
+export const POLL_MS = 10
+/** How often the mixer writes a dot, in ms. */
+export const BEAT_MS = 250
+/** The mixer stops when no command has come for this long; the mod pings every PING_MS while it plays. */
+export const QUIET_MS = 20_000
+export const PING_MS = 5000
+
+/** One command to the mixer. Gains are 0 to 1, times in ms, names relative to the sounds folder. */
+export type MixerCommand =
+  | { verb: 'bed'; name: string | undefined; gain: number; fadeMs: number }
+  | { verb: 'level'; gain: number; fadeMs: number }
+  | { verb: 'shot'; name: string; gain: number }
+  | { verb: 'load'; name: string }
+  | { verb: 'ping' }
+  | { verb: 'quit'; fadeMs: number }
+
+const ms = (value: number): string => String(Math.max(0, Math.round(value)))
+const gain = (value: number): string => Math.min(1, Math.max(0, value)).toFixed(4)
+
+/** One command as its line in the file, without its seq. A name holds no space: the bank's names are words and dashes. */
+export function wordsOf(command: MixerCommand): string {
+  if (command.verb === 'bed') return `bed ${command.name ?? '-'} ${gain(command.gain)} ${ms(command.fadeMs)}`
+  if (command.verb === 'level') return `level ${gain(command.gain)} ${ms(command.fadeMs)}`
+  if (command.verb === 'shot') return `shot ${command.name} ${gain(command.gain)}`
+  if (command.verb === 'load') return `load ${command.name}`
+  if (command.verb === 'quit') return `quit ${ms(command.fadeMs)}`
+  return 'ping'
+}
+
+/** The whole command file: the commands not yet answered, oldest first, then `end`. */
+export function fileOf(pending: readonly { seq: number; command: MixerCommand }[]): string {
+  return [...pending.map(({ seq, command }) => `${seq} ${wordsOf(command)}`), 'end', ''].join('\n')
+}
+
+/** One line of the mixer's output, read. */
+export type MixerLine = { kind: 'ready'; path: string } | { kind: 'ok' | 'sounding'; seq: number } | { kind: 'error'; text: string }
+
+/**
+ * The lines in a piece of the mixer's output; `rest` is a line not yet ended. Dots are its heartbeat and say nothing:
+ * the mixer writes each line whole, so a dot only ever comes before a line, never inside one.
+ */
+export function linesOf(text: string): { lines: MixerLine[]; rest: string } {
+  const parts = text.split(/\r?\n/)
+  const rest = (parts.pop() ?? '').replace(/^\.+/, '')
+  const lines: MixerLine[] = []
+  for (const part of parts) {
+    const [word = '', ...more] = part.replace(/^\.+/, '').trim().split(' ')
+    if (word === 'ready' && more.length > 0) lines.push({ kind: 'ready', path: more.join(' ') })
+    else if ((word === 'ok' || word === 'sounding') && /^\d+$/.test(more[0] ?? '')) lines.push({ kind: word, seq: Number(more[0]) })
+    else if (word === 'error') lines.push({ kind: 'error', text: more.join(' ') })
+  }
+  return { lines, rest }
+}
+
+/**
+ * The mixer's script for `powershell.exe -Command`, reading the sounds under `root` (a Windows path). A voice is one
+ * player with a fade: its level moves from `a` to `b` over `n` ms from `t`, on a quarter sine, so two voices crossing
+ * keep the same power. A bed loops by seeking to its start just before its end; its files are cut so the end runs
+ * into the start.
+ */
+export function mixerScript(root: string): string {
+  return [
+    "$ErrorActionPreference='Stop'",
+    'Add-Type -AssemblyName PresentationCore',
+    `$root='${root.replaceAll("'", "''")}'`,
+    "$dir=Join-Path ([IO.Path]::GetTempPath()) ('claude-bedroom-sound-'+$PID)",
+    '[void][IO.Directory]::CreateDirectory($dir)',
+    "$file=Join-Path $dir 'commands.txt'",
+    "[IO.File]::WriteAllText($file,'')",
+    '$clock=[Diagnostics.Stopwatch]::StartNew()',
+    'function Say($t){[Console]::Out.Write($t+"`n");[Console]::Out.Flush()}',
+    "function Open($n){$p=New-Object System.Windows.Media.MediaPlayer;$p.Volume=0;$p.Open([Uri](Join-Path $root $n.Replace('/','\\')));$p}",
+    'function Level($v,$now){if($v.n -le 0){return $v.b};$f=[Math]::Min(1,[Math]::Max(0,($now-$v.t)/$v.n));if($v.b -ge $v.a){$v.a+($v.b-$v.a)*[Math]::Sin($f*1.5707963)}else{$v.b+($v.a-$v.b)*[Math]::Cos($f*1.5707963)}}',
+    'function Fade($v,$to,$n,$now){$v.a=Level $v $now;$v.b=$to;$v.t=$now;$v.n=$n}',
+    '$voices=New-Object System.Collections.ArrayList',
+    '$shots=@{}',
+    '$waits=New-Object System.Collections.ArrayList',
+    '$last=0;$seen=0;$beat=-1000;$stamp=\'\';$quit=-1',
+    'function Shot($n){if(-not $shots.ContainsKey($n)){$shots[$n]=New-Object System.Collections.ArrayList};$pool=$shots[$n];foreach($s in $pool){if($s.armed -or $s.until -eq 0){return $s}};$s=[pscustomobject]@{p=(Open $n);until=0;armed=$false;from=0;long=$false};[void]$pool.Add($s);$s}',
+    "function Run($w,$now){switch($w[1]){'bed'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v 0 ([int]$w[4]) $now;$v.drop=$true}};if($w[2] -ne '-'){$v=[pscustomobject]@{p=(Open $w[2]);loop=$true;bed=$true;drop=$false;a=0;b=[double]$w[3];t=$now;n=[int]$w[4]};[void]$voices.Add($v);$v.p.Play()}}'level'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v ([double]$w[2]) ([int]$w[3]) $now}}}'shot'{$s=Shot $w[2];$s.armed=$false;$s.p.Volume=[double]$w[3];if($s.p.Position.TotalMilliseconds -gt 0){$s.p.Position=[TimeSpan]::Zero};$s.p.Play();$s.from=$now;$s.long=$true;$s.until=$now+60000;[void]$waits.Add([pscustomobject]@{p=$s.p;seq=$w[0];by=$now+2000})}'load'{if(-not $shots.ContainsKey($w[2])){$shots[$w[2]]=New-Object System.Collections.ArrayList;foreach($c in 1,2){[void]$shots[$w[2]].Add([pscustomobject]@{p=(Open $w[2]);until=0;armed=$false;from=0;long=$false})}}}'quit'{foreach($v in $voices){Fade $v 0 ([int]$w[2]) $now;$v.drop=$true};$script:quit=$now+[int]$w[2]}};Say ('ok '+$w[0])}",
+    "Say ('ready '+$file)",
+    'try{while($true){' +
+      '$now=$clock.ElapsedMilliseconds;' +
+      "$i=New-Object IO.FileInfo $file;if($i.Exists){$key=''+$i.LastWriteTimeUtc.Ticks+' '+$i.Length;if($key -ne $stamp){try{$fs=[IO.File]::Open($file,'Open','Read','ReadWrite,Delete');$r=New-Object IO.StreamReader $fs;$text=$r.ReadToEnd();$r.Close()}catch{$text=''};if($text.EndsWith(\"end`n\")){$stamp=$key;$todo=@();foreach($line in $text.Split(\"`n\")){$w=$line.Trim().Split(' ');$n=0;if($w.Count -lt 2 -or -not [int]::TryParse($w[0],[ref]$n) -or $n -le $last){continue};$todo+=,$w};foreach($w in $todo){if($w[1] -eq 'shot'){Run $w $now}};foreach($w in $todo){if($w[1] -ne 'shot'){Run $w $now};$last=[Math]::Max($last,[int]$w[0]);$seen=$now}}}}else{break};" +
+      'for($k=$voices.Count-1;$k -ge 0;$k--){$v=$voices[$k];$v.p.Volume=(Level $v $now);if($v.loop -and $v.p.NaturalDuration.HasTimeSpan){$d=$v.p.NaturalDuration.TimeSpan.TotalMilliseconds;if($v.p.Position.TotalMilliseconds -ge $d-25){$v.p.Position=[TimeSpan]::Zero;$v.p.Play()}};if($v.drop -and $now -ge $v.t+$v.n){$v.p.Close();$voices.RemoveAt($k)}};' +
+      'foreach($pool in $shots.Values){foreach($s in $pool){if(-not $s.armed -and $s.until -gt 0){if($s.long -and $s.p.NaturalDuration.HasTimeSpan){$s.until=$s.from+$s.p.NaturalDuration.TimeSpan.TotalMilliseconds+50;$s.long=$false};if($now -ge $s.until){$s.p.Stop();$s.armed=$true}}}};' +
+      "for($k=$waits.Count-1;$k -ge 0;$k--){$x=$waits[$k];if($x.p.Position.TotalMilliseconds -gt 0){Say ('sounding '+$x.seq);$waits.RemoveAt($k)}elseif($now -gt $x.by){$waits.RemoveAt($k)}};" +
+      `if($quit -ge 0 -and $now -ge $quit){break};if($now-$seen -gt ${QUIET_MS}){break};` +
+      `if($now-$beat -ge ${BEAT_MS}){$beat=$now;[Console]::Out.Write('.');[Console]::Out.Flush()};` +
+      `Start-Sleep -Milliseconds ${POLL_MS}` +
+      '}}catch{}finally{foreach($v in $voices){$v.p.Close()};foreach($pool in $shots.Values){foreach($s in $pool){$s.p.Close()}};Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue}',
+  ].join(';')
+}

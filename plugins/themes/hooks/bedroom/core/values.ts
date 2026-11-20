@@ -367,3 +367,11 @@ export async function commandScreen($: EngineInterface, name: 'tape' | 'console'
   await ask($, why)
   return screenQueue.length < waitsBefore ? 0 : (delay ?? 0)
 }
+
+/**
+ * The last world code sent and when (-Infinity before the shader starts), when a hurry flip last went and whether one
+ * waits to go: what the sound reads to change its bed with the picture, not with the command.
+ */
+export function worldMove(): { code: number; at: number; hurryAt: number; hurryWaits: boolean } {
+  return { code: worldSent, at: worldAt, hurryAt, hurryWaits: screenQueue.some(change => change.field === 'hurry') }
+}
