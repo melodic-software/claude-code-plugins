@@ -48,7 +48,7 @@ Outside-scope changes: none | <paths>
 **`--unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
 block records `State: skipped (unattended)` without asking.
 
-**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place…] [--repo <repo> ...]`, in full `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]] [--repo <repo> ...]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
+**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]] [--repo…]`, in full `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]] [--repo <repo> ...]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
 
 ## Repository context. Gather first
 
