@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.1] - 2026-11-20
+
+### Changed
+
+- Skill bodies point at upstream sources instead of restating them, and state their own reasons. `course-digest` points at `video-digest`'s install fallbacks for ImageMagick 7, not a distro version fact, and records its bundled-Chromium choice with a pointer to Chrome's remote-debugging post. `distill` states why each reference file holds one concept. `docpage-digest` states why escapes must land byte-exact and why Edit and Write are ruled out for them, without citing an unnamed past run, and its Monitor-wait step drops the description of the Bash tool and says why a foreground `sleep` is ruled out, with a pointer to the Monitor tool docs. `video-digest`'s X source spoke points at yt-dlp's `url`-result handling instead of describing it.
+
 ## [3.5.0] - 2026-11-19
 
 ### Added
