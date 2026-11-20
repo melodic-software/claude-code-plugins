@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.29.1] - 2026-11-20
+
+### Changed
+
+- The `setup-apply` test builds its seeded settings repositories through one `seeded_repo` helper instead of six copies of the same setup.
+
 ## [0.29.0] - 2026-11-19
 
 ### Added
