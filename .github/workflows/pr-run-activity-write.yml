@@ -1059,23 +1059,7 @@ jobs:
         env:
           VERDICT_FILE: ${{ runner.temp }}/lane-patch-verdict/dependency-verdict.json
           VERDICT_SHA256: ${{ inputs.patch-verdict-sha256 }}
-        run: |
-          if [ -L "$VERDICT_FILE" ] || [ ! -f "$VERDICT_FILE" ] || [ "$(stat -c %s "$VERDICT_FILE")" -gt 49152 ]; then
-            echo "::error::the dependency-verdict artifact holds no verdict of at most 49152 bytes"
-            exit 1
-          fi
-          sum=$(sha256sum <"$VERDICT_FILE")
-          if ! [[ $VERDICT_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$VERDICT_SHA256" ]; then
-            echo "::error::the verdict does not match the SHA-256 the scan job recorded"
-            exit 1
-          fi
-          # Model output, held to the closed set before it becomes an output.
-          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' "$VERDICT_FILE") || verdict=""
-          case $verdict in
-            merge | fix | close | escalate) ;;
-            *) verdict="" ;;
-          esac
-          echo "verdict=$verdict" >>"$GITHUB_OUTPUT"
+        run: . .base/.github/scripts/pr-run-activity-write/check-patch-verdict.bash
 
       # apply-patch, before the mint and the head checkout, with no token:
       # the activity's script, from the base, checks the patch artifact
@@ -1401,39 +1385,7 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: ${{ inputs.patch-activity }}
-        run: |
-          hold_label=needs-human
-          if [ -f .base/docs/conventions/work-items.yaml ]; then
-            hold_label=$(yq -o=json -I=0 '.tracker' .base/docs/conventions/work-items.yaml |
-              jq -er '.config.role_labels // {}
-              | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end') || {
-              echo "::error::cannot read the human-gated role label from the base docs/conventions/work-items.yaml"
-              exit 1
-            }
-          fi
-          if ! [[ $hold_label =~ ^[A-Za-z0-9][A-Za-z0-9\ ._:/-]*$ ]]; then
-            echo "::error::the human-gated role label is malformed"
-            exit 1
-          fi
-          lifted=false
-          case $HUMAN_GATE in
-            fix-request) lifted=true ;;
-            lane-escalation)
-              recheck=$(mktemp)
-              GITHUB_OUTPUT=$recheck LABEL=$hold_label node .base/.github/scripts/pr-unblock/gate-recheck.mjs
-              if grep -qx 'lane-escalation=true' "$recheck"; then
-                lifted=true
-              fi
-              ;;
-          esac
-          labels=$(jq -ce --arg human "$hold_label" --arg lifted "$lifted" \
-            '["do-not-merge"] + (if $lifted == "true" then [] else [$human] end)
-              + [(.selected["applies-when"]["labels-absent"] // [])[] | strings] | unique' \
-            "$RESOLVED") || {
-            echo "::error::cannot read the activity's labels-absent list from the resolved config"
-            exit 1
-          }
-          echo "labels=$labels" >>"$GITHUB_OUTPUT"
+        run: . .base/.github/scripts/pr-run-activity-write/read-hold-labels.bash
 
       # Issue mode, apply-patch: the labels the activity needs present, read
       # before the head checkout replaces .base.
@@ -1467,29 +1419,7 @@ jobs:
           DEST: ${{ runner.temp }}/apply-patch-base
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
           MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$RUNNER_TEMP/lib" "$DEST/$(dirname "$RULES")"
-          cp .base/.github/scripts/lib/retry-fetch.mjs "$RUNNER_TEMP/lib/"
-          cp .base/.github/scripts/lib/run-main.mjs "$RUNNER_TEMP/lib/"
-          cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
-          cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
-          cp .base/.github/scripts/pr-unblock/escalation-routes.mjs "$RUNNER_TEMP/pr-unblock/"
-          cp .base/.github/scripts/pr-unblock/escalation-routes.json "$RUNNER_TEMP/pr-unblock/"
-          cp .base/.github/scripts/pr-merge/merge-holds.mjs "$RUNNER_TEMP/pr-merge/"
-          cp ".base/$RULES" "$DEST/$RULES"
-          # A base without one leaves the rule's pairs unreadable: a row that
-          # needs them fails before any write.
-          if [ -f .base/.github/dependabot.yml ]; then
-            cp .base/.github/dependabot.yml "$DEST/.github/dependabot.yml"
-          fi
-          # The shared-copies row admits only the copies the registry lists
-          # (apply-patch.mjs sharedCopiesFrom), read at the pinned base the
-          # patch was built from, not the base tip, which may have moved since.
-          if [ "$PATCH_PREPARE" = shared-copies ]; then
-            mkdir -p "$DEST/scripts"
-            git -C .base show "$MERGE_BASE_SHA:scripts/shared-copies.txt" >"$DEST/scripts/shared-copies.txt"
-          fi
-          echo "dir=$DEST" >>"$GITHUB_OUTPUT"
+        run: . .base/.github/scripts/pr-run-activity-write/copy-apply-patch-base.bash
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner

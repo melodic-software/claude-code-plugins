@@ -43,7 +43,16 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 process.env.TMPDIR = tempDir("callers-tmp-");
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
-const workflow = (name) => parse(read(`../../workflows/${name}`));
+const SOURCED = /^\. \.base\/(\.github\/scripts\/\S+\.bash)$/;
+const inlineSourced = (doc) => {
+  for (const job of Object.values(doc.jobs ?? {}))
+    for (const step of job.steps ?? []) {
+      const path = SOURCED.exec(step.run ?? "")?.[1];
+      if (path) step.run = read(`../../../${path}`);
+    }
+  return doc;
+};
+const workflow = (name) => inlineSourced(parse(read(`../../workflows/${name}`)));
 const RESOLVE = "./.base/.github/actions/resolve-config";
 
 // The Work status field write that starts work-resolve-issue: the field set to
