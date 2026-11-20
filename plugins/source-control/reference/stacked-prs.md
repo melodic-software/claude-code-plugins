@@ -91,7 +91,8 @@ so an attended session may stack, and an unattended lane does not.
 - Treat a stack as merging until every one of its PRs reads `MERGED`; on a trunk with a merge
   queue, read how the queue takes the stack from the pointer below, live.
 - `/source-control:babysit-prs` holds stack layers for a human unless its `babysit_stacked_prs`
-  option is on.
+  option is on. Its unattended merge path never pins or enqueues a stack layer: GitHub refuses
+  that enqueue, so a person enqueues the layer.
 
 - **Pointer**: when you need how a stack merges, its rules and CI, or its merge methods, fetch
   [About stacked pull requests: Rules, CI, and merging](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#rules-ci-and-merging)
