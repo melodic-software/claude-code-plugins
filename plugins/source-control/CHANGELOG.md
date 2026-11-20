@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.4] - 2026-11-20
+
+### Removed
+
+- The merge gate's CI evidence comment, `babysit_evidence_comment.py`, which only linked a `pr-capture-<pr>-<head>` artifact: CI no longer captures a pull request's app, so the `merge-pr` enqueue and the `enable-auto-merge` arm post no evidence comment ([#17281](https://github.com/melodic-software/claude-code-plugins/issues/17281)). The `/source-control:pull-request evidence` comment is unchanged; its `--artifact-url` links any retained CI artifact.
+
 ## [13.1.3] - 2026-11-20
 
 ### Fixed
