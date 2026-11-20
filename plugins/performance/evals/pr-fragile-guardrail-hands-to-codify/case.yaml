@@ -9,7 +9,7 @@ graders:
     arm: both
   - name: guardrail-hands-to-codify
     type: regex
-    pattern: '^[\s>*`_-]*GUARDRAIL[*`_\s]*:[^\n]*corrections:codify\b'
+    pattern: '^[\s>*`_-]*GUARDRAIL[*`_\s]*:(?![^\n]*?\b(?:generat\w*|(?:drift|CI|unit|regression)[ \t]+(?:test|check)s?|add\w*[ \t]+an?[ \t]+(?:[\w-]+[ \t]+){0,2}?(?:test|check))\b[^\n]*?corrections:codify)[^\n]*corrections:codify\b'
     flags: 'im'
     target: 'last_message'
     arm: both

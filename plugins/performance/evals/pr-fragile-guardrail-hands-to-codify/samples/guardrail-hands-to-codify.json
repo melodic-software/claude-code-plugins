@@ -7,6 +7,10 @@
     {
       "answer": "CEILING: 1\n**GUARDRAIL:** hand the rule that the rates table must not drift from the rate service to `/corrections:codify`, which picks the rung and proves the check",
       "why": "bold label, codify picks the mechanism"
+    },
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: Hand `/corrections:codify \"rates_table.json must stay in step with the carrier's rate card\"`, which picks the strongest rung, such as generating the table from the rate card or a drift test, and proves it",
+      "why": "mechanisms named after the hand-off describe codify's choice, not protect's"
     }
   ],
   "fail": [
@@ -17,6 +21,14 @@
     {
       "answer": "You could also run /corrections:codify later.\n\nCEILING: 1\nGUARDRAIL: add a CI test comparing rates_table.json with the live rate card",
       "why": "codify only outside the guardrail line"
+    },
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: Generate rates_table.json from the carrier rate card and add a drift test; /corrections:codify can document this choice.",
+      "why": "protect picks the mechanism itself and only mentions codify after it"
+    },
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: add a drift check against the rate card, then run `/corrections:codify \"keep the table in step\"`",
+      "why": "a mechanism chosen before the hand-off"
     }
   ]
 }
