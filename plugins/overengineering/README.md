@@ -21,6 +21,11 @@ The shared method every skill applies lives once, in
 joins them is specified once, in
 [`context/findings-artifact.md`](context/findings-artifact.md).
 
+`audit` and `delta` cover this repository by default. Given `--repo`, `--repos-from`, `--owner`,
+`--fleet` or `--skip`, they run once per selected repository, per the shipped
+[`reference/target-scope.md`](reference/target-scope.md), and merge the results into one report.
+Each repository keeps its own findings artifact and spine baseline.
+
 ## Why this exists
 
 Enforcement accumulates. Each hook, gate, guard, and standing instruction was individually

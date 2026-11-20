@@ -3,6 +3,17 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-11-20
+
+### Added
+
+- `audit` and `delta` accept the target-scope contract's forms (`--repo`, `--repos-from`,
+  `--owner`, `--fleet`, `--skip`) and run once per selected repository, merging the results into
+  one report. Each repository keeps its own findings artifact and spine baseline. A gate copied
+  into several repositories' CI shows up as one row in the merged report, and its candidate fix
+  is a shared workflow. With no target form, both skills behave as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
 ## [0.11.8] - 2026-11-19
 
 ### Changed
