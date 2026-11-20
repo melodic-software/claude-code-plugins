@@ -2443,7 +2443,8 @@ test("with either kill switch set, the scheduled job starts no full run and send
 // dispatch-post-merge-runs's check ran (`codeSha`, null for no file); otherwise
 // run the check. `yqFails` puts a yq that fails on the PATH.
 const KEPT_SHA = "b".repeat(40);
-const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, attempts, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
+const LAST_SWEEP_SHA = "d".repeat(40);
+const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, attempts, last, lastCode = "0", lastAttempts, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
   const dir = tempDir("pr-merge-reuse-");
   try {
     const bin = join(dir, "bin");
@@ -2466,6 +2467,13 @@ const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, attempts
       if (codeSha !== null) writeFileSync(join(dir, "post-merge-kept/post-merge-code-sha"), `${codeSha}\n`);
       if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
       if (attempts !== undefined) writeFileSync(join(dir, "post-merge-kept/attempts.json"), attempts);
+    }
+    if (last !== undefined) {
+      mkdirSync(join(dir, "post-merge-last"));
+      writeFileSync(join(dir, "post-merge-last/post-merge.json"), JSON.stringify(last));
+      writeFileSync(join(dir, "post-merge-last/post-merge-code"), `${lastCode}\n`);
+      writeFileSync(join(dir, "post-merge-last/post-merge-code-sha"), `${LAST_SWEEP_SHA}\n`);
+      if (lastAttempts !== undefined) writeFileSync(join(dir, "post-merge-last/attempts.json"), lastAttempts);
     }
     const output = join(dir, "output");
     const handed = join(dir, "post-merge-attempts.json");
@@ -2574,6 +2582,76 @@ test("the merge job reads this run's report only when dispatch-post-merge-runs k
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const names = steps.map((s) => s.name);
   assert.equal(names.indexOf("Read this run's post-merge report") + 1, names.indexOf("Check earlier lane merges"));
+});
+
+test("the merge job reads the last sweep's report only where dispatch-post-merge-runs is skipped", () => {
+  const last = step("Read the post-merge report the last sweep kept");
+  const here = step("Read this run's post-merge report");
+  assert.match(last, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/last-report\.mjs\n/);
+  assert.match(last, /\n {10}LAST_REPORT_DIR: \$\{\{ runner\.temp \}\}\/post-merge-last\n/);
+  assert.match(last, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
+  for (const [event, result, readsLast] of [
+    ["pull_request_target", "skipped", true],
+    ["schedule", "success", false],
+    ["workflow_dispatch", "success", false],
+    ["schedule", "failure", false],
+  ]) {
+    const context = (path) =>
+      ({
+        "github.event_name": event,
+        "steps.lane-token.outputs.token": "t",
+        "steps.mode.outputs.live": "true",
+        "steps.candidates.outputs.listed": "true",
+        "needs.dispatch-post-merge-runs.result": result,
+      })[path] ?? "";
+    assert.equal(stepRuns(last, context, "success"), readsLast, `${event} with dispatch-post-merge-runs ${result}: the last sweep's report`);
+    assert.equal(stepRuns(here, context, "success"), !readsLast, `${event} with dispatch-post-merge-runs ${result}: this run's report`);
+  }
+  const names = steps.map((s) => s.name);
+  assert.equal(names.indexOf("Read the post-merge report the last sweep kept") + 1, names.indexOf("Read this run's post-merge report"));
+  assert.match(step("Check earlier lane merges"), /\n {10}SETTLE_TIMEOUT: "60"\n/, "a settle that stalls refuses the report, so the check runs");
+});
+
+test("a merge wake reuses the last sweep's report that settle --idle-tick keeps, with its code and attempts", () => {
+  for (const lastCode of ["0", "5"]) {
+    const run = runMergeCheck({ last: keptReport(), lastCode, lastAttempts: "swept" });
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.ran, false, `exit ${lastCode} is reused, not checked again`);
+    assert.match(run.output, new RegExp(`^code=${lastCode}$`, "m"));
+    assert.equal(run.report.shared.mainSha, "a".repeat(40));
+    assert.equal(run.attempts, "swept");
+    assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge-last/post-merge\\.json --code-sha ${LAST_SWEEP_SHA}$`));
+    assert.match(run.stdout, /::notice::the last sweep's post-merge check \(exit \d\) still stands by enable-auto-merge's wake rule; reused, not run again/);
+  }
+});
+
+test("a merge wake runs the check itself when the last sweep's report is refused, did not pass, or is absent", () => {
+  for (const [why, options, offered] of [
+    ["settle refuses", { last: keptReport(), settle: 1 }, true],
+    ["settle crashes", { last: keptReport(), settle: 2 }, true],
+    ["a failed lane merge", { last: keptReport(), lastCode: "1" }, false],
+    ["a check that could not judge", { last: keptReport(), lastCode: "3" }, false],
+    ["no report read", {}, false],
+  ]) {
+    const run = runMergeCheck({ ...options, lastAttempts: options.last && "swept" });
+    assert.equal(run.status, 0, `${why}: ${run.stdout}`);
+    assert.equal(run.ran, true, why);
+    assert.match(run.output, /^code=3$/m, why);
+    assert.deepEqual(run.report, { ran: true }, why);
+    assert.equal(run.settled !== null, offered, `${why}: offered to settle`);
+    if (options.last) assert.equal(run.attempts, "swept", `${why}: the check answers the last sweep's attempts with no read`);
+  }
+});
+
+test("a run with this run's report never consults the last sweep's", () => {
+  const run = runMergeCheck({ kept: keptReport(), code: "1", attempts: "carried", last: { other: true }, lastAttempts: "swept" });
+  assert.equal(run.ran, false);
+  assert.match(run.output, /^code=1$/m);
+  assert.match(run.settled, new RegExp(`settle --repo o/r --postmerge-result \\S+/post-merge-kept/post-merge\\.json --code-sha ${KEPT_SHA}$`));
+  assert.equal(run.attempts, "carried");
+  const refused = runMergeCheck({ kept: keptReport(), settle: 1, last: keptReport() });
+  assert.equal(refused.ran, true, "this run's refused report runs the check, as before");
+  assert.doesNotMatch(refused.settled, /--idle-tick/);
 });
 
 // The merge job reads the report only after dispatch-post-merge-runs has kept it.

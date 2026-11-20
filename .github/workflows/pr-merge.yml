@@ -1529,6 +1529,22 @@ jobs:
       # before this step starts, unless that job failed or kept none; with
       # none, or any other, this job runs the check. A pattern, not a name: a
       # pattern that matches nothing downloads nothing and does not fail.
+      - name: Read the post-merge report the last sweep kept
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && needs.dispatch-post-merge-runs.result == 'skipped'
+          && steps.candidates.outputs.listed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: last-report
+          ACTIONS_TOKEN: ${{ github.token }}
+          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/last-report.mjs
+
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -1554,14 +1570,17 @@ jobs:
           # which the fresh check answers with no read (ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           REPO: ${{ github.repository }}
+          SETTLE_TIMEOUT: "60"
         run: |
           set -euo pipefail
           kept=$RUNNER_TEMP/post-merge-kept
+          last=$RUNNER_TEMP/post-merge-last
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code=
           # Copied whether or not the report is reused: the merge gate reads
           # this file too.
           [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
+          [ -f "$kept/attempts.json" ] || [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
           if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
             kept_code=$(cat "$kept/post-merge-code")
             kept_sha=$(cat "$kept/post-merge-code-sha" 2>/dev/null || true)
@@ -1576,6 +1595,10 @@ jobs:
               code=$kept_code
               echo "::notice::dispatch-post-merge-runs's check (exit $code) still stands by the lane room's reuse rule; reused, not run again"
             fi
+          elif bash .base/.github/scripts/pr-merge/settle-last-report.sh "$last"; then
+            cp "$last/post-merge.json" "$RUNNER_TEMP/post-merge.json"
+            code=$(cat "$last/post-merge-code")
+            echo "::notice::the last sweep's post-merge check (exit $code) still stands by enable-auto-merge's wake rule; reused, not run again"
           fi
           if [ -z "$code" ]; then
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -2818,14 +2841,11 @@ jobs:
             python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
               --postmerge-result "$last/post-merge.json" --code-sha "$@"
           }
-          if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
-            last_code=$(cat "$last/post-merge-code")
-            last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
-            if [[ $last_code =~ ^[05]$ ]]; then
-              settled=$(settle "$last_sha" --probe-unmoved) && kept=true
-              echo "$settled"
-              last_reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || last_reason=''
-            fi
+          # The rule the merge job's wake reuses the same report under.
+          settled=$(bash .base/.github/scripts/pr-merge/settle-last-report.sh "$last" --probe-unmoved) && kept=true
+          if [ -n "$settled" ]; then
+            echo "$settled"
+            last_reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || last_reason=''
           fi
           if [ "$kept" = true ]; then
             echo "the last sweep's post-merge report still stands: nothing it reads has moved"

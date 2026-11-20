@@ -662,6 +662,7 @@ const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attemp
   assert.ok(body, "a PR-scoped run settles the last sweep's report");
   const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
   const dir = tempDir("pr-merge-keep-report-");
+  symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const args = join(dir, "args");
@@ -696,6 +697,7 @@ exit "\${next:-1}"
   writeFileSync(output, "");
   const attemptsPath = join(dir, "post-merge-attempts.json");
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    cwd: dir,
     env: {
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: dir,
@@ -895,42 +897,81 @@ test("the arm step hands the room's post-merge check the attempts kept beside it
 // The merge job's own check, run when dispatch-post-merge-runs's report does not
 // stand: the step's script with settle refusing and the check stubbed to
 // record the attempts file it was handed.
-const mergeCheck = ({ attempts = true } = {}) => {
+const mergeCheck = ({ attempts = true, from = "post-merge-kept", code = "0", files = true, settle = 1 } = {}) => {
   const body = /- name: Check earlier lane merges\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))?.[1];
   assert.ok(body, "the merge job checks earlier lane merges");
   const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
   const dir = tempDir("pr-merge-merge-check-");
+  symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const handed = join(dir, "handed");
+  const args = join(dir, "args");
+  writeFileSync(args, "");
   const attemptsPath = join(dir, "post-merge-attempts.json");
   writeFileSync(
     join(bin, "python3"),
     `#!/bin/bash
+echo "$@" >>'${args}'
 case "$1" in
   *babysit_postmerge.py)
     if [ -f "$BABYSIT_POSTMERGE_ATTEMPTS" ]; then cp "$BABYSIT_POSTMERGE_ATTEMPTS" '${handed}'; fi
     echo '{}'; exit 0 ;;
 esac
-exit 1
+exit ${settle}
 `,
     { mode: 0o755 },
   );
   writeFileSync(join(bin, "yq"), "#!/bin/sh\necho lanes-bot\n", { mode: 0o755 });
-  const kept = join(dir, "post-merge-kept");
+  const kept = join(dir, from);
   mkdirSync(kept);
-  writeFileSync(join(kept, "post-merge.json"), "{}");
-  writeFileSync(join(kept, "post-merge-code"), "0\n");
-  writeFileSync(join(kept, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
+  if (files) {
+    writeFileSync(join(kept, "post-merge.json"), "{}");
+    writeFileSync(join(kept, "post-merge-code"), `${code}\n`);
+    writeFileSync(join(kept, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
+  }
   if (attempts) writeFileSync(join(kept, "attempts.json"), '{"attempts":{}}');
   const output = join(dir, "output");
   writeFileSync(output, "");
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    cwd: dir,
     env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", GITHUB_OUTPUT: output, BABYSIT_POSTMERGE_ATTEMPTS: attemptsPath },
     encoding: "utf8",
   });
-  return { body, status: run.status, stderr: run.stderr, output: readFileSync(output, "utf8"), handed: existsSync(handed) ? readFileSync(handed, "utf8") : null };
+  return {
+    body,
+    status: run.status,
+    stderr: run.stderr,
+    output: readFileSync(output, "utf8"),
+    handed: existsSync(handed) ? readFileSync(handed, "utf8") : null,
+    calls: readFileSync(args, "utf8").trim().split("\n").filter(Boolean),
+  };
 };
+
+test("the merge job's wake and enable-auto-merge's wake reach the same reuse decision for the same last-sweep report and settle answer", () => {
+  const helper = /bash \.base\/\.github\/scripts\/pr-merge\/settle-last-report\.sh "\$last"/;
+  assert.match(job("merge"), new RegExp(`${helper.source}; then\\n`));
+  assert.match(job("enable-auto-merge"), new RegExp(`${helper.source} --probe-unmoved\\)`));
+  for (const [why, options] of [
+    ["a passing report settle keeps", { code: "0", settle: 0 }],
+    ["an unverified merge's report settle keeps", { code: "5", settle: 0 }],
+    ["a report settle refuses", { code: "0", settle: 1 }],
+    ["a report settle cannot read", { code: "5", settle: 2 }],
+    ["a failed lane merge", { code: "1", settle: 0 }],
+    ["a check that could not judge", { code: "3", settle: 0 }],
+    ["no report", { files: false, settle: 0 }],
+  ]) {
+    const wake = mergeCheck({ from: "post-merge-last", ...options });
+    assert.equal(wake.status, 0, `${why}: ${wake.stderr}`);
+    const mergeReused = !wake.calls.some((c) => /babysit_postmerge\.py/.test(c));
+    const arm = keepReport({ code: options.code, files: options.files, settles: [options.settle, 0] });
+    const armReused = !arm.calls.some((c) => FRESH_CHECK.test(c)) && arm.json === "{}";
+    assert.equal(mergeReused, armReused, `${why}: the same decision`);
+    assert.equal(mergeReused, options.settle === 0 && /^[05]$/.test(options.code ?? ""), `${why}: reused only when it passed and settle kept it`);
+    const settled = (calls) => calls.filter((c) => / settle /.test(c) && !/ --fresh$/.test(c)).map((c) => c.replace(/ --probe-unmoved$/, "").replace(/\S+\/post-merge(?:-last)?\/post-merge\.json/, "REPORT"));
+    assert.deepEqual(settled(wake.calls), settled(arm.calls), `${why}: the same settle call on the last report, less enable-auto-merge's --probe-unmoved, which only names a refusal`);
+  }
+});
 
 test("the merge job's fresh check answers the kept report's completed attempts with no read, as enable-auto-merge's does", () => {
   const run = mergeCheck();
