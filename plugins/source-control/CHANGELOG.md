@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.8] - 2026-11-20
+
+### Fixed
+
+- babysit-prs: the merge-risk cost check reads a `uses: $/...` self-repository call as a local workflow or action call, as it reads `uses: ./...`, so a timeout raised on a workflow whose local calls all use `$/` is still compared at its key path.
+
 ## [13.1.7] - 2026-11-20
 
 ### Changed
