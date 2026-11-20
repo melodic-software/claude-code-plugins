@@ -6,14 +6,6 @@
 # candidates / total lines, then one Note per uncovered source file. The script
 # never writes a file into the repository and never edits source.
 #
-# Exit:
-#   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
-#      audit must never fail its caller, so -e is omitted and no detector's
-#      exit code is ever propagated.
-#   2  usage error: unknown argument, missing option value, non-numeric --max,
-#      unknown --lane, a --root that is not a directory, or an unusable temp
-#      directory.
-#
 # Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
 # findings and hard errors; vulture exits 3 for findings and 1 for an input
 # error; gopls check always exits 0. Health comes from stderr, from stdout
@@ -70,8 +62,12 @@ oldest-untouched first (0 = no cap). The detectors carry no usable confidence
 key to order by: vulture pins every symbol-level finding at 60 and knip has no
 confidence field at all.
 
-Exit: 0 on every scan path (findings or not, lanes healthy or not);
-      2 on usage errors. A detector's own exit code is never propagated.
+Exit: 0 on every scan path (findings or not, lanes healthy or not): a
+      read-only audit never fails its caller, and a detector's own exit
+      code is never propagated.
+      2 on a usage error: unknown argument, missing option value,
+      non-numeric --max, unknown --lane, a --root that is not a directory,
+      or an unusable temp directory.
 EOF
 }
 
