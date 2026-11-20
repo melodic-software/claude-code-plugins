@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/scripts/branch-update-method.sh
 """Autopilot-merge-tier (#476) criteria evaluated in `babysit_merge`.
 
 The base readiness gate already blocks on state/mergeability/checks/approval/

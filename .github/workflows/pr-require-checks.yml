@@ -410,10 +410,10 @@ jobs:
                 if (r == "" || length(r) > 80) return 0
                 api_words()
                 n = split(r, s, "/")
-                for (i = 1; i <= n; i++) if (!(s[i] in API_WORD)) return 0
+                for (i = 1; i <= n; i++) if (!(s[i] in API_WORD) && !(i > 1 && s[i - 1] == "workflows" && s[i] ~ /^[a-z0-9][a-z0-9_-]*\.ya?ml$/)) return 0
                 return 1
               }
-              function api_route(u,   n, s, i, seg, out, tail, name, host, rest) {
+              function api_route(u,   n, s, i, seg, out, tail, name, host, rest, o, m, file, k) {
                 api_words()
                 sub(/[?#].*$/, "", u)
                 if (u ~ /^[A-Za-z][A-Za-z0-9+.-]*:\/\//) {
@@ -432,17 +432,24 @@ jobs:
                 if (u == "") return "other"
                 n = split(u, s, "/")
                 out = ""
-                tail = name = 0
+                tail = name = m = file = 0
                 for (i = 1; i <= n; i++) {
                   seg = s[i]
-                  if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
+                  if (name && !tail && s[i - 1] == "workflows" && seg ~ /^[a-z0-9][a-z0-9_-]*\.ya?ml$/) { name = 0; file = m + 1 }
+                  else if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
                   else if (i == 2 && s[1] == "repos" && n >= 3) { seg = "{repo}"; i++ }
                   else if (seg ~ /^[0-9]+$/) seg = "{n}"
                   else if (api_hex(seg)) seg = "{sha}"
                   else if (!(seg in API_WORD) || seg ~ /^(api|v3|graphql|[{].*)$/) seg = "{x}"
                   else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|trees)$/) tail = 1
                   else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/) name = 1
-                  out = out (out == "" ? "" : "/") seg
+                  o[++m] = seg
+                }
+                for (k = 1; k <= m; k++) out = out (k == 1 ? "" : "/") o[k]
+                if (file && length(out) > 80) {
+                  o[file] = "{x}"
+                  out = ""
+                  for (k = 1; k <= m; k++) out = out (k == 1 ? "" : "/") o[k]
                 }
                 return length(out) > 80 ? "other" : out
               }'
@@ -1007,7 +1014,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           filters: |
             shell:
@@ -1585,7 +1592,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -1602,7 +1609,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/typos@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -1629,7 +1636,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -1644,7 +1651,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: lychee.toml
           exclude: >-
@@ -1673,7 +1680,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: .editorconfig-checker.json
           # The Node.js release keyring: binary, a byte-exact upstream copy.
@@ -1693,13 +1700,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -1707,7 +1714,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -1719,12 +1726,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1757,12 +1764,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           # The remove-comments skill's audit action IS a code-comment linter:
           # its detector fixtures and shape library necessarily contain the
@@ -1915,6 +1922,13 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
+      - name: Check every Claude secret is read in the claude-lanes environment
+        id: claude_secrets_environment
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh claude-secrets-environment {0}
+        run: scripts/check-claude-secrets-environment.sh --check
+
       # Every upload-artifact step keeps its artifact for the days its family's
       # row in .github/artifact-retention.json names. Parses workflows with the
       # yaml package the runner-policy install above provides, so it gates on
@@ -1934,7 +1948,7 @@ jobs:
         id: workflow_naming
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -1975,6 +1989,7 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
+            claude-secrets-environment=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.claude_secrets_environment.outcome }}
             artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
@@ -2256,7 +2271,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -2316,12 +2331,14 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 24
+    timeout-minutes: 19
     # pull-requests: read lets "Resolve the queued pull request" read the
     # queued pull request in a merge group.
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      queued-pr-waited: ${{ steps.queued_pr.outputs.waited }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2502,7 +2519,7 @@ jobs:
         env:
           QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
           GH_TOKEN: ${{ github.token }}
-          QUEUED_PR_WAIT_SECONDS: 900
+          QUEUED_PR_WAIT_SECONDS: 600
         shell: bash scripts/run-hygiene-gate.sh queued-pr {0}
         run: |
           # shellcheck source=/dev/null
@@ -2534,6 +2551,7 @@ jobs:
             echo "author=$author"
             echo "head_ref=$head_ref"
             echo "head_sha=$head_sha"
+            echo "waited=$retry_call_waited"
           } >>"$GITHUB_OUTPUT"
       - name: Verify only the release pull request versions a plugin, monotonically
         id: changelog_parity_bump
@@ -3197,7 +3215,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -3470,7 +3488,7 @@ jobs:
         # verifies the install on one small file whose one source is marked
         # source=/dev/null; the ShellCheck gate in `lint-shell` is what lints
         # the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -3638,14 +3656,14 @@ jobs:
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
       - name: Install pinned typos for the spelling remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/typos@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/typos@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           config: _typos.toml
           paths: lefthook-remote.yml
           annotations: 'false'
       - name: Install pinned actionlint for the actionlint remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           paths: .github/workflows/pr-review-approved.yml
           color: 'false'
@@ -4075,7 +4093,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -4176,10 +4194,11 @@ jobs:
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
     # reads at 0.7 s, plus the whole listings' shared timeout, at most 300 s,
     # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
-    # 35: those 20, and the verdict reader's wait for a pool's reset
-    # (BABYSIT_READ_FLOOR_WAIT_SECONDS on the lanes-hold step,
+    # 30: those 20, and the verdict reader's wait for a pool's reset, at
+    # most the merge group's shared wait budget (MERGE_GROUP_WAIT_SECONDS on
+    # the lanes-hold step,
     # https://github.com/melodic-software/claude-code-plugins/issues/16642).
-    timeout-minutes: 35
+    timeout-minutes: 30
     env:
       # gh_read's wait budget: a rate-limit wait must end by
       # GH_READ_JOB_SECONDS (timeout-minutes in seconds, less the verdict
@@ -4188,7 +4207,7 @@ jobs:
       # less GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 435 s for the job's setup and the steps after the wait, which include
       # the report-ci-status composite
-      # (https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/.github/actions/pr-require-checks/report-ci-status/action.yml):
+      # (https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/pr-require-checks/report-ci-status/action.yml):
       # check-contract's and aggregate-results' 60 s rate-limit waits, 120 s
       # of own-gate retries, 7 s of status writes and the 90 s rerun wait,
       # plus retry sleeps. It does not
@@ -4373,10 +4392,10 @@ jobs:
             if (r == "" || length(r) > 80) return 0
             api_words()
             n = split(r, s, "/")
-            for (i = 1; i <= n; i++) if (!(s[i] in API_WORD)) return 0
+            for (i = 1; i <= n; i++) if (!(s[i] in API_WORD) && !(i > 1 && s[i - 1] == "workflows" && s[i] ~ /^[a-z0-9][a-z0-9_-]*\.ya?ml$/)) return 0
             return 1
           }
-          function api_route(u,   n, s, i, seg, out, tail, name, host, rest) {
+          function api_route(u,   n, s, i, seg, out, tail, name, host, rest, o, m, file, k) {
             api_words()
             sub(/[?#].*$/, "", u)
             if (u ~ /^[A-Za-z][A-Za-z0-9+.-]*:\/\//) {
@@ -4395,17 +4414,24 @@ jobs:
             if (u == "") return "other"
             n = split(u, s, "/")
             out = ""
-            tail = name = 0
+            tail = name = m = file = 0
             for (i = 1; i <= n; i++) {
               seg = s[i]
-              if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
+              if (name && !tail && s[i - 1] == "workflows" && seg ~ /^[a-z0-9][a-z0-9_-]*\.ya?ml$/) { name = 0; file = m + 1 }
+              else if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
               else if (i == 2 && s[1] == "repos" && n >= 3) { seg = "{repo}"; i++ }
               else if (seg ~ /^[0-9]+$/) seg = "{n}"
               else if (api_hex(seg)) seg = "{sha}"
               else if (!(seg in API_WORD) || seg ~ /^(api|v3|graphql|[{].*)$/) seg = "{x}"
               else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|trees)$/) tail = 1
               else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/) name = 1
-              out = out (out == "" ? "" : "/") seg
+              o[++m] = seg
+            }
+            for (k = 1; k <= m; k++) out = out (k == 1 ? "" : "/") o[k]
+            if (file && length(out) > 80) {
+              o[file] = "{x}"
+              out = ""
+              for (k = 1; k <= m; k++) out = out (k == 1 ? "" : "/") o[k]
             }
             return length(out) > 80 ? "other" : out
           }'
@@ -4722,7 +4748,7 @@ jobs:
     permissions:
       # The composite lists this workflow's runs on the head SHA (its fixed
       # `yield-to-full-run`,
-      # https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
+      # https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
       # and `rerun-contract-only-siblings` re-runs the red contract-only ones
       # once the full run records `success`. Under an explicit permissions
       # block every unlisted scope defaults to none; write covers the read.
@@ -5253,7 +5279,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Write the source-control trust settings
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' && hashFiles('.base/.github/source-control-settings.json') != '' }}
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -6508,7 +6534,10 @@ jobs:
       # floor (pr-pipeline.yaml limits.api, in this checkout); a judgment
       # that refuses verify:unreadable for such a read waits for the pool's
       # reset and is made again, when the reset is at most
-      # BABYSIT_READ_FLOOR_WAIT_SECONDS away (owner decision D417,
+      # BABYSIT_READ_FLOOR_WAIT_SECONDS away: what check-plugins' queued pull
+      # request read left of MERGE_GROUP_WAIT_SECONDS, the merge group's waits'
+      # shared budget, so both waits stay inside the merge queue's
+      # check_response_timeout_minutes (owner decision D417,
       # https://github.com/melodic-software/claude-code-plugins/issues/16642). A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
@@ -6546,6 +6575,8 @@ jobs:
           BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json
           API_BUDGET_TOKEN: github-token
+          MERGE_GROUP_WAIT_SECONDS: 600
+          QUEUED_PR_WAITED: ${{ needs.check-plugins.outputs.queued-pr-waited }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # A pull request's author never changes, so the payload's (a re-run
           # replays it) answers the author test without a read; a merge group
@@ -6903,7 +6934,12 @@ jobs:
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
             fi
             rm -f "$BABYSIT_VERIFY_LISTING"
-            report=$(BABYSIT_READ_FLOOR_WAIT_SECONDS=900 BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+            # An unread wait leaves nothing: a queued pull request read that
+            # did not report one failed, and check-plugins fails the group.
+            waited=$QUEUED_PR_WAITED
+            [[ $waited =~ ^[0-9]+$ ]] || waited=$MERGE_GROUP_WAIT_SECONDS
+            floor_wait=$((waited < MERGE_GROUP_WAIT_SECONDS ? MERGE_GROUP_WAIT_SECONDS - waited : 0))
+            report=$(BABYSIT_READ_FLOOR_WAIT_SECONDS=$floor_wait BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }
@@ -7042,7 +7078,7 @@ jobs:
           echo "Results after the ordered-skip check: $results"
           echo "results=$results" >>"$GITHUB_OUTPUT"
       # The contract, the draft policy and the aggregation in one step
-      # (https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/.github/actions/pr-require-checks/report-ci-status/README.md),
+      # (https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/pr-require-checks/report-ci-status/README.md),
       # under the aggregation step's old name, by which a contract-only run
       # finds the writer step of the full run it carries forward.
       # `!cancelled()` so a failed step above skips neither the contract check
@@ -7054,7 +7090,7 @@ jobs:
       - name: Aggregate lane results
         id: report
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -7067,7 +7103,7 @@ jobs:
           draft: allow
           # The composite fixes yield-to-full-run: 'true' and
           # carry-forward-wait-seconds: '0'
-          # (https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
+          # (https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
           # no carry-forward wait. While a full run on the SHA is in flight a
           # contract-only run holds, up to `yield-wait-seconds`, with this
           # check run in progress, then passes only on a `success` recorded
@@ -7088,7 +7124,7 @@ jobs:
           step-name: Aggregate lane results
       # The composite's step concludes on the lanes alone; the contract and
       # draft results fail the job here
-      # (https://github.com/melodic-software/ci-workflows/blob/9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
+      # (https://github.com/melodic-software/ci-workflows/blob/d7ba00151fa8429aa9a94fb919f1e517c2e74368/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
       # Anything but success fails, so an empty or renamed output fails closed.
       - name: Fail on the contract or draft policy
         if: ${{ !cancelled() && (steps.report.outputs.contract != 'success' || steps.report.outputs.draft != 'success') }}

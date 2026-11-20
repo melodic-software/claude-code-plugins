@@ -457,6 +457,9 @@ jobs:
     name: Fix Docs Handoff
     needs: [fix-docs-head, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
+    environment:
+      name: claude-lanes
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -573,8 +576,17 @@ jobs:
           sparse-checkout: |
             .github/scripts/lib/handoff-evidence.sh
             .github/actions/log-api-budget
+            .github/actions/scan-upload
+            .github/actions/setup-pinned-node
+            .node-version
+            lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
 
       - name: Read whether fix-docs's key hit a credit stop
         id: credit-stop-fix-docs
@@ -595,13 +607,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-docs"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-docs/run-id"
 
-      - name: Upload fix-docs's credit-stop marker
+      - name: Scan fix-docs's credit-stop marker for credentials
+        id: credit-marker-scan-fix-docs
         if: steps.credit-marker-fix-docs.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-fix-docs/run-id
+
+      - name: Upload fix-docs's credit-stop marker
+        if: (steps.credit-marker-fix-docs.outcome == 'success') && steps.credit-marker-scan-fix-docs.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-refine.yml-fix-docs
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-fix-docs/run-id
           if-no-files-found: error
           retention-days: 1

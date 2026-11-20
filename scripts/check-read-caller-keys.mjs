@@ -82,6 +82,9 @@ const CARRIER_INPUT = "scan-carrier-private-key";
 const CARRIER_PASS = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
 const CARRIER_ACTION = "./.base/.github/actions/open-lane-output";
 const CARRIER_ENVIRONMENT = "pr-pipeline-scan-carrier";
+// Holds Claude secrets alone, which the allowlist above already admits, so
+// any job may name it: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#claude-secrets
+const CLAUDE_ENVIRONMENT = "claude-lanes";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -386,13 +389,14 @@ function checkReadShape(file, doc, lineCounter) {
   }
 }
 
-// Exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`: the
-// environment's secret and branch policy, and no deployment record.
-function isCarrierEnvironment(node) {
+// Exactly `{ name: <name>, deployment: false }`: the environment's secrets
+// and branch policy, and no deployment record:
+// https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments
+function isEnvironment(node, name) {
   return (
     yaml.isMap(node) &&
     node.items.length === 2 &&
-    node.get("name") === CARRIER_ENVIRONMENT &&
+    node.get("name") === name &&
     node.get("deployment") === false
   );
 }
@@ -454,14 +458,15 @@ function check(file) {
       }
       if (
         key === "environment" &&
+        !isEnvironment(pair.value, CLAUDE_ENVIRONMENT) &&
         !(
           pair.value === carrierEnvironment &&
-          isCarrierEnvironment(pair.value)
+          isEnvironment(pair.value, CARRIER_ENVIRONMENT)
         )
       ) {
         report(
           keyLine,
-          `names an environment other than ${CARRIER_ENVIRONMENT} with deployment: false on the read workflow's ${CARRIER_JOB} job`,
+          `names an environment other than ${CARRIER_ENVIRONMENT} with deployment: false on the read workflow's ${CARRIER_JOB} job, or ${CLAUDE_ENVIRONMENT} with deployment: false`,
         );
       }
       if (key === "secrets" && valueIs(pair, "inherit")) {
