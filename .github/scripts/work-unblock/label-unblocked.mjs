@@ -385,8 +385,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { personReasonLines } from "../lib/stop-reason.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { parseReason, personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
@@ -1161,6 +1161,84 @@ async function unpark({ github, repo, parked, humans, appId, admission, writer =
     const number = Number(issue.number);
     try {
       if (!(await handBackParked({ github, repo, number, comments, parkedAt, isApp: (user) => user?.id === appId, writer, why: `A blocker of this issue closed after admission parked it at \`${CONFIRMED}\`,` }))) {
+        console.log(`label-unblocked: #${number} set to needs-triage; the triage sweep sends it to intake`);
+      }
+    } catch (error) {
+      failed += failedFor(github, number, error);
+    }
+  }
+  return failed;
+}
+
+const namesIssue = (body, number) => new RegExp(String.raw`(?:^|[^\w/#])#${number}(?!\d)`).test(String(body ?? ""));
+
+const mergedPulls = (blockers, repo, after = Number.NEGATIVE_INFINITY) =>
+  blockers.filter((blocker) => blocker.pull_request && blockerDone(blocker, repo, () => true) && Date.parse(blocker.pull_request.merged_at) > after);
+
+async function stopCleared({ github, repo, number, blockers, events, comments, humans, closes, bot }) {
+  const human = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === HUMAN_LABEL).at(-1);
+  if (!(human?.event === "labeled" && human.actor?.login === bot)) {
+    return { why: `${HUMAN_LABEL} was not last set by the lanes App` };
+  }
+  const stop = comments.filter((comment) => comment.user?.login === bot && parseReason(comment.body) !== null).at(-1);
+  const marker = parseOutcomeMarker(stop?.body);
+  if (!marker || parseReason(stop.body).lane !== "work-resolve-issue") {
+    return { why: "its newest stop-reason comment is not a work-resolve-issue stop" };
+  }
+  if (marker.outcome === "pushback") {
+    return { why: "the lane pushed back on it, which waits for a person's decision" };
+  }
+  const stoppedAt = Date.parse(human.created_at);
+  const merged = mergedPulls(blockers, repo, stoppedAt);
+  if (merged.length === 0) {
+    return { why: "no pull request recorded as its blocker merged here since the stop" };
+  }
+  const security = marker.security || parseReason(stop.body).reason === "security";
+  const linked = security ? merged.filter((pull) => namesIssue(pull.body, number)) : merged;
+  if (linked.length === 0) {
+    return { why: `its stop's reason is security, and no merged blocker's body names #${number}` };
+  }
+  const pending = await stillBlocking(blockers, repo, clearedHere({ github, repo, humans, closes, bot, events }), closedElsewhere({ github, repo, humans, closes }));
+  if (pending.length > 0) {
+    return { why: `${pending.length} blocker(s) not closed by a listed human or a merge` };
+  }
+  return { why: null, pr: Number(linked[0].number), stoppedAt };
+}
+
+async function reenterStopped({ github, repo, listed, names, humans, bot, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
+  const stopped = listed.filter((item) => {
+    const lower = [...names(item), ...labelNames(item)].map((name) => String(name).toLowerCase());
+    const holds = new Set(names(item).map((name) => String(name).toLowerCase()).filter((name) => HOLDS.has(name)));
+    return holds.size === 1 && holds.has(HUMAN_LABEL) && !lower.includes(LABEL) && item.issue_dependencies_summary?.total_blocked_by > 0 && !maps.skip(item);
+  });
+  const closes = new Map();
+  const going = [];
+  let failed = 0;
+  for (const item of stopped) {
+    const number = Number(item.number);
+    try {
+      const blockers = await blockersOf(github, `/repos/${repo}/issues/${number}`);
+      if (mergedPulls(blockers, repo).length === 0) {
+        console.log(`label-unblocked: #${number} stays at ${HUMAN_LABEL}: no pull request recorded as its blocker merged here`);
+        continue;
+      }
+      const events = await eventsOf(github, repo, statusOf, number);
+      const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
+      const { why, pr, stoppedAt } = await stopCleared({ github, repo, number, blockers, events, comments, humans, closes, bot });
+      if (why) {
+        console.log(`label-unblocked: #${number} stays at ${HUMAN_LABEL}: ${why}`);
+      } else {
+        going.push({ number, pr, stoppedAt, comments });
+      }
+    } catch (error) {
+      failed += failedFor(github, number, error);
+    }
+  }
+  console.log(`label-unblocked: ${going.length} of ${stopped.length} stopped issue(s) with a recorded blocker go back to intake`);
+  for (const { number, pr, stoppedAt, comments } of going) {
+    try {
+      const why = `Pull request #${pr}, recorded as a blocker of this issue, merged after the work-resolve-issue lane stopped it at \`${HUMAN_LABEL}\`,`;
+      if (!(await handBackParked({ github, repo, number, comments, parkedAt: stoppedAt, isApp: byBot(bot), writer, why }))) {
         console.log(`label-unblocked: #${number} set to needs-triage; the triage sweep sends it to intake`);
       }
     } catch (error) {
@@ -3463,6 +3541,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         }
         if (names) {
           failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo, maps });
+          failed += await reenterStopped({ github, repo, listed, names, humans, bot, writer: writeTo, statusOf: statusTo, maps });
         }
       }
       failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots: slots ?? (() => laneSlots({ laneLevel: resolvedLaneLevel(resolved), env })), writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, maps, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
