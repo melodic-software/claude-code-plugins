@@ -7723,7 +7723,7 @@ jobs:
                   | select(startswith($want)) | ltrimstr($want) | gsub("[\r\n%]"; " ")) // empty' <<<"$notes")
               fi
               if [ -n "$partial" ]; then
-                echo "::error::'$check' did not review all of $HEAD_SHA ($url): $partial. A re-run reads the same diff and stays partial. A file no review reads as text (audio, an image, other binary data) goes in scripts/review-generated-data.txt by a pull request of its own, merged first, since the lanes read that list at the merge base; then update this branch from main. A text diff over the read budget is split into smaller pull requests."
+                echo "::error::'$check' did not review all of $HEAD_SHA ($url): $partial. A re-run reads the same diff and stays partial. An audio, image, video or font file whose extension matches its content goes under a folder scripts/review-media-paths.txt names, and other data no review reads as text in scripts/review-generated-data.txt; either list changes by a pull request of its own, merged first, since the lanes read both at the merge base; then update this branch from main. A text diff over the read budget is split into smaller pull requests."
               else
                 echo "::error::'$check' ended $conclusion on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
               fi
