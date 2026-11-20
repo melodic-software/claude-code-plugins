@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.10.1] - 2026-11-20
+
+### Changed
+
+- The triage skill's triage-comment section points at the intake rubric where it now lives, `.github/scripts/intake-triage/triage-rubric.txt`, which `intake-triage.yml` passes to the reusable as its `instructions` input.
+
 ## [15.10.0] - 2026-11-20
 
 ### Added
