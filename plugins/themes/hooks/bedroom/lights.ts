@@ -1,5 +1,5 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
-// build: pieces=time,weather,claude-tv,hallway,no-shader without=none
+// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=none
 import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
 const v = values({ tv: [0, 1], lava: [0, 1], pc: [0, 1], lamp: [0, 1], light: [0, 1], clock: [0, 719], screen: [0, 63], world: [0, 255] })

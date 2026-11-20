@@ -7,9 +7,10 @@ import { piece as time } from './time.js'
 import { piece as weather } from './weather.js'
 import { hooks as claudeTvHooks, engineStart as claudeTvEngineStart, piece as claudeTv } from './claude-tv.js'
 import { piece as hallway } from './hallway.js'
+import { engineTick as soundEngineTick, engineSwitched as soundEngineSwitched, engineCommand as soundEngineCommand, piece as sound } from './sound.js'
 import { piece as noShader } from './no-shader.js'
 
-export const PIECES: readonly Piece[] = [time, weather, claudeTv, hallway, noShader]
+export const PIECES: readonly Piece[] = [time, weather, claudeTv, hallway, sound, noShader]
 export { BUILT, WITHOUT } from '../core/signals.gen.js'
 
 /** Adds the hooks of the pieces that have their own, inside register. */
@@ -28,13 +29,25 @@ export async function startPieces($: EngineInterface, ctx: Ctx): Promise<void> {
 
 /** Each minute, before the redraw is asked. */
 export async function tickPieces($: EngineInterface, ctx: Ctx): Promise<void> {
+  try {
+    await soundEngineTick($, ctx)
+  } catch (error) {
+    failed('sound', 'engineTick', error)
+  }
 }
 
 /** After a switch changed by a click or a command. */
 export function switchedPieces($: EngineInterface, ctx: Ctx, name: Switch, isOn: boolean, by: 'click' | 'command'): void {
+  try {
+    soundEngineSwitched($, ctx, name, isOn, by)
+  } catch (error) {
+    failed('sound', 'engineSwitched', error)
+  }
 }
 
 /** A piece's own word that needs the engine: its answer, or undefined. */
 export async function commandPieces($: EngineInterface, ctx: Ctx, word: string, args: readonly string[]): Promise<string | undefined> {
+  const soundEngineCommandAnswer = await soundEngineCommand($, ctx, word, args)
+  if (soundEngineCommandAnswer !== undefined) return soundEngineCommandAnswer
   return undefined
 }
