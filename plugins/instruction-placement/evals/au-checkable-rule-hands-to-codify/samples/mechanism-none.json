@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "RUNG: 2\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "the audit picks no mechanism"
+    },
+    {
+      "answer": "RUNG: 2\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\n**MECHANISM:** None (codify picks the rung)\nPROSE: kept",
+      "why": "bold label, capitalized, with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "RUNG: 2\nROUTE: a formatter\nMECHANISM: isort with the black profile\nPROSE: kept",
+      "why": "the audit picks the mechanism itself, as the text before the follow-on directed"
+    },
+    {
+      "answer": "RUNG: 2\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: probably a ruff isort rule",
+      "why": "names codify but still picks a mechanism"
+    }
+  ]
+}

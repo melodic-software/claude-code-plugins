@@ -398,9 +398,9 @@ issue (one section, a sub-list per issue when there are several): its unchecked 
 leaving out any this PR delivers. When the issue has none, write one line naming what this PR
 delivers and the condition that closes the issue, with no closing keyword before an issue
 number (`#N closes when the export ships`, never `Closes #N when`). The `Summary` (or the first scaffold section)
-names the part this PR delivers. This is the remaining work the pr-verify lane requires of a
-`Refs:` pull request; the rule is stated in
-[`docs/conventions/pr-pipeline/README.md` § Verifier verdict](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
+names the part this PR delivers, which is what the pr-verify lane judges a `Refs:` pull request
+by; the section is for reviewers, and pr-verify does not require it
+([`docs/conventions/pr-pipeline/README.md` § Verifier verdict](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md#verifier-verdict)).
 
 **Glossary candidates on an unattended run.** An unattended change (the runs §2.4.3's "An
 unattended run follows the resolved state" lists) names new code from the project's glossary, read

@@ -1545,11 +1545,11 @@ test("post-merge-test-mutation's check-range job ends with the log step, naming 
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
-    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
-    "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
+    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "$/"])),
+    "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "$/" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
     "release-generate-dependabot-changelog-fragments.yml": { "generate-changelog-fragments": "./" },
-    "pr-require-checks.yml": { "lint-repo": "./", "lint-shell": "./", "check-plugins": "./", "check-skills": "./" },
+    "pr-require-checks.yml": { "lint-repo": "$/", "lint-shell": "$/", "check-plugins": "$/", "check-skills": "$/" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -1560,7 +1560,7 @@ test("each job that holds the job token and calls no guarded client ends with th
         last,
         // check-lane-coverage reads a continue-on-error step in this workflow as a gate.
         `Log the API budget at the end\n        if: always()\n${file === "pr-require-checks.yml" ? "" : "        continue-on-error: true\n"}        timeout-minutes: 1\n` +
-          `        uses: ${root}.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token`,
+          `        uses: ${root}.github/actions/log-api-budget${root === "./" ? " # zizmor: ignore[self-repository]" : ""}\n        with:\n          tokens: github-token`,
         `${file} ${job}`,
       );
     }

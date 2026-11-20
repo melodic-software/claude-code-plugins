@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "RUNG: 2\nROUTE: `/corrections:codify \"imports are grouped stdlib, third-party, local, each sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "the route is the named codify call"
+    },
+    {
+      "answer": "RUNG: 2\n**ROUTE:** hand the rule to `/corrections:codify`, which picks the strongest rung and proves the check\nMECHANISM: none\nPROSE: kept",
+      "why": "bold label, codify picks the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "RUNG: 2\nROUTE: a linter or formatter (isort) enforces import ordering\nMECHANISM: isort\nPROSE: kept",
+      "why": "the reply a faithful read of rung 2 before the follow-on gives: 'A compiler, linter, formatter, analyzer, or hook could enforce it → route to that mechanism'"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nRUNG: 2\nROUTE: a pre-commit hook running isort\nMECHANISM: isort pre-commit hook\nPROSE: kept",
+      "why": "codify only outside the ROUTE line"
+    }
+  ]
+}

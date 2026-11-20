@@ -962,7 +962,7 @@ jobs:
           done <<<"$reasons"
           exit 1
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
@@ -1167,7 +1167,7 @@ jobs:
       - name: Log the API budget at the end
         if: always() && github.event_name != 'merge_group'
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
           outside: ${{ github.event_name == 'pull_request' && 'detect-changes:pulls/files' || '' }}
@@ -1252,7 +1252,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -1284,13 +1284,18 @@ jobs:
       # ones, where only a GitHub API network error (403, 429, 5xx, no
       # response) becomes a warning instead of a failure.
       #
-      # Every call of a local action in this repository carries
-      # `# zizmor: ignore[self-repository]`. That audit recommends GitHub's
-      # `$/...` form, which the actionlint pinned by SHA in the
-      # melodic-software/ci-workflows action this lane also runs rejects as
-      # "invalid format because ref is missing", so its auto-fix only trades
-      # the zizmor finding for an actionlint error. Drop the ignores and take
-      # the auto-fix once that actionlint pin understands the syntax (#4130).
+      # A local action loaded from the checkout of the running commit uses
+      # GitHub's `$/...` form, as zizmor's self-repository audit asks. The
+      # calls that keep `./...` carry `# zizmor: ignore[self-repository]`,
+      # because `$/` always loads the running commit
+      # (https://docs.zizmor.sh/audits/#self-repository):
+      # - a path under a checkout or copy the job makes at run time
+      #   (`./.base/`, `./.lane-trusted/`, `./.lane-seal`), often the live
+      #   default-branch tip, and a step whose job checks out that tip at the
+      #   workspace root: it can differ from the running commit;
+      # - a job-level reusable workflow call: it already runs the running
+      #   commit, and scripts/check-read-caller-keys.mjs and the runner policy
+      #   find callers only by `./` or `owner/repo/...@ref`.
       - name: Run zizmor
         id: zizmor
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1598,7 +1603,7 @@ jobs:
           fi
           echo "globs=$globs" >>"$GITHUB_OUTPUT"
       - name: Put the pinned Node in the tool cache so setup-node reads no manifest
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Lint markdown
@@ -1887,7 +1892,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2035,7 +2040,7 @@ jobs:
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -2075,7 +2080,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
 
@@ -2309,7 +2314,7 @@ jobs:
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -2352,7 +2357,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
@@ -2752,7 +2757,7 @@ jobs:
       # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
 
@@ -2815,7 +2820,7 @@ jobs:
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
       - name: Install pinned shfmt
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
         with:
           cache-dir: ~/.cache/ci-tools
       - name: Check performance counter ceilings
@@ -2862,7 +2867,7 @@ jobs:
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -2905,7 +2910,7 @@ jobs:
       # origin/<base_ref>, which this fetches on a pull request.
       - name: Fetch base
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
 
@@ -2922,7 +2927,7 @@ jobs:
       # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3020,7 +3025,7 @@ jobs:
       - name: Log the API budget at the end
         if: always() && hashFiles('.github/actions/log-api-budget/action.yml') != ''
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -3052,7 +3057,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
 
       # The pinned interpreter and requirements: the fleet grammar gate probes a
       # collector that runs python3.
@@ -3096,7 +3101,7 @@ jobs:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
       - name: Install pinned shfmt
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
         with:
           cache-dir: ~/.cache/ci-tools
       - name: Save the pinned tool downloads
@@ -3405,7 +3410,7 @@ jobs:
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -3463,14 +3468,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
       # Node, Python, ShellCheck, shfmt, Biome and Ruff are declared here so
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3513,7 +3518,7 @@ jobs:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2-go-1.27.4
       - name: Install pinned shfmt
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
         with:
           cache-dir: ~/.cache/ci-tools
       # demo-video and media-render render and probe their fixtures with ffmpeg and ffprobe, which the
@@ -3779,11 +3784,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
       - name: Set up Node
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3916,7 +3921,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       # One npm cache for every package, keyed on the Node pin and the five
@@ -4134,7 +4139,7 @@ jobs:
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 

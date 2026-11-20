@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-20
+
+### Changed
+
+- `profiles.mjs status` and `status --json` read the installed plugins from `plugins/installed_plugins.json`, as the session-start notice does, instead of starting `claude plugin list --json`, which alone took 1.3 to 3.8 seconds. `apply`, `launch` and the install paths still read `claude plugin list` ([#17656](https://github.com/melodic-software/claude-code-plugins/issues/17656)).
+
 ## [0.9.1] - 2026-11-20
 
 ### Changed

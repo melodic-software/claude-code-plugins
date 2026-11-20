@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "| pwsh | - | NONE | no maintained rule; to choose a mechanism, run `/corrections:codify \"Pester test with no Should assertion\"` |",
+      "why": "table row"
+    },
+    {
+      "answer": "**Lint.** PowerShell (Pester) has no shipped test-lint rule.\nFor a can't-fail Pester pattern, run `/corrections:codify \"<the test pattern>\"`; codify picks the mechanism and proves it.",
+      "why": "two lines, language first"
+    },
+    {
+      "answer": "Hand the mechanism to /corrections:codify for your pwsh tests: setup has no maintained rule there.",
+      "why": "codify first"
+    },
+    {
+      "answer": "| Language | Rule | Status |\n|---|---|---|\n| pwsh | - | NONE: no maintained rule |\n\nFor a can't-fail test pattern there, run `/corrections:codify \"<the test pattern>\"`; it picks the mechanism.",
+      "why": "table, then the blank line markdown needs before a paragraph"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "pwsh: no maintained rule. Nothing to add.",
+      "why": "old-text report: names the language, no codify"
+    },
+    {
+      "answer": "PowerShell has no maintained rule; consider PSScriptAnalyzer with a custom rule for Pester.",
+      "why": "picks a mechanism itself, no codify"
+    },
+    {
+      "answer": "Python: ruff PT011 is missing. Run /corrections:codify for the rule.",
+      "why": "codify named for another language"
+    },
+    {
+      "answer": "pwsh    -    NONE    no maintained rule\n\n**Instruction.** The optional line is a pointer to the testing:test-value skill. A test rule a check could decide goes to `/corrections:codify \"<the test pattern>\"` instead of the line.",
+      "why": "codify named only in the instruction section, past its heading"
+    }
+  ]
+}

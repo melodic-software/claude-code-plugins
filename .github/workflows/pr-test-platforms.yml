@@ -81,7 +81,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        uses: $/.github/actions/download-full-history
       - name: Plan the Windows steps the change selects
         id: plan
         env:
@@ -95,7 +95,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -212,7 +212,7 @@ jobs:
       # The guards read every Bash command through shfmt (lib/hook-utils.sh) and
       # refuse the call without it; setup-pinned-shfmt holds the pin.
       - name: Install pinned shfmt
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
       # NTFS is case-insensitive, which is the whole point of running this one
       # here: the rename executor's case-only `git mv` path and its
       # index-not-filesystem existence test cannot be exercised on a
@@ -231,7 +231,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -287,7 +287,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -333,7 +333,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -362,7 +362,7 @@ jobs:
       # command through shfmt, installed as in the rename-1 job.
       - name: Install pinned shfmt
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
       # The guard's in-shell realpath and cygpath stand-ins against the processes,
       # on the Git Bash they replace them on.
       - name: Test block-root-delete-target-resolve on Windows
@@ -379,7 +379,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -403,7 +403,7 @@ jobs:
           python-version-file: .python-version
       # shfmt for the same reason as the rename-1 job.
       - name: Install pinned shfmt
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
@@ -456,7 +456,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -480,7 +480,7 @@ jobs:
           python-version-file: .python-version
       # shfmt for the same reason as the rename-1 job.
       - name: Install pinned shfmt
-        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-shfmt
       - name: Test block-windows-drive-tmp on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-windows-drive-tmp.test.sh')
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
@@ -525,7 +525,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -581,7 +581,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -653,6 +653,6 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
