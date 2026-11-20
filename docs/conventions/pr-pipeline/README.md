@@ -2455,9 +2455,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
-  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  branch and hands the pull request to a session builder. The verdict job posts no merge marker unless
   every commit is Dependabot's own or a commit that passes the fix rule,
-  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`, a
+  `needs-session` stop: a session builder drops or rebuilds the commit, and the new head starts clean)
   ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit; any other commit, a
   `github-actions[bot]` one included, is `commit-not-dependabot:<sha>`. On a reviewed pull request the lanes App's
