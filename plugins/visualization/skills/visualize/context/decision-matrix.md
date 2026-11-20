@@ -207,7 +207,7 @@ person edits and exports it.
 - **Pointer**: when offering `/design` or answering what it produces or requires,
   fetch [Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas)
   and its parent
-  [Start from a Slides, Design, or Docs template](https://code.claude.com/docs/en/artifacts#start-from-a-slides-design-or-docs-template)
+  [Start an artifact from a template](https://code.claude.com/docs/en/artifacts#start-an-artifact-from-a-template)
   live; for removing a bundled skill by settings, fetch
   [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills)
   and [`skillOverrides`](https://code.claude.com/docs/en/settings-reference#skilloverrides).

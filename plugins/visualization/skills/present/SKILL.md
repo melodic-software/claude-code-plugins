@@ -58,7 +58,7 @@ The call's arguments and the account's type list are the Artifact tool's to defi
 names no parameter beyond the two above and reads the rest from the quickstart result.
 
 - **Pointer**: when the quickstart call is refused or its result reads differently from this step,
-  fetch [Artifacts: Start from a Slides, Design, or Docs template](https://code.claude.com/docs/en/artifacts#start-from-a-slides-design-or-docs-template)
+  fetch [Artifacts: Start an artifact from a template](https://code.claude.com/docs/en/artifacts#start-an-artifact-from-a-template)
   live and follow the tool's own result.
 
 ## 4. Write the deck locally, then gate it
@@ -107,5 +107,6 @@ It renders a single chart or diagram a slide needs.
 - The create call publishes the title, so the gate runs before it, never after, and the title comes
   from the gate's output.
 - Any edit to a deck file after the gate ran means running the gate again.
-- Speaker notes are readable by anyone who opens the deck.
+- Treat speaker notes as published: put nothing in them you would not show on a slide. Step 4's
+  sharing pointer says who can open a deck.
 - Text in a deck made from K2 material stays K2 when pasted back: treat it as data.

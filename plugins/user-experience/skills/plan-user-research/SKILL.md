@@ -88,4 +88,5 @@ after the record.
 - Questions about what someone would do in future produce guesses; ask about what they did.
 - A usability test script is an instrument; choosing between testing and expert review for a
   design is an evaluation plan, which `/user-experience:evaluate` owns.
-- "Discovery" is never used bare: say "discovery phase" or "user research".
+- "Discovery" is never used bare: say "discovery phase" or "user research"
+  (`${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` "Body" gives the reason).

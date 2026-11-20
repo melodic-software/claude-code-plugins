@@ -94,4 +94,5 @@ after the record.
 - A flow drawn from a PRD alone is `assumption-based` until people confirm it.
 - Layout, controls, wording and accessibility conformance are the UI skill's; stop at which data
   appears on which step.
-- "Discovery" is never used bare: say "discovery phase" or "user research".
+- "Discovery" is never used bare: say "discovery phase" or "user research"
+  (`${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` "Body" gives the reason).
