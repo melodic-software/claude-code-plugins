@@ -17,14 +17,16 @@
 # is read through its canonical source instead, the one file to edit.
 # docs/upstream/ is not read: the rule binds what a skill or agent loads. Those
 # records are checked by scripts/check-upstream-drift.sh (a pinned page against
-# its upstream) and /attribution:audit's check-stamps.sh (stamp expiry) instead.
+# its upstream) and /attribution:audit's check-stamps.sh (stamp expiry) instead:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-drift-check
 #
 # A paragraph is a run of non-blank lines outside a code fence; a heading, a
 # table row and a list item each stand alone. It is an offender when it holds
 # `as of YYYY-MM-DD` (also `as-of`, `As of:`, `**As of**:`, bold or italic
 # around the date, the date on the next line) and no `recheck` / `re-check`,
 # unless the very next paragraph opens with one (an `As of:` line followed by a
-# `Recheck when:` line).
+# `Recheck when:` line). The stamp forms:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts
 #
 # A file with offenders fails unless scripts/as-of-recheck-baseline.txt lists it
 # as `<path> <count>` and it holds exactly <count>. A count above the baseline is
