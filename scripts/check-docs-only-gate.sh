@@ -94,8 +94,9 @@
 #                           exactly the draft form that passes skips only on a
 #                           draft, where every lane skips; the merge queue
 #                           re-runs every lane before a merge.
-#  12. A SKIP IS CHECKED  — a test lane `test-<x>`, or `lint-shell` on
-#                           `run_shell`, may skip as a job on its own
+#  12. A SKIP IS CHECKED  — a test lane `test-<x>`, `lint-shell` on
+#                           `run_shell`, or `check-tests` on
+#                           `run_check_tests`, may skip as a job on its own
 #                           `run_<x>` row (the ordered-skip form, the draft gate
 #                           followed by `&& needs.<resolver>.outputs.run_<x> ==
 #                           'true'`), and only when the aggregate reads its
@@ -103,7 +104,9 @@
 #                           skip into `success` only where the resolver
 #                           succeeded and that row is 'false'
 #                           (scripts/ci-ordered-skips.test.sh runs that step).
-#                           Any other skipped lane stays `skipped` and fails.
+#                           Any other skipped lane stays `skipped` and fails,
+#                           where a ruleset alone would pass it
+#                           (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions).
 #
 # FAIL CLOSED ON SHAPE. Like scripts/check-lane-coverage.sh, this reads the
 # workflow structurally rather than through a YAML library (the repo ships no
@@ -167,6 +170,7 @@ run_bash${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
 run_shell${TAB}\${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
+run_check_tests${TAB}\${{ steps.base.outputs.ref == '' }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
@@ -991,12 +995,14 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # aggregate fails.
 #
 # AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` (or
-# `lint-shell`, row `run_shell`) only,
+# `lint-shell`, row `run_shell`; `check-tests`, row `run_check_tests`) only,
 # whose `run_<x>` row the table names: the draft form followed by
 # `&& needs.<resolver>.outputs.run_<x> == 'true'`. Still no status-check
 # function, so the needs edge governs; what it subtracts is a change that gives
 # the lane no work. Check 12 holds the other half: the aggregate turns that
-# skip into `success` only against the same row.
+# skip into `success` only against the same row, since a skipped job would
+# otherwise read as a pass
+# (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions).
 
 skip_lanes=""
 while IFS= read -r refjob; do
@@ -1007,12 +1013,13 @@ while IFS= read -r refjob; do
     [[ "$ctext" == "$JOB_GATE" || "$ctext" == "$JOB_GATE_DRAFT" ]] && continue
     lane="${refjob#test-}"
     [[ "$refjob" == lint-shell ]] && lane=shell
-    if [[ "$refjob" == test-* || "$refjob" == lint-shell ]] && table_has "run_$lane" &&
+    [[ "$refjob" == check-tests ]] && lane=check_tests
+    if [[ "$refjob" == test-* || "$refjob" == lint-shell || "$refjob" == check-tests ]] && table_has "run_$lane" &&
       [[ "$ctext" == "$(job_gate_skip "$lane")" ]]; then
       skip_lanes+="$refjob"$'\n'
       continue
     fi
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> (or lint-shell, row shell) whose run_<x> row the table names: $(job_gate_skip '<x>')"
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> (or lint-shell, row shell; check-tests, row check_tests) whose run_<x> row the table names: $(job_gate_skip '<x>')"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
 
