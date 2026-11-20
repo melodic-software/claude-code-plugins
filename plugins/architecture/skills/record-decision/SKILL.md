@@ -1,6 +1,6 @@
 ---
 description: "Architecture decision record in the repo's ADR convention, retiring the record it reverses after a yes; with no convention, nothing is written until the human picks a shape. audit lists records the code no longer backs, read-only. Use when 'record this decision', 'write an ADR', 'capture this decision', 'document why we chose X', 'we are reversing ADR 7', 'prune the ADRs', 'are our ADRs still current', or a design handoff or interview resolves a decision worth keeping. Skip when no real alternative was weighed, or the ask is an index, a template migration, or status lifecycle."
-argument-hint: "[audit] [decision and its rationale, or a path to a file holding them]"
+argument-hint: "[audit [--repo <repo> ...]] [decision and its rationale, or a path to a file holding them]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -42,8 +42,12 @@ Arguments: `$ARGUMENTS`
 |---|---|
 | *(bare)* | Records one decision: Steps 1 to 4. The whole argument is the decision text or a file path |
 | `audit` | Lists retire candidates and writes nothing: [Audit](#audit) |
+| `audit --repo <repo> ...` | The audit across several repositories: [Several repositories](#several-repositories) |
 
 Only `audit` as the first word selects the audit; any other first word is part of the decision.
+`--repo` and the other target forms in
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md)
+are accepted only after `audit`; the default stays this repository.
 
 ## Purpose
 
@@ -227,6 +231,25 @@ what it was before the invocation.
    citation hits, then the count of records still backed. Offer Step 3 for the candidates the person
    picks; retirement and citation edits run only there, after a yes. Done when the report is
    delivered.
+
+### Several repositories
+
+With no target form, the audit covers this repository, exactly as above. A target form resolves,
+counts and fans out the repositories as target-scope.md says, and steps 1 to 3 run once per
+repository with its root anchored, reading it at `origin/HEAD` as target-scope.md "Resolving
+repositories" says: each walks its own ADR ladder from its root and sweeps its own citations with
+`git -C <root> grep -n <pattern> origin/HEAD`. Every candidate carries its repository
+(`owner/name`), and the report merges them as target-scope.md "Merging findings" says.
+
+The report adds a fourth group, **Recorded in several repositories**: one decision held as a record
+in two or more repositories, one row listing each. Its proposal keeps one record, in the repository
+the instructions name for cross-repository decisions (an `AGENTS.md`, `CLAUDE.md` or ADR
+convention of a repository in scope), and points the others at it. With no repository named for
+that, the row asks which one keeps it.
+
+Step 3 for a picked candidate runs in one repository at a time, as target-scope.md "Writes stay per
+repository" says: once in each repository whose record is retired, its citations repointed at the
+kept record.
 
 ## Hand-off
 
