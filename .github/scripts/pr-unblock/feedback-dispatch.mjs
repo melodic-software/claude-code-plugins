@@ -1509,7 +1509,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       throw Object.assign(error, { call });
     });
 
-  async function request(url, method = "GET", body, signal) {
+  const reads = new Map();
+  function request(url, method = "GET", body, signal) {
+    const key = method === "GET" ? url : url === graphqlUrl && !/^\s*mutation\b/.test(body?.query ?? "") ? `${url}\n${JSON.stringify(body)}` : null;
+    if (key === null) {
+      reads.clear();
+      return answer(url, method, body, signal);
+    }
+    if (!reads.has(key)) {
+      const read = answer(url, method, body, signal);
+      reads.set(key, read);
+      read.catch(() => reads.delete(key));
+    }
+    return reads.get(key).then((data) => structuredClone(data));
+  }
+
+  async function answer(url, method, body, signal) {
     const response = await send(url, {
       method,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
