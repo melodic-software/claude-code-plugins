@@ -68,6 +68,16 @@ run_case "a new paragraph with an as-of date and no trigger fails and names the 
 run_case "the corrected paragraph, with its trigger, passes" 0 \
   "printf '\nThe timeout is 60 s, as of 2026-01-01; recheck when the timeout docs change.\n' >>$SKILL/SKILL.md"
 
+run_case "a **As of**: stamp with no trigger fails" 1 \
+  "printf '\n**As of**: 2026-01-01\n' >>$SKILL/SKILL.md" \
+  "$SKILL/SKILL.md:27: FIX:"
+
+run_case "a **As of**: stamp with its **Recheck trigger**: in the paragraph passes" 0 \
+  "printf '\n**As of**: 2026-01-01. **Recheck trigger**: the limits page changes.\n' >>$SKILL/SKILL.md"
+
+run_case "a **As of**: item followed by a **Recheck trigger**: item passes" 0 \
+  "printf '\n- **As of**: 2026-01-01\n- **Recheck trigger**: the limits page changes.\n' >>$SKILL/SKILL.md"
+
 run_case "a trigger two paragraphs on does not cover the date" 1 \
   "printf '\nAs of: 2026-01-01\n\nUnrelated.\n\nRecheck when: later.\n' >>$SKILL/SKILL.md" \
   "$SKILL/SKILL.md:27: FIX:"
@@ -107,6 +117,9 @@ run_case "an agent file is read" 1 \
 run_case "a plugin reference file is read" 1 \
   "mkdir -p plugins/alpha/reference && printf 'Cap 3 As-of 2026-01-01.\n' >plugins/alpha/reference/r.md" \
   "plugins/alpha/reference/r.md:1: FIX:"
+
+run_case "a docs/upstream record is not read" 0 \
+  "mkdir -p docs/upstream && printf '**As of**: 2026-01-01\n' >docs/upstream/u.md"
 
 run_case "eval samples and fixtures are not read" 0 \
   "mkdir -p $SKILL/evals/c plugins/alpha/skills/audit/scripts/fixtures && printf 'as of 2026-01-01\n' >$SKILL/evals/c/prompt.md && printf 'as of 2026-01-01\n' >$SKILL/scripts/fixtures/f.md"

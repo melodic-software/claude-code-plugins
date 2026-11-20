@@ -272,14 +272,9 @@ test("prepareItems is not complete when the collector read part of a window or s
   assert.equal(run(), false);
 });
 
-// An earlier digest holding five entries the new sweep does not see: one
-// naming pr-verify-capture.yml, one naming pr-merge.yml, one tracked
-// elsewhere naming pr-verify-capture.yml in its marker, one of slice C, and
-// one tracked entry in the older marker form, which names no workflow. The
-// sweep is run through prepareItems and planDigest as main() wires them.
-const CAPTURE = ".github/workflows/pr-verify-capture.yml";
+const VERIFY = ".github/workflows/pr-verify.yml";
 const MERGE = ".github/workflows/pr-merge.yml";
-const E_CAPTURE = "00000000000000e1";
+const E_VERIFY = "00000000000000e1";
 const E_MERGE = "00000000000000e2";
 const E_TRACKED = "00000000000000e3";
 const E_C = "00000000000000e4";
@@ -302,9 +297,9 @@ function carrySweep(t, { status, units, findings }) {
   if (status !== undefined) writeFileSync(statusPath, JSON.stringify(status));
   const prepared = prepareItems({ findingsDir: dir, baseDir: base, unitsDir, statusPath });
   const earlier = [
-    [E_CAPTURE, { slice: "A", workflow: CAPTURE, job: "capture" }, null],
+    [E_VERIFY, { slice: "A", workflow: VERIFY, job: "check-intent" }, null],
     [E_MERGE, { slice: "A", workflow: MERGE, job: "merge" }, null],
-    [E_TRACKED, { slice: "A", workflow: CAPTURE, job: "capture" }, 9000],
+    [E_TRACKED, { slice: "A", workflow: VERIFY, job: "check-intent" }, 9000],
     [E_C, { slice: "C", workflow: ".github/workflows/pr-ci.yml", job: "pr" }, null],
   ].map(([fp, over, tracked]) => ({ fingerprint: fp, tracked, title: "t", text: renderEntry({ fingerprint: fp, finding: finding(over), tracked }) }));
   earlier.push({ fingerprint: E_OLD, tracked: 9001, title: "t", text: `<!-- lane-sweep-entry fp=${E_OLD} tracked=9001 -->\n### t\n\nSlice A, fingerprint \`${E_OLD}\`. Tracked in #9001.` });
@@ -334,12 +329,12 @@ test("a partly read workflow carries only the unseen entries naming it; a fully 
     findings: readA1,
   });
   assert.equal(sweep.complete, false);
-  assert.ok(sweep.dropped.includes(E_CAPTURE), "the pr-verify-capture.yml entry drops: that workflow was read in full");
+  assert.ok(sweep.dropped.includes(E_VERIFY), "the pr-verify.yml entry drops: that workflow was read in full");
   assert.ok(sweep.kept.includes(E_MERGE), "the pr-merge.yml entry carries: that workflow was read in part");
   assert.ok(sweep.dropped.includes(E_TRACKED), "a tracked entry whose marker names a fully read workflow drops");
   assert.ok(sweep.kept.includes(E_OLD), "an entry naming no workflow carries");
   assert.deepEqual(sweep.kept, [E_MERGE, E_OLD]);
-  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_TRACKED, E_C]);
+  assert.deepEqual(sweep.dropped, [E_VERIFY, E_TRACKED, E_C]);
   assert.deepEqual(sweep.reasons, { [E_MERGE]: "partial-window", [E_OLD]: "no-workflow" });
   assert.equal(
     fileFindings.carriedNote(sweep.plan.carried),
@@ -348,7 +343,7 @@ test("a partly read workflow carries only the unseen entries naming it; a fully 
 });
 
 test("a collector that stopped early, or left no readable status, carries every unseen entry", (t) => {
-  const all = [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD];
+  const all = [E_VERIFY, E_MERGE, E_TRACKED, E_C, E_OLD];
   const stopped = carrySweep(t, {
     status: { complete: false, truncated: "stopped at unit d2: call budget", partial: [MERGE] },
     units: [ciUnit],
@@ -365,11 +360,11 @@ test("a unit whose findings were not read carries the unseen entries of its slic
   const unparsable = { unit: "a2", findings: [], dropped: [{ index: null, reason: "unparsable" }] };
   const sweep = carrySweep(t, {
     status: { complete: true, truncated: null, partial: [] },
-    units: [ciUnit, { id: "a2", slice: "A", workflow: CAPTURE }],
+    units: [ciUnit, { id: "a2", slice: "A", workflow: VERIFY }],
     findings: { ...readA1, "findings-a2": unparsable },
   });
-  assert.deepEqual(sweep.kept, [E_CAPTURE, E_TRACKED, E_OLD]);
-  assert.deepEqual(sweep.reasons, { [E_CAPTURE]: "unit-unread", [E_TRACKED]: "unit-unread", [E_OLD]: "no-workflow" });
+  assert.deepEqual(sweep.kept, [E_VERIFY, E_TRACKED, E_OLD]);
+  assert.deepEqual(sweep.reasons, { [E_VERIFY]: "unit-unread", [E_TRACKED]: "unit-unread", [E_OLD]: "no-workflow" });
 
   const unreadC = carrySweep(t, {
     status: { complete: true, truncated: null, partial: [] },
@@ -383,14 +378,14 @@ test("a unit whose findings were not read carries the unseen entries of its slic
     units: [ciUnit],
     findings: { ...readA1, "findings-a2": "not json" },
   });
-  assert.deepEqual(unreadable.kept, [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD], "an unreadable findings file names no unit, so all carry");
+  assert.deepEqual(unreadable.kept, [E_VERIFY, E_MERGE, E_TRACKED, E_C, E_OLD], "an unreadable findings file names no unit, so all carry");
 });
 
 test("a complete sweep drops every unseen entry, one naming no workflow included", (t) => {
   const sweep = carrySweep(t, { status: { complete: true, truncated: null, partial: [] }, units: [ciUnit], findings: readA1 });
   assert.equal(sweep.complete, true);
   assert.deepEqual(sweep.kept, []);
-  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD]);
+  assert.deepEqual(sweep.dropped, [E_VERIFY, E_MERGE, E_TRACKED, E_C, E_OLD]);
 });
 
 test("entries cut to their short form drop when their workflow was read in full", () => {

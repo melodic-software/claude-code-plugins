@@ -74,12 +74,19 @@ one line per check, detail lines indented under it:
                       program failing to start: a mise shim error (`<name> is
                       not a valid shim`) in any run is a FAIL, and so is
                       `command not found` for an interpreter (node, npx,
-                      python3, uv, bun, deno, ruby, perl and the like), since
-                      the run could not execute the skill's code; any other
-                      `command not found` is a warning. Each text counts only
-                      where it opens an output line, as the shell or mise
+                      python3, uv, bun, deno, ruby, perl and the like) that
+                      the case's skill names, since the run could not execute
+                      the skill's code. The case's skill is each skills/ dir
+                      its Skill-requiring graders accept (all of them for a
+                      grader with no input_match); it names a program its
+                      files or the case's allowed_tools spell as a whole word,
+                      and a skill that cannot be resolved names every
+                      interpreter. An interpreter it does not name, and any
+                      other `command not found`, is a warning. Each text counts
+                      only where it opens an output line, as the shell or mise
                       prints it, so output quoting it does not. Each detail
-                      names the run, the program and the first call that failed
+                      names the run and every program that failed to start,
+                      each with the first call that failed
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -132,7 +139,12 @@ one line per check, detail lines indented under it:
                       pattern, or a Glob whose
                       every segment but * and ** names it; a term matches
                       once its *, ., ^, $ and / ends are stripped, case
-                      ignored (find / -ipath '*markdown-format*'). A
+                      ignored (find / -ipath '*markdown-format*'); so is,
+                      in a without-arm run that finished, a Grep or Glob
+                      whose path is that run's own eval root (the sandbox
+                      holding its out/trace.jsonl), a Glob pattern rooted
+                      or holding `..` excepted, each such call named with
+                      its tool, root and pattern on the verdict line. A
                       with-arm denied compound Bash call whose plugin part
                       a later Bash call in the same trace ran alone and was
                       not denied is set aside the same way:
@@ -192,7 +204,12 @@ one line per check, detail lines indented under it:
 
 The last line is `verdict: VALID` or `verdict: INVALID` with its reasons. A
 FAIL, or a check that could not run (UNCHECKED), makes the run INVALID; a WARN
-does not. The line before it counts the runs that ran Bash, decides nothing,
+does not. A permission-denials FAIL names the calls it counted, each its tool
+and its target (a path, a command or the denied hosts), on one line: the target
+redacted by the plugin's vendored gitleaks redactor (scripts/redact.py), its
+whitespace collapsed and cut to TARGET_CHARS, a call repeated across runs named
+once with its count, at most DENIED_SHOWN of them; with no redactor loaded, or
+one failing closed, it names the tools only. The line before it counts the runs that ran Bash, decides nothing,
 and names no case, command or trace text, so it may be published:
 `bash ran: with <a> of <b>, without <c> of <d>[, unknown <n>][, absent tool <m>]`.
 A run ran Bash when a Bash call got a tool_result that is neither a permission
@@ -221,6 +238,7 @@ Exit codes:
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import posixpath
@@ -229,6 +247,13 @@ import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
+
+DENIED_SHOWN = 10
+TARGET_CHARS = 120
+REDACT_PY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "scripts", "redact.py"
+)
+UNPRINTABLE = re.compile(r"[\s\x00-\x1f\x7f-\x9f]+")
 
 FULL_SCORE = 1.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
@@ -358,13 +383,25 @@ SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
 )
 NOT_FOUND = re.compile(
-    r"^[^\s:]+(?::\d+)?: (?:line \d+: )?"
-    r"(?:([^\s:'\"`]+): command not found|command not found: ([^\s'\"`]+))",
+    r"^(?P<prefix>[^\s:]+)(?::\d+)?: (?:line \d+: )?"
+    r"(?:(?P<bash>[^\s:'\"`]+): command not found|command not found: (?P<zsh>[^\s'\"`]+))",
     re.M,
+)
+# The prefixes a not-found line carries when the run's own shell printed it, for
+# a command the run typed. Any other prefix is a script path ("/p/lib/go.sh: line
+# 2: node: command not found"): a helper the skill ran needed the program.
+# - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/17351
+#   is the run that needs this; zsh 5.9 prints "(eval):1: command not found: x"
+#   for a missing name in an eval'd command line (`zsh -c 'eval x'`).
+# - As of: 2026-11-19
+# - Recheck trigger: a shell rewording its not-found message.
+RUN_SHELLS = frozenset(
+    "bash /bin/bash /usr/bin/bash zsh /bin/zsh /usr/bin/zsh (eval)".split()
 )
 INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )
+ALLOWED_TOOLS_KEY = re.compile(r"^allowed_tools:(.*(?:\n[ \t]*-.*)*)", re.M)
 # A Bash tool_result's sandbox report, is_error or not, and its network denial
 # lines. Upstream documents no format: observed in a with-arm trace of the x
 # plugin's suite on Claude Code 2.1.317, 2026-11-03; network-denied.jsonl in the
@@ -2499,6 +2536,26 @@ def absent_plugin_search(run, denial, absent):
     return False
 
 
+def own_root_search(run, denial):
+    """True when a finished without-arm run's denied call is a Grep or Glob whose
+    path is that run's own eval root (sandbox_dir). The arm lacks the plugin it
+    was asked to use and looks for it in its own folder; the denial cannot raise
+    its score. A Glob pattern that is rooted or holds a `..` segment may search
+    elsewhere, so it never qualifies; nor does any other tool, a missing path, or
+    a path under or above the root."""
+    name, eval_root = denial[2], sandbox_dir(run)
+    if run.arm != "without" or name not in ("Grep", GLOB_TOOL) or not eval_root:
+        return False
+    tool_input = own_input(run, denial)
+    path, pattern = tool_input.get("path"), tool_input.get(GLOB_PATTERN)
+    if not isinstance(path, str) or not rooted(path) or "\0" in path or not isinstance(pattern, str):
+        return False
+    if name == GLOB_TOOL and (rooted(pattern) or ".." in re.split(r"[\\/]", pattern)):
+        return False
+    same = os.path.normcase(os.path.realpath(path)) == os.path.normcase(eval_root)
+    return same and finished(run)
+
+
 def command_segments(command):
     """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
     expands) triple: its words as shell_words gives them (quotes removed, same-
@@ -2659,10 +2716,11 @@ def probe_split(case, runs, found, root):
 
 
 def start_failures(run):
-    """Each (program, failure, fatal, call) the run's trace shows, read from
-    every failed tool_result and every Bash result that is not a denial. A shim
-    error is fatal, and so is command not found for an interpreter; call is the
-    Bash command, or the name of another tool."""
+    """Each (program, failure, fatal, call, typed) the run's trace shows, read
+    from every failed tool_result and every Bash result that is not a denial. A
+    shim error is fatal, and so is command not found for an interpreter; call is
+    the Bash command, or the name of another tool; typed is true for a command
+    not found the run's own shell printed, false for one a script printed."""
     calls, found = {}, []
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -2679,27 +2737,113 @@ def start_failures(run):
             call = " ".join(str(call).split())
             text = result_text(block.get(CONTENT))
             for m in SHIM_ERROR.finditer(text):
-                found.append((m.group(1), "is not a valid shim", True, call))
+                found.append((m.group(1), "is not a valid shim", True, call, False))
             for m in NOT_FOUND.finditer(text):
-                program = m.group(1) or m.group(2)
-                found.append((program, "command not found", program in INTERPRETERS, call))
+                program = m.group("bash") or m.group("zsh")
+                typed = m.group("prefix") in RUN_SHELLS
+                found.append((program, "command not found", program in INTERPRETERS, call, typed))
     return found
 
 
-def check_programs(runs):
+def case_skill_dirs(case, root):
+    """The <root>/skills directories the case's Skill-requiring graders accept,
+    every one for a grader with no input_match, or None when none resolves."""
+    try:
+        names = sorted(os.listdir(os.path.join(root, "skills")))
+    except (OSError, TypeError):
+        return None
+    plugin = os.path.basename(os.path.normpath(root))
+    requiring = skill_graders(case, root)[0]
+    accepted = []
+    for grader in as_list(case.get(CASE_GRADER_DEFS)):
+        if grader.get(GRADER_NAME) not in requiring:
+            continue
+        pattern = grader_input_match(case, grader, root)
+        try:
+            found = re.compile(pattern) if pattern is not None else None
+        except re.error:
+            return None
+        accepted += [
+            n for n in names
+            if found is None
+            or any(found.search(json.dumps({"skill": s})) for s in (n, "%s:%s" % (plugin, n)))
+        ]
+    dirs = [os.path.join(root, "skills", n) for n in dict.fromkeys(accepted)]
+    return [d for d in dirs if os.path.isdir(d)] or None
+
+
+def declared_tools(case, root):
+    """The allowed_tools values in the case's prompt.md frontmatter and case.yaml."""
+    case_dir = case.get(CASE_DIR)
+    if not isinstance(case_dir, str):
+        return ""
+    values = []
+    for name in (CASE_PROMPT, CASE_YAML):
+        text = read_text(os.path.join(root, case_dir, name)) or ""
+        if name == CASE_PROMPT:
+            parts = text.split("---", 2)
+            text = parts[1] if text.startswith("---") and len(parts) == 3 else ""
+        values += [m.group(1) for m in ALLOWED_TOOLS_KEY.finditer(text)]
+    return "\n".join(values)
+
+
+def skill_named_text(case, root):
+    """The text of every file in the case's skill directories plus its declared
+    tools, or None when the case's skill cannot be resolved."""
+    dirs = case_skill_dirs(case, root)
+    if dirs is None:
+        return None
+    texts = [declared_tools(case, root)]
+    for top in dirs:
+        for parent, _, files in os.walk(top):
+            for name in files:
+                try:
+                    with open(os.path.join(parent, name), encoding="utf-8", errors="replace") as f:
+                        texts.append(f.read())
+                except OSError:
+                    continue
+    return "\n".join(texts)
+
+
+def check_programs(runs, root=None):
     """A run whose trace shows a shim error, or command not found for an
-    interpreter, could not run the skill's code, so its score measures the
-    missing program: FAIL. Any other command not found warns, as a case may
-    run a missing command on purpose."""
-    failed, warned = [], []
+    interpreter the case's skill names, could not run the skill's code, so its
+    score measures the missing program: FAIL. An interpreter the skill does not
+    name, read from its files and the case's allowed_tools, is one the run chose
+    and recovered from, so it warns, but only when the run's own shell printed
+    the line: a script that needed it is code the skill ran, so it still fails.
+    A skill that cannot be resolved names every interpreter. Any other command
+    not found warns, as a case may run a missing command on purpose."""
+    failed, warned, named = [], [], {}
     for r in runs:
         found = start_failures(r)
         if not found:
             continue
-        fatal = [f for f in found if f[2]]
-        program, failure, _, call = (fatal or found)[0]
-        detail = "%s: %s %s, first in `%s` (%s)" % (
-            r.where, program, failure, call, r.trace_path
+        key = id(r.case)
+        if key not in named:
+            named[key] = skill_named_text(r.case, root)
+        text = named[key]
+        firsts = {}
+        for program, failure, fatal, call, typed in found:
+            unnamed = (
+                fatal
+                and failure == "command not found"
+                and typed
+                and text is not None
+                and not re.search(r"(?<![\w.-])%s(?![\w-])" % re.escape(program), text)
+            )
+            pair = (program, failure)
+            was_fatal, was_unnamed, call = firsts.get(pair, (False, True, call))
+            firsts[pair] = (was_fatal or (fatal and not unnamed), was_unnamed and unnamed, call)
+        fatal = any(f[0] for f in firsts.values())
+        detail = "%s: %s (%s)" % (
+            r.where,
+            "; ".join(
+                "%s %s, first in `%s`%s"
+                % (program, failure, call, ", not named by the case's skill" if unnamed else "")
+                for (program, failure), (_, unnamed, call) in firsts.items()
+            ),
+            r.trace_path,
         )
         (failed if fatal else warned).append(detail)
     if failed:
@@ -2720,6 +2864,62 @@ def check_programs(runs):
             "command not found in %s" % count,
         )
     return PASS, "no trace shows a shim error or command not found", [], None
+
+
+def load_redactor(path=REDACT_PY):
+    """The plugin's vendored redactor, or None when it cannot load or fails closed."""
+    try:
+        spec = importlib.util.spec_from_file_location("plugin_eval_redact", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        redactor = module.load_redactor()
+    except (OSError, ImportError, SyntaxError, AttributeError):
+        return None
+    finally:
+        sys.modules.pop("plugin_eval_redact", None)
+    return None if redactor.fail_closed else redactor
+
+
+def named_calls(found, redactor):
+    """The denied calls in found, in trace order, as one line: each its tool and
+    its redacted, collapsed and cut target, a repeat counted, at most DENIED_SHOWN;
+    the tools only when redactor is None."""
+    counts = {}
+    for d in found:
+        name, target = d[4]
+        if name == "network-outbound":
+            name, target = BASH_TOOL, "network-outbound " + ", ".join(target)
+        else:
+            target = json.loads(target)
+            if not isinstance(target, str):
+                target = json.dumps(target, sort_keys=True)
+        text = shown_text(target, redactor)
+        call = "%s `%s`" % (name or "tool", text) if text else name or "tool"
+        counts[call] = counts.get(call, 0) + 1
+    shown = [c if n == 1 else "%s x%d" % (c, n) for c, n in counts.items()]
+    if len(shown) > DENIED_SHOWN:
+        shown = shown[:DENIED_SHOWN] + ["+%d more" % (len(shown) - DENIED_SHOWN)]
+    return ", ".join(shown)
+
+
+def shown_text(text, redactor):
+    """text redacted, collapsed and cut to TARGET_CHARS; "" when redactor is None."""
+    if redactor is None:
+        return ""
+    text = UNPRINTABLE.sub(" ", redactor.redact(text)).strip().replace("`", "'")
+    return text[: TARGET_CHARS - 3] + "..." if len(text) > TARGET_CHARS else text
+
+
+def root_searches(calls, redactor):
+    """Each (run, denial) in calls, in order, as its tool, root and pattern
+    (shown_text), every one listed; the tools only when redactor is None."""
+    shown = []
+    for run, d in calls:
+        tool_input = own_input(run, d)
+        root, pattern = (shown_text(tool_input[k], redactor) for k in ("path", GLOB_PATTERN))
+        shown.append("%s root `%s` pattern `%s`" % (d[2], root, pattern) if root else d[2])
+    return ", ".join(shown)
 
 
 def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=()):
@@ -2763,6 +2963,18 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
+    rooted_search = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and d not in lacked[r]
+            and own_root_search(r, d)
+        ]
+        for r in traced
+    }
     # A denied compound call whose plugin part a later call ran alone, allowed.
     recovered = {
         r: [
@@ -2772,6 +2984,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and recovered_denial(r, d, roots, {e[3] for e in every[r]})
         ]
         for r in traced
@@ -2784,6 +2997,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and d not in recovered[r]
             and forbidden_denial(r, d, roots, root)
         ]
@@ -2806,6 +3020,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             and d not in results[r]
             and d not in searched[r]
             and d not in lacked[r]
+            and d not in rooted_search[r]
             and d not in recovered[r]
             and d not in forbidden[r]
         ]
@@ -2868,6 +3083,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 "denied search" if missing_search == 1 else "denied searches",
             )
         )
+    root_search = [(r, d) for r in denied for d in rooted_search[r]]
+    if root_search:
+        summary += "; %d %s of a finished without-arm run's own eval root, not counted" % (
+            len(root_search),
+            "denied search" if len(root_search) == 1 else "denied searches",
+        )
     rerun = sum(len(recovered[r]) for r in denied)
     if rerun:
         summary += (
@@ -2897,7 +3118,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s which never"
+            " aimed only at the session's own tool-results directory%s,%s%s%s%s%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -2908,6 +3129,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 " its case names," if own_copy_search_warns else "",
                 " or a finished without-arm run's search naming only the plugin it"
                 " lacks," if missing_search else "",
+                " or a finished without-arm run's Grep or Glob whose path is its own"
+                " eval root," if root_search else "",
                 " or a with-arm denied compound Bash call whose plugin part a later"
                 " call in its run ran alone and was allowed," if rerun else "",
                 " or a denied call a failed max-0 tool_used grader of its case forbids,"
@@ -2920,19 +3143,25 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 ", ".join(warned_cases),
             )
         )
+    excused = (
+        "; own eval root searches excused: %s" % root_searches(root_search, load_redactor())
+        if root_search
+        else ""
+    )
     if failed:
-        reason = "%s in the traces" % plural(
-            sum(len(found[r]) for r in failed), "permission denial"
+        reason = "%s in the traces: %s" % (
+            plural(sum(len(found[r]) for r in failed), "permission denial"),
+            named_calls([d for r in failed for d in found[r]], load_redactor()),
         )
         if warned:
             reason += " (warnings only, not counted: case %s)" % ", ".join(warned_cases)
-        return FAIL, summary, details, reason
+        return FAIL, summary, details, reason + excused
     if warned and len(traced) == len(runs):
         return (
             WARN,
             summary,
             details,
-            "permission denials in case %s" % ", ".join(warned_cases),
+            "permission denials in case %s%s" % (", ".join(warned_cases), excused),
         )
     if len(traced) < len(runs):
         missing = len(runs) - len(traced)
@@ -2944,8 +3173,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
                 plural(missing, "trace"),
             ),
             details,
-            "permission denials unchecked in %s with no readable trace"
-            % plural(missing, "run"),
+            "permission denials unchecked in %s with no readable trace%s"
+            % (plural(missing, "run"), excused),
         )
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 
@@ -3336,7 +3565,7 @@ def main(argv=None):
         ("session started", check_started(runs)),
         ("skill loaded", check_loaded(runs, root, frozenset(args.measured_fire))),
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
-        ("programs started", check_programs(runs)),
+        ("programs started", check_programs(runs, root)),
         (
             "permission denials",
             check_denials(

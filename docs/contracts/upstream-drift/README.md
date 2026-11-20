@@ -474,10 +474,10 @@ HEAD or tree) still refused is named on stderr and listed as `status=unreachable
 pages are still read, and every mode but `--report` then exits 2. The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
-### Weekly drift issues
+### Daily drift issues
 
 One scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstream-drift-issues.yml`,
-runs every drift check once a week and hands the combined report to
+runs every drift check once a day and hands the combined report to
 `scripts/upstream-drift-issues.sh`, the one filer, which keeps one issue per upstream titled
 `Upstream drift: <id>`: it opens the issue when that upstream drifts, updates the same
 issue in place on later runs, reopens and updates it when it was closed, unless it was closed as not
@@ -488,7 +488,7 @@ longer names, such as one whose `docs/upstream` page was removed or renamed.
 Two producers write the report. `scripts/check-upstream-drift.sh --report` covers the git-pinned
 pages. `scripts/upstream-drift-vendored-report.sh`, the adapter, runs each vendored skill's own
 check script, whose output the standard check cannot read, from a table of rows
-`<id>|<check script>|<argument>`, and writes one `page` line per row with `path=` naming the check
+`<id>|<check script>|<argument>`, optionally `|files-only`, and writes one `page` line per row with `path=` naming the check
 script. A row's id is the upstream's `<owner>/<repo>` when one is known, else `<plugin>/<skill>`;
 a row sharing an id with a git-pinned page (good-css's vendored-copy check) adds its page to that
 upstream's one issue. The adapter maps a check's exit code to the page status: 0 `clean`, 1
@@ -517,24 +517,46 @@ After a failed write the other upstreams still run, and the run then exits nonze
   no `needs-human` hold at merge. A reopen reopens, then replaces the body and removes any
   `needs-human` an earlier filer left, so a failed reopen leaves the closed issue unchanged.
 - **Admission with no owner step.** A trusted drift issue is admitted to the issue lane with no
-  owner step (owner decision on #14215, Q195 (a)). It is trusted only when github-actions[bot] (id 41898282)
-  wrote it, nobody else last edited it (the filer's own weekly rewrite is that bot's edit), its
-  title is exactly `Upstream drift: <owner>/<repo>`, and its first body line is the hex-pin lead
-  the filer writes for that id; `driftIssueId` in `.github/scripts/intake-triage/admit.mjs` is the
-  rule's one home. An issue this workflow's token opens starts no intake run, so the hourly triage
-  sweep is its only way in: the sweep dispatches intake for a trusted drift issue and still skips
-  every other github-actions[bot] issue, since some quote fork-controlled text. Admission accepts
-  it as its author, and its done-when is a fixed template (`driftSpecText`) built from the upstream
-  id, never from the body; every other admission criterion applies unchanged. The issue lane's run and pr-verify read that same
-  template in place of the body. A vendored-copy (`pin=unknown`) issue has a different lead line,
-  so it is not trusted and waits for a session agent or a listed human's issue. Every author gate
-  on the way (the sweep, intake's verdict write, admission, the issue lane's blocker check and its
-  `issue.json` writer) asks the same rule. A trusted drift issue is never split: admission takes it
-  at any Size and the lane runs it at the split-child size, since one template covers one
-  upstream's pages. The filer's weekly body rewrite between admission and the lane run does not
-  stop the run, which never reads the body; any other editor's change still does.
-- **No upstream-chosen text in the body.** The sweep's intake run hands the whole body to
-  intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
+  owner step (owner decision on #14215, Q195 (a), for git-pinned pages; owner direction of
+  2026-11-18 for vendored copies). It is trusted only when github-actions[bot] (id 41898282)
+  wrote it, nobody else last edited it (the filer's own daily rewrite is that bot's edit), its
+  title is exactly `Upstream drift: <owner>/<repo>`, and its first body line is one of the two
+  leads the filer writes for that id: the hex-pin lead, or the vendored-copy lead
+  ``Upstream `<id>` no longer matches the copy vendored here.``. The vendored-copy lead is trusted
+  only when every row for that id carries `files-only`, which marks an apply mode that rewrites
+  vendored files and installs no package: the issue lane holds a model key, so a row whose update
+  runs `npm install` or any other installer (firecrawl's and context7's) stays with a person.
+  `driftIssue` in
+  `.github/scripts/intake-triage/admit.mjs` is the rule's one home. An issue this workflow's token
+  opens starts no intake run, and the hourly triage sweep does not dispatch one: the lanes token
+  broker refuses a github-actions[bot] dispatch for an issue no listed human or lanes App wrote. A
+  person triages a drift issue. Admission accepts it as its author, and its done-when is a
+  fixed template for its lead (`trustedDriftSpec`) built from the upstream id, never from the body;
+  every other admission criterion applies unchanged. The hex-pin template re-audits the pinned
+  pages and changes only them. The vendored-copy template finds the skill's update script from
+  the id's row in `scripts/upstream-drift-vendored-report.sh`, runs the mode the skill's own update
+  procedure names, folds the upstream changes into the skill's distilled files, adds a changelog
+  fragment, and changes only markdown files under the plugin's `skills/`, markdown, `.jsonc` and
+  `LICENSE` files in its `vendor/` baselines, plus that fragment, never a script, hook, library,
+  manifest, MCP config or eval suite. A `SKILL.md` outside `vendor/` is the one such file Claude
+  Code runs from: its frontmatter declares hooks and grants tools, and a `` !` `` line or a
+  ```` ```! ```` block runs a shell command when the skill loads. So a sync adds, renames and
+  removes no `SKILL.md` there, and in one it changes no frontmatter line but the
+  `upstream-version`, `upstream-sha` and `synced` values and adds or changes no `` !` `` line or
+  fenced block; pr-verify and the merge gate read the file at the merge base and the head to check
+  it (`skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`). The sync reads the skill's
+  update procedure but never edits it: no skill's `actions/update.md` and no file of the plugin's
+  `update` skill outside its `vendor/` baseline, since a change to how a skill updates itself comes
+  from a person's pull request (owner decision of 2026-11-19 on #17294). The issue lane's run and pr-verify read that same
+  template in place of the body, and pr-verify and the merge gate count it only for a pull request
+  inside that scope. Every author gate on the way (intake's verdict write, admission, the issue
+  lane's blocker check and its `issue.json` writer) asks the same rule. A trusted drift
+  issue is never split: admission takes it at any Size and the lane runs it at the split-child
+  size, since one template covers one upstream's pages or vendored copy. The filer's daily body
+  rewrite between admission and the lane run does not stop the run, which never reads the body;
+  any other editor's change still does.
+- **No upstream-chosen text in the body.** An intake run on a drift issue hands the whole body
+  to intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
   and head, this repository's own page and check-script paths, and per hex-pin page the counts of
   changed rows, new units and removed units. It never writes a row's or unit's path, since the
   upstream chose those names.
@@ -588,7 +610,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 | A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record holds a number or string copied or measured from upstream is a judgment. |
 | Every stored-value stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and the re-auditing agent decides whether the change touches the decision ([Weekly drift issues](#weekly-drift-issues) says when the owner decides). **Detect-then-judge** too for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and the re-auditing agent decides whether the change touches the decision ([Daily drift issues](#daily-drift-issues) says when the owner decides). **Detect-then-judge** too for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 
@@ -693,7 +715,7 @@ a pointer and loses its stamp the same way.
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
-| `docs/upstream/` pages pinned to a git commit (`addyosmani-agent-skills.md`, `cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`, `t3dotgg-tstack.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the weekly drift issues name any row whose upstream changed since that pin. |
+| `docs/upstream/` pages pinned to a git commit (`addyosmani-agent-skills.md`, `cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`, `t3dotgg-tstack.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the daily drift issues name any row whose upstream changed since that pin. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the

@@ -53,6 +53,11 @@
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
 #     .github/requirements-ci*.txt, plugins/animation/requirements.txt, which
 #     test-python installs): every Python suite.
+#   - a lock test-bash's toolchain step installs (.github/requirements-ci.txt and
+#     the animation, demo-video and lib/media-render requirements.txt): leg 0 of
+#     test-bash needs animation, demovideo and mediarender, so it installs every
+#     lock in the one pip call the whole tree may put them in, and two locks
+#     pinning one package apart fail here, not on main.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
 #     every Node package.
 #   - a Node package also runs when a file under its directory, its trigger (a test
@@ -133,6 +138,7 @@ whole=0
 whole_windows=0
 python_pin=0
 node_pin=0
+coinstall=0
 if [[ -n "$base" ]]; then
   changed_files::verify_base "$base" || die "base ref '$base' does not resolve to a commit"
   mb="$(git merge-base "$base" HEAD)" || die "'$base' and HEAD have no merge base"
@@ -161,6 +167,10 @@ for f in ${changed[@]+"${changed[@]}"}; do
     ;;
   pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt | plugins/animation/requirements.txt) python_pin=1 ;;
   .node-version | package.json | package-lock.json) node_pin=1 ;;
+  *) ;;
+  esac
+  case "$f" in
+  .github/requirements-ci.txt | plugins/animation/requirements.txt | plugins/playwright/skills/demo-video/requirements.txt | lib/media-render/requirements.txt) coinstall=1 ;;
   *) ;;
   esac
 done
@@ -229,7 +239,7 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/actions/setup-runner-isolation]=".github/workflows/"
   [.github/scripts/lib]=".github/workflows/"
   [.github/scripts/pr-merge]=".github/workflows/"
-  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/workflows/maintenance-verify-whole-map.yml .github/scripts/lib/"
+  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/scripts/lib/"
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
   [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"
   [.github/scripts/upstream-apply-changelog]=".github/workflows/upstream-apply-changelog.yml .github/scripts/lib/"
@@ -389,7 +399,7 @@ pack() {
     }' \
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
-    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" '
+    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" -v coinstall="$coinstall" '
       function est(l) { return load[l] + top[l] * (workers - 1) / workers }
       function need(p,   s) {
         s = ""
@@ -404,6 +414,44 @@ pack() {
         if (p == "lib/media-render/media-render.test.sh" || p == "plugins/explainer-video/scripts/explainer-video.test.sh") s = s " mediarender"
         return s
       }
+      # assign(L): the longest suite first, each to the leg that finishes soonest.
+      function assign(L,   i, l, best, k, w) {
+        delete load; delete top; delete cnt; delete items; delete has; delete leg
+        for (i = 1; i <= n; i++) {
+          best = 0
+          for (l = 1; l < L; l++) if (est(l) < est(best)) best = l
+          leg[i] = best; load[best] += sec[i]
+          if (span[i] > top[best]) top[best] = span[i]
+          items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
+          split(need(path[i]), w, " ")
+          for (k in w) if (w[k] != "") has[best, w[k]] = 1
+        }
+        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
+        return L
+      }
+      # critical(L): the longest leg as the runner runs it: its suites over the
+      # workers longest first, then the serial ones, plus 25 s per toolchain
+      # (pr-require-checks.yml JOB COSTS: 15 s bare, 40 s with one).
+      function critical(L,   l, i, k, m, t, worst) {
+        worst = 0
+        for (l = 0; l < L; l++) {
+          for (k = 0; k < workers; k++) wk[k] = 0
+          t = 0
+          for (i = 1; i <= n; i++) {
+            if (leg[i] != l) continue
+            if (!span[i]) { t += sec[i] / workers; continue }
+            m = 0
+            for (k = 1; k < workers; k++) if (wk[k] < wk[m]) m = k
+            wk[m] += sec[i]
+          }
+          m = 0
+          for (k = 1; k < workers; k++) if (wk[k] > wk[m]) m = k
+          t += wk[m]
+          for (k = 1; k <= nt; k++) if ((l, toolchain[k]) in has) t += 25
+          if (t > worst) worst = t
+        }
+        return worst
+      }
       {
         if ($2 ~ /["\\]/) { print "plan-test-lanes: a suite path carries a quote or a backslash: " $2 > "/dev/stderr"; bad = 1; exit }
         n++; sec[n] = $1 + 0; path[n] = $2; span[n] = $3 + 0; total += $1
@@ -415,22 +463,16 @@ pack() {
           printf "%s: nothing selected\n", lane > "/dev/stderr"
           exit 0
         }
+        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         legs = int((total + budget - 1) / budget)
         if (force || legs > cap) legs = cap
         if (legs > n) legs = n
         if (legs < 1) legs = 1
-        for (i = 1; i <= n; i++) {
-          best = 0
-          for (l = 1; l < legs; l++) if (est(l) < est(best)) best = l
-          load[best] += sec[i]
-          if (span[i] > top[best]) top[best] = span[i]
-          if (!span[i]) solo[best] += sec[i]
-          items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
-          split(need(path[i]), w, " ")
-          for (k in w) if (w[k] != "") has[best, w[k]] = 1
-        }
+        # The budget sets a critical path; the fewest legs that keep it are the plan.
+        assign(legs); limit = critical(legs)
+        for (l = 1; l < legs; l++) if (critical(assign(l)) <= limit) { legs = l; break }
+        assign(legs)
         legsj = ""; planj = ""; needsj = ""; loads = ""
-        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         for (l = 0; l < legs; l++) {
           s = ""
           for (k = 1; k <= nt; k++) if ((l, toolchain[k]) in has) s = s " " toolchain[k]

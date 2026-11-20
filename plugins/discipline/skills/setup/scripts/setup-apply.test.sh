@@ -49,6 +49,13 @@ new_repo() {
   printf '%s\n' "$dir"
 }
 
+seeded_repo() {
+  repo="$(new_repo)"
+  f="$repo/docs/conventions/discipline.yaml"
+  mkdir -p "$repo/docs/conventions"
+  printf '%s' "$1" >"$f"
+}
+
 OUT=""
 CODE=0
 run() { # run <repo> [args...]
@@ -75,10 +82,7 @@ check 'an unchanged value reports already configured and leaves the file' \
   test "$CODE" -eq 0 -a "$(cat "$f")" = "$before" -a -n "$(grep -F 'already configured' <<<"$OUT")"
 
 # Existing file, different value, no --yes: diff printed, nothing written.
-repo="$(new_repo)"
-f="$repo/docs/conventions/discipline.yaml"
-mkdir -p "$repo/docs/conventions"
-printf '# team pick\nlever_scope: deterministic\n' >"$f"
+seeded_repo $'# team pick\nlever_scope: deterministic\n'
 before="$(cat "$f")"
 run "$repo" lever_scope=non-trivial
 check 'an existing file that would change exits 3 without --yes' test "$CODE" -eq 3
@@ -91,10 +95,7 @@ check 'with --yes the change is written' test "$CODE" -eq 0
 check 'the written file keeps the comment' test "$(settings "$f")" = $'# team pick\nlever_scope: non-trivial'
 
 # Adding the key to a file that holds only comments appends it.
-repo="$(new_repo)"
-f="$repo/docs/conventions/discipline.yaml"
-mkdir -p "$repo/docs/conventions"
-printf '# owned by the platform team\n' >"$f"
+seeded_repo $'# owned by the platform team\n'
 run "$repo" --yes lever_scope=deterministic
 check 'the key is appended to a comment-only file' \
   test "$CODE" -eq 0 -a "$(settings "$f")" = $'# owned by the platform team\nlever_scope: deterministic'
@@ -114,10 +115,7 @@ check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a
 # An existing key outside the schema is named in one warning and ignored: its
 # line is kept byte for byte and the asked-for key is written. --check warns
 # on it, still prints the valid key, and exits 1.
-repo="$(new_repo)"
-f="$repo/docs/conventions/discipline.yaml"
-mkdir -p "$repo/docs/conventions"
-printf 'lever_scope: deterministic\nverbosity: high\n' >"$f"
+seeded_repo $'lever_scope: deterministic\nverbosity: high\n'
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes lever_scope=non-trivial
@@ -129,10 +127,7 @@ if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<
 # problem with one line and the file untouched.
 shape_case() { # shape_case <label> <refuse|replace> <warning text> <file content>
   local label="$1" want="$2" warning="$3" content="$4" repo f before
-  repo="$(new_repo)"
-  f="$repo/docs/conventions/discipline.yaml"
-  mkdir -p "$repo/docs/conventions"
-  printf '%s' "$content" >"$f"
+  seeded_repo "$content"
   before="$(cat "$f")"
   run "$repo" --check
   if [[ "$CODE" -eq 1 && "$OUT" == *"WARN"*"$warning"* && "$OUT" != *PASS* ]]; then pass "--check warns on $label"; else fail "--check warns on $label"; fi
@@ -175,10 +170,7 @@ shape_case 'an empty $schema' refuse '$schema is empty or null' $'"$schema":\nle
 
 # A key given twice on the command line is refused before anything is
 # written, whether or not the file exists.
-repo="$(new_repo)"
-f="$repo/docs/conventions/discipline.yaml"
-mkdir -p "$repo/docs/conventions"
-printf 'lever_scope: deterministic\n' >"$f"
+seeded_repo $'lever_scope: deterministic\n'
 run "$repo" --yes lever_scope=non-trivial lever_scope=deterministic
 if one_line_refusal && [[ "$(cat "$f")" == 'lever_scope: deterministic' ]]; then pass 'a key given twice is a one-line refusal and the file is unchanged'; else fail 'a key given twice is a one-line refusal and the file is unchanged'; fi
 repo="$(new_repo)"
@@ -300,10 +292,7 @@ check 'a failed rename leaves no temp file and no target' test -z "$(ls -A "$rep
 # unchanged, no temp file. A preload, not chmod 000, so the case holds as root.
 preload read-fails 'const rf = fs.readFileSync;' \
   'fs.readFileSync = (p, ...r) => { if (String(p).endsWith("docs/conventions/discipline.yaml")) throw Object.assign(new Error("EACCES: permission denied, open"), { code: "EACCES" }); return rf(p, ...r); };'
-repo="$(new_repo)"
-f="$repo/docs/conventions/discipline.yaml"
-mkdir -p "$repo/docs/conventions"
-printf 'lever_scope: deterministic\n' >"$f"
+seeded_repo $'lever_scope: deterministic\n'
 run_preloaded read-fails "$repo" --yes lever_scope=non-trivial
 check 'a failed read is a one-line refusal' one_line_refusal
 check 'a failed read leaves the file unchanged' test "$(cat "$f")" = 'lever_scope: deterministic'

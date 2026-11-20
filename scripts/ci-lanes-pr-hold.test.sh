@@ -36,6 +36,7 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
+budget="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the holds. A merge group has no
 # pull_request.draft, which is not true, so the queue still runs it.
@@ -209,6 +210,7 @@ import json, os, sys
 with open(os.environ["STUB_LOG"], "a") as log:
     log.write("reader " + " ".join(sys.argv[1:]) + "\n")
     log.write("reader-env header-limit=" + os.environ.get("BABYSIT_READ_FLOOR_HEADER_LIMIT", "") + "\n")
+    log.write("reader-env floor-wait=" + os.environ.get("BABYSIT_READ_FLOOR_WAIT_SECONDS", "") + "\n")
 if os.environ.get("STUB_READER_RC"):
     sys.exit(int(os.environ["STUB_READER_RC"]))
 if not os.environ.get("STUB_NO_LISTING"):
@@ -293,8 +295,8 @@ expect() {
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
-    VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -463,7 +465,7 @@ else
   fail "no default-branch checkout named 'Check out main's Node pin and verdict reader' without kept credentials"
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
-want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
+want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /.github/verify-legacy-fails.json /.github/source-control-settings.json /plugins/source-control/.claude-plugin/plugin.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
   /.github/standards/trusted-actors/trusted-actors.json /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
 # Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
@@ -896,6 +898,21 @@ if grep -qxF "reader-env header-limit=1" "$TMP_ROOT/log"; then
 else
   fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
 fi
+if [[ $budget -gt 300 ]] && grep -qxF "reader-env floor-wait=$budget" "$TMP_ROOT/log"; then
+  ok "with no wait before it, the queue's verdict reader may wait the whole merge-group budget"
+else
+  fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+fi
+for case in "300 $((budget - 300))" "$budget 0" "$((budget + 60)) 0" " 0" "x 0"; do
+  read -r waited want <<<"$case"
+  [[ -n "$want" ]] || { want=$waited; waited=; }
+  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+  if grep -qxF "reader-env floor-wait=$want" "$TMP_ROOT/log"; then
+    ok "after a ${waited:-unread} s wait the verdict reader may wait $want s"
+  else
+    fail "after a ${waited:-unread} s wait the verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+  fi
+done
 if [[ "$(maps)" -eq 1 ]] && grep -qxF "head-ref-map read" "$TMP_ROOT/log" &&
   [[ "$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log" | cut -d' ' -f1 | paste -sd' ')" == "head-ref-map reader" ]]; then
   ok "the head-ref map is read once, before the reader"
@@ -928,9 +945,12 @@ for refusal in verify:unreadable verify:too-old; do
 done
 STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
   expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
-# FAIL index mode (the legacy FAILs file beside the reader): the reader saves
-# no listing, so the head's pass names are read by exact name instead.
 : >"$TMP_ROOT/verify-legacy-fails.json"
+STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
+  expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 3 "::error::the verdict reader read no artifact listing for #7"
+rm -f "$TMP_ROOT/verify-legacy-fails.json"
+mkdir -p "$TMP_ROOT/base/.github"
+: >"$TMP_ROOT/base/.github/verify-legacy-fails.json"
 STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
 if [[ "$(lookups)" -ge 1 && "$(lookups)" -le 4 ]]; then
   ok "in FAIL index mode the pass names are read by exact name ($(lookups) reads)"
@@ -938,7 +958,9 @@ else
   fail "in FAIL index mode the pass names took $(lookups) reads"
 fi
 STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
-rm -f "$TMP_ROOT/verify-legacy-fails.json"
+STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" \
+  expect "in the merge queue in FAIL index mode, a refusal's notice names index mode, not a refusal before listing" 1 3 "::notice::the verdict reader refused #7 in FAIL index mode, which saves no listing"
+rm -f "$TMP_ROOT/base/.github/verify-legacy-fails.json"
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)

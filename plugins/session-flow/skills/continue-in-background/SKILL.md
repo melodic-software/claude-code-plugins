@@ -261,15 +261,19 @@ fallback), then:
    management hint, any launched-session behavior the resumed work depends on (next
    section), and the denied-action statement step 2 defines, never a promise of the final
    hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
-   the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
-   turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
+   the persistence override is ever unrecognized. Confirm with
+   `claude agents --json --all`, taking the entry whose `id` is the short id the launch printed,
+   and report its full `sessionId`; with no such entry, tell the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
-   The user no longer needs to paste anything.
+   The user no longer needs to paste anything. `claude --bg` ignores `--session-id` and picks the
+   id itself, so this listing is the only source of the full id.
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
 5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
-   monitor, poll, or babysit the launched agent, and do not start new work items.
+   monitor, poll, or babysit the launched agent, and do not start new work items. Invoked by
+   another skill through the Skill tool (step-away's fresh session), return the full `sessionId`
+   to it instead, or say none was found; that skill finishes its own steps this turn.
 
 ## Delivery variant: desktop session
 
@@ -411,7 +415,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
   flagging, and step 2's denied-action statement: auto mode may deny an action, the session keeps going past a denial, which
-  is in its transcript and `claude logs`, not promised in the final hand-off), or the non-zero
+  is in its transcript and `claude logs`, not promised in the final hand-off, and the full
+  `sessionId` from `claude agents --json --all`, handed back to a calling skill), or the non-zero
   exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level

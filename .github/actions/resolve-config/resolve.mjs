@@ -17,7 +17,7 @@ const CONFIG_BASENAME = "pr-pipeline.yaml";
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 // Model routes that are no activity: pr-verify.yml's judgment, pr-rate-merge-risk.yml's rating, the code and
 // security review lanes, and intake triage.
-const RUN_ROUTES = new Set(["verify-pr", "merge-risk", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback", "verify-map", "verify-capture"]);
+const RUN_ROUTES = new Set(["verify-pr", "merge-risk", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
 // What model-route accepts: the run routes, and resolve-issue for a model job that takes the issue
 // lane's code-change profile (the upkeep batch and the release intake lane).
 const MODEL_ROUTES = new Set([...RUN_ROUTES, "resolve-issue"]);
@@ -992,6 +992,7 @@ const limitsOf = (limits = {}) => ({
   "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
   "restarts-per-run": limits["restarts-per-run"] ?? 5,
   "refire-queue-per-slot": limits["refire-queue-per-slot"] ?? 2,
+  "refire-budget-per-slot": limits["refire-budget-per-slot"] ?? 1,
   "stale-queued-minutes": limits["stale-queued-minutes"] ?? 60,
   "sweep-gap-minutes": limits["sweep-gap-minutes"] ?? 15,
   "readmit-per-run": limits["readmit-per-run"] ?? 20,

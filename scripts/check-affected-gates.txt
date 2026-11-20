@@ -84,6 +84,7 @@ line-citations ci-only whole-repo scanner, python3 scripts/check-line-citations.
 loop-lane-floor-drift ci-only whole-repo scanner, scripts/check-loop-lane-floor-drift.sh --check
 manifest-duplicate-keys ci-only whole-repo scanner, python3 scripts/check-manifest-duplicate-keys.py
 next-graph ci-only whole-repo scanner, python3 scripts/check-next-graph.py
+org-repo-tokens ci-only whole-repo scanner, scripts/check-org-repo-tokens.sh --check
 orphaned-fixtures ci-only whole-repo scanner, scripts/check-orphaned-fixtures.sh --check
 pipefail-grep-q ci-only whole-repo scanner, scripts/check-pipefail-grep-q.sh
 plugin-catalog-enablement ci-only whole-repo scanner, scripts/check-plugin-catalog-enablement.sh

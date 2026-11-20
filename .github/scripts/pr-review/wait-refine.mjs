@@ -24,11 +24,14 @@
 // any other run, a wait past its cap, or any read that fails runs the review,
 // as it ran before this job existed.
 //
-// Reads PR_NUMBER, HEAD_SHA, PR_BASE_REF and PR_HEAD_REPO from env only; logs
-// carry the PR number, SHAs and run ids only. Writes proceed and reason to
-// GITHUB_OUTPUT.
+// Reads PR_NUMBER, HEAD_SHA, PR_BASE_REF and PR_HEAD_REPO from env, and the
+// sender's and author's numeric ids from the event file; logs carry the PR
+// number, SHAs and run ids only. Writes proceed and reason to GITHUB_OUTPUT.
+// An event that an account in NO_REFINE_ACCOUNTS sent, on a pull request one
+// opened, has no refine run due: it is reviewed after the finish read alone
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#lanes).
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
@@ -41,6 +44,30 @@ export const DISPATCHER = ".github/workflows/pr-unblock-dispatch.yml";
 export const REFINE = ".github/workflows/pr-refine.yml";
 const RECORD = /^pr-unblock-target-dispatched-[0-9a-f]{40}-([1-9][0-9]{0,14})$/;
 const SECONDS = /^[1-9][0-9]{0,5}$/;
+/**
+ * fix-docs-dispatch.mjs's excludedAuthorIds, inline because this job's sparse
+ * checkout holds no other pr-unblock module. refine-event-dispatch.mjs starts
+ * no run on an event these accounts send, since none is the lanes App or a
+ * listed human, and fix-docs never starts for a PR one opened. A
+ * refine-dispatch activity can still start on a human's later event on the
+ * same head; the test pins the live config's list empty.
+ */
+export const NO_REFINE_ACCOUNTS = Object.freeze([49699333, 337859524, 300666570]);
+
+/** Whether this pull_request event, for this PR and head, has no refine run due. */
+export function noRefineDue(event, { number, head }) {
+  const pr = event?.pull_request;
+  if (pr?.number !== number || pr?.head?.sha !== head) return false;
+  return [event.sender?.id, pr.user?.id].every((id) => Number.isSafeInteger(id) && NO_REFINE_ACCOUNTS.includes(id));
+}
+
+function readEvent(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
 
 export function readEnv(env) {
   if (!/^[1-9][0-9]{0,9}$/.test(env.PR_NUMBER ?? "")) throw new Error("PR_NUMBER is not a pull request number");
@@ -67,7 +94,7 @@ export function readEnv(env) {
   };
 }
 
-export async function decide({ number, head, repository, appearMs, capMs, pollMs, baseRef, headRepository }, { api, now, sleep, log }) {
+export async function decide({ number, head, repository, appearMs, capMs, pollMs, baseRef, headRepository, noRefine = false }, { api, now, sleep, log }) {
   const start = now();
   const deadline = start + capMs;
   const say = (level, text) => log(`::${level}::wait-refine #${number} ${head}: ${text}`);
@@ -149,6 +176,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     }
     const gone = pr && (await moved(pr));
     if (gone) return skip(gone, "the start");
+    if (noRefine) return await finish("no-refine-account");
     let runs;
     for (;;) {
       const listing = await api.get(`actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${head}&per_page=100`);
@@ -215,6 +243,7 @@ export function createApi({ token, repository, apiUrl = "https://api.github.com"
 
 export async function main(env, { api, now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = (line) => console.log(line) } = {}) {
   const input = readEnv(env);
+  input.noRefine = Boolean(env.GITHUB_EVENT_PATH) && noRefineDue(readEvent(env.GITHUB_EVENT_PATH), input);
   const budget = api ? null : budgetedFetch({ log });
   const client = api ?? createApi({ token: env.GITHUB_TOKEN, repository: input.repository, apiUrl: env.GITHUB_API_URL || undefined, budget });
   const result = await decide(input, { api: client, now, sleep, log });

@@ -842,31 +842,24 @@ merge-ready for a human. The lane's partition is the only class check, so the PR
 work lane opens carries the body hold line the lane writes for untrusted provenance and waits for
 the user; it is never handed to this invocation.
 
-The AI review checks are the review lane's `PR Review / review-status` (`pr-review /
-review-status` on a head tested before the rename) or `claude-review-status` (matched by that job
-segment under any caller, e.g. `review /` or `pr-review /`) and the security lane's
-`PR Review Security / review-status`, `pr-review-security / review-status`,
-`security-review / security-review`, `PR Review Security / security-review` or
-`pr-review-security / security-review` (matched by its
-whole name, never by the job segment alone; every name holds while old and new callers coexist),
-plus any `claude-security-review-status` check the rollup carries. ci-workflows' Title Case job
-names count too, each only as a whole name, since both lanes share the segment, as do the status
-job's planned names (`PR Review / Publish Review`, `PR Review Security / Publish Review`, under
-the caller's display name or its id): the review lane's
-`PR Review / Status`, `pr-review / Status`, `PR Review / Claude`, `pr-review / Claude` or
-`pr-review-no-bots / Claude`, and the security lane's `PR Review Security / Status`,
-`pr-review-security / Status`, `PR Review Security / Claude` or `pr-review-security / Claude`.
-Their names are
-`<caller job name> / <reusable job name>`: the caller's display name, or its job id where it sets
-none, from the caller components synced from standards, then the ci-workflows reusable's job.
+The AI review checks are the names the `review_lane_checks` setting gives each lane's `merge`
+entries (`claude-review:merge=<name>`, `claude-security-review:merge=<name>`), read by
+`babysit_merge_settings.py` from the operator's own user or managed settings and never from a file
+a pull request can edit. A name holding ` / ` matches only the whole check name; a bare name
+matches a check's last job segment under any caller, so a job segment two lanes share belongs only
+under its caller prefix. Unset, a lane names no check and the merge gate holds on it. Check names
+are `<caller job name> / <reusable job name>`: the caller's display name, or its job id where it
+sets none, then the reusable workflow's job.
 
 - **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job names
-  in [pr-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
-  and [pr-review-security.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-security.yml)
-  and the caller job ids in standards `components/claude-lanes/` live.
+  of the reusable review workflows in the repository the target's `review_lane_producer_repo`
+  names (`docs/conventions/source-control.yaml`;
+  [config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)),
+  and the caller job ids in the target repository's own `.github/workflows/`, live. Unset, read
+  the target's caller workflows and the reusable workflows their `uses:` lines name.
 - **As of**: 2026-10-04
-- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable, or a
-  standards change to a lane caller's job id.
+- **Recheck trigger**: a producer-repository release that renames or adds a job in either
+  reusable, or a change to a lane caller's job id.
 
 To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
 ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-rate-limited-review)), never only its failed jobs. A failed-jobs rerun
@@ -1201,8 +1194,8 @@ when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, only while the merge queue has removed that head
 for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
-(at the cap, a removal whose merge-group run failed only `CI Status` on a GitHub rate limit that
-has since reset is not counted; a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
+(at the cap, a removal whose merge-group run failed on an infra cause
+`merge.queue-ejection-infra-causes` names alone is not counted once its reset, or an hour, has passed; a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
 `merge_group` runs), and after a
 `<!-- babysit-merge-pin sha=<S> rung=<C2|C3> -->` comment records the pin for the post-merge
 read-back and the effective rung for the promotion-evidence publisher (the read-back also accepts

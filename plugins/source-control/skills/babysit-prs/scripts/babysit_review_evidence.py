@@ -47,50 +47,14 @@ from datetime import datetime
 from typing import Any
 
 import babysit_lane_binding as lane_binding
+import babysit_merge_settings as settings
 from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
-# Lane id -> (caller workflow path, status job names). Fixed in code: a
-# weaker table could only come from a file a pull request can edit. Each name
-# is the whole caller-qualified job name: pr-review-cli.yml names both lanes'
-# status jobs `review-status`, under the caller's display name first; the
-# lower-case caller is a head tested before the rename, or a repository whose
-# caller job has no display name. The last two are the names ci-workflows'
-# pr-review.yml and pr-review-security.yml give it, under the caller's display
-# name and its job id. The Title Case names ci-workflows gives the same jobs
-# (`Status`, `Claude`) follow, then the status job's planned name
-# (`Publish Review`); the first name stays an old one, since
-# babysit_gh.py keys its lane-run cache on its last segment.
+# Lane id -> (caller workflow path, status job names), read only from the
+# operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 LANES: dict[str, tuple[str, tuple[str, ...]]] = {
-    "claude-review": (
-        ".github/workflows/pr-review-hosted.yml",
-        (
-            "PR Review / review-status",
-            "pr-review / review-status",
-            "PR Review / claude-review-status",
-            "pr-review / claude-review-status",
-            "PR Review / Status",
-            "pr-review / Status",
-            "PR Review / Claude",
-            "pr-review / Claude",
-            "PR Review / Publish Review",
-            "pr-review / Publish Review",
-        ),
-    ),
-    "claude-security-review": (
-        ".github/workflows/pr-review-security-hosted.yml",
-        (
-            "PR Review Security / review-status",
-            "pr-review-security / review-status",
-            "PR Review Security / security-review",
-            "pr-review-security / security-review",
-            "PR Review Security / Status",
-            "pr-review-security / Status",
-            "PR Review Security / Claude",
-            "pr-review-security / Claude",
-            "PR Review Security / Publish Review",
-            "pr-review-security / Publish Review",
-        ),
-    ),
+    lane: (caller, status)
+    for lane, (caller, status, _) in settings.load().review_lane_checks.items()
 }
 
 
@@ -178,7 +142,7 @@ def main_review_name(lane: str, pr: int, tree: str) -> str:
 WORKFLOW_PATH_RE = re.compile(r"^\.github/workflows/([a-z0-9][a-z0-9_-]*)\.yml$")
 # The review callers stay lane sources whatever their content: the head's copy
 # runs the review itself.
-REVIEW_CALLERS = frozenset(path for path, _ in LANES.values())
+REVIEW_CALLERS = frozenset(path for path, _ in LANES.values() if path)
 WORKFLOW_KEYS = frozenset(
     {"name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"}
 )
@@ -828,9 +792,8 @@ WORKFLOW_NAME_WORDS = {
 
 def workflow_display_name(stem: str) -> str:
     """A lowercase file stem's workflow `name:`: hyphens to spaces, Title
-    Case, listed words as `WORKFLOW_NAME_WORDS` spells them, the rule
-    melodic-software/standards' github-actions-conventions naming lint
-    enforces on this repository's workflow files."""
+    Case, listed words as `WORKFLOW_NAME_WORDS` spells them, the rule a
+    workflow naming lint can enforce on a repository's workflow files."""
     return " ".join(
         WORKFLOW_NAME_WORDS.get(word, word.capitalize()) for word in stem.split("-")
     )

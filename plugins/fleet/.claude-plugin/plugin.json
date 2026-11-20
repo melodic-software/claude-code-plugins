@@ -5,8 +5,15 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.4.3",
+  "version": "0.5.0",
   "license": "MIT",
+  "userConfig": {
+    "converge_docs_url": {
+      "type": "string",
+      "title": "Lane converge docs URL",
+      "description": "URL of your own documentation for the fleet-converge command, which reach names when converging a lane comes up. Unset: reach names the command with no link."
+    }
+  },
   "keywords": [
     "fleet",
     "cross-machine",

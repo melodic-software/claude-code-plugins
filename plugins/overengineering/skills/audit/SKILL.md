@@ -1,6 +1,6 @@
 ---
 description: "Audits a repository's existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) and reports which mechanisms no longer earn their keep; security-class items cap at flag-for-human. Read-only. Use when the user asks whether their CI, hooks or gates are overengineered or still earn their keep. Not for proposing new automation."
-argument-hint: "[--unattended] [--medium <value>] [layer ...]"
+argument-hint: "[--unattended] [--medium <value>] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-**Arguments.** `[--unattended] [--medium <value>] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all). `--medium` governs only the rendered-view offer ([report-template.md](context/report-template.md), Layer 3).
+**Arguments.** `[--unattended] [--medium <value>] [layer ...] [--repo <repo> ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all). `--medium` governs only the rendered-view offer ([report-template.md](context/report-template.md), Layer 3).
 
 ## Repository context. Gather first
 
@@ -21,8 +21,8 @@ Treat a failure (not a repository, git unavailable) as an unknown value and carr
 
 ## Purpose
 
-Walk the enforcement surface that governs work in this repository and report which mechanisms still
-earn their carry cost. Every incumbent is a retirement candidate until evidence earns its keep, and
+Walk the enforcement surface that governs work in this repository, or in each repository a target
+form names ("Over several repositories"), and report which mechanisms still earn their carry cost. Every incumbent is a retirement candidate until evidence earns its keep, and
 silence is not evidence in either direction.
 
 Which automation is missing is `/harness-config:audit-automation-gaps`'s question. Route a gap that
@@ -88,8 +88,39 @@ Parse `$ARGUMENTS`, after taking out `--unattended` wherever it appears:
   `OPEN-INTENT`, ask nothing, guess nothing. **Attended is the default**; the caller passes the flag,
   and the mode is never inferred. The bare word `unattended` is not this flag and not a focus hint:
   stop and name `--unattended`.
+- **A target form** (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request
+  in words) with its value: selects several repositories ("Over several repositories").
 - Anything else is a free-text focus hint (a path, a mechanism name). It narrows attention, not the
   layer scope; a hint that matches nothing is reported.
+
+## Over several repositories
+
+With no target form, the run walks this checkout, as it always has. A target form selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs this
+whole skill, "Before the walk" through "The report", with its root anchored, under the same layer
+scope, `--unattended` and focus hint. What differs here:
+
+- **Config and evidence per repository.** The branch and shallow-clone calls, the consumer's
+  `.claude/overengineering.md`, the evidence-availability probes and every forge control (branch
+  protection, forge apps) belong to that repository: its origin `owner/name`, never this checkout's.
+- **One findings artifact per repository.** The artifact is the findings-file state that
+  "Writes stay per repository" there keeps per repository, so its home is composed under that
+  repository's own memory root, with the self-ignore guard checked there. Those two untracked,
+  self-ignored files are the only things written into another repository; no tracked file changes
+  anywhere. A repository read at `origin/HEAD` takes its branch identity from the default branch
+  that ref names (`git -C <root> symbolic-ref --quiet --short refs/remotes/origin/HEAD`, with the
+  leading `origin/` removed). When that does not resolve, that repository writes nothing; the
+  environment's logical ref ("A detached checkout has no branch identity") applies to this checkout
+  only, never to another repository. The opening line names each repository's resolved path, or
+  that it writes none.
+- **A gate duplicated in several repositories' CI is one merged row** in the report, listing each
+  repository, and its candidate remediation is a move to one shared workflow that each repository
+  references, owned per §12. Each repository's artifact still holds its own finding. Route it as
+  "Neighbor routing" says.
+- **Executing a finding stays per repository**: `/overengineering:realign` runs in that
+  repository's own session, against its own artifact.
 
 ## Before the walk
 
@@ -140,7 +171,7 @@ marked unverified.
 
 An existing check is held to the enforcement ladder's guardrail criterion: read
 [the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md#guardrail-criterion)
-live. **Recheck trigger**: the ladder's major version changes.
+live.
 
 Protected items are audited in full: §7 caps the recommendation, not the scrutiny, and uncertain
 protection status counts as protected. A threshold that fires is cited with its source and its
@@ -169,6 +200,7 @@ Record the route and the presence answer in the finding's `Routed-to`.
 | An agent-layer standing-instruction ablation the evidence cannot settle | `harness-config:unhobble` | Route the item to §8's bounded ablation batch at rung 1 of §11, with the observation window and its end date recorded |
 | The operator asks what to *add* rather than retire | `harness-config:audit-automation-gaps` | Say prospective additions are outside this skill's contract, and record no finding for them |
 | A plugin component that does not do what its manifest or description says | `plugin-quality:audit` | Report an ordinary liveness finding (§3) on the component and stop there |
+| A gate duplicated in several repositories' CI (target-form runs only) | `coupling:reduce dry-run` with the same target forms, which owns the byte-level copy measure (`target-scope.md` "Cross-repository signals"). Name it, never run it: it writes its own ledger | Keep the merged row on this walk's reading of each repository's CI, and record that the byte-level copy measure was not taken |
 
 ## Incumbent-first
 

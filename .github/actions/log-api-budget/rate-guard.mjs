@@ -66,13 +66,33 @@ const MAX_RESET = 999_999_999_999;
  *   GH_READ_JOB_SECONDS less GH_READ_MARGIN_SECONDS.
  * - `rerunCiStatus`: pr-dispatch-feedback.yml's rerun-ci-status find step,
  *   its POLL_LIMIT_SECONDS.
+ * - `rerunCiStatusRate`: that step's rate-limit waits, counted with the
+ *   poll's, its RATE_WAIT_SECONDS. The job's timeout-minutes holds it, and
+ *   the reconciler's PENDING_BACKOFF_MINUTES holds the timeout, so no
+ *   recovery waits longer.
  * - `workResolveIssue`: work-resolve-issue's steps after the model ran, whose
  *   failure drops finished work: the `rate-limit-wait-seconds` it passes
  *   pr-run-activity-read.yml and pr-run-activity-write.yml, which caps the
  *   leak scan's wait, and its jobs' API_BUDGET_WAIT_SECONDS. It is
  *   waitBudgetMs's cap.
+ * - `mergeGroup`: one merge-group run's waits for a pool's reset, together.
+ *   check-plugins' read of the queued pull request waits first, up to all of
+ *   it (QUEUED_PR_WAIT_SECONDS), before the bump, fragment, release and
+ *   vendor gates refuse and eject the group; ci-status's verdict reader,
+ *   whose job needs check-plugins, waits only what that left
+ *   (MERGE_GROUP_WAIT_SECONDS less the job's queued-pr-waited output, as
+ *   BABYSIT_READ_FLOOR_WAIT_SECONDS) for a reset after a read it did not send
+ *   below the read floor, then judges again (owner decision D417), and with
+ *   nothing left its refusal stands. Each job's timeout-minutes holds the
+ *   whole wait, on top of check-plugins' 9 and ci-status's
+ *   GH_READ_JOB_SECONDS. The merge queue's check_response_timeout_minutes,
+ *   30 (https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch),
+ *   must hold the wait and the run's work. ci-status starts after the slowest
+ *   lane, so a reader's wait adds to the whole run: the longest of 100 recent
+ *   merge-group runs took 1,002 s (ci-status from 303 s, for 696 s), so 10
+ *   minutes of waiting leaves about 3 to spare.
  */
-export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, workResolveIssue: 1200 });
+export const WAIT_BUDGET_SECONDS = Object.freeze({ step: 60, ciStatusReads: 765, rerunCiStatus: 600, rerunCiStatusRate: 720, workResolveIssue: 1200, mergeGroup: 600 });
 
 export const SERVER_RETRY_BUDGET_MS = WAIT_BUDGET_SECONDS.step * 1000;
 
@@ -94,7 +114,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // (rate-guard.test.mjs holds the two equal).
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21 },
+  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,
@@ -109,7 +129,7 @@ const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // optional, the share of the header's limit left at which the latch stops;
 // start-gate, optional, check-kill-switch's share under which a lane does not
 // start, which that gate reads from rate-limits.json alone.
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT };
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT, "defer-project": SHARE, "defer-run-minutes": COUNT, "defer-run-minutes-pr-merge": COUNT };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 // Fields rate-limits.json holds that pr-pipeline.yaml's limits.api cannot set
 // (its schema rejects them): their one reader takes the file's value alone.
@@ -220,28 +240,14 @@ export function readingLine(status, headers, route = "other") {
   return `${status} ${values.join(" ")} ${routeOk(route) ? route : "other"}\n`;
 }
 
-// The GitHub REST path words a route, or a lane run report's failure row
-// (lane-run-report/post.mjs), may show; any other segment could be a name, a
-// path or planted text. api-budget.bash's API_BUDGET_ROUTE carries the same
-// list (log-api-budget.test.mjs checks).
 export const REST_PATH_WORDS = new Set(
   "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
 );
 export const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
-// Whether a route has only path words and placeholders: what each writer and
-// the job-end notice keep.
+const WORKFLOW_FILE = /^[a-z0-9][a-z0-9_-]*\.ya?ml$/;
 export const routeOk = (route) =>
-  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg)));
+  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg, i, all) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg) || (all[i - 1] === "workflows" && WORKFLOW_FILE.test(seg))));
 
-// A request's URL as a route that holds no query, name or token, for the
-// job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
-// A URL on a host other than api.github.com and uploads.github.com is other,
-// unless its path starts with /api/ (GHES); scheme, host, /api/v3,
-// query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
-// repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
-// segment after one that names a thing (labels/<name>) and every segment after
-// one that starts a path or ref (contents/<path>) is {x} unless a number; a
-// REST path word stays; any other segment is {x}.
 const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|trees)$/;
 const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/;
 export function routeOf(url) {
@@ -266,10 +272,14 @@ export function routeOf(url) {
   const out = [];
   let tail = false;
   let name = false;
+  let file = -1;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const placeholder = /^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : null;
-    if (tail || name) {
+    if (name && !tail && segments[i - 1] === "workflows" && WORKFLOW_FILE.test(seg)) {
+      file = out.push(seg) - 1;
+      name = false;
+    } else if (tail || name) {
       out.push(placeholder ?? "{x}");
       name = false;
     } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
@@ -284,6 +294,9 @@ export function routeOf(url) {
     } else {
       out.push("{x}");
     }
+  }
+  if (file >= 0 && out.join("/").length > 80) {
+    out[file] = "{x}";
   }
   const route = out.join("/");
   return route.length > 80 ? "other" : route;
@@ -494,7 +507,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   }
   const nowSeconds = Math.floor(now / 1000);
   const candidates = [
-    retryAfter !== null ? [nowSeconds + retryAfter, "retry-after"] : null,
+    retryAfter !== null ? [retryAfter > 0 ? Math.ceil(now / 1000) + retryAfter : nowSeconds, "retry-after"] : null,
     (remaining === 0 || floored) && reset !== null ? [reset, "x-ratelimit-reset"] : null,
   ].filter(Boolean);
   const best = candidates.length ? candidates.reduce((top, next) => (next[0] > top[0] ? next : top)) : null;
@@ -723,7 +736,7 @@ export function createRateLimitLatch({
   // Whether a call to url would wait out its pool's stop rather than be refused.
   const waits = (url) => {
     const reset = resetMs(url);
-    return reset !== null && waited + reset <= budgetMs;
+    return reset !== null && waited + reset < budgetMs + 1000;
   };
 
   async function waitOut(url, method, wait = sleep) {

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-prompting-postures"
+          }
+        }
+      ],
+      "why": "loads the audited skill only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "confirm before purge-builds deletes build/ and dist/"
+          }
+        }
+      ],
+      "why": "runs codify instead of naming the call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify"
+          }
+        }
+      ],
+      "why": "runs codify by its short name"
+    }
+  ]
+}

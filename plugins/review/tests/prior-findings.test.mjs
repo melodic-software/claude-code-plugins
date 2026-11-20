@@ -21,6 +21,9 @@ import {
   touchesOriginal,
 } from "../lib/prior-findings.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const LANE = "claude-security-review";
 // github-actions[bot]'s numeric id; GraphQL reports its login without "[bot]".
 const BOT = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };

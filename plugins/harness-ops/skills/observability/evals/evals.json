@@ -78,7 +78,7 @@
       "id": 7,
       "name": "usage-per-work-item",
       "prompt": "/harness-ops:observability items --session-map dispatch-map.tsv  (how much did each issue the lanes worked take?)",
-      "expected_output": "Runs the items action read-only: tokens by type and turns (user_prompt events) per autonomy.work_item.url, with cloud sessions joined to their item through the ccr.session.id map built from the store and the given file, and each item's cloud sessions listed. A cloud session the map ties to two items stays unattributed and is named. No price, cost figure or currency appears. When the store is absent or a token metric is not delta, it reports that it cannot evaluate instead of inventing numbers.",
+      "expected_output": "Runs the items action read-only: tokens by type and turns (user_prompt events, less mid-turn messages) per autonomy.work_item.url, with cloud sessions joined to their item through the ccr.session.id map built from the store and the given file, and each item's cloud sessions listed. A cloud session the map ties to two items stays unattributed and is named. No price, cost figure or currency appears. When the store is absent or a token metric is not delta, it reports that it cannot evaluate instead of inventing numbers.",
       "files": [],
       "expectations": [
         "The response runs or describes the items action rather than a scope report",

@@ -6,6 +6,7 @@ plugins/corrections/tools/findings-buffer/vendor/gitleaks/gitleaks-rules.json:aw
 plugins/explainer-video/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/source-control/tools/reviewer-media/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/speech/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+plugins/evals/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
 plugins/harness-ops/evals/ai-never-reads-secrets-no-delete/scaffold.sh:generic-api-key:7

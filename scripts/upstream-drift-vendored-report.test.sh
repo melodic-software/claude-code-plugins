@@ -143,6 +143,10 @@ run_sut "$TMP/t-env"
 expect_code "env: exit 0" 0
 expect_eq "env: no token reaches a row" "$(cat "$TMP/token-seen" 2>/dev/null)" "unset:unset"
 expect_eq "env: the table's argument is passed" "$(cat "$TMP/args-seen" 2>/dev/null)" "--check|"
+table "$TMP/t-mark" "acme/args|$S/args.sh|--check|files-only"
+run_sut "$TMP/t-mark"
+expect_code "files-only: exit 0" 0
+expect_eq "files-only: the mark never reaches the script's arguments" "$(cat "$TMP/args-seen" 2>/dev/null)" "--check|"
 
 # --- a table that cannot be finished (D16) ---------------------------------
 table "$TMP/t-bad" "acme/clean|$S/clean.sh|" "not an id|$S/drift.sh|"

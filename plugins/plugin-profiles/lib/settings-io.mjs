@@ -24,7 +24,7 @@ export class SettingsConflict extends Error {}
 const ABSENT = "absent";
 const KEYS = ["enabledPlugins", "skillOverrides", "env"];
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-const hashOf = (text) => (text === null ? ABSENT : createHash("sha256").update(text).digest("hex"));
+export const hashOf = (text) => (text === null ? ABSENT : createHash("sha256").update(text).digest("hex"));
 
 /** local is the folder file lib/folder-file.mjs resolves; earlier is the folder's own file when that differs, which Claude Code still reads below local. */
 export function settingsPaths({ configDir, projectDir, home }) {

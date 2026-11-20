@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"every script under scripts/ starts with set -euo pipefail\"`\nMECHANISM: none",
+      "why": "the WARN item 2 gives"
+    },
+    {
+      "answer": "**C8:** WARN (judgment candidate)\nMOVE: a pre-commit hook\nMECHANISM: pre-commit hook",
+      "why": "bold label; the move wording is another grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C8: none\nMOVE: nowhere, it stays prose\nMECHANISM: none",
+      "why": "no WARN for a line a machine could check"
+    }
+  ]
+}

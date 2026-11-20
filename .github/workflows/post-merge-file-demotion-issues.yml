@@ -146,6 +146,11 @@ on:
 
 permissions: {}
 
+env:
+  # The legacy FAILs file the verdict reader takes from the default branch:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
+
 jobs:
   file-demotion-issue:
     name: File Demotion Issue
@@ -238,6 +243,11 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       # A workflow_run event's fields pass through as they are. A dispatch's
       # run id is read back from the API, as attempt 1 of the run: accepted
@@ -1588,6 +1598,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Close the records main cleared
         env:

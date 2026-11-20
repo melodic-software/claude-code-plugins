@@ -3,6 +3,21 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.0] - 2026-11-20
+
+### Added
+
+- `/architecture:improve-layout`, the `boundaries` lens of `/architecture:improve`, `/architecture:enforce-boundaries` and `/architecture:record-decision audit` accept the target-scope contract's forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`) through `reference/target-scope.md`. Each repository gets its own pass with its root anchored, findings carry their repository and merge on one scale, and each repository keeps its own candidate artifact, graph, findings file, plan, consent and pull request. A decision recorded in several repositories is proposed as one record the others point at. With no target form, each skill behaves as before.
+
+## [5.5.5] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
 ## [5.5.4] - 2026-11-19
 
 ### Changed

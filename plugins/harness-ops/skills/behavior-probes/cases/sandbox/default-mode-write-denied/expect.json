@@ -1,0 +1,15 @@
+{
+  "claim": "On Linux with sandbox.enabled alone, a sandboxed Bash write goes through the normal permission flow, so in default mode under claude -p it is denied as needing approval.",
+  "tags": ["sandbox", "autoAllowBashIfSandboxed"],
+  "docs": ["https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed"],
+  "permission_mode": "default",
+  "platforms": ["linux"],
+  "requires": ["bwrap", "socat"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "sbx-probe",
+    "example": { "command": "touch sbx-probe.txt && echo sandbox-write-ok" }
+  },
+  "outcome": "deny",
+  "control": "sandbox/default-mode-write-autoallow-runs"
+}

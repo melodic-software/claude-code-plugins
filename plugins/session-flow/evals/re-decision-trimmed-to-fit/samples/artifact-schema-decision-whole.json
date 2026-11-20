@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Decisions in force\n\n- [D4] A ledger schema question goes to the data owners as a comment on the schema issue, and no schema change is written until their answer is copied verbatim into docs/schema-answers.md; it is never settled inside a pull request.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Decisions in force\n\n- [D4] Schema questions go to the data owners.\n",
+      "why": "route kept, the wait and the no-PR clause cut"
+    },
+    {
+      "handoff": "## Decisions in force\n\n- [D4] Copy the data owners' answer into docs/schema-answers.md.\n",
+      "why": "half: no ban on settling it in a pull request"
+    }
+  ]
+}

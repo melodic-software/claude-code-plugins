@@ -284,11 +284,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The animation plugin's hash-locked Python packages (numpy, opencv). Nothing is vendored:
-  # the SessionStart hook installs requirements.txt on demand
-  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
+  # CI installs both locks in one pip call, so numpy moves in both at once (group-by, in
+  # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference).
   - package-ecosystem: pip
-    directory: /plugins/animation
+    directories:
+      - /plugins/animation
+      - /plugins/playwright/skills/demo-video
     labels:
       - dependencies
     schedule:
@@ -297,6 +298,10 @@ updates:
     cooldown:
       default-days: 3
     groups:
+      numpy:
+        group-by: dependency-name
+        patterns:
+          - "numpy"
       pip-minor-patch:
         patterns:
           - "*"
@@ -346,24 +351,6 @@ updates:
   # The speech plugin's hash-locked Python packages (numpy, onnxruntime), installed the same way.
   - package-ecosystem: pip
     directory: /plugins/speech
-    labels:
-      - dependencies
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 3
-    groups:
-      pip-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-  # The playwright demo-video skill's hash-locked Python packages
-  # (numpy, Pillow), installed the same way.
-  - package-ecosystem: pip
-    directory: /plugins/playwright/skills/demo-video
     labels:
       - dependencies
     schedule:

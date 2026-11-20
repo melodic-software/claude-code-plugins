@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of tracked markdown for nine noise shapes, like historical citations, ghost refs, why-this-file-exists preambles, tracker back-references, and conversational residue, tiered by treatment. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'strip conversational residue from a doc', 'find negations without a positive', 'sweep a rule/skill/convention doc for noise'. Code comments: /code-tidying:remove-comments audit."
-argument-hint: "[audit] [target] [--persist-findings]"
+argument-hint: "[audit] [target] [--persist-findings] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git branch --show-current:*)", "Bash(git rev-parse --show-toplevel:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
@@ -88,11 +88,22 @@ One action; the author's hand-edits from audit output cover the sweep workflow.
 **`--persist-findings`** (off by default) additionally writes the run's `negation` findings as a
 `type: review-findings` file for `review:fanout`'s `fix` relay, per
 [context/persist-findings.md](context/persist-findings.md), which owns every mechanic (destination
-resolution, the fetch-and-refuse gate, the self-ignore guard, which findings enter the file, and
+resolution, the read-and-refuse gate, the self-ignore guard, which findings enter the file, and
 what each cell says). A bare invocation reports and stops. `negation` is the only shape with a
 severity-crosswalk row; every other shape `audit_noise_detect_shapes_into` in
 [`scripts/lib/noise-shapes.sh`](scripts/lib/noise-shapes.sh) appends stays in the human report and
 is counted as declined.
+
+**Several repositories.** A target form (`--repo <repo>` and the others) runs the action once per
+repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several
+repositories". With no path, each repository's corpus is rule 1's below, minus the offer. Under
+`--persist-findings`, each repository gets its own findings file, resolved and guarded in that
+repository's memory slice under the clone's own root (`git -C <clone root>`), never under a
+scratch worktree the pass ran in, which is removed after the pass. Call `emit-findings.sh` with
+`--out` set to that path and `--branch` set to the branch the pass read (`origin/HEAD`'s, unless
+it is the session's own checkout): a detached scratch worktree has no current branch, so the
+script's default refuses to write.
 
 ## Auto-detect default
 

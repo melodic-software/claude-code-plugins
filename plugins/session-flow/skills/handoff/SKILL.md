@@ -170,7 +170,9 @@ instruction file holds them, one direction-change line per change (structure doc
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
 history. `new` carries the rest off disk, and the skeleton's slots say how each carried entry
 changes. After a shape-2 predecessor, state the rules still in force under Current rules from the
-hop file, never from memory. A rule or preference leaves the hot file only when retired or
+hop file, never from memory. A security or design decision is tagged after its id and ends
+with `buys:`, `surface:` and `cost:`; `validate` fails a tagged entry missing one, and the next
+session re-checks the decision against the three before building on it. A rule or preference leaves the hot file only when retired or
 promoted, through the `retire` list with its reason, never to meet the size cap.
 
 Carrying a rule forward re-checks any refusal or owner reservation it records against the

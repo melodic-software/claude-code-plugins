@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Remaining actions, in order\n\n1. Fix test_backoff_cap on PR #4460 (delay ignores CAP_SECONDS).\n2. Merge PR #4460 once green.\n",
+      "why": "failure carried"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Remaining actions, in order\n\n1. Merge PR #4460 once ci-status is green.\n",
+      "why": "stale pre-amend state"
+    },
+    {
+      "handoff": "## Remaining actions, in order\n\n1. Fix the failing CI on PR #4460.\n",
+      "why": "names no test"
+    }
+  ]
+}

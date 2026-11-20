@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # assert-gate-agrees.sh: the "Assert the gate and the resolver agree" step
-# that pr-verify.yml, pr-verify-capture.yml and pr-rate-merge-risk.yml each run
 # after the resolver: fails when the trigger gate and resolve-pr.mjs name
 # different pull requests or heads. Run with bash from the workspace root,
 # with GATE_PR, GATE_HEAD, PR_NUMBER and HEAD_SHA from the step env. errexit

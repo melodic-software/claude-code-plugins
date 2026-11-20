@@ -426,9 +426,10 @@ def _send_once(
         and os.environ.get(READ_FLOOR_STOP_ENV) == "1"
         and low_headroom(limits_pool)
     ):
+        _floored[limits_pool] = _headroom_reset.get(limits_pool)
         raise ReadsFloored(
             f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
-            "is below its read-floor share"
+            f"{READ_FLOOR_REFUSAL}"
         )
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
@@ -587,6 +588,7 @@ class WritesPaused(RuntimeError):
 # (`low_headroom`), so a process that no estimate bounds, such as ci-status's
 # verdict reader, never spends the floor. Unset, only report-only reads skip.
 READ_FLOOR_STOP_ENV = "BABYSIT_READ_FLOOR_STOP"
+READ_FLOOR_REFUSAL = "is below its read-floor share"
 
 
 class ReadsFloored(RuntimeError):
@@ -595,8 +597,39 @@ class ReadsFloored(RuntimeError):
     read that failed and the caller fails closed."""
 
 
+# Whole seconds a caller of a process under `READ_FLOOR_STOP_ENV` may wait for
+# a floored pool's reset before it judges again (`read_floor_refusals`), as
+# ci-status's verdict reader does: the job passes rate-guard.mjs's
+# WAIT_BUDGET_SECONDS.ciStatusVerify, which rate-guard.test.mjs pins
+# (https://github.com/melodic-software/claude-code-plugins/issues/16642).
+READ_FLOOR_WAIT_ENV = "BABYSIT_READ_FLOOR_WAIT_SECONDS"
+
+
+def read_floor_wait_seconds() -> int:
+    """`READ_FLOOR_WAIT_ENV` as whole seconds; 0 when unset or not one."""
+    value = os.environ.get(READ_FLOOR_WAIT_ENV, "")
+    return int(value) if re.fullmatch(r"[0-9]{1,5}", value) else 0
+
+
+def read_floor_refusals() -> dict[str, int | None]:
+    """Each pool a read was refused for below its read floor, with the reset
+    its last reading named (None when it named none)."""
+    return dict(_floored)
+
+
+def forget_read_floor(pools: Iterable[str]) -> None:
+    """Drop the readings and refusals of `pools`, once their reset has passed:
+    the next read goes out and reads the pool again."""
+    for pool in pools:
+        _headroom.pop(pool, None)
+        _headroom_reset.pop(pool, None)
+        _floored.pop(pool, None)
+
+
 _tripped: dict[str, RateLimitExhausted] = {}
 _headroom: dict[str, tuple[int, int]] = {}
+_headroom_reset: dict[str, int] = {}
+_floored: dict[str, int | None] = {}
 _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
 # The job's stop file, read once before the first call; None until then.
@@ -622,6 +655,8 @@ def reset_rate_guard() -> None:
     _read_retries_sent = 0
     _tripped.clear()
     _headroom.clear()
+    _headroom_reset.clear()
+    _floored.clear()
     _limits.clear()
     _trip_reported = False
     _job_stops = None
@@ -1047,6 +1082,11 @@ def _guard_response(
     resource = headers.get("x-ratelimit-resource")
     if remaining is not None and limit and resource in (None, "core", "graphql"):
         _headroom[limits_pool] = (remaining, limit)
+        reset = _int_header(headers, "x-ratelimit-reset")
+        if reset is None:
+            _headroom_reset.pop(limits_pool, None)
+        else:
+            _headroom_reset[limits_pool] = reset
     if not reading["latched"]:
         return
     server = server_error_hold(status=status, headers=headers, body=body)
@@ -1292,16 +1332,6 @@ def _api_budget_trace(token: str, stderr: str) -> str:
     return text + "\n" if text and stderr.endswith("\n") else text
 
 
-# A reading's route, for the job-end api-routes notice: rate-guard.mjs's
-# routeOf, whose REST_PATH_WORDS this list is (test_babysit_gh_api_budget.py
-# checks both against rate-guard.vectors.json's routes). A URL on a host other
-# than api.github.com and uploads.github.com is other, unless its path starts
-# with /api/ (GHES); scheme, host, /api/v3, query and fragment go; a GraphQL
-# path is graphql; repos/<owner>/<repo> is repos/{repo}; a number is {n}; hex
-# of 7 or more characters {sha}; the segment after one that names a thing
-# (labels/<name>) and every segment after one that starts a path or ref
-# (contents/<path>) is {x} unless a number; a REST path word stays; any other
-# segment is {x}; a route over 80 characters is other.
 REST_PATH_WORDS = frozenset(
     "api v3 repos orgs users user installation app graphql pulls issues comments"
     " reviews requested_reviewers git refs ref heads tags trees blobs commits"
@@ -1326,11 +1356,14 @@ _ROUTE_URL = re.compile(r"([a-z][a-z0-9+.-]*://)([^/?#]*)([^?#]*)", re.IGNORECAS
 _ROUTE_API_HOST = re.compile(r"(api|uploads)\.github\.com", re.IGNORECASE)
 _ROUTE_NUMBER = re.compile(r"[0-9]+")
 _ROUTE_SHA = re.compile(r"[0-9a-fA-F]{7,}")
+_ROUTE_WORKFLOW_FILE = re.compile(r"[a-z0-9][a-z0-9_-]*\.ya?ml")
 
 
 def api_route(url: str) -> str:
     """A request's URL or `gh api` path as a route that holds no query, name
-    or token (the rules above)."""
+    or token. Twin of rate-guard.mjs `routeOf` and api-budget.bash
+    `API_BUDGET_ROUTE`: change all of them together; rate-guard.vectors.json
+    holds the rules, and test_babysit_gh_api_budget.py checks this against it."""
     url = str(url)
     host = _ROUTE_URL.match(url)
     if host:
@@ -1346,10 +1379,20 @@ def api_route(url: str) -> str:
     segments = path.split("/")
     out: list[str] = []
     tail = name = False
+    file = -1
     index = 0
     while index < len(segments):
         seg = segments[index]
-        if tail or name:
+        if (
+            name
+            and not tail
+            and segments[index - 1] == "workflows"
+            and _ROUTE_WORKFLOW_FILE.fullmatch(seg)
+        ):
+            file = len(out)
+            out.append(seg)
+            name = False
+        elif tail or name:
             out.append(
                 "{n}"
                 if _ROUTE_NUMBER.fullmatch(seg)
@@ -1372,6 +1415,8 @@ def api_route(url: str) -> str:
         else:
             out.append("{x}")
         index += 1
+    if file >= 0 and len("/".join(out)) > 80:
+        out[file] = "{x}"
     route = "/".join(out)
     return "other" if len(route) > 80 else route
 
@@ -3063,6 +3108,8 @@ def collect_lane_runs(
         else ""
     )
     for path, job_names in lanes:
+        if not path or not job_names:
+            continue
         # The cache key carries one slash-free name: carry-run-cache.mjs keeps
         # only such a key.
         job_suffix = job_names[0].rsplit(" / ", 1)[-1]

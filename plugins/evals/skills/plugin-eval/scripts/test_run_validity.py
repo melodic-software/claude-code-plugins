@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/*
+# test-scope: plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/* plugins/evals/scripts/redact.py plugins/evals/vendor/gitleaks/*
 """Fixture suite for run-validity.py.
 
 fixtures/run-validity/ holds two result files trimmed from one real
@@ -35,6 +35,7 @@ import copy
 import importlib.util
 import json
 import ntpath
+import re
 import subprocess
 import sys
 import tempfile
@@ -126,8 +127,10 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
         self.assertIn(
             "verdict: INVALID (scaffold scripts unchecked in 4 cases; 3 permission"
-            " denials in the traces; the skill did not fire in 1 with-arm run of a"
-            " should-trigger case)",
+            " denials in the traces: Read"
+            " `/tmp/eval-r2/plugins/evals/skills/methodology/reference/grading.md` x2,"
+            " Read `/tmp/eval-r2/plugins/evals/skills/methodology/reference/success-criteria.md`;"
+            " the skill did not fire in 1 with-arm run of a should-trigger case)",
             proc.stdout,
         )
 
@@ -713,6 +716,105 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, without-arm run 1: jq command not found,"
             " first in `jq . f || true`", proc.stdout)
         self.assertIn("command not found in 1 run", proc.stdout.splitlines()[-1])
+
+    def with_skill(self, text, case_yaml=None):
+        """Give the suite a skill whose SKILL.md holds text, and measurable-criterion
+        a case.yaml holding case_yaml when given."""
+        skill = self.dir / "suite" / "skills" / "runner" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text(text, encoding="utf-8")
+        if case_yaml is not None:
+            path = self.dir / "suite" / "evals" / "measurable-criterion" / "case.yaml"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(case_yaml, encoding="utf-8")
+
+    def test_an_interpreter_the_skill_does_not_name_warns_and_lists_every_program(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("python.jsonl", [
+            (True, "Exit code 127\nbash: line 1: python: command not found", "python -m pytest"),
+            (True, "Exit code 127\nbash: line 1: uv: command not found", "uv run pytest"),
+            (True, "Exit code 127\nbash: line 1: python: command not found", "python x.py"),
+            (False, "2 passed", "python3 -m pytest"),
+        ])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check programs started: WARN (a command was not found in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: python command not found,"
+            " first in `python -m pytest`, not named by the case's skill; uv command not"
+            " found, first in `uv run pytest`, not named by the case's skill (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_an_unnamed_interpreter_zsh_printed_for_an_evald_line_warns(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("zsh-eval-python.jsonl", [
+            (True, "Exit code 127\n(eval):1: command not found: python", "python -m pytest"),
+        ])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: python command not found,"
+            " first in `python -m pytest`, not named by the case's skill (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_an_unnamed_interpreter_a_script_needed_later_in_the_run_still_fails(self):
+        self.with_skill("Run `python3 scripts/check.py` on the file.\n")
+        proc, trace = self.bash_trace("typed-then-script.jsonl", [
+            (True, "Exit code 127\nbash: line 1: node: command not found", "node -v"),
+            (True, "Exit code 127\n/tmp/p/lib/go.sh: line 2: node: command not found",
+             "bash /tmp/p/lib/go.sh"),
+        ])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: node command not found,"
+            " first in `node -v` (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_an_interpreter_the_skill_names_still_fails(self):
+        for skill, case_yaml in (
+            ("Run `node scripts/resolve.mjs` first.\n", None),
+            ("Read the file.\n",
+             'schema_version: "1.1"\nname: m\nallowed_tools:\n  - Read\n  - Bash(node:*)\n'),
+        ):
+            self.with_skill(skill, case_yaml)
+            proc, trace = self.bash_trace("named-node.jsonl", [
+                (True, "Exit code 127\nbash: line 1: node: command not found", "node x.mjs"),
+                (True, "bash: jq: command not found", "jq . f"),
+            ])
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: node command not found,"
+                " first in `node x.mjs`; jq command not found, first in `jq . f` (%s)" % trace,
+                proc.stdout, skill)
+
+    def test_an_unnamed_interpreter_a_script_needed_still_fails(self):
+        self.with_skill("Run `bash ${CLAUDE_PLUGIN_ROOT}/lib/go.sh` first.\n")
+        proc, trace = self.bash_trace("script-node.jsonl", [
+            (True, "Exit code 127\n/tmp/p/lib/go.sh: line 2: node: command not found",
+             "bash /tmp/p/lib/go.sh"),
+        ])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: node command not found,"
+            " first in `bash /tmp/p/lib/go.sh` (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_a_shim_error_fails_when_the_skill_does_not_name_the_program(self):
+        self.with_skill("Read the file.\n")
+        proc, _ = self.bash_trace(
+            "shim-unnamed.jsonl",
+            [(True, "mise ERROR node is not a valid shim", "node x.mjs")],
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check programs started: FAIL (a program failed to start in 1 run)",
+                      proc.stdout)
 
     def test_a_grep_quoting_the_failure_texts_passes_the_programs_check(self):
         quoted = ("157:  a mise shim error (`<name> is not a valid shim`), or\n"
@@ -1538,8 +1640,8 @@ class RunValidityTest(unittest.TestCase):
             "check permission denials: FAIL (2 denials in 2 runs", proc.stdout
         )
         self.assertIn(
-            "1 permission denial in the traces (warnings only, not counted:"
-            " case measurable-criterion)",
+            "1 permission denial in the traces: Grep `/tmp/claude-eval-x` (warnings"
+            " only, not counted: case measurable-criterion)",
             proc.stdout.splitlines()[-1],
         )
 
@@ -1710,7 +1812,10 @@ class RunValidityTest(unittest.TestCase):
             ("Read", {"file_path": "/etc/hosts"}),
         ])
         self.assertDenials(proc, "FAIL")
-        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn(
+            "verdict: INVALID (1 permission denial in the traces: Read `/etc/hosts`)",
+            proc.stdout,
+        )
         self.assertIn(
             "FAIL (3 denials in 1 run; 2 denials under the run's own plugin-data"
             " directory, not counted)",
@@ -1859,12 +1964,63 @@ class RunValidityTest(unittest.TestCase):
                       proc.stdout)
 
     def test_a_mixed_run_fails_counting_only_its_other_tool_results_denials(self):
+        settings = str(self.dir / "claude-eval-ab" / "config" / "settings.json")
         proc = self.denied_in_sandbox([
             ("Read", {"file_path": self.own_results("tool-results", "a.txt")}),
-            ("Read", {"file_path": str(self.dir / "claude-eval-ab" / "config" / "settings.json")}),
+            ("Read", {"file_path": settings}),
         ])
         self.assertDenials(proc, "FAIL")
-        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertIn(
+            "verdict: INVALID (1 permission denial in the traces: Read `%s`)"
+            % module.load_redactor().redact(settings),
+            proc.stdout,
+        )
+
+    WORKFLOW_BASH_RAN_GREP = re.compile(
+        r"bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*"
+        r"(, unknown [0-9]+)?)(, absent tool [0-9]+)?"
+    )
+
+    def test_the_verdict_names_each_counted_denial_redacted(self):
+        """The secret-shaped values and the home path are built at run time, so
+        no committed file holds one."""
+        home = "/".join(("", "home", "someone"))
+        pat = "ghp_" + "A1b2C3d4" * 4 + "E5f6"
+        bearer = "Bearer " + "x9Y8z7W6" * 3
+        proc = self.denied_in_sandbox([
+            ("Bash", {"command": "curl -H 'Authorization: %s' https://h" % bearer}),
+            ("Bash", {"command": "git push https://%s@github.com/o/r" % pat}),
+            ("Read", {"file_path": home + "/notes/x.md"}),
+            ("Bash", {"command": "echo a\n::error::b\techo `id`"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        lines = proc.stdout.splitlines()
+        verdict = lines[-1]
+        self.assertTrue(verdict.startswith("verdict: INVALID (4 permission denials in the traces: "))
+        self.assertRegex(lines[-2], r"\A%s\Z" % self.WORKFLOW_BASH_RAN_GREP.pattern)
+        self.assertNotIn(pat, verdict)
+        self.assertNotIn(bearer.split()[1], verdict)
+        self.assertIn("Bash `curl -H 'Authorization: Bearer <redacted:", verdict)
+        self.assertIn("Bash `git push https://<redacted:", verdict)
+        self.assertIn("Read `~/notes/x.md`", verdict)
+        self.assertIn("Bash `echo a ::error::b echo 'id'`", verdict)
+
+    def test_the_verdict_cuts_long_targets_and_caps_the_calls_named(self):
+        long = "echo " + "y" * 300
+        proc = self.denied_in_sandbox(
+            [("Bash", {"command": long})]
+            + [("Read", {"file_path": "/etc/f%d" % i}) for i in range(11)]
+            + [("Read", {"file_path": "/etc/f0"})]
+        )
+        self.assertDenials(proc, "FAIL")
+        verdict = proc.stdout.splitlines()[-1]
+        self.assertIn("Bash `%s...`," % long[:117], verdict)
+        self.assertIn("Read `/etc/f0` x2", verdict)
+        self.assertIn("Read `/etc/f8`, +2 more)", verdict)
+        self.assertNotIn("/etc/f9", verdict)
 
     def test_other_denials_near_tool_results_still_fail(self):
         sandbox = self.dir / "claude-eval-ab"
@@ -2386,10 +2542,10 @@ class RunValidityTest(unittest.TestCase):
     LACKED = "for the plugin a finished without-arm run lacks, not counted"
 
     def absent_search(self, tool, tool_input, plugin="markdown-format", arm="without",
-                      finished=True):
+                      finished=True, trace=None):
         """The clean result at one run per arm, suite.plugins naming plugin (a
         directory that does not exist, so its name is its basename), and
-        measurable-criterion's `arm` run traced by one denied tool call."""
+        measurable-criterion's `arm` run traced, at trace, by one denied tool call."""
         call = json.dumps(tool_input)
         lines = [
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill","Bash","Grep","Glob"]}',
@@ -2404,7 +2560,8 @@ class RunValidityTest(unittest.TestCase):
                 '{"type":"result","subtype":"success","is_error":false,"permission_denials":'
                 '[{"tool_name":"%s","tool_use_id":"s1","tool_input":%s}]}' % (tool, call)
             )
-        trace = self.dir / "absent-search.jsonl"
+        trace = trace or self.dir / "absent-search.jsonl"
+        trace.parent.mkdir(parents=True, exist_ok=True)
         trace.write_text("\n".join(lines) + "\n", encoding="utf-8")
         data = load(self.write(self.clean()))
         data["suite"]["plugins"] = [{"path": "/tmp/eval-nop/plugins/" + plugin}]
@@ -2471,6 +2628,57 @@ class RunValidityTest(unittest.TestCase):
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.LACKED, proc.stdout)
 
+    OWN_ROOT = "of a finished without-arm run's own eval root, not counted"
+
+    def root_search(self, tool, tool_input, **kwargs):
+        """absent_search with the trace at <eval root>/out/trace.jsonl, <root> in
+        each input value replaced by that eval root."""
+        root = self.dir / "claude-eval-Ab12Cd"
+        tool_input = {k: v.replace("<root>", str(root)) for k, v in tool_input.items()}
+        trace = root / "out" / "trace.jsonl"
+        return self.absent_search(tool, tool_input, trace=trace, **kwargs), root
+
+    def test_a_without_arm_search_of_its_own_eval_root_warns_and_names_the_call(self):
+        for tool, pattern in (("Glob", "**/SKILL.md"), ("Grep", "simulation")):
+            proc, root = self.root_search(tool, {"pattern": pattern, "path": "<root>"})
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied search " + self.OWN_ROOT, proc.stdout)
+            self.assertIn("Grep or Glob whose path is its own eval root", proc.stdout)
+            verdict = proc.stdout.strip().splitlines()[-1]
+            self.assertIn(
+                "own eval root searches excused: %s root `%s` pattern `%s`"
+                % (tool, root, pattern),
+                verdict,
+            )
+
+    def test_any_other_search_near_the_eval_root_still_fails(self):
+        for tool, tool_input in (
+            ("Glob", {"pattern": "**/*.md", "path": "<root>/config"}),
+            ("Glob", {"pattern": "**/*.md", "path": "<root>/.."}),
+            ("Grep", {"pattern": "x", "path": "<root>-other"}),
+            ("Grep", {"pattern": "x"}),
+            ("Grep", {"pattern": "x", "path": "claude-eval-Ab12Cd"}),
+            ("Glob", {"pattern": "../**/*.md", "path": "<root>"}),
+            ("Glob", {"pattern": "/etc/**", "path": "<root>"}),
+            ("Read", {"file_path": "<root>"}),
+            ("Bash", {"command": "grep -r x <root>"}),
+        ):
+            proc, _ = self.root_search(tool, tool_input)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.OWN_ROOT, proc.stdout)
+            self.assertNotIn("excused", proc.stdout)
+        glob ={"pattern": "**/*.md", "path": "<root>"}
+        for kwargs in ({"arm": "with"}, {"finished": False}):
+            proc, _ = self.root_search("Glob", glob, **kwargs)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.OWN_ROOT, proc.stdout)
+        proc = self.absent_search(
+            "Glob", {"pattern": "**/*.md", "path": str(self.dir)},
+            trace=self.dir / "trace.jsonl",
+        )
+        self.assertDenials(proc, "FAIL")
+        self.assertNotIn(self.OWN_ROOT, proc.stdout)
+
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(
@@ -2534,6 +2742,10 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, with-arm run 2: Bash network-outbound"
             " xtomd.com:443 (",
             proc.stdout,
+        )
+        self.assertIn(
+            "1 permission denial in the traces: Bash `network-outbound xtomd.com:443`",
+            proc.stdout.splitlines()[-1],
         )
 
     def test_a_without_arm_network_denial_leaves_the_check_unchanged(self):
@@ -3175,6 +3387,38 @@ class RunValidityTest(unittest.TestCase):
         listed = self.dir / "list.json"
         listed.write_text("[]", encoding="utf-8")
         self.assertEqual(self.run_script(listed, "--runs", "1").returncode, 2)
+
+
+class NamedCallsTest(unittest.TestCase):
+    """named_calls and load_redactor in process: the vendored redactor loads with
+    its rules, and with none it names the tools only."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def denial(self, tool, target):
+        return (None, None, tool, "id", (tool, json.dumps(target)), None)
+
+    def test_the_vendored_redactor_loads_its_rules(self):
+        redactor = self.module.load_redactor()
+        self.assertIsNotNone(redactor)
+        self.assertGreater(redactor.rule_count, 0)
+
+    def test_with_no_redactor_only_the_tools_are_named(self):
+        self.assertIsNone(self.module.load_redactor(str(HERE / "no-such-redact.py")))
+        found = [self.denial("Bash", "cat /etc/x"), self.denial("Read", "/etc/y"),
+                 self.denial("Read", "/etc/z")]
+        self.assertEqual(self.module.named_calls(found, None), "Bash, Read x2")
+
+    def test_a_target_that_is_not_text_is_named_as_json(self):
+        redactor = self.module.load_redactor()
+        found = [self.denial("mcp__x__y", {"b": 1, "a": [2]})]
+        self.assertEqual(
+            self.module.named_calls(found, redactor), 'mcp__x__y `{"a": [2], "b": 1}`'
+        )
 
 
 class WindowsPathTest(unittest.TestCase):

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Same task, heavy window: type `/compact keep step 2 and the average() helper`.",
+      "why": "compact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a handoff with /session-flow:handoff, then /clear.",
+      "why": "handoff"
+    },
+    {
+      "answer": "Plenty of room; just keep going in this session.",
+      "why": "continue"
+    }
+  ]
+}

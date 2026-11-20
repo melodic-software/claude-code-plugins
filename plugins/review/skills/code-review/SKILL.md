@@ -30,7 +30,6 @@ open pull request:
   its own triggers. Pointer: before telling anyone it is available or how it is enabled, fetch
   [availability](https://code.claude.com/docs/en/code-review#availability) and
   [set up](https://code.claude.com/docs/en/code-review#set-up-and-use-code-review) live.
-  Recheck trigger: it starts running in this lane's CI workflow.
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
   in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
 
@@ -176,7 +175,7 @@ record from the prompt's `loosened_check_verdict:`, `loosened_check_patterns:` a
 `fail` and no consumer entries, and say so in the summary. Without the decision-record line, ask for
 no citation and say in the summary that the citation requirement was not checked. The only spec is
 the closing-issue text in the PR context file ("Closing issue" above); with none, no loosening has
-a reason. Report its `Loosened-check verdict:` line in the summary.
+a reason. Report the criterion file's `Loosened checks would be marked:` line in the summary.
 
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:

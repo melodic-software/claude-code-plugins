@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\n**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches drop from 90 to 80. The spec (#41) names it and gives a reason but does not cite the owner's decision. Undo the lowering, or cite the owner's decision in the spec. Confidence: high\n\nCoverage: all changed files reviewed",
+      "answer": "Loosened checks would be marked: fail (default); patterns: 0\n\n**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches drop from 90 to 80. The spec (#41) names it and gives a reason but does not cite the owner's decision. Undo the lowering, or cite the owner's decision in the spec. Confidence: high\n\nCoverage: all changed files reviewed",
       "why": "flags the lowering at a blocking tier for the missing citation and asks for the undo or the citation"
     },
     {
@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "Loosened-check verdict: fail (default); patterns: 0\n\nThe spec (#41) names the lowering at jest.config.js:8 and gives the reason, so it passes the loosened-check criterion.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "answer": "Loosened checks would be marked: fail (default); patterns: 0\n\nThe spec (#41) names the lowering at jest.config.js:8 and gives the reason, so it passes the loosened-check criterion.\n\nNo findings.\n\nCoverage: all changed files reviewed",
       "why": "passes the lowering on a trusted reason with no citation"
     },
     {

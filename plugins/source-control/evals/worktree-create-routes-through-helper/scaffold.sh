@@ -11,7 +11,8 @@ mkdir -p src tools .claude
 printf 'export const me = () => null;\n' > src/app.ts
 printf 'export const other = 1;\n' > src/other.ts
 printf '# demo\n' > README.md
-printf '{"worktree":{"baseRef":"fresh"}}\n' > .claude/settings.json
+printf '{"worktree":{"baseRef":"fresh"},"permissions":{"deny":["Read(./.claude/settings.local.json)"]}}\n' > .claude/settings.json
+printf '{}\n' > .claude/settings.local.json
 git add src README.md .claude/settings.json
 git commit -q -m "chore: seed"
 

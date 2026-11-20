@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The release workflow sets it from the pushed tag; nobody edits it by hand in a PR or commit.",
+      "why": "full"
+    },
+    {
+      "answer": "Push the v1.8.0 tag and release.yml writes the version from it. Don't touch pyproject.toml's version.",
+      "why": "paraphrased, both parts"
+    },
+    {
+      "answer": "From the tag: scripts/set_version.py runs in the release workflow on the tag push, so the version in pyproject.toml is never bumped by hand.",
+      "why": "names the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bump it by hand in the release PR, alongside the release notes.",
+      "why": "the retired rule"
+    },
+    {
+      "answer": "Either bump it in the release PR or let the workflow set it from the tag.",
+      "why": "both ways as current"
+    },
+    {
+      "answer": "It is 1.7.2 right now.",
+      "why": "states the value, not how it is set"
+    }
+  ]
+}

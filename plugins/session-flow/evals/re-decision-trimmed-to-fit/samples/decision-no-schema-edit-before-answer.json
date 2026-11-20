@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "files": {
+        "ledger/schema.sql": "CREATE TABLE ledger_entries (\n  id BIGINT PRIMARY KEY,\n  account TEXT NOT NULL,\n  amount_cents BIGINT NOT NULL,\n  settled_at TIMESTAMP\n);\n"
+      },
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "files": {
+        "ledger/schema.sql": "CREATE TABLE ledger_entries (\n  id BIGINT PRIMARY KEY,\n  account TEXT NOT NULL,\n  amount_cents BIGINT NOT NULL,\n  settled_at TIMESTAMP,\n  settlement_region TEXT\n);\n"
+      },
+      "why": "column written before the answer"
+    }
+  ]
+}

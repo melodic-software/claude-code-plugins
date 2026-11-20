@@ -1,7 +1,8 @@
 # Posture catalog
 
 Fourteen postures. Each row: the applicability predicate (which component purposes it binds), what
-counts as present, and the guide pointer that owns the recommended wording. Pointers only.
+counts as present, and the guide pointer that owns the recommended wording; P7 also names who
+picks the mechanism a MISSING verdict proposes. Pointers only.
 Wording is fetched live per SKILL.md Phase A.
 
 Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
@@ -59,14 +60,11 @@ carries the Sonnet 5.5 condition.
   (P8) and
   [verification on coding tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks)
   (P13).
-- **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
-  covers self-started review rounds, which re-opens P12's model condition.
+- **Recheck trigger**: another model's subpage covers self-started review rounds, which re-opens
+  P12's model condition.
 
-That trigger fired on 2026-11-09 and P12's condition stands. The Fable 5.2 subpage reports Fable
-5.2 starting subagents to review its own work, at the effort levels the pointer below names, and
-prescribes no remedy for that observation. The section's general delegation advice, to review the
-lines that invite delegation and, if needed, the spawn tool's description, is P1's subject, and
-nothing in the section recommends a steer on where the run ends.
+That trigger fired on 2026-11-09 and P12's condition stands: we read the Fable 5.2 section below as
+P1's subject, delegation, and not as a steer on where the run ends.
 
 - **Pointer**: the Fable 5.2 subpage's
   [set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).
@@ -182,6 +180,14 @@ Classify each component by what its body has the model DO (multiple or none):
   delegates the destructive step to**, followed and read. The script gate is the easiest to miss,
   because nothing in the component's own text announces it. This is the only row whose presence
   evidence may live outside the inventory.
+- **Proposal when MISSING:** this row does not choose between a gate and a confirmation line.
+  When `/corrections:codify` is among the available skills, hand it the choice of mechanism; it
+  picks the strongest rung of the enforcement ladder that can decide the rule and proves the
+  check. The proposal names the call, `/corrections:codify "<the rule>"`, and never makes it.
+  Otherwise, propose the strongest mechanism that can decide the rule: a change that makes the
+  mistake impossible first, then a check that blocks it, then a test, and an instruction only when
+  nothing a machine runs can decide it. Say that `/corrections:codify` was not available, so the
+  proposal is unproven.
 - **Pointer:** main page, "Balancing autonomy and safety".
 
 ### P8: Context-budget reassurance

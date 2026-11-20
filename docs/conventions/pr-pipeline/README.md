@@ -17,6 +17,7 @@
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
 - [Write identities](#write-identities)
+- [Claude secrets](#claude-secrets)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -197,8 +198,8 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly five minutes after each lost-run reconciler tick, and on
-a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
+reconciler tick), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -283,7 +284,7 @@ each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep th
 such head as for its newest completed review run, under three such skips at that head, and
 sends up to five rounds a tick (`SWEEP_TICK_CAP`) once every decision is made, each PR at most
 once), and no `pr-unblock.yml` run titled
-`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+`PR Unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
@@ -389,8 +390,12 @@ Q677). [The outage posture audit](../../outage-posture-audit.md) records each la
    unknown under element 2 instead of a sleep. The exception is work-resolve-issue's steps after
    the model ran: their budget, `WAIT_BUDGET_SECONDS.workResolveIssue` in
    `.github/actions/log-api-budget/rate-guard.mjs`, waits out a reset that comes
-   within it, inside raised timeouts, since failing there drops finished work (#16642).
-   Non-idempotent writes are never retried.
+   within it, inside raised timeouts, since failing there drops finished work (#16642). So do
+   a merge group's two waits, sharing `WAIT_BUDGET_SECONDS.mergeGroup` so that together they
+   stay inside the merge queue's check timeout: check-plugins' read of the queued pull request
+   first, since four gates refuse without it and eject the group, then ci-status's verdict
+   reader after a read it did not send below the read floor, for what the first left, before
+   it judges again (owner decision D417). Non-idempotent writes are never retried.
 2. **Unknown holds.** A failed read, or a 200 whose completeness check fails, makes the verdict
    unknown. The lane then holds, files nothing, merges nothing, and exits green with a notice.
 3. **Next tick probes.** The next existing cron tick is the probe. There is no stored breaker, no
@@ -518,7 +523,7 @@ too, and a failed read holds it), and no escalation since then names a reason of
 own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
 `feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
 `resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
-`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+`pr-refine.yml`'s `select-passes` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
 else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
 their `labels-absent`. `check-signed-commits`' escalation holds the PR too, even under a lane
 escalation: a `github-actions[bot]` comment whose first line is `<!-- check-signed-commits hold -->`,
@@ -712,7 +717,7 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+`fix-docs-head-held` job succeeded, which runs only when `select-passes` could not read the head
 or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for its next event.
 
@@ -1795,9 +1800,15 @@ the rules that only tighten in
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
   wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
   head last changed; the queue would eject it again on the same commits. A push resets the count.
-  At the cap, a removal whose merge-group run failed only `CI Status` (and its `ci-status` alias)
-  on a GitHub rate limit alone, by its failure annotations, is not counted once that limit has
-  reset; a removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
+  At the cap, a removal whose merge-group run failed on infra alone is not counted:
+  `merge.queue-ejection-infra-causes` (default every cause) names which. Every failed job's failure
+  annotations must name a cause (`rate-limit`, `read-floor`, `verify-unreadable`, `kill-switch`,
+  `lost-runner`), apart from lines that only report it, each line of an annotation judged alone;
+  outside `CI Status` a cause line must start as its producer writes it. Or the job, other than
+  `CI Status`, must have failed on main's run of that workflow at the time too, on every line it
+  failed with beyond the exit line, and there must be one (`main-red`). Every cause excuses a removal only once each one's named
+  reset, or an hour when it names none, has passed. Each excused removal gets a
+  `::notice title=queue-ejection::` line. A removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
   failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
   same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
@@ -2179,7 +2190,7 @@ pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `lin
 edited after arming to drop its link or name another issue does not merge on that pass. A pass
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
 reads the pull request once and, for a lanes App one that is not already armed and carries no
-`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+`do-not-merge`, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `PR Merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
 and skips the merge job, `dispatch-post-merge-runs` and every other sweep job. That report stands only
 while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
@@ -2217,7 +2228,7 @@ the `enable-auto-merge` job arms them in both modes.
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
-Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (hourly) re-runs the
 failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
 its first attempt, at most three per run, merge-critical first; while the switch is on it reads
 nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `kill-switch`, which no
@@ -2444,9 +2455,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
-  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  branch and hands the pull request to a session builder. The verdict job posts no merge marker unless
   every commit is Dependabot's own or a commit that passes the fix rule,
-  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`, a
+  `needs-session` stop: a session builder drops or rebuilds the commit, and the new head starts clean)
   ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit; any other commit, a
   `github-actions[bot]` one included, is `commit-not-dependabot:<sha>`. On a reviewed pull request the lanes App's
@@ -2599,7 +2611,7 @@ failure signals.
   read 2026-11-06), so only the pull request body could carry the line into the squash commit
   (`squash_merge_commit_message=PR_BODY`). A body edit would be a `pull_request: edited` event,
   which starts a contract-only pr-require-checks run whose completion starts pr-verify,
-  pr-verify-capture, pr-rate-merge-risk and pr-review-main runs that only confirm answers already
+  pr-rate-merge-risk and pr-review-main runs that only confirm answers already
   given, about 36 `GITHUB_TOKEN` core calls per arm (the job-call records of the five body edits
   from 04:53 to 05:38 UTC on 2026-11-12), and the queue would wait about 50 seconds for that run's
   `ci-status`: run 42173684490 (2026-11-06, every lane job skipped) reported `ci-status` 50
@@ -2806,52 +2818,11 @@ line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
-`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`, a
-blocked capture's `cause` when the capture recorded one (below), `capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+ran on, never the pull request's live head. `evidence` records `capture: no-app` with the reason
+"no app check ran", `capture_count` 0 and empty `features`, since no CI job drives the app, and
+`local_loop`, the count `k` from an `Evidence loop: k/3` line
 in the trusted pull request body, which the author reports and the writer reads as data only (`null`
-with no such line or a withheld body). With the app unset the writer records `no-app` ("no app
-check ran"). With it set and no capture summary (no capture run, one that ended other than success,
-one still running at the bound, no artifact, a failed read or download), it records `blocked` with
-the reason `find-capture.mjs` wrote. The later judge jobs carry a miss that cannot change (a
-malformed input, or a completed run's outcome) and search again after one that can; a
-summary it cannot read, that fails its schema, or whose text matches a shared
-credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
-no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-*` row in
-`.github/artifact-retention.json`), how long each capture artifact lasts. `proxy` configures the
-key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
-`driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
-tokens the driven session of one capture job may spend, cache tokens counted in full),
-`driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
-`max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
-`max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
-`max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
-`upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. The capture
-installs the Claude Code version `package-lock.json` pins, the one source of that version. The three
-lists were measured from the driven session's requests; the proxy refuses a value they do not list
-and names it, so the first capture after a version bump says what to add. The job reads the
-key's credit history first, right after the capture config and before the resolver. When the
-credit gate skips the key, the job runs no resolver, trigger gate or match step and makes no GitHub
-read; it uploads a capture recorded `blocked` with the cause `credit-stop`, named from the
-triggering event's pull request and head (none when the event names no pull request, and the
-verdict then records find-capture's `no-artifact` reason). Before the key call, the job's match step runs
-main's `affected_features.py` over the changed path names the compare API lists: a change that
-touches no feature of main's control skill uploads a capture recorded `not-applicable`, and the
-job sets up no key and starts no model session. A read or script that fails, or a compare at the
-API's 300-file limit, leaves the decision to the capture session. Both of the capture's legs stay
-on the key, so when the key cannot capture the job runs no model and no fallback job follows it: it
-uploads a capture recorded `blocked` whose `cause` is `credit-stop` (the credit gate's
-credit-stop marker held the key off, or its probe hit a credit stop), `empty-key`, `probe-handoff`
-(the probe handed off on auth), or `unrecognized` (a next-leg reason outside those, which is printed
-nowhere), each with its own reason. The job writes the cause from its credit read and next-leg call;
-the collect step drops a `cause` from the driven session's summary in either shape the writer
-reads, and the writer records one only in the nested shape the job writes, on a `blocked` capture
-and from that list, so `evidence` carries `cause` exactly when the capture recorded one. The cause
-is advisory: the strip that keeps it the job's own runs after the head checkout, so it informs an
-operator and gates nothing. The verdict step's `pr-verify capture` annotation names the outcome and,
-for a blocked capture, the cause (`none` when it recorded none). A credit stop on the probe raises
-the warning annotation every lane raises on its key's handoff, naming the pr-verify role's key and
-the run, also in the run summary. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+with no such line or a withheld body). A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
@@ -2919,15 +2890,26 @@ human opens an issue that restates it, and the pull request links that one.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
-body line is the hex-pin lead `scripts/upstream-drift-issues.sh` writes for that id. It counts
-only for a pull request that closes it and only modifies the `docs/upstream` pages whose
-`**Last audited upstream state:**` marker on main pins that id. Its spec text is built from the id
-and those page paths, never from the issue's body, so an upstream path or name in its rows never
-reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other file
-still needs a listed human's issue. The same rule (`driftIssueId` in
+body line is one of the two leads `scripts/upstream-drift-issues.sh` writes for that id. With the
+hex-pin lead it counts only for a pull request that closes it and only modifies the
+`docs/upstream` pages whose `**Last audited upstream state:**` marker on main pins that id; with
+the vendored-copy lead (owner decision of 2026-11-19, #17518), only for one that closes it and
+whose every changed file, a rename's old path included, is inside the vendored scope of the plugin
+that id's row in main's `scripts/upstream-drift-vendored-report.sh` names: a markdown file under
+`plugins/<plugin>/skills/`, a `.md`, `.jsonc` or `LICENSE` file in a `vendor/` baseline there, or a
+fragment directly under `.changes/<plugin>/`. A path with a `scripts`, `hooks`, `lib`,
+`.claude-plugin`, `.mcp.json` or `evals` segment is outside it, and so are a skill's
+`actions/update.md` and the plugin's `update` skill outside `vendor/`. A `SKILL.md` outside
+`vendor/` may not be added, renamed or removed, and a modified one may change no frontmatter line
+but its `upstream-version`, `upstream-sha` and `synced` values and no `` !` `` line, with no
+```` ```! ```` block (`vendoredPath` and `skillTextSafe` in `.github/scripts/pr-verify/resolve-pr.mjs`).
+Its spec text is built from the id (and the page
+paths, for the hex-pin lead), never from the issue's body, so an upstream path or name in its rows
+never reaches the verifier as a requirement. A re-audit that applies a take or adapt to any other
+file still needs a listed human's issue. The same rule (`driftIssue` in
 `.github/scripts/intake-triage/admit.mjs`) lets the triage sweep dispatch intake for such an issue
-and admission accept it as its author, and the same template (`driftSpecText`) is its done-when and
-the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
+and admission accept it as its author, and the same template for its lead (`trustedDriftSpec`) is
+its done-when and the issue lane's `issue.json` body (owner decision on #14215, Q195 (a)).
 An own-agent filing ([ADR 0111](../../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md):
 an issue an identity in `admission-rules.json`'s `own-agents` wrote, by default the lanes App, with
 no `size-split child` marker) reaches the verifier with its body as spec while no other account
@@ -3200,7 +3182,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-Once the legacy FAILs file (`verify-legacy-fails.json` beside the reader) is committed, the gate
+Once the legacy FAILs file (`.github/verify-legacy-fails.json`, named by `BABYSIT_VERIFY_LEGACY_FAILS`) loads, the gate
 reads no listing at all: each FAIL's run uploads index artifacts first (`pr-verify-index-pr-<n>`,
 `-sha-<head>`, `-ref-<digest>`, `-issue-<i>`; `.github/actions/upload-fail-index`), the FAIL only
 after every index did, and a judgment reads those exact names for the pull request's number, its
@@ -3289,14 +3271,6 @@ and the base's rules are reused for two minutes, and a failed read is never shar
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
-### The whole-map pass
-
-`.github/workflows/maintenance-verify-whole-map.yml` runs `/testing:run-e2e map` over
-`merge.verify-capture.app`'s control skill on the default branch, only on a listed human's
-dispatch, in the capture's sandbox, launch broker and key proxy on the pr-verify key, under the
-capture's token caps and driven model. Its driver leg takes the `verify-map` run route. Its header
-says what it runs and keeps.
-
 ## Review-lane holds
 
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
@@ -3344,7 +3318,7 @@ them on every `pull_request` run, contract-only runs included:
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
-  reconciler re-runs that review run, one lane per head per half-hourly pass, and its completion
+  reconciler re-runs that review run, one lane per head per hourly pass, and its completion
   re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
   switch stops no merge of its own: a head with no review is red here, the merge gate holds it
   (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
@@ -3629,7 +3603,7 @@ Its scripts and tests are in
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a `pr-merge` hold still unbroken at the monitoring run has a reason that starts `rate limited` (a hold a later listing followed is not seen); or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | the merge queue removed pull requests for failed checks more than 2 times in the last 24 hours, read from the timelines of the pull requests whose merge groups failed (one GraphQL query per 25, at most 50 pull requests; more, over 100 failed merge-group runs, or a pull request with over 100 merge-queue and label items in the window, leaves the signal unread), each removal listed with its PR and the failing steps of its newest failed group. A failed group the queue rebuilt with no removal is not counted, nor is a removal a hold caused after the enqueue: a label `ci-status` holds on (`do-not-merge`, the human-gated label, `pr-verify-failed`, `security: outside-actor`) added while queued, or a failed group of that enqueue whose queue-hold step names the lanes kill switch, read for the newest 10 failed groups | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
-| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the weekly drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
+| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the daily drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
@@ -3694,6 +3668,18 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml`, `maintenance-repin-ci-workflows.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
+## Claude secrets
+
+Each Claude secret (an API key or Claude Code OAuth token) is an organization secret, the one
+copy every lane reads.
+
+PR Run Plugin Evals keeps its `eval: run` label without `pull_request_target`: the label runs
+`pr-run-plugin-evals-label.yml`, which holds no secret, and its completion starts the eval legs on
+`workflow_run` from `main`. That recorder run is the head's copy, so the legs read nothing it
+wrote: `check-trusted-trigger` resolves the pull request from the run's head, and
+`check-label-sender.sh` reads the draft state and a `labeled` event by the triggering listed human
+from the API.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -3736,8 +3722,7 @@ run `pr-review-cli.yml`'s default review level), `triage-issue` for intake triag
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
 pr-unblock's read-only judge of a review finding address-feedback disputed
-([pr-run-activity.md](pr-run-activity.md)), on the `review` profile, and `verify-map` for the
-[whole-map pass](#the-whole-map-pass)'s driver leg, and `verify-capture` for the pr-verify capture's driver leg. A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
@@ -3879,9 +3864,7 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. `pr-verify-capture` has one job, `capture`, on
-the key; when the key cannot capture it records the capture `blocked` and runs no model
-([Verifier verdict](#verifier-verdict)). The lane sweep's judge, on the `automations`
+with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
 role, has the same three legs per unit (`assess-units`, `assess-units-subscription`, `assess-units-fallback`), each
 started by a route job from the previous leg's handoff markers
 ([The lane sweep](#the-lane-sweep)). The read runner's callers
@@ -3938,6 +3921,7 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `refire-queue-per-slot` | 2 | Kill-switch re-fires' queue target per issue-lane slot (`SLOTS`, the effective lane level `lane-level-value.mjs` reads): a sweep re-fires breaker-stranded issues, oldest first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, within `restarts-per-run`. At most 10. |
+| `refire-budget-per-slot` | 1 | Budget-stop re-fires' queue target per issue-lane slot: a sweep re-fires issues whose run the start gate stopped on a low GITHUB_TOKEN budget, oldest run end first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, so each can start inside the 20-minute window after the reset. They also count toward `refire-queue-per-slot`'s room; other re-fires keep that target. At most 10. |
 | `stale-queued-minutes` | 60 | Minutes after it was created past which a work-resolve-issue run still at status `queued` is left out of the unfinished runs `refire-queue-per-slot` counts: its first job never got a runner, so GitHub lost it and it never starts. The sweep logs how many it left out. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it. At most 1440. |
 | `sweep-gap-minutes` | 15 | Minutes after a full work-unblock sweep (a run that uploaded `work-unblock-verdicts`) finished during which the sweep a finished work-resolve-issue run starts skips its work and requests no lane token. A scheduled sweep or an issue close never skips; a read that fails runs the sweep. 0 turns it off; at most 60. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue (outside its once-a-day check while no admission decided it), a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
@@ -3953,7 +3937,7 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch `refine` run sends for its PR's event; 0 to 20. Each event offers one PR, so 0 turns CI fix-docs off and any other value turns it on. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause`, `breaker` and `stop-floor` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads `read-floor` and `limit-cap`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge and enable-auto-merge sweep jobs, which skip at job level while the post-merge check and cover dispatch run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause`, `breaker` and `stop-floor` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads `read-floor` and `limit-cap`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge and enable-auto-merge sweep jobs, which skip at job level while the post-merge check and cover dispatch run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set only on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
 | `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's planned budget, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;

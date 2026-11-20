@@ -149,6 +149,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+import babysit_merge_settings as merge_settings
+
 
 class Risk(enum.IntEnum):
     """Ordered, so the score is the max() of the reasons' severities."""
@@ -336,12 +338,12 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"),
@@ -1012,14 +1014,27 @@ _COST_PRIVATE_LINE = re.compile(
     re.IGNORECASE,
 )
 # Runner labels free on a public repository: GitHub's standard hosted labels
-# and the self-hosted managed labels (`.github/standards/runner-policy`). A
-# list holding `self-hosted` targets a self-hosted runner, which is free.
+# and the `free_runner_labels` globs, read only from the operator's
+# settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 _FREE_RUNNER = re.compile(
     r"(?:ubuntu|windows|macos)-(?:latest|[0-9]+(?:\.[0-9]+)?)(?:-arm)?|windows-11-arm"
-    r"|(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\.04-x64(?:-[a-z0-9-]+)?",
+    + "".join(
+        f"|{merge_settings.glob_regex((g,), '[a-z0-9-]*')}"
+        for g in merge_settings.load().free_runner_labels
+    ),
     re.IGNORECASE,
 )
 _RUNS_ON = re.compile(r"^(\s*)-?\s*runs-on\s*:\s*(.*)$")
+
+
+def _decision_record_hint() -> str:
+    """Where a cost decision's row link points: the `owner_decisions_record`
+    setting, or a note that none is set, so no decision clears the hold."""
+    record = merge_settings.load().owner_decisions_record
+    if not record:
+        return "no owner-decisions record is set, so no decision clears this hold"
+    _, repo, path = record.split("/", 2)
+    return f"{repo}/blob/<commit or main>/{path}#L<line>"
 
 
 def _scalar(value: str) -> str:
@@ -1249,13 +1264,16 @@ _IF_VALUE = re.compile(
 _IF_BLOCK = re.compile(
     r"(\s*(?:-\s+)?['\"]?if['\"]?\s*:)\s*[|>][-+0-9]*\s*(?:#.*)?", re.IGNORECASE
 )
-# A model leg: a claude-code-* action or image, run-claude-cli, or the
-# Claude Code npm package on a run line.
+# A model leg: a run-claude-cli or claude-code-* action or image, a `model_leg_actions` name, or
+# the Claude Code npm package on a run line: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
+_MODEL_NAMES = "".join(
+    f"{re.escape(name)}|" for name in merge_settings.load().model_leg_actions
+) + r"run-claude-cli|claude-code[\w-]*"
 _MODEL_ACTION_NAME = re.compile(
-    r"run-claude-cli|claude-code[\w-]*|@anthropic-ai/claude-code", re.IGNORECASE
+    rf"{_MODEL_NAMES}|@anthropic-ai/claude-code", re.IGNORECASE
 )
 _MODEL_ACTION = re.compile(
-    r"\buses\s*:\s*['\"]?([^@\s'\"]*(?:run-claude-cli|claude-code[\w-]*)[^@\s'\"]*)",
+    rf"\buses\s*:\s*['\"]?([^@\s'\"]*(?:{_MODEL_NAMES})[^@\s'\"]*)",
     re.IGNORECASE,
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
@@ -2180,7 +2198,7 @@ def _cost_reasons(
             "; cite the owner's `**Decision recorded.** Cost:` comment on the "
             "closing issue or this pull request in the body to clear it; the "
             "comment must link its row in the owner-decisions record "
-            "(architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>) "
+            f"({_decision_record_hint()}) "
             'and quote the owner as `verbatim: "<his words>"`'
         )
         reasons.append(Reason(COST_CODE, Risk.HIGH, detail))

@@ -3,6 +3,27 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-11-20
+
+### Added
+
+- `/mutation-testing:audit --full` accepts the target-scope contract's forms (`--repo`,
+  `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and runs once per
+  repository. Each repository's mutants run in a throwaway worktree of `origin/HEAD`, never in its
+  main checkout. Survivor triage stays in a fresh context, the per-file rows from every repository
+  rank on one oracle-gap scale, and each repository's findings file goes to its own memory root.
+  The diff scope, `--exercised`, `--paths`, `--phase` and record and replay stay single-repository
+  and refuse a target form. With no target form, the audit behaves as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
+## [0.20.3] - 2026-11-19
+
+### Fixed
+
+- `/mutation-testing:audit --persist-findings` reads the detector-findings contract from the copy
+  bundled at `reference/detector-findings.md` instead of fetching it from the publisher's
+  repository, so persisting works offline.
+
 ## [0.20.2] - 2026-11-18
 
 ### Changed

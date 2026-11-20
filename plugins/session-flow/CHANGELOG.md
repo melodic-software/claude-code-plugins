@@ -1,5 +1,60 @@
 # Changelog: session-flow plugin
 
+## [9.15.2] - 2026-11-20
+
+### Fixed
+
+- name the parked marker in the step-away goal line
+
+  away.py counts an unticked task item closed when its text matches
+  \bparked\b. The /goal evaluator refused to accept that as "marked
+  parked" while away.py check exited 0, so the goal line and the
+  continue-in-background done condition now name the marker the script
+  reads: ticked done or, when unticked, the word "parked" in its text.
+
+## [9.15.1] - 2026-11-20
+
+### Changed
+
+- off-thread work: the background-output-file pointer record no longer carries a recheck trigger. It stores no copied value, so a reader fetches the MCP and environment-variable sections live.
+
+## [9.15.0] - 2026-11-20
+
+### Added
+
+- **Inherited security and design decisions carry their rationale.** A `Decisions in force` entry tagged `[security]` or `[design]` after its id ends with `buys:`, `surface:` and `cost:`. `save_point.py validate` fails a tagged entry missing any of the three and names the fix (`add buys:/surface:/cost: to D<n>`); untagged entries, and older handoffs, still pass. `/session-flow:reanchor` prints each tagged decision's three fields on resume and sends a decision back to the owner before work builds on it when its cost exceeds what it buys, or a security decision exposes no surface.
+
+## [9.14.0] - 2026-11-19
+
+### Added
+
+- arm a fresh background session for step-away before the person leaves
+
+  step-away's fresh-session step launches through continue-in-background
+  with the task file as the goal, takes the full session id that skill now
+  reads from `claude agents --json --all`, and runs `away.py start` for that
+  id from the attended session. The task file's header line names the away
+  rules and the report path, since no hook gives them to the background
+  session. A live probe of when the hooks first see the
+  state is recorded in goal-probe.md.
+
+### Fixed
+
+- `away.py refresh` finds a session's transcript by its id when no hook
+  recorded the path, so a background session armed from another session
+  still lists its external actions
+
+## [9.13.0] - 2026-11-19
+
+### Changed
+
+- step-away: during an absence the Stop hook rewrites the away report's refused-actions and external-actions blocks itself, so the session no longer runs `away.py refresh` from a Bash command, which the Bash sandbox kept from writing the state. go-with-recommendations no longer runs `refresh` during an absence either.
+- step-away: the watched-folder file scan runs only at `end` and on `refresh --files`; the first `refresh` after the report-by time no longer scans, so a report read before `end` has no files list yet.
+
+### Security
+
+- step-away: `away.py` refuses to rewrite the report when its folder resolves elsewhere than at `start` or the report is not a regular file, so a link planted by a sandboxed command cannot redirect the hook's write or copy a linked file into the report.
+
 ## [9.12.0] - 2026-11-19
 
 ### Added

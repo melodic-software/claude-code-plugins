@@ -2,9 +2,14 @@
 
 The label prefix structure consumed by every action that creates, queries, or filters work items. This document describes the **grammar** (which axes exist and what each encodes); it does **not** enumerate the members of each axis. Members are owned elsewhere and discovered live, so this file can never drift from the deployed set:
 
-- **Repositories with label-as-code**: the consuming repository declares its source of truth and
-  write policy. Discover live members through the bound adapter (for GitHub, `gh label list`) and
-  route requested taxonomy changes to that declared owner.
+- **Repositories with label-as-code**: the consuming repository declares its label-as-code owner
+  with the `label_as_code_repo` key of `docs/conventions/work-items.yaml`. From the repository
+  root, run
+  `bash "<plugin-root>/skills/triage/scripts/parse-concern-value.sh" docs/conventions/work-items.yaml label_as_code_repo`,
+  `<plugin-root>` being this plugin's root directory: its output is the declared owner, and empty
+  output means none is declared. This is the one definition of a "declared label-as-code owner"
+  across this plugin. Discover live members through the bound adapter (for GitHub,
+  `gh label list`) and route requested taxonomy changes to that declared owner.
 - **Type axis is not a label on org repos.** It is a **native GitHub Issue Type** (`Bug` / `Feature` / `Task`, single-select, org-managed). Actions set it through the seam, never as a `type:` label. Personal / non-org repos (no native Issue Types) keep `type:` labels as the fallback.
 
 UNIVERSAL axes work in any repo; PROJECT-SPECIFIC axes carry the consuming repo's concrete values. When no taxonomy enforcement is desired, actions accept any label without a prefix check; by default, actions validate labels against the axes below.

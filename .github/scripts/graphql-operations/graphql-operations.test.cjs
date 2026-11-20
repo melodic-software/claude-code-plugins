@@ -59,6 +59,9 @@ const { gunzipSync } = require("node:zlib");
 
 const { buildSchema, Kind, parse, validate } = require("graphql");
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 const SCHEMA = path.join(ROOT, "schemas", "github", "schema.docs.graphql.gz");
 const ALLOWLIST = path.join(__dirname, "unextractable.txt");

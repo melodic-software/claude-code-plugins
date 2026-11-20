@@ -3,6 +3,99 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.10.0] - 2026-11-20
+
+### Added
+
+- `permission_floor_source` in `docs/conventions/work-items.yaml` names where a team's reviewed permission floor lives. The permission preflight points the operator there for an allow or deny fix. Unset, it says no shared floor is configured and the operator's own settings are the floor; it no longer names one organization's standards repository.
+
+### Changed
+
+- the lane-binding checker takes an optional store of settled lane runs
+
+  `laneChecker` accepts a `store` that answers a finished run whose every
+  attempt left a complete record without reading that run again. A stored
+  run binds only a comment its records list; any other comment reads the run
+  live. Callers that pass no store behave as before.
+
+## [15.9.4] - 2026-11-20
+
+### Changed
+
+- `check-body.mjs`'s header names the bundled issue-body contract without naming the repository it is synced from.
+
+## [15.9.3] - 2026-11-19
+
+### Changed
+
+- The inlined rate-limit floor no longer links one organization's account-rotation repository: switching accounts names the rate-limits `account_switch_url` option, matching the reader contract.
+
+## [15.9.2] - 2026-11-19
+
+### Changed
+
+- The tracker contract's state-history and `label-provenance` body-edit records are pointer records and no longer carry a recheck trigger. The `set-fields` record names the `read:org` permission and the option-name write, so it is a stored value and gets back its as-of date, 2026-10-18.
+
+## [15.9.1] - 2026-11-19
+
+### Changed
+
+- **`reference/target-scope.md` regenerated.** The contract's adopters are now listed one file per
+  adopting plugin in the repository's `docs/contracts/target-scope/adopters/`, and a new copy's
+  `scripts/shared-copies.txt` line goes at its alphabetical place, so two adopter pull requests no
+  longer edit the same lines. The target forms and every other section are unchanged.
+
+## [15.9.0] - 2026-11-19
+
+### Added
+
+- `/work-items:scan-todos` accepts the target-scope contract's forms (`--repo`, `--repos-from`,
+  `--owner`, `--fleet`, `--skip`) to scan several repositories, ranking every repository's marker
+  groups in one table and filing each marker in its own repository's tracker. A run with none of
+  them scans the current repository as before.
+- `/work-items:track add` takes `--repo <owner>/<name>` to file an item in a repository other
+  than the bound one; its duplicate check and label check read that repository.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
+## [15.8.0] - 2026-11-19
+
+### Added
+
+- configure lane workflows, the lane-record contract and the label-as-code owner
+
+  /work-items:morning-brief reads its lane workflow list from the
+  lane_workflows key under morning_brief: (the files the repo has); unset,
+  the lanes are the workflows whose file uses a Claude action, and a file
+  that cannot be read makes the Lanes section UNREADABLE. The
+  lane_outcome_contract_ref key names where the lane-outcome record is
+  documented and prints under the Lanes heading; unset, the skill lists
+  the record fields the brief reads. label_as_code_repo in
+  docs/conventions/work-items.yaml names the repository that owns the
+  tracker's labels. The plugin no longer ships an organization's lane
+  workflow list, lane-outcome links or label-as-code repository; this
+  repository sets its own values in docs/conventions/work-items.yaml.
+
+### Fixed
+
+- give label_as_code_repo a runnable read and name only its reader
+
+  capability-tier-labels.md and the schema run parse-concern-value.sh from
+  <plugin-root>, as ai-disclaimer.md does. The morning brief's record field
+  list names v and the credential fields it reads.
+
+- skip a workflow whose file is gone when the brief finds lanes
+
+  With lane_workflows unset, a workflow the Actions list names but whose
+  file is deleted or on another branch is not a lane; it no longer makes
+  the Lanes section UNREADABLE.
+
+- read label_as_code_repo wherever a declared label-as-code owner decides
+
+  label-taxonomy.md defines a declared label-as-code owner as the
+  label_as_code_repo key, and setup (apply, check, unattended apply),
+  track labels and capability-tier-labels.md's Migration step read it
+  instead of an undefined declaration.
+
 ## [15.7.0] - 2026-11-19
 
 ### Added

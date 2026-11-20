@@ -101,6 +101,12 @@ What the writer owns, since no script can judge it:
   substance changed, ending it `Rewritten h<N>: <why>` for this hop `N`; never shorten one to save
   bytes.
 
+- **A security or design decision carries its rationale.** Tag it after its id and end it with
+  `buys:`, `surface:` and `cost:`, in the form the decisions slot gives; `validate` fails a tagged
+  entry missing a field, naming the fix, and an untagged entry needs none. Tagging a carried
+  decision or updating its `cost:` changes its text, so it ends `Rewritten h<N>: <why>`. A resumed
+  session reads the three fields before building on the decision (`/session-flow:reanchor`).
+
 **From shape 2.** The first hop file of a shape-2 chain, written by its first shape-4 hop (or a
 shape-3 hop written earlier), reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

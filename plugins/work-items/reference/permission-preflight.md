@@ -53,7 +53,7 @@ heuristic judgment on the two commands.
 Whether adding an explicit allow rule for the `reclaim` invocation would bypass that judgment is
 **not settled by this doc**: it turns on which allow-rule shapes auto mode suspends and whether the
 `classifyAllShell` setting is on, and a script invocation (`work-item-tracker.sh reclaim <id>`)
-has to be checked against that live. Do not write a rule into the standards floor on the strength
+has to be checked against that live. Do not write a rule into the configured floor on the strength
 of this doc alone; confirm the carve-out first.
 
 - **Pointer**: before adding a `reclaim` allow rule, fetch
@@ -67,16 +67,19 @@ of this doc alone; confirm the carve-out first.
 That is the current mitigation; a permission-rule fix, if one applies, still lives operator-side per
 the pattern above.
 
-## The allow floor: point at the standards component
+## The allow floor: point at the configured floor
 
-Do not hand-maintain an allowlist here. The fleet's reviewed permission floor is the
-`claude-permissions` component in the `melodic-software/standards` repository
-(`components/claude-permissions/`): one canonical `permissions.allow` / `permissions.deny` set,
-distributed as data and composed into each operator's live `~/.claude/settings.json` by the
-dotfiles repository's chezmoi modify-template (union of the canonical floor with locally-accumulated
-rules; the deny floor is never relaxed below the component).
+Do not hand-maintain an allowlist here. A team that keeps a reviewed permission floor (one
+canonical `permissions.allow` / `permissions.deny` set, distributed as data and composed into each
+operator's live `~/.claude/settings.json`) declares where it lives with the
+`permission_floor_source` key of `docs/conventions/work-items.yaml`. From the repository root, run
+`bash "<plugin-root>/skills/triage/scripts/parse-concern-value.sh" docs/conventions/work-items.yaml permission_floor_source`,
+`<plugin-root>` being this plugin's root directory. Its output is where the floor lives. Point the
+operator there for any allow or deny change. Empty output means no shared floor is configured:
+the operator's own settings are the floor, and a permission fix goes into those settings.
 
-What it covers, at a glance (read the component for the authoritative list):
+What a reviewed floor typically covers, at a glance (read the configured floor for the
+authoritative list):
 
 - **allow**: the read-only git/gh inspection verbs plus the routine non-destructive working verbs
   an unattended loop needs without prompting: `git add` / `commit` / non-force `push` /
@@ -103,8 +106,9 @@ coverage, because a work-lane invocation always carries arguments. When a gapped
 bare-exact grant, the gap message names it, and the remedy is to add the open glob
 (`git commit *`). What each rule shape matches is read live at
 [permissions § Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns). A missing
-verb means the floor is not composed in on this machine; the remediation is to apply the component
-operator-side, not to add a one-off rule.
+verb means the configured floor is not composed in on this machine; the remediation is to apply that
+floor operator-side, not to add a one-off rule (with no floor configured, add the open glob to the
+operator's settings).
 
 **Deny wins over allow.** The check follows the permission model's rule precedence
 ([permissions § Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)), so
@@ -307,7 +311,7 @@ It is report-only and always exits `0`. Each output line is one of:
   worktree proceeds once `(c)` is covered; a lane that needs a checkout at the cwd cannot.
 - `GAP (b) …`: a probed working verb is denied by a matching deny rule, has only a bare-exact
   (argumentless) allow, or is not covered at all (the message distinguishes the three). Remediate
-  operator-side: resolve the deny rule, add the open glob, or compose the standards floor in (above).
+  operator-side: resolve the deny rule, add the open glob, or compose the configured floor in (above).
 - `GAP (c) …`: the worktree root is not covered by `additionalDirectories`. Add the entry (above).
 - `NOTE (c) …`: no worktree root was passed, so coverage was not checked.
 - `PREFLIGHT: UNREAD LAYER …`: the main checkout could not be verified, so its `settings.local.json`

@@ -1,0 +1,5 @@
+{
+  "name": "corrections",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the corrections plugin: the codify skill, so performance:protect can hand a guardrail's mechanism choice to it, with no scripts."
+}

@@ -4,7 +4,7 @@
 # step outputs, and install-pinned-ffmpeg.sh checks the archive's SHA-256 and
 # downloads into a cache dir only when the archive is missing. A stub curl
 # stands in for the network.
-# test-scope: .github/scripts/plugin-eval/check-bwrap.sh .github/scripts/plugin-eval/choose-plugins.sh .github/scripts/plugin-eval/stage-suites.sh .github/scripts/plugin-eval/check-label-sender.sh .github/scripts/lib/install-pinned-ffmpeg.sh
+# test-scope: .github/scripts/plugin-eval/check-bwrap.sh .github/scripts/plugin-eval/choose-plugins.sh .github/scripts/plugin-eval/stage-suites.sh .github/scripts/lib/install-pinned-ffmpeg.sh
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -43,14 +43,6 @@ expect() {
     fail "$name: exit $rc, output [$out]"
   fi
 }
-
-printf '{"actors":[{"id":1,"kind":"human"},{"id":2,"kind":"bot"}]}' >"$T/list.json"
-expect "an untrusted verdict is refused" 1 "::error::the trigger is not trusted (reason: unreadable)" \
-  "$P" PROCEED=false LIST="$T/list.json" SENDER_ID=1 -- "$S/plugin-eval/check-label-sender.sh"
-expect "a label from a listed human passes" 0 "" \
-  "$P" PROCEED=true LIST="$T/list.json" SENDER_ID=1 -- "$S/plugin-eval/check-label-sender.sh"
-expect "a label from a listed bot is refused" 1 "::error::untrusted-actor: the 'eval: run' label did not come from a listed human" \
-  "$P" PROCEED=true LIST="$T/list.json" SENDER_ID=2 -- "$S/plugin-eval/check-label-sender.sh"
 
 expect "a dispatch target outside plugins/ is refused" 1 "::error::target must be a plugin directory, plugins/<name>" \
   "$P" EVENT=workflow_dispatch TARGET=docs GITHUB_OUTPUT="$T/out1" -- "$S/plugin-eval/choose-plugins.sh"

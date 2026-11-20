@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { buildSections, escape } from "./build-sections.js";
 import { buildCss } from "./build-css.js";
 import { buildClientJs } from "./build-client-js.js";
-import { loadSlidesData, meetingsDir } from "./lib/paths.js";
+import { deckPath, loadSlidesData, meetingsDir } from "./lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { meta, theme, slides, providerLogos } = await loadSlidesData();
@@ -62,7 +62,7 @@ ${sectionsHtml}
 }
 
 export async function assembleHtml() {
-  const output = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
+  const output = deckPath(meta.meetingNumber, "html");
   const { logoWhiteData, providerLogoSvg } = loadEmbeddedAssets(__dirname);
   const { html, groups } = assembleDocument({ meta, theme, slides, logoWhiteData, providerLogoSvg });
 

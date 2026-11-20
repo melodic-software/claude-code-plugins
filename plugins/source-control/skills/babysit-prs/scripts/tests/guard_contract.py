@@ -49,9 +49,9 @@ SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
 PREFILTER_CLI = "skills/babysit-prs/scripts/babysit_merge_prefilter.py"
 SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
+SETTINGS_CLI = "skills/babysit-prs/scripts/babysit_merge_settings.py"
 VERIFY_EVIDENCE_CLI = "skills/babysit-prs/scripts/babysit_verify_evidence.py"
 WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
-EVIDENCE_COMMENT_CLI = "skills/babysit-prs/scripts/babysit_evidence_comment.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 REPO_CONFIG_CLI = "skills/babysit-prs/scripts/babysit_repo_config.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
@@ -1354,15 +1354,6 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("convertPullRequestToDraft", "markPullRequestReadyForReview"),
     ),
     Mechanism(
-        id="evidence-comment.upserts-a-comment",
-        claim=(
-            "babysit_evidence_comment.py post performs a GitHub write: it posts or "
-            "rewrites the lane identity's one evidence-verification comment."
-        ),
-        entry_point=EVIDENCE_COMMENT_CLI,
-        must_contain=("upsert_marker_comment", "<!-- evidence-verification -->"),
-    ),
-    Mechanism(
         id="review.posts-a-comment",
         claim=(
             "request_review.py --apply performs a GitHub write: it POSTs an issue comment "
@@ -1709,23 +1700,6 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         backed_by=(),
     ),
     EntryPoint(
-        path=EVIDENCE_COMMENT_CLI,
-        wrapper=None,
-        mutation=MUTATING,
-        mutates_what="a pull request's evidence-verification comment",
-        gate=(
-            "enable-auto-merge.mjs runs `post` with the lane token before it "
-            "arms a pull request, live mode only"
-        ),
-        claim=(
-            "`post` reads the head's pr-capture artifact and its run under "
-            "BABYSIT_VERIFY_GH_TOKEN and, when a pr-verify-capture run on main "
-            "uploaded it, posts or rewrites the lane identity's one "
-            "evidence-verification comment linking it."
-        ),
-        backed_by=("evidence-comment.upserts-a-comment",),
-    ),
-    EntryPoint(
         path=WHOLE_REVIEW_CLI,
         wrapper=None,
         mutation=MUTATING,
@@ -1745,6 +1719,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "a draft and marks it ready again."
         ),
         backed_by=("whole-review.marks-ready", "whole-review.toggles-draft"),
+    ),
+    EntryPoint(
+        path=SETTINGS_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "`show` reads the trust and cost settings from the operator's user "
+            "and managed settings files and prints them as JSON. No GitHub call "
+            "and no write on any path."
+        ),
+        backed_by=(),
     ),
     EntryPoint(
         path=SKIP_CLI,

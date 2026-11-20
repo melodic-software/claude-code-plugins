@@ -209,6 +209,9 @@ export const HOLD_LINE = "Hold: a human merges this";
 // lanes App can edit; ci-status fails while this label is on, and removing it
 // lifts the hold.
 export const HOLD_LABEL = "do-not-merge";
+export const EVAL_GATED_LABEL = "eval-gated";
+export const evalHoldComment = (issueNumber) =>
+  `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The causes a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
@@ -1363,6 +1366,12 @@ function fileList(files, holdPaths) {
   ].join("\n");
 }
 
+const humanPullStop = (humanPull, args) =>
+  routeStop("blocked-by-pr", {
+    outcome: stopped(`A listed human's open pull request #${humanPull} names this issue, so the lane pushed no branch and opened no pull request.`),
+    ...args,
+  });
+
 // A lane branch an earlier run left with commits and no report, whose outcome
 // this run cannot read: a PR listing the files it changes, held on mustHold's
 // conditions. With the summary pass's summary it carries that text; without
@@ -1378,9 +1387,15 @@ export function reusePlan({
   changedFiles = null,
   holdPaths = null,
   humanMerge = false,
+  humanLabel = "needs-human",
+  runId = "",
+  humanPull = "",
   checks = null,
   linkage = [],
 }) {
+  if (humanPull) {
+    return humanPullStop(humanPull, { issueNumber, branch, humanLabel, runUrl, runId, onResumed: false });
+  }
   const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused: true });
   const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
   const [about, fix, earlierChecks, leftOut] = summary
@@ -1499,15 +1514,7 @@ export function decide({
     return routeStop(outcome.stop, { outcome, issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
   }
   if (humanPull && outcome.exit === "done") {
-    return routeStop("blocked-by-pr", {
-      outcome: stopped(`A listed human's open pull request #${humanPull} names this issue, so the lane pushed no branch and opened no pull request.`),
-      issueNumber,
-      branch: branch || resumed,
-      humanLabel,
-      runUrl,
-      runId,
-      onResumed,
-    });
+    return humanPullStop(humanPull, { issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
   }
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -2722,6 +2729,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           changedFiles: await compare().catch(() => null),
           holdPaths,
           humanMerge,
+          humanLabel,
+          runId,
+          humanPull,
           checks,
           linkage,
         })
@@ -2842,8 +2852,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         }
         // A held PR carries the hold label from its opening; one the label
         // cannot reach is closed rather than left held by body text alone.
+        const evalGated = issueLabels.includes(EVAL_GATED_LABEL);
+        const alreadyHeld = (pull.labels ?? []).some((label) => label?.name === HOLD_LABEL);
         const labeled =
-          !plan.hold ||
+          !(plan.hold || evalGated) ||
           (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
             () => true,
             (error) => {
@@ -2851,6 +2863,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
               return false;
             },
           ));
+        if (labeled && evalGated) {
+          const body = evalHoldComment(issueNumber);
+          const posted =
+            alreadyHeld &&
+            (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(
+              (all) => all.some((comment) => comment?.user?.login === bot && comment.body === body),
+              () => false,
+            ));
+          if (!posted) {
+            await github("POST", `${repo}/issues/${pull.number}/comments`, { body });
+          }
+        }
         // A plan with a tip opens only at it: a PR whose head moved off the
         // checked tip is closed, and the issue goes to a person. Closing a
         // closed PR changes nothing, so the close is resent.

@@ -48,6 +48,7 @@ export const ENTRY = `${PAYLOAD}.sealed`;
 export const TELEMETRY_PAYLOAD = "otel.jsonl.gz";
 export const TELEMETRY_ENTRY = `${TELEMETRY_PAYLOAD}.sealed`;
 const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 const ARTIFACT_DAYS = 7;
 const OVERLAP = 6 * HOUR;
 const PER_PAGE = 100;
@@ -94,8 +95,6 @@ export const TRANSCRIPT_JOB_IDS = {
   ],
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
-  "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
-  "maintenance-verify-whole-map.yml": legs("verify-map", ["-probe", ""]),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub"), ...legs("model"), ...legs("scrub-probe")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
@@ -111,6 +110,29 @@ export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
 
 /**
+ * A reusable has no runs of its own: its uploads ride on its callers' runs.
+ * pull-listing.test.mjs reads the workflows and fails when a caller is missing here.
+ */
+export const TRANSCRIPT_CALLERS = {
+  "pr-run-activity-read.yml": ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
+  "ci-workflows/pr-review-cli.yml": ["pr-review-hosted.yml", "pr-review-security-hosted.yml"],
+  "ci-workflows/intake-triage.yml": ["intake-triage.yml"],
+};
+const runWorkflowsOf = (key) => TRANSCRIPT_CALLERS[key] ?? [key];
+/** The workflows whose runs upload transcripts: the pull lists each one's newest runs. */
+export const RUN_WORKFLOWS = [...new Set(Object.keys(TRANSCRIPT_JOB_IDS).flatMap(runWorkflowsOf))];
+const SOURCES = new Map();
+for (const [key, ids] of Object.entries(TRANSCRIPT_JOB_IDS)) {
+  for (const id of ids) {
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      const name = `lane-transcript-${id}-${attempt}`;
+      if (!SOURCES.has(name)) SOURCES.set(name, { attempt, workflows: new Set() });
+      for (const workflow of runWorkflowsOf(key)) SOURCES.get(name).workflows.add(workflow);
+    }
+  }
+}
+
+/**
  * The workflows whose runs write lane-outcome records: each runs
  * report-lane-outcome or run-claude-cli, a ci-workflows lane reusable, or a
  * local reusable that does. pull.test.mjs reads the workflows and fails when
@@ -122,7 +144,6 @@ export const LANE_WORKFLOWS = [
   "maintenance-audit-lane-runs.yml",
   "maintenance-measure-skill-edit.yml",
   "maintenance-tidy-code-upkeep.yml",
-  "maintenance-verify-whole-map.yml",
   "post-merge-test-mutation.yml",
   "pr-rate-merge-risk.yml",
   "pr-refine.yml",
@@ -131,7 +152,6 @@ export const LANE_WORKFLOWS = [
   "pr-review-security-hosted.yml",
   "pr-run-plugin-evals.yml",
   "pr-unblock.yml",
-  "pr-verify-capture.yml",
   "pr-verify.yml",
   "upstream-apply-changelog.yml",
   "work-resolve-issue.yml",
@@ -145,6 +165,7 @@ const OUTCOME_FIRST_DAYS = 30;
 
 const COMMANDS = ["pull", "pull-outcomes", "backfill", "status", "query", "prune"];
 const USAGE = `usage: pull.mjs <${COMMANDS.join("|")}> [--sink DIR] [--repo OWNER/REPO]
+  pull: [--run RUN-ID] pulls only that workflow run's transcripts and leaves the pull's cursors as they are
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--class FAILURE-CLASS] [--trace TRACE-ID] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
 
 export class UsageError extends Error {}
@@ -160,12 +181,13 @@ export function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!COMMANDS.includes(command)) throw new UsageError(USAGE);
   const flags = {};
-  const names = new Set(["sink", "repo", "lane", "model", "outcome", "class", "trace", "since", "until"]);
+  const names = new Set(["sink", "repo", "run", "lane", "model", "outcome", "class", "trace", "since", "until"]);
   for (let i = 0; i < rest.length; i += 2) {
     const name = /^--([a-z]+)$/.exec(rest[i])?.[1];
     if (!names.has(name) || rest[i + 1] === undefined || name in flags) throw new UsageError(USAGE);
     flags[name] = rest[i + 1];
   }
+  if ("run" in flags && (command !== "pull" || !/^[1-9]\d*$/.test(flags.run))) throw new UsageError(USAGE);
   return { command, flags };
 }
 
@@ -244,22 +266,42 @@ function sealedRecords(deps, sink, zip) {
   }
 }
 
-// Each transcript artifact created since the cutoff: every name's listing,
-// newest first, paged until an artifact older than the cutoff or a short page.
-// The cutoff is by artifact created_at, so a re-run attempt of an older run is
-// still reached. Names are listed from `at.name` (where a budget-stopped pull
-// stopped), wrapping round, so the names late in the list cannot starve.
-function* listed(deps, repo, cutoff, at) {
+/**
+ * The newest page of runs of each workflow in RUN_WORKFLOWS, with no created
+ * filter, so a re-run of an older run still shows: the highest attempt each
+ * workflow reached, and the runs by id. A workflow whose listing fails counts
+ * as re-run up to every attempt, so nothing is skipped.
+ */
+function recentRuns(deps, repo) {
+  const attempts = new Map();
+  const byId = new Map();
+  for (const workflow of RUN_WORKFLOWS) {
+    try {
+      const { workflow_runs: runs = [] } = fetched("run-list", () => json(ghRetried(deps, ["api", `repos/${repo}/actions/workflows/${workflow}/runs?per_page=${PER_PAGE}`])));
+      attempts.set(workflow, Math.max(1, ...runs.map((run) => (Number.isSafeInteger(run.run_attempt) ? run.run_attempt : 1))));
+      for (const run of runs) if (run.id) byId.set(String(run.id), run);
+    } catch (error) {
+      if (!(error instanceof FetchFailed)) throw error;
+      attempts.set(workflow, ATTEMPTS);
+    }
+  }
+  return { attempts, byId };
+}
+
+function* listed(deps, repo, { due, cutoffOf, at, onListed }) {
   const start = Math.max(0, TRANSCRIPT_NAMES.indexOf(at.name));
   for (let i = 0; i < TRANSCRIPT_NAMES.length; i++) {
     const name = TRANSCRIPT_NAMES[(start + i) % TRANSCRIPT_NAMES.length];
+    if (!due(name)) continue;
     at.name = name;
+    const cutoff = cutoffOf(name);
     for (let page = 1; ; page++) {
       const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?name=${name}&per_page=${PER_PAGE}&page=${page}`], true));
       const fresh = artifacts.filter((artifact) => Date.parse(artifact.created_at) >= cutoff);
       yield* fresh;
       if (fresh.length < PER_PAGE) break;
     }
+    onListed(name);
   }
 }
 
@@ -277,60 +319,126 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   for (const dir of [sink, paths(sink).transcripts, paths(sink).tmp]) ensureDir(dir);
   const state = readState(sink);
   const last = Date.parse(state.last_success_at ?? "");
-  // A pull stopped at its budget leaves its own cutoff, so the next pull still
-  // reaches the artifacts it did not get to.
   const resume = Date.parse(state.resume_cutoff_at ?? "");
   const since = Number.isNaN(resume) ? (Number.isNaN(last) ? 0 : last - OVERLAP) : resume;
-  const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, since);
-  const known = new Set(readRows(sink).map((row) => row.artifact_id));
-  const byTrace = outcomesByTrace(readOutcomes(sink));
-  const runs = new Map();
-  const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 };
-  const failedKinds = new Set();
+  const floor = now - ARTIFACT_DAYS * DAY;
+  const cursors = Object.fromEntries(TRANSCRIPT_NAMES.filter((name) => typeof state.cursors?.[name] === "string").map((name) => [name, state.cursors[name]]));
+  const cutoffOf = (name) => {
+    const cursor = Date.parse(cursors[name] ?? "");
+    return Math.max(floor, Number.isNaN(cursor) ? since : cursor - OVERLAP);
+  };
+  const ctx = takeContext(sink, recipient, repo, deps, now);
+  const { tally, failedKinds, failedNames } = ctx;
   let exhausted = false;
   const at = { name: state.resume_name ?? null };
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
+  const dueWith = (attempts) => (name) => {
+    const { attempt, workflows } = SOURCES.get(name);
+    const listedAt = Date.parse(cursors[name] ?? "");
+    return attempt === 1 || Number.isNaN(listedAt) || listedAt <= now - DAY || [...workflows].some((workflow) => attempts.get(workflow) >= attempt);
+  };
+  const onListed = (name) => {
+    if (!failedNames.has(name)) cursors[name] = new Date(now).toISOString();
+  };
 
   try {
-    for (const artifact of listed(deps, repo, cutoff, at)) {
-      const named = parseArtifactName(artifact.name);
-      const wf = artifact.workflow_run ?? {};
-      if (!named) tally.unnamed++;
-      else if (known.has(artifact.id)) tally.known++;
-      else if (artifact.expired) tally.expired++;
-      // The public key is public: a fork's run could seal a record of its own.
-      else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
-      else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
-      else {
-        try {
-          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, now });
-          tally[outcome]++;
-          if (outcome === "pulled") known.add(artifact.id);
-        } catch (error) {
-          if (!(error instanceof FetchFailed)) throw error;
-          tally.fetch_failed++;
-          failedKinds.add(error.message);
-        }
-      }
-    }
+    const recent = recentRuns(deps, repo);
+    ctx.runs = recent.byId;
+    for (const artifact of listed(deps, repo, { due: dueWith(recent.attempts), cutoffOf, at, onListed })) take(ctx, artifact);
   } catch (error) {
     if (!(error instanceof BudgetSpent)) throw error;
     exhausted = true;
   }
-  // Every candidate sealed to another key and none opened: the vault key does
-  // not match the repository variable, which must alert, not pass.
-  if (tally.sealed_mismatch > 0 && tally.pulled === 0 && tally.known === 0) throw new PullError(`key-mismatch: ${tally.sealed_mismatch} transcript(s) did not open for this key and none did`);
+  failIfKeyMismatch(tally);
   const pruned = prune(sink, now);
-  // A pull that missed an artifact keeps the last success, so the next pull's
-  // cutoff still reaches it; the artifact's 7-day expiry bounds how long.
-  // A pull stopped at its budget is a success that keeps its cutoff and the name
-  // it stopped on for the next. The 7-day floor can pass that cutoff and drop
-  // what is left; status alerts at 5 days, before it does.
   const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} transcript(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null, resume_cutoff_at: null };
-  if (exhausted) finished.resume_cutoff_at = new Date(cutoff).toISOString();
-  writeState(sink, { ...readState(sink), ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_name: exhausted ? at.name : null });
+  if (exhausted) finished.resume_cutoff_at = new Date(Math.min(...TRANSCRIPT_NAMES.map(cutoffOf))).toISOString();
+  writeState(sink, { ...readState(sink), ...finished, cursors, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_name: exhausted ? at.name : null });
   log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}${exhausted ? `; stopped at the gh call budget of ${deps.meter.budget}` : ""}`);
   return tally;
+}
+
+/** What taking an artifact reads and counts: the rows and outcomes held, the runs read, the tally. */
+function takeContext(sink, recipient, repo, deps, now) {
+  return {
+    sink,
+    repo,
+    recipient,
+    deps,
+    now,
+    known: new Set(readRows(sink).map((row) => row.artifact_id)),
+    byTrace: outcomesByTrace(readOutcomes(sink)),
+    runs: new Map(),
+    tally: { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 },
+    failedKinds: new Set(),
+    failedNames: new Set(),
+  };
+}
+
+/**
+ * One listed artifact: skipped and counted, or stored. A fork's run is
+ * skipped because the public key is public: it could seal a record of its own.
+ */
+function take(ctx, artifact) {
+  const { tally, known } = ctx;
+  const named = parseArtifactName(artifact.name);
+  const wf = artifact.workflow_run ?? {};
+  if (!named) tally.unnamed++;
+  else if (known.has(artifact.id)) tally.known++;
+  else if (artifact.expired) tally.expired++;
+  else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
+  else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
+  else {
+    try {
+      const outcome = store({ ...ctx, artifact, named });
+      tally[outcome]++;
+      if (outcome === "pulled") known.add(artifact.id);
+    } catch (error) {
+      if (!(error instanceof FetchFailed)) throw error;
+      tally.fetch_failed++;
+      ctx.failedKinds.add(error.message);
+      ctx.failedNames.add(artifact.name);
+    }
+  }
+}
+
+/**
+ * Every candidate sealed to another key and none opened: the vault key does
+ * not match the repository variable, which must alert, not pass.
+ */
+function failIfKeyMismatch(tally) {
+  if (tally.sealed_mismatch > 0 && tally.pulled === 0 && tally.known === 0) throw new PullError(`key-mismatch: ${tally.sealed_mismatch} transcript(s) did not open for this key and none did`);
+}
+
+/**
+ * One workflow run's transcripts, listed from that run's own artifacts and
+ * taken as a pull takes them. It writes no state and prunes nothing, so the
+ * scheduled pull's cursors, resume point and last success stay as they were.
+ */
+export function pullRun({ sink, repo, recipient, deps, log, runId }) {
+  const meter = { calls: 0, budget: deps.ghCallBudget ?? GH_CALL_BUDGET };
+  try {
+    return pullRunWithin({ sink, repo, recipient, deps: { ...deps, meter }, log, runId });
+  } finally {
+    log(`gh calls: ${meter.calls} of ${meter.budget}`);
+  }
+}
+
+function pullRunWithin({ sink, repo, recipient, deps, log, runId }) {
+  for (const dir of [sink, paths(sink).transcripts, paths(sink).tmp]) ensureDir(dir);
+  const ctx = takeContext(sink, recipient, repo, deps, deps.now());
+  try {
+    for (let page = 1; ; page++) {
+      const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/runs/${runId}/artifacts?per_page=${PER_PAGE}&page=${page}`], true));
+      for (const artifact of artifacts) if (String(artifact.name).startsWith("lane-transcript-")) take(ctx, artifact);
+      if (artifacts.length < PER_PAGE) break;
+    }
+  } catch (error) {
+    throw error instanceof BudgetSpent ? new PullError(`budget-spent: stopped at the gh call budget of ${deps.meter.budget}`) : error;
+  }
+  failIfKeyMismatch(ctx.tally);
+  log(`pulled ${ctx.tally.pulled} transcript(s) from run ${runId}; skipped ${JSON.stringify(ctx.tally)}`);
+  return ctx.tally;
 }
 
 function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, now }) {
@@ -713,6 +821,14 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
   } catch (error) {
     io.err(`${error instanceof OpenError ? error.message : "no-key"}; set LANE_TRANSCRIPT_PRIVATE_KEY through vault-exec\n`);
     return 1;
+  }
+  if (flags.run) {
+    try {
+      return pullRun({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`), runId: flags.run }).fetch_failed > 0 ? 1 : 0;
+    } catch (error) {
+      io.err(`pull failed: ${failureKind(error, "run-artifact-list")}\n`);
+      return 1;
+    }
   }
   try {
     // A complete pull is fresh; one that missed an artifact or stopped at its

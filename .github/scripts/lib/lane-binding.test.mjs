@@ -213,3 +213,92 @@ test("an attempt whose record was cut off before it closed is proved by time", a
   const closed = api({ [RUN]: { path: PATH, ...window, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [] }] } });
   assert.equal(await laneChecker({ pr: 7, ...closed })({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T12:00:00Z" }), false);
 });
+
+const memoryStore = (seed = {}) => {
+  const kept = new Map(Object.entries(seed));
+  const asked = [];
+  return {
+    kept,
+    asked,
+    get: async (id) => {
+      asked.push(String(id));
+      return kept.get(String(id));
+    },
+    put: async (id, loaded) => {
+      kept.set(String(id), loaded);
+    },
+  };
+};
+const storedRun = (entries, { attempt = 1, ...run } = {}) => ({
+  run: { id: RUN, path: PATH, head_sha: HEAD, head_branch: "feature/x", head_repository: { full_name: "o/r" }, status: "completed", run_attempt: attempt, ...run },
+  entries,
+  recorded: new Set(Array.from({ length: attempt }, (_, i) => `claude-lane-comments-claude-review-${i + 1}`)),
+});
+const runReads = (fake) => fake.calls.filter(([what]) => what !== "pull");
+
+test("a run the store holds answers a listed comment with no read of that run", async () => {
+  const body = bound("Off by one.");
+  const fake = api({});
+  const check = laneChecker({ pr: 7, ...fake, store: memoryStore({ [RUN]: storedRun([entry(body)]) }) });
+  assert.equal(await check({ kind: "review_comment", id: 11, body }), true, "a listed comment of a stored run binds");
+  assert.deepEqual(runReads(fake), [], "no getRun, listArtifacts or download for a stored run");
+});
+
+test("a stored run whose fields do not match the pull request's head still does not bind", async () => {
+  const body = bound("Off by one.");
+  const store = () => memoryStore({ [RUN]: storedRun([entry(body)]) });
+  const moved = api({}, { head: { ref: "other", repo: { full_name: "o/r" } } });
+  assert.equal(await laneChecker({ pr: 7, ...moved, store: store() })({ kind: "review_comment", id: 11, body }), false, "another head branch");
+  const fork = api({}, { head: { ref: "feature/x", repo: { full_name: "someone/r" } } });
+  assert.equal(await laneChecker({ pr: 7, ...fork, store: store() })({ kind: "review_comment", id: 11, body }), false, "another head repository");
+  const replay = bound("Off by one.", { sha: OLD });
+  assert.equal(await laneChecker({ pr: 7, ...api({}), store: store() })({ kind: "review_comment", id: 11, body: replay }), false, "another head sha");
+  const edited = bound("Off by two.");
+  const other = api({ [RUN]: { path: PATH, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] } });
+  assert.equal(await laneChecker({ pr: 7, ...other, store: store() })({ kind: "review_comment", id: 11, body: edited }), false, "a digest the record lacks");
+});
+
+test("a stored run that does not list a comment is read live, so a later attempt's comment binds", async () => {
+  const first = bound("From attempt 1.");
+  const second = bound("From attempt 2.");
+  const store = memoryStore({ [RUN]: storedRun([entry(first, { id: 1 })]) });
+  const fake = api({
+    [RUN]: {
+      path: PATH,
+      run_attempt: 2,
+      artifacts: [
+        { name: "claude-lane-comments-claude-review-1", entries: [entry(first, { id: 1 })] },
+        { name: "claude-lane-comments-claude-review-2", entries: [entry(second, { id: 2 })] },
+      ],
+    },
+  });
+  const check = laneChecker({ pr: 7, ...fake, store });
+  assert.equal(await check({ kind: "review_comment", id: 2, body: second }), true, "the re-run's comment binds on the live read");
+  assert.deepEqual(runReads(fake).filter(([what]) => what !== "download"), [["run", String(RUN)], ["artifacts", String(RUN)]], "one live read of the run");
+  assert.equal(store.kept.get(String(RUN)).run.run_attempt, 2, "the store now holds attempt 2");
+});
+
+test("only a finished run whose every attempt left a complete record is stored", async () => {
+  const body = bound("Off by one.");
+  const record = (n, extra = {}) => ({ name: `claude-lane-comments-claude-review-${n}`, entries: [entry(body)], ...extra });
+  const stored = async (run) => {
+    const store = memoryStore();
+    await laneChecker({ pr: 7, ...api({ [RUN]: { path: PATH, ...run } }), store })({ kind: "review_comment", id: 11, body });
+    return store.kept.has(String(RUN));
+  };
+  assert.equal(await stored({ artifacts: [record(1)] }), true, "completed, attempt 1 recorded");
+  assert.equal(await stored({ status: "in_progress", artifacts: [record(1)] }), false, "still running");
+  assert.equal(await stored({ artifacts: [record(1, { complete: false })] }), false, "a record that never closed");
+  assert.equal(await stored({ run_attempt: 2, artifacts: [record(1)] }), false, "attempt 2 left no record");
+  assert.equal(await stored({ artifacts: [record(1, { expired: true })] }), false, "an expired record");
+});
+
+test("only a comment with a binding asks the store", async () => {
+  const store = memoryStore();
+  const check = laneChecker({ pr: 7, ...api({ [RUN]: { path: PATH, artifacts: [] } }), store });
+  await check({ kind: "review_comment", id: 1, body: "x\n\nclaude-lane: claude-review" });
+  await check({ kind: "review_comment", id: 2, body: "no footer" });
+  assert.deepEqual(store.asked, [], "a legacy or footless comment asks nothing");
+  await check({ kind: "review_comment", id: 3, body: bound("x"), createdAt: "2026-01-01T00:00:00Z" });
+  assert.deepEqual(store.asked, [String(RUN)], "a bound comment asks for its run");
+});

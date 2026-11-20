@@ -2,12 +2,6 @@
 # Runs the `Check each skipped lane against scope` step body of
 # .github/workflows/pr-require-checks.yml's ci-status under the shell Actions gives a step with
 # no `shell:` (bash -e), against `toJSON(needs)` fixtures.
-#
-# A test lane `test-<x>`, or `lint-shell` on `run_shell`, that skipped turns
-# into `success` only where `select-tests` succeeded and its row is exactly
-# 'false'. Every other result passes
-# through unchanged, so a skip that hid work stays `skipped` and the aggregate
-# (treat-skipped-as: fail) reds it.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -85,5 +79,27 @@ expect "lint-repo does not borrow a run_repo row" 0 "success skipped success suc
 expect "a contract-only run passes every skip through" 0 "skipped skipped skipped skipped skipped skipped" \
   "$(lanes skipped "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')"
 expect "unreadable lanes fail and write no results" nonzero "" "not json"
+
+check_tests() {
+  printf '{"select-tests":{"result":"%s","outputs":{"run_check_tests":"%s","run_tests":"false"}},' "$1" "$2"
+  printf '"check-plugins":{"result":"%s","outputs":{}},"check-tests":{"result":"%s","outputs":{}}}' "${4-success}" "$3"
+}
+expect "check-tests skipped beside a diff base passes" 0 "success success success" \
+  "$(check_tests success false skipped)"
+expect "check-tests skipped with no diff base stays skipped" 0 "success success skipped" \
+  "$(check_tests success true skipped)"
+expect "check-tests that ran keeps its failure" 0 "success success failure" \
+  "$(check_tests success true failure)"
+expect "check-tests with an empty row stays skipped" 0 "success success skipped" \
+  "$(check_tests success "" skipped)"
+expect "check-tests skipped behind a failed scope stays skipped" 0 "failure success skipped" \
+  "$(check_tests failure false skipped)"
+expect "check-plugins does not borrow a row" 0 "success skipped success" \
+  "$(check_tests success false skipped skipped | sed 's/"check-tests":{"result":"skipped"/"check-tests":{"result":"success"/; s/"run_tests"/"run_plugins":"false","run_check_plugins":"false","run_tests"/')"
+
+for line in "      run_check_tests: \${{ steps.base.outputs.ref == '' }}" \
+  "&& needs.select-tests.outputs.run_check_tests == 'true' }}"; do
+  if grep -qF -- "$line" "$WORKFLOW"; then ok "the workflow carries '$line'"; else fail "the workflow lost '$line'"; fi
+done
 
 test_harness::report

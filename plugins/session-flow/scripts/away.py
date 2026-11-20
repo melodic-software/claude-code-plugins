@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -536,6 +537,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
         state = change(previous or {})
         report = Path(state["report_path"])
         report.parent.mkdir(parents=True, exist_ok=True)
+        state.setdefault("report_dir", os.path.realpath(report.parent))
         if reconciling and report.exists():
             text = report.read_text(encoding="utf-8")
             updated = rewrite_header(text, state)
@@ -787,10 +789,21 @@ def _limited(lines: list[str], limit: int) -> list[str]:
     return lines if len(lines) <= limit else [*lines[:limit], f"- … and {len(lines) - limit} more"]
 
 
+def find_transcript(env: Mapping[str, str], session: str) -> Path | None:
+    """The session's main transcript under the config dir's projects folder. A background session
+    armed from another session gets no prompt after `start`, and its Stop events do not record
+    the path, so the hooks never learn it."""
+    found = sorted((config_dir(env) / "projects").glob(f"*/{session}.jsonl"))
+    return found[0] if found else None
+
+
 def refresh(state: dict, paths: Paths, files: bool) -> None:
     """Regenerate the refused and external-action blocks, and with `files` the files block too."""
     started = parse_instant(state["started"])
-    transcript = Path(state["transcript_path"]) if state.get("transcript_path") else None
+    if state.get("transcript_path"):
+        transcript = Path(state["transcript_path"])
+    else:
+        transcript = find_transcript(os.environ, state["session_id"])
     externals: list[str]
     if transcript is not None and transcript.is_file():
         scan = scan_transcripts(transcript, started)
@@ -833,9 +846,20 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
     write_blocks(state, {"files": file_lines})
 
 
+def guarded_report(state: Mapping) -> Path:
+    """The report path, refused when its folder resolves elsewhere than at start or it is not a
+    regular file, so a link planted by a sandboxed command is never read or written through."""
+    report = Path(state["report_path"])
+    expected = state.get("report_dir") or os.path.realpath(report.parent)
+    planted = os.path.lexists(report) and not stat.S_ISREG(os.lstat(report).st_mode)
+    if planted or os.path.realpath(report.parent) != expected:
+        raise OSError(f"{report} is not a regular file in {expected}; left untouched")
+    return report
+
+
 def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     """Rewrite the named script-owned blocks; the slow file scan writes apart from the others."""
-    report = Path(state["report_path"])
+    report = guarded_report(state)
     report.parent.mkdir(parents=True, exist_ok=True)
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
     for name, lines in blocks.items():
@@ -843,18 +867,8 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     write_atomic(report, text)
 
 
-def files_due(state: Mapping, now: datetime) -> bool:
-    """True for the first refresh after report_by has passed."""
-    due = _instant_or_none(state.get("report_by"))
-    return due is not None and now >= due and not state.get("files_after_due")
-
-
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:
-    state = require_state(paths)
-    due = files_due(state, datetime.now().astimezone())
-    refresh(state, paths, files=args.files or due)
-    if due:
-        update_state(paths, lambda current: current.update(files_after_due=True))
+    refresh(require_state(paths), paths, files=args.files)
     return 0
 
 
@@ -1026,20 +1040,18 @@ def on_stop(hook: Hook) -> dict | None:
     if hook.status is not Status.ACTIVE:
         return None
     payload, paths = hook.payload, hook.paths
-    report = Path(hook.state["report_path"])
-    now_digest = digest(report)
     mode = payload.get("permission_mode")
     transcript = payload.get("transcript_path")
 
-    def first_look(state: dict) -> tuple[bool, object]:
+    def first_look(state: dict) -> tuple[bool, dict]:
         if isinstance(transcript, str) and transcript and not payload.get("agent_id"):
             state["transcript_path"] = transcript
         warn = isinstance(mode, str) and mode != "auto" and not state.get("mode_warned")
         if warn:
             state["mode_warned"] = True
-        return warn, state.get("last_block_digest")
+        return warn, dict(state)
 
-    warn, last_digest = update_state(paths, first_look)
+    warn, state = update_state(paths, first_look)
     if warn and mode == "bypassPermissions":
         return _block(
             "Away mode: this session's permission mode is bypassPermissions, where almost nothing prompts, "
@@ -1052,11 +1064,16 @@ def on_stop(hook: Hook) -> dict | None:
             "prompt is refused instead of judged by auto mode. Tell the person now, before they leave, and "
             "offer to continue in auto mode. Then carry on."
         )
+    try:
+        refresh(state, paths, files=False)
+    except Exception as exc:
+        _log("stop refresh failed", exc)
     if payload.get("background_tasks"):
         return None
-    if payload.get("stop_hook_active") is True and now_digest == last_digest:
+    now_digest = digest(Path(state["report_path"]))
+    if payload.get("stop_hook_active") is True and now_digest == state.get("last_block_digest"):
         return None
-    result = check_report(hook.state, paths)
+    result = check_report(state, paths)
     if result.passed:
         return None
     update_state(paths, lambda state: state.update(last_block_digest=now_digest))
@@ -1064,12 +1081,13 @@ def on_stop(hook: Hook) -> dict | None:
     if result.open_items:
         shown = "; ".join(result.open_items[:LIST_LIMIT])
         more = f" (and {len(result.open_items) - LIST_LIMIT} more)" if len(result.open_items) > LIST_LIMIT else ""
-        parts.append(f"Open items in {hook.state.get('task_file')}: {shown}{more}.")
+        parts.append(f"Open items in {state.get('task_file')}: {shown}{more}.")
         parts.append("Work the next one, or mark it parked in the task file once it waits on the person.")
     failed = [name for name, ok in result.criteria.items() if not ok]
     if failed:
         parts.append(f"Report checks failing: {', '.join(failed)}.")
-    parts.append(f"Run `{hook.command} refresh {hook.target}` after each finished piece.")
+    if "blocks_fresh" in failed:
+        parts.append("Keep each `<!-- away:... -->` marker exactly once; this hook rewrites what lies between them.")
     parts.append(f"Re-read {paths.rules} if the away rules are not in context.")
     return _block(" ".join(parts))
 
@@ -1205,7 +1223,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = session_paths(root, args.session, DEFAULT_PLUGIN_ROOT)
     try:
         return COMMANDS[args.command](args, paths)
-    except AwayError as exc:
+    except (AwayError, OSError) as exc:
         print(f"away.py {args.command}: {exc}", file=sys.stderr)
         return 1
     except ValueError as exc:

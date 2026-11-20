@@ -7,6 +7,7 @@ It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in
 
 ```bash
 vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node scripts/lane-transcripts/pull.mjs pull
+vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node scripts/lane-transcripts/pull.mjs pull --run RUN_ID
 node scripts/lane-transcripts/pull.mjs status
 node scripts/lane-transcripts/pull.mjs query --lane pr-verify --model opus --outcome success --since 2026-11-01
 node scripts/lane-transcripts/pull.mjs prune
@@ -17,6 +18,7 @@ node scripts/lane-transcripts/pull.mjs backfill
 | Command | Does | Exit |
 |---|---|---|
 | `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old. A stale `pull-outcomes` prints its `ALERT:` here too but does not change this exit code, so a timer that chains the two still reaches it |
+| `pull --run RUN-ID` | Copies that one workflow run's `lane-transcript-*` artifacts, listed from the run itself, with the same checks and rows as `pull`; writes no pull state and prunes nothing, so the scheduled pull's cursors and resume point stay as they were | 0 done; 1 when an artifact was missed or the run's listing failed |
 | `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old; the same two checks apply to `pull-outcomes` once it has run |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
@@ -45,7 +47,7 @@ machine or object storage, is any directory it mounts at; nothing else changes. 
 <sink>/transcripts/<YYYY-MM-DD>/<lane>/<run id>-<attempt>-<job id>.otel.jsonl.gz   the leg's telemetry, gzipped
 <sink>/metrics.jsonl                                                       one row per transcript, no content
 <sink>/outcomes.jsonl                                                      one row per lane-outcome record
-<sink>/state.json                                                          last success, last attempt, last error kind
+<sink>/state.json                                                          last success, last attempt, last error kind, each name's cursor
 ```
 
 The layout and every row field readers rely on are the
@@ -89,9 +91,22 @@ to 3. `pull.test.mjs` fails when a workflow that calls `upload-lane-transcript`,
 job-id is (an expression in it matches any text; the read runner's activities are checked against
 its callers),
 so a new upload step adds its job-id there, and a job-id holds no value a fixed list cannot name,
-such as an issue number; a job-id that changes inside a reusable is not checked. Each name is
-listed newest first, back to the last successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a
-re-run attempt of an older run is still pulled. It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
+such as an issue number; a job-id that changes inside a reusable is not checked.
+
+Each pull first lists the newest 100 runs of every workflow in `RUN_WORKFLOWS`, the workflows
+whose runs upload transcripts (a reusable's callers stand in for it, `TRANSCRIPT_CALLERS`), with
+no `created` filter, so a re-run of an older run still shows. Attempt 1 of every name is listed
+on every pull; attempt 2 or 3 only when one of its workflows' listed runs reached that attempt, or
+when the name was last listed through more than a day ago, which catches a re-run past those 100
+runs. A workflow whose run listing fails has all its attempts listed. A pulled artifact's run
+details come from that listing, or from one run read when its run is not in it.
+
+Each name is listed newest first, back to its own cursor less 6 hours, by the artifact's own
+`created_at`, so a re-run attempt of an older run is still pulled. The cursor (`cursors` in
+`state.json`) is when the name was last listed through with every artifact handled; a name stopped
+inside by the budget, or with an artifact that failed, keeps its old one. A name with no cursor
+lists back to the last successful pull less 6 hours, or a budget-stopped pull's kept cutoff (7
+days on the first pull). It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
 run's head repository is not this repository: the public key is public, so a fork's run could seal
 a record. A zip must hold `transcript.json.gz.sealed` and at most one other entry, which must be
 a sealed file (`<name>.sealed`); any other zip counts as `bad_zip`. A transcript record that does
@@ -120,9 +135,10 @@ key and the repository variable differ).
 
 A pull makes at most `GH_CALL_BUDGET` (1,000) `gh` calls, retries included, so one run cannot
 spend the login's shared hourly budget. At the budget it stops fetching, keeps what it has, and
-records a success with `budget_exhausted: true`, its cutoff as `resume_cutoff_at` and the name it
-stopped on as `resume_name`; the next pull lists back to that cutoff, starting at that name and
-wrapping round, so no name starves. When that kept cutoff is more than 5 days old, `pull` and
+records a success with `budget_exhausted: true`, the oldest cutoff any name will list back to as
+`resume_cutoff_at`, and the name it stopped on as `resume_name`; the next pull starts at that name
+and wraps round, so no name starves, and each name lists back to its own cursor. When that kept
+cutoff is more than 5 days old, `pull` and
 `status` alert and exit 1 although the last success is fresh, two days before the 7-day listing
 floor would pass it and drop the rest. Every pull, failed or not, ends with a
 `gh calls: N of 1000` line.

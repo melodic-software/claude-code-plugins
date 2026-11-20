@@ -72,6 +72,9 @@ PINNED_SHA = re.compile(
 IGNORE = "remove-comments-ignore"
 DISSOLVE = "dissolve-comments-ignore"
 LINK = re.compile(r"https?://\S|\bRFC[\s-]?\d+", re.IGNORECASE)
+EXIT_HEADING = re.compile(r"^#+\s*(?:exit(?:\s+codes)?|exits)\s*:?(?:\s+(\d).*)?$", re.IGNORECASE)
+EXIT_ENTRY = re.compile(r"^#+\s+\d+\b[^\w\n]*\w")
+HASH_INDENT = re.compile(r"^#+(\s*)")
 PS_HELP = re.compile(
     r"^\s*(?:#\s*)?\.(?:SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT"
     r"|ROLE|FUNCTIONALITY|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\b",
@@ -253,6 +256,8 @@ def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
         LINK.search(lines[m].comment) for m in _link_span(n, run, lines)
     ):
         return True
+    if posture == "necessary" and n in _exit_doc(_header(lines, run_of, source), lines):
+        return True
     prev = lines[n - 1].comment if n > 1 else ""
     if IGNORE in prev or DISSOLVE in prev:
         return True
@@ -264,6 +269,42 @@ def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
         return True
     following = lines[n + 1].comment if n + 1 < len(lines) else ""
     return bool(DIRECTIVE.search(following) or CODE_WAIVER.search(nxt))
+
+
+def _header(lines: list[_Line], run_of: dict[int, list[int]], source: list[str]) -> list[int]:
+    start = 2 if source and source[0].startswith("#!") else 1
+    while start <= len(source) and not source[start - 1].strip():
+        start += 1
+    if start >= len(lines) or lines[start].code or not lines[start].covered:
+        return []
+    return run_of.get(start, [])
+
+
+def _hash_indent(comment: str) -> int:
+    match = HASH_INDENT.match(comment)
+    return len(match.group(1)) if match else -1
+
+
+def _exit_doc(header: list[int], lines: list[_Line]) -> set[int]:
+    passing: set[int] = set()
+    listing, entry_indent = False, None
+    for m in header:
+        text = lines[m].comment
+        heading = EXIT_HEADING.match(text)
+        if heading:
+            listing = True
+            entry_indent = None
+            if heading.group(1):
+                entry_indent = heading.start(1) - (len(text) - len(text.lstrip("#")))
+        elif listing and EXIT_ENTRY.match(text):
+            entry_indent = _hash_indent(text)
+        elif not (
+            listing and entry_indent is not None and _hash_indent(text) > entry_indent
+        ):
+            listing = False
+            continue
+        passing.add(m)
+    return passing
 
 
 def _code_part(src: str, comment: str) -> str:

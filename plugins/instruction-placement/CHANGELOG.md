@@ -3,6 +3,28 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.9.0] - 2026-11-20
+
+### Changed
+
+- The git-hooks remote plan names the git URL of the marketplace the plugin was installed from (its GitHub or git source), so a fork's install fetches the fork; the publisher URL in `entries.json` stays the default when the marketplace has no such source.
+
+## [1.8.0] - 2026-11-19
+
+### Added
+
+- `/instruction-placement:audit`, `delta`, `check` and `realign` accept the target-scope forms
+  (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`). The audit keeps one findings
+  artifact per repository, in that repository's worktree on the branch
+  `instruction-placement/realign`, and reports a section several repositories' always-loaded files
+  repeat as a report-only row naming the machine layer or the standards repository as a single
+  home. `delta` keeps one baseline per repository in that worktree, `check` gates each other
+  repository's `origin/HEAD` in a throwaway worktree and exits non-zero when any one fails, and `realign` applies one repository's findings at a time,
+  leaving its changes for that repository's own pull request. With no target form, each skill
+  behaves as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the shared target-scope
+  contract.
+
 ## [1.7.1] - 2026-11-19
 
 ### Changed

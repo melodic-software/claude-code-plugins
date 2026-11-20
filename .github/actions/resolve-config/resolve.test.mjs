@@ -358,6 +358,8 @@ const LIMITS = {
   "restarts-per-run": 5,
   // Kill-switch re-fires fill the issue lane to two runs per slot (owner decision Q109).
   "refire-queue-per-slot": 2,
+  // Budget-stop re-fires fill it to one run per slot: https://github.com/melodic-software/architecture/blob/c3a36f0e86c268cd6a427abd344c69d76c03d654/docs/owner-decisions.md#L237
+  "refire-budget-per-slot": 1,
   // A lane run still queued an hour after it was created is lost, not counted.
   "stale-queued-minutes": 60,
   // A work-resolve-issue run's sweep waits 15 minutes after the last full sweep.
@@ -454,6 +456,19 @@ test("limits: refire-queue-per-slot is a whole number from 1 to 10", () => {
   for (const bad of [0, 11, 1.5]) {
     const rejected = edited((doc) => {
       doc.limits = { "refire-queue-per-slot": bad };
+    });
+    assertRejected(() => run(rejected), "invalid-config");
+  }
+});
+
+test("limits: refire-budget-per-slot is a whole number from 1 to 10", () => {
+  const set = edited((doc) => {
+    doc.limits = { "refire-budget-per-slot": 2 };
+  });
+  assert.equal(run(set).limits["refire-budget-per-slot"], 2);
+  for (const bad of [0, 11, 1.5]) {
+    const rejected = edited((doc) => {
+      doc.limits = { "refire-budget-per-slot": bad };
     });
     assertRejected(() => run(rejected), "invalid-config");
   }

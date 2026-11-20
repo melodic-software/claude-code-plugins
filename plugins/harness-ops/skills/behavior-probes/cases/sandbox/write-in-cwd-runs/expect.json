@@ -1,6 +1,6 @@
 {
-  "claim": "Control: on Linux with sandbox.enabled, a Bash write inside the working directory runs with no prompt.",
-  "tags": ["sandbox"],
+  "claim": "Control: on Linux with sandbox.enabled and sandbox.autoAllowBashIfSandboxed true, a Bash write inside the working directory runs with no prompt.",
+  "tags": ["sandbox", "autoAllowBashIfSandboxed"],
   "permission_mode": "auto",
   "platforms": ["linux"],
   "requires": ["bwrap", "socat"],

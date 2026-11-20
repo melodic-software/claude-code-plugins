@@ -49,7 +49,7 @@ const run = ({ args, failures, failure = "HTTP 502: Bad Gateway", stop, unreadab
       `. ${join(root, ".github/actions/log-api-budget/api-budget.bash")}\n` +
       `. ${join(root, ".github/scripts/pr-merge/rate-stop.bash")}\n` +
       `. ${join(root, ".github/scripts/pr-merge/retry-call.bash")}\n` +
-      `set -euo pipefail\nrc=0\nretry_call ${args} call || rc=$?\necho "rc=$rc"\necho "unknown=\${retry_call_unknown:-}"\n`;
+      `set -euo pipefail\nrc=0\nretry_call ${args} call || rc=$?\necho "rc=$rc"\necho "unknown=\${retry_call_unknown:-}"\necho "waited=\${retry_call_waited-unset}"\n`;
     const result = spawnSync("bash", ["-c", script], {
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir },
@@ -144,6 +144,30 @@ test("a stop that passes between the two clock reads is waited out as zero, then
   assert.equal(out.dates, 5);
   assert.deepEqual(out.sleeps, [0]);
   assert.equal(out.calls, 2);
+});
+
+test("retry_call_waited is the seconds it slept, summed, and 0 when it slept nothing", () => {
+  assert.match(run({ args: "--read 60", failures: 1, stop: `core ${NOW + 40}\n` }).stdout, /^waited=40$/m);
+  const backedOff = run({ args: "--read 60", failures: 2 });
+  assert.match(backedOff.stdout, new RegExp(`^waited=${backedOff.sleeps[0] + backedOff.sleeps[1]}$`, "m"));
+  assert.match(run({ args: "--read 60", failures: 0 }).stdout, /^waited=0$/m);
+  assert.match(run({ args: "--read 60", failures: -1, stop: `core ${NOW + 3600}\n` }).stdout, /^waited=0$/m);
+  assert.match(run({ args: "60", failures: -1 }).stdout, /^waited=0$/m);
+});
+
+test("a header stop that has passed by the time it is read is retried, not guessed an hour", () => {
+  const out = run({
+    args: "--read 60",
+    failures: 1,
+    failure:
+      "::error::'gh api x' hit GitHub's core API rate limit: no call to it before 2033-05-18T03:33:25Z (x-ratelimit-reset); the call returns 1\ngh: API rate limit exceeded (HTTP 403)",
+    stop: `core ${NOW + 5}\n`,
+    jumpAt: 1,
+  });
+  assert.match(out.stdout, /^rc=0$/m);
+  assert.equal(out.calls, 2);
+  assert.equal(out.sleeps.length, 1);
+  assert.ok(out.sleeps[0] <= 15, String(out.sleeps));
 });
 
 test("the budget counts every wait together, not each alone", () => {

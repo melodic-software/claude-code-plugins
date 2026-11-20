@@ -1,0 +1,23 @@
+export const PREFIXES = Object.freeze({
+  "pr-merge.yml": Object.freeze(["PR Merge", "pr-merge"]),
+  "pr-rate-merge-risk.yml": Object.freeze(["PR Rate Merge Risk", "merge-risk"]),
+  "pr-refine.yml": Object.freeze(["PR Refine", "pr-refine"]),
+  "pr-unblock.yml": Object.freeze(["PR Unblock", "pr-unblock"]),
+});
+
+const each = (workflow, rest) => PREFIXES[workflow].map((prefix) => `${prefix}${rest}`);
+const anchored = (workflow, rest, flags = "") => new RegExp(`^(?:${PREFIXES[workflow].join("|")})${rest}$`, flags);
+
+export const prMergeTitle = (pr) => each("pr-merge.yml", `: arm #${pr}`)[0];
+export const PR_MERGE_TITLE = anchored("pr-merge.yml", ": arm #(.*)", "s");
+
+export const mergeRiskTitle = (pr, head) => each("pr-rate-merge-risk.yml", ` #${pr} ${head}`)[0];
+export const isMergeRiskTitle = (title, pr, head) => each("pr-rate-merge-risk.yml", ` #${pr} ${head}`).includes(title);
+
+export const prRefineTitle = (activity, number) => each("pr-refine.yml", ` ${activity} #${number}`)[0];
+export const isPrRefineTitle = (title, activity, number) => each("pr-refine.yml", ` ${activity} #${number}`).includes(title);
+
+export const prUnblockTitle = (activity, number) => each("pr-unblock.yml", ` ${activity} #${number}`)[0];
+export const isPrUnblockTitle = (title, activity, number) => each("pr-unblock.yml", ` ${activity} #${number}`).includes(title);
+export const PR_UNBLOCK_TITLE = anchored("pr-unblock.yml", " ([a-z]+(?:-[a-z]+)*) #([1-9][0-9]{0,9})");
+

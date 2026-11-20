@@ -4,6 +4,28 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.6] - 2026-11-20
+
+### Changed
+
+- The Haiku 5.5 and Sonnet 5.5 model-adaptation chapters say no code in this repository sends API requests, now that the pr-verify key proxy is gone ([#17281](https://github.com/melodic-software/claude-code-plugins/issues/17281)).
+
+## [0.36.5] - 2026-11-20
+
+### Changed
+
+- The boris and skill-authoring playbooks no longer carry examples written for one stack: the formatter hook, cloud setup script and `/batch` migration code examples are gone from the boris tips, the renderer tip no longer names its library, and the skill-authoring deletion-test paragraph and product-verification row no longer name CSS, React, `ReactDOM`, playwright or tmux.
+
+### Removed
+
+- The optional `yarn` prerequisite, which only the removed setup-script example used.
+
+## [0.36.4] - 2026-11-19
+
+### Changed
+
+- `repo-sweep` files catalog and procedure issues, and checks override issues, against the repository this plugin ships from, read from the `repository` field its manifest now carries, instead of a hardcoded repository; without that field it asks.
+
 ## [0.36.3] - 2026-11-17
 
 ### Changed

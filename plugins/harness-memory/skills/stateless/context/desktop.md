@@ -7,19 +7,17 @@ claude.ai account (used by the Claude Desktop app and claude.ai chat), not local
 Because it is account-side, "going stateless" in Claude Code does nothing to it, and vice
 versa. Handle both if you want to be stateless everywhere.
 
-## Guided steps (verify labels in the live app)
+## Direction steps (the current labels are read live)
 
-These menu labels are not verified against a docs page, and the product UI changes, so treat
-them as directions to the right area, and confirm against what you see:
+We direct the user to three things in the account's settings and name no menu label as
+verified, since the product UI changes; the current labels and steps for the first two are in the
+article below, and the app's own privacy settings carry the third:
 
-1. Open **Settings** in Claude Desktop or on claude.ai, and find the **Memory** (or
-   personalization) section.
-2. **Turn the memory toggle off** to stop new memories being saved. Turning it off does
-   **not** delete what is already saved.
-3. **Clear existing saved memories** using the separate "clear"/"delete" control in that
-   section. This is a distinct action from the toggle.
-4. Review the **privacy / model-training** setting while you are there: whether your chats can
-   be used to improve models is a separate control from memory. Adjust it to your preference.
+1. **Turn account memory off**, so no new memories are saved.
+2. **Clear the memories already saved**, as its own step: we never present turning memory off
+   as deleting what is saved, because going stateless means nothing kept.
+3. **Review the chat-data and model-training setting**, because being stateless everywhere
+   reaches past memory, and the choice is the user's.
 
 ## Honesty notes
 

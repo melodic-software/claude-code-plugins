@@ -1196,11 +1196,16 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
   // The check-trigger job's own result still gates the key leg, as the implicit success() did.
   assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
   assert.ok(!runs({ result: "success", outputs: {} }, triggered, { cancelled: true }));
-  // The gate runs on every run of this attempt's check-trigger job, a head with no
-  // lane source or one already judged included.
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { "check-trigger": trigger } });
-  for (const outputs of [{}, { proceed: "" }, { review: "false" }, { judged: "true" }]) {
-    assert.ok(probeRuns({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
+  const reviewRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { "check-trigger": trigger, [PROBE]: { result: "skipped", outputs: {} } } });
+  for (const outputs of [{}, { proceed: "" }, { review: "" }]) {
+    const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
+    assert.ok(probeRuns(trigger), JSON.stringify(outputs));
+  }
+  for (const outputs of [{ review: "false" }, { judged: "true" }, { held: "true" }]) {
+    const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
+    assert.ok(!probeRuns(trigger), JSON.stringify(outputs));
+    assert.ok(!reviewRuns(trigger), `the review job runs where the gate skipped: ${JSON.stringify(outputs)}`);
   }
   assert.ok(!probeRuns({ ...triggered, outputs: { ...triggered.outputs, "run-attempt": "2" } }));
   assert.ok(!admits(jobGate(PROBE), { github: { ...upstreamRun, ref: "refs/heads/x" }, needs: { "check-trigger": triggered } }));
@@ -1243,7 +1248,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
 // ci-workflows' scan-upload since it checks nothing out.
 test("the credit gate writes, scans and uploads the probing marker right after the gate", () => {
   // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
-  const probe = "key-credit-probing-pr-review-main.yml-review-handoffs";
+  const probe = "key-credit-probing-REVIEWS_CLAUDE_API_KEY";
   const names = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
   const [write, scan, upload] = names.map((name) => step(name, PROBE));
   assert.match(write, /^ {8}id: probe-marker$/m);
@@ -1848,6 +1853,7 @@ test("every later leg repeats the key leg's steps but for its credential and why
       // (pinned per leg in the credential-order test and credential-legs.test.mjs).
       .replace(/^ {10}leg: (?:key|subscription|fallback)\n/m, "")
       .replace(/^ {10}fallback-set: .*\n/m, "")
+      .replace(/\n {10}key-off: \$\{\{ vars\.CLAUDE_API_KEYS_DISABLED == 'true' \}\}$/m, "")
       .replace(/\n {10}reason: \$\{\{ matrix\.reason \}\}$/m, "")
       // The key leg's take on the check-trigger job's gate (its own test above).
       .replace(/ && needs\.check-trigger\.outputs\.run-attempt != github\.run_attempt$/m, "")

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Mechanism:** `/clear`, then start on #4489.",
+      "why": "named"
+    },
+    {
+      "answer": "No handoff needed.\nNext step: /clear",
+      "why": "negated line skipped, another line names it"
+    },
+    {
+      "answer": "No handoff needed: just /clear and open #4489.",
+      "why": "one line: the negation is not on the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mechanism: `/compact keep the auth context`.",
+      "why": "wrong mechanism"
+    },
+    {
+      "answer": "Do not /clear yet; write a handoff.",
+      "why": "negated"
+    },
+    {
+      "answer": "Next step: /clearance check",
+      "why": "a different token sharing the prefix"
+    },
+    {
+      "answer": "Instead of a /clear, write a plan first.",
+      "why": "negated with a filler word"
+    },
+    {
+      "answer": "No need for /clear here.",
+      "why": "negated with a preposition"
+    }
+  ]
+}

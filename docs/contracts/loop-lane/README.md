@@ -435,7 +435,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 
 | Label | Meaning | Who lifts it |
 |---|---|---|
-| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering |
+| human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering; on a pull request a lane escalated, also a session acting on a recorded owner decision (below the table) |
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push. Builder items are worked one at a time: interview, plan, implement (owner decision Q-host-run, 2026-11-04) | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
@@ -444,6 +444,30 @@ On an issue, the holds live on its Work status field: `needs-human`, `needs-owne
 [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml)). A hold label such as `needs-human` or
 `needs-owner-decision` still holds on top of the field, so a listed human lifts a hold by
 changing the field and removing any hold label.
+
+On a pull request, a recorded owner decision lifts a lane's escalation. When a lane put the
+human-gated label on with a trusted escalation marker
+([`escalation-marker.md`](../../../plugins/work-items/reference/escalation-marker.md)) and each
+reason the escalation names is an intent, vision or primary-design question (a disputed finding
+that turns on what the change is meant to do included), a session removes the label once a row in
+the owner-decisions record (`docs/owner-decisions.md` in `melodic-software/architecture`) or the
+owner's words quoted verbatim cover every one of those reasons. In the same pass it comments on the
+pull request with the row's line link or the quote and the escalation it answers, then takes the
+resume step the escalation comment names. Where no recorded decision covers a reason, the label
+stays the owner's to remove. The rule reaches no hold the owner keeps: an operator-parked item,
+which carries no marker; a review-lane hold
+([Review-lane holds](../../conventions/pr-pipeline/README.md#review-lane-holds)), whose
+`critical-security` lift stays a listed human's and whose `cost` hold clears only on
+[the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)'s own decision
+comment; a HIGH or CRITICAL security stop; an item carrying `security: outside-actor`; and the
+trust, credential, injection and pr-merge person holds above. ci-status cannot tell this removal from the owner's, since a session acts
+under the owner's GitHub login: the comment makes the lift auditable, not provable. Asked on
+2026-11-19 whether a session may remove a machine-escalated `needs-human` label from a pull request
+on such a record, with that recommended, the owner answered, recorded as a row in that record:
+
+<!-- spellchecker:off -->
+> go w/ recommendations
+<!-- spellchecker:on -->
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
@@ -541,9 +565,10 @@ real-time deadline. A hold that lands after the merge is not a hold.
   loss ([skills and agents](../../review/skills-and-agents.md)) uses `reason=eval`, and the session
   that posts the paired result adds a line
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
-  and shows no loss. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
+  and shows no loss. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
+  `do-not-merge` and a `reason=eval` comment in the same step. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
   removes `do-not-merge`, after a comment naming the record and the head, when that record is the
-  newest since the label went on and names the current head, both lines are by a listed human, on a
+  newest since the label went on and names the current head, the record is by a listed human, the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
   merge" and `do-not-merge` out of the record comment: they read as a veto.
@@ -735,7 +760,7 @@ check-the-hook signal, never as proof of health.
 
 Model selection is expressed as **capability tiers defined by order, never by family name**.
 Capability does not track family across generations (a current mid-tier model can equal a prior
-top-tier one), so a tier named for a family silently rots. Three ordered tiers, each bound to a
+top-tier one), so a tier named for a family goes wrong without anyone editing it. Three ordered tiers, each bound to a
 Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
@@ -761,7 +786,6 @@ pairings are valid); security-surface work routes to the frontier tier unconditi
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
   advisor pairing rule onto a reviewer subagent.
@@ -776,7 +800,6 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
 
@@ -788,10 +811,9 @@ The reasons behind each binding:
 
   *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
   `model` takes
-  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); recheck
-  when that list changes). A lane's frontier-tier Agent dispatch, the security-surface rule's
-  included, therefore names `opus` while the Fable rung waits on an owner decision and a per-week Fable
-  allowance, as the CI lane profiles' ladder paragraph under "Models" in
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). A
+  lane's frontier-tier Agent dispatch, the security-surface rule's included, therefore names `opus`
+  while the Fable rung waits on an owner decision and a per-week Fable allowance, as the CI lane profiles' ladder paragraph under "Models" in
   `docs/conventions/pr-pipeline/README.md` records, and `fable` once both are set. The lane prompts follow this note.
   One exception: the explicit-`autopilot` pre-escalation resolver (babysit-loop's
   `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
@@ -1065,8 +1087,8 @@ telemetry comment, and re-reads them at each cycle start. Every counter in the b
 experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
-lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
-correctly declines to spend a worker, and nothing notices the aggregate is zero. Each unattended
+lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
+spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
 durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
@@ -1182,7 +1204,7 @@ bot cannot hold a drain open indefinitely.
 **Autonomous-pipeline reminder.** An autonomous lane carries standing clauses of its own against the
 two stopping failures a pipeline cannot recover from: a turn ending on unexecuted intent, and a turn
 stopping to ask permission nobody is there to give. In this repository those clauses are
-hand-authored inline in each autonomous lane's launch prompt, and **deliberately so**: a launch
+hand-authored inline in each autonomous lane's launch prompt, **deliberately**, because a launch
 prompt is pasted into a terminal that may have no plugin installed, so it stays self-contained.
 **Pointer-not-copy does not reach them**, the one place in this doc where that holds, because
 the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
@@ -1371,7 +1393,7 @@ and reports the window, its percentage and reset time, and the operator's option
 opt-in variable in the lane session's environment, for example through an `env` entry in
 `--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
 only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
-unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+unchanged, since there the API is refusing and no lane is choosing to stop. A default pause stopped every
 lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
 quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
 
@@ -1418,8 +1440,8 @@ copy and drift unwatched. With the exception list in the check, a new data carri
 the gate, which is the review the exception needs.
 
 **Neither half is optional, and path shape cannot supply either.**
-`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
-construction: it skips `SKILL.md` by basename, and it clusters copies by identical
+`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, cannot catch this
+case: it skips `SKILL.md` by basename, and it clusters copies by identical
 path-within-plugin, while these copies sit at unrelated paths. Copies can stay identical to each
 other, which is the half a reviewer notices, while all of them drift from the reader contract, so
 the check compares each copy against the contract. The scan exists because a registry alone can
@@ -1428,8 +1450,8 @@ miss a copy nobody registered.
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
-way for the guard to detect it. Same-machine account rotation is real operating practice, not a
-hypothetical.
+way for the guard to detect it. Same-machine account rotation happens: the owner rotates accounts
+by hand on the rate-limit alerts.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
 built, not a rule, and it fails open in a contract that fails closed on every other unresolvable

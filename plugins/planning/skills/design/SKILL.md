@@ -294,8 +294,15 @@ Each round:
    documents): public contracts, data shapes, and user-facing surfaces lead; settled-looking
    mechanical threads sit at the bottom. Order only; thread dependencies still govern what can
    resolve when.
-4. When discussion surfaces project-wide principles, suggest codifying them in the project's own
-   rules.
+4. For each project-wide principle discussion surfaces, when `/corrections:codify` is among the
+   available skills, hand it the choice of mechanism; it picks the strongest rung of the
+   enforcement ladder that can decide the rule and proves the check. Call it as
+   `/corrections:codify "<the principle>"`. Otherwise, propose the strongest mechanism that can
+   decide the rule: a change that makes the mistake impossible first, then a check that blocks it,
+   then a test, and an instruction only when nothing a machine runs can decide it. Say that
+   `/corrections:codify` was not available, so the proposal is unproven. When codify stops with no
+   proposal, as it does below its recurrence threshold, propose the same way and say that it
+   stopped.
 
 Continue until no new gaps surface, then run the `handoff` action.
 
@@ -424,8 +431,15 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   is stated with its basis and source tag, not asked
 - **Track resolution status.** Every question and thread is resolved / directional / deferred.
   Deferred items carry a research tag naming the external investigation needed
-- **Codify rules when discovered.** When discussion surfaces a project-wide principle, suggest
-  codifying it immediately in the project's own rules files
+- **Codify rules when discovered.** When discussion surfaces a project-wide principle, route it
+  immediately: when `/corrections:codify` is among the available skills, hand it the choice of
+  mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and
+  proves the check. Call it as `/corrections:codify "<the principle>"`. Otherwise, propose the
+  strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
+  then a check that blocks it, then a test, and an instruction only when nothing a machine runs
+  can decide it. Say that `/corrections:codify` was not available, so the proposal is unproven.
+  When codify stops with no proposal, as it does below its recurrence threshold, propose the same
+  way and say that it stopped
 - **Incremental artifacts.** Build artifacts as discussion progresses and update them as decisions
   evolve. Re-read multi-turn shared artifacts (`design-threads.md` and peers) from disk before
   every write, since another turn or agent may have changed them, and prefer appending or refining

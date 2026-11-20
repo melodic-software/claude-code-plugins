@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\nENFORCE: `/corrections:codify \"handlers return errors through respondError()\"`\nMECHANISM: none",
+      "why": "the skill picks no mechanism"
+    },
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\nENFORCE: `/corrections:codify \"handlers return errors through respondError()\"`\n**MECHANISM:** None (codify picks the rung)",
+      "why": "bold label, capitalized, with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\nENFORCE: a hook or CI check\nMECHANISM: a CI check that greps src/handlers/ for res.status(",
+      "why": "the skill picks the mechanism itself, as the text before the follow-on directed"
+    },
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\nENFORCE: `/corrections:codify \"handlers return errors through respondError()\"`\nMECHANISM: probably an ESLint no-restricted-syntax rule",
+      "why": "names codify but still picks a mechanism"
+    }
+  ]
+}

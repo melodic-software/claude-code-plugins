@@ -85,7 +85,7 @@ about that repo, not a preference.
 **Run the whole profile from a checkout of `{{REPO}}`.** Every `gh` command
 below reads the *ambient* repository when given no `--repo`, so profiling from
 a neutral directory or a sibling checkout silently describes the wrong backlog,
-and these counts feed the rung decision. The tracker binding and
+and the operator acts on these counts. The tracker binding and
 `docs/conventions/source-control.yaml` reads need that working directory anyway. If you
 must profile from elsewhere, add `--repo {{REPO}}` to **every** `gh` read below
 without exception; one bare command is enough to mix two repositories' numbers
@@ -150,19 +150,17 @@ into one profile.
   reached and the `||` branch would report a **malformed** binding for a repo
   that simply has none yet, the exact repo the adoption sequence is walking.
 
-- **Is a classification source present, and how many items carry one?** The
-  merge partition reads the recorded class from the `work-class:` **label
-  only**, so the readiness number the rung decision consumes counts labels,
-  never the union with body trailers, which would over-report the
-  merge-eligible population by counting items no rung can reach. Count the
-  trailers too, but as a **separate** figure: a body-only item is the
-  migration backlog, and reporting it beside the eligible count is what tells
-  the operator how many items need a label before a rung raise buys anything.
+- **Is a classification source present, and how many items carry one?** This
+  count is informational: the merge partition is by rung, no rung reads a
+  `work-class:` label, and the `provenance: untrusted` hold is the one class
+  hold, per `babysit-loop`. The count tells the operator how many items carry a
+  class record and how many carry only a body trailer they can label from.
+  Count labels and trailers as **separate** figures, never their union.
 
   Match the **canonical grammar**, not a loose substring. The vocabulary is
   C1–C5, so `C[0-9]` also counts a stray `Work-class: C9`, and a bare
   `work-class` label test counts an unrelated `work-class: pending`. Both
-  inflate a readiness number the rung decision then trusts. Anchor the trailer
+  inflate the figures the operator reads. Anchor the trailer
   to line start and compare labels against the four strings `gh label list`
   actually returned. Substitute them into `VALID` below:
 
@@ -184,8 +182,8 @@ into one profile.
   ```
   <!-- spellchecker:on -->
 
-  `classified` is the merge-eligible population the rung decision reads;
-  `body_only` is the label-migration backlog, never added to it.
+  `classified` counts items with a class label; `body_only` counts items
+  whose class is recorded only as a body trailer, never added to it.
 
   Two mechanics worth not rediscovering. `gh issue list` has **no
   `--argjson`**, so pipe to `jq` instead of using `--jq`. And jq's regex engine
@@ -194,7 +192,7 @@ into one profile.
   The trailing `( |\r|\n|$)` is a **token boundary, not merely a non-digit**:
   it rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
-  this pattern inflates the `body_only` backlog figure, so keep it strict.
+  this pattern inflates the `body_only` figure, so keep it strict.
   The canonical trailer always continues with a space or ends the line.
 
   Both line-ending alternatives are required, and both are easy to drop as
@@ -202,7 +200,7 @@ into one profile.
   body, so a bare `Work-class: C2` followed by any further body section
   matches only via `\n`; and a CRLF body needs `\r` (issue and PR bodies
   with CR line endings occur in practice). Omit either and a
-  body-stamp repo reports a `body_only` backlog of zero and looks migrated
+  body-stamp repo reports a `body_only` figure of zero and looks fully labeled
   when it is not.
 
   **`--limit` is a ceiling, not an all-pages switch.** It is documented as
@@ -210,18 +208,15 @@ into one profile.
   unbounded call silently under-reports any backlog past thirty, and a
   `--limit 500` call silently under-reports one past five hundred. Raising
   the number only moves the cliff. That is why the command reports
-  `truncated` alongside the count: **if `truncated` is true the classified
-  figure is a floor, not a total, and is not safe to feed a rung decision**.
-  Raise `LIMIT` and re-run until it reports false. (`gh api --paginate`
-  fetches every page, but returns raw REST issues without the `gh`-computed
-  fields this query reads, so the explicit ceiling plus a truncation flag is
-  the honest shape here.)
+  `truncated` alongside the count: **if `truncated` is true both figures are
+  floors, not totals**. Raise `LIMIT` and re-run until it reports false.
+  (`gh api --paginate` fetches every page, but returns raw REST issues
+  without the `gh`-computed fields this query reads, so the explicit
+  ceiling plus a truncation flag is the honest shape here.)
 
-  A repository that records classifications only as body trailers has an
-  empty merge-eligible set until the label axis exists and the labels follow
-  the trailers. That is the shipped baseline, everything human-merge, and not
-  a breakage. Report the `body_only` figure so the operator sees what the
-  provisioning would buy.
+  A repository that records classifications only as body trailers, or not at
+  all, merges exactly as one with labels: a missing label is a missing
+  record, not a hold.
 - **`{{RUNTIME_SURFACES}}`**: paths that look like documentation but are
   loaded by an agent at run time. This drives classification: a change to a
   runtime surface is never mechanical, so an under-listed value is a safety
@@ -271,20 +266,17 @@ into one profile.
 1. Land `babysit_loop_*` keys in that repo's tracked
    `docs/conventions/source-control.yaml` on the default branch. Without this the
    merge lane runs and merges nothing.
-2. Decide whether this repository wants anything to auto-merge. The merge
-   partition reads the class from the `work-class:` **label** only, so a repo
-   with no label axis is entirely human-merge, a legitimate adoption state
-   and the shipped baseline. Check what is already there, from a checkout of
-   the target or with an explicit `--repo`, for the same reason the profile
-   above states:
-   `gh label list --repo <owner/name> --limit 200 | grep -i work-class`, plus
-   the `body_only` figure from the profile's command, which sizes the
-   migration if the answer is yes.
-3. **Only if you want anything to auto-merge**, since the label axis is what
-   makes a rung reachable, provision it before stamping, and **never from a
-   lane**: no lane creates labels, and discovery never implies write
-   permission. Route by what the target repository declares, rather than
-   assuming an owner:
+2. **Make sure the `provenance: untrusted` label exists.** The merge
+   partition is by rung, and the untrusted-provenance hold is its one class
+   hold. That label is the hold's issue-side half: until it exists, triage
+   cannot mark untrusted intake. No rung reads a `work-class:` label, so a
+   repo without those labels merges exactly as one with them. Check from a
+   checkout of the target or with an explicit `--repo`, for the same reason
+   the profile above states:
+   `gh label list --repo <owner/name> --limit 200 | grep -i provenance`.
+   Provision a missing label **never from a lane**: no lane creates labels,
+   and discovery never implies write permission. Route by what the target
+   repository declares, rather than assuming an owner:
    - **It declares a label-management source of truth** (a label-as-code repo,
      a documented process). Route the change there and keep every lane action
      read-only. Melodic repositories declare `github-iac`; that is this org's
@@ -293,19 +285,15 @@ into one profile.
      authorization plus the repository's documented contribution process. Ask;
      do not run `gh label create` on your own initiative.
 
-   Whichever path, the five members are aliases of the autonomy program's
-   C1–C5 work classes, with the alias map single-sourced in the label
-   declarations.
-4. Label the autonomous-eligible items, or accept that nothing auto-merges.
-   The `work-class:` label is what the merge partition reads; an item whose
-   class is recorded only as a body trailer is ineligible at every rung until
-   the label follows it.
-5. **Bind the tracker provider** if the repo has no tracker binding (a
+   Where the repository also keeps `work-class:` labels as a class record,
+   the members are aliases of the autonomy program's C1–C5 work classes,
+   with the alias map single-sourced in the label declarations.
+3. **Bind the tracker provider** if the repo has no tracker binding (a
    `tracker` mapping in `docs/conventions/work-items.yaml`) yet. Run `/work-items:setup apply`, or declare the binding by hand. The
    tracker seam hard-errors (exit 3) with no binding, so a lane launched
    before this stops on its first cycle rather than starting. The plugin bundles the
    adapters; the repo only declares which one it uses.
-6. Point one worker lane and one merge lane at it, on different machines.
+4. Point one worker lane and one merge lane at it, on different machines.
 
 ## How to inject these
 
@@ -883,9 +871,10 @@ Letting one "primary" shard write it records a partial pass as the whole.
 > **Work classes: you propose, I apply. Labels and body trailers alike.**
 > The autonomy contract forbids any repo-local agent-writable surface from
 > supplying the class used for admission. A label you write is exactly that
-> surface, **and so is an item body you edit**: the label because
-> `babysit-loop` partitions on it, the body because it is the record I label
-> from. You never run the label command yourself, and never
+> surface, **and so is an item body you edit**: the label because it is the
+> class record, the body because it is the record I label from. No merge
+> rung reads either; the `provenance: untrusted` label is the merge lane's
+> one class hold. You never run the label command yourself, and never
 > write a `Work-class: C<n>` trailer into a body, not even to transcribe a
 > class I already ratified. Hand me the exact command to paste, for whichever
 > surface this repository records classes in.
@@ -1215,16 +1204,17 @@ carries those errors into what the operator ratifies.
 > **Work classes: you propose, I apply. Labels and body trailers alike.**
 > Never write a `work-class:` label or a `Work-class: C<n>` body trailer
 > yourself, not even to transcribe a class I already ratified. Both are
-> agent-writable: the `provenance: untrusted` label is the merge lane's one
-> class hold, and the
-> trailer is the record I label from, so writing either is an agent authoring
-> its own admission input. Resolve the live
+> agent-writable: the label is the class record and the trailer is the
+> record I label from, so writing either is an agent authoring its own
+> admission input. No merge rung reads either; the `provenance: untrusted`
+> label is the merge lane's one class hold. Resolve the live
 > label strings first (`gh label list --limit 200 | grep -i work-class`,
 > mapping C1–C5 onto the members in ascending risk order), then hand me the
-> exact command to paste. If no label axis exists, say so once and keep
-> working. Nothing auto-merges there, which is the baseline, and classes
-> still record via operator-pasted body trailers for whenever it is. Never
-> route a `work-class:` label through `/work-items:track`. Fail toward the
+> exact command to paste. If no `work-class:` label exists, say so once and
+> keep working: no merge rung reads a work class, so that repository merges
+> exactly as one with them, and classes still record via operator-pasted
+> body trailers. Never route a `work-class:` label through
+> `/work-items:track`. Fail toward the
 > higher class; `mechanical` is narrow (deterministic, trivially reversible
 > maintenance), and nothing on the `Runtime surfaces` line is mechanical no
 > matter how doc-shaped it looks.
@@ -1257,7 +1247,7 @@ carries those errors into what the operator ratifies.
 >   working and reports the window, its `used_percentage` and `resets_at`,
 >   and the operator's options: continue, switch accounts (a human action
 >   a lane never performs or scripts;
->   https://github.com/melodic-software/claude-code-account-rotation), or
+>   the link is the rate-limits `account_switch_url` option), or
 >   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from

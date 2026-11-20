@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of whether a doc earns its existence: could a fresh agent re-derive it from code, config, and structure? One verdict per file: delete, convert-to-pointer, keep-as-derivation-cache, or keep-owns-facts. Use when: 'is this doc worth keeping', 'audit doc value', 'derivability', 'could an agent figure this out itself', 'should this doc exist', 'this doc just restates the code', 'prune redundant docs', 'does this doc earn its maintenance'. Line-level noise is /docs-hygiene:audit-noise."
-argument-hint: "[target|audit [target]|sweep <dir>]"
+argument-hint: "[target|audit [target]|sweep <dir>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh\":*)", "Bash(echo:*)"]
@@ -86,6 +86,7 @@ Keep verdicts get a sampled spot-test too, so false-keeps are bounded. A **diver
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files; file path → single doc; dir path → each `.md` directly in it | Run the rubric per document: heuristic pass, spot-test where gated, emit the verdict ledger |
 | `audit [target]` | same target rules | Explicit form of the default; identical behavior |
 | `sweep <dir>` | a directory to walk recursively | Corpus audit of the directory's tracked markdown. Enumerate via `git ls-files -- '<dir>/*.md'`, one combined pathspec: two pathspecs (`'*.md' -- <dir>`) OR together and silently escalate the sweep to the whole repo. Gitignored and untracked files are out of scope, and so are `/docs-hygiene:extract-ssot`'s codified survey exclusions (vendored trees, eval fixtures, test data, run logs; `${CLAUDE_PLUGIN_ROOT}/skills/extract-ssot/actions/identify.md` owns that list; read it there, don't paraphrase it). Report the scope root and enumerated file count before fan-out. Fan out fresh read-only subagents (no concurrency ceiling of the skill's own; the runtime may cap, which is fine; an actual rate-limit error is the only reason to back off). Small corpus: one document per subagent. Large corpus: batch ~15-25 documents per subagent, grouped by directory affinity so siblings share one exploration context, and route same-basename or near-identical files into one batch; where they still split, reconcile divergent verdicts on near-identical documents before the aggregate. Each subagent writes its per-document verdict blocks to a batch ledger file (session scratchpad or similar) and returns compact verdicts and counts; the reply carries the aggregate, the actionable subset, and pointers to the batch ledgers. Corpus-scale per-document detail never streams through one context or one reply. Spot-test a sample of `keep-owns-facts` verdicts too, so false-keeps are bounded, not only false-deletes: every tenth keep in lexical filename order, at least one per batch ledger (the ten is judgment). Record the sampled file list beside the batch ledger when it is drawn; never reconstruct it later. Outcomes: `context/rubric.md`, "Keep-sample protocol". |
+| `--repo <repo>` (and the other target forms) | beside any action above | That action once per repository, per [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) and [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md) "Several repositories". With no path, each repository gets a `sweep` of its root. Each repository's subagent keeps its own batch ledgers and keep-sample list, under a scratchpad directory named for the repository (`<owner>/<name>/`), and the aggregate line is given per repository and then in total |
 
 One action per response; actions do not chain implicitly. `sweep` is the only recursive mode; the bare/`audit` default never walks subdirectories, so a large tree is never audited by accident.
 
@@ -175,13 +176,12 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 ## Sources
 
 - [Diátaxis](https://diataxis.fr), the four documentation modes; the fact-ownership factor leans on its separation of derivable reference material from explanation, which owns the non-derivable *why*.
-- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup). Recheck trigger: the Recheck triggers table below.
+- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
 
 ## Recheck triggers
 
 | Condition | Action |
 |---|---|
-| The rubric is proven over real audits | Route it upstream to `melodic-software/standards` as shared doc-value policy (deferred; ledger E-a) |
+| The rubric is proven over real audits | Route it upstream to the shared standards repository as doc-value policy (deferred; ledger E-a) |
 | Demand surfaces for applying verdicts, not just classifying | Revisit the deferred remediation/apply action (deferred; ledger E-b) |
-| The sub-agents page's "What loads at startup" lists a different set of subagents that skip `CLAUDE.md` or project rules | Re-read the page by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs) (rung 1, fresh bytes), re-derive the `Explore`/`Plan` requirement in the spot-test protocol and the Sources record |
 | A native "regenerate this doc from source" mechanism ships | Strengthen the `keep-as-derivation-cache` drift-control test to prefer regeneration over a recorded recheck trigger |

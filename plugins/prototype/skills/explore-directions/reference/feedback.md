@@ -84,7 +84,8 @@ whose `anchor.testid` is on no element of its variant is not found, and its `rec
 6. The script also sets the page to the note's `viewport` (size, color scheme, reduced motion)
    and replays its `data.log` before the anchors run; `restored.viewport` and `restored.data` say
    whether that worked, and a false `restored.data` is a reason to ask, as a false part of
-   `restored` is in step 4. A text note adds a fourth rung after `cssPath`, `textQuote`: when it
+   `restored` is in step 4. A part listed in `unmarked` instead means the page now marks no
+   such control at all, not that it lost one the note used: say which, and ask. A text note adds a fourth rung after `cssPath`, `textQuote`: when it
    finds nothing, the result says `quoteMissing` and the match is not confirmed, because the text
    the person wrote about is gone. A region note's shot is the box the person drew, and `region`
    is set.
@@ -100,7 +101,7 @@ carries the view a reload loses:
 - **Mark a region (R).** The person drags a box over the mockup, or moves the box with the arrow
   keys (Shift and an arrow resizes it) and presses Enter. The note's `kind` is `region`, its
   `rect` is the box, `anchor` is the element holding it, and `elements` lists the test-id elements
-  it crosses.
+  it crosses, or, when it crosses none, the holding element's children it crosses.
 - **Note on selected text (T).** The person selects text in the mockup and presses T or the
   button. The note's `kind` is `text`, and `anchor.textQuote` holds the selection (`exact`) with a
   little of the visible text before and after it (`prefix`, `suffix`).

@@ -48,6 +48,7 @@ import ast
 import importlib.util
 import fnmatch
 import json
+import os
 import pathlib
 import re
 import shlex
@@ -58,6 +59,9 @@ import unittest
 from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
+
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -421,7 +425,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 18)
+        self.assertEqual(len(FLOOR.author_review), 19)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -443,7 +447,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 84)
+        self.assertEqual(len(FLOOR.high), 86)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

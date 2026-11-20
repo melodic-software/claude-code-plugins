@@ -126,18 +126,16 @@ test("pr-dispatch-feedback.yml starts no runner for a skipped or cancelled revie
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", { "github.run_attempt": "2" }), true);
 });
 
-test("pr-dispatch-feedback.yml starts no runner for a review run off a lane branch", () => {
+test("pr-dispatch-feedback.yml starts a runner for a same-repository review run on any branch but Dependabot's", () => {
   const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
-  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '([^']+)'\)/.exec(gate)?.[1];
-  assert.ok(prefix, "the dispatch gate checks the head branch");
-  const runs = (branch) =>
+  const runs = (branch, head = "melodic-software/claude-code-plugins") =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
       "github.event.workflow_run.event": "pull_request",
       "github.event.workflow_run.repository.full_name": "melodic-software/claude-code-plugins",
-      "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_repository.full_name": head,
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
@@ -146,16 +144,19 @@ test("pr-dispatch-feedback.yml starts no runner for a review run off a lane bran
       "github.triggering_actor": "a-person",
       ...RELAY_ON,
     });
-  // Every branch the issue lane opens a PR from passes; a rename of the lane
-  // branch fails here instead of silently stopping dispatches.
-  assert.equal(laneBranchIssue(LANE_BRANCH), 12);
-  assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
+  for (const branch of [LANE_BRANCH, "feat/x", "fix/pr-merge-infra-ejections", "release/plugins"]) {
+    assert.equal(runs(branch), true, branch);
+  }
   assert.equal(laneBranchIssue(`x${LANE_BRANCH}`), null);
-  assert.equal(runs(LANE_BRANCH), true);
   for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
     assert.equal(laneBranchIssue(branch), null, branch);
-    assert.equal(runs(branch), false, branch);
   }
+  assert.equal(runs("dependabot/npm_and_yarn/x"), false, "a Dependabot branch");
+  assert.equal(runs("feat/x", "fork/claude-code-plugins"), false, "a fork's head");
+  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '(work-resolve-issue[^']*)'\)/.exec(gate)?.[1];
+  assert.ok(prefix, "the pr-merge and relay clauses check the lane branch");
+  assert.equal(laneBranchIssue(LANE_BRANCH), 12);
+  assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
 });
 
 test("pr-dispatch-feedback.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
@@ -1008,10 +1009,7 @@ const DISPATCHER = "pr-unblock-dispatch.yml";
 
 // A write token the broker would refuse is decided before the select jobs, so
 // no later job, publish-feedback and apply-dependency-verdict included, starts.
-for (const [file, jobs] of [
-  ["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]],
-  ["pr-refine.yml", ["select-passes", "fix-docs-head"]],
-]) {
+for (const [file, jobs] of [["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]]]) {
   test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
     assert.match(text, /\n {2}check-dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
@@ -1026,6 +1024,20 @@ for (const [file, jobs] of [
     }
   });
 }
+
+test("pr-refine.yml: a dispatcher on an older copy of its file starts no plan step and no later job", () => {
+  const file = "pr-refine.yml";
+  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+  const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
+  const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
+  assert.deepEqual(starts, ["select-passes"], "every other job waits on a job");
+  const select = blocks.find((block) => block.startsWith("select-passes:"));
+  const compare = select.indexOf("        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh\n");
+  const planStart = select.indexOf("        id: start\n");
+  assert.ok(compare !== -1 && planStart > compare, "the compare runs before the plan starts");
+  assert.match(stepIf(file, "Note the start"), /steps\.current\.outputs\.stale != 'true'/);
+  assert.equal(stepIf(file, "List the PR's changed files"), "steps.start.outcome == 'success'");
+});
 
 test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first push or scheduled attempt", () => {
   const gate = stepIf(DISPATCHER, "Check the trigger");
@@ -1077,8 +1089,11 @@ test("pr-unblock-dispatch.yml installs the FAIL-cap reader only on a run that di
 });
 
 test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
-  const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
-  assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
+  const dispatcher = cronMinutes(DISPATCHER);
+  assert.deepEqual(dispatcher, [9, 39], "the dispatcher keeps its 9 and 39 ticks");
+  for (const minute of cronMinutes("maintenance-reconcile-lost-runs.yml")) {
+    assert.ok(dispatcher.includes((minute + 5) % 60), `a dispatcher tick follows the reconciler's minute ${minute}`);
+  }
 });
 
 test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a tick or hand run waits", () => {

@@ -1,7 +1,7 @@
 name: PR Merge
 # A PR-scoped dispatch's marker (rotation.mjs WAKE_TITLE); every other run
 # keeps GitHub's own name, which a whitespace-only run-name leaves.
-run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
+run-name: "${{ inputs.pr && format('PR Merge: arm #{0}', inputs.pr) || '' }}"
 
 # What this does, in plain words:
 #
@@ -98,8 +98,9 @@ on:
   # dispatch-post-merge-runs, merge, report-unarmed-status and the jobs after merge are
   # skipped; enable-auto-merge reads the last sweep's post-merge report for
   # the lane's room (last-report.mjs), or runs the check fresh when that
-  # report does not stand. Its run name, `pr-merge: arm #<pr>`
-  # (run-name below), marks it: no later run reads its artifacts
+  # report does not stand. Its run name, `PR Merge: arm #<pr>` (run-name
+  # below; https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#native-auto-merge),
+  # marks it: no later run reads its artifacts
   # (rotation.mjs trustedRun), and it never supersedes a sweep
   # (superseded.mjs).
   workflow_dispatch:
@@ -132,6 +133,11 @@ permissions: {}
 defaults:
   run:
     shell: bash
+
+env:
+  # The legacy FAILs file the verdict reader takes from the default branch:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md
+  BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
 
 jobs:
   # The post-merge check on its own, and the full CI run of main it asks for,
@@ -197,6 +203,11 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -1064,6 +1075,11 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2483,6 +2499,11 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+      - name: Write the source-control trust settings
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          drop-in-file: .base/.github/source-control-settings.json
+          drop-in-name: 50-source-control
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2503,12 +2524,21 @@ jobs:
         continue-on-error: true
         run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
+      - name: Read the defer override from the base config
+        if: inputs.pr
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          defer: ${{ inputs.pr && 'true' || 'false' }}
+          defer-job: pr-merge
+          resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Same rule as the merge job's who step (who.mjs): a listed human by
       # account id, a scheduled run's first attempt, or pr-verify's PR-scoped
@@ -2805,6 +2835,9 @@ jobs:
           elif [ "$last_reason" = "idle tick unattributed-unmoved" ]; then
             rm -rf "${last:?}"
             echo "::notice::the last sweep's post-merge report lists a red full run charged to no merge, and no full run finished since that could clear it; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
+          elif [ "$last_reason" = "idle tick reruns-unmoved" ]; then
+            rm -rf "${last:?}"
+            echo "::notice::the last sweep's post-merge report lists a pending or red rerun of main, and nothing it read has moved since; no fresh check runs, nothing is armed or disarmed, and the next sweep checks again"
           else
             [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
@@ -3060,6 +3093,8 @@ jobs:
           OUTCOME: ${{ steps.arm.outputs.wake-outcome }}
           ARM: ${{ steps.arm.outcome }}
           KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_CAUSE: ${{ steps.kill.outputs.cause }}
+          KILL_RESET: ${{ steps.kill.outputs.reset }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
           UNCOVERED: ${{ steps.precheck.outputs.uncovered }}
@@ -3070,7 +3105,9 @@ jobs:
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
-            if [ "$KILL" != true ]; then
+            if [ "$KILL" != true ] && [ "$KILL_CAUSE" = defer ]; then
+              OUTCOME="deferred (cause defer): the GITHUB_TOKEN window is projected to run short before its reset at $KILL_RESET (epoch seconds); the next sweep, which never defers, arms what this run would"
+            elif [ "$KILL" != true ]; then
               OUTCOME="skipped: the lanes kill switch stopped it"
             elif [ "$WHO" != true ]; then
               OUTCOME="skipped: the who step stopped it"

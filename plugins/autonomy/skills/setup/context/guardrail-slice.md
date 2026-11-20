@@ -26,7 +26,8 @@ depends on the binding until that human-landed change exists.
    VM/microVM or hosted ephemeral executor. Detection is per surface, a substrate present on one
    surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
    different dispatch surface. For a surface whose host is Windows (native, WSL2, or a VM launched
-   from it), read [`windows-surfaces.md`](windows-surfaces.md) first.
+   from it), read [`windows-surfaces.md`](windows-surfaces.md) first. For a container candidate
+   on a local surface, read [`container-surfaces.md`](container-surfaces.md).
 2. **Detect-diff-reconcile against existing guardrail surfaces**, never greenfield-assume, never
    silently overwrite. Before proposing any binding value, read the org's existing guardrail
    surfaces. Sandbox/runner configurations, branch protections, review workflows and scanner

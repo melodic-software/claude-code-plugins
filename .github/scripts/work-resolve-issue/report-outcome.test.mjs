@@ -50,6 +50,8 @@ import {
   requiredSections,
   withRequiredSections,
   HOLD_LINE,
+  EVAL_GATED_LABEL,
+  evalHoldComment,
   HOLD_LABEL,
   linkageLines,
   trustedLabeler,
@@ -1840,6 +1842,66 @@ test("main on done opens a ready PR from the branch, labels it do-not-merge when
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
     },
   );
+});
+
+const evalIssue = [/./, 200, { number: 77, created_at: "2026-10-01T00:00:00Z", labels: [{ name: "agent-ready" }, { name: EVAL_GATED_LABEL }] }];
+const evalRoutes = (comments) => [
+  ["GET", /\/issues\/77$/, ...evalIssue.slice(1)],
+  branchTip(),
+  ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+  ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+  ["GET", /\/pulls$/, 200, []],
+  ["POST", /\/pulls$/, 201, { number: 90, html_url: "https://example/o/r/pull/90" }],
+  ["POST", /\/issues\/90\/labels$/, 200, []],
+  ["GET", /\/issues\/90\/comments$/, 200, comments],
+  ["POST", /\/issues\/90\/comments$/, 201, {}],
+];
+
+test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval reason comment", async () => {
+  assert.equal(
+    evalHoldComment(16803),
+    "Held for the before-and-after eval that cut item #16803 needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->",
+  );
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const { fetch, calls } = fakeFetch(evalRoutes([]));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+    assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+      ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+      ["/repos/o/r/issues/90/comments", { body: evalHoldComment(77) }],
+    ]);
+  });
+});
+
+test("main posts the eval hold comment once: a rerun finds the lanes App's", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const routes = evalRoutes(prior);
+    routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }]];
+    const { fetch, calls } = fakeFetch(routes);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")));
+  });
+});
+
+test("main posts the eval hold comment again when the label had come off (a released hold restored)", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const routes = evalRoutes(prior);
+    routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [] }]];
+    const { fetch, calls } = fakeFetch(routes);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")).length, 1);
+  });
+});
+
+test("main fails the run when the eval hold comment cannot be posted, so a rerun posts it", async () => {
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const routes = evalRoutes([]);
+    routes[8] = ["POST", /\/issues\/90\/comments$/, 500, {}];
+    const { fetch } = fakeFetch(routes);
+    assert.equal(await main({ env: env(dir), fetch }), 1);
+  });
 });
 
 // #7497: an outcome file that says done with nothing left undone opens no PR
@@ -4839,6 +4901,36 @@ test("main waits on an open pull request, and retries when the named one is not 
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
   assert.ok(!merged.calls.some((c) => c.method === "DELETE"));
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /#5 is not an open pull request here, so it retries instead\./);
+});
+
+test("reusePlan waits on a listed human's open pull request with decide()'s stop text and route, and opens none", () => {
+  const reused = { issueNumber: 77, branch: lane(400), changedFiles: ["README.md"], holdPaths: HOLD_GLOBS, runId: "555" };
+  assert.equal(reusePlan(reused).action, "open-pr");
+  const plan = reusePlan({ ...reused, humanPull: "31" });
+  const decided = decideDone({ branch: lane(400), changedFiles: [], runId: "555", humanPull: "31" });
+  assert.equal(plan.action, "wait");
+  assert.equal(plan.stop, "blocked-by-pr");
+  assert.equal(plan.pr, "31");
+  assert.equal(plan.comment, decided.comment);
+  assert.ok(plan.comment.includes(`Partial work is on the branch \`${lane(400)}\``), plan.comment);
+});
+
+test("main on an unreported reuse branch with HUMAN_PULL set waits on that pull request, pushing nothing and opening no PR", async () => {
+  await withAsyncDir({ "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ...PR_ROUTES,
+      ["GET", /\/pulls\/31$/, 200, { state: "open", merged_at: null, user: { login: "kyle-sexton", type: "User", id: OWNER_ID } }],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...reuseEnv(dir), HUMAN_PULL: "31", TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), "no pull request opens");
+    assert.ok(!calls.some((c) => c.method !== "GET" && c.path.includes("/git/")), "no ref is written");
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+    assert.match(comment, /^<!-- work-resolve-issue outcome=wait pr=31 run=123 -->/);
+    assert.match(comment, /listed human's open pull request ＃31 names this issue/);
+  });
 });
 
 // Security review on #10978: anyone can open a pull request, so a wait on one

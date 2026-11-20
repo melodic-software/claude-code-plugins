@@ -102,6 +102,7 @@ const SPAWN_TIMEOUT_MS = 180000;
 // The two /context buckets a bare-name tool deny moves — the buckets the
 // attribute pipeline sums per-tool and for the additivity check.
 const SYSTEM_TOOL_BUCKETS = ['System tools', 'System tools (deferred)'];
+const [PREFIX_BUCKET, DEFERRED_BUCKET] = SYSTEM_TOOL_BUCKETS;
 
 function usageError(msg) {
   process.stderr.write(`ERROR: ${msg}\n`);
@@ -558,6 +559,9 @@ function cliSnapshot({ bin, deny, label }) {
 // Shared snapshot driver with the degradation ladder
 // ---------------------------------------------------------------------------
 
+const GIT_BASH_CONTEXT_HINT = '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, '
+  + 'or path conversion rewrites the command).';
+
 async function takeSnapshot(args) {
   const deny = splitCsv(args.deny);
   const bin = resolveBinary(args.binary);
@@ -568,6 +572,7 @@ async function takeSnapshot(args) {
 
   const sdkCandidates = [args['sdk-dir'], process.cwd()];
   const found = findSdkEntry(sdkCandidates);
+  const triedSdkDirs = sdkCandidates.filter(Boolean).join(', ');
   const sdkRun = async () => sdkSnapshot({
     sdk: await import(pathToFileURL(found.entry).href),
     sdkVersion: sdkVersionFromEntry(found.entry),
@@ -582,7 +587,7 @@ async function takeSnapshot(args) {
     if (!found) {
       process.stderr.write('measure-only: @anthropic-ai/claude-agent-sdk is not installed; nothing was measured or installed.\n');
       degrade('sdk-absent',
-        `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${sdkCandidates.filter(Boolean).join(', ')})`,
+        `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${triedSdkDirs})`,
         'Measure-only never installs the Agent SDK. Run /context-budget:audit once to set it up, or pass --sdk-dir '
         + 'naming a directory where it is installed.',
         EXIT_SDK_ABSENT);
@@ -608,7 +613,7 @@ async function takeSnapshot(args) {
         degrade('measurement-failed', `sdk mode failed (${String(e).slice(0, 200)}); `
           + `cli-parse fallback also failed (${String(e2).slice(0, 200)})`,
         'Verify the binary runs (`claude --version`) and that `claude -p "/context"` produces the category table '
-        + '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, or path conversion rewrites the command).');
+        + GIT_BASH_CONTEXT_HINT);
       }
     }
   }
@@ -616,11 +621,11 @@ async function takeSnapshot(args) {
     return cliSnapshot({ bin, deny, label: args.label });
   } catch (e) {
     degrade('measurement-unavailable',
-      `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${sdkCandidates.filter(Boolean).join(', ')}) `
+      `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${triedSdkDirs}) `
       + `and cli-parse failed: ${String(e).slice(0, 300)}`,
       'For exact measurement install the Agent SDK (npm install @anthropic-ai/claude-agent-sdk in a directory '
       + 'passed as --sdk-dir). For the fallback, verify `claude -p "/context"` prints the category table at your version '
-      + '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, or path conversion rewrites the command).');
+      + GIT_BASH_CONTEXT_HINT);
   }
 }
 
@@ -683,11 +688,10 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
   // so when a run's parser disclosed its row as absent it went unmeasured,
   // even if absent from both runs. A deferred bucket absent from both runs
   // stays a non-event (a binary without that pool).
-  const prefix = SYSTEM_TOOL_BUCKETS[0];
   const caveats = [...(before.caveats || []), ...(after.caveats || [])];
-  if (!names.has(prefix)
-    && caveats.some((c) => typeof c === 'string' && c.includes(absentRowPhrase(prefix)))) {
-    unmeasured[prefix] = `"${prefix}" row absent from both runs' /context tables, so its delta is unmeasured, not zero`;
+  if (!names.has(PREFIX_BUCKET)
+    && caveats.some((c) => typeof c === 'string' && c.includes(absentRowPhrase(PREFIX_BUCKET)))) {
+    unmeasured[PREFIX_BUCKET] = `"${PREFIX_BUCKET}" row absent from both runs' /context tables, so its delta is unmeasured, not zero`;
   }
   const totalDelta = (typeof before.totalTokens === 'number' && typeof after.totalTokens === 'number')
     ? after.totalTokens - before.totalTokens : null;
@@ -744,13 +748,13 @@ function systemBucketSaving(cmp) {
     saved: vanished.length ? null : -SYSTEM_TOOL_BUCKETS.reduce((s, b) => s + (cmp.delta[b] ?? 0), 0),
     comparable: cmp.comparability.systemToolsComparable && !vanished.length,
     reasons: vanished.length
-      ? [...cmp.comparability.reasons, ...vanished.map((b) => unmeasured[b] ?? vanishedReason([b]))]
+      ? [...cmp.comparability.reasons, ...vanished.map((b) => unmeasured[b] ?? vanishedReason(b))]
       : cmp.comparability.reasons,
   };
 }
 
-function vanishedReason(vanished) {
-  return `${vanished.join(' and ')} present in only one run — the bucket was emptied out of one `
+function vanishedReason(bucket) {
+  return `${bucket} present in only one run — the bucket was emptied out of one `
     + 'snapshot, so its delta is unmeasured, not zero';
 }
 
@@ -760,8 +764,8 @@ function vanishedReason(vanished) {
 // side double-counts — so one verdict over the pair hides which column an
 // operator can price a basket from.
 const BUCKET_ROW_FIELD = {
-  'System tools': 'prefixDelta',
-  'System tools (deferred)': 'deferredDelta',
+  [PREFIX_BUCKET]: 'prefixDelta',
+  [DEFERRED_BUCKET]: 'deferredDelta',
 };
 
 // Off-by-one is not a verdict. Larger gaps, including a prefix side that
@@ -790,7 +794,7 @@ function bucketAdditivity(rows, cmp, synthesized) {
     const combinedSaved = typeof combinedDelta === 'number' ? -combinedDelta : null;
     // Skill-listing / Skills-token drift poisons only the prefix bucket; the
     // deferred bucket stays measurable under the shared mode/binary checks.
-    const runComparable = bucket === 'System tools'
+    const runComparable = bucket === PREFIX_BUCKET
       ? cmp.comparability.systemToolsComparable
       : cmp.comparability.modeBinaryComparable;
     const saturated = synthesized.has(bucket);
@@ -801,12 +805,12 @@ function bucketAdditivity(rows, cmp, synthesized) {
         + 'bucket and the engine filled 0), so additivity is not measurable');
     }
     if (!runComparable) {
-      const gateReasons = bucket === 'System tools'
+      const gateReasons = bucket === PREFIX_BUCKET
         ? cmp.comparability.reasons
         : cmp.comparability.reasons.filter((r) => !r.startsWith('skill listing'));
       reasons.push(...gateReasons);
     }
-    if (combinedSaved === null) reasons.push(vanishedReason([bucket]));
+    if (combinedSaved === null) reasons.push(vanishedReason(bucket));
     if (sumOfParts === null) {
       reasons.push(`${bucket} is unmeasured on at least one per-tool row, so the sum of parts `
         + 'for this bucket is unmeasured, not zero');
@@ -881,8 +885,8 @@ async function runAttribute(args) {
       // A deny that saves prints as a NEGATIVE delta (after minus before);
       // savedTokens flips the sign for ranking and readability. A vanished
       // bucket makes it null — an unmeasured saving, never a zero.
-      prefixDelta: cmp.delta['System tools'] ?? null,
-      deferredDelta: cmp.delta['System tools (deferred)'] ?? null,
+      prefixDelta: cmp.delta[PREFIX_BUCKET] ?? null,
+      deferredDelta: cmp.delta[DEFERRED_BUCKET] ?? null,
       savedTokens: saved,
       comparable,
       reasons,

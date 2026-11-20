@@ -18,7 +18,7 @@
 //   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
 //   GitHub's status pages show indicator none. At attempt 2 fix-ci takes it.
 // - Flake: the same run when it ended failure on anything else, at attempt 1
-//   only: its failed jobs are re-run once, at the next half-hourly run, so a
+//   only: its failed jobs are re-run once, at the next hourly run, so a
 //   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
 //   wait for this re-run unless it is already queued or going, so it may run
 //   beside a fix-ci run (CI minutes, no model).
@@ -140,8 +140,10 @@
 //   gate (babysit_review_evidence `_kill_switch_stopped`), so the one re-run
 //   waits until nothing would stop it again: the lane's own switch, read as its
 //   caller reads it (REVIEW_SWITCHES, only `true`, in any case, stops), and the upstream
-//   gate. Both lanes of a head go in one pass and one place, so their
-//   completions cost ci-status one attempt, not two. No lookback: a switch may be on for days, up
+//   gate. Both lanes of a head go in one pass, each in its own place, or both
+//   wait, so their completions cost ci-status one attempt, not two. While the
+//   head's newest checks run is still going, a stopped lane waits for it, and
+//   the pass writes no `clean`. No lookback: a switch may be on for days, up
 //   to GitHub's RERUN_WINDOW_DAYS. A first attempt whose leg held on a GitHub
 //   API rate limit (`rateHeld`), named by ci-status's RATE_HELD_NOTE, goes the
 //   same way, once RATE_RESET_GRACE_MS past the latest reset its refusals
@@ -374,8 +376,6 @@ export const RATER = ".github/workflows/pr-rate-merge-risk.yml";
  * step and its verdict write. Each starts on workflow_run from main, so its
  * runs are listed by workflow, not by PR head; the trigger check binds the
  * re-run to the one open PR whose head is still the upstream run's.
- * pr-verify-capture.yml takes the record too but is left out: a missing
- * capture never fails a verdict.
  */
 export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", { judge: JUDGE_STEP, write: WRITE_STEP }],
@@ -712,6 +712,7 @@ export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
 const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
 // The checks run a lifted kill switch leaves red: failed on its first attempt.
 const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
+const isRunningChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status !== "completed";
 // The failed ci-status job when it is the run's only failed job, else undefined.
 const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
@@ -1359,9 +1360,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           `#${pull.number}: run ${r.id} (${r.path}) ended ${r.conclusion} again at attempt ${r.run_attempt}; not re-run: fix-ci takes a job past its time limit, any other cause waits for a push or a person's re-run`,
         );
       }
-      if (busy) {
-        continue;
-      }
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
       // A run's latest jobs, with the annotations of a failed job whose steps
       // did not list in full (infraCause reads them).
@@ -1393,6 +1391,24 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
       };
+      const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
+      if (isRunningChecks(checks)) {
+        for (const [path, name] of REVIEW_SWITCHES) {
+          const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
+          if (
+            isUnreviewed(r) &&
+            env[name]?.toLowerCase() !== "true" &&
+            now - Date.parse(r.created_at) < RERUN_WINDOW_DAYS * 86_400_000 &&
+            reviewStopped(await readJobs(r))
+          ) {
+            waits += 1;
+            say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting for checks run ${checks.id} (${checks.path}) to finish`);
+          }
+        }
+      }
+      if (busy) {
+        continue;
+      }
       const tested = [];
       for (const runs of ciRunsByWorkflow(own)) {
         // A hosted review run is re-run only as a failed first attempt
@@ -1482,7 +1498,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         return items;
       };
-      const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
       // A newest checks run that failed only in ci-status: a review a kill
       // switch stopped is re-run once nothing would stop it again, a lanes App
       // PR's that the kill switch failed is re-run now that the switch is off,
@@ -1828,7 +1843,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     heldSince = heldStart;
   }
   // A run still going can hold in a later job (pr-verify's three jobs each run
-  // up to 346 minutes) after FAULT_HELD_HOURS have passed, so the next pass
+  // up to their timeout-minutes, https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-verify.yml) after FAULT_HELD_HOURS have passed, so the next pass
   // lists back to the oldest first attempt not yet completed. The lane listing
   // above already read those runs (LANE_LIST_STATUSES, inside the lookback),
   // so this adds no read; when it failed, the next pass starts where this one did.
@@ -1911,32 +1926,39 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
-  // Every item takes one place: a PR's CI set, or one lane run. A set can hold
-  // several records, and the workflow has MAX_IN_FLIGHT upload steps, so what
-  // does not fit waits for a later pass: a re-run with no record would be refused.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   let uploads = MAX_IN_FLIGHT;
   const items = [];
   // Places deferred that hold more than flake re-runs: recovery work the
   // next scheduled tick must not skip (main's `clean`, which the pacer reads).
   let deferred = 0;
+  const isReview = (item) => item.kind === "review";
+  const places = (set) => (set.some((item) => !isReview(item)) ? 1 : 0) + set.filter(isReview).length;
+  const NO_UPLOAD = "no record upload left this pass";
+  const short = (set) =>
+    room === 0
+      ? `all ${MAX_IN_FLIGHT} re-run places taken`
+      : set.filter(recorded).length > uploads
+        ? NO_UPLOAD
+        : places(set) > room
+          ? `only ${room} of ${MAX_IN_FLIGHT} re-run places left`
+          : "";
   const place = (what, set) => {
-    const fits = (items) => room > 0 && items.filter(recorded).length <= uploads;
-    const core = set.filter((item) => item.kind !== "review");
-    const split = !fits(set) && core.length > 0 && core.length < set.length && fits(core);
+    const core = set.filter((item) => !isReview(item));
+    const split = short(set) === NO_UPLOAD && places(set) <= room && core.length > 0 && core.length < set.length && short(core) === "";
     if (split) {
       deferred += 1;
-      say(`${what}: its stopped reviews deferred, no record upload left this pass`);
+      say(`${what}: its stopped reviews deferred, ${short(set)}`);
     }
     const taken = split ? core : set;
-    const records = taken.filter(recorded).length;
-    if (room > 0 && records <= uploads) {
+    const why = short(taken);
+    if (why === "") {
       items.push(...taken);
-      room -= 1;
-      uploads -= records;
+      room -= places(taken);
+      uploads -= taken.filter(recorded).length;
     } else {
       deferred += taken.some((item) => item.kind !== "flake") ? 1 : 0;
-      say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `all ${MAX_IN_FLIGHT} re-run places taken`}`);
+      say(`${what}: deferred, ${why}`);
     }
   };
   const flakeOnly = (set) => set.every((item) => item.kind === "flake");
