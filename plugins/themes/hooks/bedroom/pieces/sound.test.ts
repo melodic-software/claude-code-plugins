@@ -1,11 +1,11 @@
 import type { EngineInterface } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
-import { readNow } from '../core/clock.js'
+import { minuteOfHalfDay, readNow } from '../core/clock.js'
 import { ctxOf, usePieces } from '../core/context.js'
 import type { Ctx, Fields, Piece } from '../core/piece.js'
 import { load, savedOf } from '../core/saved.js'
-import { noteForcedStrike, strike } from '../core/schedule.js'
+import { noteForcedStrike, noteShaderStart, scheduledStrikeShows, strike } from '../core/schedule.js'
 import { useOptions } from '../core/settings.js'
 import { WORLD } from '../core/signals.gen.js'
 import { EVENING, startRoom } from '../core/testing.js'
@@ -16,12 +16,15 @@ import { BANK, LENGTH_MS, OBJECTS, PURR, chosenName, lengthOf, namesOf } from '.
 import { BEAT_MS, PING_MS, QUIET_MS, STEADY_MS, encodedOf, fileOf, linesOf, mixerScript, powershellArgv, wordsOf } from './sound-mixer.js'
 import {
   COMMAND_LAG_MS,
+  DUCK,
+  DUCK_FADE_MS,
   HURRIED_MS,
   OFF_FADE_MS,
   PICK_FADE_MS,
   PICTURE_LAG_MS,
   START_FADE_MS,
   TAKEN_MS,
+  THUNDER_LIFT,
   WATCH_MS,
   WEATHER_EASE_MS,
   argvOf,
@@ -150,6 +153,53 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
   await room.clock.advance(3 * 60_000)
   await wait(50)
   expect(mixers.length).toBe(1)
+  await room.unmount()
+})
+
+test('in the plugin, /bedroom weather strike (the card\'s bolt) brings one thunder to the mixer, 1 to 4 s after the flash, and /bedroom sound names it', { timeoutMs: 30000, options: { ...NIGHT, weather: 'storm' } }, async ($, on) => {
+  if (!BUILT.includes('sound') || !BUILT.includes('weather') || WITHOUT.includes('weather.lightning')) return
+  const mixers: FakeMixer[] = []
+  on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000, tokens: 20_000, percent: 10 }, rateLimits: [] } }))
+  on('session.info', () => ({ value: { platform: 'wsl', isHosted: false } as never }))
+  on('env.get', (_, e) => ({ value: e.name === 'PATH' ? '/win:/usr/bin' : undefined }))
+  on('fs.exists', (_, e) => ({ value: e.path === '/win/powershell.exe' || e.path === '/usr/bin/wslpath' }))
+  on('process.run', (_, e) => ({ value: { exitCode: 0, stdout: e.argv[1] === '-u' ? `${COMMANDS}\n` : 'W:\\room\\sounds\\bedroom\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('audio.play', () => ({ value: undefined }))
+  let clockNow = (): number => 0
+  on('process.spawn', async function* () {
+    const m: FakeMixer = { ran: [], outbox: [], ended: false, last: 0 }
+    mixers.push(m)
+    yield* mixerChild(m, () => clockNow(), wake => void setTimeout(wake, 20))
+  })
+  let calm = EVENING
+  while (![0, 1, 2].every(k => strike((minuteOfHalfDay(calm) + k) % 720) === undefined)) calm += 60_000
+  const room = await startRoom($, on, { now: calm, fakes: false, onWrite: (path, text) => (path === COMMANDS ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
+  clockNow = () => room.clock.now()
+  const thunder = (): Ran[] => mixers.flatMap(m => m.ran).filter(r => r.words[0] === 'shot' && r.words[1]!.startsWith('thunder/'))
+
+  expect(await room.run('sound on')).toMatch(/^sound is on/)
+  await room.clock.advance(40_000)
+  await wait(30)
+  const before = thunder().length
+  const asked = room.clock.now()
+  const reply = await room.run('weather strike')
+  expect(reply).toMatch(/^lightning strikes in about \d+ s$/)
+  const flashS = Number(/about (\d+) s/.exec(reply)![1])
+  for (let step = 0; step < 40 && thunder().length === before; step++) {
+    await room.clock.advance(250)
+    await wait(5)
+  }
+  await room.clock.advance(15_000)
+  await wait(30)
+  const heard = thunder().slice(before)
+  expect(heard.length).toBe(1)
+  const afterFlashS = (heard[0]!.at - asked) / 1000 - flashS
+  expect(afterFlashS).toBeGreaterThanOrEqual(0.5)
+  expect(afterFlashS).toBeLessThanOrEqual(4.5)
+  expect(Number(heard[0]!.words[2])).toBeGreaterThan(0.3)
+  expect(await room.run('sound')).toMatch(new RegExp(`last one-shot sent: ${heard[0]!.words[1]!.replace(/\.wav$/, '')} \\d+ s ago`))
+  await room.run('sound off')
+  await room.clock.advance(1000)
   await room.unmount()
 })
 
@@ -432,7 +482,7 @@ test('S2: a one-shot is a line in the running mixer\'s file, written in the same
   await thunderFor(s.$, { at: s.now() - 1000, delayS: 1 })
   engineSwitched(s.$, await s.ctx(), 'light', true, 'click')
   await s.advance(WATCH_MS)
-  expect(ranBy(s).slice(-3).map(line => line.split(' ').slice(0, 2).join(' ')).sort()).toEqual([`bed ${BANK.rain.entries.roof.storm}`, `shot ${BANK.thunder.entries.storm.near[0]}`, `shot ${OBJECTS.light[0]}`].sort())
+  expect(ranBy(s).filter(line => !line.startsWith('level ')).slice(-3).map(line => line.split(' ').slice(0, 2).join(' ')).sort()).toEqual([`bed ${BANK.rain.entries.roof.storm}`, `shot ${BANK.thunder.entries.storm.near[0]}`, `shot ${OBJECTS.light[0]}`].sort())
 
   await engineCommand(s.$, await s.ctx(), 'sound', ['objects', 'off'])
   const shots = ranBy(s).filter(line => line.startsWith('shot ')).length
@@ -516,9 +566,9 @@ test('S6: thunder comes 1 to 6 s after its strike, quieter and farther the longe
   if (!BUILT.includes('sound')) return
   const saved = savedOf({})
   const set = BANK.thunder.entries.storm
-  expect(thunderOf(saved, { at: 10_000, delayS: 1 })).toEqual({ file: set.near[0], factor: 1, at: 11_000 })
-  expect(thunderOf(saved, { at: 10_000, delayS: 3 })).toEqual({ file: set.mid[0], factor: 1 - 0.13 * 2, at: 13_000 })
-  expect(thunderOf(saved, { at: 10_000, delayS: 6 }).factor).toBe(0.35)
+  expect(thunderOf(saved, { at: 10_000, delayS: 1 })).toEqual({ file: set.near[0], factor: THUNDER_LIFT, at: 11_000 })
+  expect(thunderOf(saved, { at: 10_000, delayS: 3 })).toEqual({ file: set.mid[0], factor: THUNDER_LIFT * 0.8, at: 13_000 })
+  expect(Math.abs(thunderOf(saved, { at: 10_000, delayS: 6 }).factor - THUNDER_LIFT / 2)).toBeLessThan(1e-9)
   expect([10_000, 11_000].map(at => thunderOf(saved, { at, delayS: 5 }).file).sort()).toEqual([...set.far].sort())
   expect(thunderOf(saved, { at: 0, delayS: 0.2 }).at).toBe(1000)
   expect(thunderOf(savedOf({ bank: { thunder: 'distant' } }), { at: 0, delayS: 1.5 }).file).toBe(BANK.thunder.entries.distant.near[0])
@@ -539,7 +589,13 @@ test('S6: thunder comes 1 to 6 s after its strike, quieter and farther the longe
   await s.advance(10)
   const thunder = s.mixers[0]!.ran.filter(r => r.words[0] === 'shot' && r.words[1]!.startsWith('thunder/'))
   expect(thunder.map(r => [r.words[1], r.at])).toEqual([[thunderOf(saved, { at: struck, delayS: 4.5 }).file, struck + 4500]])
-  expect(Math.abs(Number(thunder[0]!.words[2]) - gainOf(70) * thunderOf(saved, { at: struck, delayS: 4.5 }).factor)).toBeLessThan(0.0001)
+  expect(Math.abs(Number(thunder[0]!.words[2]) - Math.min(1, gainOf(70) * thunderOf(saved, { at: struck, delayS: 4.5 }).factor))).toBeLessThan(0.0001)
+  const levels = s.mixers[0]!.ran.filter(r => r.words[0] === 'level')
+  expect(levels.map(r => [r.words.join(' '), r.at])).toEqual([
+    [`level ${(gainOf(70) * DUCK).toFixed(4)} ${DUCK_FADE_MS.down}`, struck + 4500],
+  ])
+  await s.advance(lengthOf(thunder[0]!.words[1]!))
+  expect(s.mixers[0]!.ran.filter(r => r.words[0] === 'level').at(-1)?.words.join(' ')).toBe(`level ${gainOf(70).toFixed(4)} ${DUCK_FADE_MS.up}`)
   await quiet(s)
 })
 
@@ -548,7 +604,14 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
   const evening = new Date(EVENING)
   const strikes = Array.from({ length: 240 }, (_, i) => 480 + i).filter(minute => strike(minute) !== undefined)
   const tickAt = (minute: number): number => new Date(evening.getFullYear(), evening.getMonth(), evening.getDate(), 20, minute - 480, 0, 50).getTime()
-  const s = await stand(tickAt(strikes[0] ?? 0) - 1000)
+  const first = tickAt(strikes[0] ?? 0)
+  expect(scheduledStrikeShows(first, -Infinity)).toBe(false)
+  noteShaderStart(first - 20_000)
+  expect(scheduledStrikeShows(first, -Infinity)).toBe(false)
+  expect(scheduledStrikeShows(first + 10_000, -Infinity)).toBe(true)
+  expect(scheduledStrikeShows(first + 10_000, first - 15_000)).toBe(false)
+  noteShaderStart(first - 120_000)
+  const s = await stand(first - 1000)
   onWindows(s)
   Object.assign(sky, { sun: 6, weather: 4 })
   await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
@@ -564,6 +627,10 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
     expect(heard().length).toBe(before)
     await s.advance(20)
     expect(heard().length).toBe(before + (thunders ? 1 : 0))
+    if (thunders) {
+      expect(heard().at(-1)!.at).toBe(due)
+      expect(Number(heard().at(-1)!.words[2])).toBeGreaterThan(0.3)
+    }
   }
   sky.weather = 2
   const stormed = heard().length

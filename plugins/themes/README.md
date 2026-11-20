@@ -74,7 +74,10 @@ bottom-left corner of the front of the dresser.
     command, over about 6 s; when `auto` changes by itself, over about 90 s). A change of volume
     fades, and `/bedroom sound off` fades everything out in 0.15 s.
   - Thunder follows each lightning strike after 1 to 6 seconds: the longer the wait, the farther
-    the strike, the quieter the thunder and the more it rolls.
+    the strike, the quieter the thunder and the more it rolls. Thunder plays louder than the
+    bed, and through the Windows mixer the bed dips while it rolls. A scheduled strike the
+    picture does not draw (in the shader's first 30 seconds, or for 30 seconds after a command
+    hurries it) brings no thunder either.
   - The room's things: the desk lamp's and the wall light's switches, the monitor's button and
     degauss, the console's fan and chime, the tape going in and coming out, and the cat's purr
     when you click it. `/bedroom sound objects off` quiets them; the lava lamp is silent.
@@ -102,7 +105,7 @@ bottom-left corner of the front of the dresser.
     it. It runs only while sound is on, and runs with your user's rights, so set it only to a
     player you trust.
   - `/bedroom sound test` checks the player. `/bedroom sound` alone says the volume, the bank's
-    choices and the player.
+    choices, the player, and the last one-shot sent and how long ago.
 
 Changing the time or the weather by command shows within a few seconds and eases over about six.
 

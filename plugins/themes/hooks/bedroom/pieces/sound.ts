@@ -4,7 +4,7 @@ import { minuteOfHalfDay } from '../core/clock.js'
 import { ctxOf } from '../core/context.js'
 import type { Ctx, Piece, Switch } from '../core/piece.js'
 import { volumeOf, type Saved } from '../core/saved.js'
-import { forcedStrikeAt, strike } from '../core/schedule.js'
+import { forcedStrikeAt, scheduledStrikeShows, strike } from '../core/schedule.js'
 import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
@@ -315,7 +315,11 @@ function outLevel($: EngineInterface, o: Out, file: string | undefined, gain: nu
   outBed($, o, file, gain, 0)
 }
 
+/** The last one-shot sent and when, for /bedroom sound. */
+let lastShot: { file: string; at: number } | undefined
+
 function outShot($: EngineInterface, o: Out, file: string, gain: number): void {
+  void $.clock.now().then(at => void (lastShot = { file, at }))
   if (o.mixer !== undefined) return mixerSend($, o, { verb: 'shot', name: file, gain })
   const play: Play = { stopped: false }
   o.shots.add(play)
@@ -470,7 +474,7 @@ function shoot($: EngineInterface, file: string, factor: number, delayMs = 0): v
         bed = undefined
         void follow($)
       }
-      outShot($, out, file, gainOf(volumeOf(ctxOf($).saved)) * factor)
+      outShot($, out, file, Math.min(1, gainOf(volumeOf(ctxOf($).saved)) * factor))
     })
   }
   if (delayMs <= 0) return fire()
@@ -511,22 +515,43 @@ export type Strike = { at: number; delayS: number }
 
 /**
  * The thunder for a strike: near (under 2 s), mid (under 4 s) or far, one of its set's files chosen by the strike's
- * second, its gain falling from 1 at 1 s to 0.35 at 6 s, due delayS after the strike.
+ * second, its gain THUNDER_LIFT times the volume's at 1 s and falling to half that at 6 s, due delayS after the strike.
  */
 export function thunderOf(saved: Saved, given: Strike): { file: string; factor: number; at: number } {
   const delayS = Math.min(6, Math.max(1, given.delayS))
   const set = chosen(saved, 'thunder')
   const files: readonly string[] = delayS < 2 ? set.near : delayS < 4 ? set.mid : set.far
   const file = files[Math.floor(given.at / 1000) % files.length] ?? files[0]!
-  return { file, factor: Math.max(0.35, 1 - 0.13 * (delayS - 1)), at: given.at + delayS * 1000 }
+  return { file, factor: THUNDER_LIFT * (1 - 0.1 * (delayS - 1)), at: given.at + delayS * 1000 }
 }
+
+/**
+ * Thunder plays this many times the volume's gain, and the bed dips to DUCK of its level while it rolls: its recordings
+ * hold most of their weight under 250 Hz, where small speakers give little, and at the bed's own level the storm's rain
+ * covered them.
+ */
+export const THUNDER_LIFT = 2
+export const DUCK = 0.5
+export const DUCK_FADE_MS = { down: 300, up: 1500 } as const
 
 /** Plays a strike's thunder when it is due: each minute's scheduled strike and each one /bedroom weather strike asks for come through it. */
 export async function thunderFor($: EngineInterface, given: Strike): Promise<void> {
   const ctx = ctxOf($)
   if (!THUNDERS || !ctx.setting('sound')) return
   const { file, factor, at } = thunderOf(ctx.saved, given)
-  shoot($, file, factor, at - (await $.clock.now()))
+  const delayMs = at - (await $.clock.now())
+  shoot($, file, factor, delayMs)
+  $.clock.after(Math.max(0, delayMs), () => duck($, lengthOf(file)))
+}
+
+/** Through the mixer, the bed dips under a roll of thunder for `ms` and comes back to its level; elsewhere it plays on. */
+function duck($: EngineInterface, ms: number): void {
+  const o = out
+  if (o?.mixer === undefined || o.isDone || bed === undefined) return
+  mixerSend($, o, { verb: 'level', gain: bed.gain * DUCK, fadeMs: DUCK_FADE_MS.down })
+  $.clock.after(ms, () => {
+    if (out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain, fadeMs: DUCK_FADE_MS.up })
+  })
 }
 
 /**
@@ -555,13 +580,18 @@ async function forcedThunder($: EngineInterface): Promise<void> {
   if ((await $.clock.now()) <= at + delayS * 1000) await thunderFor($, { at, delayS })
 }
 
-/** In a storm, this minute's scheduled strike, if it has one, counted from when the shader takes the minute. */
+/**
+ * In a storm, this minute's scheduled strike, if it has one, counted from when the shader takes the minute, and only
+ * when the shader draws it: none in its first seconds, nor while it hurries after a command.
+ */
 async function scheduledStrike($: EngineInterface, ctx: Ctx): Promise<void> {
   if (ctx.fields().weather !== 4) return
   const minute = minuteOfHalfDay(ctx.nowMs)
-  const at = strike(minute)
-  if (at === undefined) return
-  await thunderFor($, { at: ctx.nowMs + TAKEN_MS + at * 1000, delayS: strikeDelayS(minute) })
+  const second = strike(minute)
+  if (second === undefined) return
+  const at = ctx.nowMs + TAKEN_MS + second * 1000
+  if (!scheduledStrikeShows(at, worldMove().hurryAt + COMMAND_LAG_MS.screen)) return
+  await thunderFor($, { at, delayS: strikeDelayS(minute) })
 }
 
 export const piece: Piece = { name: 'sound' }
@@ -661,7 +691,8 @@ export async function engineCommand($: EngineInterface, ctx: Ctx, word: string, 
     }
     if (what !== '') return 'say on, off, test, volume N, pick KIND NAME or objects on|off, as in /bedroom sound on'
     const player = finding === undefined ? 'not looked for yet' : ((await finding)?.name ?? 'none found')
-    return `sound is ${ctx.setting('sound') ? 'on' : 'off'}, volume ${volumeOf(ctx.saved)}, objects ${objectsOn(ctx.saved) ? 'on' : 'off'}. bank: ${bankWords(ctx.saved)}. player: ${player}${failure === undefined ? '' : `, stopped: ${failure}`}. Say on, off, test, volume N, pick KIND NAME or objects on|off`
+    const last = lastShot === undefined ? 'none yet' : `${lastShot.file.replace(/\.wav$/, '')} ${Math.round(((await $.clock.now()) - lastShot.at) / 1000)} s ago`
+    return `sound is ${ctx.setting('sound') ? 'on' : 'off'}, volume ${volumeOf(ctx.saved)}, objects ${objectsOn(ctx.saved) ? 'on' : 'off'}. bank: ${bankWords(ctx.saved)}. player: ${player}${failure === undefined ? '' : `, stopped: ${failure}`}. last one-shot sent: ${last}. Say on, off, test, volume N, pick KIND NAME or objects on|off`
   } catch (error) {
     return `sound could not answer: ${error instanceof Error ? error.message : String(error)}`
   }

@@ -1,4 +1,4 @@
-import { EVENTS, STRIKE } from './signals.gen.js'
+import { EVENTS, HURRY, STRIKE } from './signals.gen.js'
 
 /**
  * The one storm schedule the mod and the shader share: a strike in a minute where (minute * every + shift) mod modulo
@@ -38,6 +38,15 @@ let shaderFrom: number | undefined
 /** Notes when the shader starts or is due to start (milliseconds on the mod's clock), or that none is. */
 export function noteShaderStart(at: number | undefined): void {
   shaderFrom = at
+}
+
+/**
+ * Whether the shader draws a minute's scheduled strike that falls at `at`: its weather column draws none in its first
+ * EVENTS.after seconds, nor for HURRY.seconds after the hurry flip it took at `hurriedAt`.
+ */
+export function scheduledStrikeShows(at: number, hurriedAt: number): boolean {
+  if (shaderFrom === undefined || at < shaderFrom + EVENTS.after * 1000) return false
+  return at >= hurriedAt + HURRY.seconds * 1000
 }
 
 /**
