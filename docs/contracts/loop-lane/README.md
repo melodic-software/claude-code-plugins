@@ -786,7 +786,6 @@ pairings are valid); security-surface work routes to the frontier tier unconditi
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
   advisor pairing rule onto a reviewer subagent.
@@ -801,7 +800,6 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
 
@@ -813,10 +811,9 @@ The reasons behind each binding:
 
   *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
   `model` takes
-  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); recheck
-  when that list changes). A lane's frontier-tier Agent dispatch, the security-surface rule's
-  included, therefore names `opus` while the Fable rung waits on an owner decision and a per-week Fable
-  allowance, as the CI lane profiles' ladder paragraph under "Models" in
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). A
+  lane's frontier-tier Agent dispatch, the security-surface rule's included, therefore names `opus`
+  while the Fable rung waits on an owner decision and a per-week Fable allowance, as the CI lane profiles' ladder paragraph under "Models" in
   `docs/conventions/pr-pipeline/README.md` records, and `fable` once both are set. The lane prompts follow this note.
   One exception: the explicit-`autopilot` pre-escalation resolver (babysit-loop's
   `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
@@ -1090,8 +1087,8 @@ telemetry comment, and re-reads them at each cycle start. Every counter in the b
 experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
-lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
-correctly declines to spend a worker, and nothing notices the aggregate is zero. Each unattended
+lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
+spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
 durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
@@ -1443,8 +1440,8 @@ copy and drift unwatched. With the exception list in the check, a new data carri
 the gate, which is the review the exception needs.
 
 **Neither half is optional, and path shape cannot supply either.**
-`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
-construction: it skips `SKILL.md` by basename, and it clusters copies by identical
+`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, cannot catch this
+case: it skips `SKILL.md` by basename, and it clusters copies by identical
 path-within-plugin, while these copies sit at unrelated paths. Copies can stay identical to each
 other, which is the half a reviewer notices, while all of them drift from the reader contract, so
 the check compares each copy against the contract. The scan exists because a registry alone can
@@ -1453,8 +1450,8 @@ miss a copy nobody registered.
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
-way for the guard to detect it. Same-machine account rotation is real operating practice, not a
-hypothetical.
+way for the guard to detect it. Same-machine account rotation happens: the owner rotates accounts
+by hand on the rate-limit alerts.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
 built, not a rule, and it fails open in a contract that fails closed on every other unresolvable
