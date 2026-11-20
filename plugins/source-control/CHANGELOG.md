@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.3] - 2026-11-20
+
+### Fixed
+
+- worktree cleanup no longer says the session carries on from a directory that still exists after it removes its own worktree; since Claude Code 2.1.325 the next shell command fails and is re-issued with `git -C` or an absolute path (#16035).
+
 ## [13.1.2] - 2026-11-20
 
 ### Changed

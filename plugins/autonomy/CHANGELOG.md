@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.10] - 2026-11-20
+
+### Fixed
+
+- setup's Windows surfaces record reads what `sandbox.failIfUnavailable` does at startup, locally and in Anthropic-hosted sessions, from its settings reference section instead of restating it, after Claude Code 2.1.325 added a hosted-session exception (#16035).
+
 ## [5.2.9] - 2026-11-20
 
 ### Added
