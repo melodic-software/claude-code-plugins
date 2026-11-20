@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { LANE_WORKFLOWS, settledRun, zipEntry } from "../lib/lane-binding.mjs";
 
 export const LANE_RECORD_CACHE = "pr-feedback-lane-records";
-export const CACHE_FILE = "lane-records.json";
+export const CACHE_FILE = "feedback-lane-records.json";
 const VERSION = 1;
 const IDLE_MS = 86_400_000;
 const KEY = /^([1-9][0-9]{0,15})\/([1-9][0-9]{0,3})$/;

@@ -166,3 +166,10 @@ test("a save that fails is logged, not thrown", async () => {
   assert.equal(store.save(join(tempDir("lane-records-"), "missing", CACHE_FILE)), false);
   assert.match(logs.join("\n"), /not saved/);
 });
+
+test("the workflow writes and uploads the file name the reader opens", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
+  const named = [...workflow.matchAll(/(?:FEEDBACK_LANE_RECORDS_PATH|path): \$\{\{ runner\.temp \}\}\/(\S*lane-records\S*)/g)].map((m) => m[1]);
+  assert.ok(named.length >= 3, named.join(", "));
+  assert.deepEqual([...new Set(named)], [CACHE_FILE]);
+});
