@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.2] - 2026-11-20
+
+### Changed
+
+- the lane-binding checker takes an optional store of settled lane runs
+
+  `laneChecker` accepts a `store` that answers a finished run whose every
+  attempt left a complete record without reading that run again. A stored
+  run binds only a comment its records list; any other comment reads the run
+  live. Callers that pass no store behave as before.
+
 ## [10.4.1] - 2026-11-19
 
 ### Changed
