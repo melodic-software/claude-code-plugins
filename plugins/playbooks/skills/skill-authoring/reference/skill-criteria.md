@@ -14,10 +14,10 @@ could the model already know this, or do the job without it? If so, cut it. Cruf
 the test asks whether the model needs a line, not how long it is, so never justify a deletion by
 character count alone, and never keep a line because it is short. Explaining what the agent already knows doesn't just waste space, it
 dilutes the lines that actually matter, because the agent's attention is spread across everything
-you wrote. The agent already knows how to write decent CSS or React; it doesn't know the nuances,
+you wrote. The agent already knows how to write decent UI code; it doesn't know the nuances,
 like increasing the duration of an animation if the object is larger. Domain expertise is what
 belongs in a skill: not how to add padding to a button, but adding a subtle scale down when a
-button is pressed, or preloading a font in React with `ReactDOM`.
+button is pressed.
 
 The deletion test proposes; the evals decide. Whether a model needs a line cannot be read off the
 text: a rule's stated reason can carry behavior, and a plausible explanation for a regression can

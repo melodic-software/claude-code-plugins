@@ -49,13 +49,7 @@ Source: https://x.com/trq212/status/2032632599429136753
 
 ## 37. Setup Scripts for Cloud Environments
 
-Add a setup script in Claude Code on web and desktop. Runs before Claude Code launches on cloud: install dependencies, configure settings, set env vars.
-
-```bash
-# Setup script (runs on new session start, skipped on resume):
-#!/bin/bash
-yarn install
-```
+Add a setup script in Claude Code on web and desktop. Runs before Claude Code launches on cloud: install dependencies, configure settings, set env vars. It runs on new session start and is skipped on resume.
 
 Particularly useful for installing dependencies, settings, configs before Claude starts working.
 

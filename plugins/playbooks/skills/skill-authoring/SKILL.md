@@ -43,7 +43,7 @@ The best skills fit cleanly into one category. Straddling several = confused ski
 | Category | What it does | Examples |
 |---|---|---|
 | **Library and API reference** | Gotchas, edge cases, usage for internal/external libs | billing-lib, internal-platform-cli, sandbox-proxy |
-| **Product verification** | Drive UI flows with playwright/tmux, assert state at each step | signup-flow-driver, checkout-verifier, tmux-cli-driver |
+| **Product verification** | Drive UI flows, assert state at each step | signup-flow-driver, checkout-verifier |
 | **Data fetching and analysis** | Connect to monitoring/data stacks with credentials and query patterns | funnel-query, cohort-compare, grafana, datadog |
 | **Business process and team automation** | Multi-tool workflows into one command | standup-post, `create-<ticket-system>-ticket`, weekly-recap |
 | **Code scaffolding and templates** | Framework boilerplate with natural-language requirements | `new-<framework>-workflow`, new-migration, create-app |
