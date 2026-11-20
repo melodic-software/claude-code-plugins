@@ -360,7 +360,7 @@ test("a window projected to run short before the job ends defers it, with cause 
   const { calls, lines, outputs } = await runMain(DEFER, reading(2000, 1800));
   assert.equal(calls.length, 1, "one budget read");
   assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(NOW_S + 1800) }, "30 min in, 3000 used: 2000 - 3000 x 900 / 1800 is 500, 0.1 of 5000");
-  assert.ok(lines.some((line) => line.startsWith("::notice title=defer-gate::github-token defer decided from headers:") && line.includes("projected left 0.1 of the limit 15 min ahead or at the reset, against defer-project=0.3 (defer-minutes=15) stop=true")));
+  assert.ok(lines.some((line) => line.startsWith("::notice title=defer-gate::github-token defer decided from headers:") && line.includes("projected left 0.1 of the limit 15 min ahead or at the reset, against defer-project=0.3 (defer-run-minutes=15) stop=true")));
   assert.ok(
     lines.includes(
       `::notice title=defer::deferred until the GITHUB_TOKEN window resets at ${NOW_S + 1800} (2026-11-11T12:30:00Z): the window is projected to have 0.1 of its limit left 15 min ahead or at the reset, under defer-project=0.3; cause=defer, so a later run after the reset does this work`,
@@ -402,6 +402,23 @@ test("the resolved config overrides the shipped share and horizon", async () => 
   assert.equal((await runMain(DEFER, reading(2000, 1800), { resolved: config({ "defer-project": 0.25, "defer-run-minutes": 5 }) })).outputs.cause, "ok", why);
 });
 
+test("the shipped horizon for defer-job pr-merge is 6 minutes, and an unset job key reads defer-run-minutes", async () => {
+  assert.equal((await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-merge", log: () => {} })).minutes, 6);
+  const other = await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-verify", log: () => {} });
+  assert.deepEqual([other.minutes, other.labels.minutes], [15, "defer-run-minutes"]);
+});
+
+test("a conventions override of the job's horizon key changes the projection", async () => {
+  const why = "30 min in, 3000 used, 2000 left: 5 min ahead leaves 1500, 0.3 of 5000; 6 min ahead leaves 1400, 0.28";
+  const job = { ...DEFER, DEFER_JOB: "pr-merge" };
+  const shipped = await runMain(job, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.29 } } } } });
+  assert.equal(shipped.outputs.cause, "defer", why);
+  assert.ok(shipped.lines.some((line) => line.includes("6 min ahead or at the reset, against defer-project=0.29 (defer-run-minutes-pr-merge=6)")));
+  const overridden = await runMain(job, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.29, "defer-run-minutes-pr-merge": 5 } } } } });
+  assert.equal(overridden.outputs.cause, "ok", why);
+  assert.ok(overridden.lines.some((line) => line.includes("(defer-run-minutes-pr-merge=5)")));
+});
+
 test("the gate's defer-minutes input sets the job's horizon over defer-run-minutes", async () => {
   const { lines, outputs } = await runMain({ ...DEFER, DEFER_MINUTES: "5" }, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.35 } } } } });
   assert.equal(outputs.cause, "defer");
@@ -412,6 +429,8 @@ test("a defer gate that cannot be set up proceeds with a warning and no budget r
   for (const [label, env, options] of [
     ["fractional defer-minutes", { DEFER_MINUTES: "1.5" }, {}],
     ["defer-minutes 0", { DEFER_MINUTES: "0" }, {}],
+    ["a defer-job that is no key suffix", { DEFER_JOB: "Pr Merge" }, {}],
+    ["a fractional job horizon in the config", { DEFER_JOB: "pr-merge" }, { resolved: { limits: { api: { "github-token": { "defer-run-minutes-pr-merge": 0.5 } } } } }],
     ["a share over 1 in the config", {}, { resolved: { limits: { api: { "github-token": { "defer-project": 2 } } } } }],
     ["a fractional horizon in the config", {}, { resolved: { limits: { api: { "github-token": { "defer-run-minutes": 2.5 } } } } }],
   ]) {
@@ -585,7 +604,8 @@ test("every gate in the workflows is classified, and only start gates read the b
         assert.match(step, FIRST_CALL_PROJECT, `${file} ${job} projects the window on a starting caller's first call only`);
       } else if (kind === "defer") {
         assert.match(step, DEFER_INPUT, `${file} ${job} defers its PR-scoped run only`);
-        assert.match(step, /^ {10}defer-minutes: "\d+"$/m, `${file} ${job} names its horizon`);
+        assert.match(step, /^ {10}defer-job: [a-z0-9-]+$/m, `${file} ${job} names its horizon key`);
+        assert.doesNotMatch(step, /^ {10}defer-minutes:/m, `${file} ${job} reads its horizon from the config`);
         assert.doesNotMatch(step, /budget:|project:/, `${file} ${job} reads no start-gate floor`);
       } else {
         assert.doesNotMatch(step, /budget:|project:|^ {10}defer/m, `${file} ${job} checks the switches only`);

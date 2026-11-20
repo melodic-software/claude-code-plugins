@@ -569,7 +569,12 @@
         "defer-run-minutes": {
           "type": "integer",
           "minimum": 1,
-          "description": "github-token only. The horizon in whole minutes a deferring gate projects to when it names no defer-minutes of its own."
+          "description": "github-token only. The horizon in whole minutes a deferring gate projects to when no horizon key of its own job is set."
+        },
+        "defer-run-minutes-pr-merge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "github-token only. The horizon in whole minutes of pr-merge's PR-scoped arm run (its gate's defer-job pr-merge), the p90 of that run's measured time; replaces defer-run-minutes for it."
         },
         "read-floor": {
           "type": "number",

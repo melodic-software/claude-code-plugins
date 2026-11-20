@@ -1102,6 +1102,8 @@ test("a PR-scoped run the defer gate stopped reports the deferral, its cause and
   const gate = /- name: Check the kill switch\n {8}id: kill\n([\s\S]*?)(?=\n\n)/.exec(job("enable-auto-merge"))[1];
   assert.match(gate, /\n {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}\n/, "only a PR-scoped run defers; the sweep keeps switches only");
   assert.match(gate, /\n {10}resolved-config: \$\{\{ runner\.temp \}\}\/defer-config\.json/);
+  assert.match(gate, /\n {10}defer-job: pr-merge\n/, "the horizon is the config's defer-run-minutes-pr-merge");
+  assert.doesNotMatch(gate, /defer-minutes:/);
 });
 
 test("a PR-scoped run's outcome names the fresh check's refusal and which report it read", () => {

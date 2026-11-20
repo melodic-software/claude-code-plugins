@@ -165,10 +165,9 @@ export function projectionGate(path = RATE_LIMITS, log = (line) => console.log(l
   }
 }
 
-const DEFER_LABELS = { share: "defer-project", minutes: "defer-minutes" };
 const MINUTES = (value) => Number.isInteger(value) && value >= 1;
 
-export async function deferGate({ rateLimits = RATE_LIMITS, resolvedPath = "", minutes = "", log = (line) => console.log(line) } = {}) {
+export async function deferGate({ rateLimits = RATE_LIMITS, resolvedPath = "", minutes = "", job = "", log = (line) => console.log(line) } = {}) {
   try {
     const { apiLimits } = await import("../log-api-budget/rate-guard.mjs");
     const entry = apiLimits({ resolvedPath, defaultsPath: rateLimits })["github-token"];
@@ -178,9 +177,12 @@ export async function deferGate({ rateLimits = RATE_LIMITS, resolvedPath = "", m
       return null;
     }
     if (typeof share !== "number" || !(share > 0 && share <= 1)) throw new Error("github-token defer-project is not a share from 0 to 1");
-    const horizon = minutes === "" ? entry?.["defer-run-minutes"] : /^\d+$/.test(minutes) ? Number(minutes) : Number.NaN;
-    if (!MINUTES(horizon)) throw new Error(`${minutes === "" ? "github-token defer-run-minutes" : "defer-minutes"} is not a whole number of minutes`);
-    return { share, minutes: horizon, labels: DEFER_LABELS };
+    if (job !== "" && !/^[a-z0-9][a-z0-9-]*$/.test(job)) throw new Error("defer-job is not a key suffix of lowercase letters, digits and hyphens");
+    const jobKey = `defer-run-minutes-${job}`;
+    const key = minutes !== "" ? "defer-minutes" : job !== "" && entry?.[jobKey] !== undefined ? jobKey : "defer-run-minutes";
+    const horizon = key === "defer-minutes" ? (/^\d+$/.test(minutes) ? Number(minutes) : Number.NaN) : entry?.[key];
+    if (!MINUTES(horizon)) throw new Error(`${key} is not a whole number of minutes`);
+    return { share, minutes: horizon, labels: { share: "defer-project", minutes: key } };
   } catch (error) {
     log(`::warning title=defer-gate::the defer gate could not be set up (${clean(error?.code ?? error?.message)}); the job proceeds`);
     return null;
@@ -252,7 +254,7 @@ export async function main(
     if (env.RUN_ATTEMPT !== "1") {
       log(`check-kill-switch: run attempt ${clean(env.RUN_ATTEMPT || "unknown")} is not the first, so it never defers`);
     } else {
-      const gate = await deferGate({ rateLimits, resolvedPath: env.RESOLVED_CONFIG ?? "", minutes: env.DEFER_MINUTES ?? "", log });
+      const gate = await deferGate({ rateLimits, resolvedPath: env.RESOLVED_CONFIG ?? "", minutes: env.DEFER_MINUTES ?? "", job: env.DEFER_JOB ?? "", log });
       if (gate) {
         const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share: null, projection: gate, now: now() / 1000, fetchImpl, title: "defer-gate" });
         log(budget.line);

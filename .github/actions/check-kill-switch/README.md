@@ -38,9 +38,10 @@ sweep re-fires a budget stop after the reset it names, as for a low budget.
 With `defer: "true"`, on a gate whose work a later run recovers, the same one read defers the job
 (proceed `false`, cause `defer`, the window's reset) while the projection of the window's burn rate
 to the job's horizon, or to the reset when that comes first, leaves under github-token's
-`defer-project` share of the header's limit. The horizon is the gate's `defer-minutes`, the p90 of
-the job's measured run time, else github-token's `defer-run-minutes`. Both github-token values are
-read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
+`defer-project` share of the header's limit. The horizon, the p90 of the job's measured run time,
+is the gate's `defer-minutes` when set, else github-token's `defer-run-minutes-<defer-job>`, else
+`defer-run-minutes`. `defer-run-minutes-pr-merge` is 6: the p90 of the 29 first-attempt pr-merge
+arm runs listed on 2026-11-20 is 327 s. The github-token values are read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
 (`defer-project` 0.3, `defer-run-minutes` 15: on the mean burn curve of the 16 windows that ran
 out between 2026-11-18 and 2026-11-20, at a median of minute 50, those values start deferring at
 about minute 23, and the mean curve of the 17 windows that did not run out never reaches them). `defer-project` 0
@@ -68,7 +69,8 @@ and a read lane's broker check, while one exists.
 | `budget` | `false` | `true` also reads the GITHUB_TOKEN budget |
 | `project` | `false` | `true`, with `budget`, also stops on the window's projected spend at the run's expected end |
 | `defer` | `false` | `true` defers a job a later run recovers while the window is projected to run short by its end |
-| `defer-minutes` | empty | With `defer`, the job's horizon in whole minutes; empty reads `defer-run-minutes` |
+| `defer-minutes` | empty | With `defer`, the job's horizon in whole minutes, over the config; empty reads the config |
+| `defer-job` | empty | With `defer`, the job's horizon key suffix: `defer-run-minutes-<defer-job>`, else `defer-run-minutes` |
 | `resolved-config` | empty | With `defer`, a JSON file whose `limits.api` overrides `rate-limits.json` |
 | `wait-seconds` | empty | With `budget`, a budget stop whose reset is within this many seconds waits for it and reads once more |
 | `token` | `${{ github.token }}` | The token whose GET /rate_limit answer is the budget reading |

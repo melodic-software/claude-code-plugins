@@ -60,8 +60,15 @@ inputs:
   defer-minutes:
     description: >
       With defer "true", the job's horizon in whole minutes, the p90 of its
-      measured run time. Empty (the default): github-token's
-      defer-run-minutes.
+      measured run time, over any config value. Empty (the default): the
+      resolved config's horizon (defer-job).
+    required: false
+    default: ""
+  defer-job:
+    description: >
+      With defer "true", the suffix of the job's horizon key: github-token's
+      defer-run-minutes-<defer-job> (limits.api in resolved-config over
+      rate-limits.json), else defer-run-minutes when that key is unset.
     required: false
     default: ""
   resolved-config:
@@ -114,6 +121,7 @@ runs:
         PROJECT_CHECK: ${{ inputs.project }}
         DEFER_CHECK: ${{ inputs.defer }}
         DEFER_MINUTES: ${{ inputs.defer-minutes }}
+        DEFER_JOB: ${{ inputs.defer-job }}
         RESOLVED_CONFIG: ${{ inputs.resolved-config }}
         RUN_ATTEMPT: ${{ github.run_attempt }}
         WAIT_SECONDS: ${{ inputs.wait-seconds }}

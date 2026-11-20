@@ -2530,7 +2530,6 @@ jobs:
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
 
-      # defer-minutes: the arm run's p90, 327 s over 29 first-attempt runs on 2026-11-20 (https://github.com/melodic-software/claude-code-plugins/actions/workflows/pr-merge.yml?query=event%3Aworkflow_dispatch)
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -2538,7 +2537,7 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
           defer: ${{ inputs.pr && 'true' || 'false' }}
-          defer-minutes: "6"
+          defer-job: pr-merge
           resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Same rule as the merge job's who step (who.mjs): a listed human by
