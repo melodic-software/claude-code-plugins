@@ -105,7 +105,7 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // 404; `discussions`: discussion number to author login, whose numbers also read 404 as issues;
 // `lateRuns`: run ids the run listing shows on every page but the first, as if listed mid-read.
 // babysit_postmerge.py pin_comment: the old shape names no rung, the new one `rung=C2|C3`.
-export const pinComment = (sha, rung) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha}${rung ? ` rung=${rung}` : ""} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
+export const pinComment = (sha, rung) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha}${rung ? ` rung=${rung}` : ""} -->\nThe unattended merge path is about to ask GitHub to enqueue this pull request at head \`${sha}\`. GitHub can still refuse it after accepting the request.`, lastEditedAt: null });
 export const demotionIssue = (number, createdAt, { author = "github-actions[bot]", body = REC.demotionIssue.body, updatedAt = createdAt, comments = [], edits = [], editCount = edits.length } = {}) => ({
   ...REC.demotionIssue,
   number,
