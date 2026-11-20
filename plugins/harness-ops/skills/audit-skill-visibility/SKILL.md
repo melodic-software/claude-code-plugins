@@ -219,11 +219,8 @@ The budget has five inputs, and the report states where each one came from:
 - The context window is per model. The engine treats `CLAUDE_CODE_DISABLE_1M_CONTEXT` as
   collapsing it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` as naming it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
-  recorded. That rule assumes a model ID Claude Code recognizes; the engine
-  cannot see the ID, so for a gateway alias or other unrecognized ID pin
-  `--context-window`. Which IDs the variable applies to, and on what, is read live from
-  [model config: which IDs `CLAUDE_CODE_MAX_CONTEXT_TOKENS` applies to](https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to);
-  what each variable does in the product, from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables). Otherwise `--context-window <tokens>` pins it, and unpinned the
+  recorded. That rule assumes a recognized model ID ([which IDs it applies to](https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to)), so pin a gateway alias's window with `--context-window`.
+  What each does in the product is read live from its row in [environment variables](https://code.claude.com/docs/en/env-vars#variables). Otherwise `--context-window <tokens>` pins it, and unpinned the
   report carries both 200k and 1M.
 - Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
   report carries both.
