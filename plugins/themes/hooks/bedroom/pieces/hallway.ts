@@ -1,4 +1,5 @@
 import type { Ctx, Piece } from '../core/piece.js'
+import { cueRefusal } from '../core/schedule.js'
 import { CUES } from '../core/signals.gen.js'
 
 /** How soon a cue shows once it is sent: the app's delay and ease, then the shader's 2.5 s hold. */
@@ -7,6 +8,8 @@ const SHOWS_S = 4.5
 /** /bedroom hall pass and /bedroom hall light: the hallway's events at once, while the hallway is on. */
 async function now(ctx: Ctx, word: 'pass' | 'light'): Promise<string> {
   if (!ctx.setting('hall')) return 'the hallway is off: say /bedroom hall on first'
+  const refused = cueRefusal(ctx.nowMs)
+  if (refused !== undefined) return `not now: ${refused}`
   const delay = await ctx.cue(word === 'pass' ? CUES.pass : CUES.light, `/bedroom hall ${word}`)
   const when = `in about ${Math.round(delay / 1000 + SHOWS_S)} s`
   return word === 'pass'

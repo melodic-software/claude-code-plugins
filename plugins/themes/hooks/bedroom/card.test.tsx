@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { TIME_ORDER } from './card.tsx'
+import { EVENT_BUTTONS, TIME_ORDER } from './card.tsx'
 import { PHASES } from './core/settings.js'
 import { CHANGE_MS } from './register.tsx'
 import { bedroomSvg } from './scene.ts'
@@ -158,8 +158,6 @@ const INSIDE_PX = 1105
  * 24 px of padding, and its submit button as any button (30 px and 8.5 px a character), 14 px apart.
  */
 const fieldPx = (label: number, longest: number, submit: number): number => 8.5 * label + 14 + (24 + 8.5 * longest) + 14 + (30 + 8.5 * submit)
-/** Room three manual-trigger buttons need on the switches row: labels of up to five letters, about 72 px each, and their gaps. */
-const TRIGGERS_PX = 260
 
 test('the card is six rows with titles or the sound bank open: no row or field wider than the card, the time from earliest to latest, no shader button', { timeoutMs: CARD_START_MS }, async ($, on) => {
   const placed: string[] = []
@@ -202,7 +200,11 @@ test('the card is six rows with titles or the sound bank open: no row or field w
 
   const widths: Record<string, number> = Object.fromEntries(((await rowsOf()) as unknown[]).slice(0, 5).map((row, i) => [['head', 'switches', 'time', 'weather', 'look'][i], Math.round(widthOf(row))]))
   for (const [key, px] of Object.entries(widths)) expect([key, px <= INSIDE_PX]).toEqual([key, true])
-  expect(widths.switches! + TRIGGERS_PX <= INSIDE_PX).toBe(true)
+  const switches = JSON.stringify(await ui.find({ key: 'switches' }))
+  for (const { key, label } of EVENT_BUTTONS) {
+    expect(switches).toContain(`"key":"${key}"`)
+    expect(label.length <= 5).toBe(true)
+  }
 
   await ui.press({ key: 'calibrate' })
   await ui.press({ key: 'titles' })
@@ -302,6 +304,38 @@ test('a pressed switch is inactive until its change has had time to finish, then
 
   await ui.press({ key: 'switch-tv' })
   expect(await bedroom($, 'status')).toContain('on: tv,')
+  await ui.unmount()
+})
+
+test('pass, door and bolt run the hallway\'s and the storm\'s commands, each dim while its command would only say why not', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, 'hall on')
+  await bedroom($, 'weather clear')
+  await bedroom($, '')
+
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+  const said = async (): Promise<string> => JSON.stringify(await ui.find({ key: 'said-box' }))
+
+  expect(EVENT_BUTTONS.map(({ words }) => words)).toEqual(['hall pass', 'hall light', 'weather strike'])
+  expect((await ui.find({ key: 'event-pass' }))?.props.dimColor).toBe(false)
+  expect((await ui.find({ key: 'event-door' }))?.props.dimColor).toBe(false)
+  expect((await ui.find({ key: 'event-bolt' }))?.props.dimColor).toBe(true)
+  await ui.press({ key: 'event-bolt' })
+  expect(await said()).toContain('lightning comes only in a storm, and the weather is clear')
+  await ui.press({ key: 'event-pass' })
+  expect(await said()).toMatch(/someone passes the door|not now: the shader/)
+
+  await bedroom($, 'weather storm')
+  expect((await ui.find({ key: 'event-bolt' }))?.props.dimColor).toBe(false)
+  await bedroom($, 'hall off')
+  expect((await ui.find({ key: 'event-door' }))?.props.dimColor).toBe(true)
+  await ui.press({ key: 'event-door' })
+  expect(await said()).toContain('the hallway is off')
+  await bedroom($, 'weather clear')
+  await bedroom($, 'hall on')
   await ui.unmount()
 })
 

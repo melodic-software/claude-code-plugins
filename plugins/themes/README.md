@@ -53,7 +53,10 @@ bottom-left corner of the front of the dresser.
   and a thicker veil; a storm slants the rain in the wind, darkens the sky further and flashes
   softly in it about once in three minutes. `auto` changes by itself every three hours and never
   picks a storm; it asks no weather service, so every session gives the same weather at the same
-  hour. In a storm, `/bedroom weather strike` brings a flash within about five seconds.
+  hour. In a storm, `/bedroom weather strike` brings a flash within about five seconds. The shader
+  draws every strike, pass and hall light, and takes none in its first 30 seconds after it starts
+  (after the app loads, and after a change to the room shows it alone for a few seconds): asked then,
+  the command sends nothing and says how many seconds to wait.
 - **The television and Claude.** While a turn runs, the screen flickers faintly.
   `/bedroom signal off` stops it.
 - **The hallway.** The gap beside the door looks into a hall with a ceiling light. With it off, a
@@ -107,7 +110,9 @@ Changing the time or the weather by command shows within a few seconds and eases
 
 `/bedroom` alone shows a card in the conversation, so you need not know the words. It is six rows
 whatever is open, so it fits without scrolling: the theme on or off, reset, calibrate, titles and
-Close; a button for each switch showing whether it is on; the time of day (auto, then each phase
+Close; a button for each switch showing whether it is on, then `pass` (someone passes the door),
+`door` (the hall light) and `bolt` (a lightning strike), each dim while its command would only say
+why not, the hallway off or no storm; the time of day (auto, then each phase
 from the gray before dawn to night, the chosen one checked) and the weather (auto and each kind);
 dim, glass and blur steps beside on/off buttons for the television's signal and the hallway; and
 sound on or off with its volume, the bed playing, a sounds button and the last press's answer.

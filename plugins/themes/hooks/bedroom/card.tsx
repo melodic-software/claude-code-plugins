@@ -55,6 +55,16 @@ export const CHANGE_MS: Record<Switch, readonly [number, number]> = {
   lamp: [900, 1000],
   lava: [1100, 1100],
 }
+/**
+ * The buttons after the switches that run one of the shader's events now, each through its command: someone passing
+ * the door, the hall light behind the door, a lightning strike. One draws dim while its command would only say why not
+ * (the hallway off, the weather not a storm); a press then shows that answer.
+ */
+export const EVENT_BUTTONS = [
+  { key: 'event-pass', label: 'pass', words: 'hall pass' },
+  { key: 'event-door', label: 'door', words: 'hall light' },
+  { key: 'event-bolt', label: 'bolt', words: 'weather strike' },
+] as const
 /** The switches changing after a press on the card, each with the timer that ends it: their buttons draw dim, and a press on one does nothing. */
 const changing = new Map<Switch, { cancel: () => void }>()
 
@@ -162,7 +172,7 @@ type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'I
 /**
  * The settings card, six rows whatever is open, each kept to the conversation's width (about 1,100 px in the app) so
  * none wraps and nothing is cut off at about 390 px of height: the title with the theme, reset, calibrate, titles and
- * Close; the switches, with room left for three more buttons; the time of day from the earliest light to the latest and
+ * Close; the switches, then pass, door and bolt (EVENT_BUTTONS); the time of day from the earliest light to the latest and
  * the weather, two rows that show the four title fields two to a row while titles is on, or the sound bank's pickers
  * while sounds is on; dim, glass and blur with the signal and the hallway; sound with its volume, the bed playing, the
  * sounds button and the last press's answer on one line. The desktop draws a button's `label`, not its children, so
@@ -249,6 +259,11 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
             </Button>
           )
         })}
+        {EVENT_BUTTONS.map(({ key, label, words }) => (
+          <Button key={key} label={label} dimColor={words === 'weather strike' ? weather !== 'storm' : !ctx.setting('hall')} onPress={() => press($, words)}>
+            {label}
+          </Button>
+        ))}
       </Box>
       {now.titles === true
         ? TITLE_ROWS.map((keys, row) => (

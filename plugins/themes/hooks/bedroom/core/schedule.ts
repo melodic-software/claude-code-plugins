@@ -1,4 +1,4 @@
-import { STRIKE } from './signals.gen.js'
+import { EVENTS, STRIKE } from './signals.gen.js'
 
 /**
  * The one storm schedule the mod and the shader share: a strike in a minute where (minute * every + shift) mod modulo
@@ -31,4 +31,22 @@ export function noteForcedStrike(now: number, delay: number): number {
  */
 export function forcedStrikeAt(): number | undefined {
   return forced
+}
+
+/** When the shader started, or will start once the room's hold ends; undefined while none runs or is due. */
+let shaderFrom: number | undefined
+/** Notes when the shader starts or is due to start (milliseconds on the mod's clock), or that none is. */
+export function noteShaderStart(at: number | undefined): void {
+  shaderFrom = at
+}
+
+/**
+ * Why a cue sent now would show nothing, with when it can: the shader draws every cue's event, and in its first
+ * EVENTS.after seconds it takes none, so a cue sent then is lost. Undefined when the shader takes it.
+ */
+export function cueRefusal(now: number): string | undefined {
+  if (shaderFrom === undefined) return 'the shader is not running, and only the shader draws it: say /bedroom shader on'
+  const ready = shaderFrom + EVENTS.after * 1000
+  if (now >= ready) return undefined
+  return `the shader takes nothing in its first ${EVENTS.after} s after it starts, and it ${now < shaderFrom ? 'has not started again yet' : 'started just now'}: try again in ${Math.ceil((ready - now) / 1000)} s`
 }

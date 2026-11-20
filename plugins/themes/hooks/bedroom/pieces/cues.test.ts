@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { CUES, WORLD } from '../core/signals.gen.js'
+import { CUES, EVENTS, WORLD } from '../core/signals.gen.js'
 import { QUIET, startRoom, type Room } from '../core/testing.js'
 import { BUILT } from './index.js'
 
@@ -21,6 +21,7 @@ const QUIET_BUT_HALL = { time: QUIET.time, weather: QUIET.weather, signal: QUIET
 test('hall pass, hall light and weather strike each send their cue once, then the atmosphere again', { timeoutMs: 60000, options: QUIET_BUT_HALL }, async ($, on) => {
   if (!BUILT.includes('hallway') || !BUILT.includes('weather')) return
   const room = await startRoom($, on)
+  await room.clock.advance(EVENTS.after * 1000)
   const calm = (await room.values())?.world
   expect(calm).toBe(0)
 
@@ -45,5 +46,28 @@ test('hall pass, hall light and weather strike each send their cue once, then th
   await room.run('hall off')
   await room.clock.advance(8000)
   expect(await room.run('hall pass')).toMatch(/^the hallway is off/)
+  await room.unmount()
+})
+
+test('a cue the shader would drop is not sent, and the answer says when it can be', { timeoutMs: 60000, options: { ...QUIET_BUT_HALL, weather: 'storm' } }, async ($, on) => {
+  if (!BUILT.includes('hallway') || !BUILT.includes('weather')) return
+  const room = await startRoom($, on)
+  const stormy = (await room.values())?.world
+
+  const early = await track(room, 'weather strike', 3000)
+  expect(early.reply).toMatch(/^no strike: the shader takes nothing in its first 30 s after it starts, and it started just now: try again in (2[7-9]|30) s$/)
+  expect(early.codes).toEqual([stormy])
+  expect(await room.run('hall pass')).toMatch(/^not now: the shader takes nothing in its first 30 s/)
+
+  await room.clock.advance(EVENTS.after * 1000)
+  expect(await room.run('weather strike')).toMatch(/^lightning strikes in about \d+ s$/)
+
+  await room.run('dim 20')
+  expect(await room.values()).toBeUndefined()
+  expect(await room.run('hall pass')).toMatch(/^not now: the shader takes nothing in its first 30 s after it starts, and it has not started again yet: try again in 3[0-7] s$/)
+
+  await room.run('shader off')
+  expect(await room.values()).toBeUndefined()
+  expect(await room.run('hall light')).toBe('not now: the shader is not running, and only the shader draws it: say /bedroom shader on')
   await room.unmount()
 })

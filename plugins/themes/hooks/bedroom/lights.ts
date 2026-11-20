@@ -406,8 +406,8 @@ let wx_fast = step(0.5, wx_hs)
 let wx_run = fract((at.y - mix(160, 300, wx_fast) * mod(time, 3)) / 60 + wx_hs * 5.3)
 let wx_streak = clamp(1 + (0.3 - abs(fract(wx_u) - 0.2 - 0.6 * fract(wx_hs * 3.1)) * 2.5) * s, 0, 1) * clamp(min(wx_run, mix(0.17, 0.45, wx_fast) - wx_run) * 10, 0, 1) * step(fract(wx_hs * 9.7), mix(0.75 * wx_wet, 0.9 * wx_heavy, wx_fast)) * (0.22 * wx_wet + 0.08 * wx_heavy) * wx_glass
 acc = vec4(vec4(acc.rgb * (1 - wx_streak) + (wx_cc * 1.5 + vec3(0.12, 0.13, 0.16)) * wx_streak, acc.a * (1 - wx_streak) + wx_streak))
-// A strike lights the sky in the panes; the trees, the field and the pole stay dark against it.
-let wx_f = 0.15 * state.at(vec2(13, 0)).w * w_sky * wx_glass
+// A strike whitens the sky in the panes; the trees, the field and the pole stand dark against it.
+let wx_f = 0.4 * state.at(vec2(13, 0)).w * w_sky * wx_glass
 acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1 - wx_f) + wx_f))
   }
   let c = vec2(at - vec2(1207.5, 485))

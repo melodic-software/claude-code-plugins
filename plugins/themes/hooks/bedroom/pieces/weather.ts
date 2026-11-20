@@ -1,5 +1,5 @@
 import type { Ctx, Local, Piece } from '../core/piece.js'
-import { STRIKE_GAP_MS, STRIKE_SHOWS_MS, noteForcedStrike } from '../core/schedule.js'
+import { STRIKE_GAP_MS, STRIKE_SHOWS_MS, cueRefusal, noteForcedStrike } from '../core/schedule.js'
 import { WEATHERS } from '../core/settings.js'
 import { CUES } from '../core/signals.gen.js'
 
@@ -41,9 +41,12 @@ function told(ctx: Ctx): string {
 /**
  * /bedroom weather strike: one lightning strike now, in a storm only, as the scheduled ones are (the shader's pulse
  * rises with the storm's lane, and a strike from a clear sky would read as a fault). At most one each STRIKE_GAP_MS.
+ * One the shader cannot take yet is not sent, and the answer says when it can.
  */
 async function strikeNow(ctx: Ctx): Promise<string> {
-  if (kindOf(ctx) !== WEATHERS.indexOf('storm')) return 'lightning comes only in a storm: say /bedroom weather storm first, then /bedroom weather strike'
+  if (kindOf(ctx) !== WEATHERS.indexOf('storm')) return `lightning comes only in a storm, and the weather is ${WEATHERS[kindOf(ctx)]}: say /bedroom weather storm first, then /bedroom weather strike`
+  const refused = cueRefusal(ctx.nowMs)
+  if (refused !== undefined) return `no strike: ${refused}`
   if (lastAsked !== undefined && ctx.nowMs - lastAsked < STRIKE_GAP_MS) return `one strike at a time: try again in ${Math.ceil((STRIKE_GAP_MS - (ctx.nowMs - lastAsked)) / 1000)} s`
   lastAsked = ctx.nowMs
   const delay = await ctx.cue(CUES.strike, '/bedroom weather strike')
