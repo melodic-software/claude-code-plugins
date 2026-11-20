@@ -21,7 +21,6 @@
       "tests/test_retry.py": "from retry.backoff import CAP_SECONDS, delay\n\n\ndef test_backoff_doubles():\n    assert delay(3) == 8\n\n\ndef test_backoff_cap():\n    assert delay(10) == CAP_SECONDS\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "retry-client",
       "lane": "retry-client",
       "hops": 3,

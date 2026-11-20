@@ -20,7 +20,6 @@
       "export/source.py": "ROW_KEYS = ['date', 'account', 'internal_account_id', 'amount_cents', 'refund_cents', 'currency']\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "report-export",
       "lane": "report-export",
       "hops": 5,

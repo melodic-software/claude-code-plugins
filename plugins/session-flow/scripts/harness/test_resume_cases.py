@@ -59,7 +59,9 @@ def built(tmp_path_factory):
         spec = resume_cases.load_case(case_dir)
         repo = root / spec["name"]
         repo.mkdir()
-        chain = resume_cases.build_predecessor_chain(spec, repo, arm=CHECKOUT_ARM)
+        chain = resume_cases.build_predecessor_chain(
+            spec, repo, save_point=SAVE_POINT, arm=CHECKOUT_ARM
+        )
         out[spec["name"]] = (spec, chain, resume_cases.seed_history(spec, chain))
     return out
 
@@ -189,7 +191,7 @@ def test_sizes_follow_the_audit(built, name):
     assert len(chain) == pred["hops"]
     # The audit's growth and cumulative-share figures describe shape-2 chains; a
     # shape-3 hot file moves its history into hop files instead.
-    if pred.get("shape") == 3:
+    if resume_cases.seed_shape(spec, SAVE_POINT) >= 3:
         return
     if pred.get("target_bytes"):
         assert abs(sizes[-1] - pred["target_bytes"]) <= 0.10 * pred["target_bytes"]
@@ -289,10 +291,10 @@ def test_injections_land_where_the_spec_says(built, name):
     spec, chain, history = built[name]
     newest = sections(chain[-1])
     seen = "\n".join(t["result"] for t in history if t["role"] == "tool")
-    shape = spec["seed"]["predecessor"].get("shape", 2)
+    shape = resume_cases.seed_shape(spec, SAVE_POINT)
     for item in spec["seed"]["predecessor"].get("injections", []):
         hop = item["hop"]
-        if shape == 3:
+        if shape >= 3:
             _landed_3(item, chain, newest)
         else:
             title = resume_cases.SECTION_SLOTS[item["section"]]
@@ -593,6 +595,7 @@ def _oversize_spec(expected_fail: list[dict] | None) -> dict:
         }
     ]
     pred["final"] = {}
+    pred["shape"] = 3
     if expected_fail is not None:
         pred["expected_fail"] = expected_fail
     return spec

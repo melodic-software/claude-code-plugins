@@ -20,12 +20,11 @@
       "scripts/backfill.sh": "#!/usr/bin/env bash\necho \"backfill: $* -> 3,912 rows written\"\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "ledger-backfill",
       "lane": "ledger-backfill",
       "hops": 4,
       "start": "2026-10-20T08:00:00Z",
-      "expected_fail": [{"hop": 4, "fail": "^slot_size: Resumption brief \\(slot 'brief'\\) holds", "arms": ["after"]}],
+      "expected_fail": [{"hop": 4, "fail": "^(slot_size: Resumption brief \\(slot 'brief'\\)|OVER-CAP: Resumption brief) holds", "arms": ["after"]}],
       "hop_minutes": 360,
       "goal": "Backfill every warehouse's ledger rows from the legacy system into the new ledger.",
       "vision": "Finance closes October from the new ledger alone.",

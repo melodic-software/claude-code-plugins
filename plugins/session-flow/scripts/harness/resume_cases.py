@@ -755,11 +755,12 @@ def copy_shape(save_point: Path) -> int:
 
 
 def seed_shape(case_spec: dict, save_point: Path | None) -> int:
-    """The case's explicit `shape`, else the shape `save_point` writes, else 2."""
+    """The case's explicit `shape`, else the shape `save_point` writes (this
+    checkout's when None, the script the build then runs)."""
     explicit = case_spec["seed"]["predecessor"].get("shape")
     if explicit is not None:
         return int(explicit)
-    return 2 if save_point is None else copy_shape(save_point)
+    return copy_shape(save_point or SAVE_POINT)
 
 
 def seed_hash(out_dir: Path, memory_dir: Path | None = None) -> str:
