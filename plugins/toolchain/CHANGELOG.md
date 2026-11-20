@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-20
+
+### Changed
+
+- Resolution ladder: an unattended run picks the package manager for a `package.json` script only from lockfiles `git ls-files` lists, so a lockfile left untracked in the working tree no longer names a package manager or ties two of them. Outside a git repository, or when git cannot list the files, every lockfile present still counts.
+
 ## [2.0.4] - 2026-11-20
 
 ### Changed
