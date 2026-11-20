@@ -104,7 +104,7 @@ test('with no look, or dusk in clear weather, the window and the room shell draw
     const dusk = { ...state, look: { sun: 0, weather: 0 } }
     expect(windowPart(dusk), `window ${bits}`).toEqual(windowPart(state))
     expect(roomPart(dusk), `room ${bits}`).toEqual(roomPart(state))
-    const card = state.tv && state.console
+    const card = state.tv && state.console && !state.tape
     expect(tvPart(dusk).body?.includes(CARD), `tv ${bits}`).toBe(card)
     expect(tvPart(state).body?.includes(CARD), `tv ${bits}`).toBe(card)
     expect(tvPart({ ...state, underShader: true }).body?.includes(CARD), `tv ${bits}`).toBe(true)

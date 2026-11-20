@@ -87,7 +87,7 @@ const LV_CAP = 'M1370 495L1372.8 480.5Q1376 478.6 1379.2 480.5L1382 495Z'
 export function part(state: State): Part {
   const L = state.light
   const k = (d: string, l: string): string => (L ? l : d)
-  const scr = !state.tv ? 'off' : state.console ? 'game' : state.tape ? 'tape' : 'blue'
+  const scr = !state.tv ? 'off' : state.tape ? 'tape' : state.console ? 'game' : 'blue'
   const on = scr !== 'off'
   const lc = scr === 'blue' ? '#2a48e8' : scr === 'tape' ? '#6a5c8e' : '#3c4ca8'
   const ga = scr === 'off' ? 0 : scr === 'blue' ? 1 : scr === 'tape' ? 0.6 : 0.35
