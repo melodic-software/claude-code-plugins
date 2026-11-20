@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "ROUTE: `/corrections:codify \"code under domain/ never imports from infrastructure/\"`",
+      "why": "no rules-file line"
+    },
+    {
+      "answer": "A rules file is what the skill used to suggest.\n\nROUTE: hand it to /corrections:codify, which chooses and proves the mechanism",
+      "why": "rules file mentioned outside the route line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROUTE: suggest codifying it immediately in the project's own rules files",
+      "why": "the before-change route"
+    },
+    {
+      "answer": "ROUTE: add it to `.claude/rules/architecture.md`",
+      "why": "names a rules path"
+    },
+    {
+      "answer": "ROUTE: write it into CLAUDE.md as a project-wide rule",
+      "why": "names CLAUDE.md"
+    }
+  ]
+}

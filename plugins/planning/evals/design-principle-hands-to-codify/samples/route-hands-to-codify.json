@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "ROUTE: `/corrections:codify \"code under domain/ never imports from infrastructure/\"`",
+      "why": "the route is the named codify call"
+    },
+    {
+      "answer": "**ROUTE:** hand the principle to /corrections:codify right away, which picks the strongest rung and proves the check",
+      "why": "bold label, codify picks the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROUTE: suggest codifying it immediately in the project's own rules files",
+      "why": "the reply a faithful read of the text before the follow-on gives"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nROUTE: add a line to CLAUDE.md saying domain/ never imports infrastructure/",
+      "why": "codify only outside the route line"
+    }
+  ]
+}
