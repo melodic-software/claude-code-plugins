@@ -198,6 +198,7 @@ export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { laneRecordStore } from "./lane-record-cache.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
 
@@ -1695,30 +1696,51 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 // Writes run-id, the dispatched run, as a step output (a tick's later sends as
 // run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
 // upstream run id as an artifact on this run.
-export async function main(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
+export async function main(env, deps = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
+  const upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  const tick = {};
+  try {
+    return await dispatchTick(env, deps, tick, upstream);
+  } finally {
+    if (tick.store?.save(env.FEEDBACK_LANE_RECORDS_PATH)) {
+      appendFileSync(env.GITHUB_OUTPUT, "lane-records=true\n");
+    }
+  }
+}
+
+async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
+  const reads =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: budget.fetch,
+    });
+  const laneReads = actions ?? laneReader(env, { fetch: budget?.fetch });
+  if (env.FEEDBACK_LANE_RECORDS_PATH) {
+    tick.store = laneRecordStore({
+      workflow: DISPATCH_WORKFLOW,
+      repository: env.GITHUB_REPOSITORY,
+      listArtifactsNamed: (name) => reads.listArtifactsNamed(name),
+      getRun: (id) => reads.getWorkflowRun(id),
+      download: (id) => laneReads.download(id),
+      log,
+      now,
+    });
+  }
   // Every comment read binds the review lanes' comments to their runs
   // (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
-  const client = shareWorkflowRuns(
-    withLaneBinding(
-      api ??
-        createGitHubApi({
-          token: env.GITHUB_TOKEN,
-          repository: env.GITHUB_REPOSITORY,
-          apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-          graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-          fetch: budget.fetch,
-        }),
-      actions ?? laneReader(env, { fetch: budget?.fetch }),
-    ),
-  );
-  let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  const client = shareWorkflowRuns(withLaneBinding(reads, laneReads, tick.store));
+  let upstream = eventRun;
   const common = {
     api: client,
     repository: env.GITHUB_REPOSITORY,

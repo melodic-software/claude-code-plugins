@@ -185,6 +185,16 @@ export function recordEntries(text) {
     });
 }
 
+const attemptRecords = (run, lane) => {
+  const attempts = Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 ? run.run_attempt : 1;
+  return Array.from({ length: attempts }, (_, i) => `${RECORD_PREFIX}${lane}-${i + 1}`);
+};
+
+export function settledRun({ run, recorded }, workflows = LANE_WORKFLOWS) {
+  const lane = Object.keys(workflows).find((name) => workflows[name] === run?.path);
+  return lane !== undefined && run.status === "completed" && attemptRecords(run, lane).every((name) => recorded.has(name));
+}
+
 // A checker for one pull request's lane comments. `getPull(pr)` reads
 // /pulls/<pr>, `getRun(id)` /actions/runs/<id>, `listArtifacts(id)` that
 // run's artifacts (every page), `download(artifactId)` an artifact's zip
@@ -195,7 +205,7 @@ export function recordEntries(text) {
 // `check({ kind, id, body, createdAt, updatedAt, lastEditedAt })` resolves
 // true when the comment is its footer lane's own. A comment with no lane
 // footer is not a lane comment: false.
-export function laneChecker({ pr, getPull, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF }) {
+export function laneChecker({ pr, getPull, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF, store }) {
   const runs = new Map();
   let pull;
   const readPull = () => (pull ??= getPull(Number(pr)));
@@ -211,11 +221,22 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
         recorded.add(artifact.name);
       }
     }
-    return { run, entries, recorded };
+    const expiresAt = Math.min(...live.map((a) => Date.parse(a.expires_at ?? "")));
+    const loaded = { run, entries, recorded, expiresAt };
+    if (store && settledRun(loaded, workflows)) {
+      await store.put(runId, loaded);
+    }
+    return loaded;
   };
   const readRun = (runId) => {
     if (!runs.has(runId)) {
-      runs.set(runId, loadRun(runId));
+      runs.set(
+        runId,
+        (async () => {
+          const stored = await store?.get(runId);
+          return stored ? { ...stored, stored: true } : loadRun(runId);
+        })(),
+      );
     }
     return runs.get(runId);
   };
@@ -228,29 +249,35 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
     if (binding === null) {
       return legacyCounts(comment, cutoff);
     }
-    const { run, entries, recorded } = await readRun(binding.runId);
+    let loaded = await readRun(binding.runId);
     const head = (await readPull())?.head;
-    if (
-      String(run?.id) !== binding.runId ||
-      run?.path !== workflows[lane] ||
-      run?.head_sha !== binding.sha ||
-      typeof run?.head_branch !== "string" ||
-      run.head_branch !== head?.ref ||
-      run.head_repository?.full_name !== head?.repo?.full_name
-    ) {
+    const digest = bodyDigest(comment.body);
+    const ranOnHead = ({ run }) =>
+      String(run?.id) === binding.runId &&
+      run?.path === workflows[lane] &&
+      run?.head_sha === binding.sha &&
+      typeof run?.head_branch === "string" &&
+      run.head_branch === head?.ref &&
+      run.head_repository?.full_name === head?.repo?.full_name;
+    const lists = ({ entries }) =>
+      entries.some(
+        (e) =>
+          e.lane === lane &&
+          e.pr === Number(pr) &&
+          e.head === binding.sha &&
+          e.kind === comment.kind &&
+          e.id === Number(comment.id) &&
+          e.sha256 === digest,
+      );
+    if (loaded.stored && ranOnHead(loaded) && !lists(loaded)) {
+      runs.set(binding.runId, loadRun(binding.runId));
+      loaded = await runs.get(binding.runId);
+    }
+    const { run, recorded } = loaded;
+    if (!ranOnHead(loaded)) {
       return false;
     }
-    const digest = bodyDigest(comment.body);
-    const listed = entries.some(
-      (e) =>
-        e.lane === lane &&
-        e.pr === Number(pr) &&
-        e.head === binding.sha &&
-        e.kind === comment.kind &&
-        e.id === Number(comment.id) &&
-        e.sha256 === digest,
-    );
-    if (listed) {
+    if (lists(loaded)) {
       return true;
     }
     // A run still going may not have uploaded the record of the attempt that
@@ -259,8 +286,7 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
       throw new Error(`lane run ${binding.runId} is still running, so its comment record may not be uploaded yet`);
     }
     // Every attempt left a live record of this lane, and none lists it.
-    const attempts = Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 ? run.run_attempt : 1;
-    if (Array.from({ length: attempts }, (_, i) => `${RECORD_PREFIX}${lane}-${i + 1}`).every((name) => recorded.has(name))) {
+    if (attemptRecords(run, lane).every((name) => recorded.has(name))) {
       return false;
     }
     const at = Date.parse(comment.createdAt ?? "");
