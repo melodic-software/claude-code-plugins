@@ -2706,6 +2706,21 @@ def _moved_here(hot: Doc, rel: str) -> dict[str, str]:
     return found
 
 
+def _resolved(hot: list[str], hop: list[str], rel: str) -> Doc:
+    """The hot file's content with each section moved into the hop file `rel`
+    read from its moved body there."""
+    doc = _content_doc(hot)
+    moved = _moved_here(doc, rel)
+    if not moved:
+        return doc
+    hop_doc = _content_doc(hop)
+    lines = list(doc.lines)
+    for title, start, end in sorted(doc.sections, key=lambda s: -s[1]):
+        if title in moved:
+            lines[start + 1 : end] = hop_doc.section(moved[title]) or []
+    return _doc_from_lines(Path(), lines)
+
+
 def _content_doc(raw: list[str]) -> Doc:
     return _doc_from_lines(Path(), [_line_parts(line)[0] for line in raw])
 
@@ -3338,13 +3353,23 @@ def cmd_amend(args: argparse.Namespace) -> int:
         if isinstance(moved, str):
             return _die(1, f"{moved}; nothing written")
         hot, hop = moved
-    retired_doc = _content_doc(hot)
+    retired_doc = _resolved(hot, hop, rel)
+    moved_to = _moved_here(_content_doc(hot), rel)
+    hop_term = (_line_parts(hop[0])[1] if hop else "") or "\n"
 
     replaced: list[tuple[str, list[str]]] = []
     for title, value in sections.items():
-        current = _content_doc(hot)
-        start = current.section_start(title)
-        end = next(e for name, _, e in current.sections if name == title)
+        target, heading, eol = hot, title, term
+        if title in moved_to:
+            target, heading, eol = hop, moved_to[title], hop_term
+        current = _content_doc(target)
+        start = current.section_start(heading)
+        if start < 0:
+            return _die(
+                1,
+                f"section {title!r} moved to {rel}#{heading}, which that file does not hold; nothing written",
+            )
+        end = next(e for name, _, e in current.sections if name == heading)
         filled = [i for i in range(start + 1, end) if current.lines[i].strip()] or [
             start
         ]
@@ -3356,13 +3381,14 @@ def cmd_amend(args: argparse.Namespace) -> int:
             return _die(
                 1, f"section {title!r} already holds that text; nothing written"
             )
+        if target is hop and end == len(hop) and not _line_parts(hop[-1])[1]:
+            hop[-1] += hop_term
         if old:
-            hot[filled[0] : filled[-1] + 1] = [line + term for line in new]
+            target[filled[0] : filled[-1] + 1] = [line + eol for line in new]
             replaced.append((title, old))
         else:
-            hot[start + 1 : end] = [term, *(line + term for line in new), term]
+            target[start + 1 : end] = [eol, *(line + eol for line in new), eol]
 
-    hop_term = (_line_parts(hop[0])[1] if hop else "") or "\n"
     for title, items in append.items():
         lines = [line for item in items for line in _value_lines(item)]
         current = _content_doc(hot)
@@ -3431,7 +3457,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
         if fm.get("previous_handoff")
         else None
     )
-    amended = _content_doc(hot)
+    amended = _resolved(hot, hop, rel)
     for title in sections:
         if title in S3.retired_entry_sections:
             kept = set(_entry_units(amended, title)[0])

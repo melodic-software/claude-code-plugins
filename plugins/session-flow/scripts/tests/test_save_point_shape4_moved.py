@@ -170,3 +170,51 @@ def test_amend_retires_a_trail_entry_from_a_moved_direction_changes_body(tmp_pat
         "Retired: reverted by the owner",
     ]
     assert run("validate", str(path)).returncode == 0
+
+
+def test_amend_rewrites_a_moved_observations_body_behind_its_pointer(tmp_path):
+    notes = prose("observation", 26_000)
+    path = observations_hop(tmp_path, "- First observation.", size=26_000)
+    pointer = body(path, "Observations")
+    assert pointer.startswith("- Moved: ")
+    own = hop_file(path.parent, path.name, 1, SIDS[0])
+
+    result = amend(path, tmp_path, {"sections": {"Observations": "- Rewritten."}})
+
+    assert result.returncode == 0, err(result) + out(result)
+    assert body(path, "Observations") == pointer
+    read = run("read", str(path), "--section", "Observations")
+    assert out(read).strip("\n") == "- Rewritten."
+    amended = body(own, "Amended 2026-09-01T11:00:00Z Observations")
+    assert amended == f"- First observation.\n{notes}"
+    assert run("validate", str(path)).returncode == 0
+
+
+def test_amend_rewrites_a_moved_trail_keeping_its_entries(tmp_path):
+    path = moved_trail_hop(tmp_path)
+    pointer = body(path, "Direction changes")
+    late = "- [h1] turn 400: the owner dropped the export step (user-initiated)"
+
+    result = amend(
+        path, tmp_path, {"sections": {"Direction changes": "\n".join([*TRAIL, late])}}
+    )
+
+    assert result.returncode == 0, err(result) + out(result)
+    assert body(path, "Direction changes") == pointer
+    read = run("read", str(path), "--section", "Direction changes")
+    assert out(read).strip("\n").split("\n") == [*TRAIL, late]
+
+
+def test_amend_refuses_a_moved_trail_rewrite_that_drops_an_entry(tmp_path):
+    path = moved_trail_hop(tmp_path)
+    own = hop_file(path.parent, path.name, 1, SIDS[0])
+    before = (path.read_bytes(), own.read_bytes())
+
+    result = amend(
+        path, tmp_path, {"sections": {"Direction changes": "\n".join(TRAIL[1:])}}
+    )
+
+    assert result.returncode == 1, err(result) + out(result)
+    assert "removes an entry added this hop" in err(result), err(result)
+    assert TRAIL[0][:40] in err(result), err(result)
+    assert (path.read_bytes(), own.read_bytes()) == before
