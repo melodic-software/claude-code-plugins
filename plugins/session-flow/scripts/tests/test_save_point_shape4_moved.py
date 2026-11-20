@@ -99,3 +99,52 @@ def test_amend_appends_into_a_moved_direction_changes_body(tmp_path):
     read = run("read", str(path), "--section", "Direction changes")
     assert out(read).strip("\n").split("\n") == [*TRAIL, late]
     assert run("validate", str(path)).returncode == 0
+
+
+CLAIM = "- UNVERIFIED: the migration is safe"
+SETTLED = f"{CLAIM} (settle: `uv run pytest tests/test_migration.py`)"
+
+
+def unverified_fails(path: Path) -> list[str]:
+    return [
+        line
+        for line in out(run("validate", str(path))).splitlines()
+        if line.startswith("FAIL: ") and "UNVERIFIED" in line
+    ]
+
+
+def observations_hop(tmp_path: Path, first: str, *, size: int) -> Path:
+    notes = f"{first}\n{prose('observation', size)}" if size else first
+    return hop(make_repo(tmp_path), tmp_path, values={"observations": notes})
+
+
+def test_unsettled_claim_fails_the_same_moved_or_not(tmp_path):
+    kept = observations_hop(tmp_path / "kept", CLAIM, size=0)
+    moved = observations_hop(tmp_path / "moved", CLAIM, size=26_000)
+    assert not body(kept, "Observations").startswith("- Moved: ")
+    assert body(moved, "Observations").startswith("- Moved: ")
+
+    for path in (kept, moved):
+        fails = unverified_fails(path)
+        assert len(fails) == 1, (path, fails)
+        assert fails[0].startswith("FAIL: Observations: "), fails[0]
+
+
+def test_settled_claim_passes_moved(tmp_path):
+    moved = observations_hop(tmp_path, SETTLED, size=26_000)
+    assert body(moved, "Observations").startswith("- Moved: ")
+    assert run("validate", str(moved)).returncode == 0
+    assert unverified_fails(moved) == []
+
+
+def test_amend_refuses_an_unsettled_claim_appended_to_a_moved_body(tmp_path):
+    path = moved_trail_hop(tmp_path)
+    own = hop_file(path.parent, path.name, 1, SIDS[0])
+    before = (path.read_bytes(), own.read_bytes())
+    late = "- [h1] turn 400: UNVERIFIED the owner dropped the export (user-initiated)"
+
+    result = amend(path, tmp_path, {"append": {"Direction changes": [late]}})
+
+    assert result.returncode == 1, err(result) + out(result)
+    assert "FAIL: Direction changes: " in err(result), err(result)
+    assert (path.read_bytes(), own.read_bytes()) == before

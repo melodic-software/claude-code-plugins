@@ -1198,7 +1198,7 @@ def validate_doc(
         _validate_shape2(doc, f, previous, pred, projects_root)
     if (_fm_int(doc, "checks") or 0) >= UNVERIFIED_SETTLE_FROM:
         unread = shallow and previous is not None and gone is None
-        _check_unverified(doc, f, SHAPES[shape].carried, pred, unread)
+        _check_unverified(doc, f, SHAPES[shape].carried, pred, unread, hop_text)
 
     for i, line in enumerate(doc.lines, 1):
         if FILL_MARK in line:
@@ -1419,14 +1419,52 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
             f.fail(f"{title}: empty; write 'None.' plus a reason")
 
 
+def _moved_lines(
+    doc: Doc, title: str, start: int, end: int, hop_text: str | None
+) -> tuple[list[str], int, int, str] | None:
+    """When `title`'s body is only a move pointer, the pointed file's lines
+    (`hop_text` for this hop's own file when given), the pointed body's first
+    and end indices, and the file named for a FAIL; None otherwise or when
+    the pointed body is not there."""
+    held = [line for line in doc.lines[start + 1 : end] if line.strip()]
+    pointer = MovePointer.parse(held[0]) if len(held) == 1 else None
+    if pointer is None or not pointer.moves(title):
+        return None
+    base = doc.path.parent
+    fm = doc.frontmatter
+    own = hop_file_path(
+        base,
+        fm.get("chain_root", ""),
+        _fm_int(doc, "hop") or 0,
+        fm.get("session_id", ""),
+    )
+    if hop_text is not None and base / pointer.file == own:
+        text = hop_text
+    else:
+        try:
+            text = (base / pointer.file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+    lines = text.splitlines()
+    at, stop = next(
+        ((a, e) for name, a, e in section_spans(lines, 0) if name == pointer.heading),
+        (None, None),
+    )
+    if at is None or stop is None:
+        return None
+    return lines, at + 1, stop, f" of {pointer.file}"
+
+
 def _check_unverified(
     doc: Doc,
     f: Findings,
     carried: tuple[str, ...],
     pred: Doc | None,
     unread: bool = False,
+    hop_text: str | None = None,
 ) -> None:
-    """Every UNVERIFIED mark in a section the session wrote is followed on its
+    """Every UNVERIFIED mark in a section the session wrote, a moved section's
+    body in this hop's file included, is followed on its
     line by the command or source that settles it. The mark `new` puts on an
     entry carried past a failed predecessor is settled once for its section,
     by the CARRY_SETTLE line, so the entry's text stays what older validators
@@ -1438,7 +1476,11 @@ def _check_unverified(
     for title, start, end in doc.sections:
         if title in carried:
             continue
-        body = doc.lines[start + 1 : end]
+        lines, first, place = doc.lines, start + 1, ""
+        moved = _moved_lines(doc, title, start, end, hop_text)
+        if moved is not None:
+            lines, first, end, place = moved
+        body = lines[first:end]
         exempt: set[int] = set()
         if any(CARRY_SETTLE_RE.match(line.strip()) for line in body):
             held = (
@@ -1446,7 +1488,15 @@ def _check_unverified(
                 if unread
                 else {
                     e.normalized
-                    for e in parse_entries((pred and pred.section(title)) or [])
+                    for e in parse_entries(
+                        (
+                            pred
+                            and follow(
+                                pred.section(title) or [], title, pred.path.parent
+                            )
+                        )
+                        or []
+                    )
                 }
             )
             for entry in parse_entries(body):
@@ -1457,9 +1507,9 @@ def _check_unverified(
                     and UNVERIFIED_PRED_RE.match(rest)
                     and (held is None or entry.normalized in held)
                 ):
-                    exempt.add(start + 1 + entry.first_index)
-        for i in range(start + 1, end):
-            line = doc.lines[i]
+                    exempt.add(first + entry.first_index)
+        for i in range(first, end):
+            line = lines[i]
             if i in exempt:
                 rest = TAG_RE.sub("", BULLET_RE.sub("", line.strip(), count=1))
                 line = UNVERIFIED_PRED_RE.sub("", rest)
@@ -1468,7 +1518,7 @@ def _check_unverified(
                 for m in UNVERIFIED_RE.finditer(line)
             ):
                 f.fail(
-                    f"{title}: line {i + 1} marks a claim UNVERIFIED without naming what settles it; end that line with '(settle: <command or URL>)': {doc.lines[i].strip()[:60]!r}",
+                    f"{title}: line {i + 1}{place} marks a claim UNVERIFIED without naming what settles it; end that line with '(settle: <command or URL>)': {lines[i].strip()[:60]!r}",
                     CheckKind.UNVERIFIED,
                 )
 
