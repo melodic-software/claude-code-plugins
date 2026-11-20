@@ -71,17 +71,29 @@ TOKEN_KEYS = (
 )
 
 
+_GIT = ("git", "git -C *")
+_REMOTE_URL_FORMS = ("*://*", "*@*", "*:*")
 NETWORK_DENY = (
     "Bash(curl:*)",
     "Bash(curl *)",
     "Bash(wget:*)",
     "Bash(wget *)",
-    "Bash(git ls-remote:*)",
-    "Bash(git ls-remote *)",
-    "Bash(git fetch *://*)",
-    "Bash(git fetch *@*)",
+    *(
+        f"Bash({g} {cmd} {form})"
+        for g in _GIT
+        for cmd in ("ls-remote", "fetch")
+        for form in _REMOTE_URL_FORMS
+    ),
+    *(f"Bash({g} remote {verb} *)" for g in _GIT for verb in ("add", "set-url")),
+    *(f"Bash({g} config *remote.*)" for g in _GIT),
     "WebFetch",
     "WebSearch",
+)
+REMOTE_REF_ALLOW = tuple(
+    f"Bash({g} {cmd}{tail})"
+    for g in _GIT
+    for cmd in ("ls-remote", "fetch")
+    for tail in ("", " *")
 )
 
 
@@ -90,7 +102,7 @@ def run_settings(plugin_configs: dict | None = None) -> dict:
     under test loads (probes.md P7), the network denied, and any option a case sets."""
     doc: dict = {
         "enabledPlugins": {"session-flow@melodic-software": False},
-        "permissions": {"deny": list(NETWORK_DENY)},
+        "permissions": {"allow": list(REMOTE_REF_ALLOW), "deny": list(NETWORK_DENY)},
     }
     if plugin_configs:
         doc["pluginConfigs"] = plugin_configs

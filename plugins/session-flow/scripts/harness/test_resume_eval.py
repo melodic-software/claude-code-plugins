@@ -205,29 +205,50 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
     )
     assert doc["enabledPlugins"] == {"session-flow@melodic-software": False}
     deny = doc["permissions"]["deny"]
+    allow = doc["permissions"]["allow"]
     assert "Bash(curl *)" in deny and "Bash(wget *)" in deny
-    assert {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} <= set(deny)
     from fnmatch import fnmatchcase
 
-    trailing_colon_star_reads_as_space_star = ":*)"
-    patterns = [
-        d[5:-3] + " *" if d.endswith(trailing_colon_star_reads_as_space_star) else d[5:-1]
-        for d in deny
-        if d.startswith("Bash(git ")
-    ]
+    def matches(rules, command):
+        return any(
+            r.startswith("Bash(") and fnmatchcase(command, r[5:-1]) for r in rules
+        )
+
     for remote in (
         "git ls-remote http://h/x",
         "git ls-remote --heads https://h/x",
         "git ls-remote ssh://h/x",
         "git ls-remote h:org/repo",
         "git ls-remote git@h:x",
+        "git -C /any/repo ls-remote https://h/x",
+        "git -C /any/repo ls-remote --tags git@h:x",
         "git fetch git://h/x",
         "git fetch -q https://h/x",
         "git fetch git@h:x",
+        "git -C /any/repo fetch https://h/x",
     ):
-        assert any(fnmatchcase(remote, p) for p in patterns), remote
-    for local in ("git fetch origin", "git fetch --prune origin"):
-        assert not any(fnmatchcase(local, p) for p in patterns), local
+        assert matches(deny, remote), remote
+    for repoint in (
+        "git remote set-url origin https://h/x",
+        "git remote add up https://h/x",
+        "git -C /any/repo remote set-url origin /elsewhere",
+        "git config remote.origin.url https://h/x",
+        "git -C /any/repo config --replace-all remote.origin.url h:x",
+    ):
+        assert matches(deny, repoint), repoint
+    for local in (
+        "git ls-remote",
+        "git ls-remote origin",
+        "git ls-remote --heads --tags origin release/2.8",
+        "git -C /any/repo ls-remote origin",
+        "git -C /any/repo ls-remote --symref origin HEAD",
+        "git fetch origin",
+        "git fetch --prune origin",
+        "git -C /any/repo fetch -q origin",
+    ):
+        assert not matches(deny, local), local
+        assert matches(allow, local), local
+    assert not any("/home/" in r or "ccp-" in r for r in (*allow, *deny))
     assert "WebFetch" in deny
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
     assert "pluginConfigs" not in resume_eval.run_settings()
