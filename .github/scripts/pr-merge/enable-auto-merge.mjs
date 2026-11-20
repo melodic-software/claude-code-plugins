@@ -283,9 +283,6 @@ const MAX_PAGES = 10;
 const MAX_FILE_PAGES = 3;
 const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 const WHOLE_REVIEW_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py";
-const EVIDENCE_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py";
-// Two Actions reads per candidate artifact and one comment write.
-const EVIDENCE_TIMEOUT_MS = 60_000;
 
 // Into main, by name: the gate reads the default branch live
 // (babysit_merge_policy._base_refusal), while this assumes it is main.
@@ -667,6 +664,10 @@ async function changedFiles(github, slug, number) {
 // A listing past MAX_FILE_PAGES: no lane can ever judge its hold and cost
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
+export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes are already on main";
+export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reopened after the lane closed it at this head, so a person decides it`;
+export const emptyDiffNote = (head) =>
+  `Unattended merge: closed at head \`${head}\`. ${EMPTY_DIFF_REASON[0].toUpperCase()}${EMPTY_DIFF_REASON.slice(1)}: the base...head diff lists no file, so closing loses no work, and no fresh attempt starts. Reopen it to reverse this.`;
 
 // The verifier refusals that never clear for the pull request
 // (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap. decide closes
@@ -1308,23 +1309,6 @@ export function pythonRoom(env, spawn = spawnSync) {
 // stderr.
 const lastLine = (text) => String(text).trim().split("\n").at(-1);
 
-// The verification evidence comment for a head about to arm
-// (babysit_evidence_comment.py `post`): it links the head's pr-capture
-// artifact when the capture workflow left one, and posts nothing otherwise.
-// Its Actions reads run under BABYSIT_VERIFY_GH_TOKEN, its comment write
-// under GH_TOKEN, the lanes App token. Returns the script's outcome; throws
-// when it exits non-zero.
-export function pythonEvidence(env, spawn = spawnSync) {
-  return ({ number, headRefOid: head }, login) => {
-    const args = [env.EVIDENCE_COMMENT_SCRIPT || EVIDENCE_SCRIPT, "post", "--repo", env.GITHUB_REPOSITORY, "--pr", String(number), "--head", head, "--identity", login];
-    const done = spawn("python3", args, { encoding: "utf8", env, timeout: EVIDENCE_TIMEOUT_MS });
-    if (done.status !== 0) {
-      throw new Error(`babysit_evidence_comment.py exited ${done.status ?? done.signal}: ${lastLine(done.stderr ?? "")}`);
-    }
-    return JSON.parse(lastLine(done.stdout)).outcome;
-  };
-}
-
 // The close of a pull request decide answers `close` for: the reader's
 // `capped-close` (babysit_verify_evidence.py capped_close), which judges the
 // head again, posts the FAIL findings on the pull request and its issue,
@@ -1530,6 +1514,16 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   }
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
+  }
+  if (Array.isArray(detail.files) && detail.files.length === 0) {
+    const vetoed = discussionHold(detail);
+    if (vetoed !== null) {
+      return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+    }
+    if (newestAppComment(detail.comments?.nodes, bot, (c) => c.body === emptyDiffNote(pull.headRefOid)) !== undefined) {
+      return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" };
+    }
+    return { action: "close-empty", reason: EMPTY_DIFF_REASON };
   }
   // A head a pr-unblock lane stopped is never queued: only this job reads the
   // stop. A status list that did not read holds it too.
@@ -1749,7 +1743,7 @@ async function listPulls(github, owner, name) {
   throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, laneReads, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk, evidence } = {}) {
+export async function main({ env = process.env, github, actions, laneReads, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1864,9 +1858,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             download: ghDownloadArtifact({ repo: repo[0], token: env.BABYSIT_VERIFY_GH_TOKEN || env.GH_TOKEN, dir: env.RUNNER_TEMP || ".", name: ARTIFACT_PREFIX, file: RATING_FILE, env, timeout: 8000 }),
           });
         };
-    // The evidence comment's reads and write; a test that injects GitHub
-    // posts none unless it injects this too.
-    evidence ??= injected ? null : pythonEvidence(env);
     const riskTokens = [];
     const appendSummary = (text) => {
       if (!env.GITHUB_STEP_SUMMARY) {
@@ -2421,6 +2412,26 @@ export async function main({ env = process.env, github, actions, laneReads, veri
               ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
               : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
       }
+      if (action === "close-empty") {
+        leave(pull, `refused: ${reason}`);
+        if (!write) {
+          console.log(`enable-auto-merge: #${pull.number} would close, its diff against main empty (report-only)`);
+          continue;
+        }
+        try {
+          if (pull.autoMergeRequest != null) {
+            await sendSettled("disarm", pull);
+          }
+          const issue = `/repos/${repo[0]}/issues/${pull.number}`;
+          await github("PATCH", issue, { state: "closed" });
+          await github("POST", `${issue}/comments`, { body: emptyDiffNote(pull.headRefOid) });
+          console.log(`enable-auto-merge: #${pull.number} closed: ${escapeCommand(reason)}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} empty-diff close: ${describe(error)}`);
+        }
+        continue;
+      }
       // A pull request the verifier refuses for good closes for a fresh
       // attempt; a failed close leaves it for the next run, which finds what
       // this one wrote.
@@ -2517,15 +2528,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           console.log(`::error title=enable-auto-merge::#${pull.number} pin, so not armed: ${describe(error)}`);
           leave(pull, "refused: its pin comment did not post");
           continue;
-        }
-      }
-      // An arm follows a passing verifier verdict at this head, so its
-      // evidence comment goes up first. Whatever it meets, the arm goes on.
-      if (action === "arm" && evidence) {
-        try {
-          console.log(`enable-auto-merge: #${pull.number} evidence comment: ${escapeCommand(String(await evidence(pull, `${slug}[bot]`)))}`);
-        } catch (error) {
-          console.log(`enable-auto-merge: #${pull.number} evidence comment not posted: ${describe(error)}`);
         }
       }
       // The report-only Merge-Risk record for the head about to arm

@@ -304,7 +304,6 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
-        plugins/source-control/skills/babysit-prs/scripts/babysit_evidence_comment.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py
@@ -424,7 +423,6 @@ jobs:
         .github/workflows/maintenance-reconcile-lost-runs.yml
         .github/workflows/maintenance-repin-ci-workflows.yml
         .github/workflows/maintenance-tidy-code-upkeep.yml
-        .github/workflows/maintenance-verify-whole-map.yml
         .github/workflows/post-merge-file-demotion-issues.yml
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-dispatch-feedback.yml
@@ -442,7 +440,6 @@ jobs:
         .github/workflows/pr-run-plugin-evals.yml
         .github/workflows/pr-unblock-dispatch.yml
         .github/workflows/pr-unblock.yml
-        .github/workflows/pr-verify-capture.yml
         .github/workflows/pr-verify.yml
         .github/workflows/release-generate-dependabot-changelog-fragments.yml
         .github/workflows/release-publish-plugins.yml
