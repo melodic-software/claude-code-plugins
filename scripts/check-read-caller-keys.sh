@@ -37,9 +37,8 @@
 #     exactly, in its `secrets` map; that secret anywhere else fails;
 #   - no `environment` key, except exactly
 #     `environment: { name: pr-pipeline-scan-carrier, deployment: false }` on
-#     the read workflow's `scan` job, and exactly
-#     `environment: { name: claude-lanes, deployment: false }` on any job
-#     (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#claude-secrets).
+#     the read workflow's `scan` job
+#     (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/open-lane-output/README.md).
 # No file of such a run sets `permissions: write-all`. The read workflow
 # itself must set top-level `permissions: {}` and a permissions map on every
 # job, may name `id-token` only inside its `check-broker` job, which runs no PR

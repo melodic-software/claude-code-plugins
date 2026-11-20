@@ -3,6 +3,16 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-20
+
+### Changed
+
+- Reset asks about a moved repository's file as its own kind of question: Keep, then Put back, answered with `--keep-moved` and `--put-back-moved`; the folder-without-a-record flags no longer answer it, and the one question names files in a repository that moved among those it leaves to their own question.
+- The profile skill's reset action shows every preview line exactly as printed before it asks anything, never a summary or paraphrase; its eval case fails a run that asks without them.
+- The reset preview's line about files unchanged since an earlier reset names them (how many, the first three and how many more) and calls them files reset already handled, which stays true for a cut-off file finished while keeping a hand edit.
+- Apply's preview in a repository that moved, while a record from before the move is kept, says in one line that reset puts the file back one layer per run, newest first, naming each such record and its profile.
+- A cut-off file whose entries include ones an unfinished switch still owes says they hold "the values profile P wrote or its unfinished switch had yet to change"; with no such entry the wording is unchanged.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added

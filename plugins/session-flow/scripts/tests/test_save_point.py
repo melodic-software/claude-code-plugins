@@ -3591,6 +3591,51 @@ def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     assert "Open questions: duplicate id [Q1]" in out(twice), out(twice)
 
 
+DECISION_FIX = "add buys:/surface:/cost: to D1"
+TAGGED = "- [D1] [security] Secrets move to a main-only environment (owner Q8)"
+
+
+@pytest.mark.parametrize(
+    ("decision", "missing"),
+    [
+        (TAGGED, "buys:, surface:, cost:"),
+        (f"{TAGGED} buys: PR branches cannot read secrets; cost: none yet", "surface:"),
+        (
+            "- [D1] [design] One eval lock serves every lane\n"
+            "  buys: one queue; surface: none; cost:",
+            "cost:",
+        ),
+        (f"{TAGGED} buys: ; surface: ; cost: 3 steps", "buys:, surface:"),
+        (f"{TAGGED} buys: a; surface:\n  cost: none yet", "surface:"),
+        (f"{TAGGED} buys: a; surface: none; cost: Rewritten h1: tagged", "cost:"),
+    ],
+)
+def test_decision_tagged_without_its_rationale_fails(tmp_path, decision, missing):
+    repo = make_repo(tmp_path)
+    result = strict(s3_hop(repo, tmp_path, values={"decisions": decision}))
+    assert result.returncode == 1, out(result)
+    assert f"decision lacks {missing}; {DECISION_FIX}" in out(result), out(result)
+
+
+@pytest.mark.parametrize(
+    "decision",
+    [
+        f"{TAGGED} buys: PR branches cannot read secrets; "
+        "surface: none; cost: 6 build steps so far",
+        "- [D1] [design] One eval lock serves every lane (hub)\n"
+        "  buys: one queue; surface: none; cost: none yet",
+        "- [D1] Resolve the two security threads and merge (owner)",
+        f"{TAGGED} buys: PR branches cannot read secrets; surface: none; "
+        "cost: none yet Rewritten h1: tagged",
+    ],
+    ids=["tagged-inline", "tagged-continuation", "untagged-legacy", "rewrite-mark"],
+)
+def test_decision_with_its_rationale_or_untagged_passes(tmp_path, decision):
+    repo = make_repo(tmp_path)
+    result = strict(s3_hop(repo, tmp_path, values={"decisions": decision}))
+    assert result.returncode == 0 and "WARN" not in out(result), out(result)
+
+
 @pytest.mark.parametrize(
     ("slot", "title", "prefix"),
     [

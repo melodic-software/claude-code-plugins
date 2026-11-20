@@ -149,9 +149,6 @@ jobs:
     name: Run Eval
     needs: check-key-credit
     if: ${{ !cancelled() && needs.check-key-credit.result == 'success' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -572,9 +569,6 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.check-key-credit.result == 'success'
       && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -922,9 +916,6 @@ jobs:
     name: Run Eval Fallback
     needs: [check-key-credit, run-eval-subscription]
     if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read

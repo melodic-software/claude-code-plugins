@@ -55,8 +55,8 @@ arguments generally was reverted in 2.1.260 and is not the rule: a command that 
 naming them, such as `grep -r pattern .` from the directory that holds the file, is not covered.
 
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
-files indirectly, like a Python or Node script that opens files itself." A `python -c`, a `node -e`,
-or any script that opens the path reads a `Read`-denied file with no deny firing. That is the real
+files indirectly, like a Python or Node script that opens files itself." Any script that opens the
+path, one-liners included, reads a `Read`-denied file with no deny firing. That is the real
 gap, and it is reached *routinely*: an agent blocked on `Read` reaches for an interpreter one-liner
 as an ordinary next step, not as an attack. This plugin's own `scripts/check-structure.sh` is an
 instance: it opens `settings.local.json` from inside a subprocess, and its safety comes from emitting
@@ -142,7 +142,7 @@ carry "rank it below the sandbox" into a destructive-git finding. See that secti
 secret from a session that has shell execution. **Directory location is a fence for the file tools,
 not for an arbitrary subprocess.** `permissions.blockReadsOutsideWorkingDirectories` is that
 fence; which tools, permission modes and Bash commands it covers is read live from the pointer
-below, and we never report it as fencing a Python or Node script that opens the path itself.
+below, and we never report it as fencing a script or other subprocess that opens the path itself.
 
 - **Pointer**: when judging what the outside-directory block covers, fetch
   [permissions: block file-tool reads and writes outside the working directories](https://code.claude.com/docs/en/permissions#block-file-tool-reads-and-writes-outside-the-working-directories)
@@ -201,10 +201,9 @@ warning is that *"Bash permission patterns that try to constrain command argumen
 saying so ships the false confidence the `sensitive-file-deny` section refuses to ship.
 
 **The concrete hole is prefix anchoring, and it is worth stating in the finding.** Matching is
-prefix-based: the page's wildcard table has `Bash(npm run *)` matching `npm run build` and
-`npm run test --watch` but not `npm install`, and *"The space before a trailing `*` is part of the
-rule"* (same page), so `Bash(ls *)` does not match `lsof`. So
-`Bash(git push --force *)` matches `git push --force origin main` and does **not** match
+prefix-based, per the page's wildcard table, and *"The space before a trailing `*` is part of the
+rule"* (same page), so `Bash(ls *)` does not match `lsof`. By the
+same rule, `Bash(git push --force *)` matches `git push --force origin main` and does **not** match
 `git push origin main --force`, which is the ordinary spelling. Flag-position variants, `--force-with-lease`,
 `-f` bundled into another short-flag cluster, and `git push` aliases all pass the same way. These
 patterns raise the cost of an accidental force push; they do not bound a determined one.

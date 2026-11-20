@@ -12,7 +12,7 @@ The safety here is *what gets emitted*, not what gets opened. `check-structure.s
 emits counts and never values. The `cat … | jq` recipes below emit values, and a project whose
 settings carry a `Read(./.claude/settings.local.json)` deny may block them. That is the correct
 outcome. Do not route around the block with an interpreter one-liner
-(`python -c`, `node -e`) to dump content the sanctioned script will not emit. See "Scope of a Read
+to dump content the sanctioned script will not emit. See "Scope of a Read
 deny" in [reference/required-permissions.md](../reference/required-permissions.md); that file's
 "Relation to the standards permission floor" says why the deny is a project's choice, not part of the
 baseline.

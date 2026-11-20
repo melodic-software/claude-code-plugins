@@ -107,8 +107,8 @@ installed on the machine from outside this repository. Then read:
 | Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:`. Also record which hook events you considered: the documented set is far wider than `PreToolUse` and `PostToolUse`, and an event nobody looked at cannot surface a candidate, so a no-gaps hooks verdict names the events it examined |
 | MCP servers | `.mcp.json` + `settings.json` → `disabledMcpjsonServers` |
 | Permissions | `settings.json` → `permissions` (deny/ask/allow) |
-| Enforcement | Ecosystem-specific build config (`<root-build-config>`, e.g. `Directory.Build.props` for .NET, `pyproject.toml` for Python, `package.json` for TS/JS), `.editorconfig` (top 20 lines), any enforcement-hierarchy section in the repo's own instruction files |
-| Codebase shape | File counts per language: `find . -name "*.cs" \| wc -l`, same for `.py`, `.ts`, `.sh`, `.ps1` |
+| Enforcement | The root build or project configuration files where the repository sets its compiler, analyzer and lint options, `.editorconfig` (top 20 lines), any enforcement-hierarchy section in the repo's own instruction files |
+| Codebase shape | File counts per language, by file extension over `git ls-files` |
 | Incident history | `git log --oneline \| wc -l` for the denominator, then a `--grep` count for the concern. That count is a ceiling, never a frequency: read a sample before citing one, and carry the match count, the denominator, the sample size and what the sampled commits actually were into the verdict |
 
 ### 1.2 Gap Analysis
@@ -230,11 +230,8 @@ The gate's verdict is this audit's product, so each candidate is listed as `unve
 #### Incident counts are ceilings
 
 **Zero incidents** and **YAGNI** both read a `git log --grep` count, and that count is an upper
-bound on the concern, not a measure of it: it counts commits whose message mentions a word. On this
-marketplace at merged main `49912c63`, `secret|gitleaks` matched 209 of 2202 commits while the first
-15 read were dependency bumps, component syncs and CI pins, with no leaked secret among them, and
-`markdownlint|lint` matched 1128, about 51%. Cite a frequency only after reading a sample and saying
-what the sampled commits were.
+bound on the concern, not a measure of it: it counts commits whose message mentions a word. Cite a
+frequency only after reading a sample and saying what the sampled commits were.
 
 The discipline is asymmetric, which keeps it cheap. A ceiling already below the 5% **YAGNI**
 threshold settles that gate on its own, because the true frequency cannot exceed the ceiling. Only

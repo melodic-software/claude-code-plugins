@@ -219,9 +219,6 @@ jobs:
     # The first attempt only: a re-run never runs the model again. A key the
     # credit gate skipped runs nothing here; sweep-areas-subscription runs it.
     if: needs.select-areas.outputs.proceed == 'true' && needs.select-areas.outputs.next-leg != 'subscription' && github.run_attempt == '1'
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -541,9 +538,6 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas.outputs.next-leg == 'subscription' || needs.select-areas.outputs.next-leg == 'subscription') }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -824,9 +818,6 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas-subscription.outputs.next-leg == 'fallback' || needs.sweep-areas-subscription.outputs.credential-present == 'false') }}
-    environment:
-      name: claude-lanes
-      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
