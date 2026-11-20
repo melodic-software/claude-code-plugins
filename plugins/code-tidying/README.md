@@ -239,8 +239,13 @@ below` is judged. Under
 9. The line after a `remove-comments-ignore` or `dissolve-comments-ignore` marker, the
    `dissolve-comments-ignore` line itself, `FIXME(#issue)`, PowerShell `#Requires` and the
    signature block, and a suppression's reason on the waiver's line or the line before it.
+10. In a script's opening `#` comment block (the comment lines that start the file, after any
+    shebang), an `Exit`, `Exit codes` or `Exits` heading line and its entries: a line starting
+    with a status number then text, and that entry's continuation lines, indented deeper than the
+    number. The heading line may hold the first entry, as in `# Exit 2: usage`. The rest of that
+    header still fails.
 
-Under `none`, all but 8 pass. Any other added comment prints
+Under `none`, all but 8 and 10 pass. Any other added comment prints
 `<path>:<line>: comment outside the <posture> posture: delete it, move the reason into the code or
 the commit message, or link the outside constraint; /code-tidying:remove-comments fixes it`. An
 outside-constraint note or ADR pointer the keep list keeps fails until it carries a link or
