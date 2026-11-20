@@ -1,5 +1,5 @@
-"""The settle clause on the UNVERIFIED marks `new` writes (PLAN.md AC14, Contracts:
-the tool's strings stay matchable by older validators). A shape-2 hop carried past a
+"""The settle clause on the UNVERIFIED marks `new` writes (the tool's strings stay
+matchable by older validators). A shape-2 hop carried past a
 predecessor that failed validation passes head's validator and the shape-3 validator
 at 18f6e56faa, the commit on main this branch's shape-4 work starts from."""
 
@@ -11,6 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from test_save_point import (
     HOP1,
     HOP2,
@@ -36,6 +37,12 @@ REPO = SCRIPTS.parents[2]
 
 def base_validator(tmp_path: Path) -> Path:
     """save_point.py and the modules it imports, as they were at BASE."""
+    present = subprocess.run(
+        ["git", "-C", str(REPO), "cat-file", "-e", f"{BASE}^{{commit}}"],
+        capture_output=True,
+    )
+    if present.returncode != 0:
+        pytest.skip(f"{BASE[:10]} is not in this clone (shallow or pruned)")
     dst = tmp_path / "base-scripts"
     dst.mkdir()
     for name in ("save_point.py", "io_streams.py", "plugin_paths.py"):

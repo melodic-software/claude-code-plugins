@@ -134,7 +134,7 @@ def test_shape4_fill_writes_validates_and_prints_the_verdict_and_prompt(tmp_path
     assert validate(path).returncode == 0, out(validate(path))
 
 
-def test_shape4_bare_new_previous_continues_a_shape4_chain_while_default_is_3(tmp_path):
+def test_shape4_bare_new_previous_continues_a_shape4_chain(tmp_path):
     repo = make_repo(tmp_path)
     first = hop(repo, tmp_path)
     second = hop(repo, tmp_path, first, k=2, shape=None)
