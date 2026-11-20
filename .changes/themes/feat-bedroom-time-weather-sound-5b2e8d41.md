@@ -17,4 +17,7 @@ bump: minor
 ### Changed
 
 - `/bedroom <switch> on|off` to the state the switch is already in now says so and sends nothing, where it briefly turned the switch back first.
+- The settings card is seven rows, where it was five.
+- `/bedroom instant off` is kept across sessions, as the `shader` choice.
+- `/bedroom reset` also shows the room alone for seven seconds and puts the time, weather, signal, hallway, shader and sound choices back to the plugin's settings.
 - Settings saved by 0.2 under `bedroom:saved` load unchanged.
