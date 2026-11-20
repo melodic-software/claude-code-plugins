@@ -1,3 +1,5 @@
+import type { Look } from './sky.ts'
+
 /** One part of the scene. Every field is an SVG fragment string (style is CSS text, with no tags). */
 export type Part = {
   /** CSS for this part: class names and keyframe names carry the part's prefix. */
@@ -80,6 +82,8 @@ export type State = {
    * show while the console plays and paint over at other times. Absent, the card shows only on the console's screen.
    */
   underShader?: true
+  /** The time of day and weather the hand-drawn room shows; given only while the shader setting is off. Absent, the dusk in clear weather. */
+  look?: Look
 }
 
 /** The titles written in the room, kept on this machine only: the console game's on the screen, the tape's on its spine, and the pennant's two lines. */
