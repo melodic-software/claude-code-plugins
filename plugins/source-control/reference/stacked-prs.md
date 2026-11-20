@@ -37,9 +37,11 @@ In this marketplace the review and run lanes accept a native stack layer whose s
 default branch, and still fail any other non-default base
 ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md),
 "The run job"; [#15400](https://github.com/melodic-software/claude-code-plugins/pull/15400)). The
-merge lane lands only a stack's bottom layer, through the async merge once its `CI Status` is green,
-and never a layer above it
-([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)). The issue lane
+merge lane sends only a stack's bottom layer to the async merge, once its `CI Status` is green, and
+never a layer above it
+([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)). Into a merge queue
+GitHub refuses that merge from the lanes App, so there the layer gets a refusal comment and a person
+merges it. The issue lane
 does not stack yet ([#17539](https://github.com/melodic-software/claude-code-plugins/issues/17539)),
 so an attended session may stack, and an unattended lane does not.
 

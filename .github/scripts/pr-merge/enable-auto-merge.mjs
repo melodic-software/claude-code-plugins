@@ -357,11 +357,14 @@ export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
 
 // Native stack layers (owner decision on #15410, option B). GitHub refuses
 // native auto-merge for every stack member ("Auto-merge is not supported for
-// stacked pull requests"), so the lane lands only a stack's bottom layer, and
-// through the async merge
+// stacked pull requests", pr-pipeline-sandbox run 44776470784), so the lane
+// lands only a stack's bottom layer, and through the async merge
 // (https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#merge-a-pull-request-asynchronously),
 // which "includes all open downstack pull requests": the bottom has none, so
-// it lands alone, after its own holds.
+// it lands alone, after its own holds. Into a merge queue, GitHub refuses the
+// lanes App's async merge too ("Enqueuer is not authorized to merge",
+// pr-pipeline-sandbox run 44680029102), so there the layer goes to a person
+// through the refusal comment.
 export const STACK_BOTTOM = "bottom";
 export function stackPlace(pull) {
   const stack = pull.stack;
@@ -1057,8 +1060,12 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // owes the read-back no pin; any other rung leaves it unnamed (babysit_merge.py).
 // PIN_RE is merge-holds.mjs's, whose pinHold holds a queued head no pin names.
 export { PIN_RE };
-export const pinBody = (sha, rung) =>
-  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`;
+export const pinBody = (sha, rung, stacked = false) =>
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\n${
+    stacked
+      ? `The unattended merge path is about to ask GitHub to merge this stack layer through the async merge at head \`${sha}\`, the head its checks judged. GitHub can still refuse it after accepting the request.`
+      : `The unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`
+  }`;
 
 // The lanes App's newest pin in `comments` (DETAIL_QUERY's), or undefined.
 const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)));
@@ -2610,7 +2617,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid, lane?.rung)) {
         try {
-          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid, lane?.rung) });
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid, lane?.rung, stackPlace(pull) === STACK_BOTTOM) });
           console.log(`enable-auto-merge: #${pull.number} pinned at ${pull.headRefOid}`);
         } catch (error) {
           // No pin, no arm: an immediate enqueue would have no read-back.

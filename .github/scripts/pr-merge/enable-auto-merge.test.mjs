@@ -4587,6 +4587,11 @@ test("a green stack bottom layer is merged through the async merge at its head, 
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_10", head: HEAD }]);
   assert.deepEqual(pins.map((pin) => pin.path), [`${ISSUES}/7/comments`, `${ISSUES}/9/comments`, `${ISSUES}/10/comments`]);
+  const [layerPin, , plainPin] = pins.map((pin) => pin.body.split("\n"));
+  assert.equal(layerPin[0], pinLine("C2"));
+  assert.equal(layerPin[1], `The unattended merge path is about to ask GitHub to merge this stack layer through the async merge at head \`${HEAD}\`, the head its checks judged. GitHub can still refuse it after accepting the request.`);
+  assert.doesNotMatch(layerPin[1], /enqueued|arm native auto-merge/);
+  assert.match(plainPin[1], /about to arm native auto-merge/);
   assert.ok(statuses.some((status) => status.description === "async merge requested for its stack's bottom layer"));
 });
 
