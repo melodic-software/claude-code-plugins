@@ -17,7 +17,15 @@ The shipped keep list. A repository replaces it through the `comment_keep_list` 
   path form its ADR folder uses (`# See docs/adr/0042`), restates none of the record's reason, and
   sits at a module header or on a line whose decision the code does not make obvious. Keep it only
   when the named record exists; a pointer to a missing record is class A. A comment that also
-  states the reason is ordinary rationale, not this keep.
+  states the reason is ordinary rationale, not this keep;
+- a **script's exit-code list**: in a script's opening `#` comment block (the comment lines that
+  start the file, after any shebang), an `Exit`, `Exit codes` or `Exits` heading line and its
+  entries, each a line starting with a status number then text, plus that entry's continuation
+  lines indented deeper than the number (`# Exit codes:` / `#   2  usage error`). The heading
+  line may hold the first entry (`# Exit 2: usage`). A caller branches on these codes, so the list
+  is the script's contract, and the comment lint passes the same lines. Keep it only when each
+  number is one the script can exit with; an entry the code contradicts is class A. The rest of
+  that header, and the same text after the first line of code, is not this keep.
 
 A comment naming a workaround is never one of the two outside-constraint keeps or an ADR pointer,
 link or not: it is deleted and listed as open root-cause work, unless it is a `TODO(#issue)`

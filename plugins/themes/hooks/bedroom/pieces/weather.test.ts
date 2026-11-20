@@ -51,7 +51,7 @@ test('each /bedroom weather word sends its kind and stores it; a stored choice s
   expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBe('auto')
   await room.clock.advance(6500)
   expect((await room.values())?.world).toBe(world(autoKind(local(EVENING))))
-  expect(await room.run('weather snow')).toMatch(/^say auto, clear, overcast, rain, downpour, storm, or default/)
+  expect(await room.run('weather snow')).toMatch(/^say auto, clear, overcast, rain, downpour, storm, default or strike/)
   expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBe('auto')
   await room.run('weather storm')
   expect(await room.run('weather default')).toBe('weather follows its setting again (now auto)')

@@ -81,7 +81,7 @@ state has silent hooks: prompts would wait all night and no report would exist.
    in with the real task file path, session id and data root:
 
    ```text
-   /goal every item in <task file> is done or marked parked, and `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" check --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"` exits 0
+   /goal every item in <task file> is ticked done or, when unticked, has the word "parked" in its text, and `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" check --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}"` exits 0
    ```
 
    Without it the Stop hook holds the same condition. The person typing this line, or a last
@@ -96,9 +96,10 @@ state has silent hooks: prompts would wait all night and no report would exist.
       absolute path `${CLAUDE_PLUGIN_ROOT}/skills/step-away/reference/rules.md` resolves to. No
       hook gives the background session the rules or the report path, so this line does.
    2. Invoke `/session-flow:continue-in-background` through the Skill tool with the scope words
-      and `done when every item in <task file> is done or marked parked`, a done condition stated
-      in the invocation, which its gate's case 1 arms as the goal with no draft or confirmation.
-      It hands back the background session's full `sessionId`.
+      and `done when every item in <task file> is ticked done or, when unticked, has the word
+      "parked" in its text`, a done condition stated in the invocation, which its gate's case 1
+      arms as the goal with no draft or confirmation. It hands back the background session's
+      full `sessionId`.
    3. Run step 3's `start` at once with `--session <that sessionId>` in place of
       `${CLAUDE_SESSION_ID}`, then `status` for that id, failures handled as step 3 says. Append
       the report path `start` prints to the task file's header line.

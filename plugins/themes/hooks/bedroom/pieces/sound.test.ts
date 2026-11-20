@@ -534,7 +534,7 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
   await quiet(s)
 })
 
-test('S1: each kind has named entries with a default, picked by name or number and saved; round 2\'s picks carry over', async () => {
+test('S1: each kind has named entries with a default, picked by name or number and saved; 0.3\'s picks carry over', async () => {
   if (!BUILT.includes('sound')) return
   expect(namesOf('cicadas')).toEqual(['chorus', 'river'])
   expect(namesOf('rain')).toEqual(['roof'])

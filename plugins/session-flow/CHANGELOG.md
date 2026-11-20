@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [9.15.2] - 2026-11-20
+
+### Fixed
+
+- name the parked marker in the step-away goal line
+
+  away.py counts an unticked task item closed when its text matches
+  \bparked\b. The /goal evaluator refused to accept that as "marked
+  parked" while away.py check exited 0, so the goal line and the
+  continue-in-background done condition now name the marker the script
+  reads: ticked done or, when unticked, the word "parked" in its text.
+
+## [9.15.1] - 2026-11-20
+
+### Changed
+
+- off-thread work: the background-output-file pointer record no longer carries a recheck trigger. It stores no copied value, so a reader fetches the MCP and environment-variable sections live.
+
 ## [9.15.0] - 2026-11-20
 
 ### Added

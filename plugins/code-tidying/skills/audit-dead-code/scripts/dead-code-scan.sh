@@ -10,8 +10,11 @@
 #   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
 #      audit must never fail its caller, so -e is omitted and no detector's
 #      exit code is ever propagated.
-#   2  usage error: unknown argument, missing option value, non-numeric --max,
-#      unknown --lane, or an unusable temp directory.
+#   2  a usage error, the status Bash builtins return for incorrect usage
+#      (https://www.gnu.org/software/bash/manual/html_node/Exit-Status.html):
+#      an unknown option, an option missing its value, a --max that is not a
+#      non-negative integer, a --lane outside the set, or a --root that is not
+#      a directory; or no temp directory could be created.
 #
 # Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
 # findings and hard errors; vulture exits 3 for findings and 1 for an input
@@ -43,6 +46,7 @@ dc_anchor_path() {
 
 MAX=0
 LANE_SEL='all'
+ROOT_SEL=''
 TARGETS=()
 
 usage() {
@@ -53,11 +57,16 @@ Usage:
   dead-code-scan.sh [target]...
   dead-code-scan.sh --max <n> [target]...
   dead-code-scan.sh --lane <knip|vulture|gopls|grep|all> [target]...
+  dead-code-scan.sh --root <dir> [target]...
   dead-code-scan.sh --help
 
 Candidate scope is the given targets (default: the whole repository). The
 reference search is always repository-wide — a reference from anywhere still
 saves a symbol, whatever the candidate scope.
+
+--root <dir> scans the repository that contains <dir> instead of the one the
+caller is in, and resolves relative targets against <dir>. It combines with
+every other option.
 
 --max <n> caps how many candidates are emitted, ordered by git recency,
 oldest-untouched first (0 = no cap). The detectors carry no usable confidence
@@ -87,6 +96,11 @@ while [[ $# -gt 0 ]]; do
   --lane)
     require_opt_value "$@"
     LANE_SEL="$2"
+    shift 2
+    ;;
+  --root)
+    require_opt_value "$@"
+    ROOT_SEL="$2"
     shift 2
     ;;
   -h | --help)
@@ -123,6 +137,14 @@ all | knip | vulture | gopls | grep) ;;
   exit 2
   ;;
 esac
+
+if [[ -n "$ROOT_SEL" ]]; then
+  if ! INVOCATION_CWD="$(CDPATH='' cd -- "$ROOT_SEL" 2>/dev/null && pwd)"; then
+    echo "dead-code-scan.sh: --root must be a directory" >&2
+    exit 2
+  fi
+  cd -- "$INVOCATION_CWD" || exit 2
+fi
 
 # Anchor caller-supplied paths BEFORE the cd, or they resolve against the repo
 # root instead and silently miss.

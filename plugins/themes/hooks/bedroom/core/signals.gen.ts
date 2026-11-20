@@ -8,7 +8,9 @@ export const WORLD = {"sun":8,"weather":5,"work":2,"zone":3,"top":239} as const
 export const ACCEPT = {"move":0.05,"near":0.3,"start":6,"screen":0.5,"screenMany":3,"world":2.5} as const
 export const HURRY = {"pace":0.1666,"seconds":30} as const
 export const STRIKE = {"every":73,"shift":17,"modulo":101,"below":35,"beatEvery":29,"beatShift":5,"beatModulo":41,"beatBase":8} as const
+/** The cues, each sent as world = top + id: one event the shader runs once, a hallway pass, the hall light, a strike. */
+export const CUES = {"pass":1,"light":2,"strike":3} as const
 /** The pieces built in, from shader/pieces.json or --pieces. A piece reads these here, never from pieces/index.js. */
 export const BUILT: readonly string[] = ["time","weather","claude-tv","hallway","sound","no-shader"]
 /** The picture parts left out (piece.part). */
-export const WITHOUT: readonly string[] = []
+export const WITHOUT: readonly string[] = ["claude-tv.rough","hallway.edge"]

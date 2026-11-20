@@ -1,6 +1,6 @@
 ---
 description: "Edits code so its comments earn their keep under a posture (none or 'strip', necessary or 'aggressive', explanatory): deletes zero-information comments, renames or restructures so explanatory ones can go, keeps terse load-bearing ones; a 'safe' mode, and an edit-free 'report'. Use when asked to 'remove comments' or 'dissolve comments', when code has too many or agent-written comments, or to make code self-documenting. Read-only residue flagging is /code-tidying:audit-comment-residue."
-argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [--base <ref>] [target]"
+argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [target] [--repo <repo> ...]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/added-lines.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/settings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(git ls-files:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
@@ -90,10 +90,46 @@ zero edits.
 | `--base <ref>` | With no target, the scope is the branch's changed code files against the merge base of `<ref>`, uncommitted and untracked ones included, from `${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh --branch-only --base <ref>`, and `comment_edit_scope` sets the granularity. It never widens: nothing changed is `files=0`. Exit 2 is reported and the run stops. `--added-since` beats it. |
 | `--notes <path>` | Append the staged narrative block to `<path>` too. Refuse a symlink, then check `git ls-files --error-unmatch <path>`: a tracked or symlinked path is refused, the run continues, and the block is reported only. |
 | `--pipeline` | The run is the pull-request pipeline's comment pass; it changes no setting. |
+| `--repo <repo>` (and the other target forms) | Any action above, once per repository, per [Over several repositories](#over-several-repositories). |
 
-Match tokens whole and strip them before reading the target. `./safe`, `./none`, `./report` and
+The argument hint leaves out `--added-since`, `--base`, `--notes` and `--pipeline` to stay within
+its length budget; this table lists every token. Match tokens whole and strip them before reading the target. `./safe`, `./none`, `./report` and
 the like are paths, not tokens. Precedence: `report` decides that nothing applies; then `safe`;
 then a posture token; then the resolved setting.
+
+## Over several repositories
+
+With no target form, the run covers this checkout, as it always has. A target form (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Strip the target-form
+tokens first; every other token applies in each repository, except as below. What differs here:
+
+- **Scope per repository.** With no `<path>` target, each repository takes the rung
+  `scope-code-files.sh` resolves in that checkout, reported with its findings, and the safe-mode
+  rule that rung carries; a clean clone on its base branch resolves to the repository rung.
+  `--added-since` and `--base` read one checkout's branch diff, so with a target
+  form they stop the run and name the repository rung or a `<path>` instead. A `<path>` target
+  resolves under each root, and a repository where it does not exist is reported skipped. The
+  pre-computed lines describe this checkout only: the per-repository subagent runs
+  `scope-code-files.sh`, `comment-tooling-probe.sh` and `settings.sh` with that repository's root
+  as its working directory, under its own permissions, and reads the settings and the keep list
+  from that repository.
+- **Read state.** `audit` and `report` read the clone on disk, since a worktree would be a write.
+  After the fetch, a repository other than the session's own whose checked-out `HEAD` is not
+  `origin/HEAD`, or whose working tree has uncommitted changes, is read as it stands, and the
+  report says so for that repository.
+- **Writes per repository.** `audit` and `report` write to no repository other than the session's
+  own. A run that edits works in one repository at a time, as target-scope.md "Writes stay per
+  repository" says: for a repository other than the session's own, in a worktree that
+  repository's convention creates, never its main checkout, and the scope above is read in that
+  worktree. The diff is left for review there, as in a single run, and ships as that repository's
+  own pull request.
+- **Findings file per repository.** An edit run writes each repository's findings file under that
+  repository's own memory root and the worktree's branch slug, never the invoking one. A `report`
+  run writes one only for the session's own repository; for every other, the rows go in the
+  merged report.
 
 ## The comment-reviewer agent
 
@@ -149,8 +185,8 @@ under `none` and `necessary` its symbol is listed as open root-cause work.
 
 **What `necessary` keeps above the floor** is the resolved keep list: the shipped
 [reference/keep-list.md](reference/keep-list.md), or the file `comment_keep_list` names. A keep
-other than a public-API doc comment is held to `class_c_max_lines`. Unless the list keeps it, a
-warning of consequence, a unit or sentinel annotation, a section divider and rationale about this
+other than a public-API doc comment or a script's exit-code list is held to `class_c_max_lines`.
+Unless the list keeps it, a warning of consequence, a unit or sentinel annotation, a section divider and rationale about this
 repository's own code are **our-code surprises**: deleted, narrative staged, and
 each one a reshape flag naming the symbol and the move that would make the comment unnecessary
 (rename, extract, a type, an assertion, a redesign). A constraint the code could enforce gets the

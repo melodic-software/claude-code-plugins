@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "report-only rung recorded blocked"
+    },
+    {
+      "answer": "**STATUS:** blocked (executed elsewhere)\nROUTE: a linter\nMECHANISM: isort\nPROSE: kept",
+      "why": "bold label; the route wording is another grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "STATUS: applied\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "marks a report-only rung applied"
+    },
+    {
+      "answer": "STATUS: declined\nROUTE: none\nMECHANISM: none\nPROSE: kept",
+      "why": "the operator accepted it"
+    }
+  ]
+}

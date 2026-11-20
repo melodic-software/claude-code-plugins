@@ -2,7 +2,7 @@ import type { Saved } from '../core/saved.js'
 
 /**
  * The sound bank: for each kind, named entries and the default, each entry's files under sounds/bedroom/<kind>/.
- * sounds/bedroom/SOURCES.md says where each file comes from. A file's length in ms is beside it: a player that cannot
+ * sounds/bedroom/sources.md says where each file comes from. A file's length in ms is beside it: a player that cannot
  * repeat a file itself is started again after that long.
  */
 export const BANK = {

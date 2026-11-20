@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It runs against the staging snapshot with make migrate-check, and the output is pasted as a comment on the PR before it merges.",
+      "why": "full"
+    },
+    {
+      "answer": "make migrate-check on the staging snapshot first; paste what it prints on the PR; only then merge.",
+      "why": "paraphrased, every part"
+    },
+    {
+      "answer": "For #4417: run make migrate-check against staging, comment its output on the PR, then merge. No pasted output, no merge.",
+      "why": "applied to the PR"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CI has to be green and it needs an approval.",
+      "why": "names the generic gates, not the rule"
+    },
+    {
+      "answer": "Run make migrate-check.",
+      "why": "half: no paste on the PR"
+    },
+    {
+      "answer": "Paste the migration SQL into the PR description.",
+      "why": "wrong artifact"
+    }
+  ]
+}

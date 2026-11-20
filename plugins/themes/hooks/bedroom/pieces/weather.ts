@@ -1,5 +1,7 @@
 import type { Ctx, Local, Piece } from '../core/piece.js'
+import { STRIKE_GAP_MS, STRIKE_SHOWS_MS, noteForcedStrike } from '../core/schedule.js'
 import { WEATHERS } from '../core/settings.js'
+import { CUES } from '../core/signals.gen.js'
 
 /**
  * The weather: the weather field from the stored choice or the setting, and /bedroom weather. `auto` changes by itself
@@ -36,11 +38,26 @@ function told(ctx: Ctx): string {
   return chosen === 'auto' ? `the weather is auto, ${now} now; it changes by itself every three hours, never to a storm` : `the weather is ${now} until /bedroom weather auto`
 }
 
+/**
+ * /bedroom weather strike: one lightning strike now, in a storm only, as the scheduled ones are (the shader's pulse
+ * rises with the storm's lane, and a strike from a clear sky would read as a fault). At most one each STRIKE_GAP_MS.
+ */
+async function strikeNow(ctx: Ctx): Promise<string> {
+  if (kindOf(ctx) !== WEATHERS.indexOf('storm')) return 'lightning comes only in a storm: say /bedroom weather storm first, then /bedroom weather strike'
+  if (lastAsked !== undefined && ctx.nowMs - lastAsked < STRIKE_GAP_MS) return `one strike at a time: try again in ${Math.ceil((STRIKE_GAP_MS - (ctx.nowMs - lastAsked)) / 1000)} s`
+  lastAsked = ctx.nowMs
+  const delay = await ctx.cue(CUES.strike, '/bedroom weather strike')
+  noteForcedStrike(ctx.nowMs, delay)
+  return `lightning strikes in about ${Math.round((delay + STRIKE_SHOWS_MS) / 1000)} s`
+}
+let lastAsked: number | undefined
+
 /** A command that changes the kind shows within seconds; one that does not sends nothing. */
 async function weather(ctx: Ctx, args: readonly string[]): Promise<string> {
   const word = (args[0] ?? '').toLowerCase()
   if (word === '') return told(ctx)
-  if (word !== 'auto' && !(WEATHERS as readonly string[]).includes(word)) return `say auto, ${WEATHERS.join(', ')}, or default, as in /bedroom weather rain`
+  if (word === 'strike') return strikeNow(ctx)
+  if (word !== 'auto' && !(WEATHERS as readonly string[]).includes(word)) return `say auto, ${WEATHERS.join(', ')}, default or strike, as in /bedroom weather rain`
   const was = kindOf(ctx)
   await ctx.save({ weather: word })
   if (kindOf(ctx) !== was) await ctx.send('/bedroom weather', { hurry: true })

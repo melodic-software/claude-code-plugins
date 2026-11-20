@@ -45,14 +45,23 @@ bottom-left corner of the front of the dresser.
   sunset are the plugin's `sunrise` and `sunset` settings (6:30 and 20:30 unless you change them).
   `/bedroom time noon` holds one phase all day; `/bedroom time auto` follows the clock again. The
   room starts at dusk and eases to the hour over about six seconds. The VCR always shows the real
-  time.
-- **Weather.** In the window only: overcast, rain, a downpour, or a storm with a soft flash in the
-  sky about once in three minutes. `auto` changes by itself every three hours and never picks a
-  storm; it asks no weather service, so every session gives the same weather at the same hour.
-- **The television and Claude.** While a turn runs, the screen flickers faintly; once the context
-  is half full, a pale band rolls down it now and then. `/bedroom signal off` stops both.
-- **The hallway.** About once an hour someone passes the door, and now and then the hall light
-  comes on for a few minutes. `/bedroom hall off` keeps the hallway still.
+  time. The view outside is the dusk view at every hour, lit for it: by day the trees, the far
+  treeline, the field and the utility pole with its wires in daylight; at night a deep blue sky
+  with stars and the moon over the dark trees and the yard light.
+- **Weather.** In the window only. Overcast covers the sky with cloud at every hour. Rain falls
+  light and slow with a few drops on the glass; a downpour adds a heavier, faster fall, more drops
+  and a thicker veil; a storm slants the rain in the wind, darkens the sky further and flashes
+  softly in it about once in three minutes. `auto` changes by itself every three hours and never
+  picks a storm; it asks no weather service, so every session gives the same weather at the same
+  hour. In a storm, `/bedroom weather strike` brings a flash within about five seconds.
+- **The television and Claude.** While a turn runs, the screen flickers faintly.
+  `/bedroom signal off` stops it.
+- **The hallway.** The gap beside the door looks into a hall with a ceiling light. With it off, a
+  faint light spills low in the gap, fainter late at night. About once an hour someone passes the
+  door, and their shadow crosses the gap; now and then the hall light comes on for three minutes,
+  lighting the whole gap, brightest at the top, and laying a wedge of light on the floor.
+  `/bedroom hall pass` and `/bedroom hall light` show one now (the light turns off again if it is
+  on); `/bedroom hall off` keeps the hallway still.
 - **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays a
   bed (cicadas from dusk through the night when it is dry; in wet weather no cicadas but rain on
   the roof, the same rain heavier as a downpour, or a storm with wind), the television's click as
@@ -71,7 +80,7 @@ bottom-left corner of the front of the dresser.
   - A small bank of sounds: each kind has named entries and a default, chosen by
     `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `chorus` (the default)
     or `river`; rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
-    `distant` (rolls only); television: `tube`. `sounds/bedroom/SOURCES.md` lists each recording,
+    `distant` (rolls only); television: `tube`. `sounds/bedroom/sources.md` lists each recording,
     its page and its license. The television's and the room's sounds are made by code, the purr
     excepted.
   - On Windows, and under WSL through Windows, one player process runs for as long as sound is on
@@ -119,8 +128,10 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips. A switch already in that state stays as it is |
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |
 | `/bedroom weather <auto\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; alone, says which |
+| `/bedroom weather strike` | In a storm, one flash of lightning within about five seconds; at most one each 20 seconds |
 | `/bedroom signal [on\|off]` | The television reacting to Claude |
 | `/bedroom hall <on\|off>` | The hallway's passes and hall light |
+| `/bedroom hall <pass\|light>` | While the hallway is on: someone passes the door, or the hall light turns on for three minutes (off, if it is on), within about five seconds |
 | `/bedroom sound <on\|off\|test>` | Sound, off by default; `test` checks the player |
 | `/bedroom sound volume <0-100>` | The volume of every sound |
 | `/bedroom sound pick <cicadas\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
@@ -175,7 +186,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
 | `sound` | boolean | `false` | Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
 | `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100. |
-| `signal` | boolean | `true` | The screen flickers while Claude works, and a band rolls down it as the context fills. |
+| `signal` | boolean | `true` | The screen flickers while Claude works. |
 | `hall` | boolean | `true` | Now and then someone passes the door, or the hall light comes on. |
 | `shader` | boolean | `true` | For diagnosis. Off: the hand-drawn room alone, with no fades, clock or lamp light, sent again on every change. |
 

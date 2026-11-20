@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "RUNG: 2\nROUTE: `/corrections:codify \"imports are grouped stdlib, third-party, local, sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "rung 2, mechanically checkable"
+    },
+    {
+      "answer": "**RUNG:** 2 (mechanically checkable)\nROUTE: an isort config\nMECHANISM: isort\nPROSE: kept",
+      "why": "bold label; the route wording is another grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "RUNG: 1\nROUTE: delete it\nMECHANISM: none\nPROSE: deleted",
+      "why": "the deletion rung"
+    },
+    {
+      "answer": "RUNG: 4\nROUTE: a path-scoped rule on **/*.py\nMECHANISM: none\nPROSE: kept",
+      "why": "shops past rung 2 for a rule file"
+    }
+  ]
+}

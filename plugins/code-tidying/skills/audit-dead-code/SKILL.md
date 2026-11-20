@@ -1,6 +1,6 @@
 ---
 description: "Read-only hunt for dead and unused code across four labeled lanes (Knip for TS/JS, vulture for Python, gopls for Go, grep for shell, C# and files no lane owns), each candidate adjudicated dead, uncertain or alive. Use when asked to 'find dead code', 'find the dead code and delete it', 'remove unused code', to find what is unused in a repository (exports, functions, orphaned files), or whether anything still calls a symbol. A find-and-delete request starts here: this skill finds and reports, and deleting what it finds is /code-tidying:tidy."
-argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
+argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh:*)", "Bash(git grep:*)", "Bash(git log:*)", "Bash(grep:*)"]
@@ -72,6 +72,7 @@ A consumer's own `CLAUDE.md` or rules may refine these defaults.
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh                      # whole repo, every lane
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --max 20             # cap the adjudication set
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --lane grep src/     # one lane, scoped candidates
+${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --root <root>        # another repository's root
 ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --help               # usage and exit codes
 ```
 
@@ -79,6 +80,30 @@ Exit is 0 on every scan path and 2 only on a usage error; no detector's exit cod
 Present the `Lane:` lines with the findings: they make a clean report a claim rather than an
 absence. A `target` narrows which files *produce* candidates; the reference search stays
 repository-wide, because a reference from anywhere saves a symbol.
+
+## Over several repositories
+
+With no target form, the scan covers this checkout, as it always has. A target form (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Strip the target-form
+tokens before reading `--max`, `--lane` and `target`. What differs here:
+
+- **One scan per repository, root anchored.** Each repository's subagent runs
+  `dead-code-scan.sh --root <root>` with the run's `--max`, `--lane` and `target`, so the
+  reference search stays inside that repository: a reference in one repository never saves a
+  symbol in another. A `target` resolves under each root; a repository where it does not exist is
+  reported skipped. `--max` caps each repository's candidates.
+- **The scan reads the clone on disk.** It cannot read `origin/HEAD` without a worktree, which
+  would be a write. So after the fetch, a repository other than the session's own whose
+  checked-out `HEAD` is not `origin/HEAD`, or whose working tree has uncommitted changes, is
+  scanned as it stands, and the report says so for that repository.
+- **One consent gate.** Report each repository's `Summary candidates:` line and the total, and
+  take one go-ahead before any repository is adjudicated.
+- **Nothing is written in any repository.** The hard rules hold per repository, and the
+  suppression entries of the convergence loop are handed over per repository, for that
+  repository's own detector config.
 
 ## Run states. Five, not two
 

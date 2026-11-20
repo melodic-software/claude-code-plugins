@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: gate-emitted-rule-file-hands-to-codify
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-emitter
+    type: tool_used
+    tool: Bash
+    input_match: 'emit-gate\.sh'
+    min: 1
+    arm: with-only
+  - name: checker-created
+    type: file_exists
+    path: scripts/check-file-names.sh
+    arm: both
+  - name: rule-file-hands-to-codify
+    type: regex
+    pattern: '^[\s>*`_-]*RULE-FILE[*`_\s]*:[^\n]*corrections:codify\b'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: no-rule-flag
+    type: tool_used
+    tool: Bash
+    input_match: 'emit-gate\.sh(?:[^"\\;&|]|\\.)*?--rule'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-rule-write
+    type: tool_used
+    tool: Write
+    input_match: '\.claude/rules'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-codify-run
+    type: tool_used
+    tool: Skill
+    input_match: '"skill":"/?(?:corrections:)?codify"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-unavailable-claim
+    type: regex
+    pattern: '^[\s>*`_-]*RULE-FILE[*`_\s]*:[^\n]*?corrections:codify\b[^\n]{0,80}?(?:\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b|\bunavailable\b)'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both

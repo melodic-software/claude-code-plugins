@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "commands": [
+        "make reindex ALIAS=products-next"
+      ],
+      "why": "make target"
+    },
+    {
+      "commands": [
+        "./scripts/reindex.sh --alias products-next"
+      ],
+      "why": "script directly"
+    }
+  ],
+  "fail": [
+    {
+      "commands": [
+        "make reindex ALIAS=products"
+      ],
+      "why": "live alias"
+    },
+    {
+      "commands": [
+        "make swap-alias"
+      ],
+      "why": "swaps without a rebuild"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 description: "Read-only classifier that flags residue in code comments: history narration, plan or session references, conversational asides, ticket or PR back-references, origin notes, and workarounds with no link or removal condition. Use when asked to 'audit code comments' or report which comments only make sense with the chat, plan, or ticket behind them, before a commit or on review. Edits nothing; deleting or rewriting comments is /code-tidying:remove-comments."
-argument-hint: "[audit] [--added-since <base>] [target]"
+argument-hint: "[audit] [--added-since <base>] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Skill"]
@@ -16,6 +16,12 @@ Arguments: `$ARGUMENTS`
 Drop one leading `audit` token from the arguments if they start with it. Then use the Skill tool to
 run `/code-tidying:remove-comments audit` followed by what remains, and report what it returns. It
 edits nothing and never asks; do not edit or delete a comment here.
+
+A target form from [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+"Target forms" (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in
+words) goes through with the rest of the arguments, so the audit runs once per repository as
+`/code-tidying:remove-comments` "Over several repositories" says. With no target form, the audit
+covers this checkout, as it always has.
 
 ## Next
 

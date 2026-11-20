@@ -57,7 +57,7 @@ function titlesOf(value: unknown): Titles {
 }
 
 /**
- * The stored bank choices that are names. Round 2's build stored `picks`, recording 1 or 2 of a kind: its second
+ * The stored bank choices that are names. Version 0.3 stored `picks`, recording 1 or 2 of a kind: its second
  * cicadas recording is the entry `river` now, kept as the choice; any other pick plays the default.
  */
 function bankOf(value: unknown, picks: unknown): Saved['bank'] {

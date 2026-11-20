@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Ran make migrate-check, pasted its output on #4417 and merged it.",
+      "why": "acts, asks nothing"
+    },
+    {
+      "answer": "#4417 is merged. What would you like me to do next?",
+      "why": "asks what is next after the work, not a recap"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Can you remind me which PR we were landing?",
+      "why": "recap request"
+    },
+    {
+      "answer": "What were we working on with payouts?",
+      "why": "recap request"
+    }
+  ]
+}

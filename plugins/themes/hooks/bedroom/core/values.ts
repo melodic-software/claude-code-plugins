@@ -136,8 +136,45 @@ let worldAt = -Infinity
 let worldWaiting: number | undefined
 let sunSent = 0
 
-/** Sends world if 6 s have passed since the last send, else keeps it waiting (a later one replaces it). */
+/**
+ * A cue is one event the shader runs once (a hallway pass, the hall light, a lightning strike), sent as world =
+ * WORLD.top + its id: codes the atmosphere never uses, which the shader takes once they have held still as long as
+ * world needs, and which change none of world's own fields. The mod holds the cue's code this long (the app's delay,
+ * its ease and the shader's 2.5 s hold, with room for a slow ease), then sends the atmosphere's code back.
+ */
+export const CUE_HOLD_MS = 12_000
+/** Until when the code of the cue last sent is held. */
+let cueUntil = -Infinity
+/** A cue asked while world could not move yet; a later one replaces it. */
+let cueWaiting: number | undefined
+
+/** Sends a cue if world can move now, else keeps it waiting; the milliseconds until world can next move. */
+export function offerCue(id: number, now: number): number {
+  const free = Math.max(cueUntil, worldAt + WORLD_GAP_MS)
+  if (now < free) {
+    cueWaiting = id
+    return free - now
+  }
+  const atmosphere = worldWaiting ?? worldSent
+  worldSent = WORLD.top + id
+  worldAt = now
+  cueUntil = now + CUE_HOLD_MS
+  worldWaiting = atmosphere
+  cueWaiting = undefined
+  want('world', worldSent)
+  return CUE_HOLD_MS
+}
+
+/** Sends world if 6 s have passed since the last send and no cue holds it, else keeps it waiting (a later one replaces it). */
 function offerWorld(code: number, now: number): number | undefined {
+  if (cueWaiting !== undefined) {
+    worldWaiting = code
+    return offerCue(cueWaiting, now)
+  }
+  if (now < cueUntil) {
+    worldWaiting = code
+    return cueUntil - now
+  }
   if (code === worldSent) {
     worldWaiting = undefined
     return undefined
@@ -183,6 +220,8 @@ export function startShader(state: State, fields: Fields, minute: number, now: n
   worldSent = encodeWorld(fields)
   worldWaiting = undefined
   worldAt = now
+  cueUntil = -Infinity
+  cueWaiting = undefined
   sunSent = fields.sun
   given = { ...sent, clock: minute, screen: encodeScreen(screen), world: worldSent }
   waiting.clear()
@@ -260,16 +299,27 @@ export async function send($: EngineInterface, why: string, fields: Fields, opti
   await ask($, why)
 }
 
+/** Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes. */
+export async function sendCue($: EngineInterface, id: number, why: string): Promise<number> {
+  const now = await readNow($)
+  const sentNow = now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
+  const delay = offerCue(id, now)
+  if (!worldTimer) armWorld($, delay)
+  await ask($, why)
+  return sentNow ? 0 : delay
+}
+
 /** Offers the world that waits once its 6 s have passed; a shader start since the timer was armed moves them later. */
 function armWorld($: EngineInterface, delay: number): void {
   worldTimer = true
   $.clock.after(delay, () => {
     worldTimer = false
     void readNow($).then(later => {
-      const again = worldWaiting === undefined ? undefined : offerWorld(worldWaiting, later)
+      const before = worldSent
+      const again = worldWaiting === undefined && cueWaiting === undefined ? undefined : offerWorld(worldWaiting ?? worldSent, later)
       if (again === undefined) return ask($, 'world waited its 6 s')
       armWorld($, again)
-      return undefined
+      return worldSent === before ? undefined : ask($, 'a cue waited its turn')
     })
   })
 }

@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [11.1.1] - 2026-11-20
+
+### Changed
+
+- pr-verify no longer fails a `Refs:` pull request whose body names no remaining work. It still fails one whose body names no delivered part, claims the whole issue, or delivers a part outside the issue's scope. What stays open is the issue's own done-when list, so the body need not restate it.
+
+## [11.1.0] - 2026-11-20
+
+### Added
+
+- `check-kill-switch` gains a defer gate (inputs `defer`, `defer-minutes`, `defer-job`, `resolved-config`): on a first run attempt it stops a job whose work a later run recovers, with cause `defer` and the window's reset, while the GITHUB_TOKEN window's burn rate projected to the job's horizon, or to the reset when sooner, leaves under `defer-project` of the header's limit. It reads no `start-gate` floor, never waits, and never defers a re-run attempt; each deferral logs a `defer` notice naming the cause, the projected share and the reset. `pr-pipeline.schema.json`'s `limits.api` pools admit `defer-project` (github-token default 0.3, 0 turns deferral off) `defer-run-minutes` (default 15) and `defer-run-minutes-pr-merge` (default 6, the arm run's p90), all defaulted in `rate-limits.json`. Only pr-merge's PR-scoped arm run (`inputs.pr`) defers, reading its horizon from `defer-run-minutes-pr-merge`, and its `pr-merge-wake` line reports the deferral and the reset; the sweep, CI Status and pr-dispatch-feedback never defer ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+## [11.0.2] - 2026-11-20
+
+### Changed
+
+- `wait-refine.mjs` no longer lists and polls dispatcher runs on a head no refine run can start for: when the runner's event file shows both the sender and the PR author in `NO_REFINE_ACCOUNTS` (dependabot, the release App, the standards-sync App) and its PR number and head match, Wait For Refine reviews after the one finish read. A human, lanes App or mixed event, or a missing, malformed or mismatched event file, still polls.
+
+## [11.0.1] - 2026-11-20
+
+### Changed
+
+- `enable-auto-merge.mjs` skip-unchanged now keeps a head the merge queue ejected up to the cap (`merge.max-queue-ejections`): while the gate's ejection comment stands unchanged and the skip key matches, later reader runs leave it refused without reading its discussion, files and verdict again, until the head or another key input changes, `max-minutes` or `max-skips` runs out, or its refusal is due to turn into a failing status. An ejection count that could not be read is never kept.
+
 ## [11.0.0] - 2026-11-20
 
 ### Changed

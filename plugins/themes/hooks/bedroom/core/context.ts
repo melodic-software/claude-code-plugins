@@ -5,7 +5,7 @@ import type { Ctx, Fields, Piece } from './piece.js'
 import { current, save } from './saved.js'
 import { settingOf } from './settings.js'
 import { failedOnce, note } from './telemetry.js'
-import { send } from './values.js'
+import { send, sendCue } from './values.js'
 
 /** No piece built, no atmosphere: dusk, clear, Claude idle, the hallway still. */
 const QUIET: Fields = { sun: 0, weather: 0, work: 0, zone: 0, hall: 0 }
@@ -45,6 +45,7 @@ export function ctxOf($: EngineInterface): Ctx {
     save: patch => save($, patch),
     fields: () => pieces.reduce<Fields>((all, piece) => ({ ...all, ...fieldsOf(piece, ctx) }), { ...QUIET }),
     send: (why, options) => send($, why, ctx.fields(), options),
+    cue: (id, why) => sendCue($, id, why),
     note,
   }
   return ctx

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh\" check"
+          }
+        }
+      ],
+      "why": "runs check only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "Pester tests that assert nothing"
+          }
+        }
+      ],
+      "why": "runs codify instead of naming the call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify"
+          }
+        }
+      ],
+      "why": "runs codify by its short name"
+    }
+  ]
+}

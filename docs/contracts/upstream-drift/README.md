@@ -528,9 +528,9 @@ After a failed write the other upstreams still run, and the run then exits nonze
   runs `npm install` or any other installer (firecrawl's and context7's) stays with a person.
   `driftIssue` in
   `.github/scripts/intake-triage/admit.mjs` is the rule's one home. An issue this workflow's token
-  opens starts no intake run, so the hourly triage sweep is its only way in: the sweep dispatches
-  intake for a trusted drift issue and still skips every other github-actions[bot] issue, since
-  some quote fork-controlled text. Admission accepts it as its author, and its done-when is a
+  opens starts no intake run, and the hourly triage sweep does not dispatch one: the lanes token
+  broker refuses a github-actions[bot] dispatch for an issue no listed human or lanes App wrote. A
+  person triages a drift issue. Admission accepts it as its author, and its done-when is a
   fixed template for its lead (`trustedDriftSpec`) built from the upstream id, never from the body;
   every other admission criterion applies unchanged. The hex-pin template re-audits the pinned
   pages and changes only them. The vendored-copy template finds the skill's update script from
@@ -549,14 +549,14 @@ After a failed write the other upstreams still run, and the run then exits nonze
   `update` skill outside its `vendor/` baseline, since a change to how a skill updates itself comes
   from a person's pull request (owner decision of 2026-11-19 on #17294). The issue lane's run and pr-verify read that same
   template in place of the body, and pr-verify and the merge gate count it only for a pull request
-  inside that scope. Every author gate on the way (the sweep, intake's verdict write, admission,
-  the issue lane's blocker check and its `issue.json` writer) asks the same rule. A trusted drift
+  inside that scope. Every author gate on the way (intake's verdict write, admission, the issue
+  lane's blocker check and its `issue.json` writer) asks the same rule. A trusted drift
   issue is never split: admission takes it at any Size and the lane runs it at the split-child
   size, since one template covers one upstream's pages or vendored copy. The filer's daily body
   rewrite between admission and the lane run does not stop the run, which never reads the body;
   any other editor's change still does.
-- **No upstream-chosen text in the body.** The sweep's intake run hands the whole body to
-  intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
+- **No upstream-chosen text in the body.** An intake run on a drift issue hands the whole body
+  to intake's triage model, so the filer writes only text it controls: the upstream id, the hex pin
   and head, this repository's own page and check-script paths, and per hex-pin page the counts of
   changed rows, new units and removed units. It never writes a row's or unit's path, since the
   upstream chose those names.

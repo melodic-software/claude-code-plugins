@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-memory:audit"
+          }
+        }
+      ],
+      "why": "loads the read skill only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "every shell script under scripts/ starts with set -euo pipefail"
+          }
+        }
+      ],
+      "why": "runs codify instead of naming the call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify"
+          }
+        }
+      ],
+      "why": "runs codify by its short name"
+    }
+  ]
+}
