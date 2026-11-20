@@ -29,231 +29,116 @@ on:
   workflow_call:
     inputs:
       lane:
-        description: The lane, its caller workflow's file stem.
         required: true
         type: string
       activity:
-        description: The activity to run from the lane's slots.
         required: true
         type: string
       config-path:
-        description: The config, relative to the base checkout. For test callers only.
         required: false
         type: string
         default: docs/conventions/pr-pipeline.yaml
       pr-number:
-        description: The PR on workflow_dispatch; ignored for other events.
         required: false
         type: string
         default: ""
       issue-number:
-        description: >-
-          Issue mode: the issue an issues lane works, on an issues event only.
-          There is no PR: the trusted base is the default branch tip, the
-          skill's change leaves as a patch, and no check run is posted.
         required: false
         type: string
         default: ""
       app-field-id:
-        description: >-
-          Issue mode: the issue field the lanes App may set to app-field-option
-          to start the lane. Either empty keeps every App event stopped.
         required: false
         type: string
         default: ""
       app-field-option:
-        description: >-
-          Issue mode: the single-select option of app-field-id that starts the lane.
         required: false
         type: string
         default: ""
       issue-dimensions:
-        description: >-
-          Issue mode: the dimensions the caller resolved when it set
-          timeout-minutes (models.issue-dimensions); the run takes them
-          instead of reading the issue's fields again. Empty reads them.
         required: false
         type: string
         default: ""
       role:
-        description: >-
-          The funding role whose secret the caller passes, lower-case kebab;
-          the lane record names the credential from it. Required for a skill.
         required: false
         type: string
         default: ""
       start-gate:
-        description: >-
-          `true` for a caller whose call starts new work (the issue lane):
-          check-broker's kill-switch gate then also stops on a low
-          GITHUB_TOKEN budget, on the first call in the slot only (fallback
-          empty or `credit-stop`); a call that takes over a handed-off turn,
-          and every call of a caller that leaves this `false`, checks the
-          switches only.
         type: boolean
         required: false
         default: false
       fallback:
-        description: >-
-          Empty for the first call, which runs on claude-api-key and hands off
-          on an empty key or the launcher's handoff; `credit-stop`, `no-key`
-          or `handoff` for the second, which runs on claude-code-oauth-token
-          and names why in its lane record. `handoff` says only that the
-          first call handed off as this run's jobs show it, for a caller that
-          reads that rather than the first call's outputs. `fallback` for the
-          third, which runs on fallback-claude-code-oauth-token after the
-          second call handed off. Issue mode takes empty, `handoff`,
-          `credit-stop` or `fallback`; `credit-stop` there is a subscription
-          call the caller's own key-credit gate made the first in the slot, so
-          it re-checks the blockers and records the skipped key leg.
         required: false
         type: string
         default: ""
       key-credit-job:
-        description: >-
-          The first call only: the key job's name for ci-workflows
-          check-key-credit's notices, the activity's own (`fix-ci`,
-          `resolve-issue`). The credit-stop marker is the role's key's, shared
-          by every job in the repository on that key. check-broker reads the key's credit history before any model turn,
-          and a credit stop inside vars.KEY_CREDIT_WINDOW_HOURS skips the key:
-          the call hands off at once and the caller's next call runs on the
-          subscription. Empty runs no gate.
         required: false
         type: string
         default: ""
       fallback-ready:
-        description: >-
-          The second call only: `true` when the caller runs a third call on
-          the fallback token, so the subscription leg may hand off to it, as
-          run-claude-cli's fallback-ready. The caller sets it from a job that
-          runs no head code; empty or `false` keeps the second call the last.
         required: false
         type: string
         default: ""
       timeout-minutes:
-        description: The run job's timeout in minutes.
         required: false
         type: number
         default: 30
       rate-limit-wait-seconds:
-        description: >-
-          The scan job's rate-limit wait budget, at most rate-guard.mjs's
-          WAIT_BUDGET_SECONDS.workResolveIssue: a primary
-          GitHub API limit on its leak scan's reads whose reset comes within
-          it is waited out instead of dropping the model's finished output.
-          0 waits for none; the scan job's timeouts grow by 20 minutes when it
-          is set.
         required: false
         type: number
         default: 0
       dispatcher-run-id:
-        description: >-
-          On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml or pr-dispatch-feedback.yml run that sent
-          it; empty otherwise.
         required: false
         type: string
         default: ""
       trusted-base:
-        description: >-
-          pr-base trusts the PR's base SHA; default-tip trusts the default
-          branch tip, for a lane whose PR keeps a stale base.
         required: false
         type: string
         default: pr-base
       head-sha:
-        description: >-
-          The PR head the caller gated in a job that ran no head code
-          (pr-unblock's fix-ci-context, fix-docs-head, address-feedback-select,
-          review-dependency-select or resolve-conflicts-select). The run job fails
-          before the head checkout when the head its trigger gate read is another.
-          The report job posts the check on it or the event's PR head; a run job
-          head-sha that is neither, or any run head when neither is set, posts
-          failure on the trusted head instead.
         required: false
         type: string
         default: ""
       post-decline:
-        description: >-
-          Whether a run that stops before its trigger gate passes posts neutral
-          not-assessed on the caller's head. fix-docs, dispatched once per PR,
-          passes false, so a decline posts nothing and the PR is dispatched again.
         required: false
         type: boolean
         default: true
       ci-context-attempt:
-        description: >-
-          For a prepare: ci-context activity, the run attempt whose
-          ci-context-<attempt> artifact holds the context file a base job of
-          this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       ci-context-sha256:
-        description: >-
-          For a prepare: ci-context activity, that context file's SHA-256.
         required: false
         type: string
         default: ""
       feedback-context-attempt:
-        description: >-
-          For a prepare: review-threads activity, the run attempt whose
-          feedback-context-<attempt> artifact holds the thread file and
-          run.json a base job of this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       feedback-context-sha256:
-        description: >-
-          For a prepare: review-threads activity, that thread file's SHA-256.
         required: false
         type: string
         default: ""
       dependency-context-attempt:
-        description: >-
-          For a prepare: dependency-review activity, the run attempt whose
-          dependency-context-<attempt> artifact holds the context file and
-          context.json a base job of this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       dependency-context-sha256:
-        description: >-
-          For a prepare: dependency-review activity, that context file's SHA-256.
         required: false
         type: string
         default: ""
       merge-base-sha:
-        description: >-
-          For a prepare: merge-base activity, the default branch commit the
-          caller's base job (pr-unblock's resolve-conflicts-select) pinned and
-          merged into head-sha, which must be on the default branch; empty
-          otherwise.
         required: false
         type: string
         default: ""
       merge-conflict-tree:
-        description: >-
-          For a prepare: merge-base activity, the conflict tree that base job's
-          merge reached: this run merges merge-base-sha again and fails red
-          unless it reaches the same tree, measures the patch from it, and the
-          scan job reads the patch as text only. Empty otherwise.
         required: false
         type: string
         default: ""
       model-rung:
-        description: >-
-          The model rung the activity's profile runs at: empty or 0 its own,
-          1 its escalate-to (fix-ci's one retry one rung up).
         required: false
         type: string
         default: ""
       caller-releases-lease:
-        description: >-
-          Issue mode: `true` when the caller ends the lane lease itself, from
-          the lease-comment-id output, in the write runner call that opens the
-          PR; the report job then releases it only for a call that handed off
-          or set neither scan-issue-run-started nor scan-reuse-branch.
         required: false
         type: boolean
         default: false
@@ -261,193 +146,87 @@ on:
     # second call the OAuth token, its third call the fallback token.
     secrets:
       claude-code-oauth-token:
-        description: Claude Code OAuth token for skill activities.
         required: false
       claude-api-key:
-        description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
       fallback-claude-code-oauth-token:
-        description: >-
-          The central fallback subscription's OAuth token, the org secret
-          FALLBACK_CLAUDE_CODE_OAUTH_TOKEN passed by name, for the third call.
         required: false
       # Read only by the scan job's decode step, under its environment, which
       # supplies the value; a caller passes it by name, never inherit.
       scan-carrier-private-key:
-        description: The scan-carrier private key, SCAN_CARRIER_PRIVATE_KEY, passed by name.
         required: true
     # Patch output mode. The scan job sets the patch and reply outputs from
     # what it scanned, in both modes; the job that applies the patch checks
     # it against patch-sha256.
     outputs:
       head-sha:
-        description: >-
-          The run job's head-sha output: the PR head its trigger gate passed,
-          empty when that head is not the caller's (a supersede). Set
-          before any head code ran, but the run job's runner is hostile and can
-          forge it, so no caller may trust it for a decision; take the head from
-          a job that ran no head code (pr-unblock's fix-ci-context or
-          address-feedback-select) instead.
         value: ${{ jobs.run.outputs.head-sha }}
       patch-state:
-        description: >-
-          `written` (the patch artifact holds the change), `empty` (no change,
-          no artifact), or '' when the run collected no patch.
         value: ${{ jobs.scan.outputs.patch-state }}
       patch-sha256:
-        description: The SHA-256 of patch.diff in the patch artifact, when patch-state is written.
         value: ${{ jobs.scan.outputs.patch-sha256 }}
       patch-attempt:
-        description: >-
-          The run attempt in the artifact name
-          patch-<lane>-<activity>-<attempt>, when patch-state is written.
         value: ${{ jobs.scan.outputs.patch-attempt }}
       reply-attempt:
-        description: >-
-          The run attempt in the artifact name
-          skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
         value: ${{ jobs.scan.outputs.reply-attempt }}
       # The scan job's alone, in both modes: the run job's runner could forge
       # any run job output, so a caller that gates or applies on a patch
       # takes these.
       scan-patch-state:
-        description: patch-state as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-state }}
       scan-patch-sha256:
-        description: patch-sha256 as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-sha256 }}
       scan-patch-attempt:
-        description: patch-attempt as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-attempt }}
       scan-reply-attempt:
-        description: reply-attempt as the scan job set it.
         value: ${{ jobs.scan.outputs.reply-attempt }}
       scan-outcome-uploaded:
-        description: >-
-          Issue mode: `true` when the scan job uploaded work-outcome-<issue>;
-          empty when the scan failed or the run job ended without an outcome.
         value: ${{ jobs.scan.outputs.outcome-uploaded }}
       feedback-attempt:
-        description: >-
-          The run attempt in the artifact name
-          feedback-replies-<lane>-<activity>-<attempt>, when the scan job
-          uploaded the review-thread replies a prepare: review-threads skill
-          recorded. Only the scan job sets it: no run job output names it.
         value: ${{ jobs.scan.outputs.feedback-attempt }}
       feedback-sha256:
-        description: >-
-          The SHA-256 of the review-thread replies the scan job uploaded, from
-          the bytes it uploaded. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.feedback-sha256 }}
       feedback-disputed:
-        description: >-
-          `true` when the review-thread replies the scan job uploaded hold a
-          reply whose disposition is `INCORRECT`, `UNCERTAIN` or `VALID-defer`,
-          or a line that is not JSON, else empty. Only the scan job sets it,
-          from the bytes it uploaded.
         value: ${{ jobs.scan.outputs.feedback-disputed }}
       dependency-attempt:
-        description: >-
-          The run attempt in the artifact name
-          dependency-verdict-<lane>-<activity>-<attempt>, when the scan job
-          uploaded the verdict a prepare: dependency-review skill returned as
-          structured output. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.dependency-attempt }}
       dependency-sha256:
-        description: >-
-          The SHA-256 of the verdict the scan job uploaded, from the bytes it
-          uploaded. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.dependency-sha256 }}
       dependency-verdict:
-        description: >-
-          The uploaded verdict's `verdict` field when it is merge, fix, close or
-          escalate, else empty. Only the scan job sets it; the verdict job
-          validates the whole file.
         value: ${{ jobs.scan.outputs.dependency-verdict }}
       scan-collect-refused:
-        description: >-
-          PR mode: `true` when the run's patch collector refused the change
-          (collect-patch.sh exit 3), so no patch left the run; empty
-          otherwise. Only the scan job sets it, from the run's patch-collected
-          output held to its closed set.
         value: ${{ jobs.scan.outputs.collect-refused }}
       # Issue mode: the run job's fields that pick the issue's lane branch
       # and the commit its patch applies to. The run job sets them before any
       # model turn, but its runner could forge them, so the check-issue-fields job
       # checks each and re-derives any branch claim; a caller reads only these.
       scan-base-sha:
-        description: >-
-          Issue mode: the trusted base commit a new run's patch was made on,
-          as the check-issue-fields job checked it.
         value: ${{ jobs.check-issue-fields.outputs.base-sha }}
       scan-resume-tip:
-        description: >-
-          Issue mode: the earlier run's lane branch tip a resumed run's patch
-          was made on, as the check-issue-fields job re-derived it; empty otherwise.
         value: ${{ jobs.check-issue-fields.outputs.resume-tip }}
       scan-issue-run-started:
-        description: >-
-          Issue mode: `true` once the run passed its gates and chose to run
-          the skill, so its outcome must be reported even when a later step
-          or the scan failed.
         value: ${{ jobs.check-issue-fields.outputs.issue-run-started }}
       scan-reuse-branch:
-        description: >-
-          Issue mode: the lane branch an earlier run left with commits and no
-          report, which this run reused instead of running the model; empty
-          otherwise.
         value: ${{ jobs.check-issue-fields.outputs.reuse-branch }}
       scan-resume-branch:
-        description: >-
-          Issue mode: the earlier run's lane branch this run resumed; empty
-          otherwise.
         value: ${{ jobs.check-issue-fields.outputs.resume-branch }}
       scan-prune-branches:
-        description: >-
-          Issue mode: the space-separated lane branches of the issue's stopped
-          runs, with no pull request, that the earlier-work check named for
-          the caller's prune job to delete; empty otherwise. The prune job
-          re-checks each.
         value: ${{ jobs.check-issue-fields.outputs.prune-branches }}
       # From run-claude-cli and the credential steps, never from model text,
       # but set by the run job, which head code can forge: no caller starts
       # its fallback call on them.
       lane-class:
-        description: >-
-          The launcher's failure class, `credit-stop` when the key leg hit
-          one; empty on success or when no launcher ran.
         value: ${{ jobs.run.outputs.lane-class }}
       credential-present:
-        description: >-
-          `true` or `false`: whether the call's Claude secret was set; empty
-          when no launcher was to run.
         value: ${{ jobs.run.outputs.credential-present }}
       handed-off:
-        description: >-
-          `true` when the first call's key was empty or its key leg handed
-          off (run-claude-cli's handoff: a credit stop, or a 401 or 402), or
-          the second call's subscription leg handed off (with fallback-ready:
-          a limit stop, a credit stop, or a 401 or 402), so it skipped the
-          scan job, uploaded nothing, recorded no lane outcome and posted no
-          check, and the next call runs the activity. Empty, as is every
-          other run job output, when check-broker handed the first call off
-          before its run job (skip-run): that call posts no check either.
         value: ${{ jobs.run.outputs.handed-off }}
       # Set by check-broker, which runs no model, so a caller may act on them.
       skip-reason:
-        description: >-
-          `kill-switch` when the broker refused the check because a lanes kill
-          switch is on, `budget` when check-broker's start gate stopped on a
-          low GITHUB_TOKEN budget, so no lane ran; empty otherwise.
         value: ${{ jobs.check-broker.outputs.skip-reason }}
       lease:
-        description: >-
-          Issue mode: `held` when check-broker posted this call's lane lease,
-          `already-leased` when it backed off; empty otherwise.
         value: ${{ jobs.check-broker.outputs.lease }}
       lease-comment-id:
-        description: >-
-          Issue mode, lease `held`: the lease comment's id, for the caller's release.
         value: ${{ jobs.check-broker.outputs.lease-comment-id }}
 
 permissions: {}
@@ -473,8 +252,7 @@ jobs:
   check-broker:
     name: Check Broker
     if: >-
-      !(github.event_name == 'pull_request'
-      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+      !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -596,8 +374,7 @@ jobs:
       - name: Read the key's credit history
         id: credit
         if: >-
-          steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
-          && inputs.key-credit-job != '' && inputs.fallback == ''
+          steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
@@ -617,9 +394,7 @@ jobs:
       - name: Name the skipped key
         id: skipped-key
         if: >-
-          steps.credit.outputs.skip-key == 'true'
-          || inputs.issue-number != '' && inputs.fallback == 'credit-stop'
-          && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
+          steps.credit.outputs.skip-key == 'true' || inputs.issue-number != '' && inputs.fallback == 'credit-stop' && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
         env:
           ROLE: ${{ inputs.role }}
         run: |
@@ -755,10 +530,7 @@ jobs:
     # a broker kill-switch refusal, nor a first call whose key check-broker's
     # credit read skipped (skip-run).
     if: >-
-      !(github.event_name == 'pull_request'
-      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
-      && needs.check-broker.outputs.skip-reason == ''
-      && needs.check-broker.outputs.skip-run != 'true'
+      !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) && needs.check-broker.outputs.skip-reason == '' && needs.check-broker.outputs.skip-run != 'true'
     environment:
       name: claude-lanes
       deployment: false
@@ -781,20 +553,12 @@ jobs:
       head-sha: ${{ steps.gated-head.outputs.superseded != 'true' && steps.gate.outputs.head-sha || '' }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
-        ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason
-        || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
-        || '' }}
+        ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A skill that took no model turn fails. The scan job's verdict reads
       # it. A skill runs on one of act-key, act-token and act-fallback.
       act-outcome: >-
-        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
-        || steps.act-fallback.outcome == 'success')
-        && steps.act-turns.outcome != 'success' && 'failure'
-        || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
-        || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
-        || steps.act-fallback.outcome != 'skipped' && steps.act-fallback.outcome
-        || steps.act-script.outcome }}
+        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success' || steps.act-fallback.outcome == 'success') && steps.act-turns.outcome != 'success' && 'failure' || steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome != 'skipped' && steps.act-fallback.outcome || steps.act-script.outcome }}
       # For the scan job's verdict. go and the gate fields come from steps
       # before any head code; skip-reason, dirty-tree and patch-collected
       # after it, so the scan job holds each to its closed set.
@@ -996,8 +760,7 @@ jobs:
           # App whose review run vouches for a pr-dispatch-feedback.yml
           # dispatch. Any other run passes none.
           lanes-app-id: >-
-            ${{ (inputs.issue-number != '' || inputs.dispatcher-run-id != '')
-            && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
+            ${{ (inputs.issue-number != '' || inputs.dispatcher-run-id != '') && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
           app-field-id: ${{ inputs.issue-number != '' && inputs.app-field-id || '' }}
@@ -1068,8 +831,7 @@ jobs:
       # Issue mode makes no PR, so its change leaves only as a patch.
       - name: Assert an issue activity is in patch mode
         if: >-
-          steps.config.outcome == 'success' && inputs.issue-number != ''
-          && steps.config.outputs.applied-by-patch == ''
+          steps.config.outcome == 'success' && inputs.issue-number != '' && steps.config.outputs.applied-by-patch == ''
         run: |
           echo "::error::issue mode needs an activity whose applied-by names a patch"
           exit 1
@@ -1086,10 +848,7 @@ jobs:
       # patch.
       - name: Assert the prepare mode is ci-context, review-threads, dependency-review or merge-base in patch mode
         if: >-
-          steps.config.outcome == 'success' && steps.config.outputs.prepare != ''
-          && (steps.config.outputs.prepare != 'ci-context' && steps.config.outputs.prepare != 'review-threads'
-          && steps.config.outputs.prepare != 'dependency-review' && steps.config.outputs.prepare != 'merge-base'
-          || steps.config.outputs.applied-by-patch == '' || inputs.issue-number != '')
+          steps.config.outcome == 'success' && steps.config.outputs.prepare != '' && (steps.config.outputs.prepare != 'ci-context' && steps.config.outputs.prepare != 'review-threads' && steps.config.outputs.prepare != 'dependency-review' && steps.config.outputs.prepare != 'merge-base' || steps.config.outputs.applied-by-patch == '' || inputs.issue-number != '')
         env:
           PREPARE: ${{ steps.config.outputs.prepare }}
         run: |
@@ -1100,8 +859,7 @@ jobs:
       # caller passed a feedback context; only a review-threads skill may.
       - name: Assert a feedback context goes with review-threads
         if: >-
-          steps.config.outcome == 'success' && inputs.feedback-context-sha256 != ''
-          && steps.config.outputs.prepare != 'review-threads'
+          steps.config.outcome == 'success' && inputs.feedback-context-sha256 != '' && steps.config.outputs.prepare != 'review-threads'
         run: |
           echo "::error::a feedback context is passed only to a prepare: review-threads skill"
           exit 1
@@ -1112,8 +870,7 @@ jobs:
       # the default branch. Before any head code.
       - name: Check the merge inputs
         if: >-
-          steps.config.outcome == 'success'
-          && (steps.config.outputs.prepare == 'merge-base' || inputs.merge-base-sha != '' || inputs.merge-conflict-tree != '')
+          steps.config.outcome == 'success' && (steps.config.outputs.prepare == 'merge-base' || inputs.merge-base-sha != '' || inputs.merge-conflict-tree != '')
         env:
           PREPARE: ${{ steps.config.outputs.prepare }}
           MERGE_BASE_SHA: ${{ inputs.merge-base-sha }}
@@ -1187,8 +944,7 @@ jobs:
       - name: Check the run's workflow files against main
         id: workflow-current
         if: >-
-          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
-          && steps.config.outputs.kind == 'skill'
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
@@ -1236,11 +992,7 @@ jobs:
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
-          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
-          && steps.config.outputs.kind == 'skill'
-          && steps.workflow-current.outputs.stale != 'true'
-          && needs.check-broker.outputs.lease != 'already-leased'
-          && needs.check-broker.outputs.blocked != 'true'
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill' && steps.workflow-current.outputs.stale != 'true' && needs.check-broker.outputs.lease != 'already-leased' && needs.check-broker.outputs.blocked != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -1441,8 +1193,7 @@ jobs:
       - name: Write the issue for the skill
         id: write-issue
         if: >-
-          steps.go.outputs.run == 'true' && inputs.issue-number != ''
-          && steps.config.outputs.kind == 'skill'
+          steps.go.outputs.run == 'true' && inputs.issue-number != '' && steps.config.outputs.kind == 'skill'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -1584,8 +1335,7 @@ jobs:
         with:
           tokens: github-token
           outside: >-
-            ${{ steps.trusted-base.outcome != 'skipped' && !contains(fromJSON('["issues","pull_request"]'), github.event_name) && 'trusted-base:pulls' || '' }}
-            ${{ steps.issue-prior.outcome != 'skipped' && 'issue-prior:report-outcome' || '' }}
+            ${{ steps.trusted-base.outcome != 'skipped' && !contains(fromJSON('["issues","pull_request"]'), github.event_name) && 'trusted-base:pulls' || '' }} ${{ steps.issue-prior.outcome != 'skipped' && 'issue-prior:report-outcome' || '' }}
 
       # Issue mode checks out the trusted base, the default branch tip, or on
       # a resume the tip of the earlier run's lane branch that issue-prior
@@ -1597,9 +1347,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: >-
-            ${{ inputs.issue-number != ''
-            && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
-            || steps.gate.outputs.head-sha }}
+            ${{ inputs.issue-number != '' && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit) || steps.gate.outputs.head-sha }}
           persist-credentials: false
           # Written as != so the 0 is not read as false.
           fetch-depth: ${{ steps.config.outputs.prepare != 'merge-base' && 1 || 0 }}
@@ -1611,9 +1359,7 @@ jobs:
         if: steps.go.outputs.run == 'true'
         env:
           HEAD_SHA: >-
-            ${{ inputs.issue-number != ''
-            && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
-            || steps.gate.outputs.head-sha }}
+            ${{ inputs.issue-number != '' && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit) || steps.gate.outputs.head-sha }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
             echo "::error::the checked-out head is not the gated head SHA"
@@ -1762,8 +1508,7 @@ jobs:
       - name: Check the API key
         id: key-present
         if: >-
-          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-          && inputs.fallback == ''
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true' && inputs.fallback == ''
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
@@ -1775,8 +1520,7 @@ jobs:
       - name: Check the OAuth token
         id: token-present
         if: >-
-          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-          && inputs.fallback != '' && inputs.fallback != 'fallback'
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true' && inputs.fallback != '' && inputs.fallback != 'fallback'
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: subscription
@@ -1787,8 +1531,7 @@ jobs:
       - name: Check the fallback token
         id: fallback-present
         if: >-
-          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-          && inputs.fallback == 'fallback'
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true' && inputs.fallback == 'fallback'
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: fallback
@@ -1799,8 +1542,7 @@ jobs:
       - name: Record when the leg starts
         id: leg-start
         if: >-
-          steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
-          || steps.fallback-present.outcome == 'success'
+          steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success' || steps.fallback-present.outcome == 'success'
         run: echo "at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       # continue-on-error keeps a launcher failure, which run-claude-cli
@@ -1823,8 +1565,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
           TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true'
-            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+            ${{ steps.config.outputs.reads-untrusted == 'true' && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
         with:
           lane: ${{ inputs.activity }}
           role: ${{ inputs.role }}
@@ -1850,8 +1591,7 @@ jobs:
           # dependency-review returns its verdict as structured output, to
           # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
-            ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            ${{ steps.config.outputs.prepare == 'dependency-review' && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
           leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       # The CLI's init message reports the permission mode the leg ran in. A
@@ -1862,8 +1602,7 @@ jobs:
       - name: Check the API key leg's permission mode
         id: mode-key
         if: >-
-          always() && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.handoff != 'true'
+          always() && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure') && steps.act-key.outputs.handoff != 'true'
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
@@ -1887,8 +1626,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
           TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true'
-            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+            ${{ steps.config.outputs.reads-untrusted == 'true' && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
         with:
           lane: ${{ inputs.activity }}
           role: ${{ inputs.role }}
@@ -1911,8 +1649,7 @@ jobs:
           # dependency-review returns its verdict as structured output, to
           # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
-            ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            ${{ steps.config.outputs.prepare == 'dependency-review' && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
           # The caller's, from a job that ran no head code: true lets a limit
           # stop, a credit stop or a 401 or 402 hand off to the third call.
           fallback-ready: ${{ inputs.fallback-ready }}
@@ -1921,8 +1658,7 @@ jobs:
       - name: Check the OAuth token leg's permission mode
         id: mode-token
         if: >-
-          always() && (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-          && steps.act-token.outputs.handoff != 'true'
+          always() && (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure') && steps.act-token.outputs.handoff != 'true'
         env:
           EXECUTION_FILE: ${{ steps.act-token.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
@@ -1938,8 +1674,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
           TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true'
-            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+            ${{ steps.config.outputs.reads-untrusted == 'true' && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
         with:
           lane: ${{ inputs.activity }}
           role: ${{ inputs.role }}
@@ -1962,8 +1697,7 @@ jobs:
           # dependency-review returns its verdict as structured output, to
           # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
-            ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            ${{ steps.config.outputs.prepare == 'dependency-review' && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
           leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       - name: Check the fallback token leg's permission mode
@@ -1982,11 +1716,7 @@ jobs:
       # has no reply: the fallback call's is the run's.
       - name: Write the skill's final reply
         if: >-
-          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.handoff != 'true'
-          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-          && steps.act-token.outputs.handoff != 'true'
-          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure') && steps.act-key.outputs.handoff != 'true' || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure') && steps.act-token.outputs.handoff != 'true' || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
@@ -2006,12 +1736,7 @@ jobs:
       # leaves: a planted file is removed first.
       - name: Write the skill's structured output
         if: >-
-          always() && steps.config.outputs.prepare == 'dependency-review'
-          && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.handoff != 'true'
-          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-          && steps.act-token.outputs.handoff != 'true'
-          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+          always() && steps.config.outputs.prepare == 'dependency-review' && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure') && steps.act-key.outputs.handoff != 'true' || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure') && steps.act-token.outputs.handoff != 'true' || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
@@ -2035,11 +1760,7 @@ jobs:
       - name: Check the skill took a model turn
         id: act-turns
         if: >-
-          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.handoff != 'true'
-          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-          && steps.act-token.outputs.handoff != 'true'
-          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure') && steps.act-key.outputs.handoff != 'true' || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure') && steps.act-token.outputs.handoff != 'true' || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2070,10 +1791,7 @@ jobs:
       - name: Read the run's API error
         id: act-error
         if: >-
-          always() && inputs.issue-number != ''
-          && (steps.act-key.outcome == 'failure' && steps.act-key.outputs.handoff != 'true'
-          || steps.act-token.outcome == 'failure' && steps.act-token.outputs.handoff != 'true'
-          || steps.act-fallback.outcome == 'failure')
+          always() && inputs.issue-number != '' && (steps.act-key.outcome == 'failure' && steps.act-key.outputs.handoff != 'true' || steps.act-token.outcome == 'failure' && steps.act-token.outputs.handoff != 'true' || steps.act-fallback.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2105,30 +1823,14 @@ jobs:
       - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
-          always() && steps.key-present.outputs.present != 'false'
-          && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
-          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+          always() && steps.key-present.outputs.present != 'false' && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           log-file: ${{ steps.act-key.outputs.log-file || steps.act-token.outputs.log-file || steps.act-fallback.outputs.log-file }}
           lane: >-
-            ${{ inputs.issue-number != '' && inputs.fallback == 'fallback'
-            && format('{0} (token {1} handed off)', inputs.lane, steps.launch.outputs.token-name)
-            || inputs.issue-number != '' && (inputs.fallback == 'handoff' || inputs.fallback == 'credit-stop')
-            && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
-            || inputs.issue-number != '' && inputs.lane
-            || inputs.fallback == 'credit-stop'
-            && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
-            || inputs.fallback == 'no-key'
-            && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
-            || inputs.fallback == 'handoff'
-            && format('{0}/{1} (key {2} posted no check)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
-            || inputs.fallback == 'fallback'
-            && format('{0}/{1} (token {2} handed off)', inputs.lane, inputs.activity, steps.launch.outputs.token-name)
-            || format('{0}/{1}', inputs.lane, inputs.activity) }}
+            ${{ inputs.issue-number != '' && inputs.fallback == 'fallback' && format('{0} (token {1} handed off)', inputs.lane, steps.launch.outputs.token-name) || inputs.issue-number != '' && (inputs.fallback == 'handoff' || inputs.fallback == 'credit-stop') && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name) || inputs.issue-number != '' && inputs.lane || inputs.fallback == 'credit-stop' && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name) || inputs.fallback == 'no-key' && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name) || inputs.fallback == 'handoff' && format('{0}/{1} (key {2} posted no check)', inputs.lane, inputs.activity, steps.launch.outputs.key-name) || inputs.fallback == 'fallback' && format('{0}/{1} (token {2} handed off)', inputs.lane, inputs.activity, steps.launch.outputs.token-name) || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
           step-started-at: ${{ steps.leg-start.outputs.at }}
           step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
@@ -2136,10 +1838,7 @@ jobs:
           # leg that failed before it (a CLI install, class install-failed)
           # names the secret the call was given; without a name no record is written.
           credential: >-
-            ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential
-            || steps.act-key.outcome == 'failure' && steps.launch.outputs.key-name
-            || steps.act-token.outcome == 'failure' && steps.launch.outputs.token-name
-            || steps.act-fallback.outcome == 'failure' && 'FALLBACK_CLAUDE_CODE_OAUTH_TOKEN' || '' }}
+            ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential || steps.act-key.outcome == 'failure' && steps.launch.outputs.key-name || steps.act-token.outcome == 'failure' && steps.launch.outputs.token-name || steps.act-fallback.outcome == 'failure' && 'FALLBACK_CLAUDE_CODE_OAUTH_TOKEN' || '' }}
           fallback-reason: ${{ steps.token-present.outputs.fallback-reason }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
@@ -2216,12 +1915,7 @@ jobs:
       - name: Collect the patch
         id: patch
         if: >-
-          always() && steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
-          && (job.status == 'success'
-          && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
-          || steps.act-fallback.outcome == 'success')
-          || inputs.issue-number != ''
-          && (steps.mode-key.outcome == 'success' || steps.mode-token.outcome == 'success' || steps.mode-fallback.outcome == 'success'))
+          always() && steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != '' && (job.status == 'success' && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success' || steps.act-fallback.outcome == 'success') || inputs.issue-number != '' && (steps.mode-key.outcome == 'success' || steps.mode-token.outcome == 'success' || steps.mode-fallback.outcome == 'success'))
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
           FROM_TREE: ${{ steps.config.outputs.prepare == 'merge-base' && steps.merge.outputs.conflict-tree || '' }}
@@ -2258,11 +1952,7 @@ jobs:
       # is the launcher's class and reset time. A handoff collects nothing.
       - name: Collect the issue outcome
         if: >-
-          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
-          && steps.config.outputs.kind == 'skill'
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
-          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
+          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill' && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true' && steps.act-token.outputs.handoff != 'true' && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
@@ -2271,11 +1961,7 @@ jobs:
           # output), issue-edited-trusted when only listed accounts changed
           # it, issue-file for any other cause, so report-outcome names it.
           LANE_CLASS: >-
-            ${{ steps.write-issue.outputs.refused == 'edited-trusted' && 'issue-edited-trusted'
-            || steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
-            || steps.write-issue.outcome == 'failure' && 'issue-file'
-            || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class
-            || steps.act-fallback.outputs.lane-class }}
+            ${{ steps.write-issue.outputs.refused == 'edited-trusted' && 'issue-edited-trusted' || steps.write-issue.outputs.refused == 'edited' && 'issue-edited' || steps.write-issue.outcome == 'failure' && 'issue-file' || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
           LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets || steps.act-fallback.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it, and the turns it
           # took, so a done run past the cap says so in its PR.
@@ -2341,13 +2027,11 @@ jobs:
           # The review-thread tool's replies file, model output; carried only
           # for a review-threads skill, at publish-feedback.mjs's limit.
           REPLIES_FILE: >-
-            ${{ steps.config.outputs.prepare == 'review-threads'
-            && format('{0}/.lane/feedback/state/replies.jsonl', github.workspace) || '' }}
+            ${{ steps.config.outputs.prepare == 'review-threads' && format('{0}/.lane/feedback/state/replies.jsonl', github.workspace) || '' }}
           # A dependency-review skill's verdict, never carried beside replies,
           # so the payloads still fit five chunks.
           VERDICT_FILE: >-
-            ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/skill-reply/dependency-verdict.json', runner.temp) || '' }}
+            ${{ steps.config.outputs.prepare == 'dependency-review' && format('{0}/skill-reply/dependency-verdict.json', runner.temp) || '' }}
           # Issue mode: the collect step's outcome files.
           OUTCOME_DIR: ${{ inputs.issue-number != '' && format('{0}/work-outcome', runner.temp) || '' }}
           CARRY_DIR: ${{ runner.temp }}/carry
@@ -2574,13 +2258,7 @@ jobs:
       # here, after its outcome and partial patch were carried.
       - name: Fail without a result
         if: >-
-          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
-          || steps.fallback-present.outcome == 'success')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
-          && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true')
-          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
-          && steps.act-fallback.outcome != 'success'
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success' || steps.fallback-present.outcome == 'success') && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true' && steps.act-token.outputs.handoff != 'true' && !(steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true') && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success' && steps.act-fallback.outcome != 'success'
         run: |
           echo "::error::the skill's launcher run left no result"
           exit 1
@@ -2673,8 +2351,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: >-
-          steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
-          && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
+          steps.issue.outcome == 'success' && github.event.repository.default_branch != '' && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
         env:
           TIP_BRANCH: ${{ github.event.repository.default_branch }}
@@ -2690,8 +2367,7 @@ jobs:
       - name: Check out the default branch tip
         id: base
         if: >-
-          steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
-          && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '') && steps.tip.outputs.sha != ''
+          steps.issue.outcome == 'success' && github.event.repository.default_branch != '' && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '') && steps.tip.outputs.sha != ''
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2733,8 +2409,7 @@ jobs:
       - name: Publish the checked issue fields
         id: checked
         if: >-
-          steps.issue.outcome == 'success'
-          && (steps.issue.outputs.claimed == 'false' || steps.prior.outcome == 'success')
+          steps.issue.outcome == 'success' && (steps.issue.outputs.claimed == 'false' || steps.prior.outcome == 'success')
         continue-on-error: true
         env:
           CLAIMED: ${{ steps.issue.outputs.claimed }}
@@ -2813,10 +2488,9 @@ jobs:
   # https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments
   scan:
     name: Scan
-    needs: [run, check-issue-fields]
+    needs: [ run, check-issue-fields ]
     if: >-
-      !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
-      && needs.run.outputs.handed-off != 'true'
+      !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure') && needs.run.outputs.handed-off != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.rate-limit-wait-seconds > 0 && 40 || 20 }}
     cache-mode: read
@@ -2828,8 +2502,7 @@ jobs:
     outputs:
       # The verdict step's PATCH_STATE repeats this expression.
       patch-state: >-
-        ${{ steps.patch-upload.outcome == 'success' && 'written'
-        || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
+        ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
@@ -2850,10 +2523,7 @@ jobs:
       # patch; `output`, any other refusal. A forged run job output can add
       # one, or forge that clean and turn an oversize hold into a retry.
       refused: >-
-        ${{ steps.decode.outputs.refused
-        || steps.leak-scan.outputs.refused
-        || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output'
-        || '' }}
+        ${{ steps.decode.outputs.refused || steps.leak-scan.outputs.refused || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output' || '' }}
     steps:
       # Issue mode: the check-issue-fields job's check, or nothing is published.
       - name: Require the checked issue fields
@@ -3711,10 +3381,9 @@ jobs:
   # nothing red, and report-outcome keeps the fixed text.
   generate-reuse-summary:
     name: Generate Reuse Summary
-    needs: [run, check-issue-fields]
+    needs: [ run, check-issue-fields ]
     if: >-
-      ${{ !cancelled() && needs.check-issue-fields.outputs.checked == 'true' && needs.check-issue-fields.outputs.reuse-branch != ''
-      && github.event.repository.default_branch != '' }}
+      ${{ !cancelled() && needs.check-issue-fields.outputs.checked == 'true' && needs.check-issue-fields.outputs.reuse-branch != '' && github.event.repository.default_branch != '' }}
     environment:
       name: claude-lanes
       deployment: false
@@ -4057,7 +3726,7 @@ jobs:
 
   report:
     name: Report
-    needs: [check-broker, run, check-issue-fields, scan, generate-reuse-summary]
+    needs: [ check-broker, run, check-issue-fields, scan, generate-reuse-summary ]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
@@ -4070,17 +3739,7 @@ jobs:
     # (the outputs the caller's report-outcome runs on) leaves it to the
     # caller's write runner, and every other call releases it here.
     if: >-
-      always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true'
-      && needs.check-broker.outputs.skip-run != 'true'
-      && !(github.event_name == 'pull_request'
-      && github.event.pull_request.head.repo.full_name != github.repository)
-      && !(github.event_name == 'pull_request'
-      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
-      || inputs.issue-number != '' && needs.check-broker.outputs.lease == 'held'
-      && needs.check-broker.outputs.lease-comment-id != ''
-      && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true'
-      && (needs.check-issue-fields.outputs.issue-run-started == 'true'
-      || needs.check-issue-fields.outputs.reuse-branch != '')))
+      always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true' && needs.check-broker.outputs.skip-run != 'true' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && !(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) || inputs.issue-number != '' && needs.check-broker.outputs.lease == 'held' && needs.check-broker.outputs.lease-comment-id != '' && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true' && (needs.check-issue-fields.outputs.issue-run-started == 'true' || needs.check-issue-fields.outputs.reuse-branch != '')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # issues: write lets check-signed-commits add its label and comment, and
@@ -4261,13 +3920,7 @@ jobs:
       - name: Check the lane's commits are signed
         id: signed
         if: >-
-          inputs.issue-number == '' && (
-          always()
-          && needs.run.outputs.can-commit == 'true'
-          && steps.pr-head.outputs.number != ''
-          && steps.head.outputs.sha != ''
-          && steps.head.outputs.forged == 'false'
-          )
+          inputs.issue-number == '' && ( always() && needs.run.outputs.can-commit == 'true' && steps.pr-head.outputs.number != '' && steps.head.outputs.sha != '' && steps.head.outputs.forged == 'false' )
         uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr-head.outputs.number }}
@@ -4278,20 +3931,14 @@ jobs:
       # the dispatch ref, which is not the PR's commit, so nothing is posted.
       - name: Note that no check is posted without a head SHA
         if: >-
-          inputs.issue-number == '' && (
-          always() && github.event_name != 'pull_request'
-          && steps.head.outputs.post == 'true' && steps.head.outputs.sha == ''
-          )
+          inputs.issue-number == '' && ( always() && github.event_name != 'pull_request' && steps.head.outputs.post == 'true' && steps.head.outputs.sha == '' )
         run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
 
       # A forged head or PR posts failure on the trusted head: the run result
       # reads failure and the head disagrees with the verdict's.
       - name: Post the check run
         if: >-
-          inputs.issue-number == '' && (
-          always() && steps.head.outputs.post == 'true'
-          && !(github.event_name != 'pull_request' && steps.head.outputs.sha == '')
-          )
+          inputs.issue-number == '' && ( always() && steps.head.outputs.post == 'true' && !(github.event_name != 'pull_request' && steps.head.outputs.sha == '') )
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
@@ -4301,11 +3948,7 @@ jobs:
           # scan job that failed (a credential, a withheld or oversize
           # payload) fails the check after a run job that succeeded.
           run-result: >-
-            ${{ steps.head.outputs.forged == 'true' && 'failure'
-            || steps.head.outputs.not-run-reason != '' && 'skipped'
-            || needs.check-broker.result != 'success' && needs.check-broker.result
-            || needs.run.result != 'success' && needs.run.result
-            || needs.scan.result }}
+            ${{ steps.head.outputs.forged == 'true' && 'failure' || steps.head.outputs.not-run-reason != '' && 'skipped' || needs.check-broker.result != 'success' && needs.check-broker.result || needs.run.result != 'success' && needs.run.result || needs.scan.result }}
           not-run-reason: ${{ steps.head.outputs.not-run-reason }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
