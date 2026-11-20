@@ -30,8 +30,10 @@ git -C "$clone" fetch --quiet origin
 sha=$(git -C "$clone" rev-parse "origin/$ref^{commit}" 2>/dev/null || git -C "$clone" rev-parse "$ref^{commit}")
 mkdir -p "$out/home"
 git -C "$clone" show "$sha:.github/workflows/intake-triage.yml" >"$out/reusable.yml"
-node "$here/build-suite.mjs" --reusable "$out/reusable.yml" --sha "$sha" --out "$out/with"
-node "$here/build-suite.mjs" --reusable "$out/reusable.yml" --sha "$sha" --out "$out/without" --no-instructions
+git -C "$clone" show "$sha:.github/actions/check-intake-triage-verdict/verdict.cjs" >"$out/verdict.cjs"
+build=(node "$here/build-suite.mjs" --reusable "$out/reusable.yml" --verdict "$out/verdict.cjs" --sha "$sha")
+"${build[@]}" --out "$out/with"
+"${build[@]}" --out "$out/without" --no-instructions
 
 # The triage profile (docs/conventions/pr-pipeline.yaml, models.profiles.triage).
 flags=(--scaffold --trust-plugin --no-publish --model sonnet --judge-model opus --runs 3 -j 4 "$@")

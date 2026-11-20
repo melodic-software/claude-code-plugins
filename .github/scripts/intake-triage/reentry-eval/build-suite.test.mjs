@@ -7,7 +7,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../../lib/test-tmp.mjs";
-import { build, callerInputs, composeScript } from "./build-suite.mjs";
+import {
+  build,
+  callerInputs,
+  composeScript,
+  schema,
+  verdictModule,
+} from "./build-suite.mjs";
 
 const SCRIPT = [
   'const fs = require("node:fs");',
@@ -19,10 +25,21 @@ const SCRIPT = [
   'const dir = fs.mkdtempSync(path.join(env.RUNNER_TEMP, "t-"));',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the stub script's own template literal
   'fs.writeFileSync(path.join(dir, "p.md"), `ISSUE ${env.ISSUE_NUMBER} AT ${env.ISSUE_FILE} OF ${context.repo.repo} (${labels.length})\\n${env.INSTRUCTIONS}`);',
-  'fs.writeFileSync(path.join(dir, "s.json"), "{}");',
+  'core.setOutput("allowed", JSON.stringify(labels.map((l) => l.name)));',
+  'core.setOutput("type-names", JSON.stringify(["Bug"]));',
   'core.setOutput("prompt-file", path.join(dir, "p.md"));',
-  'core.setOutput("schema-file", path.join(dir, "s.json"));',
 ];
+const VERDICT = [
+  'const fs = require("node:fs");',
+  'const path = require("node:path");',
+  "function main(env) {",
+  '  if (env.INPUT_MODE !== "schema" || env.INPUT_VERDICT_SCHEMA !== "") throw new Error("not the schema step");',
+  '  const file = path.join(path.dirname(env.INPUT_PROMPT_FILE), "schema.json");',
+  "  fs.writeFileSync(file, JSON.stringify({ allowed: JSON.parse(env.INPUT_ALLOWED), types: JSON.parse(env.INPUT_TYPE_NAMES) }));",
+  '  return { outputs: { "schema-file": file }, lines: [] };',
+  "}",
+  "module.exports = { main };",
+].join("\n");
 const step = (lines) =>
   [
     "      - name: Compose",
@@ -83,6 +100,7 @@ test("build fills every case with the composed prompt and writes the issue files
     const out = tempDir("reentry-build-");
     const { cases } = await build({
       reusable: reusable(step(SCRIPT)),
+      verdictSource: VERDICT,
       sha: "0".repeat(40),
       out,
       instructions,
@@ -110,9 +128,10 @@ test("build fills every case with the composed prompt and writes the issue files
       );
       assert.equal(prompt.includes("RULE ONE."), instructions, name);
       assert.ok(
-        prompt.trimEnd().endsWith("{}"),
-        "the schema the script wrote ends the prompt",
+        prompt.trimEnd().endsWith('"types":["Bug"]}'),
+        "the schema the schema step wrote from the compose outputs ends the prompt",
       );
+      assert.ok(prompt.includes('"allowed":["priority: low"'), name);
       for (const file of [issue.body, ...issue.comments.map((c) => c.body)])
         assert.ok(existsSync(join(dir, "workspace", file)), file);
       for (const comment of issue.comments)
@@ -136,6 +155,7 @@ test("build gives a case its own body.md and the rest the shared one", async () 
   const out = tempDir("reentry-build-");
   await build({
     reusable: reusable(step(SCRIPT)),
+    verdictSource: VERDICT,
     sha: "0".repeat(40),
     out,
     callerText: CALLER,
@@ -150,4 +170,36 @@ test("build gives a case its own body.md and the rest the shared one", async () 
     /pull request opened from a fork by an\s+account outside this organization/u,
   );
   assert.match(body("settled-confirms"), /## Open questions/u);
+});
+
+test("build fails closed when the schema step writes no schema file", async () => {
+  const run = (verdictSource) =>
+    build({
+      reusable: reusable(step(SCRIPT)),
+      verdictSource,
+      sha: "0".repeat(40),
+      out: tempDir("reentry-build-"),
+      callerText: CALLER,
+    });
+  await assert.rejects(
+    run("module.exports = { main: () => ({ outputs: {}, lines: [] }) };"),
+    /schema step set no schema-file output/u,
+  );
+  await assert.rejects(run("module.exports = {};"), /exports no main/u);
+});
+
+test("schema fails closed when compose sets no output the schema step reads", () => {
+  const verdict = verdictModule(VERDICT);
+  for (const name of ["allowed", "type-names", "prompt-file"]) {
+    const outputs = {
+      allowed: "[]",
+      "type-names": "[]",
+      "prompt-file": join(tempDir("reentry-schema-"), "p.md"),
+    };
+    delete outputs[name];
+    assert.throws(
+      () => schema(verdict, outputs),
+      new RegExp(`compose set no ${name} output`, "u"),
+    );
+  }
 });

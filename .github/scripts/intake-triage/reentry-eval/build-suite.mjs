@@ -5,8 +5,6 @@
 // instructions from the caller workflow, and fills each case with the prompt
 // it writes. `--no-instructions` builds the baseline with the instructions
 // input empty.
-//
-//   node build-suite.mjs --reusable <intake-triage.yml> --sha <commit> --out <dir> [--no-instructions]
 import {
   cpSync,
   existsSync,
@@ -105,12 +103,43 @@ export function callerInputs(caller, job = "intake-triage") {
   };
 }
 
-// Runs the compose script with GitHub stubbed and returns the prompt and
-// schema files it writes.
+export function verdictModule(source) {
+  const module = { exports: {} };
+  new Function("require", "module", "exports", source)(
+    createRequire(import.meta.url),
+    module,
+    module.exports,
+  );
+  if (typeof module.exports.main !== "function")
+    throw new Error("the verdict script exports no main");
+  return module.exports;
+}
+
+export function schema(verdict, outputs) {
+  for (const name of ["allowed", "type-names", "prompt-file"])
+    if (typeof outputs[name] !== "string")
+      throw new Error(`compose set no ${name} output for the schema step`);
+  const file = verdict.main({
+    INPUT_MODE: "schema",
+    INPUT_VERDICT_SCHEMA: "",
+    INPUT_ALLOWED: outputs.allowed,
+    INPUT_TYPE_NAMES: outputs["type-names"],
+    INPUT_PROMPT_FILE: outputs["prompt-file"],
+  })?.outputs?.["schema-file"];
+  if (!file) throw new Error("the schema step set no schema-file output");
+  return readFileSync(file, "utf8");
+}
+
 export async function compose(script, env) {
   const outputs = {};
   const core = {
-    setOutput: (name, value) => (outputs[name] = value),
+    setOutput: (name, value) =>
+      (outputs[name] =
+        value == null
+          ? ""
+          : typeof value === "string"
+            ? value
+            : JSON.stringify(value)),
     setFailed: (message) => {
       throw new Error(`compose failed: ${message}`);
     },
@@ -156,11 +185,7 @@ export async function compose(script, env) {
   } finally {
     process.env = saved;
   }
-  return {
-    prompt: readFileSync(outputs["prompt-file"], "utf8"),
-    schema: readFileSync(outputs["schema-file"], "utf8"),
-    outputs,
-  };
+  return outputs;
 }
 
 // One case's workspace: the issue files the reusable's fetch step writes, in
@@ -206,6 +231,7 @@ function workspace(caseDir, out) {
 
 export async function build({
   reusable,
+  verdictSource,
   sha,
   out,
   instructions = true,
@@ -213,6 +239,7 @@ export async function build({
   callerText = readFileSync(CALLER, "utf8"),
 }) {
   const script = composeScript(reusable);
+  const verdict = verdictModule(verdictSource);
   const inputs = callerInputs(callerText);
   const evals = join(out, "evals");
   mkdirSync(join(out, ".claude-plugin"), { recursive: true });
@@ -238,7 +265,7 @@ export async function build({
       const dst = join(evals, name);
       cpSync(src, dst, { recursive: true });
       const number = workspace(src, join(dst, "workspace"));
-      const { prompt, schema } = await compose(script, {
+      const outputs = await compose(script, {
         RUNNER_TEMP: runnerTemp,
         ALLOWED_LABELS: inputs.allowedLabels,
         ESCALATION_LABEL: "needs-human",
@@ -254,7 +281,8 @@ export async function build({
         MERGED_LIMIT: "100",
         INSTRUCTIONS: instructions ? inputs.instructions : "",
       });
-      const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema}\n`;
+      const prompt = readFileSync(outputs["prompt-file"], "utf8");
+      const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema(verdict, outputs)}\n`;
       const caseFile = join(dst, "case.yaml");
       writeFileSync(
         caseFile,
@@ -279,6 +307,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { values } = parseArgs({
     options: {
       reusable: { type: "string" },
+      verdict: { type: "string" },
       sha: { type: "string" },
       out: { type: "string" },
       "no-instructions": { type: "boolean" },
@@ -286,16 +315,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   if (
     !values.reusable ||
+    !values.verdict ||
     !/^[0-9a-f]{40}$/u.test(values.sha ?? "") ||
     !values.out
   ) {
     console.error(
-      "usage: build-suite.mjs --reusable <intake-triage.yml> --sha <40-hex commit> --out <dir> [--no-instructions]",
+      "usage: build-suite.mjs --reusable <intake-triage.yml> --verdict <verdict.cjs> --sha <40-hex commit> --out <dir> [--no-instructions]",
     );
     process.exit(2);
   }
   const result = await build({
     reusable: readFileSync(values.reusable, "utf8"),
+    verdictSource: readFileSync(values.verdict, "utf8"),
     sha: values.sha,
     out: values.out,
     instructions: !values["no-instructions"],
