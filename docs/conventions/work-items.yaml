@@ -7,6 +7,7 @@
 ai_disclaimer: false
 filing_posture: allowed
 label_as_code_repo: melodic-software/github-iac
+permission_floor_source: https://github.com/melodic-software/standards/tree/main/components/claude-permissions
 # The Azure subscription is not set here: pass --subscription or set it in work-items.local.yaml.
 morning_brief:
   org: melodic-software

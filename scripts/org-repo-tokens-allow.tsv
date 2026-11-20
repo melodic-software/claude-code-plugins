@@ -170,7 +170,6 @@ plugins/wizard/schemas/wizard.schema.json	melodic-software/claude-code-plugins	1
 plugins/work-items/reference/item-content-trust.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/reference/label-taxonomy.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/reference/label-taxonomy.md	melodic-software/github-iac	1	names another repository of the publishing organization in prose or an example
-plugins/work-items/reference/permission-preflight.md	melodic-software/standards	1	names another repository of the publishing organization in prose or an example
 plugins/work-items/reference/work-class-labels.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/schemas/work-items.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/work-items/skills/decompose/context/container-lifecycle.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
