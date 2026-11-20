@@ -2416,7 +2416,7 @@ test("a lost run started before the rename, its dispatch job named by its id, is
   const { lines } = await sweepMain(t, api, TICK, NOW);
   assert.deepEqual(api.jobReads, [600]);
   assert.equal(api.calls.dispatch.length, 1);
-  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600") && line.includes("after its Dispatch job started")), lines.join("\n"));
 });
 
 test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {
