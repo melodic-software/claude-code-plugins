@@ -1897,8 +1897,12 @@ def _check_decision_fields(doc: Doc, f: Findings) -> None:
         tag = DECISION_TAG_RE.match(rest)
         if not tag:
             continue
+        fields = rest.split(f" {REWRITE_MARK} h")[0]
+        labels = "|".join(DECISION_FIELDS)
         missing = [
-            name for name in DECISION_FIELDS if not re.search(rf"\b{name}:\s*\S", rest)
+            name
+            for name in DECISION_FIELDS
+            if not re.search(rf"\b{name}:\s*(?!(?:{labels}):)[^;\s]", fields)
         ]
         if missing:
             ref = f"D{n}" if n is not None else repr(entry.text[:60])

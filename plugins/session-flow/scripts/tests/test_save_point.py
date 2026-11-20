@@ -3605,6 +3605,9 @@ TAGGED = "- [D1] [security] Secrets move to a main-only environment (owner Q8)"
             "  buys: one queue; surface: none; cost:",
             "cost:",
         ),
+        (f"{TAGGED} buys: ; surface: ; cost: 3 steps", "buys:, surface:"),
+        (f"{TAGGED} buys: a; surface:\n  cost: none yet", "surface:"),
+        (f"{TAGGED} buys: a; surface: none; cost: Rewritten h1: tagged", "cost:"),
     ],
 )
 def test_decision_tagged_without_its_rationale_fails(tmp_path, decision, missing):
@@ -3622,8 +3625,10 @@ def test_decision_tagged_without_its_rationale_fails(tmp_path, decision, missing
         "- [D1] [design] One eval lock serves every lane (hub)\n"
         "  buys: one queue; surface: none; cost: none yet",
         "- [D1] Resolve the two security threads and merge (owner)",
+        f"{TAGGED} buys: PR branches cannot read secrets; surface: none; "
+        "cost: none yet Rewritten h1: tagged",
     ],
-    ids=["tagged-inline", "tagged-continuation", "untagged-legacy"],
+    ids=["tagged-inline", "tagged-continuation", "untagged-legacy", "rewrite-mark"],
 )
 def test_decision_with_its_rationale_or_untagged_passes(tmp_path, decision):
     repo = make_repo(tmp_path)
