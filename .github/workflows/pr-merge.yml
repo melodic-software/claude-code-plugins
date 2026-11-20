@@ -2524,12 +2524,21 @@ jobs:
         continue-on-error: true
         run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
+      - name: Read the defer override from the base config
+        if: inputs.pr
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          defer: ${{ inputs.pr && 'true' || 'false' }}
+          defer-job: pr-merge
+          resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Same rule as the merge job's who step (who.mjs): a listed human by
       # account id, a scheduled run's first attempt, or pr-verify's PR-scoped
@@ -3084,6 +3093,8 @@ jobs:
           OUTCOME: ${{ steps.arm.outputs.wake-outcome }}
           ARM: ${{ steps.arm.outcome }}
           KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_CAUSE: ${{ steps.kill.outputs.cause }}
+          KILL_RESET: ${{ steps.kill.outputs.reset }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
           UNCOVERED: ${{ steps.precheck.outputs.uncovered }}
@@ -3094,7 +3105,9 @@ jobs:
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
-            if [ "$KILL" != true ]; then
+            if [ "$KILL" != true ] && [ "$KILL_CAUSE" = defer ]; then
+              OUTCOME="deferred (cause defer): the GITHUB_TOKEN window is projected to run short before its reset at $KILL_RESET (epoch seconds); the next sweep, which never defers, arms what this run would"
+            elif [ "$KILL" != true ]; then
               OUTCOME="skipped: the lanes kill switch stopped it"
             elif [ "$WHO" != true ]; then
               OUTCOME="skipped: the who step stopped it"
