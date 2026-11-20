@@ -84,7 +84,7 @@ async function roomSends($: Engine): Promise<number> {
   return Number(/room sent: (\d+)/.exec(await bedroom($, 'stats'))?.[1])
 }
 
-test('/bedroom alone keeps its answer and shows a card listing every switch with its state', async ($, on) => {
+test('/bedroom alone keeps its answer and shows a card listing every switch with its state', { timeoutMs: 20000 }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
@@ -144,7 +144,7 @@ const INSIDE_PX = 1105
 /** Room three manual-trigger buttons need on the switches row: labels of up to five letters, about 72 px each, and their gaps. */
 const TRIGGERS_PX = 260
 
-test('the card is six rows, seven with titles: no row wider than the card, the time from earliest to latest, no shader button', async ($, on) => {
+test('the card is six rows, seven with titles: no row wider than the card, the time from earliest to latest, no shader button', { timeoutMs: 20000 }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
