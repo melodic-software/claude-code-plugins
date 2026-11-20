@@ -6,16 +6,13 @@ import {
   isMergeRiskTitle,
   isPrRefineTitle,
   isPrUnblockTitle,
-  isPrVerifyCaptureTitle,
   mergeRiskTitle,
   PR_MERGE_TITLE,
   PR_UNBLOCK_TITLE,
-  PR_VERIFY_CAPTURE_TITLE,
   PREFIXES,
   prMergeTitle,
   prRefineTitle,
   prUnblockTitle,
-  prVerifyCaptureTitle,
 } from "./run-title.mjs";
 
 const HEAD = "a".repeat(40);
@@ -35,7 +32,6 @@ test("each workflow's run-name writes what its builder builds", () => {
   );
   assert.equal(runName("pr-refine.yml"), `"${prRefineTitle("${{ inputs.activity }}", "${{ inputs.pr-number }}")}"`);
   assert.equal(runName("pr-unblock.yml"), `"${prUnblockTitle("${{ inputs.activity }}", "${{ inputs.pr-number }}")}"`);
-  assert.equal(runName("pr-verify-capture.yml"), prVerifyCaptureTitle("${{ github.event.workflow_run.id }}", "${{ github.event.workflow_run.head_sha }}"));
 });
 
 test("pr-merge.yml: both prefixes read, the capture is the input as given, and a near miss reads as no dispatch", () => {
@@ -76,18 +72,5 @@ test("pr-unblock.yml: both prefixes match and parse to the same activity and PR,
   for (const near of ["pr unblock fix-ci #9", "Pr Unblock fix-ci #9", "PR Refine fix-ci #9", "pr-refine fix-ci #9", "PR Unblock fix-ci 9", "PR Unblock fix-ci #09", "PR Unblock Fix-CI #9", "PR Unblock fix-ci #9 "]) {
     assert.equal(PR_UNBLOCK_TITLE.exec(near), null, near);
     assert.equal(isPrUnblockTitle(near, "fix-ci", 9), false, near);
-  }
-});
-
-test("pr-verify-capture.yml: both prefixes match and parse to the same run and head, and a near miss does neither", () => {
-  for (const title of [`pr-verify-capture 812 ${HEAD}`, `PR Verify Capture 812 ${HEAD}`]) {
-    assert.ok(isPrVerifyCaptureTitle(title, 812, HEAD), title);
-    assert.deepEqual(PR_VERIFY_CAPTURE_TITLE.exec(title)?.slice(1), ["812", HEAD], title);
-  }
-  const [, runId, head] = PR_VERIFY_CAPTURE_TITLE.exec(prVerifyCaptureTitle(812, HEAD));
-  assert.equal(prVerifyCaptureTitle(runId, head), prVerifyCaptureTitle(812, HEAD));
-  for (const near of [`pr verify capture 812 ${HEAD}`, `PR VERIFY CAPTURE 812 ${HEAD}`, `PR Unblock 812 ${HEAD}`, `PR Verify Capture ${HEAD}`, `PR Verify Capture 812 ${HEAD.toUpperCase()}`, `PR Verify Capture 812 ${HEAD}x`]) {
-    assert.equal(PR_VERIFY_CAPTURE_TITLE.exec(near), null, near);
-    assert.equal(isPrVerifyCaptureTitle(near, 812, HEAD), false, near);
   }
 });

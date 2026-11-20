@@ -818,7 +818,8 @@ test("after a 10-hour outage, a run held 9 hours ago is re-run, listed from the 
   assert.equal(settled.held_since, "2026-10-19T11:00:00.000Z");
 });
 
-// pr-verify's three jobs run in turn, each up to 346 minutes, so a run can
+// pr-verify's three jobs run in turn, each up to its timeout-minutes
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-verify.yml), so a run can
 // hold in its last job long after FAULT_HELD_HOURS from its creation.
 test("a run created 10 hours ago, still going at one pass and held at the next, is re-run once", async () => {
   const going = { ...verifyRun(501, { status: "in_progress", created: "2026-10-19T10:00:00Z" }), jobs: [] };
@@ -3723,13 +3724,12 @@ test("a floor's reset is the latest real reset its refusals name, a guessed one 
   assert.equal(floorReset([...statusNotes, ...markLanesNotes]), Date.parse("2026-11-18T21:46:49Z"));
 });
 
-test("every workflow whose trigger check takes this workflow's record is a recorded lane, or left out for a stated reason", () => {
-  const leftOut = new Map([[".github/workflows/pr-verify-capture.yml", "a missing capture never fails a verdict"]]);
+test("every workflow whose trigger check takes this workflow's record is a recorded lane", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   const taking = readdirSync(dir)
     .filter((f) => f.endsWith(".yml") && /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/.test(readFileSync(new URL(f, dir), "utf8")))
     .map((f) => `.github/workflows/${f}`);
-  assert.deepEqual(taking.filter((p) => !leftOut.has(p)).sort(), [...RECORDED_LANES.keys()].sort());
+  assert.deepEqual(taking.sort(), [...RECORDED_LANES.keys()].sort());
 });
 
 test("pr-rate-merge-risk still names its rate and write steps as the reconciler reads them, and takes its record, in every leg", () => {

@@ -376,8 +376,6 @@ export const RATER = ".github/workflows/pr-rate-merge-risk.yml";
  * step and its verdict write. Each starts on workflow_run from main, so its
  * runs are listed by workflow, not by PR head; the trigger check binds the
  * re-run to the one open PR whose head is still the upstream run's.
- * pr-verify-capture.yml takes the record too but is left out: a missing
- * capture never fails a verdict.
  */
 export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", { judge: JUDGE_STEP, write: WRITE_STEP }],
@@ -1845,7 +1843,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     heldSince = heldStart;
   }
   // A run still going can hold in a later job (pr-verify's three jobs each run
-  // up to 346 minutes) after FAULT_HELD_HOURS have passed, so the next pass
+  // up to their timeout-minutes, https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-verify.yml) after FAULT_HELD_HOURS have passed, so the next pass
   // lists back to the oldest first attempt not yet completed. The lane listing
   // above already read those runs (LANE_LIST_STATUSES, inside the lookback),
   // so this adds no read; when it failed, the next pass starts where this one did.
