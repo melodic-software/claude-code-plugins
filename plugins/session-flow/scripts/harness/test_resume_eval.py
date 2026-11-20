@@ -1958,9 +1958,11 @@ def test_non_delivery_rise_past_the_margin_fails_and_within_it_passes(tmp_path, 
     )
     assert code == 1
     assert "non-delivery rise: after.claude-code's rate interval reaches" in out
-    code, out = _nondelivery_report(tmp_path / "2", capsys, {}, whole, "--nondelivery-margin", "0.10")
+    code, out = _nondelivery_report(
+        tmp_path / "2", capsys, {"re-a": 1}, whole, "--nondelivery-margin", "0.60"
+    )
     assert code == 0, out
-    assert "non-delivery rise" not in out
+    assert "rate change +0.17" in out and "non-delivery rise" not in out
 
 
 def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
@@ -1974,6 +1976,7 @@ def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
     )
     assert code == 1
     assert "token rise: after.claude-code's whole-run reader m1 interval reaches" in out
+    assert "h " in out.split("whole-run reader m1 change")[1].splitlines()[0]
     code, out = _nondelivery_report(
         tmp_path / "2",
         capsys,

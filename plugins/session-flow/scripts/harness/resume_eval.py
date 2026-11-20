@@ -1991,7 +1991,7 @@ def _token_change(pairs: list[tuple[float, float]]) -> tuple[str, float | None]:
         text += f", 95% interval {lo:+.0f} to {hi:+.0f}"
         if base:
             upper = hi / base
-            text += f" ({lo / base:+.1%} to {upper:+.1%})"
+            text += f" ({lo / base:+.1%} to {upper:+.1%}, h {(hi - lo) / 2 / base:.1%})"
     return text + f" over {_count(len(deltas), 'case')}", upper
 
 
