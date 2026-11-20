@@ -10968,11 +10968,11 @@ class ConcernValuesAnswers(unittest.TestCase):
             first, {"merge.rung": ["off"], "merge.authority": ["pr-merge"]}
         )
         self.assertEqual(second, first)
-        self.assertEqual(len(self.argvs), 2)
+        self.assertEqual(len(self.argvs), 1, "one parser run serves every key")
         second["merge.rung"].append("x")
         self.assertEqual(policy._concern_values(text, keys), first)
         policy._concern_values("merge:\n  rung: on\n", keys)
-        self.assertEqual(len(self.argvs), 4)
+        self.assertEqual(len(self.argvs), 2)
 
     def test_a_rejected_read_is_read_again(self) -> None:
         keys = [("merge.rung", False)]
@@ -11004,6 +11004,97 @@ class ConcernValuesAnswers(unittest.TestCase):
         policy._concern_values(text, keys, run=policy.run_command)
         policy._concern_values(text, keys, run=policy.run_command)
         self.assertEqual(len(self.argvs), 2)
+
+
+class ConcernValuesMatchTheSharedReader(unittest.TestCase):
+    """A pin: `_read_concern_values` parses a document once and selects every
+    key, and must answer as `parse-concern-value.sh --strict [--list]` run per
+    key does, each run's output read as text: exit 3 or a separator
+    character in any value is a rejection (None), any other failure raises."""
+
+    KEYS = [
+        ("a", False),
+        ("a.b", False),
+        ("l", True),
+        ("l.0", False),
+        ("s", False),
+        ("q", False),
+        ("absent", False),
+        ("absent", True),
+    ]
+    DOCUMENTS = {
+        "empty": "",
+        "no trailing newline": "a:\n  b: x/\nl:\n  - one/\n  - two//",
+        "trailing blank lines": "a:\n  b: x\n\n\n",
+        "repeated key": "a:\n  b: 1\n  b: 2\n",
+        "unclosed flow sequence": "l: [a, b\n",
+        "tab indent": "a:\n\tb: 1\n",
+        "crlf": "a:\r\n  b: x\r\nl:\r\n  - one\r\n  - two\r\n",
+        "carriage return inside a value": "s: one\rtwo\nq: x\n",
+        "tab escape": 's: "x\\ty"\n',
+        "next line": "s: a\u0085b\n",
+        "line separator": "s: a\u2028b\n",
+        "nul": "s: a\x00b\nq: c\n",
+        "quoted hash": 'q: "a # b"\ns: c # comment\n',
+        "slashes": "s: a/\nq: a//\nl:\n  - /\n  - x/\n",
+        "mapping item": "l:\n  - a\n  - name: n\n",
+        "empty values": 's: ""\nq:\nl: []\n',
+    }
+
+    @staticmethod
+    def per_key(text: str, keys: list[tuple[str, bool]]) -> Any:
+        bash = policy._shared_bash("reader")
+        values: dict[str, list[str]] = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            document = pathlib.Path(tmp) / "concern.yaml"
+            document.write_text(text, encoding="utf-8")
+            for key, as_list in keys:
+                proc = subprocess.run(
+                    [bash, str(policy.PARSER), "--strict"]
+                    + (["--list"] if as_list else [])
+                    + [str(document), key],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=False,
+                )
+                if proc.returncode == 3:
+                    return None
+                if proc.returncode != 0:
+                    return f"exit {proc.returncode}"
+                found = [line for line in proc.stdout.split("\n") if line]
+                if any(policy._SEPARATOR.search(line) for line in found):
+                    return None
+                values[key] = found
+        return values
+
+    def test_one_parse_answers_as_the_reader_run_per_key(self) -> None:
+        live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
+        cases = [(name, text, self.KEYS) for name, text in self.DOCUMENTS.items()]
+        cases.append(
+            (
+                "live pipeline config",
+                live.read_text(encoding="utf-8"),
+                [
+                    ("merge.rung", False),
+                    ("merge.agent-identity", False),
+                    ("merge.check-inputs", True),
+                    ("merge.diff-check.denied-paths", True),
+                    (policy.ISSUE_HOLDS_KEY, True),
+                ],
+            )
+        )
+        outcomes = set()
+        for name, text, keys in cases:
+            with self.subTest(name):
+                expected = self.per_key(text, keys)
+                self.assertNotIsInstance(expected, str, "the reader itself failed")
+                outcomes.add("rejected" if expected is None else "read")
+                self.assertEqual(
+                    policy._read_concern_values(text, keys, policy.run_command),
+                    expected,
+                )
+        self.assertEqual(outcomes, {"read", "rejected"})
 
 
 class FileContents(unittest.TestCase):
