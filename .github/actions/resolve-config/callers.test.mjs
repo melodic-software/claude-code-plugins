@@ -44,6 +44,7 @@ process.env.TMPDIR = tempDir("callers-tmp-");
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const workflow = (name) => parse(read(`../../workflows/${name}`));
+const RUBRIC = read("../../scripts/intake-triage/triage-rubric.txt");
 const RESOLVE = "./.base/.github/actions/resolve-config";
 
 // The Work status field write that starts work-resolve-issue: the field set to
@@ -831,7 +832,8 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   // external fields (the attended classes come from the base config too).
   assert.equal(step(select, "select").env.BASE_PATH, ".base");
   assert.equal(step(apply, "apply").env.BASE_PATH, ".base");
-  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split","external"\]/);
+  assert.ok(prompt.includes('schema=$(<"$REPO_DIR/.github/scripts/intake-triage/refine-schema.json")'));
+  assert.deepEqual(JSON.parse(read("../../scripts/intake-triage/refine-schema.json")).required, ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split", "external"]);
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
@@ -839,8 +841,20 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   const allowed = intake.with["allowed-labels"].trim().split("\n");
   assert.ok(!allowed.includes("good first issue") && !allowed.includes("help wanted"));
   for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost|untrusted"]) {
-    assert.ok(intake.with.instructions.includes(`\n${line}\n`), line);
+    assert.ok(RUBRIC.includes(`\n${line}\n`), line);
   }
+});
+
+test("intake-triage.yml: the rubric reaches the reusable from the default branch's file, read before the model resolves", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const gate = jobs["check-born-triaged"];
+  const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  assert.ok(checkout.with["sparse-checkout"].trim().split("\n").includes("/.github/scripts/intake-triage/triage-rubric.txt"));
+  const ids = gate.steps.map((step) => step.id);
+  assert.ok(ids.indexOf("rubric") >= 0 && ids.indexOf("rubric") < ids.indexOf("models"), "a rubric that does not read leaves claude-args unresolved");
+  assert.match(gate.steps.find((step) => step.id === "rubric").run, /cat \.base\/\.github\/scripts\/intake-triage\/triage-rubric\.txt\n/);
+  assert.equal(gate.outputs.instructions, "${{ steps.rubric.outputs.instructions }}");
+  assert.equal(jobs["intake-triage"].with.instructions, "${{ needs.check-born-triaged.outputs.instructions }}");
 });
 
 test("intake-triage.yml: the model may apply duplicate, which admission refuses, and is told to name the candidate and not park a duplicate", () => {
@@ -848,7 +862,7 @@ test("intake-triage.yml: the model may apply duplicate, which admission refuses,
   assert.ok(intake.with["allowed-labels"].trim().split("\n").includes("duplicate"));
   const rules = JSON.parse(read("./admission-rules.json"));
   assert.ok(rules["refuse-labels"].includes("duplicate"));
-  const text = intake.with.instructions.replace(/\s+/g, " ");
+  const text = RUBRIC.replace(/\s+/g, " ");
   assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
   assert.match(text, /name the candidate by number/);
   assert.match(text, /apply no `needs-owner-decision`/);
@@ -10631,7 +10645,9 @@ test("the policy probe reruns a session with no tool call, at most three times, 
       mkdirSync(bin);
       streams.forEach((s, i) => writeFileSync(join(dir, `stream-${i + 1}`), `${s}\n`));
       const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
-      stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\ncat "${dir}/stream-$n"`);
+      stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\nprintf '%s' "$2" >"${dir}/prompt"\ncat "${dir}/stream-$n"`);
+      mkdirSync(join(dir, ".base/.github/scripts/plugin-eval"), { recursive: true });
+      writeFileSync(join(dir, ".base/.github/scripts/plugin-eval/policy-probe-prompt.txt"), read("../../scripts/plugin-eval/policy-probe-prompt.txt"));
       const judge = fileURLToPath(new URL("../../scripts/plugin-eval/policy-probe.mjs", import.meta.url));
       stub("node", `case "$1" in *policy-probe.mjs) exec "${process.execPath}" "${judge}" ;; esac\nprintf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'`);
       const output = join(dir, "output");
@@ -10641,13 +10657,15 @@ test("the policy probe reruns a session with no tool call, at most three times, 
         encoding: "utf8",
         env: { PATH: `${bin}:${process.env.PATH}`, LANE_API_KEY: "sk-test-credential", RUNNER_ROOT: root, GITHUB_OUTPUT: output },
       });
-      return { status: result.status, stdout: result.stdout, calls: Number(readFileSync(join(dir, "calls"), "utf8")) };
+      return { status: result.status, stdout: result.stdout, calls: Number(readFileSync(join(dir, "calls"), "utf8")), prompt: readFileSync(join(dir, "prompt"), "utf8") };
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   };
   const first = probe([allDenied]);
   assert.deepEqual([first.status, first.calls], [0, 1], first.stdout);
+  assert.ok(first.prompt.includes(`the Read tool on ${root}/.runner;`), "the prompt names the runner root it was given");
+  assert.doesNotMatch(first.prompt, /RUNNER_ROOT/);
   const retried = probe([declined, allDenied]);
   assert.deepEqual([retried.status, retried.calls], [0, 2], retried.stdout);
   assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(probe: .* tool_calls=none denials=0 .*\) \(attempt 1 of 3\)$/m);

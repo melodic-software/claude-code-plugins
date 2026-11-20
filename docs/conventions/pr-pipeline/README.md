@@ -4585,6 +4585,15 @@ the lanes.
 | Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
 | Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
 
+The calls to ci-workflows reusable workflows (`pr-review-cli.yml`, `intake-triage.yml`,
+`intake-label-needs-triage.yml` and `maintenance-check-links-online.yml`) track `@main`, while the
+ci-workflows actions are pinned to the release `maintenance-repin-ci-workflows.yml` moves. The
+synced runner policy admits a ci-workflows reusable only at `@main` or at a commit its contract
+lists in `approvedShas` (`.github/standards/runner-policy/runner-policy.mjs`,
+`reusableWorkflowContract`). Those lists come from the standards sync and do not follow the repin,
+so a call pinned to the repin release fails `runner-target-contract`, and
+`scripts/repin-ci-workflows.sh` moves only the action pins.
+
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.
 
