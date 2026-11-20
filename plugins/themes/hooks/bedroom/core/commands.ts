@@ -132,7 +132,7 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
   if (word === 'reset') {
     const keep = { aspect: ctx.saved.aspect, titles: ctx.saved.titles }
     for (const key of SWITCHES) extra[key] = 0
-    await ctx.save({ ...defaults(), ...keep, time: undefined, weather: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
+    await ctx.save({ ...defaults(), ...keep, time: undefined, weather: undefined, lightning: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
     await setLook($, ctx)
     noteAsked()
     await sync($, '/bedroom reset')

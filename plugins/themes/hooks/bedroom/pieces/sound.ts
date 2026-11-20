@@ -548,11 +548,16 @@ export async function thunderFor($: EngineInterface, given: Strike): Promise<voi
 function duck($: EngineInterface, ms: number): void {
   const o = out
   if (o?.mixer === undefined || o.isDone || bed === undefined) return
-  mixerSend($, o, { verb: 'level', gain: bed.gain * DUCK, fadeMs: DUCK_FADE_MS.down })
+  const ducked = ducks > 0
+  ducks += 1
+  if (!ducked) mixerSend($, o, { verb: 'level', gain: bed.gain * DUCK, fadeMs: DUCK_FADE_MS.down })
   $.clock.after(ms, () => {
-    if (out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain, fadeMs: DUCK_FADE_MS.up })
+    ducks -= 1
+    if (ducks === 0 && out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain, fadeMs: DUCK_FADE_MS.up })
   })
 }
+/** How many rolls of thunder are sounding: the bed comes back only when the last one ends. */
+let ducks = 0
 
 /**
  * From the tick to the shader taking the minute it sends: the app starts easing a value about 510 ms after a redraw

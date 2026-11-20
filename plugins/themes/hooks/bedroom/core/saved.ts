@@ -20,6 +20,7 @@ export type Saved = {
   titles: Titles
   time?: string
   weather?: string
+  lightning?: string
   sound?: boolean
   signal?: boolean
   hall?: boolean

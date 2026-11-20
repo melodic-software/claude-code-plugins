@@ -35,6 +35,13 @@
       "options": ["auto", "clear", "overcast", "rain", "downpour", "storm"],
       "default": "auto"
     },
+    "lightning": {
+      "type": "string",
+      "title": "Bedroom: lightning in a storm",
+      "description": "rare: about one strike in three minutes; normal: about two a minute; often: about three a minute.",
+      "options": ["rare", "normal", "often"],
+      "default": "normal"
+    },
     "sound": {
       "type": "boolean",
       "title": "Bedroom: sound",

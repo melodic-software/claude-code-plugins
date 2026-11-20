@@ -4,7 +4,7 @@ import type { EngineInterface } from 'claude-code'
 import type { Ctx, On, Piece, Switch } from '../core/piece.js'
 import { failed } from '../core/telemetry.js'
 import { piece as time } from './time.js'
-import { piece as weather } from './weather.js'
+import { engineTick as weatherEngineTick, piece as weather } from './weather.js'
 import { hooks as claudeTvHooks, engineStart as claudeTvEngineStart, piece as claudeTv } from './claude-tv.js'
 import { piece as hallway } from './hallway.js'
 import { engineTick as soundEngineTick, engineSwitched as soundEngineSwitched, engineCommand as soundEngineCommand, piece as sound } from './sound.js'
@@ -29,6 +29,11 @@ export async function startPieces($: EngineInterface, ctx: Ctx): Promise<void> {
 
 /** Each minute, before the redraw is asked. */
 export async function tickPieces($: EngineInterface, ctx: Ctx): Promise<void> {
+  try {
+    await weatherEngineTick($, ctx)
+  } catch (error) {
+    failed('weather', 'engineTick', error)
+  }
   try {
     await soundEngineTick($, ctx)
   } catch (error) {

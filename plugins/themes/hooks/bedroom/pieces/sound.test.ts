@@ -596,6 +596,14 @@ test('S6: thunder comes 1 to 6 s after its strike, quieter and farther the longe
   ])
   await s.advance(lengthOf(thunder[0]!.words[1]!))
   expect(s.mixers[0]!.ran.filter(r => r.words[0] === 'level').at(-1)?.words.join(' ')).toBe(`level ${gainOf(70).toFixed(4)} ${DUCK_FADE_MS.up}`)
+
+  const overlap = s.now()
+  await thunderFor(s.$, { at: overlap, delayS: 1 })
+  await thunderFor(s.$, { at: overlap + 3000, delayS: 1 })
+  await s.advance(20_000)
+  const ducked = s.mixers[0]!.ran.filter(r => r.words[0] === 'level' && r.at > overlap)
+  expect(ducked.map(r => r.words[2])).toEqual([String(DUCK_FADE_MS.down), String(DUCK_FADE_MS.up)])
+  expect(ducked[1]!.at).toBe(overlap + 4000 + lengthOf(thunderOf(saved, { at: overlap + 3000, delayS: 1 }).file))
   await quiet(s)
 })
 

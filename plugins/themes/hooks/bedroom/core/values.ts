@@ -174,6 +174,11 @@ export function offerCue(id: number, now: number): number {
   return CUE_HOLD_MS
 }
 
+/** Whether a cue offered at `now` goes at once and puts nothing off: no cue holds the world or waits, and no world change waits. */
+export function cueFree(now: number): boolean {
+  return cueWaiting === undefined && worldWaiting === undefined && now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
+}
+
 /** Sends world if 6 s have passed since the last send and no cue holds it, else keeps it waiting (a later one replaces it). */
 function offerWorld(code: number, now: number): number | undefined {
   if (cueWaiting !== undefined) {

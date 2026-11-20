@@ -15,6 +15,7 @@ export const SETTINGS = {
   sunrise: { kind: 'time', from: '04:00', to: '09:00', default: '06:30' },
   sunset: { kind: 'time', from: '16:00', to: '22:00', default: '20:30' },
   weather: { kind: 'choice', options: ['auto', ...WEATHERS], default: 'auto' },
+  lightning: { kind: 'choice', options: ['rare', 'normal', 'often'], default: 'normal' },
   sound: { kind: 'boolean', default: false },
   soundPlayer: { kind: 'string', default: '' },
   signal: { kind: 'boolean', default: true },
@@ -25,7 +26,7 @@ export const SETTINGS = {
 export type SettingKey = keyof typeof SETTINGS
 export type SettingValue<K extends SettingKey> = (typeof SETTINGS)[K]['default'] extends boolean ? boolean : string
 /** The settings a command may hold an override for, in the store. */
-export const OVERRIDES = ['time', 'weather', 'sound', 'signal', 'hall', 'shader'] as const
+export const OVERRIDES = ['time', 'weather', 'lightning', 'sound', 'signal', 'hall', 'shader'] as const
 export type Override = (typeof OVERRIDES)[number]
 
 let options: PluginOptions = {}

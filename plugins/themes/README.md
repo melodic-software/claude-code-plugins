@@ -51,7 +51,10 @@ bottom-left corner of the front of the dresser.
 - **Weather.** In the window only. Overcast covers the sky with cloud at every hour. Rain falls
   light and slow with a few drops on the glass; a downpour adds a heavier, faster fall, more drops
   and a thicker veil; a storm slants the rain in the wind, darkens the sky further and flashes
-  softly in it about once in three minutes. `auto` changes by itself every three hours and never
+  with lightning at uneven gaps: about two strikes a minute by default, which the US National
+  Weather Service counts as occasional lightning (1 to 3 a minute). `/bedroom weather lightning
+  rare` keeps to about one strike in three minutes, and `often` gives about three a minute, the
+  most the shader's event channel carries with room left for the hallway. `auto` changes by itself every three hours and never
   picks a storm; it asks no weather service, so every session gives the same weather at the same
   hour. In a storm, `/bedroom weather strike` brings a flash within about five seconds. The shader
   draws every strike, pass and hall light, and takes none in its first 30 seconds after it starts
@@ -146,6 +149,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |
 | `/bedroom weather <auto\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; alone, says which |
 | `/bedroom weather strike` | In a storm, one flash of lightning within about five seconds; at most one each 20 seconds |
+| `/bedroom weather lightning [rare\|normal\|often]` | How often a storm strikes: about one in three minutes, two a minute, or three; alone, says which |
 | `/bedroom signal [on\|off]` | The television reacting to Claude |
 | `/bedroom hall <on\|off>` | The hallway's passes and hall light |
 | `/bedroom hall <pass\|light>` | While the hallway is on: someone passes the door, or the hall light turns on for three minutes (off, if it is on), within about five seconds |
@@ -153,7 +157,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom sound volume <0-100>` | The volume of every sound |
 | `/bedroom sound pick <cicadas\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
 | `/bedroom sound objects <on\|off>` | The sounds of the lamp, light, monitor, console, tape and cat |
-| `/bedroom <time\|weather\|signal\|hall\|sound> default` | Follows the plugin's setting again |
+| `/bedroom <time\|weather\|lightning\|signal\|hall\|sound> default` | Follows the plugin's setting again |
 | `/bedroom sync` | Shows the room alone for seven seconds, then brings the shader back with every switch as saved |
 | `/bedroom dim <0-80>` | Lays a dark veil over the room |
 | `/bedroom glass <0-95>`, `/bedroom blur <0-40>` | How solid the panels over the room are, and how much they blur it |
@@ -161,7 +165,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom title pennant <text>`, `/bedroom title pennant-top <text>` | Writes your own team on the pennant's big line (up to 12 characters) or its small top line (up to 16), in capitals; with no text it goes back to the default |
 | `/bedroom stats` | Render counts and timings |
 | `/bedroom calibrate` | Fits clicks to your window's shape |
-| `/bedroom reset` | Every switch, dim, glass and blur back to its default, and time, weather, signal, hallway and sound back to the plugin's settings; titles, calibration, volume and the bank's choices stay |
+| `/bedroom reset` | Every switch, dim, glass and blur back to its default, and time, weather, lightning, signal, hallway and sound back to the plugin's settings; titles, calibration, volume and the bank's choices stay |
 | `/bedroom on`, `/bedroom off` | Sets or clears the theme |
 
 For diagnosis, `/bedroom shader off` (or `instant off`) shows the hand-drawn room alone for the rest
@@ -201,6 +205,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `sunrise` | string | `"06:30"` | Local time of sunrise, HH:MM from 04:00 to 09:00. |
 | `sunset` | string | `"20:30"` | Local time of sunset, HH:MM from 16:00 to 22:00. |
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
+| `lightning` | string | `"normal"` | rare: about one strike in three minutes; normal: about two a minute; often: about three a minute. |
 | `sound` | boolean | `false` | Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
 | `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100. |
 | `signal` | boolean | `true` | The screen flickers while Claude works. |
