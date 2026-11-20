@@ -1,5 +1,6 @@
 ---
 description: "Re-anchors anti-fragmentation: given an established way, new work REUSES it or openly REPLACES it (migrate, record why), never a SILENT second way. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
+argument-hint: "[--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -166,6 +167,27 @@ Resolve the verification level once with
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill reuse-or-replace --file docs/conventions/discipline.yaml`
 and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
 `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
+
+## Several repositories
+
+A target form from
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others) runs the audit once per repository, per the
+method doc's "Several repositories"; with none, the skill audits the work in
+flight as above. Each repository's pass audits that repository's tracked
+code, structure and docs for two coexisting ways of one concern with no
+recorded reason, and returns its concern-to-way list (paved-path entries
+first, then the ways its codebase shows) for the merge.
+
+Across repositories, the merge adds one finding of its own: two
+repositories solving the same concern two ways is the silent second way this
+skill exists to catch, unless one of them records why it differs. It covers
+only concerns inside this skill's Scope above: never a tool or dependency
+choice, which stays `/discipline:pick-for-the-problem`'s, and never
+mechanical style. Name both ways and propose the one way both repositories
+converge on, either one of the two or a new way that replaces both. A
+paved-path entry is still written only in its own repository, behind the
+ask in "Writing the paved-path entry".
 
 ## Gotchas
 

@@ -1,6 +1,6 @@
 ---
 description: "Re-anchors that existing state (config, code, docs, infra) is not evidence of its own correctness, and audits it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', or at conversation start on config, infra, or integration work."
-argument-hint: "[fan-out] [scope]"
+argument-hint: "[fan-out] [scope] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -107,6 +107,23 @@ Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
 enumerating surfaces: it owns the doc-by-doc dispatch, the mid-run checkpoint,
 the divergence ledger, and work-item routing, and replaces the inline audit
 and correct-forward steps.
+
+## Several repositories
+
+A target form from
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others) runs the recheck once per repository, per
+the method doc's "Several repositories"; with none, the tiers above run as
+written. A repository named this way is a whole repo, so each one takes the
+fan-out tier unless the scope argument narrows it to one surface, which then
+runs inline in each repository. The fork rule above governs the run as a
+whole: a target-form run inside a batch or a fork records the recommendation
+and runs nothing across repositories. Outside one, each repository's
+subagent is a fresh subagent that runs its own fan-out dispatch. Each
+repository resolves its own pinned upstream version. Its mid-run checkpoint
+and divergence ledger go in that repository's working-docs root, never the
+invoking session's slice, and work items offered for it route to that
+repository's tracker.
 
 ## Distinct axes. What this is not
 
