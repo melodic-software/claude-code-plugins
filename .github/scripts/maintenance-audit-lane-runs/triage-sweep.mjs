@@ -21,12 +21,11 @@
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out (the lane
 // sweep's can quote fork-controlled log lines), but for a trusted
-// upstream-drift issue (admit.mjs driftIssueId): its shape is read from the
-// listing (driftShaped) and its edit history from one GraphQL read before
-// anything else, and one that fails it is skipped. One that passes is skipped
-// too while the token broker refuses this job's dispatch for an issue
-// github-actions[bot] wrote (untrusted-actor), so no run spends the model on
-// it and none counts toward the hand-off. An issue a workflow's
+// upstream-drift issue, whose shape is read from the listing (driftShaped).
+// While the token broker refuses this job's dispatch for an issue
+// github-actions[bot] wrote (untrusted-actor), such an issue is skipped
+// before any read, so no run spends the model on it and none counts toward
+// the hand-off. An issue a workflow's
 // GITHUB_TOKEN opens starts no intake run, so this dispatch is a drift
 // issue's only way in. The ci-workflows reusable hands the body to intake's
 // triage model, so the filer (scripts/upstream-drift-issues.sh) writes no
@@ -63,7 +62,7 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
-import { driftIssueId, driftShaped, specOf } from "../intake-triage/admit.mjs";
+import { driftShaped } from "../intake-triage/admit.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -439,10 +438,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (neverCommented(issue) && result.dispatched.length + result.failed.length >= MAX_DISPATCHES) continue;
     try {
       if (!authorIds.has(String(issue.user?.id))) {
-        if (driftIssueId(await specOf(call, repo, number)) === null) {
-          console.log(`triage-sweep: #${number} skipped: it has the drift-issue shape, but someone other than github-actions[bot] last edited it`);
-          continue;
-        }
         result.refused.push(number);
         console.log(`triage-sweep: #${number} skipped: the token broker refuses intake for an issue github-actions[bot] wrote (untrusted-actor)`);
         continue;
