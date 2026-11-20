@@ -1,7 +1,7 @@
 """The settle clause on the UNVERIFIED marks `new` writes (PLAN.md AC14, Contracts:
 the tool's strings stay matchable by older validators). A shape-2 hop carried past a
-predecessor that failed validation passes head's validator and the validator at
-c1d455ccdc, the base of this branch's shape-4 work."""
+predecessor that failed validation passes head's validator and the shape-3 validator
+at 18f6e56faa, the commit on main this branch's shape-4 work starts from."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from test_save_point import (
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
-BASE = "c1d455ccdc"
+BASE = "18f6e56faa16aff59467feeb9269f0590a01f70d"
 SCRIPTS = Path(__file__).resolve().parents[1]
 REPO = SCRIPTS.parents[2]
 
@@ -38,7 +38,7 @@ def base_validator(tmp_path: Path) -> Path:
     """save_point.py and the modules it imports, as they were at BASE."""
     dst = tmp_path / "base-scripts"
     dst.mkdir()
-    for name in ("save_point.py", "handoff_chain.py", "io_streams.py"):
+    for name in ("save_point.py", "io_streams.py", "plugin_paths.py"):
         shown = subprocess.run(
             [
                 "git",
