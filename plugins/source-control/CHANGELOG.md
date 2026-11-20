@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.10] - 2026-11-20
+
+### Fixed
+
+- The unattended babysit merge path no longer posts a pin comment or calls `enqueuePullRequest` on a native stack layer, which GitHub refuses on every sweep. It reads the `stack` field the pull request record it already holds carries, and holds the layer for a person, so it adds no API call.
+
 ## [13.1.9] - 2026-11-20
 
 ### Changed
