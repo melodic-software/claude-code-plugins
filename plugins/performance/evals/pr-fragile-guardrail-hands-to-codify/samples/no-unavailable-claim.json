@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: `/corrections:codify \"rates_table.json must stay in step with the rate card\"`",
+      "why": "names the call, no availability claim"
+    },
+    {
+      "answer": "If /corrections:codify were not available, protect would propose the strongest mechanism itself and call it unproven.\n\nCEILING: 1\nGUARDRAIL: `/corrections:codify \"keep the table in step\"`",
+      "why": "the fallback described outside the guardrail line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CEILING: 1\nGUARDRAIL: /corrections:codify is not available, so propose a drift test (unproven)",
+      "why": "claims codify is unavailable on the guardrail line"
+    }
+  ]
+}

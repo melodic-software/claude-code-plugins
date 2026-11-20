@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"scripts start with set -euo pipefail\"`\nMECHANISM: none",
+      "why": "names the call, no availability claim"
+    },
+    {
+      "answer": "If /corrections:codify were not available, the audit would propose the strongest mechanism itself and call it unproven.\n\nC8: warn\nMOVE: `/corrections:codify \"scripts start with set -euo pipefail\"`\nMECHANISM: none",
+      "why": "the fallback described outside the MOVE line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C8: warn\nMOVE: /corrections:codify is not available, so a CI check (unproven)\nMECHANISM: CI check",
+      "why": "claims codify is unavailable on the MOVE line"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "pass": [
+    {
+      "answer": "ROUTE: `/corrections:codify \"code under domain/ never imports from infrastructure/\"`",
+      "why": "no rules-file line"
+    },
+    {
+      "answer": "A rules file is what the skill used to suggest.\n\nROUTE: hand it to /corrections:codify, which chooses and proves the mechanism",
+      "why": "rules file mentioned outside the route line"
+    },
+    {
+      "answer": "ROUTE: hand the principle to /corrections:codify rather than adding it to CLAUDE.md",
+      "why": "the reviewer's shape: CLAUDE.md named only to reject it"    },
+    {
+      "answer": "ROUTE: instead of a .claude/rules entry, hand the principle to /corrections:codify",
+      "why": "rules path rejected with 'instead of' in its own clause"
+    },
+    {
+      "answer": "ROUTE: the skill doesn't add a CLAUDE.md line; it hands the principle to /corrections:codify",
+      "why": "contracted negation before the rules-file term"
+    },
+    {
+      "answer": "ROUTE: hand it to /corrections:codify without adding it to AGENTS.md",
+      "why": "'without' before the write"
+    },
+    {
+      "answer": "ROUTE: `/corrections:codify \"domain/ never imports infrastructure/\"`; the skill writes no rules-file line for it",
+      "why": "'no' directly before the term; 'never' inside the quoted principle is not near any term"
+    },
+    {
+      "answer": "**ROUTE:** `/corrections:codify \"domain/ never imports infrastructure/\"`; the skill does not write it into a rules file itself",
+      "why": "'not' before the term, after a semicolon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROUTE: suggest codifying it immediately in the project's own rules files",
+      "why": "the before-change route"
+    },
+    {
+      "answer": "**ROUTE:** suggest codifying it immediately in the project's own rules files",
+      "why": "the before-change route with a bold label"
+    },
+    {
+      "answer": "ROUTE: add it to `.claude/rules/architecture.md`",
+      "why": "names a rules path"
+    },
+    {
+      "answer": "ROUTE: write it into CLAUDE.md as a project-wide rule",
+      "why": "names CLAUDE.md"
+    },
+    {
+      "answer": "ROUTE: not a hook — add it to CLAUDE.md as a project rule",
+      "why": "the negation sits in an earlier clause, the write is not negated"
+    },
+    {
+      "answer": "ROUTE: don't wait, write it into AGENTS.md now",
+      "why": "negation before a comma does not cover the next clause"
+    },
+    {
+      "answer": "ROUTE: hand it to /corrections:codify. It is not optional. Add it to .claude/rules/architecture.md too",
+      "why": "a sentence break ends the negated clause"
+    },
+    {
+      "answer": "ROUTE: suggest codifying \"code under domain/ never imports from infrastructure/\" immediately in the project's own rules files",
+      "why": "before-change route quoting the principle: its 'never' does not reject the rules file"
+    },
+    {
+      "answer": "ROUTE: write that domain/ never imports infrastructure/ into AGENTS.md",
+      "why": "'never' belongs to the principle, not to the write"
+    },
+    {
+      "answer": "ROUTE: add a no-infrastructure-imports rule to `.claude/rules/architecture.md`",
+      "why": "'no' inside a hyphenated name is not a negation"
+    },
+    {
+      "answer": "ROUTE: not optional: add it to CLAUDE.md",
+      "why": "a colon separates the negation from the write"
+    },
+    {
+      "answer": "ROUTE: not optional - add it to CLAUDE.md",
+      "why": "an ASCII dash separates the negation from the write"
+    },
+    {
+      "answer": "ROUTE: not optional – add it to CLAUDE.md",
+      "why": "an en dash separates the negation from the write"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"scripts start with set -euo pipefail\"`\nMECHANISM: none",
+      "why": "the audit names no mechanism"
+    },
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"scripts start with set -euo pipefail\"`\n**MECHANISM:** None (codify picks the rung)",
+      "why": "bold label, capitalized, with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C8: warn\nMOVE: a CI gate\nMECHANISM: a CI gate running a grep over scripts/*.sh",
+      "why": "the audit picks the mechanism itself, as the text before the follow-on directed"
+    },
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"scripts start with set -euo pipefail\"`\nMECHANISM: likely a shellcheck rule or pre-commit hook",
+      "why": "names codify but still picks a mechanism"
+    }
+  ]
+}

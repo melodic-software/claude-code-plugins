@@ -746,6 +746,7 @@ export function verifyClears(evidence, head) {
 // babysit_merge.queue_ejection_refusal: merge.max-queue-ejections failed-check
 // removals since the head changed), with the gate's marked comment when the
 // count was read, or null under the cap. An answer not of that shape holds.
+export const EJECTION_HOLD = "pr-merge's gate would not enqueue it again (";
 export function ejectionHold(evidence) {
   const queue = evidence?.queue;
   if (queue === null || typeof queue !== "object" || !(queue.refusal === null || typeof queue.refusal === "string")) {
@@ -753,7 +754,7 @@ export function ejectionHold(evidence) {
   }
   return queue.refusal === null
     ? null
-    : { reason: `pr-merge's gate would not enqueue it again (${escapeCommand(queue.refusal)})`, comment: typeof queue.comment === "string" ? queue.comment : null };
+    : { reason: `${EJECTION_HOLD}${escapeCommand(queue.refusal)})`, comment: typeof queue.comment === "string" ? queue.comment : null };
 }
 
 // The refusal comment on a lanes App pull request the run leaves unarmed:
@@ -1098,6 +1099,14 @@ const STATUS_DESCRIPTION_CHARS = 140;
 // merge.risk-escalation-minutes' default (babysit_merge_policy.RISK_ESCALATION_MINUTES).
 export const RISK_ESCALATION_MINUTES = 60;
 
+function laneBegan(pull, comments, comment, bot) {
+  if (typeof comment !== "string") {
+    return sinceAt(priorRefusal(comments, bot)?.body, pull.headRefOid);
+  }
+  const marked = priorRefusal(comments, bot, comment.split("\n", 1)[0]);
+  return marked?.body === comment ? (marked.updatedAt ?? marked.createdAt) : undefined;
+}
+
 // The failing `pr-merge/unarmed` status for a refusal the lanes clear
 // (`clears` lane) whose comment has stood unchanged at the head for
 // `minutes`: the next scheduled runs judge it again until then, and past it
@@ -1107,12 +1116,7 @@ export function unarmedStatus(pull, comments, { clears, reason, comment }, { bot
   if (clears !== "lane") {
     return null;
   }
-  // The gate's own marked comment is timed from its last change; the lane
-  // comment from the first lane refusal at the head (LANE_SINCE).
-  const marked = typeof comment === "string" ? priorRefusal(comments, bot, comment.split("\n", 1)[0]) : null;
-  const began =
-    typeof comment === "string" ? (marked?.body === comment ? (marked.updatedAt ?? marked.createdAt) : undefined) : sinceAt(priorRefusal(comments, bot)?.body, pull.headRefOid);
-  if (!(now - Date.parse(String(began)) >= minutes * 60_000)) {
+  if (!(now - Date.parse(String(laneBegan(pull, comments, comment, bot))) >= minutes * 60_000)) {
     return null;
   }
   return { sha: pull.headRefOid, state: "failure", description: Array.from(String(reason).replaceAll(/\s+/g, " ")).slice(0, STATUS_DESCRIPTION_CHARS).join("") };
@@ -1614,7 +1618,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
 // records ride in the pr-merge-verify-answers artifact (EAM_SKIP_IN, _OUT;
 // verify-answers.mjs reads them back).
 export const SKIP_VERSION = 1;
-export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head ("]);
+export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head (", `${EJECTION_HOLD}queue-ejected:`]);
 // merge.skip-unchanged's defaults (babysit_merge_skip.py).
 export const SKIP_MAX_MINUTES = 60;
 export const SKIP_MAX_SKIPS = 3;
@@ -2497,8 +2501,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         await note(pull, detail, { clears, reason, comment, partial, answered, wholeReview });
         // Kept only when this run wrote nothing for it, so the key read
         // before it still stands.
-        if (key !== null && detail != null && sent === sentBefore && failed === failedBefore && stopped === null && clears === "lane" && typeof comment !== "string" && wholeReview !== true && SKIPPABLE.some((prefix) => String(reason).startsWith(prefix))) {
-          const since = sinceAt(priorRefusal(detail.comments?.nodes, slug)?.body, pull.headRefOid);
+        if (key !== null && detail != null && sent === sentBefore && failed === failedBefore && stopped === null && clears === "lane" && wholeReview !== true && SKIPPABLE.some((prefix) => String(reason).startsWith(prefix))) {
+          const since = laneBegan(pull, detail.comments?.nodes, comment, slug);
           const at = now();
           const escalated = unarmedStatus(pull, detail.comments?.nodes, { clears, reason, comment }, { bot: slug, now: at, minutes }) !== null;
           const until = Math.min(at + skips.maxMinutes * 60_000, escalated ? Number.POSITIVE_INFINITY : Date.parse(String(since)) + minutes * 60_000);
