@@ -13,10 +13,14 @@ import dataclasses
 import difflib
 from collections import Counter
 import functools
+import os
 import pathlib
 import subprocess
 import sys
 import unittest
+
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 

@@ -107,6 +107,7 @@ REGISTRY=(
   "check-killswitch-hoist.sh|jq|-|killswitch_hoist"
   "check-lane-coverage.sh|-|-|-"
   "check-loop-lane-floor-drift.sh|git|-|-"
+  "check-org-repo-tokens.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
   "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"

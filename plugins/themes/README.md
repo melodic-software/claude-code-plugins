@@ -53,8 +53,7 @@ of the conversation. Away from the desktop app, `/bedroom` answers in text alone
 
 ### Dim and titles
 
-Dim is a dark veil laid over the whole room, so a dim step changes the veil alone and the room keeps
-moving. The titles are drawn into the room itself, so changing one sends the room again. The room
+Dim and the titles are drawn into the room itself, so changing one sends the room again. The room
 then shows as it stands, ceiling light off included, for seven seconds while the app takes the new
 room, and the shader takes it over again after that: the lights, screens and clock move again, and
 clicks are answered at once. A click in those seven seconds still counts and is drawn into the room.
