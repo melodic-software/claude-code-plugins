@@ -38,13 +38,13 @@
     "sound": {
       "type": "boolean",
       "title": "Bedroom: sound",
-      "description": "The television's click, cicadas, rain and thunder. Off by default.",
+      "description": "The television's click, cicadas, rain, a downpour, a storm and thunder. Off by default.",
       "default": false
     },
     "soundPlayer": {
       "type": "string",
       "title": "Bedroom: sound player",
-      "description": "Empty: found at run time. Else a command line with {file} where the sound file goes.",
+      "description": "Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100.",
       "default": ""
     },
     "signal": {
@@ -62,7 +62,7 @@
     "shader": {
       "type": "boolean",
       "title": "Bedroom: shader",
-      "description": "Off: the hand-drawn room alone, sent again on every change.",
+      "description": "For diagnosis. Off: the hand-drawn room alone, with no fades, clock or lamp light, sent again on every change.",
       "default": true
     }
   },
