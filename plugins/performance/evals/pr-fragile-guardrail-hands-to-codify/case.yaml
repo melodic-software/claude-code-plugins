@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: pr-fragile-guardrail-hands-to-codify
+graders:
+  - name: ceiling-measured-value
+    type: regex
+    pattern: '^[\s>*`_-]*CEILING[*`_\s]*:(?![^\n]*\b(?:none|no ceiling)\b)[^\d\n]*(?<![\d.])1\b(?![.,]\d)'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: guardrail-hands-to-codify
+    type: regex
+    pattern: '^[\s>*`_-]*GUARDRAIL[*`_\s]*:[^\n]*corrections:codify\b'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: no-codify-run
+    type: tool_used
+    tool: Skill
+    input_match: '"skill":"/?(?:corrections:)?codify"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-unavailable-claim
+    type: regex
+    pattern: '^[\s>*`_-]*GUARDRAIL[*`_\s]*:[^\n]*?corrections:codify\b[^\n]{0,80}?(?:\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b|\bunavailable\b)'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both
