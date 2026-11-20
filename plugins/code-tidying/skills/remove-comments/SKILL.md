@@ -106,9 +106,10 @@ repositories, which resolve, count, fan out and merge as
 forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Strip the target-form
 tokens first; every other token applies in each repository, except as below. What differs here:
 
-- **Scope per repository.** With no `<path>` target, each repository takes the repository rung
-  (another checkout's uncommitted and branch diffs are not this run's), with the safe-mode rule
-  that rung carries. `--added-since` and `--base` read one checkout's branch diff, so with a target
+- **Scope per repository.** With no `<path>` target, each repository takes the rung
+  `scope-code-files.sh` resolves in that checkout, reported with its findings, and the safe-mode
+  rule that rung carries; a clean clone on its base branch resolves to the repository rung.
+  `--added-since` and `--base` read one checkout's branch diff, so with a target
   form they stop the run and name the repository rung or a `<path>` instead. A `<path>` target
   resolves under each root, and a repository where it does not exist is reported skipped. The
   pre-computed lines describe this checkout only: the per-repository subagent runs
