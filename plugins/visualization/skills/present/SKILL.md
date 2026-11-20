@@ -58,7 +58,7 @@ The call's arguments and the account's type list are the Artifact tool's to defi
 names no parameter beyond the two above and reads the rest from the quickstart result.
 
 - **Pointer**: when the quickstart call is refused or its result reads differently from this step,
-  fetch [Artifacts: Start an artifact from a template](https://code.claude.com/docs/en/artifacts#start-an-artifact-from-a-template)
+  fetch [Artifacts: Start from a Slides, Design, or Docs template](https://code.claude.com/docs/en/artifacts#start-from-a-slides-design-or-docs-template)
   live and follow the tool's own result.
 
 ## 4. Write the deck locally, then gate it
