@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.19.4] - 2026-11-20
+
+### Removed
+
+- No job names the `claude-lanes` environment any more: every lane reads its Claude secrets from the organization copies again, `scripts/check-claude-secrets-environment.sh` and its `Lint Repo` step are gone, and `check-read-caller-keys` no longer admits that environment. PR Run Plugin Evals still starts on `workflow_run` from main.
+
 ## [10.19.3] - 2026-11-20
 
 ### Changed
