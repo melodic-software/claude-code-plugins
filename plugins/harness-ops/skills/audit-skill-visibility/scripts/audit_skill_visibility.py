@@ -1693,12 +1693,15 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
 # The honest static report is a band over every combination, collapsed only by
 # an operator pin or by an environment variable the product itself honors.
 #
-# Window resolution order mirrors the binary: `CLAUDE_CODE_MAX_CONTEXT_TOKENS`
-# wins, but only when `DISABLE_COMPACT` is also set; else a truthy
+# Window resolution assumes a model ID Claude Code recognizes, the only case
+# where `CLAUDE_CODE_MAX_CONTEXT_TOKENS` needs `DISABLE_COMPACT`: the variable
+# wins only when `DISABLE_COMPACT` is also set; else a truthy
 # `CLAUDE_CODE_DISABLE_1M_CONTEXT` forces 200k; else the active model decides,
-# which from outside the session means both windows. Verified 2026-09-11 at
-# Claude Code 2.1.263 (reference/listing-scorer.md); recheck trigger:
-# https://code.claude.com/docs/en/model-config changing what sets the window.
+# which from outside the session means both windows. For an unrecognized ID,
+# such as a gateway alias, the product applies the variable on its own; this
+# script cannot tell the ID from outside the session, so the operator pins
+# `--context-window`. Which IDs need what:
+# https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to
 
 WINDOW_BAND: tuple[int, ...] = (200_000, 1_000_000)
 BYTES_PER_TOKEN_BAND: tuple[int, ...] = (4, 3)
@@ -1727,7 +1730,10 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
     if max_tokens is None:
         effect = "unset"
     elif not _env_truthy(disable_compact):
-        effect = "ignored: honored only when DISABLE_COMPACT is also set"
+        effect = (
+            "ignored: for a recognized model ID it applies only when "
+            "DISABLE_COMPACT is also set; for a gateway alias pin --context-window"
+        )
     elif not max_tokens.strip().isdigit() or int(max_tokens) <= 0:
         effect = "ignored: not a positive integer"
     else:
@@ -3596,7 +3602,8 @@ def main(argv: list[str] | None = None) -> int:
         help="pin the context window in TOKENS for the listing-budget "
         "arithmetic. Unpinned, the report carries both 200000 and 1000000 as "
         "a band unless CLAUDE_CODE_DISABLE_1M_CONTEXT or "
-        "CLAUDE_CODE_MAX_CONTEXT_TOKENS (with DISABLE_COMPACT) settles it",
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS (with DISABLE_COMPACT) settles it; pin "
+        "it for a gateway alias or other model ID Claude Code does not recognize",
     )
     parser.add_argument(
         "--bytes-per-token",
