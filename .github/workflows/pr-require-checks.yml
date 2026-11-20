@@ -1113,6 +1113,7 @@ jobs:
               scripts/check-discriminating-test-skips*
               scripts/check-fixture-git-isolation*
               scripts/fixture-git-isolation-baseline.txt
+              scripts/fixture-git-global-baseline.txt
               scripts/check-drive-root-litter*
               scripts/check-shell-portability*
               scripts/shell-portability-*
@@ -1125,6 +1126,10 @@ jobs:
               **/*.bash
               **/*.bats
               **/*.py
+              **/*.test.mjs
+              **/*.test.js
+              **/*.test.cjs
+              **/*.test.ts
               **/hooks/**
               **/bin/**
               **/agents/**
@@ -1306,6 +1311,12 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh loop-lane-floor-drift {0}
         run: scripts/check-loop-lane-floor-drift.sh --check
+
+      - name: Check shipped plugin content names no unexcused organization repository
+        id: org_repo_tokens
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh org-repo-tokens {0}
+        run: scripts/check-org-repo-tokens.sh --check
 
       - name: Check the conformance registry resolves
         id: conformance_registry
@@ -1981,6 +1992,7 @@ jobs:
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
+            org-repo-tokens=${{ steps.org_repo_tokens.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
@@ -2154,9 +2166,11 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh fixture-git-isolation {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/pr-require-checks.yml) &&
+            '*.sh' '*.py' '*.test.mjs' '*.test.js' '*.test.cjs' '*.test.ts' scripts/lib/fixture-git-isolation-scan.awk \
+            scripts/fixture-git-isolation-baseline.txt \
+            scripts/fixture-git-global-baseline.txt .github/workflows/pr-require-checks.yml) &&
             [ -z "$changed" ]; then
-            echo "::notice::No shell or Python file changed since $DIFF_BASE; the scheduled run scans the whole tree."
+            echo "::notice::No shell, Python or JS test file changed since $DIFF_BASE; the scheduled run scans the whole tree."
             exit 0
           fi
           scripts/check-fixture-git-isolation.sh --check

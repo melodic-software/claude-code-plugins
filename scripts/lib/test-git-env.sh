@@ -13,9 +13,6 @@
 # Each suite gets its own file: a suite that writes `git config --global` writes
 # into it, and a file shared across parallel suites would race on its lock and
 # leak settings between them.
-#
-# A suite that must read the host's real git config opts out by unsetting both
-# variables itself: `unset GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM`.
 
 test_git_env::isolate() {
   printf '[user]\n\tname = test\n\temail = t@t.test\n[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n' >"$1" || return

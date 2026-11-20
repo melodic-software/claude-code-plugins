@@ -48,6 +48,7 @@ import ast
 import importlib.util
 import fnmatch
 import json
+import os
 import pathlib
 import re
 import shlex
@@ -59,6 +60,9 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import quote, unquote
 from unittest import mock
+
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
