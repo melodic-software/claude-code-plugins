@@ -76,7 +76,9 @@ NETWORK_DENY = (
     "Bash(curl *)",
     "Bash(wget:*)",
     "Bash(wget *)",
-    "Bash(git ls-remote *:*)",
+    "Bash(git ls-remote *://*)",
+    "Bash(git ls-remote *@*)",
+    "Bash(git ls-remote *:*/*)",
     "Bash(git fetch *://*)",
     "Bash(git fetch *@*)",
     "WebFetch",
@@ -959,7 +961,7 @@ def seed_run(
         write_fixture(repo / rel, content)
         seeded[rel] = content.encode("utf-8")
     chain = resume_cases.build_predecessor_chain(
-        case, repo, save_point=seed_save_point(cfg.copies, arm), arm=arm
+        case, repo, save_point=seed_save_point(cfg.copies, arm), arm=arm_base(arm)
     )
     seed_hash = resume_cases.seed_hash(repo)
     _git(call, repo, env, "add", "-A")

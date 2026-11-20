@@ -209,12 +209,17 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
     assert not {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} & set(deny)
     from fnmatch import fnmatchcase
 
-    patterns = [d[5:-1] for d in deny if d.startswith("Bash(git ")]
+    trailing_colon_star_reads_as_space_star = ":*)"
+    patterns = [
+        d[5:-3] + " *" if d.endswith(trailing_colon_star_reads_as_space_star) else d[5:-1]
+        for d in deny
+        if d.startswith("Bash(git ")
+    ]
     for remote in (
         "git ls-remote http://h/x",
         "git ls-remote --heads https://h/x",
         "git ls-remote ssh://h/x",
-        "git ls-remote h:path",
+        "git ls-remote h:org/repo",
         "git ls-remote git@h:x",
         "git fetch git://h/x",
         "git fetch -q https://h/x",

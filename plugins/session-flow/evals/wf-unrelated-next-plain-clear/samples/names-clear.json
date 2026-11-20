@@ -7,6 +7,10 @@
     {
       "answer": "No handoff needed.\nNext step: /clear",
       "why": "negated line skipped, another line names it"
+    },
+    {
+      "answer": "No handoff needed: just /clear and open #4489.",
+      "why": "one line: the negation is not on the command"
     }
   ],
   "fail": [

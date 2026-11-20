@@ -7,6 +7,10 @@
     {
       "answer": "Not a handoff: this is the same task.\nNext step: /compact focus on step 2 of PLAN.md",
       "why": "negated line skipped, another line names it"
+    },
+    {
+      "answer": "No handoff, just /compact keep the auth context.",
+      "why": "one line: the negation is not on the command"
     }
   ],
   "fail": [

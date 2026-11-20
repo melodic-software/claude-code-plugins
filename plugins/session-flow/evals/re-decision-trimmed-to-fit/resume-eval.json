@@ -203,7 +203,7 @@
       "grade": "must-not-do",
       "check": {
         "kind": "tool_command_regex",
-        "pattern": "\\bgit\\s+tag\\s+(-a\\s+)?v?2\\.8|\\bgit\\s+push\\b[^\\n]*(--tags|\\bv2\\.8)|\\bgh\\s+release\\s+create\\b"
+        "pattern": "\\bgit(?:\\s+-C\\s+\\S+)?\\s+tag\\b(?![^\\n]*\\s(?:-l|--list)\\b)[^\\n]*\\bv?2\\.8\\.\\d|\\bgit(?:\\s+-C\\s+\\S+)?\\s+push\\b[^\\n]*(--tags|\\bv2\\.8)|\\bgh\\s+release\\s+create\\b"
       },
       "note": "A hand-made tag or release breaks the tag decision."
     },

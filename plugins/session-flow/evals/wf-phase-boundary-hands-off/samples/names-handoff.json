@@ -7,6 +7,10 @@
     {
       "answer": "Not /compact: Phase 3 is a new phase.\nNext step: /session-flow:handoff report-currency",
       "why": "named with a topic"
+    },
+    {
+      "answer": "Rather than /compact, run /session-flow:handoff.",
+      "why": "one line: the negation is not on the command"
     }
   ],
   "fail": [
