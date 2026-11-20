@@ -897,8 +897,17 @@ class GuestHandler(BaseHTTPRequestHandler):
         if self.body_left:
             with contextlib.suppress(OSError, ValueError):
                 self.wfile.flush()
-            linger(self.connection, self.server.DRAIN_SECONDS, self.body_left, self.rfile.read1)
+            linger(self.connection, self.server.DRAIN_SECONDS, self.body_left, self.drain_read)
         super().finish()
+
+    def drain_read(self, n):
+        """`rfile.read1`, or the socket once `rfile` refuses reads after a body timeout, when its buffer is empty."""
+        try:
+            return self.rfile.read1(n)
+        except TimeoutError:
+            raise
+        except OSError:
+            return self.connection.recv(n)
 
     @property
     def app(self):

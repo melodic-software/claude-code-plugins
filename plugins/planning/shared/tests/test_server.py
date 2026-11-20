@@ -825,6 +825,19 @@ class TestRawRequests(ServerCase):
         self.assertTrue(closed)
         self.assertLess(took, 4.0)
 
+    def test_a_body_that_times_out_is_drained_while_the_client_still_sends_it(self):
+        """After a body timeout the handler's reader refuses reads, so the drain falls back to the socket: the rest of
+        the body the client sends after the 408 meets no reset."""
+        with mock.patch.object(session, "BODY_SECONDS", 1.0), socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(f"POST /api/join HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n".encode() + b'{"name"')
+            got = b""
+            while chunk := s.recv(4096):
+                got += chunk
+            self.assertEqual(status_and_headers(got)[0], 408)
+            s.sendall(b"x" * 92)
+            time.sleep(0.3)
+            s.sendall(b"x")
+
     def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
         _, ann = self.join("Ann")  # only a joined person's report waits for its body
         with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
