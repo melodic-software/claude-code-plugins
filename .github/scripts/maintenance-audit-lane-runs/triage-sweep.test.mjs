@@ -554,7 +554,7 @@ test("a drift-shaped github-actions issue is a candidate; any other github-actio
   );
 });
 
-test("a drift candidate is dispatched only when GraphQL shows no one but github-actions[bot] edited it", async () => {
+test("a drift candidate only github-actions[bot] edited is skipped, since the broker refuses its dispatch; one someone else edited is skipped before its comments", async () => {
   const issues = [driftIssue(1), driftIssue(2), driftIssue(3)];
   const editors = {
     1: { editor: null, lastEditedAt: null },
@@ -574,10 +574,30 @@ test("a drift candidate is dispatched only when GraphQL shows no one but github-
     return gh.call(method, path, body);
   };
   const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
-  assert.deepEqual(result.dispatched, [1, 2]);
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(result.refused, [1, 2]);
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(gh.writes, [], "no dispatch, state comment or Work status write");
   assert.deepEqual(result.failed, []);
   assert.ok(reads.includes("spec 3"), "the human-edited issue's edit history was read");
-  assert.ok(!reads.some((p) => p.startsWith("/repos/o/r/issues/3/")), "the human-edited issue is skipped before its comments are read");
+  assert.ok(!reads.some((p) => p.startsWith("/repos/o/r/issues/")), "every drift issue is skipped before its comments are read");
+});
+
+test("a drift issue with two refused runs on record is skipped, never handed off", async () => {
+  const issues = [driftIssue(1)];
+  const gh = fakeGitHub({
+    issues,
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 12], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "failure" }, 12: { status: "completed", conclusion: "failure" } },
+  });
+  const call = (method, path, body) =>
+    method === "POST" && path === "/graphql" && body?.variables?.number !== undefined
+      ? { data: { repository: { issue: { title: issues[0].title, body: issues[0].body, author: { __typename: "Bot", databaseId: BOT.id }, editor: null, lastEditedAt: null, comments: { totalCount: 0, nodes: [] } } } } }
+      : gh.call(method, path, body);
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.deepEqual(result.refused, [1]);
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(gh.writes, []);
 });
 
 // Row S3: an intake comment with no verdict label left the issue untriaged.

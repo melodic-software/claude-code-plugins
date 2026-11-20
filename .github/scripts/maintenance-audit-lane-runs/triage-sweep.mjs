@@ -23,7 +23,10 @@
 // sweep's can quote fork-controlled log lines), but for a trusted
 // upstream-drift issue (admit.mjs driftIssueId): its shape is read from the
 // listing (driftShaped) and its edit history from one GraphQL read before
-// anything else, and one that fails it is skipped. An issue a workflow's
+// anything else, and one that fails it is skipped. One that passes is skipped
+// too while the token broker refuses this job's dispatch for an issue
+// github-actions[bot] wrote (untrusted-actor), so no run spends the model on
+// it and none counts toward the hand-off. An issue a workflow's
 // GITHUB_TOKEN opens starts no intake run, so this dispatch is a drift
 // issue's only way in. The ci-workflows reusable hands the body to intake's
 // triage model, so the filer (scripts/upstream-drift-issues.sh) writes no
@@ -402,7 +405,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], refused: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
@@ -435,8 +438,13 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (result.dispatched.length >= MAX_DISPATCHES && result.handed.length >= MAX_HANDED) break;
     if (neverCommented(issue) && result.dispatched.length + result.failed.length >= MAX_DISPATCHES) continue;
     try {
-      if (!authorIds.has(String(issue.user?.id)) && driftIssueId(await specOf(call, repo, number)) === null) {
-        console.log(`triage-sweep: #${number} skipped: it has the drift-issue shape, but someone other than github-actions[bot] last edited it`);
+      if (!authorIds.has(String(issue.user?.id))) {
+        if (driftIssueId(await specOf(call, repo, number)) === null) {
+          console.log(`triage-sweep: #${number} skipped: it has the drift-issue shape, but someone other than github-actions[bot] last edited it`);
+          continue;
+        }
+        result.refused.push(number);
+        console.log(`triage-sweep: #${number} skipped: the token broker refuses intake for an issue github-actions[bot] wrote (untrusted-actor)`);
         continue;
       }
       const comments = [];
@@ -634,7 +642,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Skipped as the broker refuses them: ${numbers(result.refused)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),
