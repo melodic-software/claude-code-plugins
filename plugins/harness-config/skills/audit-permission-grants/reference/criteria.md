@@ -266,14 +266,15 @@ for the keys listed before that release.
 ## P5: Malformed Tool(content) rule [error]
 
 **What**: A `permissions.allow` entry with text after the closing parenthesis, such as `Bash(ls) x`.
-Parentheses inside the specifier are literal (`Edit(./Finance (2024)/**)` is one rule). Text after
-the specifier is not.
+The detector reads parentheses inside the specifier as part of it (`Edit(./Finance (2024)/**)` is
+one rule) and text after the specifier as a malformed rule.
 
 **How to check**: the detector walks each allow rule with the shared token grammar and reports a
 remainder that is not another rule.
 
-**Why**: Claude Code reports this shape as invalid settings. A scan that kept only the token would
-call `Bash(ls) x` a narrow `Bash(ls)` grant. Pointer: when deciding a rule's shape, fetch
+**Why**: a scan that kept only the token would call `Bash(ls) x` a narrow `Bash(ls)` grant, which
+is not the rule the file holds. Pointer: when deciding a rule's shape, and how Claude Code treats a
+malformed one, fetch
 [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
 live.
 

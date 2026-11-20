@@ -433,15 +433,13 @@ Any finding that rests on an `ask` rule prompting under auto mode carries this c
 words: we treat a content-scoped ask rule as checked ahead of the classifier, so an action it
 matches always reaches a human prompt in auto mode and never gets a classifier approval.
 
-That mechanic is documented on the auto mode config page, not the permissions page. The permissions
-page covers the related case of an ask rule matching one subcommand of a compound command or a
-subshell, including the version that fixed it; read it there. It is not a claim that every ask-rule
-miss is fixed.
+For the mechanic, read the auto mode config section the pointer names; for an ask rule matching one
+subcommand of a compound command, read the permissions section. The caveat is not a claim that every
+ask-rule miss is covered.
 
-Upstream issue **#42797**, about auto mode ignoring `permissions.ask`, is closed. **#83766** remains
-open and still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This
-plugin follows the auto-mode config page, the source with a stated contract. A reader acting on an
-`ask` finding should know #83766 is still open.
+Where an upstream issue reports `permissions.ask` patterns auto-approved under auto mode (issues
+**#42797** and **#83766**), this plugin follows the auto-mode config page, the source with a stated
+contract. A reader acting on an `ask` finding checks both issues' current state.
 
 **What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
 surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use

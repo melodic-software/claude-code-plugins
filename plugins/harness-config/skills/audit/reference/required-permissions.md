@@ -123,7 +123,6 @@ native-Windows workstation, where we treat the OS-level remedy as unavailable.
 - **Pointer**: before recommending the sandbox, fetch
   [tools reference: preview limitations](https://code.claude.com/docs/en/tools-reference#preview-limitations)
   live for the native-Windows status.
-- **Recheck trigger**: that section stops listing sandboxing as unsupported on Windows.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary, *against this threat
 model*.** It can inspect the command string and deny the call, and a hook exiting 2 blocks a call an
@@ -235,8 +234,6 @@ with this rule is not flagged for lacking a bare `Bash(git push)` rule.
 - **Pointer**: when deciding whether a rule covers the bare command, fetch
   [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
   live.
-- **Recheck trigger**: that section stops treating a trailing space and `*` as covering the bare
-  command.
 
 ## Relation to the standards permission floor
 

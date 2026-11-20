@@ -189,8 +189,7 @@ of your own, against the plugin data directory.** (Pointer: when deciding where 
 resolves, fetch
 [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
 live; for why an inline command against the data directory is avoided, read the eval-trace
-evidence in melodic-software/claude-code-plugins#12039. Recheck trigger: a later eval trace shows an inline command against the data
-directory running undenied.)
+evidence in melodic-software/claude-code-plugins#12039.)
 
 We key the report per project because one data directory serves every project on the machine, so
 a fixed `last-audit.md` would be silently overwritten by the next run from any other root, this

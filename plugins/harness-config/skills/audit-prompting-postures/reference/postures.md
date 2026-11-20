@@ -60,14 +60,11 @@ carries the Sonnet 5.5 condition.
   (P8) and
   [verification on coding tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks)
   (P13).
-- **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
-  covers self-started review rounds, which re-opens P12's model condition.
+- **Recheck trigger**: another model's subpage covers self-started review rounds, which re-opens
+  P12's model condition.
 
-That trigger fired on 2026-11-09 and P12's condition stands. The Fable 5.2 subpage reports Fable
-5.2 starting subagents to review its own work, at the effort levels the pointer below names, and
-prescribes no remedy for that observation. The section's general delegation advice, to review the
-lines that invite delegation and, if needed, the spawn tool's description, is P1's subject, and
-nothing in the section recommends a steer on where the run ends.
+That trigger fired on 2026-11-09 and P12's condition stands: we read the Fable 5.2 section below as
+P1's subject, delegation, and not as a steer on where the run ends.
 
 - **Pointer**: the Fable 5.2 subpage's
   [set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).

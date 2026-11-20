@@ -351,21 +351,21 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
     flagging: a skill or agent that exists *only* for the content's concern loads it exactly when it
     is relevant, and is not a finding.
 - **Remediate:** move it to a skill or a path-scoped rule that loads on demand. **A destination
-  qualifies only if it defers loading.** `@path` imports do not, so a split into imports is an
-  organizational change and not a context saving, and proposing one satisfies this check's letter
-  while changing the load profile not at all. **State the move cost with the recommendation:** a
-  `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
-  read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md` (or the `AGENTS.md` read natively, whether in place of a `CLAUDE.md` or alongside
-  one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  qualifies only if it defers loading.** We count an `@path` import as loading with the file that
+  imports it, so a split into imports is an organizational change and not a context saving, and
+  proposing one satisfies this check's letter while changing the load profile not at all. **State
+  the move cost with the recommendation:** a `paths:`-scoped rule or a nested `CLAUDE.md` is lost
+  after compaction until a matching file is read again, so content that must survive compaction
+  stays unscoped or in the project-root `CLAUDE.md` (or the `AGENTS.md` read natively, whether in
+  place of a `CLAUDE.md` or alongside one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
   adds, `name` plus the combined `description` and `when_to_use` truncated at the per-entry cap
   (`/playbooks:skill-authoring` `## Descriptions` states it; `/skill-quality:check` enforces it), is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.
-  The only field that keeps a description out of context is `disable-model-invocation: true`, which
-  also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
-  does not reach plugin skills at all. State the entry as a cost, not a threshold. Whether a corpus
-  is over its listing budget is a different question and not this check's.
+  Count that entry for a new skill unless it sets `disable-model-invocation: true`, and before
+  proposing that field, read what it and the other invocation controls do at the skills sections
+  the Source names. State the entry as a cost, not a threshold. Whether a corpus is over its
+  listing budget is a different question and not this check's.
   **Content taken out of an agent definition needs an agent-reachable destination.** A subagent runs
   in its own context, inheriting no path-scoped rule and being told of none
   (<https://code.claude.com/docs/en/sub-agents>), so such a rule reaches a dispatch only if that
@@ -383,7 +383,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   away from the thing it governs, is I16, and an instruction can be correctly deferred here and
   still misplaced there.
 - **Source:** best-practices, "Keep CLAUDE.md short" (broad applicability, skills for
-  sometimes-relevant content); memory, "Import additional files" (imports load at launch);
+  sometimes-relevant content); memory, "Import additional files" (when imports load);
   context-window, "What survives compaction", for the per-destination cost; skills, "Frontmatter
   reference" (description loading, the listing truncation, whose value this check reads from
   `/playbooks:skill-authoring` `## Descriptions`, and the invocation-control fields) and "Override skill visibility from settings"
@@ -1399,10 +1399,10 @@ since each prescribes a request the model refuses.
   describe or forbid it**, such as this row, a model-adaptation chapter, or a verification
   record quoting it, on the same audience test I8-b applies: any arm prescribed inside an
   operative directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
-  keyword.** Instruction text telling a reader to include it in a typed prompt runs one task as a
-  workflow without changing the session's effort level, so no effort reaches the request and the
-  rejected pairing never assembles. **A thinking-disable surface named with no effort level in reach
-  of it, on the Opus 5 arm only**, where the pairing is what fails. On the second arm that is the
+  keyword.** We treat instruction text telling a reader to include it in a typed prompt as leaving
+  the session's effort level unchanged, so no effort reaches the request and the rejected pairing
+  never assembles; what the keyword does is read at the workflows pointer in the Source. **A
+  thinking-disable surface named with no effort level in reach of it, on the Opus 5 arm only**, where the pairing is what fails. On the second arm that is the
   finding itself, so this fence is scoped to the arm that earns it rather than to the row.
 - **Source:** effort, its Opus 5 section (the `xhigh`/`max` disable rejection). Corroborated at
   thinking-troubleshooting, which supplies the model range and the per-request enforcement. The
@@ -1487,9 +1487,10 @@ Severity `warning`.
   reach rather than covered. **Re-scope when** a Claude Code page covers what a mid-session
   thinking change costs.
 - **Why the thinking half is not I17-c, and why both can fire, on accepted changes only.** This
-  row asks what a change *costs*. A switch among the modes, or a change to `budget_tokens`,
-  restarts the cache when the new configuration is accepted and a turn runs under it. I17-c asks
-  whether a fixed budget is a valid control on the target model at all, and where it applies the
+  row asks what a change *costs*. We count a switch among the modes, or a change to
+  `budget_tokens`, as costing the cache only once the new configuration is accepted and a turn
+  runs under it; the cost itself is read at the thinking and prompt caching pointer in the Source.
+  I17-c asks whether a fixed budget is a valid control on the target model at all, and where it applies the
   cost claim may never materialize: an API request the model rejects with a validation error
   completes no turn, and a harness value the model silently ignores changes no configuration. In
   both cases the reader's actual outcome is I17-c's finding alone, and adding this row's cache-cost
@@ -1592,8 +1593,8 @@ Severity `warning` · Model scope: `sonnet-5`.
   relies on default tool reach depends on a disposition that configuration reduced, and the
   failure is silent: fewer tool calls, not an error.
 - **Remediate:** add an explicit tool nudge to the system prompt, describing which tools, when, and
-  why, or leave thinking on. Effort is a second lever: we treat `high` or `xhigh` as raising tool
-  use in agentic search and coding. Pointer: when sizing that lever, fetch
+  why, or leave thinking on. Effort is a second lever: offer `high` or `xhigh` as one. Pointer:
+  for what effort does to tool use, and when sizing that lever, fetch
   [effort, "Effort with tool use"](https://platform.claude.com/docs/en/build-with-claude/effort#effort-with-tool-use)
   live.
 - **Must NOT flag:** a thinking-disable with no tool dependence. A tool-dependent surface that
@@ -1711,9 +1712,8 @@ Tier `mechanical` · Severity `warning`.
   logic rather than a rejected request, which is a code-correctness matter this catalog does not
   audit. **Re-scope when** the stored transcript's content-block shape is documented.
 - **Must NOT flag: text scoped to a legacy manual thinking budget and to the final assistant
-  turn**, where the requirement is real. The page carves it out itself, and we treat the
-  enforcement as exactly that wide: only the last assistant turn, and only when the request has
-  thinking on. A
+  turn**. We fence exactly that scope, the last assistant turn of a request with thinking on,
+  because it is the legacy carve-out the Source's "Turn validation" keeps; read its extent there. A
   legacy-scoped instruction demanding a leading block on *every* assistant turn over-requires past
   its own source and still flags. The gate is the model's thinking mode plus the turn it names, not
   the sentence's confidence, and as in I17-c **the finding is the missing gate, never the
@@ -2010,12 +2010,13 @@ confident removals.
   it is legitimate precisely because it is the thing a count cannot see; a row that treated every
   model-side continuation trigger as a defect would refuse it too, and refuse the guide's own
   reasoning with it.
-- **Residency is a severity input, not an admission test.** A trigger in a `description` is resident
-  whenever the skill listing admits it, which is the default, since `disable-model-invocation: true`
-  also suppresses the description from context (pointer:
-  [Skills](https://code.claude.com/docs/en/skills#frontmatter-reference)). A
-  body-borne trigger costs context only once the skill loads, or at startup
-  in a subagent with the skill preloaded. Both are findings; the resident one is the more expensive to
+- **Residency is a severity input, not an admission test.** We count a trigger in a `description`
+  as resident whenever the skill listing admits it, which is the default;
+  `disable-model-invocation: true` is the frontmatter case that keeps it out (pointer: when
+  checking which fields and settings keep a description out of context, fetch
+  [Skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+  live). A body-borne trigger costs context only once the skill loads, or at startup in a subagent
+  with the skill preloaded. Both are findings; the resident one is the more expensive to
   leave.
 - **Remediate by moving the trigger, never by withdrawing the skill.** Flipping continuation skills
   to `disable-model-invocation: true` is the considered alternative and is refused: it costs every
