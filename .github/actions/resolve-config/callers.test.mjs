@@ -9137,7 +9137,6 @@ test("check-catalog keeps its 9-minute job bound with the install step under it"
 
 // --- lane transcripts: every model leg keeps its transcript, sealed ---
 
-// The read runner's model job uploads nothing (the test above).
 const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
 ]);
