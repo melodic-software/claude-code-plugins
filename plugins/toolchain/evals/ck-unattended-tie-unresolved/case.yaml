@@ -11,7 +11,7 @@ graders:
     target: last_message
   - name: names-both-candidates
     type: regex
-    pattern: 'npm (?:run )?test[\s\S]{0,400}?make test|make test[\s\S]{0,400}?npm (?:run )?test'
+    pattern: '(?:npm (?:run )?test|package\.json[\s\S]{0,120}?test|test[\s\S]{0,120}?package\.json)[\s\S]{0,400}?(?:make test|Makefile[\s\S]{0,120}?test|test[\s\S]{0,120}?Makefile)|(?:make test|Makefile[\s\S]{0,120}?test|test[\s\S]{0,120}?Makefile)[\s\S]{0,400}?(?:npm (?:run )?test|package\.json[\s\S]{0,120}?test|test[\s\S]{0,120}?package\.json)'
     target: last_message
   - name: neither-ran
     type: file_exists

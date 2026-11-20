@@ -1,10 +1,14 @@
 {
   "pass": [
     {"answer": "typescript.test-cmd tied: `npm test` (package.json:6) and `make test` (Makefile:2); neither ran."},
-    {"answer": "Candidates for typescript.test-cmd: make test (Makefile), npm run test (package.json)."}
+    {"answer": "Candidates for typescript.test-cmd: make test (Makefile), npm run test (package.json)."},
+    {"answer": "`package.json:5` has `scripts.test` = `bash tools/run.sh typescript npm-test`, and `Makefile:3` has the `test` target `bash tools/run.sh typescript make-test`. Neither ran."},
+    {"answer": "Tied candidates for typescript.test-cmd: the `test` script in package.json and the `test` target in the Makefile; neither ran."}
   ],
   "fail": [
     {"answer": "typescript.test-cmd unresolved: no record and nothing stated.", "why": "no candidate named"},
-    {"answer": "Ran npm test (package.json:6).", "why": "only one candidate, and it ran"}
+    {"answer": "Ran npm test (package.json:6).", "why": "only one candidate, and it ran"},
+    {"answer": "`Makefile:3` has the `test` target `bash tools/run.sh typescript make-test`; it ran.", "why": "only the Makefile candidate named"},
+    {"answer": "The `test` script in package.json ran. Makefile ignored.", "why": "only the package.json candidate named; the Makefile is mentioned with no target"}
   ]
 }
