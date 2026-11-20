@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "gather probes only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:orient"
+          }
+        }
+      ],
+      "why": "a read-only informant"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:handoff",
+            "args": "file report"
+          }
+        }
+      ],
+      "why": "carried out on a natural-language license"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "handoff"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ]
+}

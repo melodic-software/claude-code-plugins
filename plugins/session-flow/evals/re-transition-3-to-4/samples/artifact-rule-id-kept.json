@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "handoff": "## Current rules\n\n- [R4] Reindex only into the staging alias with `make reindex ALIAS=products-next`, then swap aliases with `make swap-alias`; never reindex into the live alias `products`, which serves search traffic.\n",
+      "why": "id kept"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Current rules\n\n- [R1] Reindex only into the staging alias with `make reindex ALIAS=products-next`, then swap aliases with `make swap-alias`; never reindex into the live alias `products`, which serves search traffic.\n",
+      "why": "renumbered"
+    }
+  ]
+}

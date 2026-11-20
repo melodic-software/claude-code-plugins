@@ -1,5 +1,6 @@
 {
   "name": "re-superseded-rule",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "drift"
@@ -17,6 +18,7 @@
       "guard/caps.py": "CAPS = {\"default\": 100}\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "budget-guard",
       "lane": "budget-guard",
       "hops": 22,

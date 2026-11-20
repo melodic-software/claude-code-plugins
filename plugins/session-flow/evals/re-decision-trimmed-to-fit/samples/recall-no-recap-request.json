@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Dispatched tag-release on release/2.8 for 2.8.0 and asked the data owners about settlement_region on the schema issue.",
+      "why": "acts, asks nothing"
+    },
+    {
+      "answer": "2.8.0 is out. What would you like me to do next?",
+      "why": "asks what is next after the work, not a recap"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Could you remind me what we were doing with the release?",
+      "why": "recap request"
+    },
+    {
+      "answer": "Where did we leave off on billing-sync?",
+      "why": "recap request"
+    }
+  ]
+}

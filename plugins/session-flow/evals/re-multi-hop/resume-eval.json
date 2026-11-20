@@ -1,5 +1,6 @@
 {
   "name": "re-multi-hop",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "design",
@@ -22,6 +23,7 @@
       "scripts/legacy/rotate_logs.sh": "#!/usr/bin/env bash\nset -euo pipefail\nfind logs -name '*.log' -mtime +7 -delete\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "drain-exit",
       "lane": "drain-exit",
       "hops": 2,
