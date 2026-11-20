@@ -169,7 +169,7 @@ function pic(uv: vec2): vec4 {
   }
   } else {
   if (at.x > 186.0 && at.y < 900.0) {
-  m = mix(m, 0.12, smoothstep(186, 194, at.x) * (1 - smoothstep(850, 895, at.y)))
+  m = mix(m, 0.22, smoothstep(186, 194, at.x) * (1 - smoothstep(850, 895, at.y)))
   }
   }
   if (abs(at.x - 280.0) < 84.0 && abs(at.y - 573.0) < 75.0) {
@@ -186,7 +186,7 @@ function pic(uv: vec2): vec4 {
   if (abs(at.x - 430.0) < 102.0 && abs(at.y - 686.0) < 116.0) {
   let cd = vec2(abs(at - vec2(430, 686)) - vec2(74, 88))
   let ch = 1 - smoothstep(21, 26, length(max(cd, vec2(0))) + min(max(cd.x, cd.y), 0))
-  m = mix(m, 0.24, ch)
+  m = mix(m, 0.36, ch)
   dc = vec3(mix(dc, vec3(0.012, 0.016, 0.042) * night, ch))
   }
   if (abs(at.x - 403.0) < 70.0 && abs(at.y - 850.0) < 5.0) {
@@ -197,8 +197,8 @@ function pic(uv: vec2): vec4 {
   dc = vec3(dc * (1 - led))
   }
   // The desk lamp, when on, shows the shade, the arm and the window trim beside it in their own warm light.
-  if (at.x > 470.0 && abs(at.y - 580.0) < 76.0) {
-  let lp = 0.5 * state.at(vec2(3, 0)).x * pow(clamp(1 - ell(at, vec2(516, 578), vec2(40, 75)), 0, 1), 1.3)
+  if (at.x > 430.0 && abs(at.y - 600.0) < 96.0) {
+  let lp = 0.5 * state.at(vec2(3, 0)).x * pow(clamp(1 - ell(at, vec2(506, 600), vec2(80, 96)), 0, 1), 1.1)
   m = m + (1 - m) * lp
   dc = vec3(dc * (1 - lp) + vec3(0.05, 0.025, 0) * (lp * night))
   }
@@ -221,15 +221,15 @@ function pic(uv: vec2): vec4 {
   if (at.y > 590.0 && at.x > 1066.0 && at.x < 1402.0) {
   let sd = 1 - smoothstep(1108, 1112, at.x)
   let top = sbox(at, vec2(1256, 608), vec2(146, 8.5), 1)
-  m = mix(mix(m, 0.08 + 0.05 * now_tv, sd), 0.1 + 0.12 * now_tv, top)
+  m = mix(mix(m, 0.14 + 0.05 * now_tv, sd), 0.17 + 0.12 * now_tv, top)
   dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), sd))
   dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.1 * now_tv), top))
   }
   if (at.x > 1111.5 - 0.075 * (at.y - 430.0) && at.x < 1296.0 && at.y > 421.0 && at.y < 597.0) {
-  m = 0.16
+  m = 0.23
   }
   if (abs(at.x - 1321.0) < 23.0 && at.y > 497.0 && at.y < 597.0) {
-  m = 0.14
+  m = 0.22
   }
   if (abs(at.x - 1232.0) < 60.0 && at.y < 432.0) {
   let cat = 1 - smoothstep(0.95, 1.05, min(ell(at, vec2(1231, 425), vec2(49, 44)), ell(at, vec2(1254, 388), vec2(20, 21))))
@@ -269,7 +269,7 @@ function pic(uv: vec2): vec4 {
   let du = clamp(1 - dt * 2, 0, 1) * (1 - 0.3 * smoothstep(1200, 1340, at.x))
   let dw = 1 - dt
   let dg = (0.007 + 0.05 * dw * dw * (1 - 0.3 * smoothstep(1200, 1340, at.x))) * (1 - sd) * now_tv * (1 - 0.6 * max(now_tape, now_console))
-  m = 0.08 + now_tv * mix(-0.008, 0.05, sd)
+  m = 0.15 + now_tv * mix(-0.008, 0.05, sd)
   dc = vec3((vec3(0, 0.004, 0.012) + vec3(0, 0.006, 0.023) * sd + vec3(dg)) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * now_tv * mix(0.01 + 0.085 * du * du, 0.05, sd)))
   }
   if (at.y > 900.0) {
@@ -289,13 +289,13 @@ function pic(uv: vec2): vec4 {
   let gh = vec2(abs(at - vec2(1071, 753)) - vec2(1, 16))
   let gb = min(length(max(gq, vec2(0))) + min(max(gq.x, gq.y), 0) - 18, length(max(gh, vec2(0))) + min(max(gh.x, gh.y), 0) - 8)
   let gm = max(neck, 1 - smoothstep(-1, 1, gb))
-  m = mix(m, 0.1 + 0.16 * now_tv, gm)
+  m = mix(m, 0.15 + 0.16 * now_tv, gm)
   dc = vec3(mix(dc, vec3(0, 0.004, 0.012) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), gm))
   }
   } else {
   // The door: its panels kept, a little of the television's light, and a warm strip of hallway light in the gap.
   if (at.y > 198.0 && at.y < 850.0) {
-  m = 0.26
+  m = 0.33
   let el = vec2((at - vec2(1208, 485)) * 0.00179)
   let lq = clamp(1 - dot(el, el), 0, 1)
   dc = vec3(vec3(0, 0.012, 0.045) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.13 * lq * lq * now_tv))
@@ -657,8 +657,8 @@ acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
   let stand = mix(8.8, 14.5, clamp((at.y - 557) / 43, 0, 1))
   let body = (1 - smoothstep(stand - 1, stand, abs(at.x - 1376))) * smoothstep(556, 557.5, at.y)
   wall = wall * (1 - 0.85 * body)
-  let far = clamp(1 - ell(at, vec2(1376, 530), vec2(78, 108)), 0, 1)
-  let g1 = 0.26 * pow(far, 1.7) * wall * shelf * on
+  let far = clamp(1 - ell(at, vec2(1376, 530), vec2(82, 110)), 0, 1)
+  let g1 = 0.34 * pow(far, 1.25) * wall * shelf * on
   acc = vec4(vec4(acc.rgb * (1 - g1) + vec3(0.58, 0.25, 0.94) * g1, acc.a * (1 - g1) + g1))
   let near = clamp(1 - ell(at, vec2(1376, 536), vec2(30, 56)), 0, 1)
   let g2 = 0.2 * pow(near, 1.4) * wall * shelf * on

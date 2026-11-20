@@ -27,3 +27,4 @@ bump: minor
 - `/bedroom reset` also shows the room alone for seven seconds and puts the time, weather, signal, hallway, shader and sound choices back to the plugin's settings.
 - Settings saved by 0.2 under `bedroom:saved` load unchanged.
 - On an overcast or stormy day the room is lit less and flatter, and late at night the light low in the door's gap is fainter.
+- At dusk the desk, the chair, the dresser, the stand under the television and the door read in the shadows, the desk lamp lights more of the desk, and the lava lamp's glow on the wall is wider.
