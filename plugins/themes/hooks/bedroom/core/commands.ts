@@ -93,7 +93,9 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
     if (word === 'instant') {
       return isOn ? 'instant switching is on: the television changes without sending the room again' : 'instant switching is off: every change sends the room again'
     }
-    return isOn ? 'the shader is on: the switches change without sending the room again' : 'the shader is off: the hand-drawn room shows alone, and every change sends it again'
+    return isOn
+      ? 'the shader is on: the switches change without sending the room again'
+      : 'the shader is off for this session, for diagnosis: the hand-drawn room shows alone, with no fades, clock or lamp light, and every change sends it again'
   }
   if (word === 'glass' || word === 'blur') {
     const amount = Number(value)

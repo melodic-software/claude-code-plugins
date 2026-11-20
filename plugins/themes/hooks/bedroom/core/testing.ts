@@ -1,4 +1,4 @@
-import type { On } from 'claude-code'
+import type { On, ProcessSpawnChunk, ProcessSpawnResult } from 'claude-code'
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
 
 import { STORE_KEY } from './saved.js'
@@ -95,6 +95,9 @@ export async function startRoom($: Engine, on: On, options: { saved?: unknown; n
     on('session.usage', () => ({ value: { startedAt: clock.now(), context: { window: 200_000, tokens: 20_000, percent: 10 }, rateLimits: [] } }))
     on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
     on('audio.play', () => ({ value: undefined }))
+    on('process.spawn', async function* (): AsyncGenerator<ProcessSpawnChunk, ProcessSpawnResult> {
+      return { code: 0, signal: null }
+    })
   }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   const first = options.early === true ? await $.ui.mount({ ...BACKDROP }) : undefined

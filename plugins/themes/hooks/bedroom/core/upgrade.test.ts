@@ -49,6 +49,7 @@ test('settings stored by 0.2.1 load with switches, dim, titles, panels and windo
   for (const text of ['dim 30', 'glass 40', 'blur 8']) expect((await card.find({ type: 'Text', text }))?.text).toBe(text)
   expect((await card.find({ key: 'switch-tv' }))?.props.label).toBe('tv: off')
   expect((await card.find({ key: 'switch-lava' }))?.props.label).toBe('lava: on')
+  await card.press({ key: 'titles' })
   expect((await card.find({ key: 'title-pennant' }))?.props.value).toBe('SILVER FOXES')
   await card.unmount()
   await room.unmount()

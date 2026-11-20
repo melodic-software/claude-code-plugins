@@ -7,7 +7,9 @@ export const STORE_KEY = 'bedroom:saved'
 
 /**
  * What is kept across sessions: the switches, how far back the room sits, the window's shape for clicks, the panels,
- * the titles, and the overrides a command stores. A value 0.2 stored, without the newer keys, loads as it was.
+ * the titles, the sound's volume and recordings, and the overrides a command stores. A value 0.2 stored, without the
+ * newer keys, loads as it was. `shader` is held for the session only: shader off is for diagnosis, so a new session
+ * starts with the shader on.
  */
 export type Saved = {
   state: State
@@ -22,7 +24,15 @@ export type Saved = {
   signal?: boolean
   hall?: boolean
   shader?: boolean
+  /** The sound's volume, 0 to 100. */
+  volume?: number
+  /** Which of two recordings each kind of sound plays, by kind; 1 when absent. */
+  picks?: Partial<Record<string, 1 | 2>>
 }
+
+/** The sound's volume when none is saved, 0 to 100. */
+export const DEFAULT_VOLUME = 70
+export const volumeOf = (kept: Saved): number => kept.volume ?? DEFAULT_VOLUME
 
 /** The window's width over its height. The backdrop fills the whole app window, so a click is mapped with it. */
 export const DEFAULT_ASPECT = 2000 / 1062
@@ -44,13 +54,19 @@ function titlesOf(value: unknown): Titles {
   return Object.fromEntries(TITLE_KEYS.filter(key => typeof given[key] === 'string').map(key => [key, given[key]]))
 }
 
-/** The saved value a stored one reads as: each known key checked, a missing or wrong one at its default. */
+/** The stored recordings that are 1 or 2. */
+function picksOf(value: unknown): Saved['picks'] {
+  if (typeof value !== 'object' || value === null) return undefined
+  return Object.fromEntries(Object.entries(value).filter(([, pick]) => pick === 1 || pick === 2))
+}
+
+/** The saved value a stored one reads as: each known key checked, a missing or wrong one at its default, `shader` dropped. */
 export function savedOf(stored: unknown): Saved {
   const base = defaults()
   if (typeof stored !== 'object' || stored === null) return base
-  const given = stored as Partial<Saved>
+  const { shader: _session, volume, picks, ...given } = stored as Partial<Saved>
   const state = typeof given.state === 'object' && given.state !== null ? given.state : {}
-  return {
+  const loaded: Saved = {
     ...given,
     state: { ...base.state, ...state, posters: 'plain' },
     dim: number(given.dim, 0),
@@ -59,6 +75,10 @@ export function savedOf(stored: unknown): Saved {
     blur: number(given.blur, 0),
     titles: titlesOf(given.titles),
   }
+  if (typeof volume === 'number' && Number.isInteger(volume) && volume >= 0 && volume <= 100) loaded.volume = volume
+  const chosen = picksOf(picks)
+  if (chosen !== undefined) loaded.picks = chosen
+  return loaded
 }
 
 /** Reads the store. */
@@ -67,10 +87,11 @@ export async function load($: EngineInterface): Promise<Saved> {
   return saved
 }
 
-/** Changes what is kept at once and writes the store; a key given as undefined is cleared. */
+/** Changes what is kept at once and writes the store, without `shader`; a key given as undefined is cleared. */
 export function save($: EngineInterface, patch: Partial<Saved>): Promise<void> {
   const next: Saved = { ...saved, ...patch }
   for (const key of Object.keys(patch) as (keyof Saved)[]) if (patch[key] === undefined) delete next[key]
   saved = next
-  return $.store.set(STORE_KEY, saved).then(() => undefined)
+  const { shader: _session, ...kept } = saved
+  return $.store.set(STORE_KEY, kept).then(() => undefined)
 }

@@ -12,6 +12,8 @@ export type BedroomCard = {
   seen?: number
   /** What the last press on the card answered. */
   said?: string
+  /** The four title fields show, as the card's last row. */
+  titles?: boolean
 }
 
 declare module 'claude-code' {

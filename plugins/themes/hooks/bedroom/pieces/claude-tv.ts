@@ -110,7 +110,7 @@ async function signal(ctx: Ctx, args: readonly string[]): Promise<string> {
   await ctx.save({ signal: isOn })
   await ctx.send(`/bedroom signal ${isOn ? 'on' : 'off'}`)
   return isOn
-    ? 'the television reacts to Claude: a soft flicker while a turn runs, a rolling band as the context fills. It shows 3 to 5 seconds after a change'
+    ? 'the television reacts to Claude: a soft flicker while a turn runs. It shows 3 to 5 seconds after a change'
     : 'the television no longer reacts to Claude'
 }
 
