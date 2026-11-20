@@ -47,8 +47,9 @@ listed the repositories that hold records.
    and each layer's before-values are the after-values of the layer below, so after the last layer
    the file holds what it held before the first apply. A run that put back a file a moved record
    waited behind exits 3 and says how many records wait and to run reset again; a no at any layer
-   keeps the file and every record. A gone subfolder or linked worktree of a repository still there
-   is only kept.
+   keeps the file and every record. An apply to that root file says so in its preview, in one line
+   naming each such record and its profile, found by the same detection reset uses. A gone
+   subfolder or linked worktree of a repository still there is only kept.
 5. **The write answers one preview.** The `--json` preview carries `previewId`; a caller that
    previewed in one process and writes in another passes it, and the write refuses, writing
    nothing, when what it would write differs from that preview.

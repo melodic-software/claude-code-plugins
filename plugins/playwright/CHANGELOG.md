@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.23] - 2026-11-20
+
+### Removed
+
+- The playwright skill no longer ships `reference/e2e-orchestrator-recipe.md`, its how-to for .NET Aspire, docker compose, tilt and Blazor. The skill's quick start, conventions and `reference/sessions.md` already carry the generic session flow, cleanup and per-worktree session names. The skill's routing row for the page and the network-mocking pointer to it are removed, and the update action's note and the README no longer name it.
+
 ## [2.0.22] - 2026-11-19
 
 ### Changed

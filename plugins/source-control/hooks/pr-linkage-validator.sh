@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Shared pr-issue-linkage BODY VALIDATOR. Sourced (not executed) — the single
-# in-repo transcription of the melodic-software/ci-workflows pr-issue-linkage
-# validator's semantics, consumed by every hook that judges a PR body against
+# in-repo transcription of the upstream CI pr-issue-linkage
+# validator's semantics (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/pr-body-convention/README.md), consumed by every hook that judges a PR body against
 # that check:
 #   - pr-body-linkage-gate.sh   (Bash surface: `gh pr create` / `gh pr edit`)
 #   - pr-linkage-mcp-gate.sh    (MCP surface: GitHub MCP create/update PR)

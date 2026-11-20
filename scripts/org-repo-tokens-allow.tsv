@@ -61,7 +61,6 @@ plugins/harness-memory/skills/audit/reference/official-guidance.md	melodic-softw
 plugins/harness-memory/skills/audit/scripts/nested-agents-check.sh	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
 plugins/harness-ops/schemas/harness-ops.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/harness-ops/skills/audit-performance/reference/known-performance-issues.md	melodic-software/claude-code-plugins	2	names this marketplace's own repository (install, issue target or example)
-plugins/harness-ops/skills/behavior-probes/cases/lib/bot-thread-repo.sh	melodic-software/probe-repo	1	names another repository of the publishing organization in prose or an example
 plugins/harness-ops/skills/changelog/context/decisions.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/harness-ops/skills/changelog/context/read-actions.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/harness-ops/skills/observability/context/operator-setup-retention.md	melodic-software/provisioning	2	names another repository of the publishing organization in prose or an example
@@ -77,8 +76,8 @@ plugins/kindle-dedrm/README.md	melodic-software/claude-code-plugins	1	names this
 plugins/knowledge/schemas/knowledge.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/markdown-format/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
 plugins/miro/README.md	melodic-software/dotfiles	2	link to another repository of the publishing organization, cited for a reader
-plugins/miro/server/package-lock.json	melodic-software/miro-mcp	2	names another repository of the publishing organization in prose or an example
-plugins/miro/server/package.json	melodic-software/miro-mcp	1	names another repository of the publishing organization in prose or an example
+plugins/miro/server/package-lock.json	melodic-software/miro-mcp	2	npm package name of the bundled server (publisher metadata)
+plugins/miro/server/package.json	melodic-software/miro-mcp	1	npm package name of the bundled server (publisher metadata)
 plugins/multi-agent/schemas/multi-agent.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/mutation-testing/reference/detector-findings.md	melodic-software/standards	2	names another repository of the publishing organization in prose or an example
 plugins/mutation-testing/schemas/mutation-testing.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
@@ -125,7 +124,6 @@ plugins/session-flow/skills/step-away/SKILL.md	melodic-software/claude-code-plug
 plugins/skill-quality/reference/evals.schema.json	melodic-software.github.io/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/skill-quality/schemas/skill-quality.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/songwriting/schemas/songwriting.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
-plugins/source-control/hooks/pr-linkage-validator.sh	melodic-software/ci-workflows	1	names another repository of the publishing organization in prose or an example
 plugins/source-control/reference/config-resolution.md	melodic-software/claude-code-plugins	11	raw link to this marketplace's own published doc
 plugins/source-control/reference/providers/github/babysit-prs/safety.md	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
 plugins/source-control/reference/providers/github/pull-request/merge.md	melodic-software/claude-code-plugins	2	names this marketplace's own repository (install, issue target or example)
@@ -141,7 +139,6 @@ plugins/source-control/skills/babysit-prs/reference/orchestration.md	melodic-sof
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/ci-workflows	4	link to another repository of the publishing organization, cited for a reader
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
-plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py	melodic-software/standards	1	names another repository of the publishing organization in prose or an example
 plugins/source-control/skills/pull-request/reference/create.md	melodic-software/claude-code-plugins	5	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/merge.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/ready-for-review.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
@@ -173,10 +170,8 @@ plugins/wizard/schemas/wizard.schema.json	melodic-software/claude-code-plugins	1
 plugins/work-items/reference/item-content-trust.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/reference/label-taxonomy.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/reference/label-taxonomy.md	melodic-software/github-iac	1	names another repository of the publishing organization in prose or an example
-plugins/work-items/reference/permission-preflight.md	melodic-software/standards	1	names another repository of the publishing organization in prose or an example
 plugins/work-items/reference/work-class-labels.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/schemas/work-items.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/work-items/skills/decompose/context/container-lifecycle.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
-plugins/work-items/skills/triage/scripts/check-body.mjs	melodic-software/standards	1	names another repository of the publishing organization in prose or an example
 plugins/work-items/skills/work/SKILL.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/writing/schemas/writing.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

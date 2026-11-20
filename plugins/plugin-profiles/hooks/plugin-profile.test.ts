@@ -654,7 +654,7 @@ test('#17354: after a complete reset, picking Reset says there is nothing to res
   const done = JSON.parse(resetPreview([]).stdout as string)
   const resetDry = { exitCode: 0, stdout: JSON.stringify({ ...done, question: null, unchangedSinceReset: ['/p/.claude/settings.local.json'] }) }
   const w = world(on, [], { resetDry })
-  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: each file reset restored earlier is unchanged since.')
+  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: each file reset already handled is unchanged since.')
   expect(w.asks).toEqual([])
   expect(resets(w)).toEqual([])
 })

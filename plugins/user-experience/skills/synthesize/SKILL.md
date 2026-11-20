@@ -87,4 +87,5 @@ after the record.
 - Never copy a participant's name, contact details or an identifying quote into the record; refer
   to sources by session or document id.
 - Analytics shows what happened, not why; a theme resting on analytics alone says so.
-- "Discovery" is never used bare: say "discovery phase" or "user research".
+- "Discovery" is never used bare: say "discovery phase" or "user research"
+  (`${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` "Body" gives the reason).

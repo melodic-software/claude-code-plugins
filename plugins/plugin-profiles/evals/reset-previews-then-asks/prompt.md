@@ -1,11 +1,11 @@
 ---
-description: "AC10 reset action: the scaffold makes the run's work folder a git folder whose settings.local.json holds one entry profile build wrote, with its record under .git/plugin-profiles and the pointer reset finds it by under the run's own config folder. The user asks in plain words to undo every profile on the machine and gives no yes. The skill fires, runs profiles.mjs reset --dry-run, and stops at a question: reset-previewed is with-only; no-write fails any apply, clear, reset, save or install run with --yes; asks-first reads the last message. With the skill, the question lists No before Yes (safe-answer-first) and marks one answer (Recommended) with the tool's reason for a person who asked for a reset (recommended-with-reason). Needs --scaffold --allow-tools Bash Skill."
+description: "AC10 reset action: the scaffold makes the run's work folder a git folder whose settings.local.json holds one entry profile build wrote, with its record under .git/plugin-profiles and the pointer reset finds it by under the run's own config folder. The user asks in plain words to undo every profile on the machine and gives no yes. The skill fires, runs profiles.mjs reset --dry-run, and stops at a question: reset-previewed is with-only; preview-lines-shown (with-only) needs the tool's preview lines, exactly as printed, before a question in the last message, so a summary or paraphrase in their place fails; no-write fails any apply, clear, reset, save or install run with --yes; asks-first reads the last message. With the skill, the question lists No before Yes (safe-answer-first) and marks one answer (Recommended) with the tool's reason for a person who asked for a reset (recommended-with-reason). Needs --scaffold --allow-tools Bash Skill."
 tags: [plugin-profiles, profile, reset, outcome, no-network]
 runs: 1
 max_turns: 12
 timeout_seconds: 300
 allowed_tools: [Skill, Bash, Read]
-expected_outcome: "The reset preview runs and is shown, and the reply asks whether to go ahead, No listed before Yes, one answer marked (Recommended) with the tool's one-sentence reason, writing nothing."
+expected_outcome: "The reset preview runs and its lines are shown exactly as printed, and then the reply asks whether to go ahead, No listed before Yes, one answer marked (Recommended) with the tool's one-sentence reason, writing nothing."
 ---
 
 I've been trying plugin profiles in a few repos and want to undo all of it. Put every folder on this machine back the way it was before any profile.

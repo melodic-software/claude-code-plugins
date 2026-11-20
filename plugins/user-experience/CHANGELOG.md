@@ -3,6 +3,14 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.22] - 2026-11-20
+
+### Changed
+
+- `reference/deliverable.md` states the rule against a bare "Discovery" with its reason: the word
+  fits both the lifecycle stage and the research activity. The five skills that carry the rule as
+  a gotcha keep it and point there for the reason.
+
 ## [0.4.21] - 2026-11-17
 
 ### Changed
