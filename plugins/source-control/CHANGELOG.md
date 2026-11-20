@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.5] - 2026-11-20
+
+### Changed
+
+- babysit-prs: the secondary-rate-limits pointer behind the worker concurrency cap no longer carries a recheck trigger. It stores no copied limit, so whoever re-sizes the cap fetches the section live.
+
 ## [13.1.4] - 2026-11-20
 
 ### Removed
