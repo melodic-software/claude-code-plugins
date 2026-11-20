@@ -207,7 +207,7 @@ export function sweepFingerprint({ api, repository, runId, settings, digest, now
       try {
         commented = new Set(await api.listCommentsSince(new Date(previous.takenAt - COMMENT_SKEW_MS).toISOString().replace(/\.\d{3}Z$/, "Z")));
       } catch (error) {
-        log(`sweep fingerprint: the comments since the previous tick could not be read (${error.message}); every PR is read in full this tick`);
+        log(`::warning::sweep fingerprint: the comments since the previous tick could not be read (${error.message}); every PR is read in full this tick`);
         return;
       }
       for (const [number] of candidates) {
