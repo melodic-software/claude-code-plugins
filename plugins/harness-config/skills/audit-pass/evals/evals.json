@@ -371,6 +371,19 @@
         "Names at least the suppression consequence — the team layer is the tracked layer, so no suppression is enactable without a repository — rather than refusing without a stated cost",
         "Does NOT invent a scan baseline, Class 3 fallback, or git-status substitute in order to proceed"
       ]
+    },
+    {
+      "id": 31,
+      "name": "other-repository-pass-keeps-its-own-state-and-skips-no-target-lanes",
+      "prompt": "/harness-config:audit-pass --repo ../web — I am in the api repository; web is a sibling clone.",
+      "expected_output": "Runs the whole pass, Phase 0 to Phase 6, on the web clone's root as the target, not on api. Run state and the lock are per repository: run-state.sh paths is called with --root set to the web clone's root, so web gets its own state key, run directory, lease, lock and report, and never shares api's. Delegates that take a target are given web (audit-instructions and harness-memory's audit with --repo <web clone root>), and the retirements sweep runs with --root <web clone root>. The four delegates that take no target — /harness-config:audit, audit-permission-state, audit-permission-grants and audit-prompting-postures — read only the active project, so web's pass does not run them and lists each lane in skipped with the reason 'delegate takes no target', because running them would file api's findings under web. The /doctor handoff likewise runs only in the active project's pass: web's pass opens no delegated lane, lists the handoff in skipped, and does not tell the operator to run /doctor and come back with --resume on web.",
+      "files": [],
+      "expectations": [
+        "Calls run-state.sh paths with --root set to the web clone's root, so the run directory, lease, lock and report sit under web's own state key rather than api's",
+        "Lists each of /harness-config:audit, audit-permission-state, audit-permission-grants and audit-prompting-postures in skipped with the reason 'delegate takes no target' rather than running it",
+        "Passes --repo <web clone root> to the delegates that accept a target, and --root <web clone root> to the retirements sweep",
+        "Does not open a /doctor delegated lane for web, and lists the handoff in skipped instead of asking for a --resume that would file api's /doctor output under web"
+      ]
     }
   ]
 }

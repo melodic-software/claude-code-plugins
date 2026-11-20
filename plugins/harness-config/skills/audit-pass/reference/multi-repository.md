@@ -20,6 +20,13 @@ forms", "Resolving repositories", "Fan-out" and "Merging findings". What differs
   [arguments.md](arguments.md) explains. The retirements sweep takes `--root`, so it runs in every pass
   with `--root <clone root>`, and the same leftover in several repositories is one row listing
   each.
+- **The Phase 4 `/doctor` handoff runs only in the active project's pass.** `/doctor` and
+  `/doctor prompt-audit` are operator-run in the invoking session, so they read the active
+  project, not a clone. When the active project is selected, its pass opens the `delegated` lane
+  and the `open` handoff as [doctor-handoff.md](doctor-handoff.md) says. Every other repository's
+  pass opens no `delegated` lane and lists the handoff in `skipped` with the reason `operator
+  handoff reads the invoking session's project; open that repository to run it`, so its report
+  never asks for a `--resume` that would file the active project's `/doctor` output under it.
 - **User and managed scopes are inventoried in every pass**, since conflicts with the project
   scope depend on the project. The same user-scope or managed-scope finding from several passes
   merges into one row.
