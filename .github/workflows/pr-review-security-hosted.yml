@@ -415,6 +415,9 @@ jobs:
         docs/conventions/untrusted-content/**
         docs/standards/**
         docs/review/**
+        .github/scripts/intake-triage/triage-rubric.txt
+        .github/scripts/intake-triage/refine-schema.json
+        .github/scripts/plugin-eval/policy-probe-prompt.txt
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml
