@@ -37,10 +37,17 @@ verdict the RUBRIC, COMMENT BODY, ESCALATION and COST rules call for:
 to, takes its compose step's script, and runs it with GitHub stubbed and this repository's
 `allowed-labels` and `instructions`. The schema comes from the reusable's schema step: `run.sh`
 reads `.github/actions/check-intake-triage-verdict/verdict.cjs` at the same commit, and the builder
-runs it in schema mode on the compose step's outputs, with `verdict-schema` empty so the prompt
-stays as compose wrote it. Each case's `execution.prompt` is the prompt the compose script writes,
-then one added line asking for the schema's JSON object as the reply (plugin eval has no
-`--json-schema`), then that schema. The committed `case.yaml` holds a placeholder.
+runs it in schema mode on the compose step's outputs, with the caller's `verdict-schema`, as the
+reusable does. That step adds the caller's verdict fields to the schema and appends their block to
+the prompt file, so the builder reads the prompt after it runs. Each case's `execution.prompt` is
+that prompt, then one added line asking for the schema's JSON object as the reply (plugin eval has
+no `--json-schema`), then that schema. The committed `case.yaml` holds a placeholder.
+
+`build-suite.mjs --no-verdict-schema` builds with `verdict-schema` emptied, so the prompt stays as
+compose wrote it. Keep that build for the baseline comparison: against a build from the last
+ci-workflows commit before febb1ed, its prompts and schemas are unchanged, and each one is an exact
+prefix of the matching case's prompt with the caller's `verdict-schema`, the verdict-fields block
+being the only addition.
 
 The issue files go under `.intake-triage-eval/` in the run's workspace, in the fetch step's
 shape, with `AGENTS.md` copied beside them. Paths are relative, where the lane's are absolute.

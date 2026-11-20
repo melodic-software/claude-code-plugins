@@ -3,8 +3,10 @@
 // builder runs the ci-workflows reusable's own compose script, read from the
 // reusable at the commit given, with this repository's allowed-labels and
 // instructions from the caller workflow, and fills each case with the prompt
-// it writes. `--no-instructions` builds the baseline with the instructions
-// input empty.
+// it writes. The schema step runs with the caller's verdict-schema, as the
+// reusable does. `--no-instructions` builds the baseline with the instructions
+// input empty; `--no-verdict-schema` empties verdict-schema, for the
+// byte-identical comparison against a build from before ci-workflows febb1ed.
 import {
   cpSync,
   existsSync,
@@ -35,7 +37,7 @@ const REPO_LABELS = [
 const ISSUE_TYPES = ["Bug", "Task", "Feature"];
 // The one line not taken from the reusable: plugin eval has no --json-schema,
 // so the run is asked for the schema's object as its final reply.
-const OUTPUT_LINE =
+export const OUTPUT_LINE =
   "Reply with only the structured output: one JSON object that matches this JSON Schema.";
 
 // The literal block scalar (`key: |`) at the first line matching `keyLine`
@@ -84,11 +86,33 @@ export function composeScript(reusable) {
   return scripts[0];
 }
 
-// The caller job's `with:` block scalars the compose step reads.
+// A one-line `key: value` scalar, plain or single-quoted, as YAML reads it.
+// Any other style fails closed rather than pass the schema step a wrong value.
+export function lineScalar(line) {
+  const value = line.slice(line.indexOf(":") + 1).trim();
+  if (value.includes("${{"))
+    throw new Error(
+      `the caller's ${line.trim().split(":")[0]} holds a workflow expression the builder cannot fill`,
+    );
+  if (value.startsWith("'")) {
+    if (value.length < 2 || !value.endsWith("'"))
+      throw new Error(`unterminated single-quoted scalar: ${line.trim()}`);
+    return value.slice(1, -1).replaceAll("''", "'");
+  }
+  if (/^["|>&*!]/u.test(value))
+    throw new Error(`unsupported scalar style: ${line.trim()}`);
+  return value;
+}
+
+// The caller job's `with:` inputs the compose and schema steps read.
 export function callerInputs(caller, job = "intake-triage") {
   const lines = caller.split("\n");
   const at = lines.findIndex((line) => line === `  ${job}:`);
   if (at < 0) throw new Error(`the caller has no ${job} job`);
+  const next = lines.findIndex((line, i) => i > at && /^ {2}\S/u.test(line));
+  const verdictSchema = lines
+    .slice(at, next < 0 ? lines.length : next)
+    .find((line) => /^\s+verdict-schema:/u.test(line));
   const uses = lines
     .slice(at)
     .find((line) =>
@@ -100,6 +124,7 @@ export function callerInputs(caller, job = "intake-triage") {
     ref: uses?.split("@")[1]?.split(/\s/u)[0] ?? "",
     allowedLabels: blockScalar(lines, /^\s+allowed-labels: \|\s*$/u, at).text,
     instructions: blockScalar(lines, /^\s+instructions: \|\s*$/u, at).text,
+    verdictSchema: verdictSchema ? lineScalar(verdictSchema) : "",
   };
 }
 
@@ -115,13 +140,16 @@ export function verdictModule(source) {
   return module.exports;
 }
 
-export function schema(verdict, outputs) {
+// Runs the reusable's schema step. With a non-empty verdict-schema it also
+// appends the verdict-fields block to the prompt file, so read the prompt
+// only after this returns.
+export function schema(verdict, outputs, verdictSchema = "") {
   for (const name of ["allowed", "type-names", "prompt-file"])
     if (typeof outputs[name] !== "string")
       throw new Error(`compose set no ${name} output for the schema step`);
   const file = verdict.main({
     INPUT_MODE: "schema",
-    INPUT_VERDICT_SCHEMA: "",
+    INPUT_VERDICT_SCHEMA: verdictSchema,
     INPUT_ALLOWED: outputs.allowed,
     INPUT_TYPE_NAMES: outputs["type-names"],
     INPUT_PROMPT_FILE: outputs["prompt-file"],
@@ -235,6 +263,7 @@ export async function build({
   sha,
   out,
   instructions = true,
+  verdictSchema = true,
   casesDir = join(HERE, "cases"),
   callerText = readFileSync(CALLER, "utf8"),
 }) {
@@ -249,7 +278,7 @@ export async function build({
       {
         name: "intake-reentry-eval",
         version: "0.0.0",
-        description: `Built from ci-workflows ${sha} (caller ref ${inputs.ref}); instructions ${instructions ? "on" : "off"}.`,
+        description: `Built from ci-workflows ${sha} (caller ref ${inputs.ref}); instructions ${instructions ? "on" : "off"}; verdict-schema ${verdictSchema && inputs.verdictSchema ? "on" : "off"}.`,
       },
       null,
       2,
@@ -281,8 +310,15 @@ export async function build({
         MERGED_LIMIT: "100",
         INSTRUCTIONS: instructions ? inputs.instructions : "",
       });
+      // The schema step runs first: it appends the verdict-fields block to
+      // the prompt file the case's prompt is read from.
+      const schemaText = schema(
+        verdict,
+        outputs,
+        verdictSchema ? inputs.verdictSchema : "",
+      );
       const prompt = readFileSync(outputs["prompt-file"], "utf8");
-      const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema(verdict, outputs)}\n`;
+      const full = `${prompt}\n${OUTPUT_LINE}\n\n${schemaText}\n`;
       const caseFile = join(dst, "case.yaml");
       writeFileSync(
         caseFile,
@@ -311,6 +347,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       sha: { type: "string" },
       out: { type: "string" },
       "no-instructions": { type: "boolean" },
+      "no-verdict-schema": { type: "boolean" },
     },
   });
   if (
@@ -320,7 +357,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     !values.out
   ) {
     console.error(
-      "usage: build-suite.mjs --reusable <intake-triage.yml> --verdict <verdict.cjs> --sha <40-hex commit> --out <dir> [--no-instructions]",
+      "usage: build-suite.mjs --reusable <intake-triage.yml> --verdict <verdict.cjs> --sha <40-hex commit> --out <dir> [--no-instructions] [--no-verdict-schema]",
     );
     process.exit(2);
   }
@@ -330,6 +367,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     sha: values.sha,
     out: values.out,
     instructions: !values["no-instructions"],
+    verdictSchema: !values["no-verdict-schema"],
   });
   console.log(
     `built ${result.cases.length} cases at ${values.out} from ci-workflows ${values.sha} (caller ref ${result.ref})`,

@@ -11,6 +11,8 @@ import {
   build,
   callerInputs,
   composeScript,
+  lineScalar,
+  OUTPUT_LINE,
   schema,
   verdictModule,
 } from "./build-suite.mjs";
@@ -29,13 +31,17 @@ const SCRIPT = [
   'core.setOutput("type-names", JSON.stringify(["Bug"]));',
   'core.setOutput("prompt-file", path.join(dir, "p.md"));',
 ];
+// The schema step stub: like verdict.cjs, a non-empty verdict-schema adds its
+// fields to the schema and appends a verdict-fields block to the prompt file.
 const VERDICT = [
   'const fs = require("node:fs");',
   'const path = require("node:path");',
   "function main(env) {",
-  '  if (env.INPUT_MODE !== "schema" || env.INPUT_VERDICT_SCHEMA !== "") throw new Error("not the schema step");',
+  '  if (env.INPUT_MODE !== "schema") throw new Error("not the schema step");',
   '  const file = path.join(path.dirname(env.INPUT_PROMPT_FILE), "schema.json");',
-  "  fs.writeFileSync(file, JSON.stringify({ allowed: JSON.parse(env.INPUT_ALLOWED), types: JSON.parse(env.INPUT_TYPE_NAMES) }));",
+  "  const fields = env.INPUT_VERDICT_SCHEMA === '' ? null : Object.keys(JSON.parse(env.INPUT_VERDICT_SCHEMA).properties);",
+  "  if (fields) fs.appendFileSync(env.INPUT_PROMPT_FILE, '\\nVERDICT FIELDS: ' + fields.join(', ') + '\\n');",
+  "  fs.writeFileSync(file, JSON.stringify({ ...(fields ? { fields } : {}), allowed: JSON.parse(env.INPUT_ALLOWED), types: JSON.parse(env.INPUT_TYPE_NAMES) }));",
   '  return { outputs: { "schema-file": file }, lines: [] };',
   "}",
   "module.exports = { main };",
@@ -66,6 +72,14 @@ const CALLER = [
   "    secrets: {}",
   "",
 ].join("\n");
+// The same caller with a verdict-schema, single-quoted as intake-triage.yml
+// writes it; `''` is YAML's escaped quote.
+const VERDICT_SCHEMA =
+  '{"properties":{"size":{"type":"string"},"it\'s":{"type":"string"}},"required":["size"]}';
+const CALLER_WITH_SCHEMA = CALLER.replace(
+  "    with:\n",
+  `    with:\n      verdict-schema: '${VERDICT_SCHEMA.replaceAll("'", "''")}'\n`,
+);
 
 test("composeScript returns the one script every compose step carries", () => {
   assert.match(
@@ -92,7 +106,58 @@ test("callerInputs reads the pin and dedents the block scalars as YAML does", ()
     ref: "abc123",
     allowedLabels: "priority: low\nneeds-human\n",
     instructions: "RULE ONE.\n\n  indented line\n",
+    verdictSchema: "",
   });
+  assert.equal(callerInputs(CALLER_WITH_SCHEMA).verdictSchema, VERDICT_SCHEMA);
+});
+
+test("lineScalar reads plain and single-quoted values and fails closed on any other style", () => {
+  assert.equal(lineScalar("  k: plain"), "plain");
+  assert.equal(lineScalar("  k: 'a''b'"), "a'b");
+  assert.throws(() => lineScalar("  k: 'open"), /unterminated/u);
+  assert.throws(() => lineScalar('  k: "x"'), /unsupported scalar style/u);
+  assert.throws(
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression, not a template
+    () => lineScalar("  k: ${{ vars.X }}"),
+    /workflow expression/u,
+  );
+});
+
+test("build passes the caller's verdict-schema and the emptied build is an exact prefix of it", async () => {
+  const promptOf = (out, name) =>
+    JSON.parse(
+      readFileSync(join(out, "evals", name, "case.yaml"), "utf8").match(
+        /^ {2}prompt: (.*)$/mu,
+      )[1],
+    );
+  const run = async (verdictSchema) => {
+    const out = tempDir("reentry-build-");
+    const { cases } = await build({
+      reusable: reusable(step(SCRIPT)),
+      verdictSource: VERDICT,
+      sha: "0".repeat(40),
+      out,
+      verdictSchema,
+      callerText: CALLER_WITH_SCHEMA,
+    });
+    return { out, cases };
+  };
+  const withSchema = await run(true);
+  const baseline = await run(false);
+  for (const name of withSchema.cases) {
+    const full = promptOf(withSchema.out, name);
+    const base = promptOf(baseline.out, name);
+    const composed = full.split(`\n${OUTPUT_LINE}\n`)[0];
+    const baseComposed = base.split(`\n${OUTPUT_LINE}\n`)[0];
+    assert.ok(composed.startsWith(baseComposed), name);
+    assert.equal(
+      composed.slice(baseComposed.length),
+      "\nVERDICT FIELDS: size, it's\n",
+      "the only addition is the verdict-fields block the schema step appends",
+    );
+    assert.ok(full.includes('"fields":["size","it\'s"]'), name);
+    assert.ok(!base.includes('"fields"'), name);
+  }
 });
 
 test("build fills every case with the composed prompt and writes the issue files the prompt names", async () => {
