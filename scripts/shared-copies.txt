@@ -128,6 +128,7 @@ docs/contracts/target-scope/README.md plugins/architecture/reference/target-scop
 docs/contracts/target-scope/README.md plugins/attribution/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/code-tidying/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/codebase-health/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/discipline/reference/target-scope.md
