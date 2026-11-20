@@ -14,6 +14,14 @@
 
 /** How often the mixer reads the command file and steps its fades, in ms. */
 export const POLL_MS = 10
+/**
+ * A bed that is not fading is looked at this often, in ms, and every poll once it is within NEAR_END_MS of its end,
+ * where it is sought back to its start.
+ */
+export const STEADY_MS = 100
+export const NEAR_END_MS = 150
+/** How often the mixer readies its one-shots' players that have played, in ms: a one-shot played again sooner opens another. */
+export const ARM_MS = 50
 /** How often the mixer writes a dot, in ms. */
 export const BEAT_MS = 250
 /** The mixer stops when no command has come for this long; the mod pings every PING_MS while it plays. */
@@ -90,15 +98,16 @@ export function mixerScript(root: string): string {
     '$voices=New-Object System.Collections.ArrayList',
     '$shots=@{}',
     '$waits=New-Object System.Collections.ArrayList',
-    '$last=0;$seen=0;$beat=-1000;$stamp=\'\';$quit=-1',
+    '$last=0;$seen=0;$beat=-1000;$armedAt=0;$stamp=\'\';$quit=-1',
     'function Shot($n){if(-not $shots.ContainsKey($n)){$shots[$n]=New-Object System.Collections.ArrayList};$pool=$shots[$n];foreach($s in $pool){if($s.armed -or $s.until -eq 0){return $s}};$s=[pscustomobject]@{p=(Open $n);until=0;armed=$false;from=0;long=$false};[void]$pool.Add($s);$s}',
-    "function Run($w,$now){switch($w[1]){'bed'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v 0 ([int]$w[4]) $now;$v.drop=$true}};if($w[2] -ne '-'){$v=[pscustomobject]@{p=(Open $w[2]);loop=$true;bed=$true;drop=$false;a=0;b=[double]$w[3];t=$now;n=[int]$w[4]};[void]$voices.Add($v);$v.p.Play()}}'level'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v ([double]$w[2]) ([int]$w[3]) $now}}}'shot'{$s=Shot $w[2];$s.armed=$false;$s.p.Volume=[double]$w[3];if($s.p.Position.TotalMilliseconds -gt 0){$s.p.Position=[TimeSpan]::Zero};$s.p.Play();$s.from=$now;$s.long=$true;$s.until=$now+60000;[void]$waits.Add([pscustomobject]@{p=$s.p;seq=$w[0];by=$now+2000})}'load'{if(-not $shots.ContainsKey($w[2])){$shots[$w[2]]=New-Object System.Collections.ArrayList;foreach($c in 1,2){[void]$shots[$w[2]].Add([pscustomobject]@{p=(Open $w[2]);until=0;armed=$false;from=0;long=$false})}}}'quit'{foreach($v in $voices){Fade $v 0 ([int]$w[2]) $now;$v.drop=$true};$script:quit=$now+[int]$w[2]}};Say ('ok '+$w[0])}",
+    "function Run($w,$now){switch($w[1]){'bed'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v 0 ([int]$w[4]) $now;$v.drop=$true}};if($w[2] -ne '-'){$v=[pscustomobject]@{p=(Open $w[2]);loop=$true;bed=$true;drop=$false;a=0;b=[double]$w[3];t=$now;n=[int]$w[4]};[void]$voices.Add($v);$v.p.Play()}}'level'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v ([double]$w[2]) ([int]$w[3]) $now}}}'shot'{$s=Shot $w[2];$s.armed=$false;$s.p.Volume=[double]$w[3];if($s.p.Position.TotalMilliseconds -gt 0){$s.p.Position=[TimeSpan]::Zero};$s.p.Play();$s.from=$now;$s.long=$true;$s.until=$now+60000;[void]$waits.Add([pscustomobject]@{p=$s.p;seq=$w[0];by=$now+2000})}'load'{if(-not $shots.ContainsKey($w[2])){$shots[$w[2]]=New-Object System.Collections.ArrayList;[void]$shots[$w[2]].Add([pscustomobject]@{p=(Open $w[2]);until=0;armed=$false;from=0;long=$false})}}'quit'{foreach($v in $voices){Fade $v 0 ([int]$w[2]) $now;$v.drop=$true};$script:quit=$now+[int]$w[2]}};Say ('ok '+$w[0])}",
     "Say ('ready '+$file)",
+    '$i=New-Object IO.FileInfo $file;$nextVoices=0',
     'try{while($true){' +
       '$now=$clock.ElapsedMilliseconds;' +
-      "$i=New-Object IO.FileInfo $file;if($i.Exists){$key=''+$i.LastWriteTimeUtc.Ticks+' '+$i.Length;if($key -ne $stamp){try{$fs=[IO.File]::Open($file,'Open','Read','ReadWrite,Delete');$r=New-Object IO.StreamReader $fs;$text=$r.ReadToEnd();$r.Close()}catch{$text=''};if($text.EndsWith(\"end`n\")){$stamp=$key;$todo=@();foreach($line in $text.Split(\"`n\")){$w=$line.Trim().Split(' ');$n=0;if($w.Count -lt 2 -or -not [int]::TryParse($w[0],[ref]$n) -or $n -le $last){continue};$todo+=,$w};foreach($w in $todo){if($w[1] -eq 'shot'){Run $w $now}};foreach($w in $todo){if($w[1] -ne 'shot'){Run $w $now};$last=[Math]::Max($last,[int]$w[0]);$seen=$now}}}}else{break};" +
-      'for($k=$voices.Count-1;$k -ge 0;$k--){$v=$voices[$k];$v.p.Volume=(Level $v $now);if($v.loop -and $v.p.NaturalDuration.HasTimeSpan){$d=$v.p.NaturalDuration.TimeSpan.TotalMilliseconds;if($v.p.Position.TotalMilliseconds -ge $d-25){$v.p.Position=[TimeSpan]::Zero;$v.p.Play()}};if($v.drop -and $now -ge $v.t+$v.n){$v.p.Close();$voices.RemoveAt($k)}};' +
-      'foreach($pool in $shots.Values){foreach($s in $pool){if(-not $s.armed -and $s.until -gt 0){if($s.long -and $s.p.NaturalDuration.HasTimeSpan){$s.until=$s.from+$s.p.NaturalDuration.TimeSpan.TotalMilliseconds+50;$s.long=$false};if($now -ge $s.until){$s.p.Stop();$s.armed=$true}}}};' +
+      "$i.Refresh();if($i.Exists){$key=''+$i.LastWriteTimeUtc.Ticks+' '+$i.Length;if($key -ne $stamp){try{$fs=[IO.File]::Open($file,'Open','Read','ReadWrite,Delete');$r=New-Object IO.StreamReader $fs;$text=$r.ReadToEnd();$r.Close()}catch{$text=''};if($text.EndsWith(\"end`n\")){$stamp=$key;$todo=@();foreach($line in $text.Split(\"`n\")){$w=$line.Trim().Split(' ');$n=0;if($w.Count -lt 2 -or -not [int]::TryParse($w[0],[ref]$n) -or $n -le $last){continue};$todo+=,$w};foreach($w in $todo){if($w[1] -eq 'shot'){Run $w $now}};foreach($w in $todo){if($w[1] -ne 'shot'){Run $w $now};$last=[Math]::Max($last,[int]$w[0]);$seen=$now;$nextVoices=$now}}}}else{break};" +
+      `if($now -ge $nextVoices){$soon=$false;for($k=$voices.Count-1;$k -ge 0;$k--){$v=$voices[$k];$v.p.Volume=(Level $v $now);if($now -lt $v.t+$v.n){$soon=$true};if($v.loop -and $v.p.NaturalDuration.HasTimeSpan){$d=$v.p.NaturalDuration.TimeSpan.TotalMilliseconds;$at=$v.p.Position.TotalMilliseconds;if($at -ge $d-25){$v.p.Position=[TimeSpan]::Zero;$v.p.Play()}elseif($d-$at -lt ${NEAR_END_MS}){$soon=$true}}else{$soon=$true};if($v.drop -and $now -ge $v.t+$v.n){$v.p.Close();$voices.RemoveAt($k)}};$nextVoices=$now+$(if($soon){0}else{${STEADY_MS}})};` +
+      `if($now-$armedAt -ge ${ARM_MS}){$armedAt=$now;foreach($pool in $shots.Values){foreach($s in $pool){if(-not $s.armed -and $s.until -gt 0){if($s.long -and $s.p.NaturalDuration.HasTimeSpan){$s.until=$s.from+$s.p.NaturalDuration.TimeSpan.TotalMilliseconds+50;$s.long=$false};if($now -ge $s.until){$s.p.Stop();$s.armed=$true}}}}};` +
       "for($k=$waits.Count-1;$k -ge 0;$k--){$x=$waits[$k];if($x.p.Position.TotalMilliseconds -gt 0){Say ('sounding '+$x.seq);$waits.RemoveAt($k)}elseif($now -gt $x.by){$waits.RemoveAt($k)}};" +
       `if($quit -ge 0 -and $now -ge $quit){break};if($now-$seen -gt ${QUIET_MS}){break};` +
       `if($now-$beat -ge ${BEAT_MS}){$beat=$now;[Console]::Out.Write('.');[Console]::Out.Flush()};` +
