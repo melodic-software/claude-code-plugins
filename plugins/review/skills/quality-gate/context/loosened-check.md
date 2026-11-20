@@ -102,7 +102,8 @@ decision record, and say why. The `/review:code-review` lane runs no resolver: w
 no `loosened_check_decision_record:` line, it asks for no citation and says in its summary that the
 citation requirement was not checked.
 
-Report one line: `Loosened-check verdict: <value> (<layers>); patterns: <count>`.
+Report one line: `Loosened checks would be marked: <value> (<layers>); patterns: <count>`. It
+states the policy in force, so a review that finds no loosening prints it too.
 
 ## Finding
 
