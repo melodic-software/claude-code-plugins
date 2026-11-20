@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Mechanism:** `/compact keep the currency filter and the next step, average() in src/report.py`",
+      "why": "named with a focus"
+    },
+    {
+      "answer": "Not a handoff: this is the same task.\nNext step: /compact focus on step 2 of PLAN.md",
+      "why": "negated line skipped, another line names it"
+    },
+    {
+      "answer": "No handoff, just /compact keep the auth context.",
+      "why": "one line: the negation is not on the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mechanism: `/session-flow:handoff`, then `/clear`.",
+      "why": "wrong mechanism"
+    },
+    {
+      "answer": "You don't need /compact here; keep going.",
+      "why": "negated"
+    },
+    {
+      "answer": "Next step: /compacting the session",
+      "why": "a different token sharing the prefix"
+    },
+    {
+      "answer": "Instead of a /compact, write a plan first.",
+      "why": "negated with a filler word"
+    },
+    {
+      "answer": "No need for /compact here.",
+      "why": "negated with a preposition"
+    }
+  ]
+}

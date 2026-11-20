@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:design"
+          }
+        }
+      ],
+      "why": "loads the read skill only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "code under domain/ never imports from infrastructure/"
+          }
+        }
+      ],
+      "why": "runs codify instead of naming the call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify"
+          }
+        }
+      ],
+      "why": "runs codify by its short name"
+    }
+  ]
+}

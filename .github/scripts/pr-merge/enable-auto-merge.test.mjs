@@ -4225,6 +4225,59 @@ test("a skip record of another repository, from the future, or malformed skips n
   }
 });
 
+const ejectedHeld = (overrides = {}) =>
+  pull(1, { updatedAt: "2026-10-23T09:30:00Z", verdict: EJECTED, discussion: { comments: [lanesSaid(EJECTION_COMMENT)] }, rollup: check("SUCCESS"), ...overrides });
+const EJECTED_REASON = `pr-merge's gate would not enqueue it again (${EJECTED_REFUSAL})`;
+
+test("an unchanged queue-ejection hold is left on its refusal with no read", async () => {
+  const first = await skipRun([ejectedHeld()]);
+  assert.deepEqual(first.notes, []);
+  assert.equal(first.kept.entries["1"]?.reason, EJECTED_REASON, first.lines.join("\n"));
+  const second = await skipRun([ejectedHeld()], { from: first.from, minutes: 15 });
+  assert.deepEqual(second.verified, []);
+  assert.equal(second.details, 0);
+  assert.deepEqual(second.writes, []);
+  assert.deepEqual(second.notes, []);
+  assert.equal(second.kept.entries["1"].skips, 1);
+  const pushed = await skipRun([ejectedHeld({ headRefOid: "c".repeat(40), verdict: { ...EJECTED, head: "c".repeat(40) } })], { from: first.from, minutes: 15 });
+  assert.equal(pushed.details, 1);
+});
+
+test("a queue-ejection hold whose comment is posted or edited, or whose count is unread, keeps no skip record", async () => {
+  for (const comments of [[], [lanesSaid(EJECTION_COMMENT.replace("runs/9", "runs/8"))]]) {
+    const wrote = await skipRun([ejectedHeld({ discussion: { comments } })]);
+    assert.equal(wrote.notes.length, 1);
+    assert.deepEqual(wrote.kept.entries, {});
+  }
+  for (const queue of [
+    { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null },
+    { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null, readError: "gh: HTTP 502" },
+    undefined,
+  ]) {
+    const unread = await skipRun([ejectedHeld({ verdict: { ...PASSED, queue }, discussion: { comments: [] } })]);
+    assert.deepEqual(unread.kept.entries, {}, JSON.stringify(queue));
+  }
+});
+
+test("a skip record of an unread ejection count skips nothing", async () => {
+  const first = await skipRun([ejectedHeld()]);
+  const kept = JSON.parse(readFileSync(first.from, "utf8"));
+  const path = join(tempDir("enable-auto-merge-skip-unread-"), "kept.json");
+  writeFileSync(path, JSON.stringify({ ...kept, entries: { 1: { ...kept.entries["1"], reason: "pr-merge's gate would not enqueue it again (the merge queue's removals of this head are unreadable)" } } }));
+  assert.equal((await skipRun([ejectedHeld()], { from: path, minutes: 15 })).details, 1);
+});
+
+test("a queue-ejection hold due to escalate is read again at its escalation, timed from the gate's comment", async () => {
+  const env = { SKIP_MAX_MINUTES: "120" };
+  const comments = [lanesSaid(laneNote(LANE_RISK_REASON, "2026-10-23T08:00:00.000Z"), "2026-10-23T08:00:00Z"), { ...lanesSaid(EJECTION_COMMENT), databaseId: 78 }];
+  const first = await skipRun([ejectedHeld({ discussion: { comments } })], { env });
+  assert.equal(first.kept.entries["1"]?.until, "2026-10-23T11:00:00.000Z", first.lines.join("\n"));
+  assert.equal((await skipRun([ejectedHeld({ discussion: { comments } })], { from: first.from, minutes: 59, env })).details, 0);
+  const late = await skipRun([ejectedHeld({ discussion: { comments } })], { from: first.from, minutes: 61, env });
+  assert.equal(late.details, 1);
+  assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: Array.from(EJECTED_REASON).slice(0, 140).join("") }]);
+});
+
 // The lanes App adding the human-gated label to a queued pull request takes it
 // out of the merge queue, so its merge group does not run only for ci-status
 // to fail it on the label: one queue read per label add, and the dequeue only

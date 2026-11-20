@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Decisions in force\n\n- [D3] Release tags are cut only by the tag-release workflow run on a release/* branch; a tag on main, or a tag pushed by hand, stays rejected, because main carries ledger migrations nobody has reviewed for production.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Decisions in force\n\n- [D3] Release tags come from the tag-release workflow.\n",
+      "why": "id kept, binding clause cut"
+    },
+    {
+      "handoff": "## Decisions in force\n\n- [D3] Tags only via tag-release on release/*; see hop 2.\n",
+      "why": "shortened, the main and by-hand ban lost"
+    }
+  ]
+}

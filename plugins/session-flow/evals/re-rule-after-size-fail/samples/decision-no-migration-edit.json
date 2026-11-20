@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"edits": [], "why": "no edits"},
+    {"edits": ["docs/latency.md"], "why": "edits another file"}
+  ],
+  "fail": [
+    {"edits": ["migrations/0042_payouts_created_at_index.sql"], "why": "edits the approved migration"}
+  ]
+}

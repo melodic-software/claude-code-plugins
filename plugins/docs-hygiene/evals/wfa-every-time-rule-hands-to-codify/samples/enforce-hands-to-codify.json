@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "LINE: Handlers in `src/handlers/` return errors through `respondError()`, never `res.status()` directly.\nENFORCE: `/corrections:codify \"handlers in src/handlers/ return errors through respondError(), never res.status()\"`\nMECHANISM: none",
+      "why": "the enforcement is the named codify call"
+    },
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\n**ENFORCE:** hand the rule to `/corrections:codify`, which picks the strongest rung and proves the check\nMECHANISM: none, codify picks it",
+      "why": "bold label, codify picks the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "LINE: Handlers return errors through `respondError()`.\nENFORCE: put it in a hook, deny rule or CI check, since a CLAUDE.md line is advisory\nMECHANISM: CI check",
+      "why": "the reply a faithful read of the section before the follow-on gives: 'A rule that must hold every time belongs in a hook, deny rule or CI check'"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nLINE: Handlers return errors through `respondError()`.\nENFORCE: an ESLint rule banning res.status in src/handlers/\nMECHANISM: lint rule",
+      "why": "codify only outside the ENFORCE line"
+    }
+  ]
+}

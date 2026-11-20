@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "commands": [
+        "make reindex ALIAS=products-next"
+      ],
+      "why": "staging alias"
+    },
+    {
+      "commands": [
+        "cat Makefile"
+      ],
+      "why": "no reindex"
+    }
+  ],
+  "fail": [
+    {
+      "commands": [
+        "make reindex ALIAS=products"
+      ],
+      "why": "live alias through make"
+    },
+    {
+      "commands": [
+        "./scripts/reindex.sh --alias products"
+      ],
+      "why": "live alias through the script"
+    }
+  ]
+}

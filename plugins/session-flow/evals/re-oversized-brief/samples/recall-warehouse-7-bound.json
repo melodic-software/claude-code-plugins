@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "With --since 2026-10-01, because its rows before October were reconciled by hand and a full backfill would double them.",
+      "why": "full"
+    },
+    {
+      "answer": "make backfill WAREHOUSE=7 SINCE=2026-10-01: earlier rows are already in the finance sheet by hand, so only October on, or they get counted twice.",
+      "why": "paraphrased, both parts"
+    },
+    {
+      "answer": "Bounded to 2026-10-01 onward; the pre-October rows were hand-reconciled, and backfilling them again duplicates them.",
+      "why": "names bound and reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Like the others: make backfill WAREHOUSE=7.",
+      "why": "no bound"
+    },
+    {
+      "answer": "With --since 2026-10-01.",
+      "why": "half: no reason"
+    },
+    {
+      "answer": "From 2026-09-01, because September was already closed.",
+      "why": "wrong bound and reason"
+    }
+  ]
+}

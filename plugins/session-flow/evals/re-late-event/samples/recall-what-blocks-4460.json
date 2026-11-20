@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "CI failed test_backoff_cap: delay() never applies the 60-second cap, so that has to be fixed before #4460 merges.",
+      "why": "full"
+    },
+    {
+      "answer": "A red test_backoff_cap (delay(10) gives 1024 instead of 60); fix retry/backoff.py first, then merge.",
+      "why": "names test, cause and order"
+    },
+    {
+      "answer": "test_backoff_cap fails because the cap isn't applied; it can't merge until that's fixed.",
+      "why": "terse, all parts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is waiting on CI to finish.",
+      "why": "stale pre-amend state"
+    },
+    {
+      "answer": "Nothing; it is ready to merge.",
+      "why": "wrong"
+    },
+    {
+      "answer": "A failing test.",
+      "why": "names no test or cause"
+    }
+  ]
+}

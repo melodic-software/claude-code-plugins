@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"edits": [], "why": "no edits"},
+    {"edits": ["docs/releases/1.8.0.md"], "why": "edits another file"}
+  ],
+  "fail": [
+    {"edits": ["pyproject.toml"], "why": "hand-bumps the version, the retired rule"}
+  ]
+}

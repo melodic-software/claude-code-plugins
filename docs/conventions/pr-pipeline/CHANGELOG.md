@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [11.0.2] - 2026-11-20
+
+### Changed
+
+- `wait-refine.mjs` no longer lists and polls dispatcher runs on a head no refine run can start for: when the runner's event file shows both the sender and the PR author in `NO_REFINE_ACCOUNTS` (dependabot, the release App, the standards-sync App) and its PR number and head match, Wait For Refine reviews after the one finish read. A human, lanes App or mixed event, or a missing, malformed or mismatched event file, still polls.
+
+## [11.0.1] - 2026-11-20
+
+### Changed
+
+- `enable-auto-merge.mjs` skip-unchanged now keeps a head the merge queue ejected up to the cap (`merge.max-queue-ejections`): while the gate's ejection comment stands unchanged and the skip key matches, later reader runs leave it refused without reading its discussion, files and verdict again, until the head or another key input changes, `max-minutes` or `max-skips` runs out, or its refusal is due to turn into a failing status. An ejection count that could not be read is never kept.
+
 ## [11.0.0] - 2026-11-20
 
 ### Changed

@@ -185,8 +185,8 @@ under `none` and `necessary` its symbol is listed as open root-cause work.
 
 **What `necessary` keeps above the floor** is the resolved keep list: the shipped
 [reference/keep-list.md](reference/keep-list.md), or the file `comment_keep_list` names. A keep
-other than a public-API doc comment is held to `class_c_max_lines`. Unless the list keeps it, a
-warning of consequence, a unit or sentinel annotation, a section divider and rationale about this
+other than a public-API doc comment or a script's exit-code list is held to `class_c_max_lines`.
+Unless the list keeps it, a warning of consequence, a unit or sentinel annotation, a section divider and rationale about this
 repository's own code are **our-code surprises**: deleted, narrative staged, and
 each one a reshape flag naming the symbol and the move that would make the comment unnecessary
 (rename, extract, a type, an assertion, a redesign). A constraint the code could enforce gets the
