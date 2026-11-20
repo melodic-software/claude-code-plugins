@@ -1,6 +1,7 @@
 // Whether the human-gated label holds one activity on a pull request, for a
 // base-code job before the activity's model turn (pr-unblock.yml's
-// resolve-conflicts-select, pr-refine.yml's fix-docs-head). The label holds
+// resolve-conflicts-select, pr-refine.yml's select-passes,
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review). The label holds
 // unless another lane's escalation put it on (gate-source.mjs prHold); other
 // hold labels stay with the activity's applies-when. Writes to GITHUB_OUTPUT:
 // held=true|false, and lane-escalated=true when the label is on and the
