@@ -1,6 +1,6 @@
 ---
 description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification lanes (`--fix` ends the report by suggesting `/implementation:implement` then `/verification:confirm`, which the user runs). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (suggest the remediation lanes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
-argument-hint: "[scope] [--fix] [--medium <value>] [--docs-only|--code-only|--config-only|--arch-only]"
+argument-hint: "[scope] [--repo <repo> ...] [--fix] [--medium <value>] [--docs-only|--code-only|--config-only…]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -38,6 +38,9 @@ Arguments: `$ARGUMENTS`
 Parse `$ARGUMENTS` for:
 
 - **Scope** (optional): directory or file path to limit the audit (default: entire repo)
+- **Target forms** (optional): `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the
+  same request in words, run the audit once per repository. See
+  [Several repositories](#several-repositories). With none, the audit covers this repository only.
 - **`--fix`**: after reporting, hand the findings off to the remediation lanes
   (`/implementation:implement` then `/verification:confirm`) rather than fixing inline. See
   [Remediation](#remediation-delegated-to-other-plugins). Per the naming doctrine's verb
@@ -160,6 +163,57 @@ Research follows the audited prefix, not a named dimension. Phase 2's claim-type
 (best-practice, library API, configuration behavior) still decides which claims need a tool, and
 `medium` collects those types only from the two dimensions this run actually audits.
 
+## Several repositories
+
+A target form from [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others its "Target forms" lists, or the same request in words) runs
+Phases 0 to 3 once per repository. That file's "Target forms", "Resolving repositories",
+"Fan-out", "Merging findings" and "Writes stay per repository" sections say how. With no target
+form, nothing in this skill changes. What differs here:
+
+- **The scope applies inside each repository.** A `[scope]` path and the dimension filters apply
+  in every repository, and the path is read relative to each repository's root. A repository
+  without that path is reported as skipped, with the reason.
+- **The cost gate runs before any dispatch.** List every repository's primary-source files first,
+  then apply the Phase 1 cost gate to the total before dispatching any repository's subagent.
+- **Each repository is read from its own tree.** That tree is the session's own checkout, read in
+  place. For another clone, it is the clone itself when it has no uncommitted change and its
+  `HEAD` equals `origin/HEAD` after the fetch. Otherwise it is a detached worktree of `origin/HEAD`
+  under the session scratchpad (`git -C <root> worktree add --detach <scratch path> origin/HEAD`),
+  removed after the pass. Phase 1's file agents and Phase 2's validator read only that tree.
+- **Discovery and validation stay separate.** Each repository's subagent dispatches that
+  repository's Phase 1 file agents and Phase 2 validator. When it cannot spawn agents of its own,
+  run that repository's Phases 1 and 2 from the main thread with its root anchored. Never let one
+  context both discover and validate the findings.
+- **Phase 0 and the config are resolved per repository.** Read the `.claude/rules/` files of each
+  repository's tree. Resolve the team and personal config layers
+  (`.claude/codebase-health.md`, `.claude/codebase-health.local.md`) from that tree, with the
+  user-global layer shared by all repositories. Run `read-verification.sh` as
+  `CLAUDE_PROJECT_DIR=<tree> bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" ...`, because
+  it otherwise reads the session's own project.
+- **A claim about another repository in scope is checked against that repository.** A claim in
+  one repository about another one in scope can now be checked. Examples: a path in it, a version
+  it publishes, a reusable workflow or action it calls (`uses: <owner>/<name>/...@<ref>`). Verify
+  the claim against the other repository's tree, or against the ref the claim names. Report the
+  finding in the repository that makes the claim, and name the repository the claim is about in
+  its Verification cell. A claim about a repository outside the scope is verified as it is today.
+- **Duplicated files across repositories belong to another lane.** Exact and diverged copies
+  between repositories are measured by `/coupling:reduce`, as the contract's "Cross-repository
+  signals" says. After the report, name its read-only form
+  (`/coupling:reduce dry-run --repo <repo> ...`) as a lane the operator can run next, the way the
+  [Boundary](#boundary-the-adjacent-drift-lanes) table names a lane. Never invoke it from this run.
+- **One report for all repositories.** Merge the findings as "Merging findings" says, with the
+  repository in the File:Line cell (`<owner>/<name>:<path>:<line>`), and write one Needs you line.
+  The verification line, the dimensions effort skipped and the config-gap observations are given
+  per repository, because each repository resolves its own config. Offer a config gap's
+  `/codebase-health:setup apply` in the repository it belongs to.
+- **`--fix` hands off per repository.** For each repository with findings, the handoff suggests
+  `/implementation:implement` then `/verification:confirm`, run from a worktree of that
+  repository, as "Writes stay per repository" says.
+
+This skill keeps no state of its own between runs, so it has no ledger or cursor to keep per
+repository.
+
 ## Emit checklist
 
 For any audit run (Phases 0–3), copy
@@ -204,7 +258,9 @@ the scope-fencing rules of the discovery method linked below.
 **Scope first (cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before
 dispatching. Never fan out the whole repo unprompted: one subagent per doc, config, and source
-file is a very large token cost.
+file is a very large token cost. Across repositories, the ~20-file threshold applies to the file
+lists of all repositories added together. A target form names repositories but does not confirm
+the cost.
 
 Full method. Claim-extraction steps, the verify-all-claims-on-a-line rule,
 enumerate/scope/dispatch/collect detail with the scope-fencing rules, and the per-finding report
