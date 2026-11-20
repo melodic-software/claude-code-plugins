@@ -86,11 +86,6 @@ post the excerpt to a pull request, issue or other remote comment unattended.
   live; to locate the temp directory tree, fetch the `CLAUDE_CODE_TMPDIR` row of
   [Environment variables: Variables](https://code.claude.com/docs/en/env-vars#variables)
   live.
-- **Recheck trigger**: the MCP section ties the field to results other than
-  Bash or PowerShell through `claude mcp serve`, or adds an end marker or a
-  completion notice to the file; or the docs name a dedicated location for
-  background task output, which then replaces the temp directory tree as the
-  allowed location.
 
 Inventory descends through **every level the harness exposes**: for each
 subagent, look for the agents it spawned; for each workflow, look for the agents
