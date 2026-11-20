@@ -1486,6 +1486,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   const repo = `${apiUrl}/repos/${owner}/${name}`;
+  const checkRunsByHead = new Map();
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
@@ -1591,13 +1592,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
     },
     async listCheckRuns({ sha, checkName, appId }) {
-      const query = new URLSearchParams({
-        check_name: checkName,
-        app_id: String(appId),
-        filter: "all",
-        per_page: "100",
-      });
-      return (await request(`${repo}/commits/${sha}/check-runs?${query}`)).check_runs;
+      const read = (filters) => request(`${repo}/commits/${sha}/check-runs?${new URLSearchParams({ ...filters, app_id: String(appId), filter: "all", per_page: "100" })}`);
+      const key = `${sha}:${appId}`;
+      if (!checkRunsByHead.has(key)) {
+        const all = read({});
+        checkRunsByHead.set(key, all);
+        all.catch(() => checkRunsByHead.delete(key));
+      }
+      const { total_count: total = 0, check_runs: runs = [] } = await checkRunsByHead.get(key);
+      if (total > runs.length) {
+        return (await read({ check_name: checkName })).check_runs;
+      }
+      return runs.filter((run) => run.name === checkName);
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
