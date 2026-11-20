@@ -110,8 +110,10 @@ documentation and instruction files (and, with a `[target]` too, the
 matching path in each repository) for the findings above. A cross-repository
 copy is the second copy this skill pins at two, and one repository naming
 another's internal paths breaks the public-contracts pin: get both from the
-contract's "Cross-repository signals" by running the read-only
-`/coupling:reduce dry-run` with the same target forms. When that skill is
+contract's "Cross-repository signals" by running
+`/coupling:reduce dry-run` with the same target forms (no edits, branches or
+PRs; it records its candidates in each repository's coupling ledger,
+`.work/coupling/coupling-ledger.md`, which is never committed). When that skill is
 not enabled, report `cross-repository copies: not measured` rather than a
 clean result. Weigh each diverged copy against "What is not a copy" above
 before treating it as a finding, since a repository may own its adapted
