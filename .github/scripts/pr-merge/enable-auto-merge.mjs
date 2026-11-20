@@ -667,6 +667,10 @@ async function changedFiles(github, slug, number) {
 // A listing past MAX_FILE_PAGES: no lane can ever judge its hold and cost
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
+export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes are already on main";
+export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reopened after the lane closed it at this head, so a person decides it`;
+export const emptyDiffNote = (head) =>
+  `Unattended merge: closed at head \`${head}\`. ${EMPTY_DIFF_REASON[0].toUpperCase()}${EMPTY_DIFF_REASON.slice(1)}: the base...head diff lists no file, so closing loses no work, and no fresh attempt starts. Reopen it to reverse this.`;
 
 // The verifier refusals that never clear for the pull request
 // (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap. decide closes
@@ -1530,6 +1534,16 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   }
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
+  }
+  if (Array.isArray(detail.files) && detail.files.length === 0) {
+    const vetoed = discussionHold(detail);
+    if (vetoed !== null) {
+      return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+    }
+    if (newestAppComment(detail.comments?.nodes, bot, (c) => c.body === emptyDiffNote(pull.headRefOid)) !== undefined) {
+      return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" };
+    }
+    return { action: "close-empty", reason: EMPTY_DIFF_REASON };
   }
   // A head a pr-unblock lane stopped is never queued: only this job reads the
   // stop. A status list that did not read holds it too.
@@ -2420,6 +2434,26 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             : answered && standing !== null
               ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
               : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
+      }
+      if (action === "close-empty") {
+        leave(pull, `refused: ${reason}`);
+        if (!write) {
+          console.log(`enable-auto-merge: #${pull.number} would close, its diff against main empty (report-only)`);
+          continue;
+        }
+        try {
+          if (pull.autoMergeRequest != null) {
+            await sendSettled("disarm", pull);
+          }
+          const issue = `/repos/${repo[0]}/issues/${pull.number}`;
+          await github("PATCH", issue, { state: "closed" });
+          await github("POST", `${issue}/comments`, { body: emptyDiffNote(pull.headRefOid) });
+          console.log(`enable-auto-merge: #${pull.number} closed: ${escapeCommand(reason)}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} empty-diff close: ${describe(error)}`);
+        }
+        continue;
       }
       // A pull request the verifier refuses for good closes for a fresh
       // attempt; a failed close leaves it for the next run, which finds what
