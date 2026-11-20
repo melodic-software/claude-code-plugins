@@ -1707,18 +1707,20 @@ def test_report_prints_accuracy_tokens_and_pass_counts_per_case(tmp_path, capsys
     graded = _graded_file(tmp_path / "out" / "graded.jsonl", SINGLE_ARM)
     code, out = _report(tmp_path, capsys, [graded], "--threshold", "0.7")
     assert code == 0, out
-    assert "before.claude-code: 4 kept, 0 excluded, 1 scored 0 for non-delivery" in out
+    assert "before.claude-code: 4 kept, 0 excluded, 1 non-delivery" in out
     assert (
-        "re-a: accuracy 0.75 over 2 runs; reader m1 200; whole-run m1 250; pass" in out
+        "re-a: accuracy 0.75 over 2 delivered runs of 2; reader m1 200; whole-run m1 250; pass"
+        in out
     )
     assert (
-        "re-b: accuracy 0.50 over 2 runs; reader m1 50; whole-run m1 n/a; fail" in out
+        "re-b: accuracy 1.00 over 1 delivered run of 2; reader m1 50; whole-run m1 n/a; pass"
+        in out
     )
-    assert "pass count 1/2 at T=0.70" in out
+    assert "pass count 2/2 at T=0.70" in out
     assert "left out" not in out
     doc = json.loads((tmp_path / "rep" / "before.claude-code.json").read_text())
     scores = {c["name"]: [r["score"] for r in c["arms"]["with"]] for c in doc["cases"]}
-    assert scores == {"re-a": [1.0, 0.5], "re-b": [0.0, 1.0]}
+    assert scores == {"re-a": [1.0, 0.5], "re-b": [1.0]}
 
 
 def test_report_fails_on_an_excluded_or_missing_run(tmp_path, capsys):
@@ -1902,3 +1904,90 @@ def test_a_pair_fails_on_a_case_with_no_probe_both_sides_graded(tmp_path, capsys
     assert code == 1, out
     pair = "after.claude-code vs before.claude-code"
     assert f"left out: case re-a has no probe both sides graded ({pair})" in out
+
+
+def _nd_rows(arm, undelivered, whole):
+    """Two runs per case on re-a..re-c; `undelivered` maps case to how many did not deliver."""
+    rows = []
+    for case in ("re-a", "re-b", "re-c"):
+        for i in range(2):
+            extra = {"reader_whole_m1": whole[case]}
+            if i < undelivered.get(case, 0):
+                extra["nondelivery"] = "reader: permission denied"
+            rows.append(_row(case, arm, i, {"p1": True}, **extra))
+    return rows
+
+
+def _nd_report(tmp_path, capsys, after_undelivered, after_whole, *extra):
+    whole = {"re-a": 100, "re-b": 200, "re-c": 300}
+    rows = _nd_rows("before", {}, whole) + _nd_rows(
+        "after", after_undelivered, after_whole
+    )
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    return _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--evals-dir",
+        str(_evals(tmp_path, PAIR_SPECS)),
+        *extra,
+    )
+
+
+def test_non_delivery_leaves_accuracy_alone_and_is_reported_as_a_rate(tmp_path, capsys):
+    code, out = _nd_report(
+        tmp_path, capsys, {"re-a": 1}, {"re-a": 100, "re-b": 200, "re-c": 300}
+    )
+    assert code == 0, out
+    pair = "after.claude-code vs before.claude-code"
+    assert f"pair {pair}: accuracy change +0.00" in out and "(delivered runs)" in out
+    assert f"pair {pair}: non-delivery 1 vs 0 runs; rate change +0.17" in out
+    assert "nd-margin: none given" in out and "token-margin: none given" in out
+    folder = tmp_path / "rep" / "pairs" / "after.claude-code--vs--before.claude-code"
+    after = json.loads((folder / "after.claude-code.json").read_text())
+    re_a = next(c for c in after["cases"] if c["name"] == "re-a")
+    assert [r["score"] for r in re_a["arms"]["with"]] == [1.0]
+
+
+def test_non_delivery_rise_past_the_margin_fails_and_within_it_passes(tmp_path, capsys):
+    whole = {"re-a": 100, "re-b": 200, "re-c": 300}
+    code, out = _nd_report(
+        tmp_path / "1", capsys, {"re-a": 2, "re-b": 2, "re-c": 1}, whole, "--nd-margin", "0.10"
+    )
+    assert code == 1
+    assert "non-delivery rise: after.claude-code's rate interval reaches" in out
+    code, out = _nd_report(tmp_path / "2", capsys, {}, whole, "--nd-margin", "0.10")
+    assert code == 0, out
+    assert "non-delivery rise" not in out
+
+
+def test_whole_run_tokens_past_the_margin_fail(tmp_path, capsys):
+    code, out = _nd_report(
+        tmp_path / "1",
+        capsys,
+        {},
+        {"re-a": 150, "re-b": 260, "re-c": 420},
+        "--token-margin",
+        "0.10",
+    )
+    assert code == 1
+    assert "token rise: after.claude-code's whole-run reader m1 interval reaches" in out
+    code, out = _nd_report(
+        tmp_path / "2",
+        capsys,
+        {},
+        {"re-a": 90, "re-b": 190, "re-c": 290},
+        "--token-margin",
+        "0.10",
+    )
+    assert code == 0, out
+
+
+def test_a_case_with_no_delivered_run_is_left_out_by_name(tmp_path, capsys):
+    code, out = _nd_report(
+        tmp_path, capsys, {"re-a": 2}, {"re-a": 100, "re-b": 200, "re-c": 300}
+    )
+    assert code == 1
+    assert "left out: case re-a has no delivered run on one side" in out

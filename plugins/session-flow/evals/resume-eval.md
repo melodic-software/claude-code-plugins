@@ -129,7 +129,8 @@ env TMPDIR=<short-dir> python3 -I plugins/session-flow/scripts/harness/resume_ev
   --copy before=<plugin-copy> --codex-model <codex-default-model> --runs 10 -j 4 --out <out-dir>
 python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
   --graded <out-dir>/graded.jsonl [--graded <out-dir-2>/graded.jsonl] --out <report-dir> \
-  [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--subset same|boundary]
+  [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--nd-margin <M_nd>] \
+  [--token-margin <fraction>] [--subset same|boundary]
 ```
 
 `run` resumes: it skips runs already graded without error and stops after the first
@@ -142,7 +143,13 @@ infrastructure exclusions remain (re-run the same command).
 `--graded`, groups are suffixed `@<n>` by file position, which makes an A/A pair. With
 `--baseline`, each group of the same reader also gets
 `pairs/<group>--vs--<baseline>/{<group>,<baseline>}.json`, scored only on the probes both arms
-grade. Compare a pair with `/evals:plugin-eval`'s
-`scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`, M set from an
-A/A pair of `before` runs. `report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with
-`--threshold`), `untagged:` or `seed mismatch:` line, and 2 on an unknown `--baseline`.
+grade. Accuracy and the result files hold delivered runs only; a run that did not deliver
+(a denial, no handoff, zero turns, a result error) is counted as a per-case non-delivery rate
+instead. Compare a pair's accuracy with `/evals:plugin-eval`'s
+`scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`. Each pair
+line prints `h`, the 95% interval's half-width; on an A/A pair of `before` runs, M = 1.43h
+for accuracy and `--nd-margin` = 1.43h for the non-delivery rate, each rounded up to 0.01.
+`--token-margin` is a fraction of baseline the whole-run reader m1 interval may reach.
+`report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with `--threshold`),
+`non-delivery rise:` (only with `--nd-margin`), `token rise:` (only with `--token-margin`),
+`untagged:` or `seed mismatch:` line, and 2 on an unknown `--baseline`.

@@ -358,17 +358,18 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
     `noise-report.py --baseline` compares two such files case by case, so each arm gets
     its own file with the same case names. A graded run is
     `{"case": <name>, "probes": {<probe id>: <passed>}, "error": <str|None>}`; one with
-    `nondelivery` scores 0 whatever its probes hold.
+    `nondelivery` is left out, so accuracy and its margin come from delivered runs and
+    `report`'s non-delivery check gates the rest.
     """
     cases: dict[str, list[dict]] = {}
     for run in graded_runs:
+        if run.get("nondelivery"):
+            continue
         graders = [
             {"name": probe, "passed": bool(passed), "scored": True, "weight": 1}
             for probe, passed in run["probes"].items()
         ]
         score = sum(g["passed"] for g in graders) / len(graders) if graders else None
-        if run.get("nondelivery"):
-            score = 0.0
         cases.setdefault(run["case"], []).append(
             {
                 "score": score,
@@ -1854,9 +1855,10 @@ def _mean(values) -> float | None:
 
 
 def row_score(row: dict, probes: frozenset[str] | None = None) -> float | None:
-    """A kept run's score over `probes` (all it graded when None); 0 when it did not deliver."""
+    """A kept run's score over `probes` (all it graded when None); None when it did not
+    deliver, which the non-delivery check counts instead."""
     if row.get("nondelivery"):
-        return 0.0
+        return None
     graded = [v for k, v in row["probes"].items() if probes is None or k in probes]
     return _mean(map(bool, graded))
 
@@ -1882,6 +1884,11 @@ class Cell:
 
     def accuracy(self, probes: frozenset[str] | None = None) -> float | None:
         return _mean(self.scores(probes))
+
+    def nondelivery_rate(self) -> float | None:
+        if not self.runs:
+            return None
+        return sum(bool(r.get("nondelivery")) for r in self.runs) / len(self.runs)
 
     def reader_m1(self) -> float | None:
         return _mean(v for v in map(row_reader_m1, self.runs) if v is not None)
@@ -1958,24 +1965,34 @@ def _count(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
-def _paired(deltas: list[float], low: float, high: float) -> str:
+def _paired(deltas: list[float], low: float, high: float) -> tuple[str, float | None]:
+    """The paired change as text, and the interval's upper end (None under 2 cases). `h`,
+    the interval's half-width, is what an A/A pair gives for a margin of 1.43h."""
     if len(deltas) < 2:
-        return f"{_mean(deltas) or 0:+.2f} over {_count(len(deltas), 'case')} (an interval needs 2)"
+        text = f"{_mean(deltas) or 0:+.2f} over {_count(len(deltas), 'case')} (an interval needs 2)"
+        return text, None
     m, lo, hi = normal_interval(deltas, low, high)
-    return f"{m:+.2f}, 95% interval {lo:+.2f} to {hi:+.2f}, paired over {len(deltas)} cases"
+    text = f"{m:+.2f}, 95% interval {lo:+.2f} to {hi:+.2f}, h {(hi - lo) / 2:.3f}, paired over {len(deltas)} cases"
+    return text, hi
 
 
-def _token_change(pairs: list[tuple[float, float]]) -> str:
+def _token_change(pairs: list[tuple[float, float]]) -> tuple[str, float | None]:
+    """The token change as text, and the interval's upper end as a fraction of the
+    baseline mean (None under 2 cases or with no baseline tokens)."""
     if not pairs:
-        return "n/a (a side holds no tokens)"
+        return "n/a (a side holds no tokens)", None
     deltas = [after - before for before, after in pairs]
     base = _mean(before for before, _ in pairs)
     rel = f" ({_mean(deltas) / base:+.1%} of baseline)" if base else ""
     text = f"{_mean(deltas):+.0f}{rel}"
+    upper = None
     if len(deltas) >= 2:
         _, lo, hi = normal_interval(deltas, -math.inf, math.inf)
         text += f", 95% interval {lo:+.0f} to {hi:+.0f}"
-    return text + f" over {_count(len(deltas), 'case')}"
+        if base:
+            upper = hi / base
+            text += f" ({lo / base:+.1%} to {upper:+.1%})"
+    return text + f" over {_count(len(deltas), 'case')}", upper
 
 
 def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
@@ -2003,24 +2020,50 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
         probes = _shared_probes(specs.get(name), b_cells[name], o_cells[name])
         b, o = b_cells[name].accuracy(probes), o_cells[name].accuracy(probes)
         if b is None or o is None:
-            lines.say(
-                f"left out: case {name} has no probe both sides graded ({pair})",
-                fail=True,
+            why = (
+                "no delivered run on one side"
+                if not (b_cells[name].scores() and o_cells[name].scores())
+                else "no probe both sides graded"
             )
+            lines.say(f"left out: case {name} has {why} ({pair})", fail=True)
         else:
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
-    lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)}")
-    for metric, read in (
-        ("reader m1 to first action", Cell.reader_m1),
-        ("whole-run reader m1", Cell.whole_m1),
+    lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)")
+    nd = [
+        o_cells[n].nondelivery_rate() - b_cells[n].nondelivery_rate()
+        for n in names
+        if b_cells[n].runs and o_cells[n].runs
+    ]
+    counts = [
+        sum(bool(r.get("nondelivery")) for n in names for r in cells[n].runs)
+        for cells in (b_cells, o_cells)
+    ]
+    text, upper = _paired(nd, -1.0, 1.0)
+    lines.say(
+        f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {text}"
+    )
+    if args.nd_margin is not None and upper is not None and upper > args.nd_margin + 1e-9:
+        lines.say(
+            f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nd_margin:.2f}",
+            fail=True,
+        )
+    for metric, read, margin in (
+        ("reader m1 to first action", Cell.reader_m1, None),
+        ("whole-run reader m1", Cell.whole_m1, args.token_margin),
     ):
         pairs = [
             (read(b_cells[n]), read(o_cells[n]))
             for n in names
             if read(b_cells[n]) is not None and read(o_cells[n]) is not None
         ]
-        lines.say(f"pair {pair}: {metric} change {_token_change(pairs)}")
+        text, upper = _token_change(pairs)
+        lines.say(f"pair {pair}: {metric} change {text}")
+        if margin is not None and upper is not None and upper > margin + 1e-9:
+            lines.say(
+                f"token rise: {o_label}'s {metric} interval reaches {upper:+.1%} of baseline, above the margin {margin:.0%}",
+                fail=True,
+            )
     for name, (b, o) in scored.items():
         if b - o >= DROP - 1e-9:
             lines.say(
@@ -2037,8 +2080,9 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
 def cmd_report(args) -> int:
     """Per (arm, reader): a plugin-eval result file and accuracy, reader tokens and pass
     counts on every case; with `--baseline`, one shared-probe result pair per compared
-    group. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `untagged:` or
-    `seed mismatch:` line, 2 on an unknown baseline."""
+    group. Accuracy counts delivered runs only; non-delivery is compared as a per-case
+    rate. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `non-delivery rise:`,
+    `token rise:`, `untagged:` or `seed mismatch:` line, 2 on an unknown baseline."""
     groups = load_groups(args.graded)
     if args.baseline and args.baseline not in groups:
         print(
@@ -2107,10 +2151,10 @@ def cmd_report(args) -> int:
         write_report(kept, out / f"{label}.json", label.replace(".", "-"))
         means = {n: c.accuracy() for n, c in mine.items() if c.accuracy() is not None}
         passing = sum(m >= threshold for m in means.values())
-        zero = sum(bool(r.get("nondelivery")) for r in kept)
+        undelivered = sum(bool(r.get("nondelivery")) for r in kept)
         accuracy = _mean(means.values())
         lines.say(
-            f"{label}: {len(kept)} kept, {group.excluded} excluded, {zero} scored 0 for non-delivery;"
+            f"{label}: {len(kept)} kept, {group.excluded} excluded, {undelivered} non-delivery;"
             f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {_count(len(means), 'case')};"
             f" reader m1 {_tokens(_mean(v for c in mine.values() if (v := c.reader_m1()) is not None))};"
             f" whole-run m1 {_tokens(_mean(v for c in mine.values() if (v := c.whole_m1()) is not None))};"
@@ -2122,13 +2166,18 @@ def cmd_report(args) -> int:
                 lines.say(f"  {name}: no run to score")
                 continue
             lines.say(
-                f"  {name}: accuracy {score:.2f} over {_count(len(cell.runs), 'run')};"
+                f"  {name}: accuracy {score:.2f} over {_count(len(cell.scores()), 'delivered run')} of {len(cell.runs)};"
                 f" reader m1 {_tokens(cell.reader_m1())}; whole-run m1 {_tokens(cell.whole_m1())};"
                 f" {'pass' if score >= threshold else 'fail'} at T={threshold:.2f}"
             )
     if args.baseline:
-        if args.threshold is None:
-            lines.say("threshold: none given, so no pass-to-fail check ran")
+        for value, check in (
+            (args.threshold, "threshold: none given, so no pass-to-fail check ran"),
+            (args.nd_margin, "nd-margin: none given, so no non-delivery check ran"),
+            (args.token_margin, "token-margin: none given, so no whole-run token check ran"),
+        ):
+            if value is None:
+                lines.say(check)
         base = groups[args.baseline]
         others = [
             g.label
@@ -2237,6 +2286,16 @@ def main(argv=None) -> int:
         "--threshold",
         type=float,
         help="T: a case passes at a mean score at or above it (default 1.0; pass-to-fail runs only when given)",
+    )
+    report.add_argument(
+        "--nd-margin",
+        type=float,
+        help="M_nd: fail a pair whose per-case non-delivery rate change has a 95%% upper end above it",
+    )
+    report.add_argument(
+        "--token-margin",
+        type=float,
+        help="fail a pair whose whole-run reader m1 change has a 95%% upper end above this fraction of baseline",
     )
     report.add_argument("--subset", choices=("same", "boundary"))
     report.add_argument("--evals-dir", default=str(HERE.parents[1] / "evals"))
