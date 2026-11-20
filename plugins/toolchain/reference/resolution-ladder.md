@@ -94,7 +94,10 @@ ecosystem-resolution contract's detector:
 1. The invocation says it is unattended: an `--unattended` argument, `CLAUDE_CODE_REMOTE` set,
    `claude -p`, a scheduled, loop or CI lane, or a subagent an unattended run dispatched. The run
    is unattended.
-2. A person is in the session and can answer a question now. The run is attended.
+2. The session holds a message a person wrote other than the one that started this run, such as an
+   earlier turn or a reply to an earlier question. The run is attended. The starting message
+   alone, a `/toolchain:check` or `/toolchain:lint` with its arguments or a request to run one, is
+   no such message.
 3. Otherwise the run is unattended. A run that cannot tell counts as unattended.
 
 An attended run uses the four rungs above. An unattended run uses the next section in their place.

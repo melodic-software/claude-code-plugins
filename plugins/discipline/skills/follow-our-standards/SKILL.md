@@ -1,5 +1,6 @@
 ---
 description: "Re-anchors to the organization's engineering standards, audits the work in flight against them, and corrects violations with doc citations. Use when: 'follow our standards', 'follow the standards', 're-anchor to standards', 'does this match our conventions', 'audit against standards', 'you're drifting from our conventions', or at conversation start on a repo governed by shared conventions."
+argument-hint: "[--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -87,6 +88,18 @@ the audit runs against.
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill follow-our-standards --file docs/conventions/discipline.yaml`
   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
   `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
+
+## Several repositories
+
+A target form from
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+(`--repo <repo>` and the others) runs the audit once per repository, per the
+method doc's "Several repositories"; with none, the skill audits the work in
+flight as above. Each repository's pass audits that repository's tracked
+code and docs against the standards it resolves itself: run "Resolve the
+standards source" and route through the index under "Loading" inside that
+repository, so one repository's standards never judge another's. Each
+finding cites the doc from its own repository's source.
 
 ## Out of scope
 

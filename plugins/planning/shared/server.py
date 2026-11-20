@@ -797,6 +797,23 @@ def raw_answer(code, reason, body):
     return ("\r\n".join(head) + "\r\n\r\n").encode("ascii") + raw
 
 
+def linger(sock, seconds, limit, read=None):
+    """Half-close `sock` once its answer is sent, then read and drop what the client still sends until it closes, `limit`
+    bytes or `seconds` (RFC 9112 9.6). A socket closed with request bytes unread, or that gets more after it closed,
+    resets the connection (RFC 9293 3.6.1), and the reset can reach a client before it reads the answer. `read` defaults
+    to `sock.recv`; a handler passes its buffered reader's `read1`, which returns the bytes it already took first."""
+    read = read or sock.recv
+    with contextlib.suppress(OSError, ValueError):
+        sock.shutdown(socket.SHUT_WR)
+        deadline = time.monotonic() + seconds
+        while limit > 0 and (wait := deadline - time.monotonic()) > 0:
+            sock.settimeout(wait)
+            got = read(min(limit, 65536))
+            if not got:
+                break
+            limit -= len(got)
+
+
 class GuestServer(ThreadingHTTPServer):
     """At most session.MAX_HANDLERS connections are served at once; one more is answered 503."""
 
@@ -846,20 +863,13 @@ class GuestServer(ThreadingHTTPServer):
             self.slots.release()
 
     def refuse(self, request):
-        """Answer 503, then read what the client sends until it closes, DRAIN_BYTES or DRAIN_SECONDS. A socket closed
-        with unread data resets the connection, and a Windows client then drops the 503 it already received."""
+        """Answer 503, then linger until the client closes, DRAIN_BYTES or DRAIN_SECONDS: a Windows client that gets a
+        reset drops the 503 it already received."""
         try:
             with contextlib.suppress(OSError):
                 request.settimeout(1.0)
                 request.sendall(self.BUSY)
-                request.shutdown(socket.SHUT_WR)
-                deadline, left = time.monotonic() + self.DRAIN_SECONDS, self.DRAIN_BYTES
-                while left > 0 and (wait := deadline - time.monotonic()) > 0:
-                    request.settimeout(wait)
-                    got = request.recv(min(left, 4096))
-                    if not got:
-                        break
-                    left -= len(got)
+            linger(request, self.DRAIN_SECONDS, self.DRAIN_BYTES)
         finally:
             self.close_request(request)
             self.drains.release()
@@ -870,9 +880,34 @@ class GuestHandler(BaseHTTPRequestHandler):
     server_version = "shared-session"
     sys_version = ""
     timeout = 30  # an idle or trickling connection is dropped
+    body_left = 0
 
     def version_string(self):
         return self.server_version
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+        self.body_left = max(self.content_length(), 0)
+        return True
+
+    def finish(self):
+        """Read what is left of a body answered unread before the socket closes, so it closes with no reset. It reads
+        through `rfile` before closing it, since the header read can already have buffered the whole body."""
+        if self.body_left:
+            with contextlib.suppress(OSError, ValueError):
+                self.wfile.flush()
+            linger(self.connection, self.server.DRAIN_SECONDS, self.body_left, self.drain_read)
+        super().finish()
+
+    def drain_read(self, n):
+        """`rfile.read1`, or the socket once `rfile` refuses reads after a body timeout, when its buffer is empty."""
+        try:
+            return self.rfile.read1(n)
+        except TimeoutError:
+            raise
+        except OSError:
+            return self.connection.recv(n)
 
     @property
     def app(self):
@@ -993,6 +1028,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                     return None
                 chunks.append(chunk)
                 left -= len(chunk)
+                self.body_left -= len(chunk)
         finally:
             self.connection.settimeout(self.timeout)
         return b"".join(chunks)
@@ -1299,6 +1335,7 @@ class App:
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
         self._last_sync = 0.0
+        self._sync_lock = threading.Lock()
         self._stop = threading.Event()
         self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
@@ -1557,7 +1594,12 @@ class App:
             self.hub.cond.notify_all()
 
     def sync_tunnel(self, restart=True):
-        """Follow the tunnel record: allow its host, record its link, restart it when it exited."""
+        """Follow the tunnel record: allow its host, record its link, restart it when it exited. The watch and request
+        threads call it, one at a time, so a record read before a later one is never applied after it."""
+        with self._sync_lock:
+            self._sync_tunnel(restart)
+
+    def _sync_tunnel(self, restart):
         rec = tunnel.read(self.dir)
         if rec is None:
             self.tunnel_up = False

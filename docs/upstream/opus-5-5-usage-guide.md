@@ -44,8 +44,10 @@ Each row is an [upstream-drift](../contracts/upstream-drift/README.md#required-p
 **Topic** column names the guide item in our words, with an ID other files cite; **Ours** and
 **Verdict** are our decision. No row restates the guide. Shared for every row:
 
-- **Pointer**: the pages in [Source and verification](#source-and-verification).
-- **Recheck trigger**: the next Opus release.
+- **Pointer**: the pages in [Source and verification](#source-and-verification); it carries no
+  trigger.
+- **Recheck trigger**: the next Opus release; re-derive each row's **Ours** and **Verdict** for
+  that model.
 
 The guide's opening and closing summary sections map onto the rows below and carry no rows of
 their own.

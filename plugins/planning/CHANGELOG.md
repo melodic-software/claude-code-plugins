@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.2] - 2026-11-20
+
+### Fixed
+
+- The shared session server reads and drops a request body it refused unread (a body over its cap, a chunk it already holds) after sending the answer, until the client closes, the declared length is read or two seconds pass, before it closes the connection. Closing with the body unread reset the connection, and a client still sending its body got the reset instead of the 413.
+- The tunnel watch can no longer allow a switched-from address again after its grace time ended: two syncs of the tunnel record no longer overlap, so one that read the record before the grace ended cannot apply it over a later one.
+
+## [5.10.1] - 2026-11-20
+
+### Changed
+
+- The shared page's `proto-pin.js` copy takes the ui-feedback frame helper's new rules: a data-log
+  replay returns -1 when a press finds no control and the page marks no data control, and a region over content with no test
+  ids lists the holding element's children it crosses as its `elements`
+  ([#17010](https://github.com/melodic-software/claude-code-plugins/issues/17010)).
+
 ## [5.10.0] - 2026-11-20
 
 ### Changed
