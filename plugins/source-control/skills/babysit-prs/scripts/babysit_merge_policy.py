@@ -1918,10 +1918,6 @@ GREEN_SPANS = 53
 # records filed close together read the same pages; each record's span is
 # cut from the one or two cells that cover it.
 GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
-# Pages one cell may take. A record's span is still bound by `GREEN_PAGES`;
-# a cell holds the busy days before the record too, and a cell it cannot read
-# whole holds the record where its own span would not have. Main listed 582
-# green dispatch runs in the week from 2026-10-19T10:00:00Z.
 GREEN_CELL_PAGES = 2 * GREEN_PAGES
 # A canary, revert or read-back record, which `_lift` lifts. A canary record
 # may be a post-merge-failure one, which holds nothing but is closed the same
@@ -2105,7 +2101,7 @@ class _GreenMain:
     def __init__(self, owner: str, name: str) -> None:
         self.owner, self.name = owner, name
         self.runs: dict[str, list[dict[str, Any]]] = {}
-        self.cells: dict[tuple[str, int], list[dict[str, Any]]] = {}
+        self.cells: dict[tuple[str, int], tuple[datetime, list[dict[str, Any]]]] = {}
         self.tip: str | None = None
         self.compares: dict[tuple[str, str], str | None] = {}
         # babysit_postmerge's `_Context` for local ancestry; False: unavailable.
@@ -2123,14 +2119,22 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def _cell(self, event: str, cell: int) -> list[dict[str, Any]]:
+    def _cell(self, event: str, cell: int, low: datetime) -> list[dict[str, Any]]:
         """Every green `event` full run on main created in `GREEN_GRID` cell
-        `cell`, both ends included as `created=a..b` includes them, read
-        once; more than `GREEN_CELL_PAGES` pages raises, so the earliest is
-        never a guess."""
-        if (event, cell) not in self.cells:
-            start = GREEN_GRID + cell * GREEN_SPAN
-            created = quote(f"{_stamp(start)}..{_stamp(start + GREEN_SPAN)}", safe=":")
+        `cell` from `low` (or the cell's start, when later) to its end, both
+        ends included as `created=a..b` includes them. A cell is listed again
+        only when `low` is earlier than its listing started, so the runs
+        before the earliest record in it are never paged. More than
+        `GREEN_CELL_PAGES` pages raises, so the earliest is never a guess:
+        the days after a record's span are in its cell too, and a cell that
+        cannot be read whole holds the record where its span would not have.
+        Main listed 582 green dispatch runs in the week from
+        2026-10-19T10:00:00Z."""
+        start = GREEN_GRID + cell * GREEN_SPAN
+        begin = max(start, low.replace(microsecond=0))
+        listed = self.cells.get((event, cell))
+        if listed is None or listed[0] > begin:
+            created = quote(f"{_stamp(begin)}..{_stamp(start + GREEN_SPAN)}", safe=":")
             found: list[dict[str, Any]] = []
             for page in range(1, GREEN_CELL_PAGES + 1):
                 answer = self._read(
@@ -2145,8 +2149,8 @@ class _GreenMain:
                     f"{event} green runs: more than {GREEN_CELL_PAGES} pages"
                     f" in the week from {_stamp(start)}"
                 )
-            self.cells[event, cell] = found
-        return self.cells[event, cell]
+            self.cells[event, cell] = (begin, found)
+        return self.cells[event, cell][1]
 
     def _window(self, since: str, until: str) -> list[dict[str, Any]]:
         """Every green schedule and workflow_dispatch full run on main
@@ -2164,7 +2168,7 @@ class _GreenMain:
             runs = [
                 run
                 for cell in range(first, last + 1)
-                for run in self._cell(event, cell)
+                for run in self._cell(event, cell, low)
                 if low <= _time(run.get("created_at")) <= high
                 and (
                     cell == first
