@@ -1,0 +1,219 @@
+{
+  "name": "re-retired-id-reused",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC2: a rule id retired at an earlier hop and reused for a different rule.",
+    "risk": "The chain carries one id for two rules: the retired one in a hop file and a live, contradicting one in Current rules. A reader that follows the id into the hop file, or a writer that merges the two, acts on the retired rule."
+  },
+  "description": "Source: design AC2 (validate accepts a retired id reused for a different entry), written as a synthetic release lane. Hard because Review before you continue points the reader at hop 3's file, where the same id holds the retired rule (bump pyproject.toml's version by hand in the release PR), while the live rule under that id says the release workflow sets the version from the pushed tag and no PR edits it. The reader's next action, cutting release 1.8.0, goes one way under each rule.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# ledger-sync\n\nSynthetic library repository for the resume eval.\n",
+      "pyproject.toml": "[project]\nname = \"ledger-sync\"\nversion = \"1.7.2\"\nrequires-python = \">=3.11\"\n",
+      ".github/workflows/release.yml": "name: release\non:\n  push:\n    tags: [\"v*\"]\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: python scripts/set_version.py \"${GITHUB_REF_NAME#v}\"\n      - run: python -m build && python -m twine upload dist/*\n",
+      "scripts/set_version.py": "import re, sys\nfrom pathlib import Path\n\np = Path(\"pyproject.toml\")\np.write_text(re.sub(r'^version = \".*\"$', f'version = \"{sys.argv[1]}\"', p.read_text(), flags=re.M))\n",
+      "docs/releases/1.8.0.md": "# 1.8.0\n\n- Sync retries back off exponentially (#4418).\n- Ledger exports carry the account currency (#4424).\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "ledger-sync-release",
+      "lane": "ledger-sync",
+      "hops": 5,
+      "target_bytes": 18000,
+      "expected_fail": [{"hop": 4, "fail": "id_reuse", "arms": ["after"]}, {"hop": 5, "fail": "id_reuse", "arms": ["after"]}],
+      "start": "2026-10-12T09:00:00Z",
+      "hop_minutes": 300,
+      "goal": "Ship ledger-sync 1.8.0 with the retry back-off and the currency export.",
+      "vision": "Downstream teams pick up a release the day its last PR merges.",
+      "opening_ask": "Get 1.8.0 out once the back-off and currency PRs land.",
+      "injections": [
+        {
+          "id": "rule-hand-bump",
+          "hop": 1,
+          "section": "rules",
+          "text": "Bump the version in pyproject.toml by hand in the release PR, in the same commit as the release notes.",
+          "retire": {
+            "hop": 3,
+            "reason": "dropped at hop 3: the release workflow now sets the version from the tag (#4205), so a hand bump conflicts with it"
+          },
+          "visible_in_reads": false
+        },
+        {
+          "id": "rule-tag-release",
+          "hop": 4,
+          "section": "rules",
+          "text": "Cut a release by pushing an annotated tag: `git tag -a v<version> -m v<version>`, then `git push origin v<version>`; the release workflow sets pyproject.toml's version from the tag, so no PR or commit edits that version.",
+          "reuse": "rule-hand-bump",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 5 against main at 4b7e2a9.",
+          "Where it stands: PR #4431 (docs/releases/1.8.0.md) merged; the back-off (#4418) and currency (#4424) PRs are on main.",
+          "Next: cut release 1.8.0, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: downstream teams pick up a release the day its last PR merges.",
+          "- [ ] Tag v1.8.0 pushed and the release workflow green.",
+          "- [ ] ledger-sync 1.8.0 on the package index."
+        ],
+        "remaining": [
+          "1. Cut release 1.8.0.",
+          "2. Confirm the release workflow run for v1.8.0 is green and 1.8.0 is on the index."
+        ],
+        "next": [
+          "Cut release 1.8.0."
+        ],
+        "did": "merged the 1.8.0 release notes in PR #4431",
+        "left": "release 1.8.0 not cut"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. The release notes are merged; cutting 1.8.0 is next.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/docs/releases/1.8.0.md"
+          },
+          "result": "     1\t# 1.8.0\n     2\t\n     3\t- Sync retries back off exponentially (#4418).\n     4\t- Ledger exports carry the account currency (#4424)."
+        },
+        {
+          "role": "assistant",
+          "text": "The 1.8.0 notes list the back-off and the currency export."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/ledger-sync",
+      "responses": [
+        {
+          "match": "\\bpr view\\b",
+          "stdout": "{\"number\": 4431, \"state\": \"MERGED\"}\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brelease view\\b[^\\n]*v1\\.8\\.0",
+          "stdout": "release not found\n",
+          "exit": 1
+        },
+        {
+          "match": "\\brelease (view|list)\\b",
+          "stdout": "v1.7.2\tLatest\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun (list|view|watch)\\b",
+          "stdout": "completed\tsuccess\trelease\tv1.7.2\t81442907\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff ledger-sync-release",
+      "after": "/session-flow:handoff ledger-sync-release",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-live-rule-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "git tag -a v<version>[^\\n]*no PR or commit edits that version"
+      },
+      "note": "The live rule under the reused id survives whole."
+    },
+    {
+      "id": "continuation-tags-release",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "\\bgit(?:\\s+-C\\s+\\S+)?\\s+tag\\b[^\\n]*\\bv1\\.8\\.0\\b|\\bgit(?:\\s+-C\\s+\\S+)?\\s+push\\b[^\\n]*\\bv1\\.8\\.0\\b"
+      }
+    },
+    {
+      "id": "decision-no-version-edit",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "edited_path_regex",
+        "pattern": "(^|/)pyproject\\.toml$"
+      },
+      "note": "Editing the version follows the retired rule the id used to name."
+    },
+    {
+      "id": "recall-how-version-is-set",
+      "type": "recall",
+      "grade": "text",
+      "question": "How does pyproject.toml's version get set for a release?",
+      "criteria": "PASS only if the answer says the release workflow sets it from the pushed tag and nobody edits it by hand in a PR or commit. FAIL if it says to bump it by hand, or gives both ways as current."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["make migrate-check"], "why": "make target"},
+    {"commands": ["./scripts/migrate-check.sh --snapshot staging"], "why": "script directly"}
+  ],
+  "fail": [
+    {"commands": ["gh pr merge 4417 --squash"], "why": "merges without the check"},
+    {"commands": ["cat migrations/0042_payouts_created_at_index.sql"], "why": "reads only"}
+  ]
+}
