@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.4.2] - 2026-11-20
+
+### Changed
+
+- Audit criteria and skill bodies no longer restate Claude Code or platform behavior beside their pointers. Where a check acts on that behavior, the text now states the check's own rule and its reason, and the pointer carries what the page says. This covers the instruction, conflict, permission-grant, permission-state, prompting-posture and settings audits, the shared `${…}` spoke-path notes, the SARIF fingerprint note in `audit-pass`, and the WSL setup profile's deny-rule limits.
+- Pointer records that store no upstream number or string no longer carry a recheck trigger, in `audit-automation-gaps`, `audit-instructions`, `audit-prompting-postures` and the audit's required-permissions reference. Triggers on our own decisions, and stored values with their dates, stay.
+
 ## [5.4.1] - 2026-11-20
 
 ### Changed
