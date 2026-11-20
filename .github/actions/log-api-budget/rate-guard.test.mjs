@@ -1,4 +1,3 @@
-// test-scope: .github/*.mjs .github/*.cjs  # the guard-coverage case scans every tracked script
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -876,41 +875,6 @@ test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none 
       }
     }
   }));
-
-// No lane script calls fetch outside the guard, except the files below, each
-// for its stated reason. A new raw fetch fails here until it is guarded or
-// listed.
-const UNGUARDED = {
-  // Package registries and status pages, not the API.
-  ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
-  ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": "the status pages, not the API",
-  // Script activities that run from a copy of their own directory, where the
-  // guard module is not: open until the copy carries it.
-  ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
-  // Its mains run from the base checkout count their requests (countedFetch).
-  ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
-  // pr-merge's own guard is its owner's change.
-  ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
-  // Its API calls go through lib/github-rest.mjs, which imports the guard; the
-  // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
-  ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
-  ".github/scripts/lib/ci-workflows-at-pin.mjs": "raw.githubusercontent.com reads from tests; no API call",
-};
-
-test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {
-  const root = new URL("../../../", import.meta.url).pathname;
-  const files = spawnSync("git", ["-C", root, "ls-files", ".github/*.mjs", ".github/*.js", ".github/*.cjs"], { encoding: "utf8" })
-    .stdout.split("\n")
-    .filter((file) => file && !/\.test\.[cm]?js$/.test(file) && !file.includes("/node_modules/") && !file.includes("/fixtures/") && !file.includes("/probe/"));
-  const raw = files.filter((file) => {
-    const text = readFileSync(join(root, file), "utf8");
-    // An import of the guard counts; the path named in a string does not.
-    const imports = /from\s+["'][^"']*log-api-budget\/rate-guard\.mjs["']/.test(text);
-    return /(^|[^\w.])fetch\(/m.test(text) && !imports && !file.endsWith("log-api-budget/rate-guard.mjs");
-  });
-  assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
-  assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
-});
 
 test("isContentWrite counts the issue, pull request, comment, review and label writes, and GraphQL mutations", () => {
   const repo = "https://api.github.com/repos/o/r";

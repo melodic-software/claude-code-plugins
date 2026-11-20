@@ -13,6 +13,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import {
@@ -273,7 +274,7 @@ async function push(env) {
   const { BASE_SHA: baseSha, BUNDLE_FILE, REPO_DIR: repo, GITHUB_REPOSITORY: repository } = env;
   const { areas, sweeps } = readPlan(env);
   const synthetic = readSynthetic(env.SYNTHETIC, sweeps.length);
-  const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
+  const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com", fetch: rateLimitLatch.guard(globalThis.fetch) });
   const heads = {};
   // The job's own read-only token: the lanes App token holds no pull request permission here.
   let slots = slotsLeft(parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, GH_TOKEN: env.COUNT_TOKEN, CLAUDE_PROJECT_DIR: repo } })));

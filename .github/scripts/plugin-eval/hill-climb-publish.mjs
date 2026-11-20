@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
 import { api, changesHoldPath, commitNetTree, netRawDiff, readNetChanges } from "../upstream-apply-changelog/upstream-apply-changelog.mjs";
 import { pathRefusal } from "./hill-climb-edit.mjs";
@@ -204,7 +205,7 @@ async function push(env) {
   if (head) {
     console.log("the branch is already at the built tree; reused");
   } else {
-    const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
+    const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com", fetch: rateLimitLatch.guard(globalThis.fetch) });
     head = await commitNetTree(readNetChanges(repo, baseSha, commit), { message: title, baseSha, baseTree: git(repo, ["rev-parse", `${baseSha}^{tree}`]), headTree, api: writer });
     await writer.createRef(`refs/heads/${branch}`, head);
   }

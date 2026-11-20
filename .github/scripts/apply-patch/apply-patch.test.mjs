@@ -3670,6 +3670,10 @@ test("createGitHubApi reads a comparison and a tree", async () => {
   assert.deepEqual(sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`, `GET https://api/repos/o/r/git/trees/${"c".repeat(40)}`]);
 });
 
+test("createGitHubApi refuses to build without a fetch, so no importer falls back to one the rate guard never sees", () => {
+  assert.throws(() => createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api" }), TypeError);
+});
+
 // The shared-copies row: a clean merge of the pinned base that takes the base
 // sync script's patch, of copies the base-tip registry lists only.
 const COPY = "plugins/p/lib/shared.sh";
