@@ -2,7 +2,8 @@ name: PR Run Plugin Evals Label
 
 # Starts PR Run Plugin Evals: adding the `eval: run` label to a same-repository,
 # non-draft pull request runs this file, and its completion starts the evals on
-# workflow_run from main, which holds the Claude credentials
+# workflow_run, which runs main's copy of the eval workflow with the Claude
+# credentials, never the PR's
 # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
 # This run is the head's copy, holds no secret and no write token, and the
 # evals read nothing it writes.
