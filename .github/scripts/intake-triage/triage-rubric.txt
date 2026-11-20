@@ -100,7 +100,10 @@ For anything else, keep needs_human false so your comment and fields are kept:
   recommendation. A primary-design choice the issue lists and leaves unpicked (two
   architectures, a new shared store or an existing one) is an intent question: set
   `Flags: intent`, apply `needs-owner-decision`, and ask it as a numbered question with a
-  `RECOMMENDED:` answer and its basis.
+  `RECOMMENDED:` answer and its basis. Only a design choice the owner has not made holds: a
+  design the issue has already chosen, a visual or UX design included, with an exact
+  done-when is not an intent question and needs no sign-off, so set no flag and apply no
+  `needs-owner-decision` or `needs-human` label for it.
 - A question that the repository's files, a merged change, or a comment on this issue whose
   first line is exactly `**Decision recorded.**` by an author whose login does not end in
   `[bot]` already answers is not an intent question: answer it in your comment with that
