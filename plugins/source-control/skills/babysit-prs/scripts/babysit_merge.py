@@ -3300,7 +3300,7 @@ def _lane_evidence(
         threads,
         is_human=human,
         changed_paths=changed_paths,
-        base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
+        retargeted_at=_retargeted_at(timeline),
         head_file=head_file,
         base_sha=base_sha,
         main_reviews=main_reviews,
@@ -3308,6 +3308,21 @@ def _lane_evidence(
         floor=floor,
     )
     return lanes, comments
+
+
+def _retargeted_at(timeline: Sequence[Mapping[str, Any]]) -> str | None:
+    """The `created_at` of the newest `base_ref_changed` event, or None when
+    the pull request was never retargeted. An event without a readable time
+    gives "", which `bind()` reads as unbound evidence."""
+    times = [
+        e.get("created_at") for e in timeline if e.get("event") == "base_ref_changed"
+    ]
+    if not times:
+        return None
+    try:
+        return max(times, key=datetime.fromisoformat)
+    except (TypeError, ValueError):
+        return ""
 
 
 def _main_reviews(

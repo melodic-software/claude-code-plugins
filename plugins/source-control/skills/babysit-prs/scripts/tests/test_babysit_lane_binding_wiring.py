@@ -220,5 +220,41 @@ class LaneEvidenceReadTests(unittest.TestCase):
         self.assertIs(comments[0][lb.VERDICT], True)
 
 
+class RetargetedAtTests(unittest.TestCase):
+    """The `retargeted_at` the gate hands `bind()` from the timeline."""
+
+    def event(self, at: Any, name: str = "base_ref_changed") -> dict[str, Any]:
+        return {"event": name, "created_at": at}
+
+    def test_never_retargeted(self) -> None:
+        self.assertIsNone(merge._retargeted_at([self.event("2026-01-02T00:00:00Z", "renamed")]))
+
+    def test_the_newest_of_several_retargets(self) -> None:
+        timeline = [
+            self.event("2026-01-03T00:00:00Z"),
+            self.event("2026-01-04T00:00:00Z", "renamed"),
+            self.event("2026-01-02T00:00:00Z"),
+        ]
+        self.assertEqual(merge._retargeted_at(timeline), "2026-01-03T00:00:00Z")
+
+    def test_an_unreadable_time_unbinds(self) -> None:
+        for at in (None, "soon"):
+            with self.subTest(at=at):
+                timeline = [self.event("2026-01-02T00:00:00Z"), self.event(at)]
+                at_value = merge._retargeted_at(timeline)
+                self.assertEqual(at_value, "")
+                lanes = ev.bind(
+                    S,
+                    [{**whole(lane, S), "created_at": "2026-01-05T00:00:00Z"} for lane in ev.LANES],
+                    ev_tests.both_markers(),
+                    [],
+                    is_human=ev_tests.is_human,
+                    retargeted_at=at_value,
+                    changed_paths=(),
+                    floor=ev_tests.risk.floor_for(),
+                )
+                self.assertEqual({lane.unbound_reason for lane in lanes}, {"evidence-error"})
+
+
 if __name__ == "__main__":
     unittest.main()
