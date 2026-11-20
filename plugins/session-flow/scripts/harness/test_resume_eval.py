@@ -205,13 +205,24 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
     )
     assert doc["enabledPlugins"] == {"session-flow@melodic-software": False}
     deny = doc["permissions"]["deny"]
-    assert (
-        "Bash(curl *)" in deny
-        and "Bash(wget *)" in deny
-        and "Bash(git ls-remote https *)" in deny
-        and "Bash(git ls-remote git@*)" in deny
-    )
+    assert "Bash(curl *)" in deny and "Bash(wget *)" in deny
     assert not {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} & set(deny)
+    from fnmatch import fnmatchcase
+
+    patterns = [d[5:-1] for d in deny if d.startswith("Bash(git ")]
+    for remote in (
+        "git ls-remote http://h/x",
+        "git ls-remote --heads https://h/x",
+        "git ls-remote ssh://h/x",
+        "git ls-remote h:path",
+        "git ls-remote git@h:x",
+        "git fetch git://h/x",
+        "git fetch -q https://h/x",
+        "git fetch git@h:x",
+    ):
+        assert any(fnmatchcase(remote, p) for p in patterns), remote
+    for local in ("git ls-remote origin", "git ls-remote --heads origin", "git fetch origin"):
+        assert not any(fnmatchcase(local, p) for p in patterns), local
     assert "WebFetch" in deny
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
     assert "pluginConfigs" not in resume_eval.run_settings()
