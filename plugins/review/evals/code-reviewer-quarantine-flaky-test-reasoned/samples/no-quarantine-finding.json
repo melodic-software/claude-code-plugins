@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Criteria read: none present\nLoosened-check verdict: fail (default); patterns: 0\n\nThe soft-fail \"Quarantined tests\" step quarantines one flaky test that the spec (#88) names, with its reason, so it passes the loosened-check criterion.\n\n**SUGGESTION**\n- `test/quarantine/upload-retry.test.js:17`: the 50 ms bound races two random delays; #89's fake timers will fix it. Confidence: medium\n\nCoverage: all changed files reviewed",
+      "answer": "Criteria read: none present\nLoosened checks would be marked: fail (default); patterns: 0\n\nThe soft-fail \"Quarantined tests\" step quarantines one flaky test that the spec (#88) names, with its reason, so it passes the loosened-check criterion.\n\n**SUGGESTION**\n- `test/quarantine/upload-retry.test.js:17`: the 50 ms bound races two random delays; #89's fake timers will fix it. Confidence: medium\n\nCoverage: all changed files reviewed",
       "why": "names the quarantine as allowed and only suggests on the timing flaw"
     }
   ],
