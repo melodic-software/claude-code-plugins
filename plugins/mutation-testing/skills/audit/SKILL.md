@@ -1,6 +1,6 @@
 ---
 description: "Mutation analysis that reports surviving mutants, on the diff or, with `--exercised`, on the production code the changed tests call. Use when: the user asks to run mutation testing or for a mutation score on a change ('run mutation testing'), doubts a suite whose coverage looks healthy ('my coverage is high but I do not trust it'), asks whether the tests, including ones just written, actually check the code, asks to audit test quality, or wants the survivors persisted for the fix pass; after tests go green and before review."
-argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings --record-mutants --replay-mutants"
+argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -60,6 +60,7 @@ The user config layer, rendered from this plugin's `userConfig` (empty or a lite
 - **`--replay-mutants <file>`**: with `--exercised <test-path>` and `--record-mutants <after>`,
   apply exactly the recorded mutants and gate on lost kills ([Record and replay](#record-and-replay)).
 - **`--phase generate|triage`**: one half of the audit; read [`context/split-runs.md`](context/split-runs.md).
+- **Target forms** (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or in words): `--full` only, once per repository; a scope path, `--exercised`, `--paths`, `--phase` and record or replay refuse one. Read [`context/several-repositories.md`](context/several-repositories.md) first.
 
 ### Effort, the mutant cap of last resort
 
@@ -222,8 +223,7 @@ check that cannot run is not a check.
 
 ## Phase 1: Scope
 
-Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as
-[The exercised scope](#the-exercised-scope---exercised) states.
+Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as [The exercised scope](#the-exercised-scope---exercised) states.
 
 1. Resolve the changed lines: `git diff --unified=0 <diff-target>...HEAD` for the files inside the
    configured `mutate` globs, intersected with any `--paths` or scope argument.

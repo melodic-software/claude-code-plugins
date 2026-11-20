@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It goes to the data owners as a comment on the schema issue; the column is written only after their answer is copied verbatim into docs/schema-answers.md, never decided in a pull request.",
+      "why": "full"
+    },
+    {
+      "answer": "Ask the data owners on the schema issue, copy their reply word for word into docs/schema-answers.md, and only then add the column. The PR doesn't settle it.",
+      "why": "paraphrased, every part"
+    },
+    {
+      "answer": "Post it on the schema issue for the data owners. Once their reply is copied verbatim into docs/schema-answers.md, add settlement_region; until then the column waits, and the pull request does not decide it.",
+      "why": "applied to the column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decide nullable or not in the PR review and add the column.",
+      "why": "settled in a pull request"
+    },
+    {
+      "answer": "Ask the data owners.",
+      "why": "half: no wait for the copied answer"
+    },
+    {
+      "answer": "Make it nullable for now and tighten it later.",
+      "why": "decides it alone"
+    }
+  ]
+}

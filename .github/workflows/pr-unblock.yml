@@ -46,7 +46,7 @@ name: PR Unblock
 # feedback-dispatch.mjs and dispatch.mjs read this title to skip a second
 # dispatch while one for the same activity and PR is still queued or going.
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
-run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
+run-name: "PR Unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
 # API_BUDGET_HOLD (outage posture element 2): only the two human-gated hold
 # steps set it, since lane-hold.mjs holds green on a fault and starts nothing.
@@ -1988,9 +1988,10 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: start
+          role: pr-unblock
           key-job: adjudicate-feedback
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -2001,7 +2002,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: adjudicate-feedback
@@ -2134,17 +2135,18 @@ jobs:
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
           role: pr-unblock
           credential-set: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-adjudicator-key-credit.outputs.next-leg }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Check the subscription token
         id: sub
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: subscription
           role: pr-unblock
@@ -2154,7 +2156,7 @@ jobs:
       - name: Check the fallback token
         id: fb
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: fallback
           role: pr-unblock
@@ -2164,7 +2166,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -2203,7 +2205,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2253,7 +2255,7 @@ jobs:
       - name: Record disputed thread 0's leg
         if: always() && steps.judge-0.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-0.outcome }}
           execution-file: ${{ steps.judge-0.outputs.execution-file }}
@@ -2273,7 +2275,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-0.outputs.handoff }}
@@ -2284,7 +2286,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2335,7 +2337,7 @@ jobs:
       - name: Record disputed thread 0's leg on the subscription
         if: always() && steps.judge-0-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-0-subscription.outcome }}
           execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
@@ -2356,7 +2358,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.next-0.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
@@ -2367,7 +2369,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2417,7 +2419,7 @@ jobs:
       - name: Record disputed thread 0's leg on the fallback token
         if: always() && steps.judge-0-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-0-fallback.outcome }}
           execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
@@ -2458,7 +2460,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2508,7 +2510,7 @@ jobs:
       - name: Record disputed thread 1's leg
         if: always() && steps.judge-1.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-1.outcome }}
           execution-file: ${{ steps.judge-1.outputs.execution-file }}
@@ -2528,7 +2530,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-1.outputs.handoff }}
@@ -2539,7 +2541,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2590,7 +2592,7 @@ jobs:
       - name: Record disputed thread 1's leg on the subscription
         if: always() && steps.judge-1-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-1-subscription.outcome }}
           execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
@@ -2611,7 +2613,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.next-1.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
@@ -2622,7 +2624,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2672,7 +2674,7 @@ jobs:
       - name: Record disputed thread 1's leg on the fallback token
         if: always() && steps.judge-1-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-1-fallback.outcome }}
           execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
@@ -2713,7 +2715,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2763,7 +2765,7 @@ jobs:
       - name: Record disputed thread 2's leg
         if: always() && steps.judge-2.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2783,7 +2785,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-2.outputs.handoff }}
@@ -2794,7 +2796,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2845,7 +2847,7 @@ jobs:
       - name: Record disputed thread 2's leg on the subscription
         if: always() && steps.judge-2-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-2-subscription.outcome }}
           execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
@@ -2866,7 +2868,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           state: ${{ steps.next-2.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
@@ -2877,7 +2879,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2927,7 +2929,7 @@ jobs:
       - name: Record disputed thread 2's leg on the fallback token
         if: always() && steps.judge-2-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.judge-2-fallback.outcome }}
           execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
@@ -2961,7 +2963,7 @@ jobs:
       # name is written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.check-adjudicator-key-credit.outputs.marker == 'key-credit-stop-pr-unblock.yml-adjudicate-feedback' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
+        if: always() && needs.check-adjudicator-key-credit.outputs.marker == 'key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -2983,7 +2985,8 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-adjudicate-feedback
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1
@@ -5127,8 +5130,17 @@ jobs:
           sparse-checkout: |
             .github/scripts/lib/handoff-evidence.sh
             .github/actions/log-api-budget
+            .github/actions/scan-upload
+            .github/actions/setup-pinned-node
+            .node-version
+            lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
 
       - name: Read whether resolve-conflicts's key hit a credit stop
         id: credit-stop-resolve-conflicts
@@ -5149,13 +5161,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-resolve-conflicts"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-resolve-conflicts/run-id"
 
-      - name: Upload resolve-conflicts's credit-stop marker
+      - name: Scan resolve-conflicts's credit-stop marker for credentials
+        id: credit-marker-scan-resolve-conflicts
         if: steps.credit-marker-resolve-conflicts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
+
+      - name: Upload resolve-conflicts's credit-stop marker
+        if: (steps.credit-marker-resolve-conflicts.outcome == 'success') && steps.credit-marker-scan-resolve-conflicts.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-resolve-conflicts
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
           if-no-files-found: error
           retention-days: 1
@@ -5179,13 +5201,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-address-feedback"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-address-feedback/run-id"
 
-      - name: Upload address-feedback's credit-stop marker
+      - name: Scan address-feedback's credit-stop marker for credentials
+        id: credit-marker-scan-address-feedback
         if: steps.credit-marker-address-feedback.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
+
+      - name: Upload address-feedback's credit-stop marker
+        if: (steps.credit-marker-address-feedback.outcome == 'success') && steps.credit-marker-scan-address-feedback.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-address-feedback
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
           if-no-files-found: error
           retention-days: 1
@@ -5209,13 +5241,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-review-dependency"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-review-dependency/run-id"
 
-      - name: Upload review-dependency's credit-stop marker
+      - name: Scan review-dependency's credit-stop marker for credentials
+        id: credit-marker-scan-review-dependency
         if: steps.credit-marker-review-dependency.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
+
+      - name: Upload review-dependency's credit-stop marker
+        if: (steps.credit-marker-review-dependency.outcome == 'success') && steps.credit-marker-scan-review-dependency.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-review-dependency
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
           if-no-files-found: error
           retention-days: 1
@@ -5239,13 +5281,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci/run-id"
 
-      - name: Upload fix-ci's credit-stop marker
+      - name: Scan fix-ci's credit-stop marker for credentials
+        id: credit-marker-scan-fix-ci
         if: steps.credit-marker-fix-ci.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
+
+      - name: Upload fix-ci's credit-stop marker
+        if: (steps.credit-marker-fix-ci.outcome == 'success') && steps.credit-marker-scan-fix-ci.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-fix-ci
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
           if-no-files-found: error
           retention-days: 1
@@ -5269,13 +5321,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-ci-rung-up/run-id"
 
-      - name: Upload fix-ci-rung-up's credit-stop marker
+      - name: Scan fix-ci-rung-up's credit-stop marker for credentials
+        id: credit-marker-scan-fix-ci-rung-up
         if: steps.credit-marker-fix-ci-rung-up.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id
+
+      - name: Upload fix-ci-rung-up's credit-stop marker
+        if: (steps.credit-marker-fix-ci-rung-up.outcome == 'success') && steps.credit-marker-scan-fix-ci-rung-up.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-pr-unblock.yml-fix-ci-rung-up
+          name: key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY
+          overwrite: true
           path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id
           if-no-files-found: error
           retention-days: 1

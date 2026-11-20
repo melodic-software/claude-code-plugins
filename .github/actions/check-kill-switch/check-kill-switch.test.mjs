@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { budgetStops, checkBudget, checkKillSwitch, main, projectionGate, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
+import { budgetStops, checkBudget, checkKillSwitch, deferGate, main, projectionGate, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
 import { readOutputs } from "./fixtures/read-outputs.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
@@ -198,7 +198,7 @@ test("a value in the answer cannot start a workflow command", async () => {
   assert.match(line, /resource=core 0A  error  x$/);
 });
 
-async function runMain(env, answer, { rateLimits } = {}) {
+async function runMain(env, answer, { rateLimits, resolved } = {}) {
   const dir = tempDir("kill-switch-");
   try {
     const outputPath = path.join(dir, "output");
@@ -208,9 +208,17 @@ async function runMain(env, answer, { rateLimits } = {}) {
       limitsPath = path.join(dir, "rate-limits.json");
       writeFileSync(limitsPath, typeof rateLimits === "string" ? rateLimits : JSON.stringify(rateLimits));
     }
+    let resolvedPath;
+    if (resolved !== undefined) {
+      resolvedPath = path.join(dir, "resolved.json");
+      writeFileSync(resolvedPath, JSON.stringify(resolved));
+    }
     const lines = [];
     const { calls, fetchImpl } = recordingFetch(answer);
-    await main({ GITHUB_OUTPUT: outputPath, BUDGET_TOKEN: "t", ...env }, { fetchImpl, now: () => NOW_MS, log: (line) => lines.push(line), ...(limitsPath && { rateLimits: limitsPath }) });
+    await main(
+      { GITHUB_OUTPUT: outputPath, BUDGET_TOKEN: "t", ...(resolvedPath && { RESOLVED_CONFIG: resolvedPath }), ...env },
+      { fetchImpl, now: () => NOW_MS, log: (line) => lines.push(line), ...(limitsPath && { rateLimits: limitsPath }) },
+    );
     return { calls, lines, outputs: readOutputs(readFileSync(outputPath, "utf8")) };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -334,6 +342,125 @@ test("the shipped projection gate is start-project 0.3 over a 21-minute run", ()
   assert.deepEqual([gate.share, gate.minutes], [0.3, 21]);
 });
 
+const SHIPPED_LIMITS = fileURLToPath(new URL("../log-api-budget/rate-limits.json", import.meta.url));
+const limitsWith = (fields) => {
+  const limits = JSON.parse(readFileSync(SHIPPED_LIMITS, "utf8"));
+  limits["github-token"] = { ...limits["github-token"], ...fields };
+  for (const [key, value] of Object.entries(fields)) if (value === undefined) delete limits["github-token"][key];
+  return limits;
+};
+const DEFER = { ...OFF, DEFER_CHECK: "true", RUN_ATTEMPT: "1" };
+
+test("the shipped defer gate is defer-project 0.3 over a 15-minute horizon", async () => {
+  const gate = await deferGate({ rateLimits: SHIPPED_LIMITS, log: () => {} });
+  assert.deepEqual([gate.share, gate.minutes], [0.3, 15]);
+});
+
+test("a window projected to run short before the job ends defers it, with cause defer, the reset and a notice naming both", async () => {
+  const { calls, lines, outputs } = await runMain(DEFER, reading(2000, 1800));
+  assert.equal(calls.length, 1, "one budget read");
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(NOW_S + 1800) }, "30 min in, 3000 used: 2000 - 3000 x 900 / 1800 is 500, 0.1 of 5000");
+  assert.ok(lines.some((line) => line.startsWith("::notice title=defer-gate::github-token defer decided from headers:") && line.includes("projected left 0.1 of the limit 15 min ahead or at the reset, against defer-project=0.3 (defer-run-minutes=15) stop=true")));
+  assert.ok(
+    lines.includes(
+      `::notice title=defer::deferred until the GITHUB_TOKEN window resets at ${NOW_S + 1800} (2026-11-11T12:30:00Z): the window is projected to have 0.1 of its limit left 15 min ahead or at the reset, under defer-project=0.3; cause=defer, so a later run after the reset does this work`,
+    ),
+  );
+  assert.ok(lines.includes(`check-kill-switch: proceed=false reason=kill-switch cause=defer reset=${NOW_S + 1800}`));
+  assert.ok(!lines.some((line) => line.includes("start-gate")), "no start-gate label on the defer path");
+});
+
+test("a quiet window lets a deferrable job go", async () => {
+  const { outputs } = await runMain(DEFER, reading(4700, 1800));
+  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
+});
+
+test("the defer gate reads no start-gate floor: under start-gate but projected above defer-project, it proceeds", async () => {
+  const { outputs } = await runMain(DEFER, reading(400, 30), { rateLimits: limitsWith({ "defer-project": 0.05 }) });
+  assert.equal(outputs.cause, "ok", "400 left, under start-gate's 500, reset in 30 s: 400 - 4600 x 30 / 3570 = 361, 0.07 of 5000");
+  assert.equal((await runMain(START, reading(400, 30))).outputs.cause, "budget", "the start gate stops the same reading");
+});
+
+test("a re-run attempt never defers and makes no budget read", async () => {
+  for (const attempt of ["2", "3", "", "x", undefined]) {
+    const { calls, outputs } = await runMain({ ...DEFER, RUN_ATTEMPT: attempt }, empty);
+    assert.deepEqual([calls.length, outputs.cause], [0, "ok"], `RUN_ATTEMPT=${JSON.stringify(attempt)}`);
+  }
+});
+
+test("defer-project 0 turns deferral off, from rate-limits.json or the resolved config, with no budget read", async () => {
+  const fromFile = await runMain(DEFER, empty, { rateLimits: limitsWith({ "defer-project": 0 }) });
+  assert.deepEqual([fromFile.calls.length, fromFile.outputs.cause], [0, "ok"]);
+  const fromConfig = await runMain(DEFER, empty, { resolved: { limits: { api: { "github-token": { "defer-project": 0 } } } } });
+  assert.deepEqual([fromConfig.calls.length, fromConfig.outputs.cause], [0, "ok"]);
+});
+
+test("the resolved config overrides the shipped share and horizon", async () => {
+  const config = (fields) => ({ limits: { api: { "github-token": fields } } });
+  const why = "30 min in, 3000 used, 2000 left: 5 min ahead leaves 2000 - 500 = 1500, 0.3 of 5000";
+  assert.equal((await runMain(DEFER, reading(2000, 1800), { resolved: config({ "defer-project": 0.35, "defer-run-minutes": 5 }) })).outputs.cause, "defer", why);
+  assert.equal((await runMain(DEFER, reading(2000, 1800), { resolved: config({ "defer-project": 0.25, "defer-run-minutes": 5 }) })).outputs.cause, "ok", why);
+});
+
+test("the shipped horizon for defer-job pr-merge is 6 minutes, and an unset job key reads defer-run-minutes", async () => {
+  assert.equal((await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-merge", log: () => {} })).minutes, 6);
+  const other = await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-verify", log: () => {} });
+  assert.deepEqual([other.minutes, other.labels.minutes], [15, "defer-run-minutes"]);
+});
+
+test("a conventions override of the job's horizon key changes the projection", async () => {
+  const why = "30 min in, 3000 used, 2000 left: 5 min ahead leaves 1500, 0.3 of 5000; 6 min ahead leaves 1400, 0.28";
+  const job = { ...DEFER, DEFER_JOB: "pr-merge" };
+  const shipped = await runMain(job, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.29 } } } } });
+  assert.equal(shipped.outputs.cause, "defer", why);
+  assert.ok(shipped.lines.some((line) => line.includes("6 min ahead or at the reset, against defer-project=0.29 (defer-run-minutes-pr-merge=6)")));
+  const overridden = await runMain(job, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.29, "defer-run-minutes-pr-merge": 5 } } } } });
+  assert.equal(overridden.outputs.cause, "ok", why);
+  assert.ok(overridden.lines.some((line) => line.includes("(defer-run-minutes-pr-merge=5)")));
+});
+
+test("the gate's defer-minutes input sets the job's horizon over defer-run-minutes", async () => {
+  const { lines, outputs } = await runMain({ ...DEFER, DEFER_MINUTES: "5" }, reading(2000, 1800), { resolved: { limits: { api: { "github-token": { "defer-project": 0.35 } } } } });
+  assert.equal(outputs.cause, "defer");
+  assert.ok(lines.some((line) => line.includes("5 min ahead or at the reset, against defer-project=0.35 (defer-minutes=5)")));
+});
+
+test("a defer gate that cannot be set up proceeds with a warning and no budget read", async () => {
+  for (const [label, env, options] of [
+    ["fractional defer-minutes", { DEFER_MINUTES: "1.5" }, {}],
+    ["defer-minutes 0", { DEFER_MINUTES: "0" }, {}],
+    ["a defer-job that is no key suffix", { DEFER_JOB: "Pr Merge" }, {}],
+    ["a fractional job horizon in the config", { DEFER_JOB: "pr-merge" }, { resolved: { limits: { api: { "github-token": { "defer-run-minutes-pr-merge": 0.5 } } } } }],
+    ["a share over 1 in the config", {}, { resolved: { limits: { api: { "github-token": { "defer-project": 2 } } } } }],
+    ["a fractional horizon in the config", {}, { resolved: { limits: { api: { "github-token": { "defer-run-minutes": 2.5 } } } } }],
+  ]) {
+    const { calls, lines, outputs } = await runMain({ ...DEFER, ...env }, empty, options);
+    assert.deepEqual([calls.length, outputs.cause], [0, "ok"], label);
+    assert.ok(lines.some((line) => line.startsWith("::warning title=defer-gate::the defer gate could not be set up")), label);
+  }
+});
+
+test("a refused read defers, as a refused start-gate read stops", async () => {
+  const { outputs, lines } = await runMain(DEFER, () => rateLimitResponse({ status: 429 }));
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(NOW_S + 60) });
+  assert.ok(lines.some((line) => line.startsWith("::notice title=defer::deferred until") && line.includes(": the budget read was refused; cause=defer")));
+});
+
+test("a failed read on the defer path proceeds", async () => {
+  const { outputs } = await runMain(DEFER, new Error("socket hang up"));
+  assert.equal(outputs.cause, "ok");
+});
+
+test("a switch stop on a defer gate makes no budget read", async () => {
+  const { calls, outputs } = await runMain({ ...DEFER, KILL_SWITCH_VALUE: "true" }, empty);
+  assert.deepEqual([calls.length, outputs.cause], [0, "switch"]);
+});
+
+test("the defer path never waits for the reset", async () => {
+  const { sleeps, outputs } = await runWaiting({ ...DEFER, WAIT_SECONDS: "1200" }, [() => reading(500, 100)]);
+  assert.deepEqual([sleeps.length, outputs.cause], [0, "defer"], "reset in 100 s: 500 - 4500 x 100 / 3500 = 371, 0.07 of 5000");
+});
+
 test("a failed budget read proceeds", async () => {
   const { outputs, lines } = await runMain(START, new Error("socket hang up"));
   assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
@@ -372,12 +499,11 @@ const GATES = {
   "maintenance-measure-skill-edit.yml": { "check-inputs": "start", "generate-edit": "switch", "push-branch": "switch", publish: "switch" },
   "maintenance-monitor-signals.yml": { monitor: "start" },
   "maintenance-reconcile-lost-runs.yml": { reconcile: "start" },
-  "maintenance-verify-whole-map.yml": { "verify-map": "start" },
   "maintenance-tidy-code-upkeep.yml": { "select-areas": "start", "sweep-areas": "switch", "sweep-areas-subscription": "switch", "sweep-areas-fallback": "switch", "push-branches": "switch", publish: "switch" },
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { "check-range": "start" },
   "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
-  "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "switch" },
+  "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "defer" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
   "pr-review-hosted.yml": { "check-kill-switch": "switch" },
   "pr-review-main.yml": { "check-trigger": "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
@@ -395,7 +521,6 @@ const GATES = {
     "review-dependency-select": "switch",
     "fix-ci-context": "switch",
   },
-  "pr-verify-capture.yml": { capture: "switch" },
   "pr-verify.yml": { "check-intent": "switch", "check-intent-subscription": "switch", "check-intent-fallback": "switch" },
   "upstream-apply-changelog.yml": {
     "select-release": "start",
@@ -416,6 +541,7 @@ const GATES = {
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 
+const DEFER_INPUT = /^ {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}$/m;
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
 const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
 
@@ -476,8 +602,13 @@ test("every gate in the workflows is classified, and only start gates read the b
       } else if (kind === "first-call") {
         assert.match(step, FIRST_CALL, `${file} ${job} starts new work on a starting caller's first call only`);
         assert.match(step, FIRST_CALL_PROJECT, `${file} ${job} projects the window on a starting caller's first call only`);
+      } else if (kind === "defer") {
+        assert.match(step, DEFER_INPUT, `${file} ${job} defers its PR-scoped run only`);
+        assert.match(step, /^ {10}defer-job: [a-z0-9-]+$/m, `${file} ${job} names its horizon key`);
+        assert.doesNotMatch(step, /^ {10}defer-minutes:/m, `${file} ${job} reads its horizon from the config`);
+        assert.doesNotMatch(step, /budget:|project:/, `${file} ${job} reads no start-gate floor`);
       } else {
-        assert.doesNotMatch(step, /budget:|project:/, `${file} ${job} checks the switches only`);
+        assert.doesNotMatch(step, /budget:|project:|^ {10}defer/m, `${file} ${job} checks the switches only`);
       }
     }
   }
@@ -485,6 +616,20 @@ test("every gate in the workflows is classified, and only start gates read the b
     for (const job of Object.keys(jobs)) {
       assert.ok(seen.has(`${file} ${job}`), `${file} ${job}: classified but has no gate`);
     }
+  }
+});
+
+test("only defer gates defer, and no CI Status or pr-dispatch-feedback gate does", () => {
+  const deferring = [];
+  for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
+    for (const { job, step } of gatesIn(file)) {
+      if (/^ {10}defer(?:-minutes)?:/m.test(step)) deferring.push(`${file} ${job}`);
+    }
+  }
+  const expected = Object.entries(GATES).flatMap(([file, jobs]) => Object.entries(jobs).filter(([, kind]) => kind === "defer").map(([job]) => `${file} ${job}`));
+  assert.deepEqual(deferring.sort(), expected.sort());
+  for (const file of ["pr-require-checks.yml", "pr-dispatch-feedback.yml"]) {
+    assert.doesNotMatch(readFileSync(path.join(WORKFLOWS, file), "utf8"), /^\s+defer(?:-minutes)?:/m, `${file} is never paced`);
   }
 });
 
@@ -517,8 +662,8 @@ const KILL_STEP = /^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch
 const budgetJobs = () =>
   Object.entries(GATES).flatMap(([file, jobs]) =>
     Object.entries(jobs)
-      .filter(([, kind]) => kind === "start" || kind === "first-call")
-      .map(([job]) => ({ file, job, steps: stepsByJob(file)[job] })),
+      .filter(([, kind]) => kind === "start" || kind === "first-call" || kind === "defer")
+      .map(([job, kind]) => ({ file, job, cause: kind === "defer" ? "defer" : "budget", steps: stepsByJob(file)[job] })),
   );
 
 test("budget jobs are found", () => {
@@ -548,10 +693,10 @@ function splitTop(text, separator) {
 // Whether a step `if:` is false on a budget stop: every top-level disjunct
 // has a conjunct that needs the gate to proceed, the cause not to be budget,
 // or a success or a non-empty output from a step that was skipped.
-function falseOnBudget(condition, skipped) {
+function falseOnBudget(condition, skipped, cause = "budget") {
   const falseAtom = (atom) => {
-    if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped);
-    if (/^steps\.kill\.outputs\.proceed == 'true'$|^steps\.kill\.outputs\.cause != 'budget'$/.test(atom)) return true;
+    if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped, cause);
+    if (atom === "steps.kill.outputs.proceed == 'true'" || atom === `steps.kill.outputs.cause != '${cause}'`) return true;
     const ref = /^steps\.([a-z0-9-]+)\.(?:(?:outcome|conclusion) (?:== 'success'|!= 'skipped')|outputs\.[a-z0-9-]+ (?:== '[^']+'|!= ''))$/.exec(atom);
     return Boolean(ref && skipped.has(ref[1]));
   };
@@ -560,11 +705,11 @@ function falseOnBudget(condition, skipped) {
 }
 
 test("a budget stop ends neutral: no step it runs fails the job or writes ::error", () => {
-  for (const { file, job, steps } of budgetJobs()) {
+  for (const { file, job, cause, steps } of budgetJobs()) {
     const skipped = new Set();
     for (const step of steps.slice(steps.findIndex((s) => KILL_STEP.test(s)) + 1)) {
       const condition = /^ {8}if: (?:>-\n)?([\s\S]*?)\n {8}[a-z-]+:/m.exec(`${step}\n        end:`)?.[1] ?? "";
-      if (falseOnBudget(condition, skipped)) {
+      if (falseOnBudget(condition, skipped, cause)) {
         const id = /^ {8}id: ([a-z0-9-]+)$/m.exec(step)?.[1];
         if (id) skipped.add(id);
         continue;
@@ -579,6 +724,8 @@ test("the budget-stop reading of a step condition", () => {
   const skipped = new Set(["broker"]);
   assert.equal(falseOnBudget("steps.kill.outputs.proceed == 'true'", skipped), true);
   assert.equal(falseOnBudget("steps.kill.outputs.cause != 'budget'", skipped), true);
+  assert.equal(falseOnBudget("steps.kill.outputs.cause != 'budget'", skipped, "defer"), false, "a defer stop's cause is defer");
+  assert.equal(falseOnBudget("steps.kill.outputs.cause != 'defer'", skipped, "defer"), true);
   assert.equal(falseOnBudget("steps.broker.outcome == 'success' && inputs.x != ''", skipped), true, "a skipped step's success");
   assert.equal(falseOnBudget("steps.other.outcome == 'success'", skipped), false, "a step that ran");
   assert.equal(falseOnBudget("always() && steps.broker.outputs.pid != ''", skipped), true, "a skipped step's output is empty");
@@ -706,6 +853,10 @@ test("CLI start gate in a checkout without log-api-budget warns, reads no budget
     assert.equal(status, 0);
     assert.match(stdout, /::warning title=start-gate::rate-limits\.json gave no start-gate share \(ENOENT\)/);
     assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
+    const deferring = runCli({ ...DEFER, BUDGET_TOKEN: "t" }, script);
+    assert.equal(deferring.status, 0);
+    assert.match(deferring.stdout, /::warning title=defer-gate::the defer gate could not be set up \(/);
+    assert.deepEqual(deferring.outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,7 +1,5 @@
-# Shared-library copies that scripts/sync-shared-copies.sh generates (ADR 0019).
-# One copy per line: `<canonical> <copy>`, both repo-relative. The canonical is
-# the only file to edit; each copy sits inside its plugin because a plugin cache
-# cannot see the repository root. Register a copy here, then run the script.
+# Shared-library copies (ADR 0019): one `<canonical> <copy>` per line, repo-relative. Edit
+# only the canonical; register a copy here, then run scripts/sync-shared-copies.sh.
 lib/html-escape.mjs plugins/architecture/lib/html-escape.mjs
 lib/html-escape.mjs plugins/debugging/lib/html-escape.mjs
 lib/html-escape.mjs plugins/discovery/lib/html-escape.mjs
@@ -127,15 +125,22 @@ docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 docs/contracts/target-scope/README.md plugins/ai-slop/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/architecture/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/attribution/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/codebase-health/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/discipline/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-hygiene/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/harness-config/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/harness-memory/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/instruction-placement/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/mutation-testing/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/repo-hygiene/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/testing/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/overengineering/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/work-items/reference/target-scope.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh

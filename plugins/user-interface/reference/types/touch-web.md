@@ -435,7 +435,6 @@ is a check width above it, not the floor.
 
 - **Pointer**: when judging sideways scroll against the floor, fetch WCAG 2.2 Understanding 1.4.10
   Reflow, "Intent", <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html#intent>
-- **Recheck trigger**: WCAG 2.x is superseded as the referenced standard.
 
 **Audit: Blocking.** Content that scrolls in two dimensions at the width 1.4.10 names, outside its
 exceptions.

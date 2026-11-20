@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "C8: warn\nMOVE: `/corrections:codify \"every shell script under scripts/ starts with set -euo pipefail\"`\nMECHANISM: none",
+      "why": "the move is the named codify call"
+    },
+    {
+      "answer": "C8: warn\n**MOVE:** hand the rule to `/corrections:codify`, which picks the strongest rung and proves the check\nMECHANISM: none, codify picks it",
+      "why": "bold label, codify picks the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C8: warn\nMOVE: a static-analyzer or linter rule (shellcheck), or a CI gate\nMECHANISM: linter rule",
+      "why": "the reply a faithful read of item 3 before the follow-on gives: 'Include which enforcement level it could move to' from the six-item list"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nC8: warn\nMOVE: a pre-commit git hook\nMECHANISM: pre-commit hook",
+      "why": "codify only outside the MOVE line"
+    }
+  ]
+}

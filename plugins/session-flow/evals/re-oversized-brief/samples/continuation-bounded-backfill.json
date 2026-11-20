@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["make backfill WAREHOUSE=7 SINCE=2026-10-01"], "why": "make target with the bound"},
+    {"commands": ["./scripts/backfill.sh --warehouse 7 --since 2026-10-01"], "why": "script directly"}
+  ],
+  "fail": [
+    {"commands": ["make backfill WAREHOUSE=7"], "why": "no bound"},
+    {"commands": ["make backfill WAREHOUSE=6 SINCE=2026-10-01"], "why": "wrong warehouse"}
+  ]
+}

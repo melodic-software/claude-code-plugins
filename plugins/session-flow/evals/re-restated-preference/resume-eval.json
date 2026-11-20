@@ -1,5 +1,6 @@
 {
   "name": "re-restated-preference",
+  "task_relation": "boundary",
   "tags": [
     "resume-eval",
     "drift"
@@ -17,6 +18,7 @@
       "tests/test_frontier.py": "from lane.frontier import frontier\n\n\ndef test_skips_drafts():\n    assert frontier([{'draft': True}]) == []\n"
     },
     "predecessor": {
+      "shape": 2,
       "topic": "merge-lane",
       "lane": "merge-lane",
       "hops": 12,

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: audit-c8-unchecked-rule-hands-to-codify
+graders:
+  - name: c8-warn
+    type: regex
+    pattern: '^[\s>*`_-]*C8[*`_\s]*:[*`_\s]*warn\b'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: move-hands-to-codify
+    type: regex
+    pattern: '^[\s>*`_-]*MOVE[*`_\s]*:[^\n]*corrections:codify\b'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: mechanism-none
+    type: regex
+    pattern: '^[\s>*`_-]*MECHANISM[*`_\s]*:[*`_\s]*(?:none|n/?a|nothing)\b'
+    flags: 'im'
+    target: 'last_message'
+    arm: both
+  - name: no-codify-run
+    type: tool_used
+    tool: Skill
+    input_match: '"skill":"/?(?:corrections:)?codify"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-unavailable-claim
+    type: regex
+    pattern: '^[\s>*`_-]*MOVE[*`_\s]*:[^\n]*?corrections:codify\b[^\n]{0,80}?(?:\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b|\bunavailable\b)'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both

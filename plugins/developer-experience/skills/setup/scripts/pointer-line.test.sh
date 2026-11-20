@@ -14,6 +14,7 @@
 # repository's own CLAUDE.md imports AGENTS.md and the walk never runs.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR POINTER_LINE_RESOLVER
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/pointer-line.sh"

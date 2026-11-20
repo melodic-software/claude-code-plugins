@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.0] - 2026-11-20
+
+### Changed
+
+- **Exit codes in a script header pass the comment lint.** Under the `necessary` posture, the comment lines that open a file may carry an `Exit`, `Exit codes` or `Exits` heading and its numbered entries without a link. An entry's continuation lines also pass when they are indented deeper than its number. The rest of the header, and the same text after the first line of code, still fail. `/code-tidying:remove-comments` keeps the same exit-code list under `necessary`: the shipped keep list names it, so the fixer the lint points to no longer deletes what the lint accepts ([#17647](https://github.com/melodic-software/claude-code-plugins/issues/17647)).
+
+## [0.53.0] - 2026-11-20
+
+### Changed
+
+- The git-hooks remote plan names the git URL of the marketplace the plugin was installed from (its GitHub or git source), so a fork's install fetches the fork; the publisher URL in `entries.json` stays the default when the marketplace has no such source.
+
 ## [0.52.2] - 2026-11-19
 
 ### Changed

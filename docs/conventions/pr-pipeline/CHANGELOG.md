@@ -1,5 +1,101 @@
 # Changelog for the PR pipeline convention
 
+## [11.1.0] - 2026-11-20
+
+### Added
+
+- `check-kill-switch` gains a defer gate (inputs `defer`, `defer-minutes`, `defer-job`, `resolved-config`): on a first run attempt it stops a job whose work a later run recovers, with cause `defer` and the window's reset, while the GITHUB_TOKEN window's burn rate projected to the job's horizon, or to the reset when sooner, leaves under `defer-project` of the header's limit. It reads no `start-gate` floor, never waits, and never defers a re-run attempt; each deferral logs a `defer` notice naming the cause, the projected share and the reset. `pr-pipeline.schema.json`'s `limits.api` pools admit `defer-project` (github-token default 0.3, 0 turns deferral off) `defer-run-minutes` (default 15) and `defer-run-minutes-pr-merge` (default 6, the arm run's p90), all defaulted in `rate-limits.json`. Only pr-merge's PR-scoped arm run (`inputs.pr`) defers, reading its horizon from `defer-run-minutes-pr-merge`, and its `pr-merge-wake` line reports the deferral and the reset; the sweep, CI Status and pr-dispatch-feedback never defer ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+## [11.0.2] - 2026-11-20
+
+### Changed
+
+- `wait-refine.mjs` no longer lists and polls dispatcher runs on a head no refine run can start for: when the runner's event file shows both the sender and the PR author in `NO_REFINE_ACCOUNTS` (dependabot, the release App, the standards-sync App) and its PR number and head match, Wait For Refine reviews after the one finish read. A human, lanes App or mixed event, or a missing, malformed or mismatched event file, still polls.
+
+## [11.0.1] - 2026-11-20
+
+### Changed
+
+- `enable-auto-merge.mjs` skip-unchanged now keeps a head the merge queue ejected up to the cap (`merge.max-queue-ejections`): while the gate's ejection comment stands unchanged and the skip key matches, later reader runs leave it refused without reading its discussion, files and verdict again, until the head or another key input changes, `max-minutes` or `max-skips` runs out, or its refusal is due to turn into a failing status. An ejection count that could not be read is never kept.
+
+## [11.0.0] - 2026-11-20
+
+### Changed
+
+- `enable-auto-merge.mjs` no longer arms a lanes App pull request whose diff against main is empty, because its changes already landed. It disarms one already armed, comments that the diff is empty, and closes it, with no fresh attempt at its issue, so it never takes a merge-queue slot, a merge-group run or its review lanes. A person who reopens it decides it: the lane does not close it again at that head, and a member's veto in the discussion stands over the close. A changed-files list that did not read, or was capped, never counts as empty.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `merge.verify-capture`, and the config reader no longer admits the `verify-map` and `verify-capture` run routes, so a `pr-pipeline.yaml` that sets either fails validation; delete them. `pr-verify-capture.yml`, the pr-verify judges' capture find and download steps, and the `maintenance-verify-whole-map.yml` pass are gone ([#17281](https://github.com/melodic-software/claude-code-plugins/issues/17281)). Every verdict records `capture: no-app`, as a run with no app set did before.
+
+## [10.19.4] - 2026-11-20
+
+### Removed
+
+- No job names the `claude-lanes` environment any more: every lane reads its Claude secrets from the organization copies again, `scripts/check-claude-secrets-environment.sh` and its `Lint Repo` step are gone, and `check-read-caller-keys` no longer admits that environment. PR Run Plugin Evals still starts on `workflow_run` from main.
+
+## [10.19.3] - 2026-11-20
+
+### Changed
+
+- Run titles start with the workflow's Title Case name: `PR Merge: arm #<n>`, `PR Rate Merge Risk #<n> <sha>`, `PR Refine <activity> #<n>`, `PR Unblock <activity> #<n>` and `PR Verify Capture <run-id> <sha>`. Every reader still accepts the old lowercase titles, so runs started before this change keep matching.
+
+## [10.19.2] - 2026-11-20
+
+### Fixed
+
+- PR Unblock starts again: `pr-run-activity-read.yml` drops its `workflow_call` descriptions, which GitHub counts in the expanded workflow, so pr-unblock's 15 calls to it stay under the "Maximum object size" limit with the `claude-lanes` environment blocks in place.
+
+## [10.19.1] - 2026-11-20
+
+### Changed
+
+- `dependency-fix-refused` now routes `fail` with `needs-session` instead of `hold` with owner reason `security` and `needs-human`. A commit other than Dependabot's on a dependency update comes from one of our own actors, so the hold it raised guarded only against them. That makes it friction, not a security stop (owner decision 2026-11-19, [owner-decisions.md line 248](https://github.com/melodic-software/architecture/blob/b571aa10b962ae6489dbac5520d1371162bf11f4/docs/owner-decisions.md#L248), #17569: only a token or secret leak, an account compromise or billing goes to the owner). A session builder drops or rebuilds the commit, for example with `@dependabot recreate`, and the new head starts clean. #17344 waited for a person from 04:20Z until a session removed the label, though the recreate at 06:14Z had already removed the commit. `dependency-escalate-security` still holds a HIGH or CRITICAL risk in the update for the owner.
+
+## [10.19.0] - 2026-11-20
+
+### Changed
+
+- Every job that reads a Claude secret names the main-only `claude-lanes` environment with `deployment: false`, so a workflow file changed on another branch never reaches one; `scripts/check-claude-secrets-environment.sh` fails a job that reads one outside it, or a job in it that a `pull_request`, `merge_group` or off-main push run starts. A call to another repository's reusable passes when it sets `with: environment: claude-lanes`. PR Run Plugin Evals now starts on `workflow_run` from main: the `eval: run` label runs the secret-free `pr-run-plugin-evals-label.yml`, and the eval legs re-read the pull request, its label event and its actors from the API.
+
+### Fixed
+
+- A merge group's two waits for a pool's reset share one budget, `WAIT_BUDGET_SECONDS.mergeGroup` (600 s), in place of 900 s each: Check Plugins' queued pull request read waits first, and ci-status's verdict reader waits only what that left, so both cannot run the group past the merge queue's 30-minute check timeout and eject it. With nothing left, the reader's `verify:unreadable` stands. Check Plugins' timeout drops to 19 minutes and ci-status's to 30.
+
+## [10.18.0] - 2026-11-19
+
+### Added
+
+- `limits.refire-budget-per-slot` (default 1). A work-unblock sweep re-fires issues whose lane run the start gate stopped on a low GITHUB_TOKEN budget, oldest run end first, only until the unfinished work-resolve-issue runs reach this value times the lane's `SLOTS`; those re-fires still count toward `limits.refire-queue-per-slot`'s room, and every other re-fire keeps two per slot. A budget-stopped run re-fired as the second run per slot often waited 20 to 47 minutes for a slot, past the 20-minute window after the reset, and the start gate stopped it again (owner decision, 2026-11-19).
+
+### Changed
+
+- The `api-routes` job-end notice keeps a workflow file name after `workflows/` (`repos/{repo}/actions/workflows/pr-verify.yml/runs`) instead of `{x}`, in `rate-guard.mjs` `routeOf` and `routeOk`, `api-budget.bash` `API_BUDGET_ROUTE` and pr-require-checks' generated copies. The calls a job spends listing runs can now be told apart by workflow. Only a lowercase `.yml` or `.yaml` file name is kept; a numeric workflow id stays `{n}`, any other segment stays `{x}`, and a route that would pass 80 characters keeps `{x}` there.
+
+## [10.17.1] - 2026-11-19
+
+### Changed
+
+- `maintenance-reconcile-lost-runs` runs hourly at minute 4 instead of at minutes 4 and 34, and its dispatch gap (`MIN_GAP_MINUTES`) is 60. A pass costs about 90 GITHUB_TOKEN calls and the pool ran out in busy hours, so this halves the reconciler's share. fix-ci waits for the reconciler's one re-run of an infra-only failure for `RERUN_DUE_MINUTES`, now its backoff plus two hourly ticks (135 minutes). `pr-unblock-dispatch.yml` keeps its 9 and 39 ticks; the 9 tick still follows the reconciler's.
+
+## [10.17.0] - 2026-11-19
+
+### Changed
+
+- A vendored-copy upstream-drift issue (github-actions[bot] wrote it, nobody else last edited it, its title is `Upstream drift: <id>` and its first body line is the filer's vendored-copy lead) reaches the issue lane with no owner step, as a hex-pin drift issue does (owner direction 2026-11-18). `driftIssue` in `admit.mjs` decides both kinds at every author gate, and `trustedDriftSpec` gives each its own fixed spec: the vendored one runs the skill's update procedure found from the id's row in `scripts/upstream-drift-vendored-report.sh`, folds the changes into the skill's distilled files and adds a changelog fragment, never a `version` or `CHANGELOG.md` change. pr-verify and the merge gate count it only for a pull request whose files are all markdown under that plugin's `skills/`, markdown, `.jsonc` or `LICENSE` files in a `vendor/` baseline there, or fragments directly under its `.changes/`, with no `scripts`, `hooks`, `lib`, `.claude-plugin`, `.mcp.json` or `evals` path segment. A `SKILL.md` outside `vendor/` counts only as a modification whose frontmatter changes nothing but its `upstream-version`, `upstream-sha` and `synced` values and whose `` !` `` lines stay the same, with no fenced ```` ```! ```` block, read at the merge base and the head (`skillTextSafe`). A skill's `actions/update.md`, and the plugin's `update` skill outside `vendor/`, never count: a change to the update procedure comes from a person. It is trusted only when every row for the id carries `files-only` (an apply mode that rewrites vendored files and installs no package), so a row whose update runs `npm install` (firecrawl, context7) is not, and the spec forbids any package install.
+- `scripts/upstream-drift-vendored-report.sh` joins the merge hold floor (`enforcement`), as `docs/upstream/**` is: its rows now decide which plugin a vendored drift issue's pull request may change.
+- The drift filer runs daily instead of weekly.
+
+## [10.16.0] - 2026-11-19
+
+### Added
+
+- `merge.queue-ejection-infra-causes` (default every cause: `rate-limit`, `read-floor`, `verify-unreadable`, `kill-switch`, `lost-runner`, `main-red`) names the infra causes a merge-queue removal is not counted toward `merge.max-queue-ejections` for. A removal is excused only when every failed job of its merge-group run failed on those causes alone, or failed on main's run of that workflow at the time too; every cause excuses it only after its reset, or an hour. Before, only a run whose `CI Status` alone failed on a rate limit was excused, so verify:unreadable read-floor refusals, kill-switch stops and rate limits in other jobs held #17253, #17325, #17340, #17359 and #17417 at the cap with `pr-merge/unarmed` until a push. Each excused removal gets a `::notice title=queue-ejection::` line.
+
+### Fixed
+
+- The pr-merge pin comment that `enable-auto-merge.mjs` posts just before an arm now says the merge path is about to arm native auto-merge at that head, and that the arm fails if the head moves first. It used to say the path had armed it, and a reader took a pull request whose arm failed on a moved head to be armed. The pin's first line is unchanged, so `PIN_RE`, `pinned` and `pinMoved` still match it.
+
 ## [10.15.6] - 2026-11-19
 
 ### Changed

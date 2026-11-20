@@ -247,7 +247,8 @@ export function heldHandoff(run, activity = DEFAULTS.activity) {
 }
 
 // Whether a run held on an unread PR head: pr-refine.yml's <activity>-head-held
-// job, which runs only on fix-docs-head's unread output, succeeded. A green run
+// job, which runs only on select-passes's unread output
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review), succeeded. A green run
 // without it, such as one a human-gated hold skipped, still ends the PR.
 export function heldHead(run, activity = DEFAULTS.activity) {
   return (run?.jobs ?? []).some((job) => isJob(job, `${activity}-head-held`) && job.conclusion === "success");

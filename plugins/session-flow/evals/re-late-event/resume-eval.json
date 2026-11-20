@@ -1,0 +1,206 @@
+{
+  "name": "re-late-event",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC11: a late event folded into the handoff by amend.",
+    "risk": "An event lands after the handoff is emitted and is folded in with amend, but the brief written before it still reads as the plan; a writer that keeps the stale brief, or a reader that follows it, merges a PR whose CI failed."
+  },
+  "description": "Source: the ho-late-event-amends pattern (a background check reports a failing test after the rails are emitted, and the session folds it in with save_point.py amend), written as a synthetic retry lane. Hard because the brief, written while CI was still running, says to merge PR #4460 once green; only the amended Remaining actions and Next say CI failed test_backoff_cap and the fix comes first.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# retry-client\n\nSynthetic library repository for the resume eval.\n",
+      "retry/__init__.py": "",
+      "retry/backoff.py": "CAP_SECONDS = 60\n\n\ndef delay(attempt: int) -> int:\n    return 2**attempt\n",
+      "tests/test_retry.py": "from retry.backoff import CAP_SECONDS, delay\n\n\ndef test_backoff_doubles():\n    assert delay(3) == 8\n\n\ndef test_backoff_cap():\n    assert delay(10) == CAP_SECONDS\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "retry-client",
+      "lane": "retry-client",
+      "hops": 3,
+      "start": "2026-11-02T09:00:00Z",
+      "hop_minutes": 240,
+      "goal": "Give the retry client capped exponential back-off.",
+      "vision": "Clients stop hammering a degraded upstream.",
+      "opening_ask": "Add capped exponential back-off to the retry client.",
+      "injections": [
+        {
+          "id": "rule-tests-before-merge",
+          "hop": 1,
+          "section": "rules",
+          "text": "A PR merges only with ci-status green on its head; a red check is fixed on the branch, never merged over.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 3 against main at 5e0c8d2.",
+          "Where it stands: PR #4460 (capped back-off in retry/backoff.py) is open; CI was still running when this was written.",
+          "Next: merge PR #4460 once ci-status is green, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: clients stop hammering a degraded upstream.",
+          "- [ ] PR #4460 merged with ci-status green."
+        ],
+        "remaining": [
+          "1. Merge PR #4460 once ci-status is green."
+        ],
+        "next": [
+          "Merge PR #4460 once green."
+        ],
+        "did": "opened PR #4460 with capped back-off",
+        "left": "PR #4460 not merged; its CI was still running"
+      },
+      "amend": {
+        "sections": {
+          "Remaining actions, in order": "1. Fix test_backoff_cap on PR #4460: CI run 81457719 failed it after this handoff was emitted (delay(10) returned 1024; the cap is CAP_SECONDS = 60).\n2. Merge PR #4460 once ci-status is green on the fixed head."
+        },
+        "next": [
+          "Fix test_backoff_cap on PR #4460.",
+          "Merge PR #4460 once green."
+        ]
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. CI on PR #4460 failed test_backoff_cap after it was written; that fix comes before the merge.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/retry/backoff.py"
+          },
+          "result": "     1\tCAP_SECONDS = 60\n     2\t\n     3\t\n     4\tdef delay(attempt: int) -> int:\n     5\t    return 2**attempt"
+        },
+        {
+          "role": "assistant",
+          "text": "delay() doubles per attempt and never applies CAP_SECONDS."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/retry-client",
+      "responses": [
+        {
+          "match": "\\bpr checks\\b",
+          "stdout": "ci-status\tfail\ttests/test_retry.py::test_backoff_cap\n",
+          "exit": 1
+        },
+        {
+          "match": "\\bpr view\\b",
+          "stdout": "{\"number\": 4460, \"state\": \"OPEN\", \"mergeStateStatus\": \"BLOCKED\"}\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr merge\\b",
+          "stdout": "Merged pull request #4460\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff retry-client",
+      "after": "/session-flow:handoff retry-client",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-late-failure-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "test_backoff_cap"
+      },
+      "note": "The failure folded in by amend survives the next handoff."
+    },
+    {
+      "id": "continuation-fixes-cap",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "edited_path_regex",
+        "pattern": "(^|/)retry/backoff\\.py$"
+      }
+    },
+    {
+      "id": "decision-no-merge-over-red",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "pr merge\\b[^\\n]*4460"
+      },
+      "note": "Merging follows the stale brief over the amended state."
+    },
+    {
+      "id": "recall-what-blocks-4460",
+      "type": "recall",
+      "grade": "text",
+      "question": "What is blocking PR #4460 right now?",
+      "criteria": "PASS only if the answer says CI failed test_backoff_cap (delay does not apply the 60-second cap) and that it must be fixed before merging. FAIL if it says the PR is waiting on CI or ready to merge."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/scripts/pr-verify/write-verdict.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs
+# test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/scripts/pr-verify/write-verdict.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-verify/prompt.md
 """The verifier's two shared rules agree across languages: the gate's
 (`babysit_verify_evidence`, `babysit_classify`) and the resolver's
 (`.github/scripts/pr-verify/resolve-pr.mjs`, run here under node).

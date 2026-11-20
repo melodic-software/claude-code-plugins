@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "LINE: Handlers in `src/handlers/` return errors through `respondError()`, never `res.status()` directly, so every error body has one shape.\nENFORCE: `/corrections:codify \"handlers return errors through respondError()\"`\nMECHANISM: none",
+      "why": "plain firm word with scope and reason"
+    },
+    {
+      "answer": "**LINE:** In `src/handlers/`, return every error with `respondError()` so error bodies keep one shape.\nENFORCE: a CI check\nMECHANISM: CI check",
+      "why": "bold label; the enforcement wording is another grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "LINE: IMPORTANT: handlers MUST return errors through `respondError()`.\nENFORCE: `/corrections:codify \"use respondError()\"`\nMECHANISM: none",
+      "why": "keeps the all-caps marker words"
+    },
+    {
+      "answer": "LINE: Handlers return errors through respondError()!!\nENFORCE: `/corrections:codify \"use respondError()\"`\nMECHANISM: none",
+      "why": "keeps the exclamation emphasis"
+    },
+    {
+      "answer": "LINE: see above\nENFORCE: `/corrections:codify \"use respondError()\"`\nMECHANISM: none",
+      "why": "the line is not written"
+    }
+  ]
+}

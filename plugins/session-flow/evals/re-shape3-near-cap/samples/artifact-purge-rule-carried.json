@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Current rules\n\n- [R1] Purge the CDN only by path prefix with `make purge PREFIX=<prefix>`; never `make purge-all`, because a full-zone purge cold-starts the origin for about 40 minutes.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Current rules\n\n- [R1] Purge the CDN with `make purge PREFIX=<prefix>`.\n",
+      "why": "never-purge-all clause cut"
+    },
+    {
+      "handoff": "## Current rules\n\n- [R2] Spot-check three avatar URLs after each deploy.\n",
+      "why": "rule dropped"
+    }
+  ]
+}

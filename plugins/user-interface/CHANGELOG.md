@@ -3,6 +3,18 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2] - 2026-11-20
+
+### Changed
+
+- Five pointer records lose the recheck trigger left behind when their as-of dates were removed: the reflow pointer in `reference/types/touch-web.md`, the `line-clamp` pointers in `reference/types/web/typography.md` and `typography/line-behavior.md`, and the WCAG pointers in the glossary's `color.md` and `interaction.md`. A pointer stores no value, so it has nothing to recheck. The APCA trigger in the glossary's `accessibility.md` and the term trigger in its `rendering-performance.md` stay, since each guards a decision of ours.
+
+## [0.28.1] - 2026-11-19
+
+### Changed
+
+- `reference/types/touch-web.md` no longer restates browser and standards behavior in nine passages: hover and pointer matching, the tap highlight, the tap delay, zoom locks, viewport units, overscroll values, `touch-action` pan values, keyboard-trap exits and remote debugging setup. Each passage now states our rule and its reason, and its pointer says when to read the upstream page. The touch-delay and tap-highlight rules now name `touch-action: manipulation` and `-webkit-tap-highlight-color` outright, and the audit severities are unchanged.
+
 ## [0.28.0] - 2026-11-19
 
 ### Changed

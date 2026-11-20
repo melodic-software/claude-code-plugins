@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
@@ -34,6 +35,7 @@ const CLAUDE = { databaseId: 209825114 };
 const KYLE = { databaseId: 153232337 };
 const UPSTREAM_RUN_ID = "38779135732";
 const RUN_ID = "38779143370";
+const LANE_RUN = 4242;
 
 const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
@@ -415,6 +417,33 @@ test("a dispatch whose connection broke is not sent again when the run it starte
   assert.deepEqual(since, [["pr-unblock.yml", "2026-10-30T15:31:38Z"]]);
 });
 
+
+test("one run reads a head's check runs once for every check name, and by name past one page", async () => {
+  const urls = [];
+  const answer = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const run = (name) => ({ id: name.length, name, head_sha: HEAD });
+  const github = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example.test",
+    graphqlUrl: "https://api.example.test/graphql",
+    fetch: async (url) => {
+      urls.push(String(url));
+      const named = new URL(url).searchParams.get("check_name");
+      if (String(url).includes(OLD_HEAD)) {
+        return answer(named ? { total_count: 1, check_runs: [run(named)] } : { total_count: 101, check_runs: [run("other")] });
+      }
+      return answer({ total_count: 2, check_runs: [run("a"), run("b")] });
+    },
+  });
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "b", appId: 1 })).map((r) => r.name), ["b"]);
+  assert.deepEqual(await github.listCheckRuns({ sha: HEAD, checkName: "c", appId: 1 }), []);
+  assert.equal(urls.length, 1);
+  assert.equal(new URL(urls[0]).searchParams.get("check_name"), null);
+  assert.deepEqual((await github.listCheckRuns({ sha: OLD_HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.equal(new URL(urls.at(-1)).searchParams.get("check_name"), "a");
+});
 test("a dispatch is sent at most twice, and an HTTP error answer never again", async () => {
   const twice = fakeApi();
   twice.listRecentRuns = async () => [];
@@ -776,6 +805,41 @@ test("main writes run-id and takes the upstream run from the event file", async 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+async function laneRecordsMain(api, actions) {
+  const dir = tempDir("pr-dispatch-feedback-");
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const path = join(dir, "lane-records.json");
+  const listed = [];
+  api.listArtifactsNamed = async (name) => {
+    listed.push(name);
+    return [];
+  };
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: eventFile(dir), APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir), FEEDBACK_LANE_RECORDS_PATH: path };
+  await main(env, { api, actions, resolveSlot: async () => resolvedLane(), log: () => {} });
+  return { listed, output: readFileSync(output, "utf8"), saved: existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null };
+}
+
+test("a tick with no bound lane comment reads and writes no lane record cache", async () => {
+  const actions = fakeActions({});
+  const { listed, output, saved } = await laneRecordsMain(fakeApi(), actions);
+  assert.deepEqual(listed, [], "no cache listing");
+  assert.equal(saved, null, "no cache file");
+  assert.doesNotMatch(output, /lane-records=/, "nothing to upload");
+});
+
+test("a tick that checks a bound lane comment saves the settled run for the next tick", async () => {
+  const body = bound("Off by one.", { run: LANE_RUN });
+  const comment = { id: 11, user: ACTIONS_BOT, body, created_at: "2026-10-17T10:00:00Z", updated_at: "2026-10-17T10:00:00Z" };
+  const actions = fakeActions({ [LANE_RUN]: { path: ".github/workflows/pr-review-hosted.yml", artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(body, { pr: 42, kind: "issue_comment" })] }] } });
+  const listArtifacts = actions.listArtifacts;
+  actions.listArtifacts = async (id) => (await listArtifacts(id)).map((row) => ({ ...row, expires_at: "2099-01-01T00:00:00Z" }));
+  const { listed, output, saved } = await laneRecordsMain(fakeApi({ comments: [marker("claude-review"), marker("claude-security-review"), comment] }), actions);
+  assert.deepEqual(listed, ["pr-feedback-lane-records"], "one cache listing");
+  assert.match(output, /^lane-records=true$/m, "the file is named for upload");
+  assert.deepEqual(Object.keys(saved.runs), [`${LANE_RUN}/1`], "the settled lane run, at its attempt");
 });
 
 // A pr-verify run ran on main: its head is main's, so main takes the head its
@@ -1811,6 +1875,21 @@ test("one pass spends at most EARLIER_FAIL_READS verifier reads on PRs with no u
   assert.equal(withThread.calls.dispatch.length, 1);
 });
 
+test("one pass reads a head's verifier once and spends one read on it", async () => {
+  const earlierFailReads = { left: EARLIER_FAIL_READS };
+  const verifyReads = new Map();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+  };
+  for (let i = 0; i < 2; i += 1) {
+    await decide(fakeApi({ threads: [failNote(true)] }), resolvedLane(), { verifyCapped, earlierFailReads, verifyReads });
+  }
+  assert.equal(reads, 1);
+  assert.equal(earlierFailReads.left, EARLIER_FAIL_READS - 1);
+});
+
 test("a round with a thread also names the FAILed heads; a pass-only round never does", async () => {
   const earlier = { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
   const withThread = fakeApi();
@@ -2416,7 +2495,7 @@ test("a lost run started before the rename, its dispatch job named by its id, is
   const { lines } = await sweepMain(t, api, TICK, NOW);
   assert.deepEqual(api.jobReads, [600]);
   assert.equal(api.calls.dispatch.length, 1);
-  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600") && line.includes("after its Dispatch job started")), lines.join("\n"));
 });
 
 test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {
@@ -2805,6 +2884,48 @@ test("a sent-round listing that cannot be read holds the PR", async (t) => {
   assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("more than 1000")), lines.join("\n"));
 });
 
+
+test("one run reads a URL or GraphQL query once until it writes, and a failed read is read again", async () => {
+  const sent = [];
+  let fail = true;
+  let graphqlAnswer;
+  const github = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example.test",
+    graphqlUrl: "https://api.example.test/graphql",
+    fetch: async (url, init) => {
+      sent.push(`${init.method} ${url}`);
+      if (String(url).endsWith("/runs/9") && fail) {
+        fail = false;
+        return new Response("{}", { status: 502 });
+      }
+      if (init.method === "POST" && String(url).endsWith("/dispatches")) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify(String(url).endsWith("/graphql") ? graphqlAnswer : { id: 7, labels: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const first = await github.getWorkflowRun(7);
+  first.labels.push("mutated");
+  assert.deepEqual((await github.getWorkflowRun(7)).labels, []);
+  const page = { data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } };
+  graphqlAnswer = page;
+  await github.listReviewThreads(5);
+  await github.listReviewThreads(5);
+  assert.equal(sent.length, 2);
+  graphqlAnswer = { errors: [{ message: "Something went wrong" }] };
+  await assert.rejects(github.listReviewThreads(6), /Something went wrong/);
+  graphqlAnswer = page;
+  await github.listReviewThreads(6);
+  assert.equal(sent.filter((s) => s.endsWith("/graphql")).length, 3);
+  await assert.rejects(github.getWorkflowRun(9));
+  await github.getWorkflowRun(9);
+  assert.equal(sent.filter((s) => s.endsWith("/runs/9")).length, 2);
+  await github.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "main", inputs: {} });
+  await github.getWorkflowRun(7);
+  assert.equal(sent.filter((s) => s.endsWith("/runs/7")).length, 2);
+});
 test("the finished-run listing reads every page of the window, and refuses a window past the API's 1,000 results", async () => {
   const urls = [];
   let rows = (page) => Array.from({ length: page === 1 ? 100 : 1 }, (_, i) => ({ id: page * 1000 + i }));
@@ -2819,7 +2940,8 @@ test("the finished-run listing reads every page of the window, and refuses a win
   assert.deepEqual(urls, [`${base}&page=1`, `${base}&page=2`]);
   rows = () => Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
   urls.length = 0;
-  await assert.rejects(api.listFinishedRunsSince("pr-unblock.yml", since), /more than 1000 finished runs/);
+  const fresh = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  await assert.rejects(fresh.listFinishedRunsSince("pr-unblock.yml", since), /more than 1000 finished runs/);
   assert.equal(urls.length, 10);
 });
 
@@ -3365,6 +3487,22 @@ test("an owner PR or its head commit active within idle-hours is not dispatched"
   }
 });
 
+const ARMED = { auto_merge: { merge_method: "squash", enabled_by: { id: KYLE.databaseId, type: "User" } } };
+test("an active owner PR with auto-merge armed is dispatched without waiting idle-hours", async () => {
+  for (const [label, api] of [
+    ["a recent update", ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T11:00:00Z", ...ARMED }) })],
+    ["a recent head commit", ownerApi({ pulls: ownerPull(ARMED) }, "2026-10-28T11:30:00Z")],
+  ]) {
+    const { result, lines } = await decideOwner(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, `${label}: ${lines.join("\n")}`);
+    assert.deepEqual(api.calls.commits, [], label);
+  }
+  const held = ownerApi({ pulls: ownerPull({ ...ARMED, body: "Hold: mine" }) });
+  const { result, lines } = await decideOwner(held);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /held by a Hold: line/);
+});
+
 test("an owner PR with a Hold: body line is not dispatched", async () => {
   const api = ownerApi({ pulls: ownerPull({ body: "Summary\n  hold: I am still on this" }) });
   const { result, lines } = await decideOwner(api);
@@ -3559,6 +3697,14 @@ test("the sweep decides an idle owner head with no round only within the idle wi
   // A new update opens the window again.
   const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
   assert.equal((await ownerSweep(reopened))?.number, 42);
+});
+
+test("the sweep sends an active owner PR with auto-merge armed and no round, as its review completion would", async () => {
+  const armed = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T11:30:00Z", ...ARMED }));
+  assert.equal((await ownerSweep(armed))?.number, 42);
+  assert.equal(armed.calls.dispatch.length, 1);
+  const unarmed = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T11:30:00Z" }));
+  assert.equal(await ownerSweep(unarmed), null);
 });
 
 test("the sweep clears an idle owner PR's failing stop once no thread is left, past the idle window, under its gates", async () => {

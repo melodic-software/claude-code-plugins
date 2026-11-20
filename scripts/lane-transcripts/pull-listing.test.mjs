@@ -27,7 +27,7 @@ test("a name's listing pages until an artifact older than the last successful pu
   held[99].created_at = iso(NOW - 31 * 3600_000);
   writeRows(sink, held.slice(0, 99).map((a) => ({ artifact_id: a.id, created_at: a.created_at, date: a.created_at.slice(0, 10), transcript: null })));
   const older = artifact(900, { createdAt: NOW - 40 * 3600_000, record: sealed(publicLine) });
-  const deps = fakeDeps([...held, older, artifact(5, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) })]);
+  const deps = fakeDeps([...held, older, artifact(5, { jobId: "rate-merge-risk", record: sealed(publicLine, { jobId: "rate-merge-risk" }) })]);
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 0, result.err);
   assert.ok(!deps.calls.some((c) => c.includes("check-intent-1&per_page=100&page=2")), "the page that reached the cutoff ends that name");
@@ -149,7 +149,7 @@ test("a re-run found in a workflow's newest runs, though the run is days older t
   for (const name of later("pr-verify.yml", [2])) assert.ok(names.has(name), name);
   for (const name of later("pr-run-activity-read.yml", [2, 3])) assert.ok(names.has(name), name);
   assert.ok(!names.has("lane-transcript-check-intent-3"), "an attempt no run reached is not listed");
-  assert.ok(!names.has("lane-transcript-capture-2"), "a workflow with no re-run lists no later attempt");
+  assert.ok(!names.has("lane-transcript-rate-merge-risk-2"), "a workflow with no re-run lists no later attempt");
   assert.equal(names.size, FIRST_ATTEMPTS.length + later("pr-verify.yml", [2]).length + later("pr-run-activity-read.yml", [2, 3]).length);
   const [row] = readRows(sink);
   assert.deepEqual({ id: row.artifact_id, attempt: row.run_attempt, branch: row.head_branch }, { id: 77, attempt: 2, branch: "feat/listed" });
@@ -165,7 +165,7 @@ test("a workflow whose run listing fails lists every attempt of its names, and t
   assert.equal(result.code, 0, result.err);
   const names = new Set(listedNames(deps));
   assert.ok(names.has("lane-transcript-check-intent-2") && names.has("lane-transcript-check-intent-spec-3"));
-  assert.ok(!names.has("lane-transcript-capture-2"));
+  assert.ok(!names.has("lane-transcript-rate-merge-risk-2"));
   assert.equal(stateOf(sink).last_error, null);
 });
 
@@ -173,16 +173,16 @@ test("a later-attempt name comes due a day after it was last listed through, wha
   const { privateText } = generate();
   const sink = sinkDir();
   const cursors = listedAgo(2);
-  cursors["lane-transcript-capture-2"] = iso(NOW - 25 * 3600_000);
-  cursors["lane-transcript-capture-3"] = iso(NOW - 23 * 3600_000);
+  cursors["lane-transcript-rate-merge-risk-2"] = iso(NOW - 25 * 3600_000);
+  cursors["lane-transcript-rate-merge-risk-3"] = iso(NOW - 23 * 3600_000);
   delete cursors["lane-transcript-refine-issue-3"];
   seedState(sink, { last_success_at: iso(NOW - 2 * 3600_000), cursors });
   const deps = fakeDeps([]);
   assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
-  assert.deepEqual(listedNames(deps).filter((name) => attemptOf(name) > 1).sort(), ["lane-transcript-capture-2", "lane-transcript-refine-issue-3"]);
+  assert.deepEqual(listedNames(deps).filter((name) => attemptOf(name) > 1).sort(), ["lane-transcript-rate-merge-risk-2", "lane-transcript-refine-issue-3"]);
   const after = stateOf(sink).cursors;
-  assert.equal(after["lane-transcript-capture-2"], new Date(NOW).toISOString());
-  assert.equal(after["lane-transcript-capture-3"], cursors["lane-transcript-capture-3"]);
+  assert.equal(after["lane-transcript-rate-merge-risk-2"], new Date(NOW).toISOString());
+  assert.equal(after["lane-transcript-rate-merge-risk-3"], cursors["lane-transcript-rate-merge-risk-3"]);
 });
 
 test("a budget-stopped pull of the daily ring keeps the rest due, and its successor resumes at the name it stopped on", () => {

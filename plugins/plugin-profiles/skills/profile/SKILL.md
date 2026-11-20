@@ -1,6 +1,6 @@
 ---
-description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
-argument-hint: "[apply <name>|launch [<name>]|status|clear|check|setup]"
+description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, resetting every profile on the machine, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
+argument-hint: "[apply <name>|launch [<name>]|status|clear|reset|check|setup]"
 disable-model-invocation: false
 metadata:
   workflow-stage: session
@@ -9,9 +9,9 @@ metadata:
 
 # Plugin profiles
 
-**Arguments.** `[apply <name>|launch [<name>]|status|clear|check|setup]`. With no argument, infer
-the action from the conversation: a read-only one (status, check) runs and names what it
-inferred; apply, clear and setup are proposed and wait for a yes. A skill that starts a session
+**Arguments.** `[apply <name>|launch [<name>]|status|clear|reset|check|setup]`. With no argument,
+infer the action from the conversation: a read-only one (status, check) runs and names what it
+inferred; apply, clear, reset and setup are proposed and wait for a yes. A skill that starts a session
 calls launch directly. With nothing to infer, run status.
 
 Every action runs the one command-line tool, and only it reads or writes settings and profile
@@ -33,10 +33,11 @@ The user sees every change before it is made, so each write runs twice:
 
 1. Run the command with `--dry-run` and show its preview lines to the user as printed, not
    summarized: the counts and the named plugins are what they are agreeing to.
-2. Ask whether to go ahead, one yes-or-no question per write.
+2. Ask whether to go ahead, one yes-or-no question per write, worded as below.
 3. Only after the user's yes in this conversation, run the same command with `--yes`. The write is
-   done when the tool prints its `Applied`, `Saved`, `Installed` or `Cleared` line; a non-zero exit
-   means nothing was written, so relay its message.
+   done when the tool prints its `Applied`, `Saved`, `Installed` or `Cleared` line, or reset's
+   line for each file; a non-zero exit means nothing was written, except reset's exit 3, which
+   wrote what it could and names each file it skipped. Relay the message.
 
 `--yes` stands for that answer, so it is never passed on a guess, on an earlier yes for a
 different write, or when nobody is there to answer: with no one to ask, stop after the preview
@@ -44,6 +45,13 @@ and report what would change. When the preview names a missing required prerequi
 does not apply it; tell the user to run the apply in a separate terminal and answer the tool's own
 prompt. A `Not installed` line does not stop an apply: only a missing required prerequisite stops
 `--yes`.
+
+Every question the skill asks before a write lists the answer that changes nothing (No, Keep)
+first and the answer that writes second, and marks exactly one of them `(Recommended)` in its
+label, wherever it sits, followed by one short sentence saying why, taken from the preview's facts.
+For apply and clear, recommend Yes only when the user asked for that write in this conversation,
+naming what the preview changes and how to undo it (clear undoes an apply, applying again undoes a
+clear); otherwise recommend No. Reset's questions take the tool's own advice, as its action says.
 
 ## Actions
 
@@ -74,6 +82,27 @@ prompt. A `Not installed` line does not stop an apply: only a missing required p
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
 - **clear**: `clear [--for folder|initial]` restores what the tool wrote. Inside a session, tell
   the user to run `/plugin-profile` and pick **No profile**, which also reloads the session.
+- **reset**: puts every settings file a profile changed on this machine back, every folder and user
+  settings, when the user wants all profiles gone. Run `reset --dry-run --json`. Before asking
+  anything, show every line of its `lines`, in order, exactly as printed, in a code block: never a
+  summary, a paraphrase or a subset of them, since the questions point at "the files above" and
+  each line says what reset does to one file. Files in `unchangedSinceReset` are ones an earlier reset put back and nobody
+  changed since: reset leaves them, so ask nothing about them. When `question` is set, ask it as
+  worded, No before Yes: one yes covers the files a profile record covers, and a no keeps them. Then
+  ask each `folders[].ask.question` on its own, whatever the first answer, `ask.no.label` before
+  `ask.yes.label`: that row's `ask.file` changes only on a yes for it, and no is the default. The
+  recommendation and its reason come from the tool and are never your own: for the first question
+  `questionRecommend.asked` when the user asked for a reset, else `questionRecommend.unasked`; for
+  each file `ask.recommend`. Mark the option its `answer` names (yes or no) `(Recommended)` and give
+  its `reason` as the sentence. When every answer is no, nothing
+  is written: run nothing. Otherwise run `reset --yes --json --preview-id <previewId>`, plus
+  `--keep-recorded` when the first answer was no, with
+  `<ask.yes.flag> <ask.file>` for each yes and `<ask.no.flag> <ask.file>` for each no, the
+  file exactly as `ask.file` names it. Relay its `lines`. When the last line says records wait and
+  to run reset again (a moved repository goes back one layer per run), offer another reset, starting
+  from a new dry run. When it refuses because the preview changed, nothing was written:
+  start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
+  **Reset** do the same and reload the session.
 - **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
   each FAIL and Report line.
 - **setup**: the guided walk below.

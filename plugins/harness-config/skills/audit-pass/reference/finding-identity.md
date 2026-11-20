@@ -123,8 +123,8 @@ content and the same defect.
 **Content-derived, never line-derived.** A line number shifts whenever anything above it changes,
 churning the whole report on an unrelated edit. The anchor field name carries its algorithm version:
 findings emit **`anchor/v1`**, and two sides compare on the **greatest anchor version both carry**
-(the versioned-fingerprint discipline of SARIF
-[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)).
+(Pointer: when changing how anchor versions compare, read SARIF
+[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) live).
 That is the escape hatch: a later algorithm ships as `anchor/v2` alongside `v1`, and a record written
 under `v1` keeps matching until both sides have moved.
 

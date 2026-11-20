@@ -1,5 +1,5 @@
 {
-  "claim": "On Linux with sandbox.enabled, a Bash request to a host not on the sandbox allowlist fails inside the sandbox (an error tool result naming the sandbox), not as a permission denial.",
+  "claim": "On Linux with sandbox.enabled and sandbox.autoAllowBashIfSandboxed true, a Bash request to a host not on the sandbox allowlist fails inside the sandbox (an error tool result naming the sandbox), not as a permission denial.",
   "tags": ["sandbox", "allowed_domains", "network"],
   "permission_mode": "auto",
   "platforms": ["linux"],

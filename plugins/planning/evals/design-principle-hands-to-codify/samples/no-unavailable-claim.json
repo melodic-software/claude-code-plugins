@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ROUTE: `/corrections:codify \"code under domain/ never imports from infrastructure/\"`",
+      "why": "names the call, no availability claim"
+    },
+    {
+      "answer": "If /corrections:codify were not available, design would propose the strongest mechanism itself and call it unproven.\n\nROUTE: `/corrections:codify \"domain never imports infrastructure\"`",
+      "why": "the fallback described outside the route line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROUTE: /corrections:codify is not available, so propose an import-boundary check (unproven)",
+      "why": "claims codify is unavailable on the route line"
+    }
+  ]
+}

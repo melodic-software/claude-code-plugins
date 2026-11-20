@@ -107,4 +107,3 @@ navigation.
 Touch target names a minimum size without stating it; standards set more than one.
 
 - **Pointer**: when a target size decides a finding, fetch https://www.w3.org/TR/WCAG22/#target-size-minimum and https://www.w3.org/TR/WCAG22/#target-size-enhanced live.
-- **Recheck trigger**: a WCAG version after 2.2 becomes a W3C Recommendation.

@@ -77,7 +77,7 @@ Sections, in the one order `validate` checks:
 | 9 | Observations | session-wide observations, summarized; detail stays in the archive or the transcript |
 | 10 | Pending commands | every command waiting on the user, verbatim |
 | 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
-| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop |
+| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on, a security or design decision tagged and carrying `buys:`, `surface:` and `cost:`; copied off disk each hop |
 | 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
 | 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
 | 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
@@ -148,6 +148,14 @@ What the writer owns, since no script can judge it:
   hop's file; otherwise it leaves through `retire`. `validate` fails a carried entry whose text
   changed any other way, so a decision shortened to meet the size cap fails instead of passing on
   its id alone. A mark naming an earlier hop does not count for this hop's change.
+- **A security or design decision carries its rationale.** Tag it right after its id and end it
+  with three fields: `- [D<n>] [security] <decision> (<reason>) buys: <what it gains>; surface:
+  <the surface exposed today, or none>; cost: <measured cost so far, or none yet>` (`[design]`
+  for a design decision; fields may sit on indented continuation lines). `validate` fails a
+  tagged entry missing any field, naming the fix (`add buys:/surface:/cost: to D<n>`); an
+  untagged entry needs none, so older chains still validate. Tagging a carried decision, or
+  updating its `cost:`, is a change to its text and ends `Rewritten h<N>: <why>`. A resumed
+  session reads the three fields before building on the decision (`/session-flow:reanchor`).
 - **Old trail lines fold out.** At `new`, a carried Direction changes line whose newest tagged hop
   is 3 or more hops back (`DIRECTION_HOPS_KEPT` in `save_point.py`) leaves the hot file, so the
   hot file keeps the lines of the last 3 hops, this one included. One `- Folded:` line at the top

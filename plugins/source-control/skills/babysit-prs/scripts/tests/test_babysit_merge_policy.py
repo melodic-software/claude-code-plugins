@@ -44,6 +44,8 @@ for _leaked_git_var in (
 ):
     os.environ.pop(_leaked_git_var, None)
 del _leaked_git_var
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -2398,23 +2400,34 @@ class SharedGreenGrid(unittest.TestCase):
                 policy.datetime.fromisoformat("2026-10-14T03:30:00Z"),
             )
 
-    def test_a_cell_past_its_page_bound_raises_where_the_span_reads(self) -> None:
-        # 1000 runs in the cell before the record: the record's own span holds
-        # one run and clears, but the shared cell cannot be read whole.
-        runs = [
+    def test_a_cell_past_its_page_bound_raises_only_after_the_record(self) -> None:
+        """1000 runs in the cell before the record: the cell is listed from
+        the record, so it holds one run and clears, as the span does. 1000 in
+        the next cell after the span ends: the span holds none of them and
+        clears, but the shared cell cannot be read whole."""
+        before = [
             *minutes_from("2026-10-12T11:00:00Z", 1000),
             grid_run("2026-10-14T05:00:00Z"),
         ]
+        for green_class in (PerRecordGreenMain, policy._GreenMain):
+            self.assertEqual(
+                self.recovered(green_class, before),
+                policy.datetime.fromisoformat("2026-10-14T05:00:00Z"),
+            )
+        after = [
+            grid_run("2026-10-14T05:00:00Z"),
+            *minutes_from("2026-10-21T04:00:00Z", 1000),
+        ]
         self.assertEqual(
-            self.recovered(PerRecordGreenMain, runs),
+            self.recovered(PerRecordGreenMain, after),
             policy.datetime.fromisoformat("2026-10-14T05:00:00Z"),
         )
-        got = self.recovered(policy._GreenMain, runs)
+        got = self.recovered(policy._GreenMain, after)
         self.assertIsInstance(got, policy.PolicyReadError)
         self.assertEqual(
             str(got),
             "workflow_dispatch green runs: more than 10 pages"
-            " in the week from 2026-10-12T10:00:00Z",
+            " in the week from 2026-10-19T10:00:00Z",
         )
 
     def test_a_busy_week_before_the_record_still_reads(self) -> None:
@@ -2461,7 +2474,7 @@ class SharedGreenGrid(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-20T00:00:00Z")
         )
         cells = (
-            "created=2026-10-12T10:00:00Z..2026-10-19T10:00:00Z",
+            f"created={GRID_RECORD}..2026-10-19T10:00:00Z",
             "created=2026-10-19T10:00:00Z..2026-10-26T10:00:00Z",
         )
         self.assertEqual(
@@ -2472,6 +2485,45 @@ class SharedGreenGrid(unittest.TestCase):
                 for cell in cells
                 for event in ("schedule", "workflow_dispatch")
             ),
+        )
+
+    def test_one_record_reads_its_first_cell_from_its_own_time(self) -> None:
+        """The record's span straddles two cells: the first is listed from
+        the record, not from the grid line before it; the second from its
+        start."""
+        result, listings = self.read({1: GRID_RECORD}, [grid_run("2026-10-14T05:00:00Z")])
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-14T05:00:00Z")
+        )
+        cells = (
+            f"created={GRID_RECORD}..2026-10-19T10:00:00Z",
+            "created=2026-10-19T10:00:00Z..2026-10-26T10:00:00Z",
+        )
+        self.assertEqual(
+            sorted(listings),
+            sorted(
+                f"{GREEN_RUNS_PATH}?branch=main&event={event}&status=success"
+                f"&{cell}&per_page=100&page=1"
+                for cell in cells
+                for event in ("schedule", "workflow_dispatch")
+            ),
+        )
+
+    def test_a_cell_read_from_a_later_time_is_read_again_for_an_earlier_one(
+        self,
+    ) -> None:
+        """An earlier record's later span can list a cell from inside it
+        before a record filed earlier in that cell is read: that record still
+        sees the green between its filing and the first listing's start."""
+        at = policy.datetime.fromisoformat
+        runs = [grid_run("2026-10-13T00:00:00Z"), grid_run("2026-10-14T00:00:00Z")]
+        green = policy._GreenMain("owner", "repo")
+        with mock.patch.object(policy, "gh_capture", GreenRunsApi(runs)):
+            later = next(green.listed(at("2026-10-13T12:00:00Z"), NOW))
+            earlier = next(green.listed(at("2026-10-12T12:00:00Z"), NOW))
+        self.assertEqual(
+            (later["created_at"], earlier["created_at"]),
+            ("2026-10-14T00:00:00Z", "2026-10-13T00:00:00Z"),
         )
 
     def test_a_span_past_the_page_bound_holds_the_record(self) -> None:

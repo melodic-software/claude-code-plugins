@@ -3,6 +3,32 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-20
+
+### Changed
+
+- Reset asks about a moved repository's file as its own kind of question: Keep, then Put back, answered with `--keep-moved` and `--put-back-moved`; the folder-without-a-record flags no longer answer it, and the one question names files in a repository that moved among those it leaves to their own question.
+- The profile skill's reset action shows every preview line exactly as printed before it asks anything, never a summary or paraphrase; its eval case fails a run that asks without them.
+- The reset preview's line about files unchanged since an earlier reset names them (how many, the first three and how many more) and calls them files reset already handled, which stays true for a cut-off file finished while keeping a hand edit.
+- Apply's preview in a repository that moved, while a record from before the move is kept, says in one line that reset puts the file back one layer per run, newest first, naming each such record and its profile.
+- A cut-off file whose entries include ones an unfinished switch still owes says they hold "the values profile P wrote or its unfinished switch had yet to change"; with no such entry the wording is unchanged.
+
+## [0.9.0] - 2026-11-19
+
+### Added
+
+- `profiles.mjs reset` puts every settings file a profile changed on the machine back, user settings included, behind one preview and one yes; a reset stopped part way finishes on the next run. It reads a record only from a home that can hold it, refuses a write that no longer matches the preview passed with `--preview-id`, and exits 3 when it wrote what it could and named each file it skipped. A moved repository with profiles applied before and after the move goes back one layer per reset, newest first, each run writing a file from one record only; a run that leaves an older record waiting exits 3 and says to run reset again, and after the last layer the file holds what it held before the first apply. A no to the one question keeps the recorded files and still asks each file's own question (`--keep-recorded` for a caller). A file changed by hand after a reset was stopped before its write keeps its record and gets its own yes (`--finish-cut-off`, `--keep-cut-off`), which puts back only the entries still at the profile's values, counting an entry an unfinished switch still owes until it is back at its value before the profile.
+- The `/plugin-profile` picker has a **Reset** row under No profile, and the profile skill has a reset action; both show the same preview and ask before writing, and a folder without a record changes only on a yes for that folder. Each per-file question in `reset --dry-run --json` carries its answers' labels and flags and a recommended answer with a one-sentence reason (`ask.recommend`; `questionRecommend` for the one question); the picker shows it as a line before the question and the skill marks that answer `(Recommended)`.- Reset notes the bytes it left in each file it put back, so a later reset does not offer that file's own entries for removal while it is unchanged; an edit or an apply ends that.
+
+### Changed
+
+- Every question the `/plugin-profile` picker and the profile skill ask lists the answer that changes nothing first (Cancel, Keep, No), so the picker pre-selects it, the apply, switch and clear confirms included; Esc is that answer.
+- A one-session file also names each installed plugin of every other marketplace some profile governs, at its value at launch, so a reset or another profile elsewhere never changes that session's plugins; a later `/plugin` toggle of such a plugin reaches only sessions started after it.
+
+### Fixed
+
+- The `/plugin-profile` picker's second write after a reload runs `apply --finish-pending`, which writes only while the folder's switch is still pending, so it never writes back a profile cleared or reset since, including one cleared or reset while it lists the installed plugins: it saves its record only while the pending record it read is unchanged.
+
 ## [0.8.0] - 2026-11-19
 
 ### Added

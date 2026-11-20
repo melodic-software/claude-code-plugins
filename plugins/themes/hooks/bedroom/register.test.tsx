@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { TITLE_CAPS, hitAt, switchesAt, toViewBox, withTitle } from './register.tsx'
+import { TITLE_CAPS, aspectFrom, hitAt, moves, switchesAt, toViewBox, withTitle } from './register.tsx'
 import { bedroomSvg } from './scene.ts'
 import { DEFAULT_STATE } from './scene/lib.ts'
 
@@ -16,7 +16,7 @@ test('a click lands on the thing under it, or on nothing', () => {
 })
 
 test('the room draws the made-up titles and pennant by default', () => {
-  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: {} }, 0)
+  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: {}, underShader: true }, 0)
 
   expect(DEFAULT_STATE.posters).toBe('plain')
   expect(svg.includes('FAR MERIDIAN')).toBe(true)
@@ -25,7 +25,7 @@ test('the room draws the made-up titles and pennant by default', () => {
 })
 
 test('a title set with /bedroom title replaces the default', () => {
-  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'MY GAME', tape: 'MY TAPE' } }, 0)
+  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'MY GAME', tape: 'MY TAPE' }, underShader: true }, 0)
 
   expect(svg.includes('MY GAME')).toBe(true)
   expect(svg.includes('MY TAPE')).toBe(true)
@@ -58,7 +58,7 @@ test('/bedroom title pennant sets the pennant in capitals, capped, and no text p
 })
 
 test('every title is escaped for the SVG', () => {
-  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'A<B', tape: 'C&D', pennant: 'E"F', 'pennant-top': 'G>H' } }, 0)
+  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'A<B', tape: 'C&D', pennant: 'E"F', 'pennant-top': 'G>H' }, underShader: true }, 0)
 
   expect(svg.includes('A&lt;B')).toBe(true)
   expect(svg.includes('C&amp;D')).toBe(true)
@@ -68,10 +68,35 @@ test('every title is escaped for the SVG', () => {
 })
 
 test('a $ in a title is written as typed, not read as a replacement pattern', () => {
-  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'X$&Y', tape: "P$'Q" } }, 0)
+  const svg = bedroomSvg({ ...DEFAULT_STATE, titles: { console: 'X$&Y', tape: "P$'Q" }, underShader: true }, 0)
 
   expect(svg.includes('X$&amp;Y')).toBe(true)
   expect(svg.includes("P$'Q")).toBe(true)
   expect(svg.includes('@TITLE@')).toBe(false)
   expect(svg.includes('@TAPE@')).toBe(false)
+})
+
+test('drawn whole, with no shader, the console title card shows only on the console\'s own screen', () => {
+  const card = 'FAR MERIDIAN'
+
+  expect(bedroomSvg({ ...DEFAULT_STATE, tv: true, console: false, titles: {} }, 0).includes(card)).toBe(false)
+  expect(bedroomSvg({ ...DEFAULT_STATE, tv: true, tape: true, titles: {} }, 0).includes(card)).toBe(false)
+  expect(bedroomSvg({ ...DEFAULT_STATE, tv: false, console: true, titles: {} }, 0).includes(card)).toBe(false)
+  expect(bedroomSvg({ ...DEFAULT_STATE, tv: true, console: true, titles: {} }, 0).includes(card)).toBe(true)
+  expect(bedroomSvg({ ...DEFAULT_STATE, tv: true, console: false, titles: {}, underShader: true }, 0).includes(card)).toBe(true)
+})
+
+test('a switch order is one move to the end, or, when the number already sits on that side, the middle first', () => {
+  expect(moves(1, false)).toEqual([0])
+  expect(moves(0, true)).toEqual([1])
+  expect(moves(0.5, false)).toEqual([0])
+  expect(moves(1, true)).toEqual([0.5, 1])
+  expect(moves(0, false)).toEqual([0.5, 0])
+  expect(moves(0.5, true)).toEqual([0.5, 1])
+})
+
+test('a calibration click on the dresser corner gives the window shape', () => {
+  expect(aspectFrom(0.7, 0.9).toFixed(2)).toBe('1.55')
+  expect(aspectFrom(0.5, 0.5)).toBe(1.6)
+  expect(aspectFrom(0.51, 0.95).toFixed(2)).toBe('1.77')
 })

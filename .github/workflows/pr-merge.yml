@@ -1,7 +1,7 @@
 name: PR Merge
 # A PR-scoped dispatch's marker (rotation.mjs WAKE_TITLE); every other run
 # keeps GitHub's own name, which a whitespace-only run-name leaves.
-run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
+run-name: "${{ inputs.pr && format('PR Merge: arm #{0}', inputs.pr) || '' }}"
 
 # What this does, in plain words:
 #
@@ -98,8 +98,9 @@ on:
   # dispatch-post-merge-runs, merge, report-unarmed-status and the jobs after merge are
   # skipped; enable-auto-merge reads the last sweep's post-merge report for
   # the lane's room (last-report.mjs), or runs the check fresh when that
-  # report does not stand. Its run name, `pr-merge: arm #<pr>`
-  # (run-name below), marks it: no later run reads its artifacts
+  # report does not stand. Its run name, `PR Merge: arm #<pr>` (run-name
+  # below; https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#native-auto-merge),
+  # marks it: no later run reads its artifacts
   # (rotation.mjs trustedRun), and it never supersedes a sweep
   # (superseded.mjs).
   workflow_dispatch:
@@ -203,7 +204,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -1075,7 +1076,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -2499,7 +2500,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@6229c34785ae13489b64574d697437dca68c4f5e # v0.77.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -2523,12 +2524,21 @@ jobs:
         continue-on-error: true
         run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
+      - name: Read the defer override from the base config
+        if: inputs.pr
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          defer: ${{ inputs.pr && 'true' || 'false' }}
+          defer-job: pr-merge
+          resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Same rule as the merge job's who step (who.mjs): a listed human by
       # account id, a scheduled run's first attempt, or pr-verify's PR-scoped
@@ -3083,6 +3093,8 @@ jobs:
           OUTCOME: ${{ steps.arm.outputs.wake-outcome }}
           ARM: ${{ steps.arm.outcome }}
           KILL: ${{ steps.kill.outputs.proceed }}
+          KILL_CAUSE: ${{ steps.kill.outputs.cause }}
+          KILL_RESET: ${{ steps.kill.outputs.reset }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
           UNCOVERED: ${{ steps.precheck.outputs.uncovered }}
@@ -3093,7 +3105,9 @@ jobs:
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
-            if [ "$KILL" != true ]; then
+            if [ "$KILL" != true ] && [ "$KILL_CAUSE" = defer ]; then
+              OUTCOME="deferred (cause defer): the GITHUB_TOKEN window is projected to run short before its reset at $KILL_RESET (epoch seconds); the next sweep, which never defers, arms what this run would"
+            elif [ "$KILL" != true ]; then
               OUTCOME="skipped: the lanes kill switch stopped it"
             elif [ "$WHO" != true ]; then
               OUTCOME="skipped: the who step stopped it"

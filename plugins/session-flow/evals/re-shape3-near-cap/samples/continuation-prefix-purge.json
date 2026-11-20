@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["make purge PREFIX=/avatars/"], "why": "make target"},
+    {"commands": ["./scripts/purge.sh --prefix /avatars"], "why": "script directly"}
+  ],
+  "fail": [
+    {"commands": ["make purge-all"], "why": "full purge"},
+    {"commands": ["make purge PREFIX=/banners/"], "why": "wrong prefix"}
+  ]
+}

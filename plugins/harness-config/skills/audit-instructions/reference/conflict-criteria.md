@@ -181,7 +181,7 @@ Two pairs remain real and should not be swept away with it: a **fork** does inhe
 subagent that enables its own `memory` can contradict the definition it runs under, but that is the
 subagent's own memory directory, not the main conversation's.
 
-**Built-in agents that skip CLAUDE.md, such as `Explore` and `Plan`, never pair with it.** A pair
+**A built-in agent the subagents section lists as skipping CLAUDE.md never pairs with it.** A pair
 whose only memory-layer half reaches such a delegation fails gate 1, and the remediation is to
 restate the rule in the delegation prompt rather than to reconcile the two surfaces.
 
@@ -292,16 +292,15 @@ Three consequences for residency, and each one bounds a pair rather than admitti
     blocks but is subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
     rule above, and never against a main-session surface.
   - **The cell says no.** Nothing is prevented, so there is no act and no gate to pair; treat the
-    message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
-    row says it cannot block, because the tool has run. A per-edit linter there can only surface
-    findings as advisory context, which is why the actionlint plugin's `actionlint-check.sh`
-    belongs in a git `pre-commit` entry that blocks the commit rather than per edit
+    message as transient feedback and pair it as nothing. Reading such a handler's exit-2 stderr
+    as a prohibition on the tool call it followed would manufacture an unsatisfiable conflict
+    against any instruction requiring that tool. A per-edit linter on such an event can only
+    surface findings as advisory context, which is why the actionlint plugin's
+    `actionlint-check.sh` belongs in a git `pre-commit` entry that blocks the commit rather than
+    per edit
     ([check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric)).
-    Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
-    *after* would manufacture an unsatisfiable conflict against any instruction requiring that
-    tool. The tool already ran, and the hook can neither block nor undo it. Registered instead on
-    `PreToolUse`, whose row blocks the tool call, the same handler would enter the comparison set
-    as the act it blocks.
+    Registered instead on an event whose cell says yes, the same handler enters the comparison
+    set as the act that row prevents.
   - **The event has no row, or the table could not be reached.** Record the surface with its event
     as `blockability-unresolved` and report the pair as such, on the same terms the
     `text-unresolved` rule below gives. Never infer blockability from the event's name, its prefix,
@@ -320,7 +319,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, a natively read project
 `AGENTS.md`, unscoped rules, `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, except via
-a built-in agent that skips CLAUDE.md (`Explore` / `Plan`), and except a file the definition's own
+a built-in agent that skips CLAUDE.md, and except a file the definition's own
 opt-out leaves unloaded (see "An agent definition co-resides" above).
 **Conditional pairs** involve a skill body, a path-scoped rule, a nested `CLAUDE.md`, or
 context-injected hook output. They are real, but they only bite once that surface loads. Hook output is
@@ -456,24 +455,23 @@ it and name the winner. Where they do not, report the conflict as unresolved and
 
 ### Settled: cite and name the winner
 
-| Claim | Where the docs settle it |
+| Pair the lane names a winner for | Section the winner is cited from |
 |---|---|
-| An unscoped rule ranks equal to `.claude/CLAUDE.md` | [memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules) |
-| A mechanism beats instruction text | [memory: deploy organization-wide CLAUDE.md](https://code.claude.com/docs/en/memory#deploy-organization-wide-claude-md) |
-| Managed policy cannot be excluded | [memory: exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files) |
+| An unscoped rule against `.claude/CLAUDE.md` | [memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules) |
+| A mechanism against instruction text | [memory: deploy organization-wide CLAUDE.md](https://code.claude.com/docs/en/memory#deploy-organization-wide-claude-md) |
+| Managed policy against an exclusion | [memory: exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files) |
 
 ### Unresolved: report, and name no winner
 
-| Pair | Why |
+| Pair | Section read for a winner |
 |---|---|
-| User `CLAUDE.md` vs project `CLAUDE.md` | The memory page concatenates them and states no override between them ([memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load)). |
-| User rule vs project rule | The memory page orders them but says neither overrides the other ([memory: user-level rules](https://code.claude.com/docs/en/memory#user-level-rules)). |
-| Skill body vs any `CLAUDE.md` | The skills page states no authority relation between a skill body and a memory surface. Silence is not a winner. |
-| Managed policy vs lower scopes | Loading first and being non-excludable are load ordering and non-excludability. The docs never say it overrides. |
+| User `CLAUDE.md` vs project `CLAUDE.md` | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
+| User rule vs project rule | [memory: user-level rules](https://code.claude.com/docs/en/memory#user-level-rules) |
+| Skill body vs any `CLAUDE.md` | [skills](https://code.claude.com/docs/en/skills), the whole page. Silence is not a winner. |
+| Managed policy vs lower scopes | [memory: exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files). Loading first and being non-excludable are not override. |
 
-**Do not infer a winner from load order.** The memory page orders files by directory and by scope,
-beside an explicit denial of override semantics. Reading the order as "later wins" invents
-precedence the docs decline to state.
+**Do not infer a winner from load order.** Load order is not precedence: reading the order as
+"later wins" invents a winner no section states.
 
 - **Pointer**: when grading a pair's precedence, fetch the section its row names live; a row whose
   section now states a winner, or no longer states one, moves between the two tables.
@@ -636,26 +634,22 @@ counts itself and drifts every time this example is edited.
 
 All five gates held. Gate 4 turns on the prohibition's exception being unreachable: "unless explicitly
 asked" is satisfiable by the user, never by an invoked skill. Type A, conditional co-residency,
-verdict **unresolved**, because the skills page states no authority relation between a skill body and
-a memory surface. It was not a style nit: in `repo-hygiene:clean` and `disk-hygiene:clean` that call
+verdict **unresolved**, because the Unresolved table names no winner between a skill body and a
+memory surface. It was not a style nit: in `repo-hygiene:clean` and `disk-hygiene:clean` that call
 *was* the destructive-action confirmation gate, so resolving toward the CLAUDE.md degraded a safety
 mechanism while resolving toward the skill disobeyed a standing instruction. Both anchors were
 reported and the choice left to the operator.
 
 Both skills state the gate as invariant-plus-surface: the confirmation bar is unconditional, while the
 surface prefers `AskUserQuestion` and falls back to an inline question when it is absent. That wording
-exists on its own grounds, because a mandate naming a tool that can be absent (permission mode
-`dontAsk`, a **bare-name** `permissions.deny` rule, and a `disallowed-tools` entry can each take it
-away; see
+exists on its own grounds, because a mandate naming a tool that can be absent is unsatisfiable in
+exactly the sessions that most need a gate. For what can take a tool away, fetch
 [permission modes: dontAsk](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
 [permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)) is
-unsatisfiable in exactly
-the sessions that most need a gate. It is not a verdict on the pair. Run the gates against the current text as you would for any
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. It is not a verdict on the pair. Run the gates against the current text as you would for any
 pair, and do not assume that the pair dissolved because one side acquired a condition (gate 5 is
 unaffected; see above) or that a softened verb settles gate 3, whose deciding branch is the one where
-the tool *is* present. No winner is available to name: the authority relation the Unresolved table
-denies still does not exist, and a rewrite on one side is not the operator's decision.
+the tool *is* present. No winner is available to name: the Unresolved table still names none, and a rewrite on one side is not the operator's decision.
 
 **2. A near-miss the gates correctly reject: description-versus-body divergence.**
 `harness-memory:audit`'s `description` (in `SKILL.md`) sells "memory health" and greps zero for

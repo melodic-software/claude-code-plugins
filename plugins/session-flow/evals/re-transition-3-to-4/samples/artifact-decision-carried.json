@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "handoff": "## Decisions in force\n\n- [D4] Keep the products index at 12 shards: the 24-shard trial (run 81500112) doubled p99 query latency.\n",
+      "why": "carried whole"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Decisions in force\n\n- [D4] Keep the products index at 12 shards.\n",
+      "why": "reason cut"
+    },
+    {
+      "handoff": "## Decisions in force\n\n- [D5] Rebuild after the mapping PR.\n",
+      "why": "decision dropped"
+    }
+  ]
+}

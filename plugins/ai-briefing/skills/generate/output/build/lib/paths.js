@@ -74,6 +74,10 @@ export function meetingsDir(profile) {
   return path.join(stateRoot(profile), "output", "meetings");
 }
 
+export function deckPath(meetingNumber, extension, profile) {
+  return path.join(meetingsDir(profile), `ai-meeting-${meetingNumber}.${extension}`);
+}
+
 export function buildOutDir(profile) {
   return path.join(stateRoot(profile), "output", "build");
 }

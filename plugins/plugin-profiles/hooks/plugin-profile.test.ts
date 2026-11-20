@@ -34,8 +34,23 @@ const clearPreview = (p: { recorded?: boolean; sessionProfile?: string | null; l
 })
 const NEXT_STEP = 'Send any message, or run /reload-plugins now, to load the change into this session; a new session starts with it.'
 
-const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
-  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+type Answer = { label: string; flag: string }
+type ResetRow = { file: string; action: string; ask?: { file: string; question: string; yes: Answer; no: Answer } }
+const UNRECORDED = { yes: { label: 'Remove', flag: '--remove-unrecorded' }, no: { label: 'Keep', flag: '--keep-unrecorded' } }
+const QUESTION = 'Reset the files above that have a record? (the question the tool words)'
+const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.json', action: 'restore' }], sessionProfile: string | null = null): Out => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    sessionProfile,
+    previewId: 'preview-1',
+    question: QUESTION,
+    folders: folders.map(f => ({ recorded: f.action !== 'remove-entries', adopted: false, unfinished: false, overwrites: [], lines: [`${f.file}: a line the tool owns.`], ...f })),
+    lines: ['Reset looked for profile records in the places the tool owns.', ...folders.map(f => `${f.file}: a line the tool owns.`)],
+  }),
+})
+
+const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
+  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
   const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
@@ -53,7 +68,11 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
     w.runs.push([...args])
     w.envs.push(e.init?.env)
     const out =
-      args[0] === 'clear'
+      args[0] === 'reset'
+        ? args.includes('--dry-run')
+          ? (cli.resetDry ?? resetPreview())
+          : (cli.reset ?? { exitCode: 0, stdout: JSON.stringify({ lines: ['Restored /p/.claude/settings.local.json (profile review).'] }) })
+        : args[0] === 'clear'
         ? args.includes('--dry-run')
           ? (cli.clearDry ?? clearPreview())
           : (cli.clear ?? { exitCode: 0, stdout: 'Cleared profile review from /p/.claude/settings.local.json.\n' })
@@ -67,6 +86,7 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   on('tool.call', { tool: 'AskUserQuestion' }, ($: unknown, e: any) => {
     const q = e.questions[0]
     w.asks.push({ question: q.question, options: q.options.map((o: { label: string }) => o.label) })
+    w.headers.push(q.header)
     const answer = answers.shift()
     if (answer === undefined) return { deny: 'dismissed' }
     return { result: { questions: e.questions, answers: { [q.question]: answer } } }
@@ -143,7 +163,7 @@ test('#16818: a pick in the pane previews, asks, writes the on entries, and logs
   const w = world(on, ['Apply'])
   const last = await runPicking($, w, 'review')
   expect(w.closed).toEqual(['plugin-profile-picker'])
-  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] }])
   expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
   expect(last).toBe(`Switched this folder to profile review. ${NEXT_STEP} The plugin it switches off stays loaded in this session until a later /reload-plugins or the next session start.`)
 })
@@ -155,7 +175,7 @@ for (const surface of SURFACES)
     const ui = await $.ui.mount({ ...PICKER, surface })
     expect(await ui.find({ type: 'Select' })).toBeUndefined()
     const rows = (await ui.findAll({ type: 'Button' })).map(b => b.key)
-    expect(rows).toEqual([...[...PROFILES, 'No profile'].map(name => `profile:${name}`), 'cancel'])
+    expect(rows).toEqual([...[...PROFILES, 'No profile', 'Reset'].map(name => `profile:${name}`), 'cancel'])
     await ui.press({ key: 'profile:planning' })
     await settle()
     expect(w.runs[1]).toEqual(['apply', 'planning', '--for', 'folder', '--defer-off', '--dry-run', '--json'])
@@ -231,7 +251,7 @@ test('#16816: two row presses before the first settles run one switch', async ($
   await Promise.all([ui.press({ key: 'profile:review' }), ui.press({ key: 'profile:planning' })])
   await settle()
   await ui.unmount()
-  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] }])
   expect(writes(w)).toEqual([['apply', 'review', '--for', 'folder', '--defer-off', '--yes']])
 })
 
@@ -251,7 +271,7 @@ test('AC6: where the pane cannot be placed, the picker pages through every profi
   const { text } = await run($)
   expect(w.asks[0].options).toEqual(['build', 'discovery', 'harness-upkeep', MORE])
   expect(w.asks[1].options).toEqual(['interface-design', 'planning', 'review', MORE])
-  expect(w.asks[2]).toEqual({ question: 'Apply profile review to this folder?', options: ['Apply', 'Cancel'] })
+  expect(w.asks[2]).toEqual({ question: 'Apply profile review to this folder?', options: ['Cancel', 'Apply'] })
   expect(w.logs).toContain('Profile review for folder: /p/.claude/settings.local.json')
   expect(w.runs).toEqual([
     ['list', '--json'],
@@ -355,7 +375,7 @@ test('AC9, AC11: the turn end after a switch runs /reload-plugins once, then wri
   expect(w.commands).toEqual(['reload-plugins'])
   expect(writes(w)).toEqual([
     ['apply', 'review', '--for', 'folder', '--defer-off', '--yes'],
-    ['apply', 'review', '--for', 'folder', '--yes'],
+    ['apply', 'review', '--for', 'folder', '--finish-pending'],
   ])
   expect(w.logs).toContain('Profile review is in force. The plugin it switches off stays loaded in this session until a later /reload-plugins or the next session start.')
   await turnEnd($)
@@ -378,7 +398,7 @@ test('the person running /reload-plugins first finishes the switch, and the turn
   const w = world(on, ['Apply'])
   await run($, 'review')
   await $.command.run({ command: 'reload-plugins', args: '' } as any)
-  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--yes'])
+  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--finish-pending'])
   await turnEnd($)
   await settle()
   expect(w.commands).toEqual(['reload-plugins'])
@@ -411,7 +431,25 @@ test('AC11: the module loaded again by the reload finishes the switch at its ses
   expect(writes(w).length).toBe(1)
   await $.session.start({ cwd: '/p' } as any)
   await settle()
-  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--yes'])
+  expect(writes(w)[1]).toEqual(['apply', 'review', '--for', 'folder', '--finish-pending'])
+})
+
+test('#17354: the turn end after a switch finishes it with --finish-pending, never a full apply', async ($, on) => {
+  const cli: { apply?: Out } = {}
+  const w = world(on, ['Apply'], cli)
+  await run($, 'review')
+  cli.apply = { exitCode: 0, stdout: 'Nothing to finish: no unfinished switch to review is recorded for /p/.claude/settings.local.json.\n' }
+  await turnEnd($)
+  await settle()
+  expect(writes(w)).toEqual([
+    ['apply', 'review', '--for', 'folder', '--defer-off', '--yes'],
+    ['apply', 'review', '--for', 'folder', '--finish-pending'],
+  ])
+  expect(w.runs.some(r => r[0] === 'apply' && r.includes('--yes') && !r.includes('--defer-off'))).toBe(false)
+  expect(w.logs).toContain(
+    "The switch to review was not finished: this folder's profile changed elsewhere since (a reset, a clear or another switch), so nothing was written.",
+  )
+  expect(w.logs.some(line => line.startsWith('Profile review is in force'))).toBe(false)
 })
 
 test('#16747: the profile list and the preview log one line per call, never a newline-joined block', async ($, on) => {
@@ -453,7 +491,8 @@ test('#16747: the picker offers No profile, which previews the clear, asks, clea
   const w = world(on, ['Apply'])
   const text = await runPicking($, w, 'No profile')
   expect(w.logs).toContain('Puts back 3 plugin entries and 0 skill entries to their values before the first apply.')
-  expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Apply', 'Cancel'] }])
+  expect(w.asks).toEqual([{ question: 'Clear the profile from this folder?', options: ['Cancel', 'Apply'] }])
+  expect(w.headers).toEqual(['Profile'])
   expect(w.runs.slice(1)).toEqual([
     ['clear', '--for', 'folder', '--dry-run', '--json'],
     ['clear', '--for', 'folder', '--yes'],
@@ -492,4 +531,137 @@ test('#16747: in a session started in a one-session profile, a clear says the se
   await settle()
   expect(w.logs).toContain('This folder has no profile now; this session keeps its one-session profile review.')
   expect(w.logs).not.toContain('This folder has no profile now; this session loaded the plugins your user and project settings name.')
+})
+
+const resets = (w: { runs: string[][] }) => w.runs.filter(r => r[0] === 'reset' && !r.includes('--dry-run'))
+
+test('#17354: the picker shows Reset under No profile, previews the reset, asks, resets, and reloads at the turn end', async ($, on) => {
+  const w = world(on, ['Apply'])
+  const text = await runPicking($, w, 'Reset')
+  expect(w.logs).toContain('Reset looked for profile records in the places the tool owns.')
+  expect(w.logs).toContain('/p/.claude/settings.local.json: a line the tool owns.')
+  expect(w.asks).toEqual([{ question: QUESTION, options: ['Cancel', 'Apply'] }])
+  expect(w.runs.slice(1)).toEqual([
+    ['reset', '--dry-run', '--json'],
+    ['reset', '--yes', '--json', '--preview-id', 'preview-1'],
+  ])
+  expect(w.logs).toContain('Restored /p/.claude/settings.local.json (profile review).')
+  expect(text).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual(['reload-plugins'])
+  expect(writes(w)).toEqual([])
+  expect(w.logs).toContain('The profiles on this machine are reset; this session loaded the plugins its settings name now.')
+})
+
+test('#17354: Cancel at the reset confirm resets nothing', async ($, on) => {
+  const w = world(on, ['Cancel'])
+  expect(await runPicking($, w, 'Reset')).toBe('Not reset; nothing changed.')
+  expect(resets(w)).toEqual([])
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual([])
+})
+
+test('#17354: each folder without a record gets its own question, and only Remove passes it to reset; every reset question is headed Reset', async ($, on) => {
+  const loose = (file: string) => ({ file, action: 'remove-entries', ask: { file, question: `${file} has no record. Remove its entries?`, ...UNRECORDED } })
+  const resetDry = resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, loose('/a/.claude/settings.local.json'), loose('/b/.claude/settings.local.json')])
+  const w = world(on, ['Apply', 'Keep', 'Remove'], { resetDry })
+  await runPicking($, w, 'Reset')
+  expect(w.headers).toEqual(['Reset', 'Reset', 'Reset'])
+  expect(w.asks).toEqual([
+    { question: QUESTION, options: ['Cancel', 'Apply'] },
+    { question: '/a/.claude/settings.local.json has no record. Remove its entries?', options: ['Keep', 'Remove'] },
+    { question: '/b/.claude/settings.local.json has no record. Remove its entries?', options: ['Keep', 'Remove'] },
+  ])
+  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json', '--keep-unrecorded', '/a/.claude/settings.local.json']])
+})
+
+/** One picker cell: the answers given at the one question and at a folder's own question, the reset it runs (none when no answer is a yes) and what it says. */
+const PICKED = '/a/.claude/settings.local.json'
+const PICK_ARGS = ['reset', '--yes', '--json', '--preview-id', 'preview-1']
+const ALL_RESET = `Reset every profile this machine records. ${NEXT_STEP}`
+const OWN_ONLY = `Reset only the files you answered yes for; every file the one question covers keeps its profile. ${NEXT_STEP}`
+const pickerCell = (first: string, own: string, runs: string[][], text: string) => async ($: any, on: any) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED }
+  const w = world(on, [first, own], { resetDry: resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]) })
+  expect(await runPicking($, w, 'Reset')).toBe(text)
+  expect(w.asks.map(a => a.question)).toEqual([QUESTION, ask.question])
+  expect(resets(w)).toEqual(runs)
+}
+
+test('#17354: picker cell: Apply, then Remove for the folder without a record', pickerCell('Apply', 'Remove', [[...PICK_ARGS, '--remove-unrecorded', PICKED]], ALL_RESET))
+test('#17354: picker cell: Apply, then Keep for the folder without a record', pickerCell('Apply', 'Keep', [[...PICK_ARGS, '--keep-unrecorded', PICKED]], ALL_RESET))
+test('#17354: picker cell: Cancel, then Remove for the folder without a record', pickerCell('Cancel', 'Remove', [[...PICK_ARGS, '--keep-recorded', '--remove-unrecorded', PICKED]], OWN_ONLY))
+test('#17354: picker cell: Cancel, then Keep for the folder without a record', pickerCell('Cancel', 'Keep', [], 'Not reset; nothing changed.'))
+
+test('#17354: a file whose earlier reset was cut off gets its own question with the answers the tool names, and each answer passes its own flag', async ($, on) => {
+  const cut = (file: string) => ({
+    file,
+    action: 'finish-cut-off',
+    ask: { file, question: `An earlier reset of ${file} was cut off and the file changed since. Put back?`, yes: { label: 'Put back', flag: '--finish-cut-off' }, no: { label: 'Keep', flag: '--keep-cut-off' } },
+  })
+  const dry = JSON.parse(resetPreview([cut('/a/.claude/settings.local.json'), cut('/b/.claude/settings.local.json')]).stdout as string)
+  const resetDry = { exitCode: 0, stdout: JSON.stringify({ ...dry, question: null }) }
+  const w = world(on, ['Put back', 'Keep'], { resetDry })
+  expect(await runPicking($, w, 'Reset')).toBe(`Reset every profile this machine records. ${NEXT_STEP}`)
+  expect(w.asks).toEqual([
+    { question: 'An earlier reset of /a/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Keep', 'Put back'] },
+    { question: 'An earlier reset of /b/.claude/settings.local.json was cut off and the file changed since. Put back?', options: ['Keep', 'Put back'] },
+  ])
+  expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--finish-cut-off', '/a/.claude/settings.local.json', '--keep-cut-off', '/b/.claude/settings.local.json']])
+})
+
+test('#17354: a file question dismissed with Esc is its answer that changes nothing, listed first', async ($, on) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED }
+  const w = world(on, ['Apply'], { resetDry: resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]) })
+  expect(await runPicking($, w, 'Reset')).toBe(ALL_RESET)
+  expect(w.asks.map(a => a.options)).toEqual([['Cancel', 'Apply'], ['Keep', 'Remove']])
+  expect(resets(w)).toEqual([[...PICK_ARGS, '--keep-unrecorded', PICKED]])
+})
+
+test("#17354: each reset question shows the tool's recommended answer and its reason as a hint, and the answer that changes nothing stays first", async ($, on) => {
+  const ask = { file: PICKED, question: `${PICKED} has no record. Remove its entries?`, ...UNRECORDED, recommend: { answer: 'no', reason: 'Reset did not write these entries, so they may be your own.' } }
+  const dry = JSON.parse(resetPreview([{ file: '/p/.claude/settings.local.json', action: 'restore' }, { file: PICKED, action: 'remove-entries', ask }]).stdout as string)
+  const questionRecommend = { asked: { answer: 'yes', reason: 'You asked for a reset (the reason the tool words).' }, unasked: { answer: 'no', reason: 'Nobody asked (the tool words it).' } }
+  const w = world(on, ['Apply', 'Keep'], { resetDry: { exitCode: 0, stdout: JSON.stringify({ ...dry, questionRecommend }) } })
+  await runPicking($, w, 'Reset')
+  const hints = w.logs.filter(line => line.startsWith('Recommended: '))
+  expect(hints).toEqual(['Recommended: Apply. You asked for a reset (the reason the tool words).', 'Recommended: Keep. Reset did not write these entries, so they may be your own.'])
+  expect(w.asks.map(a => a.options)).toEqual([['Cancel', 'Apply'], ['Keep', 'Remove']])
+})
+
+test('#17354: a reset the tool refuses shows its reason and arms no reload', async ($, on) => {
+  const refusal = 'not reset: what reset would write changed since the preview; nothing was written. Look at the new preview: reset --dry-run'
+  const w = world(on, ['Apply'], { reset: { exitCode: 1, stderr: `${refusal}\n` } })
+  expect(await runPicking($, w, 'Reset')).toBe(refusal)
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual([])
+})
+
+test('#17354: a reset that skipped a file shows each result line and reloads', async ($, on) => {
+  const lines = ['Skipped /p/.claude/settings.local.json: it changed during the reset and is left as the other writer left it; run reset again.']
+  const w = world(on, ['Apply'], { reset: { exitCode: 3, stdout: JSON.stringify({ lines }) } })
+  expect(await runPicking($, w, 'Reset')).toBe(`Reset did not finish every file; the lines above name each one skipped and why. Run /plugin-profile and pick Reset again for those. ${NEXT_STEP}`)
+  expect(w.logs).toContain(lines[0])
+  await turnEnd($)
+  await settle()
+  expect(w.commands).toEqual(['reload-plugins'])
+})
+
+test('#17354: after a complete reset, picking Reset says there is nothing to reset and asks nothing', async ($, on) => {
+  const done = JSON.parse(resetPreview([]).stdout as string)
+  const resetDry = { exitCode: 0, stdout: JSON.stringify({ ...done, question: null, unchangedSinceReset: ['/p/.claude/settings.local.json'] }) }
+  const w = world(on, [], { resetDry })
+  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: each file reset already handled is unchanged since.')
+  expect(w.asks).toEqual([])
+  expect(resets(w)).toEqual([])
+})
+
+test('#17354: with nothing recorded the picker says so, asks nothing and resets nothing', async ($, on) => {
+  const w = world(on, [], { resetDry: resetPreview([]) })
+  expect(await runPicking($, w, 'Reset')).toBe('Nothing to reset: no profile is recorded anywhere reset can find.')
+  expect(w.asks).toEqual([])
+  expect(resets(w)).toEqual([])
 })

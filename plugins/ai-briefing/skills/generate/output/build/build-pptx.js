@@ -3,12 +3,12 @@ import PptxGenJS from "pptxgenjs";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadSlidesData, meetingsDir } from "./lib/paths.js";
+import { deckPath, loadSlidesData, meetingsDir } from "./lib/paths.js";
 import { isAllowedUrlScheme } from "./lib/url-policy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { meta, theme, slides } = await loadSlidesData();
-const OUTPUT = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pptx`);
+const OUTPUT = deckPath(meta.meetingNumber, "pptx");
 
 // Optional org logo as base64 data URI (pptxgenjs needs path or base64). Empty
 // when the active brand ships no logo — the addImage sites below skip it.

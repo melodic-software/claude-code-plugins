@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.31] - 2026-11-20
+
+### Changed
+
+- Build scripts resolve each deck file path through one `deckPath` helper in `lib/paths.js` instead of six hand-joined copies.
+
 ## [1.0.30] - 2026-11-19
 
 ### Removed

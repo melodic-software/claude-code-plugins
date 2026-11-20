@@ -21,7 +21,7 @@
 - [HTML comments](#html-comments)
 - [Boris Cherny (CC creator)](#boris-cherny-cc-creator)
 - [Style enforcement](#style-enforcement)
-- [Compaction by steering method (June 2026)](#compaction-by-steering-method-june-2026)
+- [Compaction by steering method](#compaction-by-steering-method)
 - [No official scoring rubric](#no-official-scoring-rubric)
 
 Each section states what this audit does, in our words, and points at the section of the official
@@ -273,10 +273,13 @@ instead: a model is slower and costlier than a linter at that. C8 item 3 in
 
 - **Pointer**: [humanlayer.dev, writing a good CLAUDE.md](https://humanlayer.dev/blog/writing-a-good-claude-md).
 
-## Compaction by steering method (June 2026)
+## Compaction by steering method
 
-The audit models what survives `/compact` and what reloads on demand per destination as follows,
-and prices a recommended move with that destination's row:
+The table is the audit's own pricing model, not a copy of a docs page. C3 prices every recommended
+move with the destination's row, because a move that saves session-start context can lose the
+content after `/compact`, and the recommendation has to state that cost. Before a finding rests on
+a row, read the pointers below it; where a section there disagrees with the row, the section wins
+and the row is fixed:
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|

@@ -36,6 +36,7 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
+budget="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the holds. A merge group has no
 # pull_request.draft, which is not true, so the queue still runs it.
@@ -209,6 +210,7 @@ import json, os, sys
 with open(os.environ["STUB_LOG"], "a") as log:
     log.write("reader " + " ".join(sys.argv[1:]) + "\n")
     log.write("reader-env header-limit=" + os.environ.get("BABYSIT_READ_FLOOR_HEADER_LIMIT", "") + "\n")
+    log.write("reader-env floor-wait=" + os.environ.get("BABYSIT_READ_FLOOR_WAIT_SECONDS", "") + "\n")
 if os.environ.get("STUB_READER_RC"):
     sys.exit(int(os.environ["STUB_READER_RC"]))
 if not os.environ.get("STUB_NO_LISTING"):
@@ -294,7 +296,7 @@ expect() {
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -896,6 +898,21 @@ if grep -qxF "reader-env header-limit=1" "$TMP_ROOT/log"; then
 else
   fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
 fi
+if [[ $budget -gt 300 ]] && grep -qxF "reader-env floor-wait=$budget" "$TMP_ROOT/log"; then
+  ok "with no wait before it, the queue's verdict reader may wait the whole merge-group budget"
+else
+  fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+fi
+for case in "300 $((budget - 300))" "$budget 0" "$((budget + 60)) 0" " 0" "x 0"; do
+  read -r waited want <<<"$case"
+  [[ -n "$want" ]] || { want=$waited; waited=; }
+  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+  if grep -qxF "reader-env floor-wait=$want" "$TMP_ROOT/log"; then
+    ok "after a ${waited:-unread} s wait the verdict reader may wait $want s"
+  else
+    fail "after a ${waited:-unread} s wait the verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
+  fi
+done
 if [[ "$(maps)" -eq 1 ]] && grep -qxF "head-ref-map read" "$TMP_ROOT/log" &&
   [[ "$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log" | cut -d' ' -f1 | paste -sd' ')" == "head-ref-map reader" ]]; then
   ok "the head-ref map is read once, before the reader"

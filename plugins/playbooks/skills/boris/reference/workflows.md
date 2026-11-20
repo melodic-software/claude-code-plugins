@@ -20,12 +20,6 @@ Boris uses daily to shepherd PRs to production. Skill runs parallel agents revie
 
 Plan code migrations interactively, then execute in parallel via dozens of agents. Each runs isolated in a git worktree, tests its work, opens a PR.
 
-```
-> /batch migrate src/ from Solid to React
-```
-
-Plan migration interactively; `/batch` fans work to parallel agents, each in its own worktree, testing and creating a PR independently.
-
 ---
 
 ## 31. /loop: Schedule Recurring Tasks

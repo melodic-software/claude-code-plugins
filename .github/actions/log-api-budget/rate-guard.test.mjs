@@ -7,6 +7,9 @@ import { test } from "node:test";
 import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const NOW = VECTORS.vector_now * 1000;
 // Root reads and writes past any file mode, so the permission cases skip.
@@ -1017,26 +1020,35 @@ test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps
   assert.equal(job.match(/uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@/g)?.length, 1, "ci-status calls the report-ci-status composite once");
 });
 
-test("ci-status's verdict reader waits WAIT_BUDGET_SECONDS.ciStatusVerify for the read floor's reset, and the job's timeout holds it", () => {
-  const job = jobOf(workflow("pr-require-checks.yml"), "ci-status");
-  const waits = [...job.matchAll(/\$\(BABYSIT_READ_FLOOR_WAIT_SECONDS=([0-9]+) BABYSIT_READ_FLOOR_STOP=1 python3 "\$VERIFY_EVIDENCE_SCRIPT" evidence /g)].map((match) => Number(match[1]));
-  assert.deepEqual(waits, [WAIT_BUDGET_SECONDS.ciStatusVerify], "the lanes App's reader, the one whose verify:unreadable holds");
-  assert.equal(job.match(/BABYSIT_READ_FLOOR_WAIT_SECONDS=/g).length, 1, "no other reader waits");
-  const [minutes] = setting(job, "timeout-minutes");
-  const [jobSeconds] = setting(job, "GH_READ_JOB_SECONDS");
-  assert.equal(minutes * 60, jobSeconds + WAIT_BUDGET_SECONDS.ciStatusVerify, "the timeout is gh_read's job seconds and the wait");
-});
+test("the merge group's waits share WAIT_BUDGET_SECONDS.mergeGroup, and each job's timeout holds it", () => {
+  const text = workflow("pr-require-checks.yml");
+  const plugins = jobOf(text, "check-plugins");
+  assert.deepEqual(setting(plugins, "QUEUED_PR_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.mergeGroup]);
+  assert.match(plugins, /retry_call --read "\$QUEUED_PR_WAIT_SECONDS" read_pr /, "the read takes the wait");
+  assert.match(plugins, /echo "waited=\$retry_call_waited"/, "the step outputs what it slept");
+  assert.match(plugins, /\n {4}outputs:\n(?: {6}.+\n)*? {6}queued-pr-waited: \$\{\{ steps\.queued_pr\.outputs\.waited \}\}\n/, "the job passes it on");
+  assert.equal(setting(plugins, "timeout-minutes")[0] * 60, 9 * 60 + WAIT_BUDGET_SECONDS.mergeGroup, "the timeout is the 3-minute budget's 9 and the wait");
 
-test("check-plugins' queued pull request read waits WAIT_BUDGET_SECONDS.queuedPr, and the job's timeout holds it", () => {
-  const job = jobOf(workflow("pr-require-checks.yml"), "check-plugins");
-  assert.deepEqual(setting(job, "QUEUED_PR_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.queuedPr]);
-  assert.match(job, /retry_call --read "\$QUEUED_PR_WAIT_SECONDS" read_pr /, "the read takes the wait");
-  const [minutes] = setting(job, "timeout-minutes");
-  assert.equal(minutes * 60, 9 * 60 + WAIT_BUDGET_SECONDS.queuedPr, "the timeout is the 3-minute budget's 9 and the wait");
+  const status = jobOf(text, "ci-status");
+  assert.deepEqual(setting(status, "MERGE_GROUP_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.mergeGroup]);
+  assert.ok(status.includes("          QUEUED_PR_WAITED: ${{ needs.check-plugins.outputs.queued-pr-waited }}\n"), "the reader's step reads check-plugins' wait");
+  const waits = [...status.matchAll(/\$\(BABYSIT_READ_FLOOR_WAIT_SECONDS=(\S+) BABYSIT_READ_FLOOR_STOP=1 python3 "\$VERIFY_EVIDENCE_SCRIPT" evidence /g)].map((match) => match[1]);
+  assert.deepEqual(waits, ["$floor_wait"], "the lanes App's reader, the one whose verify:unreadable holds, waits what is left");
+  assert.equal(status.match(/BABYSIT_READ_FLOOR_WAIT_SECONDS=/g).length, 1, "no other reader waits");
+  const [minutes] = setting(status, "timeout-minutes");
+  const [jobSeconds] = setting(status, "GH_READ_JOB_SECONDS");
+  assert.equal(minutes * 60, jobSeconds + WAIT_BUDGET_SECONDS.mergeGroup, "the timeout is gh_read's job seconds and the wait");
 });
 
 test("rerun-ci-status's poll limit is WAIT_BUDGET_SECONDS.rerunCiStatus", () => {
   assert.deepEqual(setting(jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status"), "POLL_LIMIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatus]);
+});
+
+test("rerun-ci-status's rate-limit waits are WAIT_BUDGET_SECONDS.rerunCiStatusRate, and its timeout holds them", () => {
+  const job = jobOf(workflow("pr-dispatch-feedback.yml"), "rerun-ci-status");
+  assert.deepEqual(setting(job, "RATE_WAIT_SECONDS"), [WAIT_BUDGET_SECONDS.rerunCiStatusRate]);
+  const [minutes] = setting(job, "timeout-minutes");
+  assert.ok(minutes * 60 >= WAIT_BUDGET_SECONDS.rerunCiStatusRate + 120, "the timeout holds the waits and two minutes for the rest");
 });
 
 test("work-resolve-issue's waits after the model ran, and the leak scan's cap, are WAIT_BUDGET_SECONDS.workResolveIssue", () => {

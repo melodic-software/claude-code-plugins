@@ -3,11 +3,11 @@ import { spawnSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
-import { pickProfile } from "./profiles.mjs";
+import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -598,6 +598,52 @@ test("D8: a switch cut off after its first write is recorded off-pending, named 
   assert.deepEqual(done.pending, []);
   assert.equal(w.run(["clear", "--yes"]).status, 0);
   assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: apply --finish-pending does nothing once the folder's record is gone or no longer off-pending", () => {
+  const w = world();
+  const nothing = (name) => new RegExp(`^Nothing to finish: no unfinished switch to ${name} is recorded for ${esc(w.localFile)}\\.$`, "m");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const finished = w.run(["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.equal(finished.status, 0, finished.stderr);
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], false, "an off-pending record of this profile is finished");
+  assert.equal(JSON.parse(w.run(["status", "--json"]).stdout).phase, "applied");
+  const applied = w.read();
+  const again = w.run(["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.match(again.stdout, nothing("build"));
+  assert.equal(w.read(), applied, "an applied record is left alone");
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const other = w.read();
+  assert.match(w.run(["apply", "build", "--for", "folder", "--finish-pending"]).stdout, nothing("build"));
+  assert.equal(w.read(), other, "a switch to another profile is not finished as this one");
+  assert.equal(w.run(["clear", "--yes"]).status, 0);
+  const gone = w.run(["apply", "review", "--for", "folder", "--finish-pending"]);
+  assert.equal(gone.status, 0, gone.stderr);
+  assert.match(gone.stdout, nothing("review"));
+  assert.equal(w.read(), LOCAL_BEFORE, "a cleared folder stays cleared");
+  assert.deepEqual(w.records(), []);
+  assert.equal(w.run(["apply", "build", "--for", "session", "--finish-pending"]).status, 2, "only a folder or user settings has a switch to finish");
+});
+
+test("#17354: a reset in another terminal while apply --finish-pending lists the installed plugins makes the finish write nothing, even when the deferred switch left the settings bytes unchanged", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  rmSync(dataRecordsDir(w), { recursive: true });
+  const before = w.read();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  assert.equal(w.read(), before, "the deferred switch wrote no byte");
+  const during = join(w.root, "during.json");
+  writeFileSync(during, JSON.stringify({ argv: [CLI, "reset", "--yes"], cwd: elsewhere(w) }));
+  const r = w.run(["apply", "build", "--for", "folder", "--finish-pending"], { PP_STUB_DURING_LIST: during });
+  assert.equal(existsSync(during), false, "the reset ran during the finish");
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, new RegExp(`^Nothing to finish: the unfinished switch to build recorded for ${esc(w.localFile)} changed while finishing \\(a reset, a clear or another switch\\); nothing was written\\.$`, "m"));
+  assert.equal(JSON.parse(w.read()).enabledPlugins[`songwriting@${M}`], true, "the cancelled switch is not reapplied");
+  assert.deepEqual(w.records(), []);
 });
 
 test("AC11: --defer-off also holds back the off entry of a plugin that only user settings switch on", () => {
@@ -1894,4 +1940,1738 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   writeFileSync(pointer, "/somewhere/else\n");
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
+});
+
+const pointersDir = (w) => join(w.home, ".claude", "plugin-profiles-state", "repositories");
+const pointers = (w) => (existsSync(pointersDir(w)) ? readdirSync(pointersDir(w)) : []);
+/** A folder outside every repository, so a reset run there finds folders only through what the machine records. */
+const elsewhere = (w) => {
+  const dir = join(w.root, "elsewhere");
+  mkdirSync(dir, { recursive: true });
+  return dir;
+};
+const reset = (w, args = [], extra = {}) => runIn(w, elsewhere(w), ["reset", ...args], extra);
+const resetJson = (w, extra = {}) => {
+  const r = reset(w, ["--dry-run", "--json"], extra);
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+};
+const recordedFiles = (preview) => preview.folders.filter((f) => f.recorded).map((f) => f.file).sort();
+/** Claude Code's ~/.claude.json naming the folders it has opened, as its projects map does. */
+const knowFolders = (w, ...folders) => writeTree(w.home, { ".claude.json": { projects: Object.fromEntries(folders.map((f) => [f, { allowedTools: [] }])) } });
+const rootLocal = (dir) => join(realpathSync(dir), ".claude", "settings.local.json");
+/** A second main checkout beside w.project, holding LOCAL_BEFORE. */
+function secondRepository(w, name = "project2") {
+  const dir = join(w.root, name);
+  writeTree(dir, { ".git/HEAD": "ref: refs/heads/main\n", ".claude/settings.local.json": LOCAL_BEFORE });
+  return dir;
+}
+
+test("#17354: an apply in git writes one pointer per repository, and the pointer alone finds its records", () => {
+  const w = world();
+  gitInit(w);
+  const p2 = secondRepository(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, p2, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(pointers(w).length, 2, "one pointer per repository, however many applies");
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project), rootLocal(p2)].sort());
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), [], "with no pointer and no known folder, a repository's records are not found");
+});
+
+test("#17354: a folder applied before reset shipped, with no repository pointer, is found through ~/.claude.json and restored", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  knowFolders(w, w.project);
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(gitRecords(w), []);
+});
+
+test("#17354: a folder known only from a one-session record is found", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  writeTree(byIdDir(w), { "s1.json": { sessionId: "s1", profile: "review", file: join(w.root, "gone.json"), folder: w.project, at: "2026-11-01T00:00:00.000Z" } });
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+});
+
+test("#17354: a folder known only from a live session is found", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  const agents = join(w.root, "agents.json");
+  writeFileSync(agents, JSON.stringify([{ cwd: join(w.project, "src"), sessionId: "a", name: "live", kind: "interactive" }]));
+  mkdirSync(join(w.project, "src"));
+  assert.deepEqual(recordedFiles(resetJson(w)), []);
+  assert.deepEqual(recordedFiles(resetJson(w, { PP_STUB_AGENTS: agents })), [rootLocal(w.project)]);
+});
+
+test("#17354: a reset run inside a repository finds it with no pointer and no other source", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), []);
+  const here = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(here.status, 0, here.stderr);
+  assert.deepEqual(recordedFiles(JSON.parse(here.stdout)), [rootLocal(w.project)]);
+});
+
+test("#17354: a session start in a repository applied before reset shipped writes its pointer, so reset finds it after the worktree it was applied from is gone", () => {
+  const w = world();
+  gitInit(w);
+  installOnDisk(w);
+  const t = linkedWorktree(w);
+  assert.equal(t.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  rmSync(pointersDir(w), { recursive: true });
+  const started = t.run(["status", "--session-start"], { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli" });
+  assert.equal(started.status, 0, started.stderr);
+  assert.equal(pointers(w).length, 1, "the session start wrote the repository's pointer");
+  rmSync(t.wt, { recursive: true });
+  knowFolders(w, t.wt);
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(w.project)]);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: a submodule's record is found through its pointer", () => {
+  const w = world();
+  gitInit(w);
+  const sub = join(w.project, "sub");
+  writeTree(w.project, { ".git/modules/sub/HEAD": "ref: refs/heads/main\n", "sub/.git": "gitdir: ../.git/modules/sub\n", "sub/.claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, sub, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.ok(existsSync(join(w.project, ".git", "modules", "sub", "plugin-profiles", "records")));
+  knowFolders(w, w.project);
+  assert.equal(pointers(w).length, 1);
+  const [name] = pointers(w);
+  const text = readFileSync(join(pointersDir(w), name), "utf8");
+  rmSync(pointersDir(w), { recursive: true });
+  assert.deepEqual(recordedFiles(resetJson(w)), [], "the superproject's folder never reaches the submodule's record");
+  writeTree(pointersDir(w), { [name]: text });
+  assert.deepEqual(recordedFiles(resetJson(w)), [rootLocal(sub)]);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(join(sub, ".claude", "settings.local.json"), "utf8"), LOCAL_BEFORE);
+});
+
+/** A plain folder beside w.project holding LOCAL_BEFORE, with the profile applied there. */
+function secondFolder(w, profile = "build") {
+  const dir = join(w.root, "project2");
+  writeTree(dir, { ".claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, dir, ["apply", profile, "--for", "folder", "--yes"]).status, 0);
+  return { dir, file: join(dir, ".claude", "settings.local.json") };
+}
+const sha = (text) => createHash("sha256").update(text).digest("hex");
+const dataRecordOf = (w, file) => join(dataRecordsDir(w), `${sha(realpathSync(file))}.json`);
+const RESULT = /^(Restored|Removed|Skipped|Finished|Already restored) /;
+const resultLines = (stdout) => stdout.split("\n").filter((line) => RESULT.test(line));
+/** The state a reset killed part way leaves for file: its record saved as restoring, the file as given. */
+function cutOff(w, file, { written }) {
+  const path = dataRecordOf(w, file);
+  const applied = readFileSync(file, "utf8");
+  const rec = JSON.parse(readFileSync(path, "utf8"));
+  writeFileSync(path, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(LOCAL_BEFORE), fromHash: sha(applied) }, null, 2)}\n`);
+  if (written) writeFileSync(file, LOCAL_BEFORE);
+}
+/** Runs reset in this process, so a test can act when reset prints one file's result, as another terminal would between two files. */
+async function resetDuring(w, args, onResult) {
+  assert.ok(w.env.HOME.startsWith(w.root) && w.env.PATH.startsWith(STUB_BIN), "an in-process reset runs only against the test's HOME and stub claude");
+  const out = [];
+  const err = [];
+  let acted = false;
+  const io = {
+    out: (line) => {
+      out.push(line);
+      if (!acted && RESULT.test(line)) {
+        acted = true;
+        onResult(line);
+      }
+    },
+    err: (line) => err.push(line),
+    stdin: () => "",
+  };
+  const status = await main(["reset", ...args], { ...w.env }, elsewhere(w), io);
+  return { status, stdout: out.join("\n"), stderr: err.join("\n") };
+}
+
+/** Runs reset in this process as from a terminal: answer(prompt) gives the line typed at each [y/N] question; prompts lists the questions in order. */
+async function resetAtTerminal(w, answer, args = []) {
+  assert.ok(w.env.HOME.startsWith(w.root) && w.env.PATH.startsWith(STUB_BIN), "an in-process reset runs only against the test's HOME and stub claude");
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const prompts = [];
+  let shown = "";
+  output.on("data", (chunk) => {
+    shown += chunk;
+    const at = shown.lastIndexOf(" [y/N] ");
+    if (at === -1 || at !== shown.length - 7) return;
+    const prompt = shown.slice(0, at);
+    shown = "";
+    prompts.push(prompt);
+    input.write(`${answer(prompt)}\n`);
+  });
+  const out = [];
+  const err = [];
+  const io = { out: (line) => out.push(line), err: (line) => err.push(line), stdin: () => "", terminal: { input, output } };
+  const status = await main(["reset", ...args], { ...w.env }, elsewhere(w), io);
+  return { status, stdout: out.join("\n"), stderr: err.join("\n"), prompts };
+}
+const FIRST = /^Reset the \d+ files? above/;
+
+test("#17354: at a terminal, a no to the one question keeps the recorded files and still asks each file's own question", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  const loose = join(w.root, "loose");
+  writeTree(loose, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const looseFile = join(loose, ".claude", "settings.local.json");
+  knowFolders(w, w.project, loose);
+  const r = await resetAtTerminal(w, (prompt) => (FIRST.test(prompt) ? "n" : "y"));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.prompts.length, 2, r.prompts.join("\n"));
+  assert.match(r.prompts[0], FIRST);
+  assert.match(r.prompts[1], new RegExp(`^${esc(looseFile)} has no profile record\\.`));
+  assert.deepEqual(resultLines(r.stdout).sort(), [
+    `Removed the 2 plugin and skill entries of ${looseFile}, which had no record.`,
+    `Skipped ${w.localFile}: you answered no, so it is left as it is, and its record is kept.`,
+  ].sort());
+  assert.equal(w.read(), applied);
+  assert.equal(w.records().length, 1);
+  assert.deepEqual(JSON.parse(readFileSync(looseFile, "utf8")), withoutProfileKeys(LOCAL_BEFORE));
+  writeFileSync(looseFile, LOCAL_BEFORE);
+  const none = await resetAtTerminal(w, () => "n");
+  assert.equal(none.status, 1, none.stdout);
+  assert.equal(none.prompts.length, 2, "every question is asked before nothing is written");
+  assert.match(none.stderr, /^not reset: nothing was written$/m);
+  assert.deepEqual(resultLines(none.stdout), []);
+  assert.deepEqual([w.read(), readFileSync(looseFile, "utf8")], [applied, LOCAL_BEFORE]);
+});
+
+test("#17354: reset with nothing recorded says so and writes nothing", () => {
+  const w = world();
+  const r = reset(w, ["--dry-run"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^No profile is recorded anywhere reset can find; nothing to reset\.$/m);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: reset previews two folders and the initial profile, and after one yes each folder file is back byte for byte, a file the apply created is gone, and user settings hold their earlier entries", () => {
+  const w = world();
+  const userFile = join(w.home, ".claude", "settings.json");
+  const userBefore = readFileSync(userFile, "utf8");
+  const p2 = join(w.root, "project2");
+  mkdirSync(p2);
+  const p2File = join(p2, ".claude", "settings.local.json");
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, p2, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, elsewhere(w), ["apply", "build", "--for", "initial", "--yes"]).status, 0, "from a folder with no file of its own, which would pin the plugins");
+  assert.notEqual(readFileSync(userFile, "utf8"), userBefore);
+  const preview = resetJson(w);
+  assert.deepEqual(recordedFiles(preview), [w.localFile, p2File, userFile].sort());
+  for (const f of preview.folders) assert.ok(f.lines.some((line) => line.includes(f.file)), JSON.stringify(f));
+  assert.match(preview.lines.join("\n"), new RegExp(`${esc(p2File)}: profile review .*removes the file, which the first apply created`));
+  assert.match(preview.lines.join("\n"), new RegExp(`${esc(userFile)}: profile build \\(the initial profile\\)`));
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(existsSync(p2File), false);
+  assert.equal(existsSync(dirname(p2File)), false, "the .claude folder the apply created goes once empty");
+  assert.equal(readFileSync(userFile, "utf8"), userBefore);
+  assert.deepEqual(w.records(), []);
+  assert.deepEqual(readdirSync(join(w.home, ".claude", "plugin-profiles-state", "records")), []);
+});
+
+test("#17354: with neither a typed yes nor --yes, reset writes nothing and says so", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const applied = w.read();
+  const r = reset(w);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, new RegExp(esc(w.localFile)));
+  assert.match(r.stderr, /^not reset: nobody to confirm, so nothing was written; pass --yes to reset without a prompt$/m);
+  assert.equal(w.read(), applied);
+  assert.equal(w.records().length, 1);
+});
+
+test("#17354: reset prints one line per folder: restored, or skipped with its reason", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = w.records();
+  const rec = JSON.parse(readFileSync(join(dataRecordsDir(w), name), "utf8"));
+  const gone = join(w.root, "gone", ".claude", "settings.local.json");
+  writeTree(dataRecordsDir(w), { "gone.json": { ...rec, settingsFile: gone } });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [
+    `Skipped ${gone}: folder not found; record kept.`,
+    `Restored ${w.localFile} (profile build).`,
+  ]);
+  assert.deepEqual(w.records(), ["gone.json"]);
+});
+
+test("#17354: reset --yes --json prints only each file's result line, as data", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const r = reset(w, ["--yes", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), { lines: [`Restored ${w.localFile} (profile build).`] });
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(reset(w, ["--json"]).status, 2, "--json writes only with --yes");
+});
+
+test("#17354: a file reset cannot write is skipped with the reason, the files after it are still reset, and reset exits 3", { skip: process.platform === "win32" || process.getuid?.() === 0 }, () => {
+  const w = world();
+  const first = join(w.root, "aaa");
+  writeTree(first, { ".claude/settings.local.json": LOCAL_BEFORE });
+  assert.equal(runIn(w, first, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const firstFile = join(first, ".claude", "settings.local.json");
+  const applied = readFileSync(firstFile, "utf8");
+  chmodSync(join(first, ".claude"), 0o555);
+  try {
+    const r = reset(w, ["--yes"]);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    assert.match(r.stdout, new RegExp(`^Skipped ${esc(firstFile)}: .*EACCES.*; run reset again\\.$`, "m"));
+    assert.ok(resultLines(r.stdout).includes(`Restored ${w.localFile} (profile build).`), r.stdout);
+    assert.doesNotMatch(r.stderr, /nothing written for this step/);
+    assert.equal(readFileSync(firstFile, "utf8"), applied);
+  } finally {
+    chmodSync(join(first, ".claude"), 0o755);
+  }
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: reset never writes a committed .claude/settings.json, even when a record names it", () => {
+  const w = world();
+  const committed = join(w.project, ".claude", "settings.json");
+  const before = readFileSync(committed, "utf8");
+  writeTree(dataRecordsDir(w), {
+    "committed.json": {
+      schema: 1, profile: "build", target: "folder", settingsFile: committed, appliedAt: "2026-11-01T00:00:00.000Z", pluginVersion: "0.6.1",
+      phase: "applied", pending: {}, createdFile: false, createdFolder: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+      entries: { [`toolchain@${M}`]: { before: false, after: true } }, skillOverrides: {},
+    },
+  });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${committed}: reset writes only .claude/settings.local.json files and user settings; record kept.`]);
+  assert.equal(readFileSync(committed, "utf8"), before);
+  assert.deepEqual(w.records(), ["committed.json"]);
+});
+
+test("#17354: the reset preview names each entry edited since the apply, and the yes puts it back at its earlier value", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const [row] = resetJson(w).folders;
+  assert.deepEqual(row.overwrites, [{ name: `implementation@${M}`, current: false, before: "absent" }]);
+  assert.ok(row.lines.includes(`  Overwrites a change made since the apply: implementation@${M} is false, the profile wrote true; reset puts back absent.`), row.lines.join("\n"));
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: the reset preview names a folder whose switch is unfinished in another session, and after reset that session's finish write leaves the folder restored", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.unfinished, true);
+  assert.ok(row.lines.some((line) => /switch to build is unfinished in another session/.test(line)), row.lines.join("\n"));
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.match(w.run(["apply", "build", "--for", "folder", "--finish-pending"]).stdout, /^Nothing to finish/m);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: a worktree's own file and a subdirectory's own file with their own records are listed and restored", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w, LOCAL_BEFORE);
+  const sub = join(w.project, "src");
+  writeTree(sub, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const subFile = join(sub, ".claude", "settings.local.json");
+  for (const file of [t.file, subFile]) {
+    const after = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { [`songwriting@${M}`]: false, [`review@${M}`]: false } };
+    writeFileSync(file, `${JSON.stringify(after, null, 2)}\n`);
+    writeTree(dataRecordsDir(w), {
+      [`${sha(realpathSync(file))}.json`]: {
+        schema: 1, profile: "songs", target: "folder", settingsFile: file, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+        phase: "applied", pending: {}, createdFile: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+        entries: { [`songwriting@${M}`]: { before: true, after: false } }, skillOverrides: {},
+      },
+    });
+  }
+  assert.deepEqual(recordedFiles(resetJson(w)), [t.file, subFile].sort());
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(t.file, "utf8"), LOCAL_BEFORE);
+  assert.equal(readFileSync(subFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a worktree copy adopted from the root's record is restored by reset before the root's record is removed", () => {
+  const w = world();
+  gitInit(w);
+  const before = w.read();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w, JSON.parse(w.read()));
+  knowFolders(w, t.wt);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.filter((f) => f.adopted).map((f) => f.file), [t.file]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(t.file, "utf8"), before);
+  assert.equal(w.read(), before);
+  assert.deepEqual(gitRecords(w), []);
+});
+
+test("#17354: a reset cut off after one file's write leaves it restored and the rest untouched, and the next reset finishes the rest", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  const untouched = readFileSync(p2.file, "utf8");
+  cutOff(w, w.localFile, { written: true });
+  assert.notEqual(untouched, LOCAL_BEFORE);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action]), [[w.localFile, "finish-restore"], [p2.file, "restore"]]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(resultLines(r.stdout).includes(`Finished an earlier reset of ${w.localFile}: its record is removed.`), r.stdout);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a reset cut off before a file's write leaves its record restoring, and the next reset restores the file", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  assert.equal(resetJson(w).folders[0].action, "restore");
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+const CUT_OFF_SKIP = (file) => `Skipped ${file}: an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept.`;
+/** Codex's case: a reset cut off before the file's write, then songwriting put back to its value before the profile by hand. */
+function cutOffThenPutBack(w) {
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  return w.read();
+}
+
+test("#17354: a file changed after a reset was cut off, with an entry still at the profile's value, is not reverted without a yes for it, and its restoring record is kept", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: true });
+  const edited = { ...JSON.parse(LOCAL_BEFORE), enabledPlugins: { ...JSON.parse(LOCAL_BEFORE).enabledPlugins, [`songwriting@${M}`]: false } };
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const kept = w.read();
+  const [row] = resetJson(w).folders;
+  assert.deepEqual([row.action, row.ask?.file, row.entries], ["finish-cut-off", w.localFile, [`songwriting@${M}`]]);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  assert.equal(w.read(), kept);
+  assert.equal(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).phase, "restoring");
+});
+
+test("#17354: a reset cut off before a file's write, then an entry put back by hand, keeps the record and asks; the yes puts back the entries still at the profile's values and removes the record", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  const preview = resetJson(w);
+  const [row] = preview.folders;
+  const still = Object.keys(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).entries).filter((id) => id !== `songwriting@${M}`);
+  assert.deepEqual([row.action, row.recorded, row.entries], ["finish-cut-off", true, still]);
+  const few = `${still.slice(0, 3).join(", ")}${still.length > 3 ? ` and ${still.length - 3} more` : ""}`;
+  assert.deepEqual(row.ask, {
+    file: w.localFile,
+    question: `An earlier reset of ${w.localFile} was cut off and the file changed since. Put back the ${still.length} entries still at the values profile build wrote (${few}) to their values from before the profile? Entries changed by hand since stay as they are; no keeps the file and its record.`,
+    yes: { label: "Put back", flag: "--finish-cut-off" },
+    no: { label: "Keep", flag: "--keep-cut-off" },
+    recommend: { answer: "yes", reason: "Each entry profile build wrote is still at that value or back at its value from before, so a yes changes only what that profile wrote." },
+  });
+  assert.deepEqual(row.lines, [
+    `${w.localFile}: an earlier reset of this file was cut off and the file changed since. ${still.length} entries still hold the values profile build wrote: ${few}.`,
+    `  A yes for this file puts those back to their values from before the profile and leaves the 1 entry changed by hand since as it is (songwriting@${M}); a no keeps the file and its record.`,
+  ]);
+  assert.equal(preview.question, null, "the one question covers no file here");
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile}: put back the ${still.length} entries still at the values profile build wrote, and left the entries changed by hand since as they are.`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+  assert.deepEqual(resetJson(w).folders, [], "the restored note keeps it off the next preview");
+});
+
+test("#17354: a cut-off reset's changed file answered no, or given --yes alone, or with nobody to answer, writes nothing and keeps its record", () => {
+  const w = world();
+  const changed = cutOffThenPutBack(w);
+  const record = readFileSync(dataRecordOf(w, w.localFile), "utf8");
+  const no = reset(w, ["--yes", "--keep-cut-off", w.localFile]);
+  assert.equal(no.status, 0, no.stderr);
+  assert.deepEqual(resultLines(no.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is, and its record is kept.`]);
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  const nobody = reset(w);
+  assert.equal(nobody.status, 1, nobody.stdout);
+  assert.match(nobody.stderr, /^not reset: nobody to confirm, so nothing was written; a file whose earlier reset was cut off changes only after a yes for it: run reset in a terminal, or pass --yes with --finish-cut-off <file> for each file to put back$/m);
+  assert.deepEqual(resultLines(nobody.stdout), []);
+  assert.equal(reset(w, ["--yes", "--remove-unrecorded", w.localFile]).status, 1, "the unrecorded flags do not answer this file");
+  assert.equal(w.read(), changed);
+  assert.equal(readFileSync(dataRecordOf(w, w.localFile), "utf8"), record);
+});
+
+test("#17354: a file whose cut-off reset finished and which was then edited, with no entry left at the profile's value, keeps the edit and loses its record", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: true });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const kept = w.read();
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${w.localFile}: edited since an earlier reset restored it; left as it is, and its record is removed.`]);
+  assert.equal(w.read(), kept);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: the preview id changes when a cut-off reset's changed file changes again, and a write given the old id refuses", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  const shown = resetJson(w).previewId;
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`review@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const changed = w.read();
+  assert.notEqual(resetJson(w).previewId, shown);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile, "--preview-id", shown]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: what reset would write changed since that preview /m);
+  assert.equal(w.read(), changed);
+});
+
+test("#17354: a reset cut off before a file's write, then a hand edit of one profile entry to a third value, keeps the record and asks; the yes puts back the other entries and leaves the edit", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const edited = w.read();
+  const record = readFileSync(dataRecordOf(w, w.localFile), "utf8");
+  const [row] = resetJson(w).folders;
+  assert.equal(row.action, "finish-cut-off");
+  assert.equal(row.ask.file, w.localFile);
+  assert.deepEqual(row.ask.yes, { label: "Put back", flag: "--finish-cut-off" });
+  assert.deepEqual(row.overwrites, [], "the hand edit is never overwritten, so none is named");
+  assert.ok(!row.entries.includes(`implementation@${M}`) && row.entries.length > 0, JSON.stringify(row.entries));
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [CUT_OFF_SKIP(w.localFile)]);
+  assert.equal(w.read(), edited);
+  assert.equal(readFileSync(dataRecordOf(w, w.localFile), "utf8"), record);
+  assert.equal(JSON.parse(record).phase, "restoring");
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  const before = JSON.parse(LOCAL_BEFORE);
+  assert.deepEqual(JSON.parse(w.read()), { ...before, enabledPlugins: { ...before.enabledPlugins, [`implementation@${M}`]: false } });
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a reset of an unfinished switch cut off before its write, then an entry put back by hand, keeps the record while an entry the switch still owes holds an earlier profile's value, and the yes puts those back too", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.run(["apply", "native", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const rec = JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8"));
+  const owed = Object.keys(rec.pending);
+  assert.ok(rec.phase === "off-pending" && owed.length > 0 && rec.entries[`songwriting@${M}`] && !owed.includes(`songwriting@${M}`), JSON.stringify(rec));
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`songwriting@${M}`] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.action, "finish-cut-off");
+  for (const id of owed) assert.ok(row.entries.includes(id), `${id} still holds build's value: ${row.entries}`);
+  const values = "the values profile native wrote or its unfinished switch had yet to change";
+  assert.ok(row.lines[0].includes(` still hold ${values}: `), row.lines[0]);
+  assert.ok(row.ask.question.includes(` still at ${values} (`), row.ask.question);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(resultLines(r.stdout)[0].includes(` still at ${values}, `), r.stdout);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a stray temp file beside an untouched file is ignored", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  writeTree(w.project, { ".claude/.settings.local.json.4242.1.tmp": "{\"enabledPlugins\": {" });
+  writeTree(dataRecordsDir(w), { [`.${w.records()[0]}.4242.1.tmp`]: "{" });
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+
+test("#17354: with records in two homes, reset restores the file once and removes both records", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = gitRecords(w);
+  mkdirSync(dataRecordsDir(w), { recursive: true });
+  cpSync(join(w.project, ".git", "plugin-profiles", "records", name), join(dataRecordsDir(w), name));
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${rootLocal(w.project)} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.deepEqual([gitRecords(w), w.records()], [[], []]);
+});
+
+test("#17354: a file another writer changes during reset is skipped as changed, left as written, and the next reset restores it", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let other = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    other = [w.localFile, p2.file].find((f) => !line.includes(f));
+    const doc = JSON.parse(readFileSync(other, "utf8"));
+    doc.permissions.allow.push("Bash(other-writer)");
+    writeFileSync(other, `${JSON.stringify(doc, null, 2)}\n`);
+  });
+  assert.equal(r.status, 3, r.stdout);
+  assert.ok(resultLines(r.stdout).includes(`Skipped ${other}: it changed during the reset and is left as the other writer left it; run reset again.`), r.stdout);
+  const left = JSON.parse(readFileSync(other, "utf8"));
+  assert.equal(left.enabledPlugins[`songwriting@${M}`], false, "the profile's entries are still there");
+  const again = reset(w, ["--yes"]);
+  assert.equal(again.status, 0, again.stderr);
+  const restored = JSON.parse(readFileSync(other, "utf8"));
+  assert.deepEqual(restored.enabledPlugins, JSON.parse(LOCAL_BEFORE).enabledPlugins);
+  assert.deepEqual(restored.permissions.allow, ["Bash(npm test)", "Bash(other-writer)"]);
+  assert.deepEqual(w.records(), []);
+});
+
+test("#17354: a record an apply re-saves during reset is reported and reset exits 3", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let reapplied = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    const done = [w.project, p2.dir].find((d) => line.includes(join(d, ".claude")));
+    reapplied = join(done, ".claude", "settings.local.json");
+    assert.equal(runIn(w, done, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  });
+  assert.equal(r.status, 3, r.stdout);
+  assert.match(r.stdout, new RegExp(`^Another terminal applied a profile to ${esc(reapplied)} during the reset; run reset again\\.$`, "m"));
+  assert.equal(recordedFiles(resetJson(w)).includes(reapplied), true, "the re-saved record is still there for the next reset");
+});
+
+test("#17354: a file another reset already restored is reported as already restored", async () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const p2 = secondFolder(w);
+  let other = null;
+  const r = await resetDuring(w, ["--yes"], (line) => {
+    other = [w.project, p2.dir].find((d) => !line.includes(join(d, ".claude")));
+    assert.equal(runIn(w, other, ["clear", "--yes"]).status, 0);
+  });
+  assert.equal(r.status, 0, r.stdout);
+  assert.ok(resultLines(r.stdout).includes(`Already restored by another reset: ${join(other, ".claude", "settings.local.json")}.`), r.stdout);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(w.records(), []);
+});
+
+/** Each plugin and skill entry in force for a session started with sessionFile, read in Claude Code's order: --settings over local over project over user. */
+function inForce(w, sessionFile) {
+  const docs = [sessionFile, w.localFile, join(w.project, ".claude", "settings.json"), join(w.home, ".claude", "settings.json")].map((f) => (existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : {}));
+  const of = (key) => {
+    const names = [...new Set(docs.flatMap((d) => Object.keys(d[key] ?? {})))].sort();
+    return Object.fromEntries(names.map((n) => [n, docs.map((d) => d[key]?.[n]).find((v) => v !== undefined)]));
+  };
+  return { plugins: of("enabledPlugins"), skills: of("skillOverrides") };
+}
+/** A user profile of another marketplace than the shipped ones, so profiles govern two marketplaces. */
+const vendorProfile = (w) => writeTree(w.home, { ".claude/plugin-profiles/gadgets.yaml": "description: Vendor gadgets.\nplugins: [widget@vendor]\nhide_skills: [gadget-skill]\n" });
+const setUserPlugin = (w, id, value) => {
+  const file = join(w.home, ".claude", "settings.json");
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  doc.enabledPlugins[id] = value;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+};
+
+test("#17354: a one-session file keeps every plugin and skill entry in force after a reset of the folder and the initial profile, and is left byte for byte", () => {
+  const w = world();
+  vendorProfile(w);
+  setUserPlugin(w, "widget@vendor", false);
+  const session = launchJson(w, ["review"]).file;
+  const bytes = readFileSync(session, "utf8");
+  assert.equal(w.run(["apply", "gadgets", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(runIn(w, elsewhere(w), ["apply", "build", "--for", "initial", "--yes"]).status, 0);
+  const before = inForce(w, session);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(w.read(), LOCAL_BEFORE, "the folder was reset");
+  assert.deepEqual(inForce(w, session), before);
+  assert.equal(readFileSync(session, "utf8"), bytes);
+});
+
+test("#17354: a one-session file names every plugin of every marketplace any profile governs, so a user-settings toggle of such a plugin made after launch does not reach that session", () => {
+  const w = world();
+  vendorProfile(w);
+  setUserPlugin(w, "widget@vendor", true);
+  const session = launchJson(w, ["review"]).file;
+  const doc = JSON.parse(readFileSync(session, "utf8"));
+  assert.equal(doc.enabledPlugins["widget@vendor"], true, "frozen at its value at launch");
+  assert.equal(doc.skillOverrides["gadget-skill"], "on");
+  setUserPlugin(w, "widget@vendor", false);
+  assert.equal(inForce(w, session).plugins["widget@vendor"], true, "the later toggle in user settings does not reach the running session");
+  const plain = world();
+  const untouched = JSON.parse(readFileSync(launchJson(plain, ["review"]).file, "utf8"));
+  assert.equal("widget@vendor" in untouched.enabledPlugins, false, "a marketplace no profile governs stays unnamed");
+});
+
+test("#17354: every reset row in scenarios.md names a test that exists", () => {
+  const read = (rel) => readFileSync(join(HERE, "..", rel), "utf8");
+  const scenarios = read("reference/scenarios.md");
+  const section = scenarios.slice(scenarios.indexOf("## Reset the whole machine"), scenarios.indexOf("## Dotfiles"));
+  const rows = section.split("\n").filter((line) => /^\| \d+ \|/.test(line));
+  assert.ok(rows.length >= 8, `${rows.length} reset rows`);
+  const names = (rel) => new Set([...read(rel).matchAll(/\btest\((["'])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]));
+  const suites = { "scripts/profiles.test.mjs": names("scripts/profiles.test.mjs"), "lib/machine-records.test.mjs": names("lib/machine-records.test.mjs"), "hooks/plugin-profile.test.ts": names("hooks/plugin-profile.test.ts") };
+  for (const row of rows) {
+    const proof = row.split(" | ").at(-1);
+    const quoted = [...proof.matchAll(/(?:`([^`]+\.test\.[a-z]+)` )?"([^"]+)"/g)];
+    assert.ok(quoted.length, `row names no test: ${row.slice(0, 60)}`);
+    let suite = "scripts/profiles.test.mjs";
+    for (const [, file, name] of quoted) {
+      if (file) suite = file;
+      assert.ok(suites[suite]?.has(name), `${suite} has no test "${name}"`);
+    }
+  }
+});
+
+const NO_RECORD_SKIP = (file) => `Skipped ${file}: no record; reset removes its entries only after a yes for this folder.`;
+
+test("#17354: a folder with plugin entries and no record is listed with each entry and changed only after its own yes", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const [row] = resetJson(w).folders;
+  assert.deepEqual([row.file, row.recorded, row.action, row.entries], [w.localFile, false, "remove-entries", [`songwriting@${M}`, `review@${M}`]]);
+  assert.equal(row.ask.file, w.localFile);
+  assert.ok(row.lines[0].includes(`songwriting@${M}, review@${M}`), row.lines[0]);
+  const plain = reset(w, ["--yes"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(resultLines(plain.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(w.read(), LOCAL_BEFORE, "--yes alone never covers a folder without a record");
+  const wrong = reset(w, ["--yes", "--remove-unrecorded", join(w.root, "elsewhere", ".claude", "settings.local.json")]);
+  assert.equal(wrong.status, 1);
+  assert.match(wrong.stderr, /not reset: .* is not a file the preview asks about; it asks about .*; nothing was written/);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 2 plugin and skill entries of ${w.localFile}, which had no record.`]);
+  const after = JSON.parse(w.read());
+  assert.equal("enabledPlugins" in after, false);
+  assert.deepEqual(after, withoutProfileKeys(LOCAL_BEFORE));
+});
+
+test("#17354: the reset preview's questions say what each yes covers, and stay short for a folder with many entries", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  const many = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`p${i}@${M}`, true]));
+  writeFileSync(w.localFile, `${JSON.stringify({ enabledPlugins: many }, null, 2)}\n`);
+  knowFolders(w, w.project, p2.dir);
+  const preview = resetJson(w);
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record are not covered: each gets its own question.");
+  const loose = preview.folders.find((f) => f.file === w.localFile);
+  assert.equal(loose.ask.question, `${w.localFile} has no profile record. Remove its 10 plugin and skill entries (p0@${M}, p1@${M}, p2@${M} and 7 more, listed above)?`);
+  assert.equal(loose.lines[0], `${w.localFile}: no profile record, and its 10 plugin and skill entries may be your own: ${Object.keys(many).join(", ")}. Reset removes them only after a yes for this folder.`);
+  assert.match(preview.lines[0], /this folder, 1 data folder, 0 repository pointers, 2 folders Claude Code has opened, 0 one-session records and 0 live sessions\.$/);
+  knowFolders(w, p2.dir);
+  assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?");
+});
+
+test("#17354: a folder without a record holding one entry is named as one entry in its preview line, its question and its result", () => {
+  const w = world();
+  writeFileSync(w.localFile, `${JSON.stringify({ enabledPlugins: { [`p0@${M}`]: true } }, null, 2)}\n`);
+  knowFolders(w, w.project);
+  const [row] = resetJson(w).folders;
+  assert.equal(row.ask.question, `${w.localFile} has no profile record. Remove its 1 plugin and skill entry (p0@${M})?`);
+  assert.equal(row.lines[0], `${w.localFile}: no profile record, and its 1 plugin and skill entry may be your own: p0@${M}. Reset removes it only after a yes for this folder.`);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 1 plugin and skill entry of ${w.localFile}, which had no record.`]);
+});
+
+test("#17354: the one question says once that folders without a record and files whose earlier reset was cut off each get their own question", () => {
+  const w = world();
+  cutOffThenPutBack(w);
+  secondFolder(w);
+  const loose = join(w.root, "loose");
+  writeTree(loose, { ".claude/settings.local.json": LOCAL_BEFORE });
+  knowFolders(w, loose);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => f.action).sort(), ["finish-cut-off", "remove-entries", "restore"]);
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? Folders without a record and files whose earlier reset was cut off are not covered: each gets its own question.");
+});
+
+test("#17354: the reset preview gives each apply's time in the machine's time zone", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [name] = w.records();
+  const path = join(dataRecordsDir(w), name);
+  writeFileSync(path, `${JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), appliedAt: "2026-11-01T00:00:00.000Z" }, null, 2)}\n`);
+  const [row] = resetJson(w, { TZ: "America/New_York" }).folders;
+  assert.match(row.lines[0], /: profile build applied Oct 31, 2026, 8:00\sPM EDT; reset puts back /);
+});
+
+test("#17354: a folder answered no is reported as kept at that answer, not as waiting for a yes", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const r = reset(w, ["--yes", "--keep-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is.`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(reset(w, ["--yes", "--keep-unrecorded", join(w.root, "x.json")]).status, 1, "a kept file the preview does not ask about is refused too");
+});
+
+test("#17354: askPerFolder removes only the folders answered yes", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let shown = "";
+  output.on("data", (chunk) => {
+    shown += chunk;
+  });
+  const rows = ["/a", "/b", "/c"].map((file) => ({ file, question: `Remove ${file}?` }));
+  const answered = askPerFolder(rows, { input, output });
+  input.write("y\n");
+  input.write("no\n");
+  input.end();
+  assert.deepEqual([...(await answered)], ["/a"]);
+  assert.match(shown, /Remove \/a\? \[y\/N\] .*Remove \/b\? \[y\/N\] /s);
+  assert.deepEqual([...(await askPerFolder([], { input: new PassThrough(), output }))], []);
+});
+
+test("#17354: with --yes and nobody answering, reset restores every recorded folder and skips each unrecorded one, saying why", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  knowFolders(w, w.project, p2.dir);
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [NO_RECORD_SKIP(w.localFile), `Restored ${p2.file} (profile build).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a record whose folder is missing is kept, listed as not found, and a git-home record names the moved file it would restore", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const movedFile = rootLocal(moved);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null]), [[old, "skip", movedFile]], "the moved file is offered once, through the record");
+  assert.equal(rows[0].ask.file, movedFile);
+  assert.match(rows[0].lines[0], /folder not found; record kept\. The repository is now at /);
+  const kept = reset(w, ["--yes"]);
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.deepEqual(resultLines(kept.stdout), [`Skipped ${old}: folder not found; record kept.`]);
+  assert.notEqual(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.equal(readdirSync(join(moved, ".git", "plugin-profiles", "records")).length, 1);
+  const r = reset(w, ["--yes", "--put-back-moved", movedFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${movedFile} from the record of ${old} (profile build).`]);
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(readdirSync(join(moved, ".git", "plugin-profiles", "records")), []);
+});
+
+test("#17354: a moved repository's file gets its own kind of question: Keep, then Put back, its own flags, its own words in the one question and its own recommendation", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  const p2 = secondFolder(w);
+  knowFolders(w, moved, p2.dir);
+  const movedFile = rootLocal(moved);
+  const applied = [readFileSync(movedFile, "utf8"), readFileSync(p2.file, "utf8")];
+  const preview = resetJson(w);
+  const { ask } = preview.folders.find((f) => f.file === old);
+  assert.deepEqual([ask.file, ask.no, ask.yes], [movedFile, { label: "Keep", flag: "--keep-moved" }, { label: "Put back", flag: "--put-back-moved" }]);
+  assert.deepEqual(ask.recommend, { answer: "yes", reason: `Each entry profile build wrote at ${old}, before the repository moved, is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
+  assert.equal(preview.question, "Reset the 1 file above that a profile record covers? A file in a repository that moved is not covered: each gets its own question.");
+  for (const flag of ["--remove-unrecorded", "--keep-unrecorded", "--finish-cut-off"]) {
+    const r = reset(w, ["--yes", flag, movedFile]);
+    assert.equal(r.status, 1, `${flag}: ${r.stdout}`);
+    assert.match(r.stderr, new RegExp(`^not reset: ${esc(movedFile)} is answered with --put-back-moved or --keep-moved, not ${flag}; nothing was written$`, "m"));
+  }
+  const loose = reset(w, ["--yes", "--put-back-moved", join(w.root, "elsewhere", ".claude", "settings.local.json")]);
+  assert.equal(loose.status, 1);
+  assert.match(loose.stderr, new RegExp(`is not a file the preview asks about; it asks about ${esc(movedFile)} `));
+  assert.deepEqual([readFileSync(movedFile, "utf8"), readFileSync(p2.file, "utf8")], applied);
+  const r = reset(w, ["--yes", "--put-back-moved", movedFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout).sort(), [`Restored ${movedFile} from the record of ${old} (profile build).`, `Restored ${p2.file} (profile build).`].sort());
+  assert.equal(readFileSync(movedFile, "utf8"), LOCAL_BEFORE);
+
+  const alone = world();
+  gitInit(alone);
+  assert.equal(alone.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const there = join(alone.root, "moved");
+  renameSync(alone.project, there);
+  knowFolders(alone, there);
+  const nobody = reset(alone);
+  assert.equal(nobody.status, 1, nobody.stdout);
+  assert.match(nobody.stderr, /^not reset: nobody to confirm, so nothing was written; a file in a repository that moved changes only after a yes for it: run reset in a terminal, or pass --yes with --put-back-moved <file> for each file to put back$/m);
+});
+
+/** The settings file each applied-profile record on the test machine names, sorted. */
+const recordFiles = (w) => allRecords(w).map((rel) => JSON.parse(readFileSync(join(w.root, rel), "utf8")).settingsFile).sort();
+const WAITS_SKIP = (file) => `Skipped ${file}: folder not found; record kept until reset puts back the later record of its repository's file.`;
+const WAITS_DONE = (file) => `Skipped ${file}: folder not found; record kept. This reset put back a later record of its repository's file; run reset again to be offered the next record, newest first.`;
+const WAITS_LINE = (n) => `${n} ${n === 1 ? "record waits" : "records wait"} behind a file this reset put back; run reset again to offer ${n === 1 ? "it" : "them"}.`;
+const waitsRow = (old, file) => `${old}: folder not found; record kept. The repository is now at ${dirname(dirname(file))}, and ${file} has a later record that reset handles first; running reset again afterwards offers this one.`;
+
+/**
+ * Runs reset until no record is left (at most max runs), each run answering yes to the one question and to each file's own, and
+ * checks every run: no file is asked about twice, each listed file gets one result line, and a record goes only with its own
+ * file's restore. Returns each run's exit status.
+ */
+function resetLayers(w, max = 4) {
+  const statuses = [];
+  while (recordFiles(w).length && statuses.length < max) {
+    const run = `run ${statuses.length + 1}`;
+    const preview = resetJson(w);
+    const asks = preview.folders.filter((f) => f.ask).map((f) => f.ask);
+    const covered = preview.question ? preview.folders.filter((f) => ["restore", "remove-file", "finish-restore"].includes(f.action)).map((f) => f.file) : [];
+    const asked = [...covered, ...asks.map((a) => a.file)];
+    assert.equal(new Set(asked).size, asked.length, `${run}: one question per file: ${asked.join(", ")}`);
+    const before = recordFiles(w);
+    const r = reset(w, ["--yes", ...asks.flatMap((a) => [a.yes.flag, a.file])]);
+    const lines = resultLines(r.stdout);
+    for (const f of preview.folders) assert.equal(lines.filter((l) => l.includes(f.file)).length, 1, `${run}: one result line names ${f.file}\n${r.stdout}`);
+    const put = preview.folders.filter((f) => lines.some((l) => /^(Restored|Removed|Finished) /.test(l) && l.includes(f.file))).map((f) => f.file);
+    const left = recordFiles(w);
+    for (const gone of before.filter((file) => !left.includes(file))) assert.ok(put.includes(gone), `${run}: the record of ${gone} goes only with its own restore\n${r.stdout}`);
+    statuses.push(r.status);
+  }
+  return statuses;
+}
+
+/** A repository given profile build, then moved to repo-now and given each profile of then there in turn; left holds the file before each of those. */
+function movedRepository(w, then = ["review"]) {
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const file = rootLocal(moved);
+  const left = then.map((profile) => {
+    const text = readFileSync(file, "utf8");
+    assert.equal(runIn(w, moved, ["apply", profile, "--for", "folder", "--yes"]).status, 0);
+    return text;
+  });
+  return { old, file, left, records: join(moved, ".git", "plugin-profiles", "records") };
+}
+
+/** A repository given build, moved and given review, then moved again and given newest: its three files and the file after each apply before the last. */
+function movedTwice(w, newest = "build") {
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const first = rootLocal(w.project);
+  const afterBuild = readFileSync(first, "utf8");
+  const between = join(w.root, "repo-between");
+  renameSync(w.project, between);
+  assert.equal(runIn(w, between, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  const second = rootLocal(between);
+  const now = join(w.root, "repo-now");
+  renameSync(between, now);
+  knowFolders(w, now);
+  const file = rootLocal(now);
+  const afterReview = readFileSync(file, "utf8");
+  assert.equal(runIn(w, now, ["apply", newest, "--for", "folder", "--yes"]).status, 0);
+  return { first, second, file, afterBuild, afterReview, records: join(now, ".git", "plugin-profiles", "records") };
+}
+
+test("#17354: a moved repository with a profile applied at its new place is put back one layer per reset, newest first, one question per file each run", async () => {
+  const w = world();
+  const m = movedRepository(w);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.ask?.file ?? null, f.waitsFor ?? null]).sort(), [[m.file, "restore", null, null, null], [m.old, "skip", null, null, m.file]].sort());
+  assert.deepEqual(rows.find((f) => f.file === m.old).lines, [waitsRow(m.old, m.file)]);
+  const first = await resetAtTerminal(w, () => "y");
+  assert.equal(first.status, 3, first.stdout + first.stderr);
+  assert.deepEqual(first.prompts.map((p) => FIRST.test(p)), [true], "one question, covering the newer record's file");
+  assert.deepEqual(resultLines(first.stdout).sort(), [`Restored ${m.file} (profile review).`, WAITS_DONE(m.old)].sort());
+  assert.equal(first.stdout.split("\n").at(-1), WAITS_LINE(1));
+  assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
+  assert.deepEqual(recordFiles(w), [m.old]);
+  const second = await resetAtTerminal(w, () => "y");
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  assert.deepEqual(second.prompts, [`The folder of ${m.old} is gone, and its repository is now at ${dirname(dirname(m.file))}. Put back ${m.file} from that record?`]);
+  assert.deepEqual(resultLines(second.stdout), [`Restored ${m.file} from the record of ${m.old} (profile build).`]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(recordFiles(w), []);
+
+  const again = world();
+  const n = movedRepository(again);
+  assert.deepEqual(resetLayers(again), [3, 0]);
+  assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: apply's preview in a moved repository with a record from before the move says in one line that reset puts the file back one layer per run, newest first", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const plainLines = JSON.parse(w.run(["apply", "review", "--for", "folder", "--dry-run", "--json"]).stdout).lines;
+  assert.ok(!plainLines.some((l) => l.includes("before this repository moved")), "a repository that did not move gets no such line");
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "repo-now");
+  renameSync(w.project, moved);
+  const line = `Reset keeps the record of ${old} (profile build) from before this repository moved; after this apply, reset puts this file back one layer per run, newest first.`;
+  const dry = runIn(w, moved, ["apply", "review", "--for", "folder", "--dry-run"]);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.split("\n").filter((l) => l === line).length, 1, dry.stdout);
+  const json = JSON.parse(runIn(w, moved, ["apply", "review", "--for", "folder", "--dry-run", "--json"]).stdout);
+  assert.equal(json.lines.filter((l) => l === line).length, 1, json.lines.join("\n"));
+});
+
+test("#17354: the newest layer's row says it puts entries back to before that layer's profile while an older record waits, and to before the first apply only when none waits", () => {
+  const w = world();
+  const m = movedRepository(w);
+  const row = resetJson(w).folders.find((f) => f.file === m.file);
+  assert.match(row.lines[0], /; reset puts back \d+ plugin entr(y|ies) and \d+ skill entr(y|ies) to their values before profile review was applied\.$/, row.lines[0]);
+  const plain = world();
+  assert.equal(plain.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const [only] = resetJson(plain).folders;
+  assert.match(only.lines[0], /; reset puts back \d+ plugin entr(y|ies) and \d+ skill entr(y|ies) to their values before the first apply\.$/, only.lines[0]);
+});
+
+test("#17354: a moved repository with a profile applied at its new place, given --yes alone, puts back the newer layer, keeps the older record until a yes for its file, and a reset cut off before or after the newer layer's write is finished first", () => {
+  for (const cut of [null, "before the write", "after the write"]) {
+    const w = world();
+    const m = movedRepository(w);
+    const newerPath = join(m.records, `${sha(m.file)}.json`);
+    if (cut) {
+      const rec = JSON.parse(readFileSync(newerPath, "utf8"));
+      writeFileSync(newerPath, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(m.left[0]), fromHash: sha(readFileSync(m.file, "utf8")) }, null, 2)}\n`);
+      if (cut === "after the write") writeFileSync(m.file, m.left[0]);
+    }
+    assert.equal(resetJson(w).question, "Reset the 1 file above that a profile record covers?", `cut ${cut}`);
+    const r = reset(w, ["--yes"]);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    const done = cut === "after the write" ? `Finished an earlier reset of ${m.file}: its record is removed.` : `Restored ${m.file} (profile review).`;
+    assert.deepEqual(resultLines(r.stdout).sort(), [done, WAITS_DONE(m.old)].sort(), `cut ${cut}`);
+    assert.equal(r.stdout.trim().split("\n").at(-1), WAITS_LINE(1));
+    assert.equal(readFileSync(m.file, "utf8"), m.left[0], `cut ${cut}`);
+    assert.deepEqual(recordFiles(w), [m.old], `cut ${cut}`);
+    const plain = reset(w, ["--yes"]);
+    assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+    assert.deepEqual(resultLines(plain.stdout), [`Skipped ${m.old}: folder not found; record kept.`]);
+    assert.equal(readFileSync(m.file, "utf8"), m.left[0], `cut ${cut}`);
+    assert.deepEqual(resetLayers(w), [0], `cut ${cut}`);
+    assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE, `cut ${cut}`);
+  }
+});
+
+/** Leaves file's own record as a reset cut off before its write, then puts its first entry back to its value before that profile by hand. */
+function cutOffOwnThenPutBack(records, file, restoredText) {
+  const path = join(records, `${sha(file)}.json`);
+  const rec = JSON.parse(readFileSync(path, "utf8"));
+  assert.ok(Object.keys(rec.entries).length > 1, "an entry is left at the newer profile's value after the edit");
+  writeFileSync(path, `${JSON.stringify({ ...rec, phase: "restoring", restoredHash: sha(restoredText), fromHash: sha("not the file") }, null, 2)}\n`);
+  const [[name, { before }]] = Object.entries(rec.entries);
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  if (before === "absent") delete doc.enabledPlugins[name];
+  else doc.enabledPlugins[name] = before;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+  return readFileSync(file, "utf8");
+}
+
+test("#17354: a moved repository whose newer record the one yes cannot restore lists that file on its own, keeps the older record waiting behind it, and puts back each layer after a yes for it", () => {
+  const w = world();
+  const m = movedRepository(w, ["native"]);
+  const edited = cutOffOwnThenPutBack(m.records, m.file, m.left[0]);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.file, "finish-cut-off", null, null], [m.old, "skip", null, m.file]].sort());
+  assert.deepEqual(rows.find((f) => f.file === m.old).lines, [waitsRow(m.old, m.file)]);
+  for (const args of [["--yes"], ["--yes", "--keep-cut-off", m.file]]) {
+    const r = reset(w, args);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const own = args.length > 1 ? `Skipped ${m.file}: you answered no, so it is left as it is, and its record is kept.` : CUT_OFF_SKIP(m.file);
+    assert.deepEqual(resultLines(r.stdout).sort(), [own, WAITS_SKIP(m.old)].sort(), args.join(" "));
+    assert.ok(!r.stdout.includes(WAITS_LINE(1)), "nothing unblocked, so no line says to run again");
+    assert.equal(readFileSync(m.file, "utf8"), edited);
+    assert.equal(recordFiles(w).length, 2);
+  }
+  assert.deepEqual(resetLayers(w), [3, 0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a repository moved twice, with a profile applied at each place, is put back one layer per reset, newest first, and the last layer leaves the file as before the first apply", () => {
+  const w = world();
+  const m = movedTwice(w);
+  const rows = resetJson(w).folders;
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.file, "restore", null, null], [m.first, "skip", null, m.file], [m.second, "skip", null, m.file]].sort());
+  const one = reset(w, ["--yes"]);
+  assert.equal(one.status, 3, one.stdout + one.stderr);
+  assert.deepEqual(resultLines(one.stdout).sort(), [`Restored ${m.file} (profile build).`, WAITS_DONE(m.first), WAITS_DONE(m.second)].sort());
+  assert.equal(one.stdout.trim().split("\n").at(-1), WAITS_LINE(2));
+  assert.equal(readFileSync(m.file, "utf8"), m.afterReview);
+  const next = resetJson(w).folders;
+  assert.deepEqual(next.map((f) => [f.file, f.movedTo ?? null, f.waitsFor ?? null]).sort(), [[m.first, null, m.file], [m.second, m.file, null]].sort(), "the record applied latest is offered, the earlier one waits");
+  const two = reset(w, ["--yes", "--put-back-moved", m.file]);
+  assert.equal(two.status, 3, two.stdout + two.stderr);
+  assert.deepEqual(resultLines(two.stdout).sort(), [`Restored ${m.file} from the record of ${m.second} (profile review).`, WAITS_DONE(m.first)].sort());
+  assert.equal(readFileSync(m.file, "utf8"), m.afterBuild);
+  assert.deepEqual(resetLayers(w), [0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+
+  const again = world();
+  const n = movedTwice(again);
+  assert.deepEqual(resetLayers(again), [3, 3, 0]);
+  assert.equal(readFileSync(n.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a repository moved twice whose newest record is a cut-off file gets one question for that file, and a no to it keeps the file and every record", async () => {
+  const w = world();
+  const m = movedTwice(w, "native");
+  const edited = cutOffOwnThenPutBack(m.records, m.file, m.afterReview);
+  const preview = resetJson(w);
+  assert.equal(preview.question, null);
+  assert.deepEqual(preview.folders.filter((f) => f.ask).map((f) => f.ask.file), [m.file], "one question, about the cut-off file");
+  const no = await resetAtTerminal(w, () => "n");
+  assert.equal(no.status, 0, no.stdout + no.stderr);
+  assert.equal(no.prompts.length, 1);
+  assert.deepEqual(resultLines(no.stdout).sort(), [`Skipped ${m.file}: you answered no, so it is left as it is, and its record is kept.`, WAITS_SKIP(m.first), WAITS_SKIP(m.second)].sort());
+  assert.equal(readFileSync(m.file, "utf8"), edited);
+  assert.equal(recordFiles(w).length, 3);
+  assert.deepEqual(resetLayers(w), [3, 3, 0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a moved record's reset cut off after its write is finished by the next reset", () => {
+  const w = world();
+  const m = movedRepository(w);
+  rmSync(join(m.records, `${sha(m.file)}.json`));
+  writeFileSync(m.file, LOCAL_BEFORE);
+  assert.deepEqual(resetLayers(w), [0]);
+  assert.equal(readFileSync(m.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a moved repository with a profile applied at its new place, answered no at each layer, keeps its file and every record", async () => {
+  const w = world();
+  const m = movedRepository(w);
+  const applied = readFileSync(m.file, "utf8");
+  const no = await resetAtTerminal(w, () => "n");
+  assert.equal(no.status, 1, no.stdout);
+  assert.equal(readFileSync(m.file, "utf8"), applied);
+  assert.equal(recordFiles(w).length, 2);
+  assert.equal(reset(w, ["--yes"]).status, 3);
+  const r = reset(w, ["--yes", "--keep-moved", m.file]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Skipped ${m.file}: you answered no, so it is left as it is, and the record of ${m.old} (profile build) is kept.`]);
+  assert.equal(readFileSync(m.file, "utf8"), m.left[0]);
+  assert.deepEqual(recordFiles(w), [m.old]);
+});
+
+test("#17354: a write given the preview's id refuses, writing nothing, once what reset would write differs from that preview", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const shown = resetJson(w).previewId;
+  assert.match(shown, /^[0-9a-f]{64}$/);
+  assert.equal(resetJson(w).previewId, shown, "the same machine gives the same id");
+  const p2 = secondFolder(w);
+  const applied = [w.read(), readFileSync(p2.file, "utf8")];
+  const r = reset(w, ["--yes", "--preview-id", shown]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: what reset would write changed since that preview .*nothing was written\. Look at the new preview: reset --dry-run$/m);
+  assert.deepEqual([w.read(), readFileSync(p2.file, "utf8")], applied);
+  const beforeEdit = resetJson(w).previewId;
+  const edited = JSON.parse(w.read());
+  edited.permissions.allow.push("Bash(edited)");
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const next = resetJson(w).previewId;
+  assert.notEqual(next, beforeEdit, "a hand edit of a listed file changes the id");
+  const ok = reset(w, ["--yes", "--preview-id", next]);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: a file the preview does not ask about is refused, naming the files it does ask about", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const old = rootLocal(w.project);
+  const moved = join(w.root, "moved");
+  renameSync(w.project, moved);
+  knowFolders(w, moved);
+  const r = reset(w, ["--yes", "--put-back-moved", old]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, new RegExp(`^not reset: ${esc(old)} is not a file the preview asks about; it asks about ${esc(rootLocal(moved))} \\(each row's ask\\.file in reset --dry-run --json\\); nothing was written$`, "m"));
+});
+
+/** A record as apply writes it, naming settingsFile: songwriting switched on, so restoring it would switch songwriting off. */
+const handRecord = (settingsFile, target = "folder") => ({
+  schema: 1, profile: "songs", target, settingsFile, appliedAt: "2026-01-01T00:00:00.000Z", pluginVersion: "0.1.0",
+  phase: "applied", pending: {}, createdFile: false, containers: { enabledPlugins: true, skillOverrides: false }, installed: [],
+  entries: { [`songwriting@${M}`]: { before: false, after: true } }, skillOverrides: {},
+});
+
+test("#17354: a git-home record of a deleted subfolder or linked worktree is kept and never offered for the repository's root file", () => {
+  const w = world();
+  gitInit(w);
+  const t = linkedWorktree(w, LOCAL_BEFORE);
+  const sub = join(w.project, "sub", ".claude", "settings.local.json");
+  writeTree(join(w.project, ".git", "plugin-profiles", "records"), { "sub.json": handRecord(sub), "wt.json": handRecord(t.file) });
+  rmSync(t.wt, { recursive: true });
+  const r = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const rows = JSON.parse(r.stdout).folders.filter((f) => [sub, t.file].includes(f.file));
+  assert.deepEqual(rows.map((f) => [f.file, f.action, f.movedTo ?? null, f.ask ?? null]).sort(), [[sub, "skip", null, null], [t.file, "skip", null, null]].sort());
+  for (const f of rows) assert.ok(f.lines[0].endsWith("folder not found; record kept."), f.lines[0]);
+});
+
+test("#17354: a record kept in a folder that cannot hold it is listed as ignored and never written from", () => {
+  const w = world();
+  gitInit(w);
+  const userFile = join(w.home, ".claude", "settings.json");
+  const userBefore = readFileSync(userFile, "utf8");
+  const p2 = join(w.root, "project2");
+  writeTree(p2, { ".claude/settings.local.json": LOCAL_BEFORE });
+  const p2File = join(p2, ".claude", "settings.local.json");
+  const planted = join(w.project, ".git", "plugin-profiles", "records");
+  writeTree(planted, { "user.json": handRecord(userFile, "initial"), "other.json": handRecord(p2File) });
+  const stateRecords = join(w.home, ".claude", "plugin-profiles-state", "records");
+  writeTree(stateRecords, { "folder.json": handRecord(p2File) });
+  const dry = w.run(["reset", "--dry-run", "--json"]);
+  assert.equal(dry.status, 0, dry.stderr);
+  const ignored = JSON.parse(dry.stdout).folders.filter((f) => f.reason === "ignored");
+  const paths = [join(planted, "user.json"), join(planted, "other.json"), join(stateRecords, "folder.json")];
+  assert.deepEqual(ignored.map((f) => f.record).sort(), paths.sort());
+  for (const f of ignored) assert.match(f.lines[0], new RegExp(`^Ignored the record ${esc(f.record)}: `));
+  const r = w.run(["reset", "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(userFile, "utf8"), userBefore);
+  assert.equal(readFileSync(p2File, "utf8"), LOCAL_BEFORE);
+  for (const path of paths) assert.ok(existsSync(path), path);
+});
+
+/** Where reset notes a file of a folder outside git that it restored: the data folder's restored/, keyed as records are. */
+const noteOf = (w, file, home = join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline")) => join(home, "restored", `${sha(realpathSync(file))}.json`);
+/** The preview line counting the files reset left unchanged since, naming the first three and how many more. */
+const UNCHANGED_LINE = (files) =>
+  `${files.length} ${files.length === 1 ? "file that reset already handled is" : "files that reset already handled are"} unchanged since; reset leaves ${files.length === 1 ? "it" : "them"}: ${files.length > 3 ? `${files.slice(0, 3).join(", ")} and ${files.length - 3} more` : files.join(", ")}.`;
+
+test("#17354: the preview line counting files unchanged since reset names the first three and how many more", () => {
+  const w = world();
+  const dirs = ["p1", "p2", "p3", "p4"].map((name) => {
+    const dir = join(w.root, name);
+    writeTree(dir, { ".claude/settings.local.json": LOCAL_BEFORE });
+    assert.equal(runIn(w, dir, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return dir;
+  });
+  knowFolders(w, ...dirs);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  const preview = resetJson(w);
+  assert.equal(preview.unchangedSinceReset.length, 4);
+  assert.ok(preview.lines.includes(UNCHANGED_LINE(preview.unchangedSinceReset)), preview.lines.join("\n"));
+  assert.match(preview.lines.at(-1), / and 1 more\.$/);
+});
+
+test("#17354: a cut-off file reset finished with a yes while keeping a hand edit is counted among files reset already handled, in words true for it", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(w, w.localFile, { written: false });
+  const doc = JSON.parse(w.read());
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = reset(w, ["--yes", "--finish-cut-off", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.notEqual(w.read(), LOCAL_BEFORE, "the hand edit stays, so the file is not back at its original");
+  knowFolders(w, w.project);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.unchangedSinceReset, [w.localFile]);
+  assert.ok(preview.lines.includes(UNCHANGED_LINE([w.localFile])), preview.lines.join("\n"));
+  assert.ok(!preview.lines.some((l) => l.includes("restored earlier")), "the file was handled, not restored to its original");
+});
+
+test("#17354: after a reset, the files it restored that hold hand-written entries are not listed again and no question is asked", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project, p2.dir);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders, []);
+  assert.equal(preview.question, null);
+  assert.deepEqual([...preview.unchangedSinceReset].sort(), [w.localFile, p2.file].sort());
+  assert.ok(preview.lines.includes(UNCHANGED_LINE(preview.unchangedSinceReset)), preview.lines.join("\n"));
+  assert.doesNotMatch(preview.lines.join("\n"), /may be your own/);
+  const again = reset(w);
+  assert.equal(again.status, 0, again.stderr);
+  assert.deepEqual(resultLines(again.stdout), []);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+});
+
+test("#17354: reset notes a file it restores by every path: a finished earlier reset, a worktree copy adopted from the root's record and a moved repository's file", () => {
+  const cut = world();
+  assert.equal(cut.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(cut, cut.project);
+  cutOff(cut, cut.localFile, { written: true });
+  assert.equal(reset(cut, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(cut).folders, [], "a finished earlier reset");
+
+  const wt = world();
+  gitInit(wt);
+  assert.equal(wt.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(wt, JSON.parse(wt.read()));
+  knowFolders(wt, t.wt);
+  assert.equal(reset(wt, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(wt).unchangedSinceReset.sort(), [rootLocal(wt.project), t.file].sort(), "the adopted copy and the root file");
+
+  const mv = world();
+  gitInit(mv);
+  assert.equal(mv.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const moved = join(mv.root, "moved");
+  renameSync(mv.project, moved);
+  knowFolders(mv, moved);
+  assert.equal(reset(mv, ["--yes", "--put-back-moved", rootLocal(moved)]).status, 0);
+  assert.equal(readFileSync(rootLocal(moved), "utf8"), LOCAL_BEFORE);
+  assert.deepEqual(resetJson(mv).folders, [], "a moved repository's file");
+});
+
+test("#17354: a file reset restored and then edited by hand is listed again as having no record, and the next reset removes the stale note", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.deepEqual(resetJson(w).folders, []);
+  const edited = JSON.parse(w.read());
+  edited.enabledPlugins["widget@vendor"] = true;
+  writeFileSync(w.localFile, `${JSON.stringify(edited, null, 2)}\n`);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.file, f.action, f.ask?.file]), [[w.localFile, "remove-entries", w.localFile]]);
+  assert.match(preview.folders[0].lines[0], /may be your own/);
+  assert.deepEqual(preview.unchangedSinceReset, []);
+  assert.ok(existsSync(noteOf(w, w.localFile)), "a preview writes nothing");
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(existsSync(noteOf(w, w.localFile)), false, "the next reset that writes removes the stale note");
+});
+
+test("#17354: an apply to a file reset restored removes its note, a record always wins over a note, and the next reset restores the file as usual", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  knowFolders(w, w.project);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  const note = JSON.parse(readFileSync(noteOf(w, w.localFile), "utf8"));
+  assert.deepEqual(note, { schema: 1, settingsFile: w.localFile, restoredHash: sha(LOCAL_BEFORE) });
+  assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(existsSync(noteOf(w, w.localFile)), false, "an apply removes the note");
+  writeTree(dirname(noteOf(w, w.localFile)), { [basename(noteOf(w, w.localFile))]: { ...note, restoredHash: sha(w.read()) } });
+  assert.deepEqual(resetJson(w).folders.map((f) => [f.file, f.action]), [[w.localFile, "restore"]], "a note matching a recorded file's bytes never hides it");
+  const r = reset(w, ["--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Restored ${w.localFile} (profile review).`]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  assert.equal(JSON.parse(readFileSync(noteOf(w, w.localFile), "utf8")).restoredHash, sha(LOCAL_BEFORE));
+});
+
+test("#17354: a restored note in a home that cannot hold its file is ignored", () => {
+  const w = world();
+  gitInit(w);
+  const p2 = secondRepository(w);
+  knowFolders(w, w.project, p2);
+  const file = rootLocal(w.project);
+  const note = { schema: 1, settingsFile: file, restoredHash: sha(LOCAL_BEFORE) };
+  const name = basename(noteOf(w, file));
+  for (const home of [join(p2, ".git", "plugin-profiles"), join(w.home, ".claude", "plugin-profiles-state")]) writeTree(join(home, "restored"), { [name]: note });
+  const own = (preview) => preview.folders.filter((f) => f.file === file).map((f) => f.action);
+  assert.deepEqual(own(resetJson(w)), ["remove-entries"], "notes in another repository's home and the user-settings home are ignored");
+  writeTree(join(w.project, ".git", "plugin-profiles", "restored"), { [name]: note });
+  assert.deepEqual(own(resetJson(w)), [], "the same note in the repository's own home is read");
+});
+
+test("#17354: a folder with entries and no record that reset never restored is still listed and needs its own yes, beside one it restored", () => {
+  const w = world();
+  const p2 = secondFolder(w);
+  knowFolders(w, w.project, p2.dir);
+  assert.equal(reset(w, ["--yes"]).status, 0);
+  assert.equal(readFileSync(p2.file, "utf8"), LOCAL_BEFORE);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.file, f.action, f.ask?.file]), [[w.localFile, "remove-entries", w.localFile]]);
+  assert.deepEqual(preview.unchangedSinceReset, [p2.file]);
+  const plain = reset(w, ["--yes"]);
+  assert.deepEqual(resultLines(plain.stdout), [NO_RECORD_SKIP(w.localFile)]);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const r = reset(w, ["--yes", "--remove-unrecorded", w.localFile]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(resultLines(r.stdout), [`Removed the 2 plugin and skill entries of ${w.localFile}, which had no record.`]);
+});
+
+test("#17354: with nobody to answer and no --yes, a folder without a record makes reset write nothing and exit 1, saying so", () => {
+  const w = world();
+  knowFolders(w, w.project);
+  const r = reset(w);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stderr, /^not reset: nobody to confirm, so nothing was written; a folder without a record changes only after a yes for it: run reset in a terminal, or pass --yes with --remove-unrecorded <file> for each folder to change$/m);
+  assert.deepEqual(resultLines(r.stdout), []);
+  assert.equal(w.read(), LOCAL_BEFORE);
+  const kept = reset(w, ["--keep-unrecorded", w.localFile]);
+  assert.equal(kept.status, 0, "a folder already answered no leaves nothing to confirm");
+  assert.deepEqual(resultLines(kept.stdout), [`Skipped ${w.localFile}: you answered no, so it is left as it is.`]);
+});
+
+test("#17354: the one question counts a worktree copy adopted from the root's record in words true for it", () => {
+  const w = world();
+  gitInit(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const t = linkedWorktree(w, JSON.parse(w.read()));
+  knowFolders(w, t.wt);
+  const preview = resetJson(w);
+  assert.deepEqual(preview.folders.map((f) => [f.recorded, f.adopted]).sort(), [[false, true], [true, false]]);
+  assert.equal(preview.question, "Reset the 2 files above that a profile record covers?");
+});
+
+/**
+ * Each reset row kind on one machine: its files by key, named states a cell's content refers to, the file its own question
+ * is about (or the main file, whose own flag reset refuses), and the files a result line has to name.
+ */
+const KINDS = {
+  restore: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  removeFile: () => {
+    const w = world({ local: null });
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  finishRestore: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    cutOff(w, w.localFile, { written: true });
+    return { w, files: { F: w.localFile }, own: w.localFile };
+  },
+  adopted: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const t = linkedWorktree(w, JSON.parse(w.read()));
+    knowFolders(w, t.wt);
+    return { w, files: { R: rootLocal(w.project), W: t.file }, own: t.file };
+  },
+  noRecord: () => {
+    const w = world();
+    knowFolders(w, w.project);
+    return { w, files: { F: w.localFile }, own: w.localFile, flags: ASK_FLAGS.unrecorded };
+  },
+  missing: () => {
+    const w = world();
+    const gone = join(w.root, "gone", ".claude", "settings.local.json");
+    writeTree(dataRecordsDir(w), { "gone.json": handRecord(gone) });
+    return { w, files: { G: gone }, own: gone };
+  },
+  movedNoNewer: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const old = rootLocal(w.project);
+    const now = join(w.root, "repo-now");
+    renameSync(w.project, now);
+    knowFolders(w, now);
+    return { w, files: { O: old, M: rootLocal(now) }, own: rootLocal(now), flags: ASK_FLAGS.moved };
+  },
+  movedNewer: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const old = rootLocal(w.project);
+    const now = join(w.root, "repo-now");
+    renameSync(w.project, now);
+    knowFolders(w, now);
+    const left = readFileSync(rootLocal(now), "utf8");
+    assert.equal(runIn(w, now, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { O: old, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.moved };
+  },
+  movedTwice: () => {
+    const w = world();
+    gitInit(w);
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    const first = rootLocal(w.project);
+    const between = join(w.root, "repo-between");
+    renameSync(w.project, between);
+    assert.equal(runIn(w, between, ["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const second = rootLocal(between);
+    const now = join(w.root, "repo-now");
+    renameSync(between, now);
+    knowFolders(w, now);
+    const left = readFileSync(rootLocal(now), "utf8");
+    assert.equal(runIn(w, now, ["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    return { w, files: { O: first, S: second, M: rootLocal(now) }, left: { M: left }, own: rootLocal(now), flags: ASK_FLAGS.moved };
+  },
+  cutOffChanged: () => {
+    const w = world();
+    cutOffThenPutBack(w);
+    const n = Object.keys(JSON.parse(readFileSync(dataRecordOf(w, w.localFile), "utf8")).entries).length - 1;
+    return { w, files: { F: w.localFile }, vars: { N: String(n) }, own: w.localFile, flags: ASK_FLAGS.cutOff };
+  },
+  ignored: () => {
+    const w = world();
+    const folder = join(w.root, "project2");
+    writeTree(folder, { ".claude/settings.local.json": LOCAL_BEFORE });
+    const file = join(folder, ".claude", "settings.local.json");
+    const planted = join(w.home, ".claude", "plugin-profiles-state", "records", "folder.json");
+    writeTree(dirname(planted), { "folder.json": handRecord(file) });
+    return { w, files: { U: file }, vars: { P: planted }, own: file };
+  },
+  unchanged: () => {
+    const w = world();
+    assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+    knowFolders(w, w.project);
+    assert.equal(reset(w, ["--yes"]).status, 0);
+    return { w, files: {}, unnamed: { F: w.localFile }, own: w.localFile };
+  },
+};
+const ASK_FLAGS = { unrecorded: ["--remove-unrecorded", "--keep-unrecorded"], cutOff: ["--finish-cut-off", "--keep-cut-off"], moved: ["--put-back-moved", "--keep-moved"] };
+
+/** How a cell answers: at a terminal (y or n to the one question, then to each file's own), by flags, or with nobody there. */
+const MODES = {
+  "t:yy": { terminal: ["y", "y"] },
+  "t:yn": { terminal: ["y", "n"] },
+  "t:ny": { terminal: ["n", "y"] },
+  "t:nn": { terminal: ["n", "n"] },
+  "--yes": { args: () => ["--yes"] },
+  "--yes own-yes": { args: (k) => ["--yes", (k.flags ?? ASK_FLAGS.unrecorded)[0], k.own] },
+  "--yes own-no": { args: (k) => ["--yes", (k.flags ?? ASK_FLAGS.unrecorded)[1], k.own] },
+  nobody: { args: () => [] },
+};
+
+/** Every file of a test machine that is an applied-profile record. */
+const allRecords = (w) => readdirSync(w.root, { recursive: true }).filter((rel) => /(^|[\\/])records[\\/][^\\/]+\.json$/.test(rel));
+const CELL_RESULT = /^(Restored|Removed|Skipped|Finished|Already restored|Ignored) /;
+const fill = (text, vars) => text.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+const RESTORED = "Restored {F} (profile build).";
+const NOTHING = [];
+const ANSWERED_NO = "Skipped {F}: you answered no, so it is left as it is, and its record is kept.";
+const WAITS = WAITS_DONE("{O}");
+
+/**
+ * One row per cell: row kind, way of answering, each file's content after the run (same: as before the run; before: as before
+ * any profile; gone; noEntries: no plugin or skill entries left; left: what the older profiles left), records left on the
+ * machine, the result lines, and the exit status. A cell with exit 1 wrote nothing and prints no result line.
+ */
+const CELLS = [
+  ["restore", "t:yy", "F=before", 0, [RESTORED], 0],
+  ["restore", "t:yn", "F=before", 0, [RESTORED], 0],
+  ["restore", "t:ny", "F=same", 1, NOTHING, 1],
+  ["restore", "t:nn", "F=same", 1, NOTHING, 1],
+  ["restore", "--yes", "F=before", 0, [RESTORED], 0],
+  ["restore", "--yes own-yes", "F=same", 1, NOTHING, 1],
+  ["restore", "--yes own-no", "F=same", 1, NOTHING, 1],
+  ["restore", "nobody", "F=same", 1, NOTHING, 1],
+  ["removeFile", "t:yy", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "t:yn", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "t:ny", "F=same", 1, NOTHING, 1],
+  ["removeFile", "t:nn", "F=same", 1, NOTHING, 1],
+  ["removeFile", "--yes", "F=gone", 0, ["Removed {F}, which the first apply created (profile build)."], 0],
+  ["removeFile", "--yes own-yes", "F=same", 1, NOTHING, 1],
+  ["removeFile", "--yes own-no", "F=same", 1, NOTHING, 1],
+  ["removeFile", "nobody", "F=same", 1, NOTHING, 1],
+  ["finishRestore", "t:yy", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "t:yn", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "t:ny", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "t:nn", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "--yes", "F=before", 0, ["Finished an earlier reset of {F}: its record is removed."], 0],
+  ["finishRestore", "--yes own-yes", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "--yes own-no", "F=before", 1, NOTHING, 1],
+  ["finishRestore", "nobody", "F=before", 1, NOTHING, 1],
+  ["adopted", "t:yy", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "t:yn", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "t:ny", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "t:nn", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "--yes", "R=before W=before", 0, ["Restored {W} (profile build).", "Restored {R} (profile build)."], 0],
+  ["adopted", "--yes own-yes", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "--yes own-no", "R=same W=same", 1, NOTHING, 1],
+  ["adopted", "nobody", "R=same W=same", 1, NOTHING, 1],
+  ["noRecord", "t:yy", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "t:yn", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "t:ny", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "t:nn", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "--yes", "F=same", 0, ["Skipped {F}: no record; reset removes its entries only after a yes for this folder."], 0],
+  ["noRecord", "--yes own-yes", "F=noEntries", 0, ["Removed the 2 plugin and skill entries of {F}, which had no record."], 0],
+  ["noRecord", "--yes own-no", "F=same", 0, ["Skipped {F}: you answered no, so it is left as it is."], 0],
+  ["noRecord", "nobody", "F=same", 0, NOTHING, 1],
+  ["missing", "t:yy", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:yn", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:ny", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "t:nn", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "--yes", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["missing", "--yes own-yes", "G=gone", 1, NOTHING, 1],
+  ["missing", "--yes own-no", "G=gone", 1, NOTHING, 1],
+  ["missing", "nobody", "G=gone", 1, ["Skipped {G}: folder not found; record kept."], 0],
+  ["movedNoNewer", "t:yy", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "t:yn", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "t:ny", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "t:nn", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "--yes", "M=same", 1, ["Skipped {O}: folder not found; record kept."], 0, "M"],
+  ["movedNoNewer", "--yes own-yes", "M=before", 0, ["Restored {M} from the record of {O} (profile build)."], 0],
+  ["movedNoNewer", "--yes own-no", "M=same", 1, ["Skipped {M}: you answered no, so it is left as it is, and the record of {O} (profile build) is kept."], 0],
+  ["movedNoNewer", "nobody", "M=same", 1, NOTHING, 1],
+  ["movedNewer", "t:yy", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "t:yn", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "t:ny", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "t:nn", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "--yes", "M=left", 1, ["Restored {M} (profile review).", WAITS], 3],
+  ["movedNewer", "--yes own-yes", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "--yes own-no", "M=same", 2, NOTHING, 1],
+  ["movedNewer", "nobody", "M=same", 2, NOTHING, 1],
+  ["movedTwice", "t:yy", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "t:yn", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "t:ny", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "t:nn", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "--yes", "M=left", 2, ["Restored {M} (profile build).", WAITS, WAITS.replace("{O}", "{S}")], 3],
+  ["movedTwice", "--yes own-yes", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "--yes own-no", "M=same", 3, NOTHING, 1],
+  ["movedTwice", "nobody", "M=same", 3, NOTHING, 1],
+  ["cutOffChanged", "t:yy", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "t:yn", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "t:ny", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "t:nn", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "--yes", "F=same", 1, ["Skipped {F}: an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept."], 0],
+  ["cutOffChanged", "--yes own-yes", "F=before", 0, ["Restored {F}: put back the {N} entries still at the values profile build wrote, and left the entries changed by hand since as they are."], 0],
+  ["cutOffChanged", "--yes own-no", "F=same", 1, [ANSWERED_NO], 0],
+  ["cutOffChanged", "nobody", "F=same", 1, NOTHING, 1],
+  ["ignored", "t:yy", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:yn", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:ny", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "t:nn", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "--yes", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["ignored", "--yes own-yes", "U=same", 1, NOTHING, 1],
+  ["ignored", "--yes own-no", "U=same", 1, NOTHING, 1],
+  ["ignored", "nobody", "U=same", 1, ["Ignored the record {P}: {U} is not written from it."], 0],
+  ["unchanged", "t:yy", "", 0, NOTHING, 0],
+  ["unchanged", "t:yn", "", 0, NOTHING, 0],
+  ["unchanged", "t:ny", "", 0, NOTHING, 0],
+  ["unchanged", "t:nn", "", 0, NOTHING, 0],
+  ["unchanged", "--yes", "", 0, NOTHING, 0],
+  ["unchanged", "--yes own-yes", "", 0, NOTHING, 1],
+  ["unchanged", "--yes own-no", "", 0, NOTHING, 1],
+  ["unchanged", "nobody", "", 0, NOTHING, 0],
+];
+
+test("#17354: every reset row kind crossed with every way of answering writes, keeps records, names each file once and exits as the table says", async () => {
+  assert.deepEqual([...new Set(CELLS.map(([kind]) => kind))], Object.keys(KINDS), "every kind has its cells");
+  for (const kind of Object.keys(KINDS)) assert.deepEqual(CELLS.filter(([k]) => k === kind).map(([, mode]) => mode), Object.keys(MODES), `${kind} has one cell per way of answering`);
+  for (const [kind, mode, content, records, lines, exit, unnamed] of CELLS) {
+    const cell = `${kind} x ${mode}`;
+    const k = KINDS[kind]();
+    const same = Object.fromEntries(Object.entries({ ...k.files, ...k.unnamed }).map(([key, file]) => [key, existsSync(file) ? readFileSync(file, "utf8") : null]));
+    const shown = new Set(resetJson(k.w).lines);
+    const how = MODES[mode];
+    const r = how.terminal
+      ? await resetAtTerminal(k.w, (prompt) => (FIRST.test(prompt) ? how.terminal[0] : how.terminal[1]))
+      : reset(k.w, how.args(k));
+    const vars = { ...k.files, ...k.vars };
+    assert.equal(r.status, exit, `${cell}: ${r.stdout}\n${r.stderr}`);
+    const got = r.stdout.split("\n").filter((line) => CELL_RESULT.test(line) && !shown.has(line));
+    assert.deepEqual(got.sort(), lines.map((line) => fill(line, vars)).sort(), cell);
+    if (exit !== 1) {
+      for (const [key, file] of Object.entries(k.files)) {
+        if (key === unnamed) continue;
+        assert.equal(got.filter((line) => line.includes(file)).length, 1, `${cell}: one result line names ${file}`);
+      }
+    }
+    for (const spec of content.split(" ").filter(Boolean)) {
+      const [key, state] = spec.split("=");
+      const file = k.files[key];
+      const now = existsSync(file) ? readFileSync(file, "utf8") : null;
+      const want = { same: same[key], before: LOCAL_BEFORE, gone: null, left: k.left?.[key] }[state];
+      if (state === "noEntries") assert.deepEqual(JSON.parse(now), withoutProfileKeys(LOCAL_BEFORE), `${cell}: ${key}`);
+      else assert.equal(now, want, `${cell}: ${key} ${state}`);
+    }
+    for (const [key, file] of Object.entries(k.unnamed ?? {})) assert.equal(readFileSync(file, "utf8"), same[key], `${cell}: ${key} same`);
+    assert.equal(allRecords(k.w).length, records, `${cell}: records ${allRecords(k.w).join(", ")}`);
+  }
+});
+
+test("#17354: at a terminal, an empty answer or any answer but y or yes writes nothing, for every kind of question reset asks", async () => {
+  for (const kind of ["restore", "noRecord", "cutOffChanged", "movedNoNewer"]) {
+    for (const typed of ["", "maybe", "n", "yess"]) {
+      const k = KINDS[kind]();
+      const files = Object.values(k.files);
+      const before = files.map((file) => (existsSync(file) ? readFileSync(file, "utf8") : null));
+      const records = allRecords(k.w).length;
+      const r = await resetAtTerminal(k.w, () => typed);
+      const cell = `${kind} answered ${JSON.stringify(typed)}`;
+      assert.ok(r.prompts.length > 0, `${cell}: asked`);
+      assert.deepEqual(files.map((file) => (existsSync(file) ? readFileSync(file, "utf8") : null)), before, cell);
+      assert.equal(allRecords(k.w).length, records, cell);
+      assert.ok(!resultLines(r.stdout).some((line) => /^(Restored|Removed|Finished) /.test(line)), `${cell}: ${r.stdout}`);
+    }
+  }
+});
+
+/** Sets one entry profile build wrote in file to a value neither the profile nor the file before it held. */
+function editByHand(file) {
+  const doc = JSON.parse(readFileSync(file, "utf8"));
+  doc.enabledPlugins[`implementation@${M}`] = false;
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+}
+
+test("#17354: the reset preview recommends one answer per question with a one-sentence reason from the row's facts, and keeps when those facts do not settle it", () => {
+  const SAFE = (profile, at = "") => ({ answer: "yes", reason: `Each entry profile ${profile} wrote${at && `${at},`} is still at that value or back at its value from before, so a yes changes only what that profile wrote.` });
+  const EDITED = (at = "") => ({ answer: "no", reason: `1 entry (implementation@${M}) changed by hand since profile build was applied${at}, so the file may hold changes you want; a no changes nothing.` });
+  const movedAt = (k) => ` at ${k.files.O}, before the repository moved`;
+  const recommendOf = (k) => resetJson(k.w).folders.find((f) => f.ask).ask.recommend;
+
+  assert.deepEqual(recommendOf(KINDS.noRecord()), { answer: "no", reason: "Reset did not write these entries, so they may be your own." });
+  const one = world();
+  writeFileSync(one.localFile, `${JSON.stringify({ enabledPlugins: { [`p0@${M}`]: true } }, null, 2)}\n`);
+  knowFolders(one, one.project);
+  assert.deepEqual(recommendOf({ w: one }), { answer: "no", reason: "Reset did not write this entry, so it may be your own." });
+
+  assert.deepEqual(recommendOf(KINDS.cutOffChanged()), SAFE("build"), "the entry changed since is back at its value from before, as a reset leaves it");
+  const cut = world();
+  assert.equal(cut.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  cutOff(cut, cut.localFile, { written: false });
+  editByHand(cut.localFile);
+  assert.deepEqual(recommendOf({ w: cut }), EDITED());
+
+  const safe = KINDS.movedNoNewer();
+  assert.deepEqual(recommendOf(safe), SAFE("build", movedAt(safe)));
+  const moved = KINDS.movedNoNewer();
+  editByHand(moved.files.M);
+  assert.deepEqual(recommendOf(moved), EDITED(movedAt(moved)));
+
+  const preview = resetJson(KINDS.restore().w);
+  assert.deepEqual(preview.questionRecommend, {
+    asked: { answer: "yes", reason: "You asked for a reset: a yes puts back the 1 file above as its lines say, and applying a profile again undoes it." },
+    unasked: { answer: "no", reason: "Nobody asked for a reset, so a no keeps every profile as it is." },
+  });
+  assert.equal(resetJson(KINDS.noRecord().w).questionRecommend, null, "no question, no recommendation for it");
 });

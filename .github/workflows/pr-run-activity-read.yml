@@ -29,231 +29,116 @@ on:
   workflow_call:
     inputs:
       lane:
-        description: The lane, its caller workflow's file stem.
         required: true
         type: string
       activity:
-        description: The activity to run from the lane's slots.
         required: true
         type: string
       config-path:
-        description: The config, relative to the base checkout. For test callers only.
         required: false
         type: string
         default: docs/conventions/pr-pipeline.yaml
       pr-number:
-        description: The PR on workflow_dispatch; ignored for other events.
         required: false
         type: string
         default: ""
       issue-number:
-        description: >-
-          Issue mode: the issue an issues lane works, on an issues event only.
-          There is no PR: the trusted base is the default branch tip, the
-          skill's change leaves as a patch, and no check run is posted.
         required: false
         type: string
         default: ""
       app-field-id:
-        description: >-
-          Issue mode: the issue field the lanes App may set to app-field-option
-          to start the lane. Either empty keeps every App event stopped.
         required: false
         type: string
         default: ""
       app-field-option:
-        description: >-
-          Issue mode: the single-select option of app-field-id that starts the lane.
         required: false
         type: string
         default: ""
       issue-dimensions:
-        description: >-
-          Issue mode: the dimensions the caller resolved when it set
-          timeout-minutes (models.issue-dimensions); the run takes them
-          instead of reading the issue's fields again. Empty reads them.
         required: false
         type: string
         default: ""
       role:
-        description: >-
-          The funding role whose secret the caller passes, lower-case kebab;
-          the lane record names the credential from it. Required for a skill.
         required: false
         type: string
         default: ""
       start-gate:
-        description: >-
-          `true` for a caller whose call starts new work (the issue lane):
-          check-broker's kill-switch gate then also stops on a low
-          GITHUB_TOKEN budget, on the first call in the slot only (fallback
-          empty or `credit-stop`); a call that takes over a handed-off turn,
-          and every call of a caller that leaves this `false`, checks the
-          switches only.
         type: boolean
         required: false
         default: false
       fallback:
-        description: >-
-          Empty for the first call, which runs on claude-api-key and hands off
-          on an empty key or the launcher's handoff; `credit-stop`, `no-key`
-          or `handoff` for the second, which runs on claude-code-oauth-token
-          and names why in its lane record. `handoff` says only that the
-          first call handed off as this run's jobs show it, for a caller that
-          reads that rather than the first call's outputs. `fallback` for the
-          third, which runs on fallback-claude-code-oauth-token after the
-          second call handed off. Issue mode takes empty, `handoff`,
-          `credit-stop` or `fallback`; `credit-stop` there is a subscription
-          call the caller's own key-credit gate made the first in the slot, so
-          it re-checks the blockers and records the skipped key leg.
         required: false
         type: string
         default: ""
       key-credit-job:
-        description: >-
-          The first call only: the key job's name for ci-workflows
-          check-key-credit, the activity's own (`fix-ci`, `resolve-issue`), so
-          the activities of one caller file keep separate credit-stop markers.
-          check-broker reads the key's credit history before any model turn,
-          and a credit stop inside vars.KEY_CREDIT_WINDOW_HOURS skips the key:
-          the call hands off at once and the caller's next call runs on the
-          subscription. Empty runs no gate.
         required: false
         type: string
         default: ""
       fallback-ready:
-        description: >-
-          The second call only: `true` when the caller runs a third call on
-          the fallback token, so the subscription leg may hand off to it, as
-          run-claude-cli's fallback-ready. The caller sets it from a job that
-          runs no head code; empty or `false` keeps the second call the last.
         required: false
         type: string
         default: ""
       timeout-minutes:
-        description: The run job's timeout in minutes.
         required: false
         type: number
         default: 30
       rate-limit-wait-seconds:
-        description: >-
-          The scan job's rate-limit wait budget, at most rate-guard.mjs's
-          WAIT_BUDGET_SECONDS.workResolveIssue: a primary
-          GitHub API limit on its leak scan's reads whose reset comes within
-          it is waited out instead of dropping the model's finished output.
-          0 waits for none; the scan job's timeouts grow by 20 minutes when it
-          is set.
         required: false
         type: number
         default: 0
       dispatcher-run-id:
-        description: >-
-          On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml or pr-dispatch-feedback.yml run that sent
-          it; empty otherwise.
         required: false
         type: string
         default: ""
       trusted-base:
-        description: >-
-          pr-base trusts the PR's base SHA; default-tip trusts the default
-          branch tip, for a lane whose PR keeps a stale base.
         required: false
         type: string
         default: pr-base
       head-sha:
-        description: >-
-          The PR head the caller gated in a job that ran no head code
-          (pr-unblock's fix-ci-context, fix-docs-head, address-feedback-select,
-          review-dependency-select or resolve-conflicts-select). The run job fails
-          before the head checkout when the head its trigger gate read is another.
-          The report job posts the check on it or the event's PR head; a run job
-          head-sha that is neither, or any run head when neither is set, posts
-          failure on the trusted head instead.
         required: false
         type: string
         default: ""
       post-decline:
-        description: >-
-          Whether a run that stops before its trigger gate passes posts neutral
-          not-assessed on the caller's head. fix-docs, dispatched once per PR,
-          passes false, so a decline posts nothing and the PR is dispatched again.
         required: false
         type: boolean
         default: true
       ci-context-attempt:
-        description: >-
-          For a prepare: ci-context activity, the run attempt whose
-          ci-context-<attempt> artifact holds the context file a base job of
-          this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       ci-context-sha256:
-        description: >-
-          For a prepare: ci-context activity, that context file's SHA-256.
         required: false
         type: string
         default: ""
       feedback-context-attempt:
-        description: >-
-          For a prepare: review-threads activity, the run attempt whose
-          feedback-context-<attempt> artifact holds the thread file and
-          run.json a base job of this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       feedback-context-sha256:
-        description: >-
-          For a prepare: review-threads activity, that thread file's SHA-256.
         required: false
         type: string
         default: ""
       dependency-context-attempt:
-        description: >-
-          For a prepare: dependency-review activity, the run attempt whose
-          dependency-context-<attempt> artifact holds the context file and
-          context.json a base job of this workflow run wrote; empty otherwise.
         required: false
         type: string
         default: ""
       dependency-context-sha256:
-        description: >-
-          For a prepare: dependency-review activity, that context file's SHA-256.
         required: false
         type: string
         default: ""
       merge-base-sha:
-        description: >-
-          For a prepare: merge-base activity, the default branch commit the
-          caller's base job (pr-unblock's resolve-conflicts-select) pinned and
-          merged into head-sha, which must be on the default branch; empty
-          otherwise.
         required: false
         type: string
         default: ""
       merge-conflict-tree:
-        description: >-
-          For a prepare: merge-base activity, the conflict tree that base job's
-          merge reached: this run merges merge-base-sha again and fails red
-          unless it reaches the same tree, measures the patch from it, and the
-          scan job reads the patch as text only. Empty otherwise.
         required: false
         type: string
         default: ""
       model-rung:
-        description: >-
-          The model rung the activity's profile runs at: empty or 0 its own,
-          1 its escalate-to (fix-ci's one retry one rung up).
         required: false
         type: string
         default: ""
       caller-releases-lease:
-        description: >-
-          Issue mode: `true` when the caller ends the lane lease itself, from
-          the lease-comment-id output, in the write runner call that opens the
-          PR; the report job then releases it only for a call that handed off
-          or set neither scan-issue-run-started nor scan-reuse-branch.
         required: false
         type: boolean
         default: false
@@ -261,193 +146,87 @@ on:
     # second call the OAuth token, its third call the fallback token.
     secrets:
       claude-code-oauth-token:
-        description: Claude Code OAuth token for skill activities.
         required: false
       claude-api-key:
-        description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
       fallback-claude-code-oauth-token:
-        description: >-
-          The central fallback subscription's OAuth token, the org secret
-          FALLBACK_CLAUDE_CODE_OAUTH_TOKEN passed by name, for the third call.
         required: false
       # Read only by the scan job's decode step, under its environment, which
       # supplies the value; a caller passes it by name, never inherit.
       scan-carrier-private-key:
-        description: The scan-carrier private key, SCAN_CARRIER_PRIVATE_KEY, passed by name.
         required: true
     # Patch output mode. The scan job sets the patch and reply outputs from
     # what it scanned, in both modes; the job that applies the patch checks
     # it against patch-sha256.
     outputs:
       head-sha:
-        description: >-
-          The run job's head-sha output: the PR head its trigger gate passed,
-          empty when that head is not the caller's (a supersede). Set
-          before any head code ran, but the run job's runner is hostile and can
-          forge it, so no caller may trust it for a decision; take the head from
-          a job that ran no head code (pr-unblock's fix-ci-context or
-          address-feedback-select) instead.
         value: ${{ jobs.run.outputs.head-sha }}
       patch-state:
-        description: >-
-          `written` (the patch artifact holds the change), `empty` (no change,
-          no artifact), or '' when the run collected no patch.
         value: ${{ jobs.scan.outputs.patch-state }}
       patch-sha256:
-        description: The SHA-256 of patch.diff in the patch artifact, when patch-state is written.
         value: ${{ jobs.scan.outputs.patch-sha256 }}
       patch-attempt:
-        description: >-
-          The run attempt in the artifact name
-          patch-<lane>-<activity>-<attempt>, when patch-state is written.
         value: ${{ jobs.scan.outputs.patch-attempt }}
       reply-attempt:
-        description: >-
-          The run attempt in the artifact name
-          skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
         value: ${{ jobs.scan.outputs.reply-attempt }}
       # The scan job's alone, in both modes: the run job's runner could forge
       # any run job output, so a caller that gates or applies on a patch
       # takes these.
       scan-patch-state:
-        description: patch-state as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-state }}
       scan-patch-sha256:
-        description: patch-sha256 as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-sha256 }}
       scan-patch-attempt:
-        description: patch-attempt as the scan job set it.
         value: ${{ jobs.scan.outputs.patch-attempt }}
       scan-reply-attempt:
-        description: reply-attempt as the scan job set it.
         value: ${{ jobs.scan.outputs.reply-attempt }}
       scan-outcome-uploaded:
-        description: >-
-          Issue mode: `true` when the scan job uploaded work-outcome-<issue>;
-          empty when the scan failed or the run job ended without an outcome.
         value: ${{ jobs.scan.outputs.outcome-uploaded }}
       feedback-attempt:
-        description: >-
-          The run attempt in the artifact name
-          feedback-replies-<lane>-<activity>-<attempt>, when the scan job
-          uploaded the review-thread replies a prepare: review-threads skill
-          recorded. Only the scan job sets it: no run job output names it.
         value: ${{ jobs.scan.outputs.feedback-attempt }}
       feedback-sha256:
-        description: >-
-          The SHA-256 of the review-thread replies the scan job uploaded, from
-          the bytes it uploaded. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.feedback-sha256 }}
       feedback-disputed:
-        description: >-
-          `true` when the review-thread replies the scan job uploaded hold a
-          reply whose disposition is `INCORRECT`, `UNCERTAIN` or `VALID-defer`,
-          or a line that is not JSON, else empty. Only the scan job sets it,
-          from the bytes it uploaded.
         value: ${{ jobs.scan.outputs.feedback-disputed }}
       dependency-attempt:
-        description: >-
-          The run attempt in the artifact name
-          dependency-verdict-<lane>-<activity>-<attempt>, when the scan job
-          uploaded the verdict a prepare: dependency-review skill returned as
-          structured output. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.dependency-attempt }}
       dependency-sha256:
-        description: >-
-          The SHA-256 of the verdict the scan job uploaded, from the bytes it
-          uploaded. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.dependency-sha256 }}
       dependency-verdict:
-        description: >-
-          The uploaded verdict's `verdict` field when it is merge, fix, close or
-          escalate, else empty. Only the scan job sets it; the verdict job
-          validates the whole file.
         value: ${{ jobs.scan.outputs.dependency-verdict }}
       scan-collect-refused:
-        description: >-
-          PR mode: `true` when the run's patch collector refused the change
-          (collect-patch.sh exit 3), so no patch left the run; empty
-          otherwise. Only the scan job sets it, from the run's patch-collected
-          output held to its closed set.
         value: ${{ jobs.scan.outputs.collect-refused }}
       # Issue mode: the run job's fields that pick the issue's lane branch
       # and the commit its patch applies to. The run job sets them before any
       # model turn, but its runner could forge them, so the check-issue-fields job
       # checks each and re-derives any branch claim; a caller reads only these.
       scan-base-sha:
-        description: >-
-          Issue mode: the trusted base commit a new run's patch was made on,
-          as the check-issue-fields job checked it.
         value: ${{ jobs.check-issue-fields.outputs.base-sha }}
       scan-resume-tip:
-        description: >-
-          Issue mode: the earlier run's lane branch tip a resumed run's patch
-          was made on, as the check-issue-fields job re-derived it; empty otherwise.
         value: ${{ jobs.check-issue-fields.outputs.resume-tip }}
       scan-issue-run-started:
-        description: >-
-          Issue mode: `true` once the run passed its gates and chose to run
-          the skill, so its outcome must be reported even when a later step
-          or the scan failed.
         value: ${{ jobs.check-issue-fields.outputs.issue-run-started }}
       scan-reuse-branch:
-        description: >-
-          Issue mode: the lane branch an earlier run left with commits and no
-          report, which this run reused instead of running the model; empty
-          otherwise.
         value: ${{ jobs.check-issue-fields.outputs.reuse-branch }}
       scan-resume-branch:
-        description: >-
-          Issue mode: the earlier run's lane branch this run resumed; empty
-          otherwise.
         value: ${{ jobs.check-issue-fields.outputs.resume-branch }}
       scan-prune-branches:
-        description: >-
-          Issue mode: the space-separated lane branches of the issue's stopped
-          runs, with no pull request, that the earlier-work check named for
-          the caller's prune job to delete; empty otherwise. The prune job
-          re-checks each.
         value: ${{ jobs.check-issue-fields.outputs.prune-branches }}
       # From run-claude-cli and the credential steps, never from model text,
       # but set by the run job, which head code can forge: no caller starts
       # its fallback call on them.
       lane-class:
-        description: >-
-          The launcher's failure class, `credit-stop` when the key leg hit
-          one; empty on success or when no launcher ran.
         value: ${{ jobs.run.outputs.lane-class }}
       credential-present:
-        description: >-
-          `true` or `false`: whether the call's Claude secret was set; empty
-          when no launcher was to run.
         value: ${{ jobs.run.outputs.credential-present }}
       handed-off:
-        description: >-
-          `true` when the first call's key was empty or its key leg handed
-          off (run-claude-cli's handoff: a credit stop, or a 401 or 402), or
-          the second call's subscription leg handed off (with fallback-ready:
-          a limit stop, a credit stop, or a 401 or 402), so it skipped the
-          scan job, uploaded nothing, recorded no lane outcome and posted no
-          check, and the next call runs the activity. Empty, as is every
-          other run job output, when check-broker handed the first call off
-          before its run job (skip-run): that call posts no check either.
         value: ${{ jobs.run.outputs.handed-off }}
       # Set by check-broker, which runs no model, so a caller may act on them.
       skip-reason:
-        description: >-
-          `kill-switch` when the broker refused the check because a lanes kill
-          switch is on, `budget` when check-broker's start gate stopped on a
-          low GITHUB_TOKEN budget, so no lane ran; empty otherwise.
         value: ${{ jobs.check-broker.outputs.skip-reason }}
       lease:
-        description: >-
-          Issue mode: `held` when check-broker posted this call's lane lease,
-          `already-leased` when it backed off; empty otherwise.
         value: ${{ jobs.check-broker.outputs.lease }}
       lease-comment-id:
-        description: >-
-          Issue mode, lease `held`: the lease comment's id, for the caller's release.
         value: ${{ jobs.check-broker.outputs.lease-comment-id }}
 
 permissions: {}
@@ -600,9 +379,10 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: start
+          role: ${{ inputs.role }}
           key-job: ${{ inputs.key-credit-job }}
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -631,7 +411,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -1469,7 +1249,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1760,19 +1540,20 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: key
           role: ${{ inputs.role }}
           credential-set: ${{ secrets.claude-api-key != '' }}
           selected: ${{ needs.check-broker.outputs.skip-key == 'true' && 'subscription' || '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Check the OAuth token
         id: token-present
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: subscription
           role: ${{ inputs.role }}
@@ -1784,7 +1565,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           leg: fallback
           role: ${{ inputs.role }}
@@ -1812,7 +1593,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1877,7 +1658,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1928,7 +1709,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2104,7 +1885,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -3873,7 +3654,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
 
       - name: Isolate the runner
         id: isolate
@@ -3893,7 +3674,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3919,7 +3700,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3945,7 +3726,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3982,7 +3763,7 @@ jobs:
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}

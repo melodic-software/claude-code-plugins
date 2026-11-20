@@ -111,39 +111,28 @@ same() { [[ -n "$1" && "$1" == "$2" ]]; }
 
 plan -- plugins/a/a.sh plugins/b/b.sh
 is "$(suites bash | tr '\n' ' ')" "plugins/a/a.test.sh plugins/b/b.test.sh " &&
-  is "$(key bash_legs)" "[0,1]" && is "$(key python)" false && is "$(key node)" false
-check "two shell changes plan their two siblings on ceil(130/120) = 2 legs" $?
+  is "$(key python)" false && is "$(key node)" false
+check "two shell changes plan their two siblings" $?
 
-is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/b/b.test.sh"]}'
-check "the longest suite goes first, each to the least-loaded leg" $?
+is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh","plugins/b/b.test.sh"]}'
+check "the fewest legs that keep the budget's critical path are the plan" $?
 
 is "$(key windows_jobs)" '["win-a","win-b"]' && is "$(key windows_steps)" '["plugins/a/a.test.sh","plugins/b/b.test.sh"]'
 check "test-windows runs the steps whose suites the change selects, and their jobs" $?
 
 plan -- plugins/a/a.sh plugins/b/b.sh plugins/c/c.sh plugins/d/d.sh plugins/e/e.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.sh
-is "$(key bash_legs)" "[0,1,2,3]" && is "$(suites bash | wc -l | tr -d ' ')" 8 &&
+is "$(key bash_legs)" "[0,1]" && is "$(suites bash | wc -l | tr -d ' ')" 8 &&
   is "$(key bash_plan | jq -r '[.[][]] | length' | tr -d '\r')" 8 &&
   is "$(key bash_plan | jq -r '[.[][]] | unique | length' | tr -d '\r')" 8
-check "400 suite-seconds take 4 legs, and the 8 suites land on them exactly once" $?
+check "400 suite-seconds the budget puts on 4 legs (critical path 100 s) fit 2, each suite once" $?
 
-# A leg weighs its suite-seconds plus two thirds of three times its longest
-# suite: a (100 s) weighs 300 and c (90 s) 270, so they take nothing else; d
-# (60 s, 180) draws b and h, e (50 s, 150) draws f and g.
-grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 100s/3 110s/3' "$ERR"
+grep -q 'bash: 8 suite(s), 400 suite-seconds, 2 leg(s): 190s/4 210s/4' "$ERR"
 check "a leg weighs its suite-seconds plus its longest suite's share of the other workers" $?
 
-# 230 suite-seconds take 2 legs. Weighed by sum alone, a's leg (100) would draw
-# g once d and f bring the other leg level; weighed by its unsplittable 300, it
-# draws nothing (#7016).
 plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.sh
-is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
-check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
+is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh","plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
+check "a short suite rides on the longest suite's leg when that leg still ends with it" $?
 
-# 79 suites of 40 s beside a (100 s): 3260 suite-seconds, capped at 12 legs.
-# Weighed by the larger of its suite-seconds and three times a, a's leg would
-# draw short suites until its other two workers ran 100 s each, as long as a
-# itself: 300s/6, no room for a slow run. Weighed by its suite-seconds plus two
-# thirds of three times a, it stops at 180s/3 and the other legs take the rest.
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 many=()
 for i in $(seq -w 1 79); do
@@ -154,7 +143,7 @@ done
 plan -- plugins/a/a.test.sh "${many[@]}"
 rm -rf "${repo:?}/plugins/n"
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-grep -q 'bash: 80 suite(s), 3260 suite-seconds, 12 leg(s): 180s/3 ' "$ERR"
+grep -q 'bash: 80 suite(s), 3260 suite-seconds, 10 leg(s): 220s/4 ' "$ERR"
 check "the longest suite's leg keeps room: its other workers finish well before it" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
@@ -417,13 +406,13 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 # --- wider than the selection ------------------------------------------------
 
 plan -- .github/workflows/pr-require-checks.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
+is "$(key bash_legs)" "[0,1,2,3,4]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 13 &&
   is "$(key windows_jobs)" "[]"
-check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 12 legs, and test-windows from the selection" $?
+check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole, and test-windows from the selection" $?
 
 plan -- .github/actions/download-full-history/action.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+is "$(key bash_legs)" "[0,1,2,3,4]" && is "$(key windows_jobs)" '["win-a","win-b"]'
 check "the local action every lane runs plans every lane whole" $?
 
 plan -- .github/actions/other/action.yml
@@ -436,8 +425,8 @@ check "a pr-test-platforms.yml change runs every Windows step and no pr-require-
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]"
-check "the whole tree plans the runner's whole corpus on 12 legs" $?
+  is "$(key bash_legs)" "[0,1,2,3,4]"
+check "the whole tree plans the runner's whole corpus on the fewest of its 12 legs that keep a's 100 s" $?
 
 # --- a diff base ---------------------------------------------------------------
 

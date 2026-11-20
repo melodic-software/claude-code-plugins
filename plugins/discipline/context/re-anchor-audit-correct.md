@@ -105,6 +105,36 @@ Fired before any work exists, do only step 1: acknowledge the discipline
 as active for the session and stop. There is nothing to audit. Do not
 manufacture findings.
 
+## Several repositories
+
+A corrector whose `SKILL.md` says it accepts the target forms runs over
+several repositories only when its arguments or the request name a target
+form (`--repo <repo>` and the others in
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../reference/target-scope.md)
+"Target forms"). With no target form, the loop above runs unchanged on the
+work in flight. That contract owns repository resolution, fan-out, merging,
+the cross-repository signals and per-repository writes; this section adds
+only the loop's delta:
+
+- **Step 2's input.** Another repository has no work in flight in this
+  conversation, so each repository's pass audits what the `SKILL.md` names
+  for it, read as the contract's "Read state" says. The target form is that
+  input, so the conversation-start case above does not apply. Each pass
+  resolves the discipline's source of truth from that repository's own
+  instruction layer (the ladder below, run per repository) and its
+  verification level from that repository, running `read-verification.sh`
+  as `CLAUDE_PROJECT_DIR=<root> bash ...`, since it otherwise reads the
+  session's own project.
+- **The per-repository subagents.** Each is a fresh subagent, not a fork.
+  When it cannot spawn agents of its own, run the subagent the loop or the
+  `SKILL.md` calls for from the main thread, with that repository's root
+  anchored.
+- **Step 3's writes.** A correction in another repository follows the
+  contract's "Writes stay per repository", and each pull request is an
+  outward artifact: draft it and open none without the user's explicit
+  opt-in.
+- **Step 4's report.** Per the contract's "Merging findings".
+
 ## Resolving the discipline's source of truth (portability)
 
 A corrector re-anchors a discipline the *consuming* project owns, so it

@@ -199,12 +199,13 @@ path stays inside `<work-root>/digests/` before writing.
   `<work-root>/scratch/<role>-<unit-or-round>/`, never the session scratchpad, which every
   subagent in the session shares and sibling runs overwrite each other's files in. Every brief
   names its own directory.
-- **Exact bytes:** the Edit and Write tools take their text through a JSON parameter, and a past
-  run found every agent edit writing a source's literal `\uXXXX` escape as the decoded
-  character, so do not use them for those bytes. Write those bytes with a script file run as
-  `python3 <script>.py` (the script spells the backslash as `\x5c`, never as a literal escape),
-  then confirm the bytes with `od -c`. A write made that way skips the content guards that run
-  on Edit and Write, so keep the route for these bytes only.
+- **Exact bytes:** write a source's literal `\uXXXX` escape with a script file run as
+  `python3 <script>.py`, never with Edit or Write (the script spells the backslash as `\x5c`,
+  never as a literal escape), then confirm the bytes with `od -c`. We rule out Edit and Write
+  because agent edits through them have been seen writing such an escape as its decoded character;
+  verifiers diff quotes character-for-character, so that write fails the diff. A
+  write made that way skips the content guards that run on Edit and Write, so keep the route for
+  these bytes only.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a fence payload is an exact contiguous
   substring of the source, so it carries no ellipsis and no join marker, and no escaping may alter
   characters. Record a truncation, or a join of source lines, outside the fence, in prose after the

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Mechanism:** `/session-flow:handoff`, then `/clear` and paste the resume prompt.",
+      "why": "named"
+    },
+    {
+      "answer": "Not /compact: Phase 3 is a new phase.\nNext step: /session-flow:handoff report-currency",
+      "why": "named with a topic"
+    },
+    {
+      "answer": "Rather than /compact, run /session-flow:handoff.",
+      "why": "one line: the negation is not on the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mechanism: `/compact keep Phase 3`.",
+      "why": "wrong mechanism"
+    },
+    {
+      "answer": "No need to run /session-flow:handoff; compact instead.",
+      "why": "negated"
+    },
+    {
+      "answer": "Next step: /session-flow:handoff-check",
+      "why": "a different name sharing the prefix"
+    },
+    {
+      "answer": "Instead of a /session-flow:handoff, write a plan first.",
+      "why": "negated with a filler word"
+    },
+    {
+      "answer": "No need for /session-flow:handoff here.",
+      "why": "negated with a preposition"
+    }
+  ]
+}

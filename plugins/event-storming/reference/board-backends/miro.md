@@ -51,9 +51,8 @@ available marketplace first, then enabled** (enabling alone does not install it)
    Never write the token into `settings.json` by hand. Get a token from
    https://miro.com/app/settings/user-profile/apps. Grant only the scopes that cover the board,
    item, connector and tag endpoints the bundled server's tools call, and nothing broader: any
-   extra scope only widens what a leaked token exposes. Take the scope names from the OAuth guide
-   that [Authorization Info](https://developers.miro.com/docs/rest-api-reference-guide#authorization-info)
-   links.
+   extra scope only widens what a leaked token exposes. Take the scope names from
+   [Permission scopes](https://developers.miro.com/reference/scopes).
    - **Pointer**: when a user asks how the token is collected or stored, fetch
      [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
      (the `sensitive` option) live.
@@ -127,7 +126,7 @@ gives each of them one EventStorming role. Correlate that list with Miro's own
 
 *\*Partial = color matches but size cannot be controlled via MCP, because the bundled server's sticky tools take no size. Shape (`rectangle` vs `square`) is the workaround for size differentiation.*
 
-**Shape strategy:** Use `rectangle` for "large" building blocks (Read Model, External System) and markers (Pivotal Event, Temporal Milestone). Use `square` for everything else. This provides the visual size signal that distinguishes actors (small square) from read models (large rectangle) even though both can't be resized via MCP.
+**Shape strategy:** Use `rectangle` for "large" building blocks (Read Model, External System) and markers (Pivotal Event, Temporal Milestone). Use `square` for everything else. That shows a size difference between actors (small square) and read models (large rectangle), though neither can be resized via MCP.
 
 **Limitations:**
 
@@ -345,7 +344,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 - **Frame z-order**: frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely. Rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
 - **Practical recommendation**: use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
 - **Deleting frames with children**: if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames
-- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. For the REST sharing payload behind both, fetch [Boards](https://developers.miro.com/docs/rest-api-reference-guide#boards) live
+- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. For the REST sharing payload behind both, fetch [Create board](https://developers.miro.com/reference/create-board-1) live
 
 ---
 

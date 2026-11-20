@@ -57,7 +57,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
-  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
+  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" "RATE_WAIT_SECONDS: '720'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
   'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
   'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
@@ -72,6 +72,46 @@ if [[ "$job" == *$'    permissions:\n      contents: read # '*$'\n      actions:
   ok "the job holds contents: read, actions: write and pull-requests: read only"
 else
   fail "the job's permissions changed"
+fi
+admit_if="$(awk '/^    if: >-$/ { on = 1; next } on && /^    [a-z]/ { exit } on { sub(/^ +/, ""); printf "%s ", $0 }' <<<"$job")"
+if [[ -z "$admit_if" ]] || grep -qvE '^([[:space:]]|github\.[a-z_.]+|==|!=|&&|\|\||[()]|'"'"'[^'"'"']*'"'"')*$' <<<"$admit_if"; then
+  fail "the job's if: is missing or uses more than contexts, ==, !=, && and ||: '$admit_if'"
+else
+  admits() {
+    local got
+    got="$(ADMIT_IF="$admit_if" RUN="$3" REF="${4:-refs/heads/main}" node -e '
+      const run = JSON.parse(process.env.RUN);
+      const github = { ref: process.env.REF, repository: "o/r", event: { workflow_run: run } };
+      process.stdout.write(new Function("github", "return (" + process.env.ADMIT_IF + ")")(github) ? "1" : "0");')"
+    if [[ "$got" == "$1" ]]; then ok "if: $2"; else fail "if: $2 (got $got, want $1)"; fi
+  }
+  review_run() {
+    jq -cn --arg path ".github/workflows/$1" --arg c "${2:-success}" --argjson n "${3:-1}" --arg by "${4:-kyle}" --arg hr "${5:-o/r}" \
+      --arg ev "${6:-pull_request}" --arg r "${7:-o/r}" \
+      '{path: $path, event: $ev, conclusion: $c, run_attempt: $n, triggering_actor: {login: $by},
+        repository: {full_name: $r}, head_repository: {full_name: $hr}}'
+  }
+  admits 1 "a code-lane review completion, or one the kill switch stopped (completes as success), is admitted" \
+    "$(review_run pr-review-hosted.yml)"
+  admits 1 "a security-lane review completion is admitted" "$(review_run pr-review-security-hosted.yml)"
+  admits 1 "an approval review completion (pull_request_review) is admitted" \
+    "$(review_run pr-review-approved.yml success 1 kyle o/r pull_request_review)"
+  admits 0 "an approval review on pull_request is not admitted" "$(review_run pr-review-approved.yml)"
+  admits 0 "a hosted review on pull_request_review is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r pull_request_review)"
+  admits 0 "a hosted review on any other event is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r workflow_dispatch)"
+  admits 0 "a run on a non-main ref is not admitted" "$(review_run pr-review-hosted.yml)" refs/heads/feature
+  admits 0 "a run from another repository is not admitted" \
+    "$(review_run pr-review-hosted.yml success 1 kyle o/r pull_request other/r)"
+  admits 1 "a failed review completion is admitted" "$(review_run pr-review-security-hosted.yml failure)"
+  admits 1 "the reconciler's re-run of a review (attempt 2, pull_request) is admitted" \
+    "$(review_run pr-review-hosted.yml success 2 'github-actions[bot]')"
+  admits 1 "the reconciler's re-run of a security review is admitted" \
+    "$(review_run pr-review-security-hosted.yml success 2 'github-actions[bot]')"
+  admits 0 "a skipped review (a draft) is not admitted" "$(review_run pr-review-hosted.yml skipped)"
+  admits 0 "a review on a fork head is not admitted" "$(review_run pr-review-hosted.yml success 1 kyle fork/r)"
+  admits 0 "a pr-verify completion is not admitted" "$(review_run pr-verify.yml)"
 fi
 # The kill switch is read as post-verify-notes reads it, before the find step,
 # and a failed read leaves the job running with no proceed output.
@@ -291,7 +331,7 @@ expect() {
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
     REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
-    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=720 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -599,7 +639,10 @@ echo 1 >"$STUB_LIMIT_FILE"
 STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
 check_reran 1 "the read after retry-after goes on to the re-run"
 echo 1 >"$STUB_LIMIT_FILE"
-STUB_RESET=1700 expect "a reset past the cap fails, naming the reset" 1 "::error::the token's rate limit blocks reading the pull_request runs on $HEAD until"
+STUB_RESET=1700 expect "a reset past the poll's cap but inside the rate wait waits, then re-runs" 0 "waiting 701s for the reset."
+check_reran 1 "the read after a 701 s wait goes on to the re-run"
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_RESET=1800 expect "a reset past the cap fails, naming the reset" 1 "::error::the token's rate limit blocks reading the pull_request runs on $HEAD until"
 check_reran 0 "nothing is re-run when the reset is past the cap"
 if grep -q '^sleep' "$TMP_ROOT/log"; then fail "it waited for a reset past the cap"; else ok "a reset past the cap is not waited for"; fi
 echo 1 >"$STUB_LIMIT_FILE"
@@ -614,7 +657,7 @@ STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 expect "a rate-limited per-file read aft
 check_reran 1 "the per-file read after the reset goes on to the re-run"
 if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 && "$(listings head) $(listings file)" == "1 3" ]]; then ok "the refused per-file read is sent again after one wait"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
 echo 1 >"$STUB_LIMIT_FILE"
-STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 STUB_RESET=1700 expect "a rate-limited per-file read with its reset past the cap fails" 1 \
+STUB_HEAD_CUT=1 STUB_LIMIT_FILE_ROUTE=1 STUB_RESET=1800 expect "a rate-limited per-file read with its reset past the cap fails" 1 \
   "::error::the token's rate limit blocks reading the pr-review-security-hosted.yml runs on $HEAD until"
 check_reran 0 "nothing is re-run when a per-file read's reset is past the cap"
 unset STUB_LIMIT_FILE STUB_RESET

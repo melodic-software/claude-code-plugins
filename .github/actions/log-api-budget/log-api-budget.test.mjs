@@ -1342,7 +1342,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "intake-label-outside-actor-activity.yml": { "label-outside-actor": "github-token" },
     "pr-dispatch-feedback.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
-    "pr-refine.yml": { "fix-docs-head": "github-token" },
+    "pr-refine.yml": { "select-passes": "github-token" },
     "post-merge-file-demotion-issues.yml": { "file-demotion-issue": "github-token", "report-red-main": "github-token" },
     // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
     "pr-unblock.yml": Object.fromEntries(
@@ -1387,8 +1387,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       const gate = file === "pr-run-activity-read.yml" && job === "check-issue-fields" ? " && steps\\.base\\.outcome == 'success'" : "";
       assert.match(last, new RegExp(`^Log the API budget[^\\n]*\\n {8}if: always\\(\\)${gate}\\n`), `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-      const outside = file === "pr-verify.yml" ? "\\n {10}outside: \\$\\{\\{ steps\\.download-capture\\.outcome != 'skipped' && 'download-capture:actions/runs/artifacts' \\|\\| '' \\}\\}" : "";
-      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}${outside}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
+      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
     }
   }
 });

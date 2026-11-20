@@ -398,7 +398,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
       assert.equal(r.status, 0, r.stdout + r.stderr);
     }
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/pr-require-checks.yml/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
     assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-by-reset=9999999999:2 core-unread=0\n");
   } finally {
@@ -614,7 +614,7 @@ test("the eval-release wake runs on what the merge job released, whatever its re
 test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run", () => {
   assert.match(merge, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}pr:\n(?: {8}.*\n)*? {8}type: string\n {8}required: false\n/);
   assert.match(merge, /\n {4}- cron: "11,41 \* \* \* \*"\n/);
-  assert.match(merge, /\nrun-name: "\$\{\{ inputs\.pr && format\('pr-merge: arm #\{0\}', inputs\.pr\) \|\| '' \}\}"\n/);
+  assert.match(merge, /\nrun-name: "\$\{\{ inputs\.pr && format\('PR Merge: arm #\{0\}', inputs\.pr\) \|\| '' \}\}"\n/);
   const arm = job("enable-auto-merge");
   assert.match(arm, /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \|\| inputs\.pr \}\}\n/);
   assert.equal((arm.match(/\n {10}DISPATCH_PR: \$\{\{ inputs\.pr \}\}\n/g) ?? []).length, 2);
@@ -1091,6 +1091,19 @@ test("a PR-scoped run the kill switch stopped reports the kill switch", () => {
     "::notice title=pr-merge-wake::pr=7 github-token=0 lanes-app=0 report=none outcome=skipped: the lanes kill switch stopped it",
   );
   assert.match(wakeOutcome({ KILL: "true", WHO: "false" }), /report=none outcome=skipped: the who step stopped it$/);
+});
+
+test("a PR-scoped run the defer gate stopped reports the deferral, its cause and the reset", () => {
+  assert.equal(
+    wakeOutcome({ KILL: "false", KILL_CAUSE: "defer", KILL_RESET: "1794962568" }),
+    "::notice title=pr-merge-wake::pr=7 github-token=0 lanes-app=0 report=none outcome=deferred (cause defer): the GITHUB_TOKEN window is projected to run short before its reset at 1794962568 (epoch seconds); the next sweep, which never defers, arms what this run would",
+  );
+  assert.match(wakeOutcome({ KILL: "false", KILL_CAUSE: "switch" }), /outcome=skipped: the lanes kill switch stopped it$/);
+  const gate = /- name: Check the kill switch\n {8}id: kill\n([\s\S]*?)(?=\n\n)/.exec(job("enable-auto-merge"))[1];
+  assert.match(gate, /\n {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}\n/, "only a PR-scoped run defers; the sweep keeps switches only");
+  assert.match(gate, /\n {10}resolved-config: \$\{\{ runner\.temp \}\}\/defer-config\.json/);
+  assert.match(gate, /\n {10}defer-job: pr-merge\n/, "the horizon is the config's defer-run-minutes-pr-merge");
+  assert.doesNotMatch(gate, /defer-minutes:/);
 });
 
 test("a PR-scoped run's outcome names the fresh check's refusal and which report it read", () => {

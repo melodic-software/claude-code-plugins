@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Phase boundary: run /session-flow:handoff, then /clear and paste the prompt.",
+      "why": "handoff then clear"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Same goal, so /compact and keep going into Phase 3.",
+      "why": "compact"
+    },
+    {
+      "answer": "Just /clear; PLAN.md holds everything.",
+      "why": "plain clear"
+    }
+  ]
+}

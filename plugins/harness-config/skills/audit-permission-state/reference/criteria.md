@@ -233,10 +233,10 @@ run of `inert` records.
 ## The auto-mode entry diff
 
 The diff reports these allow rules as dropped on entering auto mode and restored on leaving it:
-blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(python*)`, rules
+blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(<interpreter>*)`, rules
 letting a package manager run project scripts, any `Agent` allow rule, and any `Monitor` allow
 rule (from v2.1.236; before that version a `Monitor` allow rule stayed in effect in auto mode). A
-narrow rule such as `Bash(npm test)` carries over.
+narrow rule such as `Bash(git status)` carries over.
 
 - **Pointer**: [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
 - **As of**: 2026-08-26
@@ -274,7 +274,7 @@ to share, so the diff driver tests them on the tool token instead.
 - **Only allow rules are in scope.** Deny and ask are evaluated before the classifier in every mode.
 - **`autoMode.classifyAllShell` inverts the carry-over answer.** When true, the diff treats every
   Bash and PowerShell allow rule as suspended while auto mode is active, so a narrow
-  `Bash(npm test)` does **not** carry over. A diff that cannot see this key can be exactly wrong,
+  `Bash(git status)` does **not** carry over. A diff that cannot see this key can be exactly wrong,
   which is why the reader inventories it as a `conf` record. Pointer: when deciding what the key
   does and from which version, fetch
   [auto mode config: route all shell commands through the classifier](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
@@ -318,7 +318,7 @@ to share, so the diff driver tests them on the tool token instead.
 
   The narration `Ignoring dangerous permission <rule> from <path> (bypasses classifier)` delimits
   **neither field**, and both sides may legitimately contain the separator: a rule
-  (`Bash(python3 import from x *)`) and a directory (`notes from work`). No fixed choice of first-
+  (`Bash(<interpreter> <arg> from <arg> *)`) and a directory (`notes from work`). No fixed choice of first-
   or last-separator is right for both, so the split is resolved by which candidate leaves a
   well-formed tool token on the left. A line that resolves to zero candidates or several is
   **announced as unresolvable**, never silently split, because a wrong rule name in a divergence
@@ -342,7 +342,7 @@ fixed all three.
 | `C5-disableType` | Fires on `permissions.disableBypassPermissionsMode` or `permissions.disableAutoMode` set to anything other than the **string** `"disable"`, which is the only value we treat as a lock. Checked at both documented key paths, in every scope; it is not managed-only. Pointer: [`permissions.disableBypassPermissionsMode`](https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode) and [`disableAutoMode`](https://code.claude.com/docs/en/settings-reference#disableautomode) |
 | `C6-winPath` | Fires on a path rule whose path has a Windows drive-letter or UNC shape, since we treat Windows paths as normalized to POSIX form (`/c/...`) before matching, so the Windows spelling never matches. Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). Tested on the **shape**, a drive-letter or UNC prefix, never on the backslash character. Tested on the shape because a character test fails in both directions: the doubled JSON-source spelling is decoded away by `jq -r`, so a test on it is dead in the real pipeline, and a bare backslash is ordinary in shell rules (a regex, an escape, `\n`), so a test on it turns every rule into a severity-`error` finding and drowns the single true one. A UNC path gets its own message: the drive-letter remedy is wrong advice for it |
 | `C6-contentField` | Fires on a `Tool(param:value)` rule naming the tool's primary content field. The fields the lint checks, by tool: Bash and PowerShell `command`; Read, Edit, Write `file_path`; Grep, Glob `path`; NotebookEdit `notebook_path`; WebFetch `url`. We treat such a rule as ignored with a startup warning. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter) |
-| `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
+| `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(git:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | Fires on a path rule whose tool is `Write`, `NotebookEdit`, `Glob`, or the retired `MultiEdit`, since we treat file access as decided by `Read(path)` and `Edit(path)` rules alone; such a rule is accepted, never consulted, and warned about at startup (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception). Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). **As of** 2026-10-13. **Recheck when** that section stops naming `MultiEdit` or changes which tools path rules cover |
 | `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Ambiguous form:** in a deny or ask rule a mid-pattern `:*` with no space after it, as in `Bash(git:*push)`, does not fire this error; unless its tool and prefix are a known parameter, it is reported as the warning `C6-colonStarAmbiguous`, asking the author to say which they meant. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
 | `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. |
@@ -364,7 +364,7 @@ does nothing, so the operator believes auto mode is locked out and it is not.
 
 - A **bare tool-name rule** (`deny: ["Write"]`) matches at the tool level everywhere; `C6-uncoveredPath`
   fires only on a *path* rule.
-- `:*` **at the end** (`Bash(npm:*)`) is the working form; only mid-pattern use matches something other than what it looks like.
+- `:*` **at the end** (`Bash(git:*)`) is the working form; only mid-pattern use matches something other than what it looks like.
 - A parameter rule on a **non**-content field (`WebFetch(domain:example.com)`) is the working form.
 - A POSIX-form absolute path (`//c/**/.env`) is the documented Windows spelling and must not trip
   `C6-winPath`.
@@ -433,15 +433,13 @@ Any finding that rests on an `ask` rule prompting under auto mode carries this c
 words: we treat a content-scoped ask rule as checked ahead of the classifier, so an action it
 matches always reaches a human prompt in auto mode and never gets a classifier approval.
 
-That mechanic is documented on the auto mode config page, not the permissions page. The permissions
-page covers the related case of an ask rule matching one subcommand of a compound command or a
-subshell, including the version that fixed it; read it there. It is not a claim that every ask-rule
-miss is fixed.
+For the mechanic, read the auto mode config section the pointer names; for an ask rule matching one
+subcommand of a compound command, read the permissions section. The caveat is not a claim that every
+ask-rule miss is covered.
 
-Upstream issue **#42797**, about auto mode ignoring `permissions.ask`, is closed. **#83766** remains
-open and still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This
-plugin follows the auto-mode config page, the source with a stated contract. A reader acting on an
-`ask` finding should know #83766 is still open.
+Where an upstream issue reports `permissions.ask` patterns auto-approved under auto mode (issues
+**#42797** and **#83766**), this plugin follows the auto-mode config page, the source with a stated
+contract. A reader acting on an `ask` finding checks both issues' current state.
 
 **What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
 surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use

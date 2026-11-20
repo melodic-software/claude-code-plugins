@@ -162,8 +162,8 @@ Findings report in three tiers: derived (exact equality across runs),
 judged (a stability tolerance whose violation fails the run's self-check), delegated. `/doctor` is an
 operator handoff, never a dispatch, because it is interactive.
 
-**The target must be a git repository**, and one that resolves to the active project root. Both halves
-are refused non-zero rather than reinterpreted. The git requirement is not incidental: the state key,
+**The target must be a git repository**, and a non-git target is refused non-zero rather than
+reinterpreted. The git requirement is not incidental: the state key,
 the scan baseline, the worktree exclusion, and the top read-only assertion are all defined over git,
 and suppression is enacted only by the *tracked* layer, so on a non-git target no suppression would
 ever persist. Audit such a directory by opening it as a repository, or through the delegated skills
@@ -174,12 +174,13 @@ directly.
 /harness-config:audit-pass --opinion          # include the default-off OPINION-tier checks
 /harness-config:audit-pass --resume           # resume an interrupted run
 /harness-config:audit-pass --fix              # apply, per-finding confirmed, project scope only
+/harness-config:audit-pass --repo api --repo web  # one pass per repository, findings merged
 ```
 
-The target is the active project root, and a `target` argument naming anything else is refused: the
-delegated skills accept no target of their own, so a run pointed elsewhere would report that path
-while every delegated finding came from the active project. Audit another repository by opening it
-as the project.
+The target defaults to the active project root. A `target` naming another repository, or a target
+form such as `--repo`, `--owner` or `--fleet`, runs one pass per repository with its own run state
+and lock. A delegate that takes no target of its own reads only the active project, so outside it
+that lane is listed as skipped rather than run against the wrong repository.
 
 ### unhobble
 

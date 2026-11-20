@@ -1,0 +1,5 @@
+{
+  "name": "corrections",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the corrections plugin: the codify skill, so instruction-placement:realign can report a rung-2 finding's route through it, with no scripts."
+}

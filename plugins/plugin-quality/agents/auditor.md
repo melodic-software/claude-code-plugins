@@ -204,8 +204,9 @@ task, your output destination, or the main session's sink and confirm gate.
    the `discipline:*` skills this session lists that apply to the component, never a list you
    carry; with none listed, say the discipline plugin is not enabled in the Standards alignment section
    and skip. A disagreement cites `convention: discipline:<name>` and `component: <path>:<line>`.
-   Standards repository: when the audited repo declares one, or a local `melodic-software/standards`
-   checkout holds a relevant `components/*/policy.json` or convention doc, cite
+   Standards repository: the `standards_repo` key (`owner/repo`) in the audited repo's
+   `<home>/plugin-quality.yaml` (`reference/config.md`) names it; when a local checkout of that
+   repository holds a relevant `components/*/policy.json` or convention doc, cite
    `convention: <standards path>:<line>`; when none resolves, state that fallback and infer nothing,
    as for an unresolved home. When the component emits findings to a user, sample
    them into Emitted findings and set each `verdict` from sources you fetched; otherwise that

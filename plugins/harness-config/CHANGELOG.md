@@ -5,6 +5,34 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.4.2] - 2026-11-20
+
+### Changed
+
+- Audit criteria and skill bodies no longer restate Claude Code or platform behavior beside their pointers. Where a check acts on that behavior, the text now states the check's own rule and its reason, and the pointer carries what the page says. This covers the instruction, conflict, permission-grant, permission-state, prompting-posture and settings audits, the shared `${…}` spoke-path notes, the SARIF fingerprint note in `audit-pass`, and the WSL setup profile's deny-rule limits.
+- Pointer records that store no upstream number or string no longer carry a recheck trigger, in `audit-automation-gaps`, `audit-instructions`, `audit-prompting-postures` and the audit's required-permissions reference. Triggers on our own decisions, and stored values with their dates, stay.
+
+## [5.4.1] - 2026-11-20
+
+### Changed
+
+- `audit-automation-gaps` no longer names one ecosystem's build files or file extensions when it
+  inventories enforcement and codebase shape. It reads the repository's own build configuration
+  and counts files per extension over `git ls-files`.
+- `audit-automation-gaps` drops the recorded `git log --grep` counts from this marketplace. The
+  rule stays the same: a keyword count is a ceiling, never a frequency.
+- `audit`, `audit-permission-grants`, `audit-permission-state` and `setup` reference pages show
+  permission-rule syntax with `git` commands and placeholders, not package-manager or interpreter
+  commands from one ecosystem.
+
+## [5.4.0] - 2026-11-20
+
+### Added
+
+- `/harness-config:audit-pass` accepts the target-scope contract's forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`) and runs the whole pass once per repository, with run state, the lease and the `--fix` lock under that clone's own state key. A `target` naming another repository now runs as its `--repo` form instead of being refused. `/harness-config:audit-instructions` and `/harness-memory:audit` are given each repository; a delegate that takes no target runs only in the active project's pass and is listed as skipped elsewhere, so no finding is attributed to the wrong repository. `--fix` works one repository at a time, and in any repository other than the active project it edits one worktree and opens one pull request. With no target form the pass runs on this project, as before.
+- `/harness-config:audit-instructions` accepts the same forms beside its surface scope and runs Phases A to D once per repository, with each repository's run state and `last-audit.md` under its own state key. `--persist-findings` writes only the session's own repository's file. With no target form the audit runs on this project, as before.
+- The plugin ships `reference/target-scope.md`, a generated copy of the target-scope contract.
+
 ## [5.3.1] - 2026-11-19
 
 ### Fixed

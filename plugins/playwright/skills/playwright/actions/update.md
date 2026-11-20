@@ -42,14 +42,14 @@ For each changed upstream file, locate the corresponding distilled file:
 | `references/test-generation.md` | `reference/test-generation.md` |
 | `references/playwright-tests.md` | referenced from `reference/test-generation.md` |
 
-The distilled files are **not verbatim copies**. Apply what genuinely changed (new commands, new flags, removed/renamed APIs). Leave the editorial structure intact: shorter sections, the Windows and orchestrator overlays. `reference/windows-quirks.md` and `reference/e2e-orchestrator-recipe.md` are original material with no upstream counterpart.
+The distilled files are **not verbatim copies**. Apply what genuinely changed (new commands, new flags, removed/renamed APIs). Leave the editorial structure intact: shorter sections and the Windows overlay, `reference/windows-quirks.md`, which is original material with no upstream counterpart.
 
 For a large or breaking diff (new files, removed sections), read the upstream GitHub releases between the previous `upstream-version` and the new one for breaking-change notes before integrating.
 
 ## Finishing steps
 
-1. Optionally upgrade the local CLI to match: `npm install -g @playwright/cli@latest` (the script never mutates global npm state).
-2. Add the repo's release record for the plugin so consumers receive the update: a `version` bump in `.claude-plugin/plugin.json` plus CHANGELOG entry, or a changelog fragment where the repo uses them (see the repo's AGENTS.md).
+1. A person may upgrade their local CLI to match: `npm install -g @playwright/cli@latest`. The script never mutates global npm state, and the upstream-drift issue lane never runs this step.
+2. Add a changelog fragment so consumers receive the update: `scripts/new-changelog-fragment.sh playwright patch`. The plugin is in fragment mode, so its `version` in `.claude-plugin/plugin.json` and its `CHANGELOG.md` stay as they are.
 3. Commit: `chore(playwright): sync to upstream v<new-version>`. Note integrated reference changes and any breaking changes in the body.
 
 ## Safety invariants
@@ -58,7 +58,7 @@ For a large or breaking diff (new files, removed sections), read the upstream Gi
 |---|---|
 | Never edit `vendor/` during integration | The baseline is only ever replaced wholesale by `--apply` |
 | Never commit a partial sync | Whole flow is one PR; `--check` default forces review before `--apply` |
-| Never auto-upgrade | The script requires `--apply`; nothing runs on a schedule |
+| Upgrade only through a reviewed pull request | The marketplace's daily drift workflow runs `--check` and files an `Upstream drift: playwright/playwright` issue when upstream moves; the issue lane then runs `--apply` and this integration, and the change merges through the pull request's review. The script itself changes nothing without `--apply` |
 | Never lose editorial additions | `reference/*.md` is never touched by the script, only by reviewed manual integration |
 | Never mutate global state | The script writes only inside the plugin directory and a temp dir |
 

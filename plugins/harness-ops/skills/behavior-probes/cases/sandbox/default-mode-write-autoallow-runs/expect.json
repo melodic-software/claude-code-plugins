@@ -1,0 +1,15 @@
+{
+  "claim": "Control: on Linux with sandbox.enabled and sandbox.autoAllowBashIfSandboxed true, a sandboxed Bash write runs in default mode under claude -p with no prompt.",
+  "tags": ["sandbox", "autoAllowBashIfSandboxed"],
+  "docs": ["https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed"],
+  "permission_mode": "default",
+  "platforms": ["linux"],
+  "requires": ["bwrap", "socat"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "sbx-probe",
+    "example": { "command": "touch sbx-probe.txt && echo sandbox-write-ok" }
+  },
+  "outcome": "ran",
+  "match": "sandbox-write-ok"
+}
