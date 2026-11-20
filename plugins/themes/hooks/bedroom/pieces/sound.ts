@@ -11,7 +11,7 @@ import { flush } from '../core/telemetry.js'
 /**
  * Sound: the television's click, cicadas at dusk and night in dry weather, rain, a downpour, a storm, and thunder after a
  * scheduled strike, off by default; /bedroom sound. Nothing here calls the engine while sound is off. The loops and the
- * thunder are cut from recordings (sounds/bedroom/SOURCES.md), two to choose from for each kind; the television's are
+ * thunder are cut from recordings (sounds/bedroom/sources.md), two to choose from for each kind; the television's are
  * made by code. Each file is listed with its length in ms.
  */
 export const LENGTH_MS = {

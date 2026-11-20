@@ -71,7 +71,7 @@ bottom-left corner of the front of the dresser.
     plays nothing); the card steps it by ten.
   - Each loop and the thunder come from public-domain or CC0 recordings, two of each to choose
     between by ear: `/bedroom sound pick cicadas 2` (or `rain`, `downpour`, `storm`, `thunder`;
-    `1` is the default). `sounds/bedroom/SOURCES.md` lists each recording, its page and its
+    `1` is the default). `sounds/bedroom/sources.md` lists each recording, its page and its
     license. The television's sounds are made by code.
   - On macOS the app plays the sounds. Elsewhere the mod runs a player it finds on `PATH`:
     `powershell.exe` under WSL or Windows, `ffplay`, `paplay` or `aplay`. Or it runs the command in
