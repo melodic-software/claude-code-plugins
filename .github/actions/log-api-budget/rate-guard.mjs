@@ -326,6 +326,10 @@ export function recordFailure({ method, url, status, dir = process.env.RUNNER_TE
   }
   try {
     const path = new URL(String(url?.url ?? url), "https://api.github.com").pathname;
+    const verb = String(method ?? "GET").toUpperCase();
+    if (verb === "GET" && status === 404 && /^(\/api\/v3)?\/repos\/[^/]+\/[^/]+\/git\/ref\/tags\/./.test(path)) {
+      return;
+    }
     mkdirSync(join(dir, "lane-run-report"), { recursive: true });
     appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
   } catch {
