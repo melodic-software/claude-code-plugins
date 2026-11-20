@@ -43,7 +43,7 @@ job="$(awk '/^  ci-status:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/ci-status/ { e
 timeout="$(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$job")"
 job_seconds="$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
 margin="$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
-floor_wait="$(grep -oE 'BABYSIT_READ_FLOOR_WAIT_SECONDS=[0-9]+' <<<"$job" | head -n1 | cut -d= -f2)"
+floor_wait="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
 if [[ -n "$timeout" && -n "$floor_wait" && "$job_seconds" == $((timeout * 60 - floor_wait)) ]]; then
   ok "GH_READ_JOB_SECONDS ($job_seconds) is ci-status's timeout-minutes ($timeout) in seconds less the ${floor_wait}s read-floor wait"
 else

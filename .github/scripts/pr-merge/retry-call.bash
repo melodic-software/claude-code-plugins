@@ -8,10 +8,11 @@
 # a write that may have landed is never repeated. A caller's completeness check
 # goes in the command: a 200 that fails it is a failure. Source api-budget.bash
 # and rate-stop.bash first.
-# shellcheck disable=SC2034 # retry_call_unknown is read by the caller
+# shellcheck disable=SC2034 # retry_call_unknown and retry_call_waited are read by the caller
 retry_call() {
   local tries=1 attempt=1 budget err rc stop until wait ceiling
   retry_call_unknown=
+  retry_call_waited=0
   if [[ ${1-} == --read ]]; then
     tries=3
     shift
@@ -41,6 +42,7 @@ retry_call() {
     fi
     if ((attempt < tries && wait <= budget)); then
       budget=$((budget - wait))
+      retry_call_waited=$((retry_call_waited + wait))
       sleep "$wait"
       attempt=$((attempt + 1))
       continue

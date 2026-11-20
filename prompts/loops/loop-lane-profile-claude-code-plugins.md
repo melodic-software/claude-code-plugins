@@ -77,8 +77,7 @@ Treat a path as runtime unless you can show nothing loads it.
   before it is read. Run the classification-count command in the template's
   [Per-repository profile](loop-lane-prompts.md#per-repository-profile), the
   one returning `fetched`, `classified`, and `body_only`, and use what it
-  returns; a rung decision made from a quoted figure is a decision about a
-  repository that no longer exists.
+  returns; a quoted figure describes a repository that no longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - Lane telemetry sinks (exact title match; excluded from triage frontier):

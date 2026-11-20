@@ -86,7 +86,7 @@ jobs:
             .github/requirements-ci.txt
             plugins/animation/requirements.txt
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9c5bedfbfdbdfe733b9ce4cd7ca80c1574bd4cb8 # v0.76.3
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
