@@ -24,7 +24,7 @@ graders:
     arm: with-only
   - name: soak-result-from-moved-section
     type: regex
-    pattern: '\b(?:zero|no|0)[ \t]+double[- ]?runs?\b'
+    pattern: '(?=[\s\S]*\bsoak\b)(?=[\s\S]*(?:\b(?:four|4)[ \t]+schedulers?\b|\b(?:six|6)[ \t]+hours?\b))[\s\S]*\b(?:zero|no|0)[ \t]+double[- ]?runs?\b'
     flags: 'i'
     arm: with-only
   - name: no-rerun-backfill
