@@ -47,6 +47,9 @@ CHECK_KINDS = {
 }
 
 
+CHECKOUT_ARM = "after"
+
+
 @pytest.fixture(scope="session")
 def built(tmp_path_factory):
     """Every case built once: {name: (spec, chain, history)}."""
@@ -56,7 +59,7 @@ def built(tmp_path_factory):
         spec = resume_cases.load_case(case_dir)
         repo = root / spec["name"]
         repo.mkdir()
-        chain = resume_cases.build_predecessor_chain(spec, repo)
+        chain = resume_cases.build_predecessor_chain(spec, repo, arm=CHECKOUT_ARM)
         out[spec["name"]] = (spec, chain, resume_cases.seed_history(spec, chain))
     return out
 
@@ -115,7 +118,7 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
     spec, chain, _ = built[name]
     projects = chain[0].parents[1] / "predecessor-transcripts"
     stated = resume_cases._expected_fail(
-        spec["seed"]["predecessor"], spec["name"], len(chain), None
+        spec["seed"]["predecessor"], spec["name"], len(chain), CHECKOUT_ARM
     )
     for hop, path in enumerate(chain, 1):
         done = subprocess.run(
@@ -133,7 +136,11 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
             encoding="utf-8",
         )
         if hop in stated:
-            fails = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL:")]
+            fails = [
+                ln.removeprefix("FAIL: ")
+                for ln in done.stdout.splitlines()
+                if ln.startswith("FAIL: ")
+            ]
             assert done.returncode == 1 and fails, done.stdout
             assert all(stated[hop].search(ln) for ln in fails), done.stdout
         else:
@@ -685,11 +692,17 @@ def _reuse_spec(retire_hop: int) -> dict:
         },
     ]
     pred["final"] = {}
+    pred["expected_fail"] = [
+        {"hop": hop, "fail": "id_reuse", "arms": ["after"]}
+        for hop in range(3, pred["hops"] + 1)
+    ]
     return spec
 
 
 def test_a_reuse_injection_takes_the_id_a_retired_injection_held(tmp_path):
-    chain = resume_cases.build_predecessor_chain(_reuse_spec(2), tmp_path / "repo")
+    chain = resume_cases.build_predecessor_chain(
+        _reuse_spec(2), tmp_path / "repo", arm=CHECKOUT_ARM
+    )
     hop_file = next((chain[0].parent / "archive").glob("*/h2-*.md"))
     old = re.search(
         r"^- (\[R\d+\]) Export files are written in UTC dates only\.$",
