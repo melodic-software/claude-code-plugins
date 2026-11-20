@@ -54,8 +54,12 @@ that repository's failure, so the evidence survives; nothing from that repositor
 - **Suppression** reads that repository's own record at `origin/HEAD`. An entry never suppresses a
   mutant in another repository.
 - **Verification level** for each repository's triage comes from that repository's
-  `docs/conventions/mutation-testing.yaml` at `origin/HEAD`, passed to `read-verification.sh` as
-  `--file <dir>/docs/conventions/mutation-testing.yaml`.
+  `docs/conventions/mutation-testing.yaml` at its default branch on `origin`. Run Phase 4's
+  `read-verification.sh` command with `CLAUDE_PROJECT_DIR=<root>` before `bash`, `<root>` being
+  that repository's main checkout, and the same `--file docs/conventions/mutation-testing.yaml`.
+  The `--file` path stays relative to the repository root: the script refuses an absolute path
+  and falls back to `light`. Without `CLAUDE_PROJECT_DIR`, the script reads the invoking session's
+  repository, not the target's.
 
 ## Estimate and confirmation
 
@@ -63,7 +67,12 @@ that repository's failure, so the evidence survives; nothing from that repositor
 returns its scope report with the estimate line Phase 1 step 5 prints, then stops, leaving its
 worktree in place. Print every repository's line as its script printed it, with no combined
 total: `--seconds` times one repository's mutant, so no sum across repositories is a figure the
-script prints. Confirm once for the set. After confirmation, a fresh subagent per
+script prints. Under each line, print what that repository will run on this machine: its origin
+`owner/name`, the commit its worktree holds (`git -C <dir> rev-parse HEAD`, fetched from upstream
+and not yet reviewed by anyone in this session), and the install and test commands it resolved.
+Mark each repository whose origin owner is not the user's own as `third-party`, so a clone of
+someone else's project is never run on the estimate alone. Confirm once for the set; the user can
+decline any repository by name, and the rest go ahead. After confirmation, a fresh subagent per
 repository resumes from Phase 2 in that same worktree. The subagent that ran Phases 0 and 1
 returns everything Phase 2 onward reads, and the resuming one is handed all of it: the worktree
 path, the resolved config and its `Config:` line, the Phase 0 snapshot and baseline result, the
