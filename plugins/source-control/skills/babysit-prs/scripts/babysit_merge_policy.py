@@ -6364,10 +6364,8 @@ def cached_pull_request(
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits the contents-API fallback reads for the enabling
-# commit: one page. A run of enabled commits longer than that has no readable
-# start, which refuses. The local git history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
+CONFIG_HISTORY_PAGES = 50
 
 
 def _history_checkouts() -> list[Path]:
@@ -6501,6 +6499,32 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
     return None
 
 
+def _api_history(repo: str, base_sha: str) -> Iterator[tuple[str, str]]:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the commits API a page at a time, so a caller that
+    stops early reads no further page. A short page ends the history. Raises
+    `PolicyReadError` on a page that cannot be read, and on a full
+    `CONFIG_HISTORY_PAGES`-th page, whose history goes on unread."""
+    owner, name = _split_repo(repo)
+    for page in range(1, CONFIG_HISTORY_PAGES + 1):
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits?sha={base_sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}"
+            f"&per_page={CONFIG_HISTORY_LIMIT}&page={page}"
+        )
+        if status != 200 or not is_json_array(payload):
+            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+        for commit in map(json_object, payload):
+            committer = json_object(json_object(commit.get("commit")).get("committer"))
+            yield str(commit.get("sha")), str(committer.get("date"))
+        if len(payload) < CONFIG_HISTORY_LIMIT:
+            return
+    raise PolicyReadError(
+        f"more than {CONFIG_HISTORY_PAGES * CONFIG_HISTORY_LIMIT} enabled "
+        f"{CONFIG_PATH} commits"
+    )
+
+
 def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
     """When the unattended path's current enabled run began: the committer
     date of the oldest commit in the unbroken run of pipeline-file commits,
@@ -6511,12 +6535,12 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
     branch through the merge queue, whose squash commits GitHub dates.
 
     The history and each config come from a local clone holding `base_sha`
-    (`_local_history`), else from the commits and contents APIs.
-    Raises `PolicyReadError` when no start can be read."""
+    (`_local_history`), else from the commits and contents APIs
+    (`_api_history`). Raises `PolicyReadError` when no start can be read."""
+    commits: Iterable[tuple[str, str]]
     local = _local_history(base_sha)
     if local is not None:
         root, commits = local
-        complete = True
 
         def read(sha: str) -> PipelineConfig:
             return read_config_at(
@@ -6524,44 +6548,23 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
             )
 
     else:
-        owner, name = _split_repo(repo)
-        status, payload = _get(
-            f"repos/{owner}/{name}/commits?sha={base_sha}"
-            f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
-        )
-        if status != 200 or not is_json_array(payload):
-            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
-        commits = [
-            (
-                str(commit.get("sha")),
-                str(
-                    json_object(json_object(commit.get("commit")).get("committer")).get(
-                        "date"
-                    )
-                ),
-            )
-            for commit in map(json_object, payload)
-        ]
-        complete = len(commits) < CONFIG_HISTORY_LIMIT
+        commits = _api_history(repo, base_sha)
 
         def read(sha: str) -> PipelineConfig:
             return read_config_at(repo, sha)
 
-    if not commits:
-        raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+    seen = False
     start: str | None = None
     for sha, date in commits:
+        seen = True
         config = read(sha)
         enabled = None if config.error else enabled_authority(config)
         authority = authority or enabled
         if enabled is None or enabled != authority:
             break
         start = date
-    else:
-        if not complete:
-            raise PolicyReadError(
-                f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
-            )
+    if not seen:
+        raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
     if start is None:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
     return _time(start.replace("Z", "+00:00")).astimezone(UTC)

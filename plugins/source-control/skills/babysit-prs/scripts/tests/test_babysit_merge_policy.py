@@ -4398,7 +4398,7 @@ class Assess(unittest.TestCase):
         gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
         empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
         gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
-        history = f"repos/{REPO}/commits?sha={SHA}&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+        history = f"repos/{REPO}/commits?sha={SHA}&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100&page=1"
         gh.rest[history] = [{"sha": SHA, "commit": {"committer": {"date": ENABLED_AT}}}]
         return gh
 
@@ -5029,7 +5029,7 @@ class EnabledSince(unittest.TestCase):
 
     HISTORY = (
         f"repos/{REPO}/commits?sha={SHA}"
-        "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+        "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100&page=1"
     )
 
     def commit(self, sha: str, date: str) -> dict[str, Any]:
@@ -5083,15 +5083,67 @@ class EnabledSince(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             policy.enabled_since(REPO, SHA)
 
-    def test_an_enabled_run_longer_than_the_read_has_no_floor(self) -> None:
-        history = [self.commit(SHA, "2026-10-12T00:00:00Z")] * 100
-        self.fake(history, {})
+    def page(self, n: int) -> str:
+        return self.HISTORY.replace("&page=1", f"&page={n}")
+
+    def test_an_enabled_run_longer_than_a_page_reads_the_next_page(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        oldest, disabled = "b" * 40, "c" * 40
+        gh.rest[self.page(2)] = [
+            self.commit(SHA, "2026-10-11T00:00:00Z"),
+            self.commit(oldest, "2026-10-02T00:00:00Z"),
+            self.commit(disabled, "2026-10-01T00:00:00Z"),
+        ]
+        enabled = policy.PipelineConfig(
+            SHA, "C2", "local-babysit", IDENTITY, 200, (), None
+        )
+        off = dataclasses.replace(enabled, authority=None, agent_identity=None)
+        configs = {SHA: enabled, oldest: enabled, disabled: off}
+        with mock.patch.object(
+            policy, "read_config_at", side_effect=lambda _, sha: configs[sha]
+        ):
+            self.assertEqual(
+                policy.enabled_since(REPO, SHA),
+                policy.datetime.fromisoformat("2026-10-02T00:00:00Z"),
+            )
+
+    def test_a_run_ending_on_the_first_page_reads_no_second(self) -> None:
+        older, oldest = "b" * 40, "c" * 40
+        history = [self.commit(SHA, "2026-10-12T00:00:00Z")] * 98 + [
+            self.commit(older, "2026-10-11T00:00:00Z"),
+            self.commit(oldest, "2026-10-01T00:00:00Z"),
+        ]
+        gh = self.fake(history, {SHA: PIPELINE, older: PIPELINE, oldest: DISABLED})
+        self.assertEqual(
+            policy.enabled_since(REPO, SHA),
+            policy.datetime.fromisoformat("2026-10-11T00:00:00Z"),
+        )
+        self.assertNotIn(self.page(2), [call[1] for call in gh.calls])
+
+    def test_an_enabled_run_longer_than_every_page_has_no_floor(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        for n in range(2, policy.CONFIG_HISTORY_PAGES + 1):
+            gh.rest[self.page(n)] = gh.rest[self.HISTORY]
         enabled = policy.PipelineConfig(
             SHA, "C2", "local-babysit", IDENTITY, 200, (), None
         )
         with (
             mock.patch.object(policy, "read_config_at", return_value=enabled),
-            self.assertRaises(policy.PolicyReadError),
+            self.assertRaisesRegex(policy.PolicyReadError, "more than 5000"),
+        ):
+            policy.enabled_since(REPO, SHA)
+        last = self.page(policy.CONFIG_HISTORY_PAGES)
+        self.assertIn(last, [call[1] for call in gh.calls])
+
+    def test_an_unreadable_later_page_has_no_floor(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        gh.rest[self.page(2)] = 502
+        enabled = policy.PipelineConfig(
+            SHA, "C2", "local-babysit", IDENTITY, 200, (), None
+        )
+        with (
+            mock.patch.object(policy, "read_config_at", return_value=enabled),
+            self.assertRaisesRegex(policy.PolicyReadError, "could not be read"),
         ):
             policy.enabled_since(REPO, SHA)
 
@@ -5173,6 +5225,27 @@ class LocalEnabledSince(unittest.TestCase):
             {newest: PIPELINE + "# edit\n", older: PIPELINE, oldest: DISABLED},
             base=base,
         )
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+
+    def test_a_run_longer_than_a_page_matches_the_paged_api(self) -> None:
+        limit = policy.CONFIG_HISTORY_LIMIT
+        disabled_date = "2026-09-01T00:00:00Z"
+        configs = {self.pipeline(DISABLED, disabled_date): (DISABLED, disabled_date)}
+        for n in range(limit + 5):
+            text = PIPELINE + f"# {n}\n"
+            date = f"2026-10-01T{n // 60:02}:{n % 60:02}:00Z"
+            configs[self.pipeline(text, date)] = (text, date)
+        base = next(reversed(configs))
+        expected = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+        self.assertEqual(gh.calls, [])
+        records = [self.commit_record(sha, date) for sha, (_, date) in configs.items()]
+        records.reverse()
+        texts = {sha: text for sha, (text, _) in configs.items()}
+        gh = self.fake(records[:limit], texts, base=base)
+        second = self.HISTORY.replace(SHA, base).replace("&page=1", "&page=2")
+        gh.rest[second] = records[limit:]
         self.assertEqual(policy.enabled_since(REPO, base), expected)
 
     def test_the_newest_config_commit_comes_from_the_same_clone(self) -> None:
