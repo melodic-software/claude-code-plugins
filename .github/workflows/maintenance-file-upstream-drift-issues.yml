@@ -54,7 +54,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: $/.github/actions/setup-pinned-node
         with:
           node-version-file: .node-version
       - name: Report pinned upstream drift
@@ -105,9 +105,7 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        # actionlint rejects the $/ form zizmor asks for; the comment above
-        # pr-require-checks.yml's Run zizmor step has the detail.
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
 
@@ -163,6 +161,6 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        uses: $/.github/actions/log-api-budget
         with:
           tokens: github-token
