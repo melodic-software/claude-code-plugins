@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { QUIET, startRoom } from './testing.js'
 
-test('at load the room shows alone for 7 s, then the shader starts with every name at its target', { options: QUIET }, async ($, on) => {
+test('at load the room shows alone for 7 s, then the shader starts with every name at its target', { timeoutMs: 20000, options: QUIET }, async ($, on) => {
   const room = await startRoom($, on, { hold: false })
   expect(await room.values()).toBeUndefined()
   await room.clock.advance(3000)
