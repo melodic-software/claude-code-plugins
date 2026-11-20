@@ -186,4 +186,5 @@ before the deletion is final. See [safety.md](safety.md).
 | `// this is NOT thread-safe; callers serialize`, recorded nowhere else | C | Keep (negative information, load-bearing and terse: not exempt, but it passes the test) |
 | `# See docs/adr/0042` at a module header, and `docs/adr/0042-*.md` exists | C, ADR pointer | Keep under `explanatory` and `necessary`; delete under `none` |
 | `# See docs/adr/0042: retries stay at two because the upstream 502s on cold start` | C, rationale | The ordinary rules: under `explanatory`, criterion 2 fails (the ADR holds it), so stage and delete; under `necessary`, off the keep list, so stage and delete |
+| `# Exit codes:` / `#   2  usage error` in a script's opening header, and the script exits 2 on bad arguments | C, exit-code list | Keep under `necessary` (the keep list); delete under `none`; under `explanatory` the earn-its-keep test decides. The header's other prose is judged on its own |
 | 12-line comment explaining why approach X was chosen over Y | C, criterion 3 fails | Extract any durable constraint to one line; stage the narrative for the commit message; delete the rest |

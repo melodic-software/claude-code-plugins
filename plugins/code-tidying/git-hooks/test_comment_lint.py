@@ -267,6 +267,46 @@ class Shape9FloorRest(unittest.TestCase):
         self.assertEqual(flagged("a.sh", text), [1])
 
 
+EXIT_HEADER = (
+    "#!/bin/sh\n"
+    "# Exit codes:\n"
+    "#   0  the scan ran\n"
+    "#   2  a usage error: an unknown flag\n"
+    "#      or a missing option value\n"
+    "x=1\n"
+)
+
+
+class Shape10ExitCodes(unittest.TestCase):
+    def test_header_exit_codes_pass_under_necessary(self):
+        self.assertEqual(flagged("a.sh", EXIT_HEADER), [])
+
+    def test_header_without_shebang_passes(self):
+        self.assertEqual(flagged("a.sh", "# Exits:\n#   0 ok\n#   2 usage\nx=1\n"), [])
+
+    def test_inline_entries_on_heading_pass(self):
+        self.assertEqual(flagged("a.py", "# Exit: 0 judged; 2 usage\nx = 1\n"), [])
+
+    def test_continuation_of_inline_entry_passes(self):
+        text = "# Exit 2: the default branch could not be read;\n#         never the working copy.\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [])
+
+    def test_shallow_line_after_inline_entry_fails(self):
+        text = "# Exit 2: the default branch could not be read;\n# never the working copy.\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [2])
+
+    def test_rest_of_header_still_fails(self):
+        text = "#!/bin/sh\n# Scans a tree.\n# Exit codes:\n#   2  usage\n# The scan never fails.\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [2, 5])
+
+    def test_same_text_after_code_fails(self):
+        text = "x=1\n" + EXIT_HEADER.split("\n", 1)[1]
+        self.assertEqual(flagged("a.sh", text), [2, 3, 4, 5])
+
+    def test_header_exit_codes_fail_under_none(self):
+        self.assertEqual(flagged("a.sh", EXIT_HEADER, posture="none"), [2, 3, 4, 5])
+
+
 class AllowPatterns(unittest.TestCase):
     def test_allow_pattern_passes_repository_marker(self):
         text = "# silent-skip-ok: output discarded\nx=1\n"
