@@ -26,7 +26,6 @@ from test_save_point import (
     FILL_RE,
     HOP1,
     SHAPE3_VALUES,
-    _save_point_module,
     edit,
     err,
     hop_file,
@@ -69,8 +68,7 @@ def test_shape4_ids_and_retire_headings_match_shape3():
     assert hc.SHAPES[4].retired_entry_sections == hc.SHAPES[3].retired_entry_sections
 
 
-def test_shape4_validates_while_handoff_shape_is_3(tmp_path):
-    assert _save_point_module().HANDOFF_SHAPE == 3
+def test_a_shape4_chain_validates(tmp_path):
     paths = s4_chain(make_repo(tmp_path), tmp_path, 3)
     for path in paths:
         result = validate(path)

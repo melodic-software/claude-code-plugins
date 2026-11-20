@@ -28,7 +28,7 @@
       "expected_fail": [
         {
           "hop": 6,
-          "fail": "size:"
+          "fail": "^(size|OVER-CAP):"
         }
       ],
       "start": "2026-10-05T08:00:00Z",

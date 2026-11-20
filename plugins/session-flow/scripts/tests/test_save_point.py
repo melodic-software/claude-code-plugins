@@ -2720,12 +2720,12 @@ def _sections_by_hand(text: str) -> dict[str, str]:
     return found
 
 
-def test_shape3_is_what_new_writes_by_default(tmp_path):
+def test_shape4_is_what_new_writes_by_default(tmp_path):
     repo = make_repo(tmp_path)
     made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
     assert made.returncode == 0, err(made)
     text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
-    assert "handoff_shape: 3\n" in text
+    assert "handoff_shape: 4\n" in text
     assert "\nchain:" not in text
     for line in (
         f"chain_root: {HOP1}",

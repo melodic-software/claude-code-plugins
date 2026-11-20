@@ -145,9 +145,9 @@ def test_shape4_bare_new_previous_continues_a_shape4_chain_while_default_is_3(tm
     assert result.returncode == 0, out(result)
 
 
-def test_shape4_bare_new_on_a_fresh_chain_still_writes_shape3(tmp_path):
+def test_bare_new_on_a_fresh_chain_writes_shape4(tmp_path):
     made = new(make_repo(tmp_path), tmp_path, None, k=1, shape=None)
-    assert "handoff_shape: 3\n" in Path(out(made).strip()).read_text(encoding="utf-8")
+    assert "handoff_shape: 4\n" in Path(out(made).strip()).read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("pred_shape", ["2", "3"])

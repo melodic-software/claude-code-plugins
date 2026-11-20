@@ -524,7 +524,7 @@ def test_the_seed_hash_ignores_where_the_run_lives_and_sees_any_content_change(
 
 def _shape3_target_spec(target: int) -> dict:
     spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
-    spec["seed"]["predecessor"].update(hops=8, target_bytes=target)
+    spec["seed"]["predecessor"].update(hops=8, target_bytes=target, shape=3)
     return spec
 
 

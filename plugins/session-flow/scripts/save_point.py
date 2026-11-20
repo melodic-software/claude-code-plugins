@@ -159,7 +159,7 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
-HANDOFF_SHAPE = 3
+HANDOFF_SHAPE = 4
 NEWEST_SHAPE = 4
 # Shapes `new --shape` writes and `fill` fills; shape 2 stays writable so a
 # shape-2 chain can still be generated (eval predecessors, size projections).
