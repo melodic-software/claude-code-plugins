@@ -514,13 +514,10 @@ assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findin
 # The referenced control: main is called literally, so a literal search saves it.
 assert_not_contains "the literally called function is not a candidate" "$grep_out" "Finding excerpt: main() {"
 
-# --root scans another repository from outside it: the report must be the one a
-# run inside that repository gives, so no evidence comes from the caller's tree.
 root_exit=0
 root_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$SH_REPO" 2>/dev/null)" || root_exit=$?
 assert_exit "--root scan exits 0" 0 "$root_exit"
 assert_equal "--root from outside gives the in-repository report" "$grep_out" "$root_out"
-# A second file that is a candidate on its own proves the target narrows the scan.
 ROOT_REPO="$TEST_TMPDIR/root-repo"
 init_repo "$ROOT_REPO"
 cp "$FIXTURES/dead-and-dynamic.sh" "$ROOT_REPO/"
