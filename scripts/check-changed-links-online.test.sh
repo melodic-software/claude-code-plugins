@@ -99,6 +99,11 @@ check $? "a broken link is annotated at the changed file and line that hold it" 
 grep -q '1 of 3 added or changed external link(s) broken' < <(tail -n 1 "$TMP_ROOT/err")
 check $? "a broken-link run ends with a count the aggregator's last lines show" "$(tail -n 2 "$TMP_ROOT/err")"
 
+out="$(run STUB_EXIT=2 'STUB_REPORT=[ERROR] https://host.test/ | Network error' -- "$base" 2>"$TMP_ROOT/err")"
+rc=$?
+grep -qx '::error::broken link https://host.test/: Network error' "$TMP_ROOT/err" && grep -q '1 of 3 added or changed external link(s) broken' < <(tail -n 1 "$TMP_ROOT/err")
+check $? "a broken URL no changed file holds verbatim gets a file-less annotation and the count" "rc=$rc err=$(cat "$TMP_ROOT/err")"
+
 run STUB_EXIT=3 -- "$base" >/dev/null 2>&1
 rc=$?
 [[ $rc -eq 2 ]]

@@ -97,7 +97,7 @@ case $rc in
     while IFS='|' read -r head reason; do
       url=${head#*\[ERROR\] }
       url=${url%"${url##*[![:space:]]}"}
-      at=$(grep -HnF -- "$url" "${files[@]}" 2>/dev/null | head -n 1)
+      at=$(grep -HnF -- "$url" "${files[@]}" 2>/dev/null | head -n 1) || true
       file=${at%%:*} line=${at#*:} line=${line%%:*}
       reason=${reason#"${reason%%[![:space:]]*}"}
       if [[ -n $at ]]; then
