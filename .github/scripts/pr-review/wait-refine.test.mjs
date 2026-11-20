@@ -10,14 +10,17 @@
 // keeps for every pull request (git fetch origin pull/ID/head in the docs on
 // checking out pull requests locally).
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { DEFAULTS as FIX_DOCS } from "../pr-unblock/fix-docs-dispatch.mjs";
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
-import { createApi, decide, main, readEnv } from "./wait-refine.mjs";
+import { createApi, decide, main, NO_REFINE_ACCOUNTS, noRefineDue, readEnv } from "./wait-refine.mjs";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -537,4 +540,97 @@ test("main writes proceed and reason to GITHUB_OUTPUT", async () => {
   const w = world(refined(refineRun(), steps(pull(), pull(MOVED))));
   await main({ ...ENV, GITHUB_OUTPUT: output }, w.deps);
   assert.equal(readFileSync(output, "utf8"), "proceed=false\nreason=head-moved\n");
+});
+
+// refine-event-dispatch.mjs starts fix-docs and every refine-dispatch activity
+// only on an event whose sender is the lanes App or a listed human, and
+// fix-docs-dispatch.mjs never starts fix-docs for a PR an excluded account
+// opened, from any event. So an event an excluded account sent, on a PR one
+// opened, has no refine run due on its head. Ids from trusted-actors.json
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-unblock/refine-event-dispatch.mjs).
+const RELEASE_BOT = 337859524;
+const HUMAN = 153232337;
+const LANES_APP = 337595936;
+const prEvent = ({ sender = RELEASE_BOT, author = RELEASE_BOT, number = 7, sha = HEAD } = {}) => ({
+  action: "synchronize",
+  number,
+  sender: { id: sender, type: "Bot" },
+  pull_request: { number, user: { id: author }, head: { sha } },
+});
+const eventFile = (event) => {
+  const path = join(tempDir("wait-refine-event-"), "event.json");
+  writeFileSync(path, typeof event === "string" ? event : JSON.stringify(event));
+  return path;
+};
+const EVENT_ENV = { ...ENV, PR_BASE_REF: "main", PR_HEAD_REPO: REPO };
+
+test("an event an excluded account sent on a PR one opened makes no poll read: the review runs after the one finish read", async () => {
+  for (const id of NO_REFINE_ACCOUNTS) {
+    const w = world({ "pulls/7": pull() });
+    const result = await main({ ...EVENT_ENV, GITHUB_EVENT_PATH: eventFile(prEvent({ sender: id, author: id })) }, w.deps);
+    assert.deepEqual(result, { proceed: true, reason: "no-refine-account" }, String(id));
+    assert.deepEqual(apiReads(w), ["pulls/7"], "no listing, ref, run or artifact read");
+    assert.equal(w.elapsed(), 0, "no poll");
+  }
+});
+
+test("with no refine due, a head moved or a pull request closed by the finish read is still not reviewed", async () => {
+  for (const finish of [steps(pull(MOVED)), pull(HEAD, { state: "closed" })]) {
+    const w = world({ "pulls/7": finish });
+    assert.deepEqual(await decide({ ...EVENT, noRefine: true }, w.deps), { proceed: false, reason: "head-moved" }, JSON.stringify(finish));
+    assert.ok(!apiReads(w).includes(LIST));
+  }
+});
+
+test("a refine-due event still polls: a listed human's, the lanes App's, or an excluded sender's on another author's PR reads the dispatcher listing first", async () => {
+  for (const shape of [{ sender: HUMAN }, { sender: LANES_APP }, { author: HUMAN }, { sender: HUMAN, author: HUMAN }, { sender: LANES_APP, author: LANES_APP }]) {
+    const w = world({ ...refined(refineRun()), [PROBE]: ref() });
+    const result = await main({ ...EVENT_ENV, GITHUB_EVENT_PATH: eventFile(prEvent(shape)) }, w.deps);
+    assert.deepEqual(result, { proceed: true, reason: "refine-success" }, JSON.stringify(shape));
+    assert.equal(apiReads(w)[0], LIST, JSON.stringify(shape));
+  }
+});
+
+test("an event file that is missing, unreadable, malformed, or names another PR or head still polls", async () => {
+  const dir = tempDir("wait-refine-event-");
+  for (const path of [undefined, "", join(dir, "absent.json"), eventFile("{not json"), eventFile("null"), eventFile(prEvent({ number: 8 })), eventFile(prEvent({ sha: MOVED }))]) {
+    const w = world({ ...refined(refineRun()), [PROBE]: ref() });
+    const result = await main({ ...EVENT_ENV, GITHUB_EVENT_PATH: path }, w.deps);
+    assert.deepEqual(result, { proceed: true, reason: "refine-success" }, String(path));
+    assert.equal(apiReads(w)[0], LIST, String(path));
+  }
+});
+
+test("noRefineDue takes only numeric ids matching this PR and head", () => {
+  const input = { number: 7, head: HEAD };
+  assert.equal(noRefineDue(prEvent(), input), true);
+  for (const event of [
+    null,
+    {},
+    prEvent({ sender: String(RELEASE_BOT) }),
+    prEvent({ author: String(RELEASE_BOT) }),
+    { ...prEvent(), sender: undefined },
+    { ...prEvent(), pull_request: { ...prEvent().pull_request, user: undefined } },
+    { ...prEvent(), pull_request: { ...prEvent().pull_request, number: "7" } },
+    { ...prEvent(), pull_request: { ...prEvent().pull_request, head: undefined } },
+  ]) {
+    assert.equal(noRefineDue(event, input), false, JSON.stringify(event));
+  }
+});
+
+test("the no-refine accounts are fix-docs's excluded authors, none a listed human or the lanes App, and the live config lists no refine-dispatch activity", async () => {
+  assert.deepEqual([...NO_REFINE_ACCOUNTS].sort(), [...FIX_DOCS.excludedAuthorIds].sort());
+  const { humans, logins } = loadTrustedList(fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url)));
+  const lanesApp = logins.get("melodic-automation-lanes[bot]");
+  assert.ok(Number.isInteger(lanesApp));
+  for (const id of NO_REFINE_ACCOUNTS) {
+    assert.ok(!humans.has(id), `${id} is a listed human`);
+    assert.notEqual(id, lanesApp, `${id} is the lanes App`);
+  }
+  // An activity starts on a listed human's later event on the same head,
+  // which an excluded author does not rule out: the skip holds only while
+  // the list is empty, which absent means
+  // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-pipeline.schema.json).
+  const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  assert.doesNotMatch(config, /^["']?refine-dispatch["']?\s*:/m);
 });
