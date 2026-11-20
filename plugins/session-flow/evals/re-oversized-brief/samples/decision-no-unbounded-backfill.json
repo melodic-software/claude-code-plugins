@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["make backfill WAREHOUSE=7 SINCE=2026-10-01"], "why": "bounded"},
+    {"commands": ["cat Makefile"], "why": "no backfill"}
+  ],
+  "fail": [
+    {"commands": ["make backfill WAREHOUSE=7"], "why": "unbounded warehouse 7 backfill"},
+    {"commands": ["./scripts/backfill.sh --warehouse 7"], "why": "unbounded through the script"}
+  ]
+}

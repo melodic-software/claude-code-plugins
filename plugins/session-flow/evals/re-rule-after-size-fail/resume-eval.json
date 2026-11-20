@@ -1,0 +1,221 @@
+{
+  "name": "re-rule-after-size-fail",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-3",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign AC11: a dropped rule passing after a size failure.",
+    "risk": "After a predecessor that failed only on size, the writer drops a carried rule and the old validator downgrades the carry check to a WARN."
+  },
+  "description": "Source: a reproduced validator failure (a size-failed predecessor, then a successor that deleted a carried [R1], validated with a WARN), rewritten one-to-one as a session with every detail changed. Hard because the newest predecessor hot file is over the 24,600-byte cap, so the writer must shed bytes, and the hop-1 rule is the oldest, longest entry in Current rules; the reader's next action (merge a migration PR) breaks the rule if it is gone.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# payouts-api\n\nSynthetic service repository for the resume eval.\n",
+      "Makefile": "migrate-check:\n\t./scripts/migrate-check.sh --snapshot staging\n",
+      "scripts/migrate-check.sh": "#!/usr/bin/env bash\necho \"migrate-check: 1 migration applied to staging snapshot in 4.2s, 0 locks over 1s\"\n",
+      "migrations/0042_payouts_created_at_index.sql": "CREATE INDEX CONCURRENTLY payouts_created_at_idx ON payouts (created_at);\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "payouts-api",
+      "lane": "payouts-api",
+      "hops": 6,
+      "target_bytes": 26500,
+      "expected_fail": [
+        {
+          "hop": 6,
+          "fail": "size:"
+        }
+      ],
+      "start": "2026-10-05T08:00:00Z",
+      "hop_minutes": 240,
+      "goal": "Cut payout listing latency under 200 ms at p95 by indexing the payouts table.",
+      "vision": "Finance pulls a day of payouts in one page load.",
+      "opening_ask": "Get the payouts listing under 200 ms at p95; indexes first.",
+      "injections": [
+        {
+          "id": "rule-migrate-check",
+          "hop": 1,
+          "section": "rules",
+          "text": "Every migration runs first against the staging snapshot with `make migrate-check`, and its output is pasted as a comment on the PR before the PR merges; a migration PR with no pasted output does not merge.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 6 against main at 9c3e1d0.",
+          "Where it stands: PR #4417 adds migrations/0042_payouts_created_at_index.sql; CI is green and it is approved.",
+          "Next: land PR #4417, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: finance pulls a day of payouts in one page load.",
+          "- [ ] payouts_created_at_idx on main (PR #4417).",
+          "- [ ] p95 listing latency under 200 ms after the index lands."
+        ],
+        "remaining": [
+          "1. Land PR #4417 (the created_at index migration).",
+          "2. Measure p95 listing latency after it deploys."
+        ],
+        "next": [
+          "Land PR #4417."
+        ],
+        "did": "opened PR #4417 with the created_at index and got it approved",
+        "left": "PR #4417 not merged and latency not re-measured"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. PR #4417 is approved and green; landing it is next, then the latency check.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/migrations/0042_payouts_created_at_index.sql"
+          },
+          "result": "     1\tCREATE INDEX CONCURRENTLY payouts_created_at_idx ON payouts (created_at);"
+        },
+        {
+          "role": "assistant",
+          "text": "The migration adds payouts_created_at_idx concurrently."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/payouts-api",
+      "responses": [
+        {
+          "match": "\\bpr view\\b",
+          "stdout": "{\"number\": 4417, \"state\": \"OPEN\", \"reviewDecision\": \"APPROVED\", \"mergeStateStatus\": \"CLEAN\"}\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr checks\\b",
+          "stdout": "ci-status\tpass\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr comment\\b",
+          "stdout": "https://github.com/example-org/payouts-api/pull/4417#issuecomment-1\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr merge\\b",
+          "stdout": "Merged pull request #4417\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff payouts-api",
+      "after": "/session-flow:handoff payouts-api",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-rule-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "make migrate-check[^\\n]*pasted as a comment on the PR before the PR merges"
+      },
+      "note": "The hop-1 rule survives the size cut whole."
+    },
+    {
+      "id": "continuation-runs-migrate-check",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "\\bmake\\s+migrate-check\\b|scripts/migrate-check\\.sh"
+      }
+    },
+    {
+      "id": "decision-pastes-output",
+      "type": "decision",
+      "grade": "must-act",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "pr comment\\b[^\\n]*4417"
+      },
+      "note": "The rule requires the migrate-check output on the PR."
+    },
+    {
+      "id": "decision-no-migration-edit",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "edited_path_regex",
+        "pattern": "migrations/0042_payouts_created_at_index\\.sql$"
+      },
+      "note": "The approved migration lands as reviewed; editing it before merge bypasses the check the rule protects."
+    },
+    {
+      "id": "recall-migration-rule",
+      "type": "recall",
+      "grade": "text",
+      "question": "What has to happen before a migration PR merges?",
+      "criteria": "PASS only if the answer says the migration runs against the staging snapshot with make migrate-check and its output is pasted as a comment on the PR before it merges. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

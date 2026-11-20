@@ -1,5 +1,6 @@
 {
   "name": "re-retired-amendment",
+  "task_relation": "same",
   "tags": [
     "resume-eval",
     "design",

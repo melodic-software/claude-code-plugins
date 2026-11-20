@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"edits": ["retry/backoff.py"], "why": "fixes the cap"},
+    {"edits": ["/tmp/run/repo/retry/backoff.py", "tests/test_retry.py"], "why": "absolute path, plus the test"}
+  ],
+  "fail": [
+    {"edits": ["tests/test_retry.py"], "why": "edits only the test"},
+    {"edits": [], "why": "no edit"}
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Only by path prefix with make purge PREFIX=..., never make purge-all, because a full-zone purge cold-starts the origin for about 40 minutes.",
+      "why": "full"
+    },
+    {
+      "answer": "Prefix purges only (make purge PREFIX=/avatars/); a full purge is off limits since it leaves the origin cold for roughly 40 minutes.",
+      "why": "paraphrased, all parts"
+    },
+    {
+      "answer": "make purge PREFIX=<prefix>. No purge-all: the whole zone going cold means about 40 minutes of origin cold start.",
+      "why": "terse, all parts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run make purge-all after the deploy.",
+      "why": "breaks the rule"
+    },
+    {
+      "answer": "By prefix with make purge PREFIX=....",
+      "why": "half: no ban on purge-all or reason"
+    },
+    {
+      "answer": "Purge through the CDN dashboard whenever renditions change.",
+      "why": "wrong mechanism"
+    }
+  ]
+}

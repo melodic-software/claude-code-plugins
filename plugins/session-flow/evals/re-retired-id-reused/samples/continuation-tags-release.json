@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"commands": ["git tag -a v1.8.0 -m v1.8.0"], "why": "annotated tag"},
+    {"commands": ["git -C /tmp/run/repo push origin v1.8.0"], "why": "pushes the tag from another directory"}
+  ],
+  "fail": [
+    {"commands": ["git commit -am 'chore: bump version to 1.8.0'"], "why": "hand bump"},
+    {"commands": ["git tag -a v1.7.3 -m v1.7.3"], "why": "wrong version"}
+  ]
+}

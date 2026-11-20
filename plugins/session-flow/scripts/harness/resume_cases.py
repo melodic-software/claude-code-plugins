@@ -28,6 +28,7 @@ import contextvars
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -40,12 +41,15 @@ if str(HERE) not in sys.path:
 
 from hop_chain import (  # noqa: E402
     FILL_RE,
-    between_rails,
+    SAVE_POINT,
     frontmatter_value,
-    run_save_point,
 )
+from resume_history import _section_span, read_turns, seed_history  # noqa: E402,F401
 
 CASE_FILE = "resume-eval.json"
+SEED_SHAPES = (2, 3)
+TASK_RELATIONS = ("same", "boundary")
+HANDOFF_SHAPE_RE = re.compile(r"^HANDOFF_SHAPE = (\d+)$", re.MULTILINE)
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
 
 # Entries written per hop into each cumulative slot, with each slot's share of the
@@ -101,14 +105,6 @@ HOT_SLOTS = (
     "skills",
     "next",
 )
-
-# Read patterns (AUDIT.md Q2): files up to WHOLE_MAX are read in one Read, up to
-# PAGED_MAX in pages, larger ones partially.
-WHOLE_MAX = 60_000
-PAGED_MAX = 100_000
-PAGE_LINES = 150
-TOP_LINES = 100
-TAIL_LINES = 80
 
 # --- deterministic choice ----------------------------------------------------------
 
@@ -446,11 +442,21 @@ SHAPE3_SECTIONS = ("amendment", "trail", "rules", "open-questions", "decisions")
 ID_PREFIX = {"rules": "R", "open-questions": "Q", "decisions": "D"}
 SHAPE3_RULES = 3
 SHAPE3_RULE_WIDTH = 200
+SHAPE3_STEERED_RULES = 2
 SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (optional:)?")
 
 
 def _check_shape3_spec(pred: dict, hops: int) -> None:
+    by_id = {item["id"]: item for item in pred.get("injections", [])}
     for item in pred.get("injections", []):
+        held = by_id.get(item.get("reuse", ""), {})
+        if "reuse" in item and not (
+            held.get("section") == item["section"] in ID_PREFIX
+            and int((held.get("retire") or {}).get("hop", hops + 1)) < int(item["hop"])
+        ):
+            raise ValueError(
+                f"injection {item['id']!r}: reuse names an injection in the same id section retired before hop {item['hop']}"
+            )
         if item["section"] not in SHAPE3_SECTIONS:
             raise ValueError(
                 f"injection {item['id']!r}: section {item['section']!r} is not a shape-3 target {SHAPE3_SECTIONS}"
@@ -503,10 +509,21 @@ def _ordinal(lines: list[str], body, text: str, what: str) -> int:
     return hits[0]
 
 
-def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
-    """Fill a shape-3 skeleton through `save_point.py fill`. `live` carries, hop to hop,
-    the id-carrying lines of Open questions and Decisions in force and the ref each
-    injection was given."""
+def _fill_3(
+    path: Path,
+    pred: dict,
+    hop: int,
+    lane: str,
+    live: dict,
+    script: Path,
+    steer_count: int = 0,
+    stated: bool = False,
+) -> int:
+    """Fill a shape-3 skeleton through `save_point.py fill`; return the characters of
+    generated rule text. `live` carries, hop to hop, the id-carrying lines of Open
+    questions and Decisions in force and the ref each injection was given. A hop after
+    the first adds `steer_count` generated rules; rules stay in the hot file, so their
+    count steers its size."""
     from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
 
     final = _final(pred, hop)
@@ -532,7 +549,8 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         firsts, rest = _injection_items(pred, hop, section)
 
         def injected(item: dict) -> str:
-            live["refs"][item["id"]] = ref = new_id(prefix)
+            ref = live["refs"][item["reuse"]] if "reuse" in item else new_id(prefix)
+            live["refs"][item["id"]] = ref
             return f"- {ref} {item['text']}"
 
         head = [injected(item) for item in firsts]
@@ -570,19 +588,18 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         f"- [h{hop}] {text}" for text in [*first, *trail, *last]
     )
 
-    rules = (
-        [
+    if hop == 1:
+        rules = [
             _entry(
-                "constraints",
-                f"{pred['topic']}/1/rules/{i}",
-                lane,
-                SHAPE3_RULE_WIDTH,
+                "constraints", f"{pred['topic']}/1/rules/{i}", lane, SHAPE3_RULE_WIDTH
             )
             for i in range(SHAPE3_RULES)
         ]
-        if hop == 1
-        else []
-    )
+    else:
+        rules = [
+            _entry("constraints", f"{pred['topic']}/{hop}/rules/{i}", lane, BASE_WIDTH)
+            for i in range(steer_count)
+        ]
     rule_lines = id_lines("rules", rules)
     if hop == 1:
         values["rules"] = "\n".join(rule_lines)
@@ -597,6 +614,7 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         if hop == 1
         else []
     )
+
     def put(section: str, added: list[str]) -> None:
         """A section `new` carried off disk takes only this hop's new lines."""
         live[section] += added
@@ -713,39 +731,121 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
     with tempfile.TemporaryDirectory(prefix="resume-fill-") as tmp:
         slots_file = Path(tmp) / "slots.json"
         slots_file.write_text(json.dumps(values), encoding="utf-8")
-        filled = run_save_point(["fill", str(path), "--slots", str(slots_file)])
+        fill = ["fill", str(path), "--slots", str(slots_file)]
+        filled = _run(script, fill)
+        if (
+            filled.returncode != 0
+            and stated
+            and "over its" in filled.stdout + filled.stderr
+            and "budget" in filled.stdout + filled.stderr
+        ):
+            filled = _run(script, fill)
     if filled.returncode != 0:
         raise SystemExit(f"`fill` failed at hop {hop}: {filled.stdout}{filled.stderr}")
+    return sum(map(len, rules)) if hop > 1 else 0
+
+
+def copy_shape(save_point: Path) -> int:
+    """The `HANDOFF_SHAPE` a plugin copy's `save_point.py` writes, read from its source
+    so a second copy never shadows the imported one."""
+    match = HANDOFF_SHAPE_RE.search(Path(save_point).read_text(encoding="utf-8"))
+    if match is None:
+        raise ValueError(f"{save_point}: no `HANDOFF_SHAPE = <n>` line")
+    return int(match.group(1))
+
+
+def seed_shape(case_spec: dict, save_point: Path | None) -> int:
+    """The case's explicit `shape`, else the shape `save_point` writes, else 2."""
+    explicit = case_spec["seed"]["predecessor"].get("shape")
+    if explicit is not None:
+        return int(explicit)
+    return 2 if save_point is None else copy_shape(save_point)
+
+
+def seed_hash(out_dir: Path, memory_dir: Path | None = None) -> str:
+    """sha256 over every file the chain build wrote under `<memory>/handoffs`, with
+    `out_dir` written as `{repo}`, so two runs of one case and arm compare equal."""
+    root = Path(out_dir)
+    handoffs = (Path(memory_dir) if memory_dir else root / ".work") / "handoffs"
+    digest = hashlib.sha256()
+    for path in sorted(p for p in handoffs.rglob("*") if p.is_file()):
+        text = path.read_text(encoding="utf-8").replace(str(root), "{repo}")
+        digest.update(path.relative_to(handoffs).as_posix().encode("utf-8") + b"\0")
+        digest.update(text.encode("utf-8") + b"\0")
+    return digest.hexdigest()
+
+
+def _expected_fail(
+    pred: dict, case: str, hops: int, arm: str | None
+) -> dict[int, re.Pattern[str]]:
+    """`expected_fail` as {hop: pattern}: that hop must FAIL `validate`, and every one
+    of its FAIL lines must match the pattern. An entry naming `arms` holds only there."""
+    stated: dict[int, re.Pattern[str]] = {}
+    for item in pred.get("expected_fail", []):
+        if "arms" in item and arm not in item["arms"]:
+            continue
+        hop, pattern = int(item["hop"]), str(item.get("fail") or "")
+        if not 1 <= hop <= hops or not pattern.strip() or hop in stated:
+            raise ValueError(
+                f"{case}: expected_fail {item!r} needs one entry per hop in 1..{hops} with a non-empty `fail` pattern"
+            )
+        stated[hop] = re.compile(pattern)
+    return stated
+
+
+def _run(script: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-X", "utf8", str(script), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
 
 
 def build_predecessor_chain(
-    case_spec: dict, out_dir: Path, memory_dir: Path | None = None
+    case_spec: dict,
+    out_dir: Path,
+    memory_dir: Path | None = None,
+    *,
+    save_point: Path | None = None,
+    arm: str | None = None,
 ) -> list[Path]:
-    """Write the case's predecessor chain into `out_dir` (the run's repository) and
-    return the hop files, oldest first. Raises SystemExit when `new` or `validate`
-    refuses a hop."""
+    """Write the case's predecessor chain into `out_dir` (the run's repository) with
+    `save_point` (an arm copy's script; this checkout's when None) for `arm` and return
+    the hop files, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
     token = _RESERVED.set(reserved_numbers(case_spec))
     try:
-        return _build(case_spec, Path(out_dir), memory_dir)
+        return _build(case_spec, Path(out_dir), memory_dir, save_point, arm)
     finally:
         _RESERVED.reset(token)
 
 
-def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path]:
+def _build(
+    case_spec: dict,
+    out_dir: Path,
+    memory_dir: Path | None,
+    save_point: Path | None,
+    arm: str | None,
+) -> list[Path]:
     pred = case_spec["seed"]["predecessor"]
     case = case_spec["name"]
     hops = int(pred["hops"])
     target = pred.get("target_bytes")
     lane = pred.get("lane", pred["topic"])
-    # The audited chains are shape 2, so the cases rebuild that shape unless one opts
-    # into shape 3.
-    shape = int(pred.get("shape", 2))
-    if shape not in (2, 3):
-        raise ValueError(f"{case}: predecessor shape {shape} is not 2 or 3")
+    shape = seed_shape(case_spec, save_point)
+    script = Path(save_point) if save_point else SAVE_POINT
+
+    def run_save_point(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return _run(script, args)
+
+    if shape not in SEED_SHAPES:
+        raise ValueError(
+            f"{case}: unsupported seed shape {shape}; the seeder builds {SEED_SHAPES}"
+        )
     if shape == 3:
-        if target:
-            raise ValueError(f"{case}: target_bytes steers shape-2 chains only")
         _check_shape3_spec(pred, hops)
+    expected_fail = _expected_fail(pred, case, hops, arm)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -759,6 +859,7 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
     sizes: list[int] = []
     overheads: list[int] = []
     width = BASE_WIDTH
+    rule_count = SHAPE3_STEERED_RULES if target else 0
     base_chars = 0
     previous: Path | None = None
     for hop in range(1, hops + 1):
@@ -791,10 +892,29 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             )
         path = Path(made.stdout.strip())
         if shape == 3:
-            _fill_3(path, pred, hop, lane, live)
-            generated = 0
+            generated = _fill_3(
+                path, pred, hop, lane, live, script, rule_count, hop in expected_fail
+            )
         else:
             generated = _fill(path, pred, hop, width, lane)
+        if hop == hops and pred.get("amend"):
+            amend_file = path.with_suffix(".amend.json")
+            amend_file.write_text(json.dumps(pred["amend"]), encoding="utf-8")
+            amended = run_save_point(
+                [
+                    "amend",
+                    str(path),
+                    "--json",
+                    str(amend_file),
+                    "--now",
+                    _when(pred, hop),
+                ]
+            )
+            amend_file.unlink()
+            if amended.returncode != 0:
+                raise SystemExit(
+                    f"{case}: `amend` failed: {amended.stdout}{amended.stderr}"
+                )
         checked = run_save_point(
             [
                 "validate",
@@ -804,8 +924,22 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
                 "--strict-transcript",
             ]
         )
-        if checked.returncode != 0:
+        stated = expected_fail.get(hop)
+        if stated is None and checked.returncode != 0:
             raise SystemExit(f"{case}: hop {hop} does not validate:\n{checked.stdout}")
+        fails = [
+            line.removeprefix("FAIL: ")
+            for line in checked.stdout.splitlines()
+            if line.startswith("FAIL: ")
+        ]
+        if stated is not None and (
+            checked.returncode == 0
+            or not fails
+            or not all(stated.search(text) for text in fails)
+        ):
+            raise SystemExit(
+                f"{case}: hop {hop} was stated to FAIL matching {stated.pattern!r}, but validate printed:\n{checked.stdout}"
+            )
         files.append(path)
         sizes.append(path.stat().st_size)
         previous = path
@@ -817,187 +951,23 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             overheads.append(sizes[-1] - sizes[-2] - generated)
             overhead = sorted(overheads)[len(overheads) // 2]
             need = (int(target) - sizes[-1]) / (hops - hop)
-            scale = (need - overhead) / max(base_chars, 1)
-            width = max(MIN_WIDTH, min(MAX_WIDTH, int(BASE_WIDTH * scale)))
+            if shape == 3:
+                per_rule = generated / rule_count if rule_count else BASE_WIDTH
+                rule_count = max(0, round((need - overhead) / per_rule))
+            else:
+                scale = (need - overhead) / max(base_chars, 1)
+                width = max(MIN_WIDTH, min(MAX_WIDTH, int(BASE_WIDTH * scale)))
     return files
-
-
-# --- the seeded session -----------------------------------------------------------
-
-
-def _numbered(lines: list[str], start: int) -> str:
-    """Lines in the Read tool's `cat -n` form, numbered from `start` (1-based)."""
-    return "\n".join(f"{start + i:>6}\t{line}" for i, line in enumerate(lines))
-
-
-def _read(
-    path: Path, lines: list[str], offset: int | None = None, limit: int | None = None
-) -> dict:
-    start = offset or 1
-    end = len(lines) if limit is None else min(len(lines), start - 1 + limit)
-    tool_input: dict = {"file_path": str(path)}
-    if offset is not None:
-        tool_input["offset"] = offset
-    if limit is not None:
-        tool_input["limit"] = limit
-    return {
-        "role": "tool",
-        "name": "Read",
-        "input": tool_input,
-        "result": _numbered(lines[start - 1 : end], start),
-    }
-
-
-def _grep(
-    path: Path,
-    lines: list[str],
-    fixed: list[str] | None,
-    heading: bool,
-    description: str,
-) -> dict:
-    if heading:
-        command = f"grep -n '^## ' {path}"
-        hits = [(i, line) for i, line in enumerate(lines, 1) if line.startswith("## ")]
-    else:
-        command = (
-            "grep -nF " + " ".join(f"-e '{tag}'" for tag in fixed or []) + f" {path}"
-        )
-        hits = [
-            (i, line)
-            for i, line in enumerate(lines, 1)
-            if any(t in line for t in fixed or [])
-        ]
-    return {
-        "role": "tool",
-        "name": "Bash",
-        "input": {"command": command, "description": description},
-        "result": "\n".join(f"{i}:{line}" for i, line in hits),
-    }
-
-
-def _section_span(
-    lines: list[str], title: str, until: str | None = None
-) -> tuple[int, int]:
-    """1-based start line of `## title` and the line count up to the next heading
-    (or up to `## until`)."""
-    start = lines.index(f"## {title}") + 1
-    ends = (
-        i
-        for i in range(start, len(lines))
-        if (lines[i] == f"## {until}" if until else lines[i].startswith("## "))
-    )
-    return start, next(ends, len(lines)) - start + 1
-
-
-def read_turns(path: Path, pattern: str | None = None) -> list[dict]:
-    """The reads a real resume makes of one handoff (AUDIT.md Q2): a small file in one
-    Read, a mid-size one in pages, a large one partially (a heading grep, the top 100
-    lines, the hot block from Remaining actions to Prior sessions, the tail, and a
-    grep for the two newest hop tags); `partial+constraints` adds a full read of
-    Constraints, as the audited superseded-rule resume made."""
-    text = path.read_text(encoding="utf-8")
-    lines = text.split("\n")
-    if lines and lines[-1] == "":
-        lines = lines[:-1]
-    size = len(text.encode("utf-8"))
-    pattern = pattern or (
-        "whole" if size <= WHOLE_MAX else "paged" if size <= PAGED_MAX else "partial"
-    )
-    if pattern == "whole":
-        return [_read(path, lines)]
-    if pattern == "paged":
-        return [
-            _read(path, lines, offset=start, limit=PAGE_LINES)
-            for start in range(1, len(lines) + 1, PAGE_LINES)
-        ]
-    if pattern not in ("partial", "partial+constraints"):
-        raise ValueError(f"unknown read pattern {pattern!r}")
-    hops = [int(h) for h in re.findall(r"\[h(\d+)\]", text)]
-    newest = max(hops) if hops else 1
-    tags = [f"[h{newest - 1}]", f"[h{newest}]"] if newest > 1 else [f"[h{newest}]"]
-    turns = [
-        _grep(path, lines, None, True, "List the handoff's section headings"),
-        _read(path, lines, limit=TOP_LINES),
-    ]
-    if pattern == "partial+constraints":
-        start, count = _section_span(lines, "Constraints that must hold")
-        turns.append(_read(path, lines, offset=start, limit=count))
-    start, count = _section_span(
-        lines, "Remaining actions, in order", until="Prior sessions"
-    )
-    turns.append(_read(path, lines, offset=start, limit=count))
-    turns.append(_read(path, lines, offset=max(1, len(lines) - TAIL_LINES + 1)))
-    turns.append(_grep(path, lines, tags, False, "Find the newest hop entries"))
-    return turns
-
-
-def _expand(value, subs: dict):
-    if isinstance(value, str):
-        for key, sub in subs.items():
-            value = value.replace("{" + key + "}", sub)
-        return value
-    if isinstance(value, list):
-        return [_expand(v, subs) for v in value]
-    if isinstance(value, dict):
-        return {k: _expand(v, subs) for k, v in value.items()}
-    return value
-
-
-def seed_history(
-    case_spec: dict, chain: list[Path], repo_root: Path | None = None
-) -> list[dict]:
-    """The session every arm's writer resumes from, as `resume_eval.render_history`
-    turns. It opens with the newest handoff's pasted resume prompt, then the reads,
-    then the case's work turns, and ends on an assistant turn; the harness sends
-    `writer.interrupt` next. `{repo}` and `{handoff}` in work turns expand to the
-    repository and the newest handoff's paths.
-
-    Raises ValueError when an injection's `visible_in_reads` disagrees with the read
-    slices, or when a turn the reads did not produce restates a hidden injection."""
-    newest = Path(chain[-1])
-    repo = Path(repo_root) if repo_root else newest.parents[2]
-    seed = case_spec["seed"]
-    paste = between_rails(newest.read_text(encoding="utf-8"))
-    if paste is None:
-        raise ValueError(f"{newest.name}: no resume region between rails")
-    reads = read_turns(newest, (seed.get("reads") or {}).get("pattern"))
-    subs = {"repo": str(repo), "handoff": str(newest)}
-    history = seed.get("history") or {}
-    work = _expand(list(history.get("work", [])), subs)
-    turns = [{"role": "user", "text": paste}, *reads]
-    turns.append({"role": "assistant", "text": _expand(history["after_reads"], subs)})
-    turns += work
-    if turns[-1]["role"] != "assistant":
-        raise ValueError(f"{case_spec['name']}: history must end on an assistant turn")
-
-    seen = "\n".join(turn["result"] for turn in reads)
-    said = "\n".join(
-        turn.get("text") or json.dumps(turn.get("input")) + str(turn.get("result"))
-        for turn in turns
-        if turn not in reads
-    )
-    for item in seed["predecessor"].get("injections", []):
-        visible = item.get("visible_in_reads")
-        if visible is None:
-            continue
-        # Read results number each line, so a multi-line entry is seen line by line.
-        lines = item["text"].split("\n")
-        shown = all(line in seen for line in lines)
-        if shown != bool(visible):
-            raise ValueError(
-                f"{case_spec['name']}: injection {item['id']!r} visible_in_reads={visible} "
-                f"but the read slices {'show' if shown else 'miss'} it"
-            )
-        if not visible and any(line in said for line in lines):
-            raise ValueError(
-                f"{case_spec['name']}: a work turn restates hidden injection {item['id']!r}"
-            )
-    return turns
 
 
 def load_case(case_dir: Path) -> dict:
     """The case's `resume-eval.json`, with its directory recorded as `case_dir`."""
     case_dir = Path(case_dir)
     spec = json.loads((case_dir / CASE_FILE).read_text(encoding="utf-8"))
+    relation = spec.get("task_relation")
+    if relation is not None and relation not in TASK_RELATIONS:
+        raise ValueError(
+            f"{case_dir.name}: task_relation {relation!r} is not one of {TASK_RELATIONS}"
+        )
     spec["case_dir"] = str(case_dir)
     return spec

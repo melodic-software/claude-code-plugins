@@ -1,0 +1,214 @@
+{
+  "name": "re-transition-3-to-4",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "transition",
+    "shape-3",
+    "shape-4"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "Handoff redesign: the first shape-4 handoff after a shape-3 chain carries every binding entry and keeps the id floors.",
+    "risk": "The writer that first moves a shape-3 chain to shape 4 drops or rewrites a binding rule or decision while converting sections."
+  },
+  "description": "Transition case: a shape-3 predecessor chain, resumed by an arm that writes shape 4. The rule (reindex only into the staging alias) and the decision (12 shards) were set at hop 1 and are the next action's guard rails; the artifact probe applies to the after arm, which runs once Track B adds shape 4.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# search-index\n\nSynthetic service repository for the resume eval.\n",
+      "Makefile": "reindex:\n\t./scripts/reindex.sh --alias $(ALIAS)\nswap-alias:\n\t./scripts/swap-alias.sh products-next products\n",
+      "scripts/reindex.sh": "#!/usr/bin/env bash\necho \"reindex: $* -> 2,410,033 documents\"\n",
+      "scripts/swap-alias.sh": "#!/usr/bin/env bash\necho \"swap: $1 -> $2\"\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "search-index",
+      "lane": "search-index",
+      "hops": 5,
+      "start": "2026-11-05T08:00:00Z",
+      "hop_minutes": 240,
+      "goal": "Ship the new product mapping (synonyms and the brand keyword) to search.",
+      "vision": "Shoppers find products by brand and common synonyms.",
+      "opening_ask": "Roll out the new product mapping to the search index.",
+      "injections": [
+        {
+          "id": "rule-staging-alias",
+          "hop": 1,
+          "section": "rules",
+          "text": "Reindex only into the staging alias with `make reindex ALIAS=products-next`, then swap aliases with `make swap-alias`; never reindex into the live alias `products`, which serves search traffic.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "decision-12-shards",
+          "hop": 1,
+          "section": "decisions",
+          "text": "Keep the products index at 12 shards: the 24-shard trial (run 81500112) doubled p99 query latency.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 5 against main at 8c4d1f0.",
+          "Where it stands: PR #4471 (the new product mapping) is merged; the index has not been rebuilt.",
+          "Next: rebuild the index with the new mapping, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: shoppers find products by brand and common synonyms.",
+          "- [x] PR #4471 merged.",
+          "- [ ] Search serves the new mapping."
+        ],
+        "remaining": [
+          "1. Rebuild the products index with the new mapping.",
+          "2. Swap the alias once the rebuild's counts match."
+        ],
+        "next": [
+          "Rebuild the products index."
+        ],
+        "did": "merged PR #4471 with the new product mapping",
+        "left": "the index not rebuilt"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff. The mapping PR is merged; rebuilding the index is next.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/Makefile"
+          },
+          "result": "     1\treindex:\n     2\t\t./scripts/reindex.sh --alias $(ALIAS)\n     3\tswap-alias:\n     4\t\t./scripts/swap-alias.sh products-next products"
+        },
+        {
+          "role": "assistant",
+          "text": "reindex takes an ALIAS; swap-alias moves products-next to products."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/search-index",
+      "responses": [
+        {
+          "match": "\\bpr view\\b",
+          "stdout": "{\"number\": 4471, \"state\": \"MERGED\"}\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff search-index",
+      "after": "/session-flow:handoff search-index",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-rule-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "make reindex ALIAS=products-next[^\\n]*never reindex into the live alias"
+      },
+      "note": "The rule survives the move to shape 4 whole."
+    },
+    {
+      "id": "artifact-decision-carried",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "12 shards[^\\n]*24-shard trial[^\\n]*doubled p99"
+      },
+      "note": "The decision survives the move to shape 4 whole."
+    },
+    {
+      "id": "artifact-rule-id-kept",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "\\[R4\\] Reindex only into the staging alias"
+      },
+      "note": "The rule keeps the id the shape-3 chain gave it."
+    },
+    {
+      "id": "continuation-reindex-staging",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "(make reindex ALIAS=|reindex\\.sh --alias )products-next\\b"
+      }
+    },
+    {
+      "id": "decision-no-live-reindex",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "tool_command_regex",
+        "pattern": "(make reindex ALIAS=|reindex\\.sh --alias )products(?![-\\w])"
+      },
+      "note": "Reindexing into the live alias breaks search for shoppers."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}
