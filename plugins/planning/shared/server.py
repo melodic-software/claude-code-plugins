@@ -797,16 +797,18 @@ def raw_answer(code, reason, body):
     return ("\r\n".join(head) + "\r\n\r\n").encode("ascii") + raw
 
 
-def linger(sock, seconds, limit):
+def linger(sock, seconds, limit, read=None):
     """Half-close `sock` once its answer is sent, then read and drop what the client still sends until it closes, `limit`
     bytes or `seconds` (RFC 9112 9.6). A socket closed with request bytes unread, or that gets more after it closed,
-    resets the connection (RFC 9293 3.6.1), and the reset can reach a client before it reads the answer."""
-    with contextlib.suppress(OSError):
+    resets the connection (RFC 9293 3.6.1), and the reset can reach a client before it reads the answer. `read` defaults
+    to `sock.recv`; a handler passes its buffered reader's `read1`, which returns the bytes it already took first."""
+    read = read or sock.recv
+    with contextlib.suppress(OSError, ValueError):
         sock.shutdown(socket.SHUT_WR)
         deadline = time.monotonic() + seconds
         while limit > 0 and (wait := deadline - time.monotonic()) > 0:
             sock.settimeout(wait)
-            got = sock.recv(min(limit, 65536))
+            got = read(min(limit, 65536))
             if not got:
                 break
             limit -= len(got)
@@ -890,10 +892,13 @@ class GuestHandler(BaseHTTPRequestHandler):
         return True
 
     def finish(self):
-        """Read what is left of a body answered unread before the socket closes, so it closes with no reset."""
-        super().finish()
+        """Read what is left of a body answered unread before the socket closes, so it closes with no reset. It reads
+        through `rfile` before closing it, since the header read can already have buffered the whole body."""
         if self.body_left:
-            linger(self.connection, self.server.DRAIN_SECONDS, self.body_left)
+            with contextlib.suppress(OSError, ValueError):
+                self.wfile.flush()
+            linger(self.connection, self.server.DRAIN_SECONDS, self.body_left, self.rfile.read1)
+        super().finish()
 
     @property
     def app(self):

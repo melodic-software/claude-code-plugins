@@ -850,6 +850,27 @@ class TestRawRequests(ServerCase):
             time.sleep(0.3)
             s.sendall(b"x")
 
+    def test_a_small_body_sent_with_the_headers_and_refused_frees_its_handler_at_once(self):
+        """The header read buffers a small body sent in the same write, so the drain must count it as read: a refused
+        POST whose client keeps the socket open frees its handler at once instead of after DRAIN_SECONDS."""
+        real, drains = server.linger, []
+
+        def timed(*args, **kwargs):
+            t0 = time.monotonic()
+            real(*args, **kwargs)
+            drains.append(time.monotonic() - t0)
+
+        body = b'{"name": "x"}'
+        head = f"POST /api/join HTTP/1.1\r\nHost: wrong.example\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n"
+        with mock.patch.object(server, "linger", timed), socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(head.encode() + body)
+            got = b""
+            while chunk := s.recv(4096):
+                got += chunk
+            self.assertTrue(wait_for(lambda: drains, seconds=1.5), "the handler finished its drain while the client still held the socket")
+        self.assertEqual(status_and_headers(got)[0], 403)
+        self.assertLess(drains[0], 0.5)
+
     def test_http_servers_own_refusals_carry_the_security_headers(self):
         cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
         for code, line in cases.items():
