@@ -414,6 +414,44 @@ pack() {
         if (p == "lib/media-render/media-render.test.sh" || p == "plugins/explainer-video/scripts/explainer-video.test.sh") s = s " mediarender"
         return s
       }
+      # assign(L): the longest suite first, each to the leg that finishes soonest.
+      function assign(L,   i, l, best, k, w) {
+        delete load; delete top; delete cnt; delete items; delete has; delete leg
+        for (i = 1; i <= n; i++) {
+          best = 0
+          for (l = 1; l < L; l++) if (est(l) < est(best)) best = l
+          leg[i] = best; load[best] += sec[i]
+          if (span[i] > top[best]) top[best] = span[i]
+          items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
+          split(need(path[i]), w, " ")
+          for (k in w) if (w[k] != "") has[best, w[k]] = 1
+        }
+        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
+        return L
+      }
+      # critical(L): the longest leg as the runner runs it: its suites over the
+      # workers longest first, then the serial ones, plus 25 s per toolchain
+      # (pr-require-checks.yml JOB COSTS: 15 s bare, 40 s with one).
+      function critical(L,   l, i, k, m, t, worst) {
+        worst = 0
+        for (l = 0; l < L; l++) {
+          for (k = 0; k < workers; k++) wk[k] = 0
+          t = 0
+          for (i = 1; i <= n; i++) {
+            if (leg[i] != l) continue
+            if (!span[i]) { t += sec[i] / workers; continue }
+            m = 0
+            for (k = 1; k < workers; k++) if (wk[k] < wk[m]) m = k
+            wk[m] += sec[i]
+          }
+          m = 0
+          for (k = 1; k < workers; k++) if (wk[k] > wk[m]) m = k
+          t += wk[m]
+          for (k = 1; k <= nt; k++) if ((l, toolchain[k]) in has) t += 25
+          if (t > worst) worst = t
+        }
+        return worst
+      }
       {
         if ($2 ~ /["\\]/) { print "plan-test-lanes: a suite path carries a quote or a backslash: " $2 > "/dev/stderr"; bad = 1; exit }
         n++; sec[n] = $1 + 0; path[n] = $2; span[n] = $3 + 0; total += $1
@@ -425,23 +463,16 @@ pack() {
           printf "%s: nothing selected\n", lane > "/dev/stderr"
           exit 0
         }
+        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         legs = int((total + budget - 1) / budget)
         if (force || legs > cap) legs = cap
         if (legs > n) legs = n
         if (legs < 1) legs = 1
-        for (i = 1; i <= n; i++) {
-          best = 0
-          for (l = 1; l < legs; l++) if (est(l) < est(best)) best = l
-          load[best] += sec[i]
-          if (span[i] > top[best]) top[best] = span[i]
-          if (!span[i]) solo[best] += sec[i]
-          items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
-          split(need(path[i]), w, " ")
-          for (k in w) if (w[k] != "") has[best, w[k]] = 1
-        }
-        if (coinstall && lane == "bash") { has[0, "animation"] = 1; has[0, "demovideo"] = 1; has[0, "mediarender"] = 1 }
+        # The budget sets a critical path; the fewest legs that keep it are the plan.
+        assign(legs); limit = critical(legs)
+        for (l = 1; l < legs; l++) if (critical(assign(l)) <= limit) { legs = l; break }
+        assign(legs)
         legsj = ""; planj = ""; needsj = ""; loads = ""
-        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         for (l = 0; l < legs; l++) {
           s = ""
           for (k = 1; k <= nt; k++) if ((l, toolchain[k]) in has) s = s " " toolchain[k]

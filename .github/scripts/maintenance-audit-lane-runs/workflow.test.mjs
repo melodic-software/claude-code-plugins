@@ -272,12 +272,12 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
 // credit-stop marker makes collect-key-handoffs upload the gate's marker.
 test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
   assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /);
-  assert.match(jobs.collect, /\n {10}leg: start\n {10}key-job: judge\n/);
+  assert.match(jobs.collect, /\n {10}leg: start\n {10}role: automations\n {10}key-job: judge\n/);
   assert.match(jobs.collect, /\n {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
   assert.match(jobs[KEY], /\n {4}if: .* && needs\.collect\.outputs\.next-leg != 'subscription'\n/);
   assert.match(step("Route every unit past the skipped key", ROUTES[0]), /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && needs\.collect\.outputs\.next-leg == 'subscription'\n/);
   assert.match(jobs[ROUTES[0]], /handoff\.mjs route-skipped\n/);
-  assert.match(jobs[ROUTES[0]], /\n {10}name: key-credit-stop-maintenance-audit-lane-runs\.yml-judge\n/);
+  assert.match(jobs[ROUTES[0]], /\n {10}name: key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY\n/);
   assert.match(jobs[ROUTES[0]], /\n {8}if: steps\.route\.outputs\.credit-stop == 'true'\n/);
   assert.deepEqual(routeSkipped(["a1", "c2"]), { include: [{ unit: "a1", reason: "credit-stop" }, { unit: "c2", reason: "credit-stop" }] });
   assert.throws(() => routeSkipped(null), /not a list/);

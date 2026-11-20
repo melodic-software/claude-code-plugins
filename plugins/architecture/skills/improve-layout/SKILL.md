@@ -1,6 +1,6 @@
 ---
 description: "Co-change layout check: do the files that change together in git history live together in the folder tree? A tested script finds co-change clusters and how far each spreads over folders; each becomes a card judged against the layout style the repo records, then an interview on the picked card's target layout. Moves no file. Use when 'do files that change together live together', 'co-change layout', 'co-change clusters', 'which files always change together', 'are these files in the right folders'. Skip for module depth or boundary rules (/architecture:improve)."
-argument-hint: "[--path <dir> ...] [--<setting> <value> ...]"
+argument-hint: "[--path <dir> ...] [--<setting> <value> ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,11 +8,15 @@ metadata:
   summary: Check whether files that change together live together, then propose a target layout
 ---
 
-**Arguments.** `[--path <dir> ...] [--<setting> <value> ...]`. e.g., `--path src --min-revs 3`.
-`--path <dir>` (repeatable, relative to the repository root) scopes the history to those folders,
-and a `layout` setting given as `--<key-with-dashes> <value>` (for example `--min-revs 3`) changes
-that key for this run only. `exclude_authors` is the exception: `--exclude-author <text>`,
-repeatable, replaces the list, and `--all-authors` empties it. Pass each to the script as given.
+**Arguments.** `[--path <dir> ...] [--<setting> <value> ...] [--repo <repo> ...]`. e.g.,
+`--path src --min-revs 3`. `--path <dir>` (repeatable, relative to the repository root) scopes the
+history to those folders, and a `layout` setting given as `--<key-with-dashes> <value>` (for
+example `--min-revs 3`) changes that key for this run only. `exclude_authors` is the exception:
+`--exclude-author <text>`, repeatable, replaces the list, and `--all-authors` empties it. Pass each
+to the script as given. `--repo` and the other target forms in
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md)
+run Phases 1 to 3 once per repository ("Several repositories" below); the script gets each
+resolved root as `--repo <root>`, never the form as typed. The default stays this repository.
 
 ## Variables
 
@@ -38,6 +42,19 @@ section name.
 
 Four phases. Each has a gate before the next.
 
+## Several repositories
+
+With no target form, the run covers this repository, exactly as the phases below say. A target
+form resolves, counts and fans out the repositories as "Scope and fan-out" says, and Phases 1 to 3
+run once per repository with its root anchored: its own recorded style, its own `<home>`, and its
+own script run with `--repo <root>`. The script reads the history of the root's checked-out
+`HEAD`; when that is not `origin/HEAD` after the fetch, the report says so for that repository.
+Each card carries its repository (`owner/name`), and the cards merge into one report banded on one
+scale, as [target-scope.md](../../reference/target-scope.md) "Merging findings" says. The Phase 1
+style question is asked from the merged report, once per repository with no style recorded. Each
+repository's candidate artifact goes to its own memory root, holding only its own cards, and the
+report names every path. Phase 4 interviews the picked card in its own repository.
+
 ## Phase 1: Read the recorded style
 
 Resolve `<home>` ("Convention home"). On exit 5, 2, 3 or any other, the script runs with
@@ -58,10 +75,11 @@ sources were checked.
 
 ## Phase 2: Compute co-change
 
-Run the script once, from the repository root, as its own Bash call:
+Run the script once per repository, from this repository's root, as its own Bash call; another
+repository adds `--repo <root>`:
 
 ```text
-node "<skill-dir>/scripts/co-change.mjs" --home <home> [--path <dir>]... [<one-run settings>]
+node "<skill-dir>/scripts/co-change.mjs" [--repo <root>] --home <home> [--path <dir>]... [<one-run settings>]
 ```
 
 Read its JSON output; do not recount anything it counted.
@@ -106,6 +124,7 @@ from the script's `message`, the number of `well-encapsulated` clusters left out
 ## <cluster id or rule>: <one-line summary>
 
 - status: proposed | selected | agreed-layout | rejected
+- repository: <owner/name, only on a run over several repositories>
 - files: <comma-separated paths>
 - folders: <folder (cluster files / folder files), ...>
 - spread: <n>
