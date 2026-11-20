@@ -661,12 +661,29 @@ test("AC12: status names the folder's profile and every entry that differs from 
   const doc = JSON.parse(w.read());
   doc.enabledPlugins[`implementation@${M}`] = false;
   writeFileSync(w.localFile, `${JSON.stringify(doc, null, 2)}\n`);
-  const list = JSON.parse(readFileSync(w.env.PP_STUB_LIST, "utf8"));
-  writeFileSync(w.env.PP_STUB_LIST, JSON.stringify([...list, { id: `writing@${M}`, version: "1.0.0", scope: "user", installPath: w.root }]));
+  installOnDisk(w, [`writing@${M}`]);
   const s = JSON.parse(w.run(["status", "--json"]).stdout);
   assert.equal(s.profile, "build");
   assert.deepEqual(s.differs, [{ name: `implementation@${M}`, recorded: true, current: false }]);
   assert.deepEqual(s.installedSince, [`writing@${M}`]);
+});
+
+test("#17656: status and status --json with a profile recorded read installed plugins from disk, start no claude, and answer in under 2 seconds", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  installOnDisk(w, [`writing@${M}`]);
+  writeFileSync(w.env.PP_STUB_CALLS, "");
+  const plain = w.run(["status"]);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(plain.stdout, /Installed since the profile was applied: writing@melodic-software/);
+  const started = Date.now();
+  const json = w.run(["status", "--json"]);
+  const elapsed = Date.now() - started;
+  assert.equal(json.status, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).profile, "build");
+  assert.deepEqual(JSON.parse(json.stdout).installedSince, [`writing@${M}`]);
+  assert.equal(w.calls(), "", "status started the stub claude");
+  assert.ok(elapsed < 2000, `status --json took ${elapsed} ms`);
 });
 
 test("D4: status --session-start reads installed plugins from disk and never starts claude", () => {

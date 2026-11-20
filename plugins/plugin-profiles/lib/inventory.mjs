@@ -3,7 +3,6 @@
 //
 //   recordsFromCli([run])               -> install records from `claude plugin list --json`
 //   recordsFromDisk(configDir, [read])  -> the same records from plugins/installed_plugins.json,
-//                                          for a session-start run that must not start a nested claude
 //   inventory({projectDir, records})    -> Map<id, {id, version, installPath, dependsOn, ships, skills}>
 //   knownMarketplaces([run])            -> Set of the marketplace names this machine has added
 //   marketplaceLocation(configDir, name) -> the folder plugins/known_marketplaces.json gives that

@@ -50,8 +50,8 @@
 // status   The profile recorded for the folder (or user settings), each entry that differs from
 //          it, plugins installed since, a switch still pending, a one-session profile named by
 //          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
-//          the initial profile and names a folder record as not in force. --session-start reads
-//          the installed plugins from disk, never from a nested claude, and prints a SessionStart
+//          the initial profile and names a folder record as not in force. It reads the installed
+//          plugins from disk, never from a nested claude. --session-start prints a SessionStart
 //          systemMessage only where a profile was applied.
 // clear    Puts every entry the tool wrote back to its value before the first apply and removes
 //          a settings file the tool created. Like apply it prints what it changes first and writes
@@ -935,7 +935,7 @@ async function start(opts, where, env, io) {
 }
 
 /** The record of one settings file compared with the file now. */
-function recordedStatus(target, where, records) {
+function recordedStatus(target, where) {
   const file = targetFile(where, target);
   const rec = recordOf(where, file).record;
   if (!rec) return { profile: null, target, settingsFile: file };
@@ -947,7 +947,7 @@ function recordedStatus(target, where, records) {
       if (current !== after && rec.pending?.[name] === undefined) differs.push({ name, recorded: after, current });
     }
   }
-  const installedSince = [...inventory({ projectDir: where.projectDir, records: records() }).keys()].filter((id) => !rec.installed.includes(id));
+  const installedSince = [...inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys()].filter((id) => !rec.installed.includes(id));
   return {
     profile: rec.profile,
     target: rec.target,
@@ -966,7 +966,7 @@ function recordedStatus(target, where, records) {
  * folder's record, or the initial profile's when folder remembering is off (leftover then names a
  * folder record that is not in force).
  */
-function statusOf(opts, where, env, records) {
+function statusOf(opts, where, env) {
   const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
   if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
   const name = sessionProfile(env);
@@ -978,7 +978,7 @@ function statusOf(opts, where, env, records) {
     target = "initial";
   }
   base.earlier = earlierProfile(where);
-  const recorded = recordedStatus(target, where, records);
+  const recorded = recordedStatus(target, where);
   const inForce = name ?? (base.rememberFolder || target === "initial" ? recorded.profile : null);
   return { ...base, ...recorded, launchCommand: inForce ? launchCommandOf(inForce, where) : null, startCommand: inForce ? `claude --profile ${inForce}` : null };
 }
@@ -1107,7 +1107,7 @@ function status(opts, where, env, io) {
     })();
     const lines = resumed ? [resumed] : [];
     try {
-      const s = statusOf(opts, where, env, () => recordsFromDisk(where.configDir));
+      const s = statusOf(opts, where, env);
       if (worthNotice(s)) lines.push(...noticeLines(s, input.session_id));
     } catch {
       // A session start never fails on a profile problem; status run by hand reports it.
@@ -1115,7 +1115,7 @@ function status(opts, where, env, io) {
     if (lines.length) io.out(JSON.stringify({ systemMessage: `plugin-profiles:\n${lines.join("\n")}` }));
     return 0;
   }
-  const s = statusOf(opts, where, env, () => recordsFromCli());
+  const s = statusOf(opts, where, env);
   io.out(opts.json ? JSON.stringify(s, null, 2) : statusLines(s).join("\n"));
   return 0;
 }
