@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -682,7 +683,10 @@ def journey(path: Path, limit: int = 1000) -> Journey:
     """Every hop of `path`'s chain still on disk: the hot files `read_chain`
     reaches, then, from the chain's hop files, each hot file that is gone
     (read from the copy the next hop's file holds) and any older hot file a
-    hop file names that the walk did not reach."""
+    hop file names that the walk did not reach. Only hop files at or below
+    `path`'s hop and on its own branch count: a fork's branches share the
+    archive directory, so at a hop with several files only the one whose
+    session the walk reached is read."""
     handoffs = path.parent
     chain = read_chain(path, limit=limit)
     found: dict[str, Hop] = {}
@@ -721,8 +725,19 @@ def journey(path: Path, limit: int = 1000) -> Journey:
         ),
         reverse=True,
     )
+    start = chain.links[0].hop if chain.links else None
+    levels = Counter(k for k, _ in hop_files)
+    on_path = {
+        (link.hop, link.frontmatter.get("session_id", "")[:8].lower())
+        for link in chain.links
+    }
     hop_sids: dict[int, tuple[str, Path]] = {}
     for k, hop_path in hop_files:
+        sid8 = hop_path.stem.split("-", 1)[1]
+        if (start is not None and k > start) or (
+            (k, sid8) not in on_path and levels[k] > 1
+        ):
+            continue
         try:
             lines = hop_path.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
@@ -738,8 +753,14 @@ def journey(path: Path, limit: int = 1000) -> Journey:
         if not HANDOFF_NAME_RE.match(moved) or moved in found:
             continue
         if (handoffs / moved).is_file():
-            add(read_chain(handoffs / moved, limit=limit).links)
+            links = read_chain(handoffs / moved, limit=limit).links
+            add(links)
+            on_path |= {
+                (link.hop, link.frontmatter.get("session_id", "")[:8].lower())
+                for link in links
+            }
         else:
+            on_path.add((k - 1, rows.get(moved, ("", ""))[0][:8].lower()))
             found[moved] = Hop(
                 k - 1, "", moved, hop_path, _journey_sections(bodies, handoffs)
             )
