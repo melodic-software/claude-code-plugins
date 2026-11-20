@@ -1,6 +1,6 @@
 ---
 description: "Re-anchors pointer-over-copy discipline: audits the work in flight for copied content, internal-name coupling, and closed capability lists, and corrects by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
-argument-hint: "[target]"
+argument-hint: "[target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
   summary: Audit for copied content and correct by pointing at the living source
 ---
 
-**Arguments.** `[target]`. e.g., /discipline:point-dont-copy the new setup guide, or empty to audit the work in flight
+**Arguments.** `[target] [--repo <repo> ...]`. e.g., /discipline:point-dont-copy the new setup guide, or empty to audit the work in flight. A target form (`--repo <repo>` and the others) audits those repositories instead; see [Several repositories](#several-repositories).
 
 # Point, don't copy
 
@@ -98,6 +98,24 @@ Resolve the verification level once with
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill point-dont-copy --file docs/conventions/discipline.yaml`
 and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
 `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
+
+## Several repositories
+
+A target form from
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
+runs the loop once per repository, per the method doc's "Several
+repositories"; with none, the skill audits the work in flight as above. Each
+repository's pass audits that repository's tracked
+documentation and instruction files (and, with a `[target]` too, the
+matching path in each repository) for the findings above. A cross-repository
+copy is the second copy this skill pins at two, and one repository naming
+another's internal paths breaks the public-contracts pin: get both from the
+contract's "Cross-repository signals" by running the read-only
+`/coupling:reduce dry-run` with the same target forms. When that skill is
+not enabled, report `cross-repository copies: not measured` rather than a
+clean result. Weigh each diverged copy against "What is not a copy" above
+before treating it as a finding, since a repository may own its adapted
+variant.
 
 ## External-reference ports. Semantics map + confirmation gate
 
