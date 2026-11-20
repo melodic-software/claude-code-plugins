@@ -2,7 +2,8 @@ import type { EngineInterface } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import { DEFAULT_STATE } from '../scene/lib.ts'
-import { HURRY_GAP_MS, REASK_MS, SCREEN_RESTS_MS, STALL_MS, confirmScreen, encodeWorld, nextValues, noteScreenClick, pumpScreen, queueScreen, rebuild, restLeft, send, sendMinute, slept, startShader } from './values.js'
+import { CUES, WORLD } from './signals.gen.js'
+import { HURRY_GAP_MS, REASK_MS, SCREEN_RESTS_MS, STALL_MS, confirmScreen, encodeWorld, nextValues, noteScreenClick, offerCue, pumpScreen, queueScreen, rebuild, restLeft, send, sendMinute, slept, startShader } from './values.js'
 
 const quiet = { sun: 0, weather: 0, work: 0, zone: 0, hall: 0 }
 const fieldsOf = (code: number) => ({ hurry: code % 2, hall: (code >> 1) % 2, tape: (code >> 2) % 2, tapeSeq: (code >> 3) % 2, console: (code >> 4) % 2, consoleSeq: (code >> 5) % 2 })
@@ -97,6 +98,21 @@ test('two world changes reach the element at least 6 s apart, and the later repl
   })
   expect(moves.map(move => move.value)).toEqual([encodeWorld(asked[0]!.fields), encodeWorld(asked[2]!.fields)])
   expect(moves[1]!.at - moves[0]!.at).toBeGreaterThanOrEqual(6000)
+})
+
+test('the same cue asked while its code still shows goes again once the atmosphere has shown between', () => {
+  startShader(DEFAULT_STATE, quiet, 480, -60_000)
+  const cue = WORLD.top + CUES.light
+  const moves = run('world', 0, 33_000, now => {
+    if (now === 0 || now === 4800) offerCue(CUES.light, now)
+    rebuild(quiet, now)
+  })
+  expect(moves).toEqual([
+    { at: 0, value: cue },
+    { at: 12_000, value: 0 },
+    { at: 18_000, value: cue },
+    { at: 30_000, value: 0 },
+  ])
 })
 
 test('one hurry flip a rebuild, none within 12 s of the last sent, and a flip changes the hurry bit alone', () => {

@@ -13,3 +13,11 @@ bump: minor
 
 - Rain, the downpour and the storm are one recording of rain on a roof heard from indoors, the downpour and the storm heavier, so the three sound alike at the same distance. Thunder follows each strike after 1 to 6 seconds, quieter and rolling longer the farther the strike.
 - The settings card's four title fields show two to a row, wide enough for each title and its set button, in place of the time and the weather, so the card stays six rows.
+- `/bedroom sound pick` takes a kind, `cicadas`, `rain`, `thunder` or `tv`, and an entry's name or number; 0.3's `downpour` and `storm` kinds are gone, since the rain entry holds all three wet beds.
+- The README states where `soundPlayer` is read from and how it runs.
+
+### Fixed
+
+- `/bedroom weather strike` in a storm is followed by thunder 1 to 4 seconds after the flash, as a scheduled strike is.
+- `/bedroom hall pass` or `/bedroom hall light` asked again while the first is still showing now runs again once the first ends, where it reported success and did nothing.
+- `/bedroom tape|console on|off` to the state it is already in now says so and sends nothing while the shader runs, as the other switches do.

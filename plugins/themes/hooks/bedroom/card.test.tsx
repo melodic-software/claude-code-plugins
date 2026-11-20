@@ -84,7 +84,13 @@ async function roomSends($: Engine): Promise<number> {
   return Number(/room sent: (\d+)/.exec(await bedroom($, 'stats'))?.[1])
 }
 
-test('/bedroom alone keeps its answer and shows a card listing every switch with its state', { timeoutMs: 20000 }, async ($, on) => {
+/**
+ * The two card tests below take 0.9 to 1.1 s and 0.4 to 0.7 s on an idle machine under claude plugin test, and ran past the
+ * default limit while the plugin started on a loaded one; this keeps that room.
+ */
+const CARD_START_MS = 20_000
+
+test('/bedroom alone keeps its answer and shows a card listing every switch with its state', { timeoutMs: CARD_START_MS }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
@@ -155,7 +161,7 @@ const fieldPx = (label: number, longest: number, submit: number): number => 8.5 
 /** Room three manual-trigger buttons need on the switches row: labels of up to five letters, about 72 px each, and their gaps. */
 const TRIGGERS_PX = 260
 
-test('the card is six rows with titles or the sound bank open: no row or field wider than the card, the time from earliest to latest, no shader button', { timeoutMs: 20000 }, async ($, on) => {
+test('the card is six rows with titles or the sound bank open: no row or field wider than the card, the time from earliest to latest, no shader button', { timeoutMs: CARD_START_MS }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)

@@ -5,7 +5,7 @@ import { readNow } from '../core/clock.js'
 import { ctxOf, usePieces } from '../core/context.js'
 import type { Ctx, Fields, Piece } from '../core/piece.js'
 import { load, savedOf } from '../core/saved.js'
-import { strike } from '../core/schedule.js'
+import { noteForcedStrike, strike } from '../core/schedule.js'
 import { useOptions } from '../core/settings.js'
 import { WORLD } from '../core/signals.gen.js'
 import { EVENING, startRoom } from '../core/testing.js'
@@ -30,6 +30,7 @@ import {
   engineCommand,
   engineSwitched,
   engineTick,
+  forcedDelayS,
   gainOf,
   purr,
   shownOf,
@@ -531,6 +532,27 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
   await engineTick(s.$, await s.ctx())
   await s.advance(55_000)
   expect(heard().length).toBe(stormed)
+  await quiet(s)
+})
+
+test('S6: a strike asked for with /bedroom weather strike brings its thunder once, 1 to 4 s after it shows', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 6, weather: 4 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  const heard = (): Ran[] => s.mixers.flatMap(m => m.ran).filter(r => r.words[0] === 'shot' && r.words[1]!.startsWith('thunder/'))
+  const shows = noteForcedStrike(s.now(), 1000)
+  const due = shows + forcedDelayS(shows) * 1000
+  expect(forcedDelayS(shows) >= 1 && forcedDelayS(shows) <= 4).toBe(true)
+  await s.advance(due - s.now() - 10)
+  expect(heard()).toEqual([])
+  await s.advance(20)
+  const thunders = BUILT.includes('weather') && !WITHOUT.includes('weather.lightning')
+  expect(heard().map(r => [r.words[1], r.at])).toEqual(thunders ? [[thunderOf(savedOf({}), { at: shows, delayS: forcedDelayS(shows) }).file, due]] : [])
+  await s.advance(10_000)
+  expect(heard().length).toBe(thunders ? 1 : 0)
   await quiet(s)
 })
 

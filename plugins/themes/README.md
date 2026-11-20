@@ -86,9 +86,15 @@ bottom-left corner of the front of the dresser.
   - On Windows, and under WSL through Windows, one player process runs for as long as sound is on
     and mixes everything, so a sound plays within about a tenth of a second of its click; it ends
     when sound goes off, the plugin unloads or the session ends. On macOS the app plays the
-    sounds. Elsewhere the mod runs a player it finds on `PATH` (`ffplay`, `paplay` or `aplay`), or
-    the command in the `soundPlayer` setting, with `{file}` where the file goes and `{volume}` for 0
-    to 100, once for each sound: there a bed changes with a cut, not a fade.
+    sounds. Elsewhere the mod runs a player it finds on `PATH` (`ffplay`, `paplay` or `aplay`) once
+    for each sound: there a bed changes with a cut, not a fade.
+  - The `soundPlayer` setting, when it is not empty, is used in place of all of these, on every
+    system but macOS: a command line with `{file}` where the file goes and `{volume}` for 0 to 100,
+    run once for each sound. It is read from the plugin's settings; no `/bedroom` command or
+    saved choice changes it. The mod splits it on spaces and starts the program it names
+    with those words as its arguments, with no shell, so pipes, quotes and `;` have no meaning in
+    it. It runs only while sound is on, and runs with your user's rights, so set it only to a
+    player you trust.
   - `/bedroom sound test` checks the player. `/bedroom sound` alone says the volume, the bank's
     choices and the player.
 

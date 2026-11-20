@@ -4,7 +4,7 @@ import { minuteOfHalfDay } from '../core/clock.js'
 import { ctxOf } from '../core/context.js'
 import type { Ctx, Piece, Switch } from '../core/piece.js'
 import { volumeOf, type Saved } from '../core/saved.js'
-import { strike } from '../core/schedule.js'
+import { forcedStrikeAt, strike } from '../core/schedule.js'
 import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
@@ -374,6 +374,7 @@ async function step($: EngineInterface): Promise<void> {
     bed = undefined
     return
   }
+  await forcedThunder($)
   const player = await ready($)
   if (player === undefined) return
   if (out === undefined || out.isDone) {
@@ -509,7 +510,7 @@ export function thunderOf(saved: Saved, given: Strike): { file: string; factor: 
   return { file, factor: Math.max(0.35, 1 - 0.13 * (delayS - 1)), at: given.at + delayS * 1000 }
 }
 
-/** Plays a strike's thunder when it is due. The picture calls this for each strike it shows; the minute's scheduled ones come through it too. */
+/** Plays a strike's thunder when it is due: each minute's scheduled strike and each one /bedroom weather strike asks for come through it. */
 export async function thunderFor($: EngineInterface, given: Strike): Promise<void> {
   const ctx = ctxOf($)
   if (!THUNDERS || !ctx.setting('sound')) return
@@ -526,6 +527,21 @@ export const TAKEN_MS = 910
 /** How far a minute's scheduled strike is, as its thunder's delay in seconds: 1 to 6, from the minute alone, so the shader can dim a far flash by the same integers. */
 export function strikeDelayS(minute: number): number {
   return 1 + ((minute * 7919) % 5001) / 1000
+}
+
+/** How far a strike asked for with /bedroom weather strike is, as its thunder's delay in seconds: 1 to 4, from its second. */
+export const forcedDelayS = (at: number): number => 1 + (Math.floor(at / 1000) % 4)
+
+/** When the strike asked for last brought its thunder, so each one brings one. */
+let heardForced: number | undefined
+
+/** The thunder of the strike /bedroom weather strike asked for, once, unless it has already rolled. */
+async function forcedThunder($: EngineInterface): Promise<void> {
+  const at = forcedStrikeAt()
+  if (at === undefined || at === heardForced) return
+  heardForced = at
+  const delayS = forcedDelayS(at)
+  if ((await $.clock.now()) <= at + delayS * 1000) await thunderFor($, { at, delayS })
 }
 
 /** In a storm, this minute's scheduled strike, if it has one, counted from when the shader takes the minute. */

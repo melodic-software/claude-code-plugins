@@ -148,14 +148,23 @@ let cueUntil = -Infinity
 /** A cue asked while world could not move yet; a later one replaces it. */
 let cueWaiting: number | undefined
 
-/** Sends a cue if world can move now, else keeps it waiting; the milliseconds until world can next move. */
+/**
+ * Sends a cue if world can move now, else keeps it waiting; the milliseconds until world can next move. The shader takes
+ * a cue again only once world has left the cue codes, so the same cue while its code still shows sends the atmosphere
+ * first and keeps the cue waiting.
+ */
 export function offerCue(id: number, now: number): number {
   const free = Math.max(cueUntil, worldAt + WORLD_GAP_MS)
-  if (now < free) {
-    cueWaiting = id
-    return free - now
-  }
+  cueWaiting = id
+  if (now < free) return free - now
   const atmosphere = worldWaiting ?? worldSent
+  if (worldSent === WORLD.top + id) {
+    worldSent = atmosphere
+    worldAt = now
+    worldWaiting = undefined
+    want('world', worldSent)
+    return WORLD_GAP_MS
+  }
   worldSent = WORLD.top + id
   worldAt = now
   cueUntil = now + CUE_HOLD_MS
@@ -301,9 +310,8 @@ export async function send($: EngineInterface, why: string, fields: Fields, opti
 
 /** Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes. */
 export async function sendCue($: EngineInterface, id: number, why: string): Promise<number> {
-  const now = await readNow($)
-  const sentNow = now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
-  const delay = offerCue(id, now)
+  const delay = offerCue(id, await readNow($))
+  const sentNow = cueWaiting === undefined
   if (!worldTimer) armWorld($, delay)
   await ask($, why)
   return sentNow ? 0 : delay
