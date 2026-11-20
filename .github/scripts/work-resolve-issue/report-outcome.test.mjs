@@ -4903,6 +4903,36 @@ test("main waits on an open pull request, and retries when the named one is not 
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /#5 is not an open pull request here, so it retries instead\./);
 });
 
+test("reusePlan waits on a listed human's open pull request with decide()'s stop text and route, and opens none", () => {
+  const reused = { issueNumber: 77, branch: lane(400), changedFiles: ["README.md"], holdPaths: HOLD_GLOBS, runId: "555" };
+  assert.equal(reusePlan(reused).action, "open-pr");
+  const plan = reusePlan({ ...reused, humanPull: "31" });
+  const decided = decideDone({ branch: lane(400), changedFiles: [], runId: "555", humanPull: "31" });
+  assert.equal(plan.action, "wait");
+  assert.equal(plan.stop, "blocked-by-pr");
+  assert.equal(plan.pr, "31");
+  assert.equal(plan.comment, decided.comment);
+  assert.ok(plan.comment.includes(`Partial work is on the branch \`${lane(400)}\``), plan.comment);
+});
+
+test("main on an unreported reuse branch with HUMAN_PULL set waits on that pull request, pushing nothing and opening no PR", async () => {
+  await withAsyncDir({ "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ...PR_ROUTES,
+      ["GET", /\/pulls\/31$/, 200, { state: "open", merged_at: null, user: { login: "kyle-sexton", type: "User", id: OWNER_ID } }],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...reuseEnv(dir), HUMAN_PULL: "31", TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), "no pull request opens");
+    assert.ok(!calls.some((c) => c.method !== "GET" && c.path.includes("/git/")), "no ref is written");
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+    assert.match(comment, /^<!-- work-resolve-issue outcome=wait pr=31 run=123 -->/);
+    assert.match(comment, /listed human's open pull request ＃31 names this issue/);
+  });
+});
+
 // Security review on #10978: anyone can open a pull request, so a wait on one
 // only the lanes App or a listed human opened, as closed-by-open-pr reads it.
 test("main waits only on an open pull request the lanes App or a listed human opened, and retries on anyone else's", async () => {

@@ -9137,12 +9137,8 @@ test("check-catalog keeps its 9-minute job bound with the install step under it"
 
 // --- lane transcripts: every model leg keeps its transcript, sealed ---
 
-// The read runner's model job uploads nothing (the test above). The write
-// runner's skill job holds id-token: write while the skill can rewrite any
-// file a later step would run, so no step runs staged code after it there.
 const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
-  "pr-run-activity-write.yml#run",
 ]);
 const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
 const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
