@@ -673,7 +673,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const creditRead = credit.steps.find((s) => s.id === "credit");
   assert.match(creditRead.uses, SELECT);
   assert.equal(creditRead["continue-on-error"], true);
-  assert.deepEqual(creditRead.with, { leg: "start", "key-job": "refine-issue", "window-hours": "${{ vars.KEY_CREDIT_WINDOW_HOURS }}", "reset-at": "${{ vars.KEY_CREDIT_RESET_AT }}", "probe-minutes": "0" });
+  assert.deepEqual(creditRead.with, { leg: "start", role: "intake", "key-job": "refine-issue", "window-hours": "${{ vars.KEY_CREDIT_WINDOW_HOURS }}", "reset-at": "${{ vars.KEY_CREDIT_RESET_AT }}", "probe-minutes": "0" });
   assert.deepEqual(credit.outputs, { "next-leg": "${{ steps.credit.outputs.next-leg }}", "next-reason": "${{ steps.credit.outputs.next-reason }}", marker: "${{ steps.credit.outputs.marker }}" });
   assert.equal(credit.steps.find((s) => s.name === "Report the skipped key leg").if, "steps.credit.outputs.next-leg == 'subscription'");
   const picked = (refine, mode = "refine", gate = "") => ({
@@ -8782,7 +8782,7 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
   // The read runner's own start call, at the same pin, for the key job it names.
   const inner = brokerSteps.find((s) => s.id === "credit");
   assert.equal(credit.uses, inner.uses);
-  assert.deepEqual(credit.with, { ...inner.with, "key-job": "resolve-issue" });
+  assert.deepEqual(credit.with, { ...inner.with, role: "issue-lane", "key-job": "resolve-issue" });
   assert.equal(caller["resolve-issue"].with["key-credit-job"], "resolve-issue", "the marker the key call reads");
   assert.equal(credit["continue-on-error"], true, "a failed read runs the key");
   assert.equal(pick.permissions.actions, "read");
@@ -10389,8 +10389,8 @@ const CLASSIFIER_PINS = new Set([...read("../../workflows/maintenance-measure-sk
 assert.equal(CLASSIFIER_PINS.size, 1, [...CLASSIFIER_PINS].join(", "));
 const CLASSIFIER_PIN = [...CLASSIFIER_PINS][0];
 for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
-  ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-pr-run-plugin-evals.yml-eval"],
+  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY"],
+  ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY"],
 ]) {
   test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow(file);
@@ -10617,9 +10617,9 @@ test("every read-runner first call names its key job and grants the gate's actio
       assert.equal(read["continue-on-error"], true, call);
       assert.equal(markers.steps.find((s) => s.id === `credit-marker-${call}`).if, `steps.credit-stop-${call}.outputs.credit-stop == 'true'`);
       const upload = markers.steps.find((s) => s.name === `Upload ${call}'s credit-stop marker`);
-      // check-key-credit gate.cjs markerName: key-credit-stop-<caller file>-<key job>.
-      assert.equal(upload.with.name, `key-credit-stop-${file}-${call}`, call);
+      assert.equal(upload.with.name, `key-credit-stop-${jobs[call].with.role.toUpperCase().replaceAll("-", "_")}_CLAUDE_API_KEY`, call);
       assert.equal(upload.with["retention-days"], 1);
+      assert.equal(upload.with.overwrite, true, call);
       assert.doesNotMatch(JSON.stringify(jobs[`${call}-handoff`]), /credit-stop/, `${call}-handoff stays off the marker path`);
     }
   }
@@ -10837,9 +10837,11 @@ for (const stage of ["generate", "triage"]) {
     );
     assert.equal(credential(ids[0]).with.selected, `\${{ needs.check-key-credit.outputs.${stage}-next-leg }}`);
     const marker = jobs[ids[0]].steps.find((s) => s.id === "credit-marker-upload");
-    assert.equal(marker.with.name, `key-credit-stop-post-merge-test-mutation.yml-${stage}`);
+    assert.equal(marker.with.name, "key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY");
+    assert.equal(marker.with.overwrite, true);
     const start = jobs["check-key-credit"].steps.find((s) => s.id === `credit-${stage}`);
     assert.equal(start.with.leg, "start");
+    assert.equal(start.with.role, credential(ids[0]).with.role);
     assert.equal(start.with["key-job"], stage);
   });
 }
@@ -11078,6 +11080,45 @@ test("the key-off check names a missing switch, a literal, and a switch on anoth
   assert.deepEqual(check([call("key")]), ["f.yml j Check: key-off undefined"]);
   assert.deepEqual(check([call("key", "true")]), ["f.yml j Check: key-off true"]);
   assert.deepEqual(check([call("subscription", KEYS_DISABLED)]), [`f.yml j Check: key-off ${KEYS_DISABLED}`]);
+});
+
+const keySecret = (role) => `${role.toUpperCase().replaceAll("-", "_")}_CLAUDE_API_KEY`;
+function markerNameProblems(files, load, readText) {
+  const problems = [];
+  for (const file of files) {
+    const jobs = Object.entries(load(file).jobs ?? {});
+    const selects = jobs.flatMap(([id, job]) => (job?.steps ?? []).filter((s) => String(s?.uses ?? "").startsWith(SELECT_ACTION)).map((s) => [id, s]));
+    const legRoles = new Set([
+      ...selects.filter(([, s]) => s.with?.leg === "key").map(([, s]) => s.with.role),
+      ...jobs.filter(([, job]) => job?.uses === READ_RUNNER).map(([, job]) => job.with?.role),
+    ]);
+    for (const [id, step] of selects.filter(([, s]) => s.with?.leg === "start")) {
+      const role = step.with?.role;
+      if (role === undefined) problems.push(`${file} ${id} ${step.name}: no role`);
+      else if (!legRoles.has(role)) problems.push(`${file} ${id} ${step.name}: role ${role} runs no key leg here`);
+    }
+    const secrets = new Set([...legRoles].filter((role) => /^[a-z][a-z0-9-]*$/.test(String(role))).map(keySecret));
+    for (const [, name] of readText(file).matchAll(/(?:name: |')(key-credit-(?:stop|probing)-[\w.-]+)/g)) {
+      const secret = name.replace(/^key-credit-(?:stop|probing)-/, "");
+      if (!secrets.has(secret)) problems.push(`${file} names ${name}`);
+    }
+  }
+  return problems;
+}
+
+test("every credit read names its key's role, and every marker name is a key this workflow runs", () => {
+  assert.deepEqual(markerNameProblems(workflowFiles(), workflow, (file) => read(`../../workflows/${file}`)), []);
+});
+
+test("the marker check names a start call with no role or another key's role, and a per-job or foreign name", () => {
+  const start = (role) => ({ name: "Read", uses: `${SELECT_ACTION}abc`, with: { leg: "start", "key-job": "j", ...(role === undefined ? {} : { role }) } });
+  const key = { name: "Check", uses: `${SELECT_ACTION}abc`, with: { leg: "key", role: "pr-verify" } };
+  const check = (steps, text = "") => markerNameProblems(["f.yml"], () => ({ jobs: { j: { steps: [...steps, key] } } }), () => text);
+  assert.deepEqual(check([start("pr-verify")], "name: key-credit-stop-PR_VERIFY_CLAUDE_API_KEY"), []);
+  assert.deepEqual(check([start()]), ["f.yml j Read: no role"]);
+  assert.deepEqual(check([start("reviews")]), ["f.yml j Read: role reviews runs no key leg here"]);
+  assert.deepEqual(check([start("pr-verify")], "name: key-credit-stop-f.yml-j"), ["f.yml names key-credit-stop-f.yml-j"]);
+  assert.deepEqual(check([start("pr-verify")], "name: key-credit-probing-REVIEWS_CLAUDE_API_KEY"), ["f.yml names key-credit-probing-REVIEWS_CLAUDE_API_KEY"]);
 });
 
 test("every catalog lane's key leg runs behind the key's credit gate", () => {

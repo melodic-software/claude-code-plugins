@@ -106,7 +106,7 @@ test("each leg starts only after the one before named it as the next leg, and a 
   const credit = step(LEGS.key, "Read the key's credit history");
   assert.match(credit, /\n {8}id: credit\n/);
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
-  assert.match(credit, /\n {10}leg: start\n {10}key-job: rate-merge-risk\n/);
+  assert.match(credit, /\n {10}leg: start\n {10}role: pr-verify\n {10}key-job: rate-merge-risk\n/);
   assert.match(credit, /\n {10}probe-minutes: "0"\n/);
   // The key leg decides its credential right after the resolver lets the head
   // through, before the trigger check, and only a key that runs goes on to
@@ -120,8 +120,8 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(check, /\n {10}selected: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
   assert.doesNotMatch(check, /key-job/);
   assert.match(step(LEGS.key, "Report the skipped key leg"), /if: steps\.credential\.outputs\.key-skipped == 'true'\n/);
-  assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
-  assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
+  assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-PR_VERIFY_CLAUDE_API_KEY' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-PR_VERIFY_CLAUDE_API_KEY\n/);
   // The key and subscription legs name the next leg the same way; the
   // fallback leg, last, names none.
   assert.equal(step(LEGS.key, "Pick the next leg"), step(LEGS.subscription, "Pick the next leg"));
