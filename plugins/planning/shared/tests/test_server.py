@@ -20,6 +20,7 @@ import socket
 import stat
 import statistics
 import sys
+import threading
 import time
 import unittest
 from unittest import mock
@@ -433,6 +434,34 @@ class TestTunnelSwitch(ServerCase):
         code, _, out = self.state(self.quick, self.guest)
         self.assertEqual((code, out["error"]), (403, "bad-host"))
 
+    def test_a_sync_that_read_the_record_before_the_grace_ended_does_not_allow_the_old_host_after(self):
+        """The tunnel watch syncs on its own thread: one that read the record before the grace time ended must not
+        apply it over a later sync that read the ended one."""
+        self.switch()
+        read, entered, applied = tunnel.retired, threading.Event(), threading.Event()
+
+        def stale(d):
+            old = read(d)
+            entered.set()
+            applied.wait(5)
+            return old
+
+        with mock.patch.object(tunnel, "retired", stale):
+            watch = threading.Thread(target=self.app.sync_tunnel, kwargs={"restart": False})
+            watch.start()
+            self.assertTrue(entered.wait(5), "the first sync read the record")
+            rec = tunnel.read(self.d)
+            rec["retired"]["until"] = 0
+            detached.write_private(self.d / tunnel.RECORD, json.dumps(rec))
+        later = threading.Thread(target=self.app.sync_tunnel, kwargs={"restart": False})
+        later.start()
+        wait_for(lambda: not later.is_alive(), seconds=0.5)
+        applied.set()
+        watch.join(5)
+        later.join(5)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out.get("error")), (403, "bad-host"))
+
     def test_a_named_tunnel_that_exits_comes_back_at_its_address_with_no_share_again(self):
         self.switch()
         rec = tunnel.read(self.d)
@@ -796,6 +825,19 @@ class TestRawRequests(ServerCase):
         self.assertTrue(closed)
         self.assertLess(took, 4.0)
 
+    def test_a_body_that_times_out_is_drained_while_the_client_still_sends_it(self):
+        """After a body timeout the handler's reader refuses reads, so the drain falls back to the socket: the rest of
+        the body the client sends after the 408 meets no reset."""
+        with mock.patch.object(session, "BODY_SECONDS", 1.0), socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(f"POST /api/join HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n".encode() + b'{"name"')
+            got = b""
+            while chunk := s.recv(4096):
+                got += chunk
+            self.assertEqual(status_and_headers(got)[0], 408)
+            s.sendall(b"x" * 92)
+            time.sleep(0.3)
+            s.sendall(b"x")
+
     def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
         _, ann = self.join("Ann")  # only a joined person's report waits for its body
         with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
@@ -805,6 +847,42 @@ class TestRawRequests(ServerCase):
         self.assertEqual(status_and_headers(got)[0], 408)
         self.assertTrue(closed)
         self.assertLess(took, 4.0)  # REPORT_SECONDS applied, not the 30 s every other route waits
+
+    def test_a_body_refused_unread_is_no_reset_while_the_client_still_sends_it(self):
+        # A socket closed with request bytes unread, or that gets more after it closed, resets the connection (RFC 9293
+        # 3.6.1), and a client still sending its body then fails instead of reading the answer. Here the reset shows as
+        # the client's next send failing.
+        size = session.BODY_MAX + 1
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(f"POST /api/join HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\nContent-Length: {size}\r\n\r\n".encode())
+            got = b""
+            while chunk := s.recv(4096):
+                got += chunk
+            self.assertEqual(status_and_headers(got)[0], 413)
+            s.sendall(b"x" * (size - 1))
+            time.sleep(0.3)
+            s.sendall(b"x")
+
+    def test_a_small_body_sent_with_the_headers_and_refused_frees_its_handler_at_once(self):
+        """The header read buffers a small body sent in the same write, so the drain must count it as read: a refused
+        POST whose client keeps the socket open frees its handler at once instead of after DRAIN_SECONDS."""
+        real, drains = server.linger, []
+
+        def timed(*args, **kwargs):
+            t0 = time.monotonic()
+            real(*args, **kwargs)
+            drains.append(time.monotonic() - t0)
+
+        body = b'{"name": "x"}'
+        head = f"POST /api/join HTTP/1.1\r\nHost: wrong.example\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n"
+        with mock.patch.object(server, "linger", timed), socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(head.encode() + body)
+            got = b""
+            while chunk := s.recv(4096):
+                got += chunk
+            self.assertTrue(wait_for(lambda: drains, seconds=1.5), "the handler finished its drain while the client still held the socket")
+        self.assertEqual(status_and_headers(got)[0], 403)
+        self.assertLess(drains[0], 0.5)
 
     def test_http_servers_own_refusals_carry_the_security_headers(self):
         cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
