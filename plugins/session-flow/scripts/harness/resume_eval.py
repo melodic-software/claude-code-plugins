@@ -903,10 +903,48 @@ def write_fixture(path: Path, content: str) -> None:
         path.chmod(0o755)
 
 
-def _git(call, repo: Path, env: dict, *args: str) -> None:
+def _git(call, repo: Path, env: dict, *args: str) -> str:
     code, out, err = call(["git", *args], str(repo), env)
     if code != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {err or out}")
+    return out
+
+
+REMOTE_REF_PREFIXES = ("refs/heads/", "refs/tags/", "refs/pull/")
+
+
+def seed_remote_refs(call, repo: Path, bare: Path, env: dict, refs: list[str]) -> None:
+    """Create `refs` at the seeded HEAD in `bare` (the run's `origin`), then fetch from
+    it so `refs/remotes/origin/*` and the tags mirror it with nothing stale left from
+    the base clone: the reader answers branch, tag and PR-head lookups locally."""
+    bad = [ref for ref in refs if not ref.startswith(REMOTE_REF_PREFIXES)]
+    if bad:
+        raise ValueError(
+            f"seed.remote_refs {bad} must start with one of {REMOTE_REF_PREFIXES}"
+        )
+    pushes = []
+    for ref in refs:
+        if ref.startswith("refs/tags/"):
+            name = ref.removeprefix("refs/tags/")
+            _git(call, repo, env, "tag", "-a", "-m", name, name)
+            pushes.append(f"{ref}:{ref}")
+        else:
+            pushes.append(f"HEAD:{ref}")
+    _git(call, repo, env, "push", "-q", "origin", *pushes)
+    if any(ref.startswith("refs/pull/") for ref in refs):
+        _git(
+            call,
+            repo,
+            env,
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "+refs/pull/*:refs/remotes/origin/pull/*",
+        )
+    _git(call, repo, env, "fetch", "-q", "--prune", "--prune-tags", "origin")
+    branch = _git(call, repo, env, "symbolic-ref", "--short", "HEAD").strip()
+    _git(call, bare, env, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
+    _git(call, repo, env, "remote", "set-head", "origin", branch)
 
 
 def seed_save_point(copies: dict, arm: str) -> Path:
@@ -968,6 +1006,8 @@ def seed_run(
     _git(call, run_dir, env, "init", "-q", "--bare", str(bare))
     _git(call, repo, env, "remote", "set-url", "origin", str(bare))
     _git(call, repo, env, "push", "-q", "origin", "HEAD")
+    if (refs := case["seed"].get("remote_refs")) is not None:
+        seed_remote_refs(call, repo, bare, env, refs)
     write_stub_gh(
         run_dir / "bin",
         run_dir / "gh-fixture.json",

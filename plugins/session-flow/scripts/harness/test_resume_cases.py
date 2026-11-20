@@ -718,3 +718,53 @@ def test_a_steered_build_is_deterministic(tmp_path):
         p.name: p.read_bytes() for p in resume_cases.build_predecessor_chain(spec, repo)
     }
     assert first == second and len(first) == 22
+
+
+@pytest.mark.parametrize("case_dir", CASE_DIRS, ids=CASE_NAMES)
+def test_every_open_pr_names_a_head_branch_seeded_on_origin(case_dir):
+    spec = resume_cases.load_case(case_dir)
+    refs = set(spec["seed"].get("remote_refs", []))
+    for answer in spec["seed"]["gh_fixture"].get("responses", []):
+        if "pr view" not in answer["match"].replace("\\s+", " "):
+            continue
+        pr = json.loads(answer["stdout"])
+        if pr.get("state") != "OPEN":
+            continue
+        head = pr.get("headRefName")
+        assert head, f"#{pr['number']} is open but its pr view names no headRefName"
+        assert f"refs/heads/{head}" in refs
+        assert f"refs/pull/{pr['number']}/head" in refs
+
+
+@pytest.mark.parametrize(
+    ("name", "present", "absent", "story"),
+    [
+        (
+            "re-decision-trimmed-to-fit",
+            {"refs/heads/release/2.8"},
+            r"v?2\.8\.\d",
+            "release/2.8 is cut; 2.8.0 not tagged yet",
+        ),
+        (
+            "re-late-event",
+            {"refs/heads/feat/stop-reason", "refs/pull/4460/head"},
+            None,
+            "Branch feat/stop-reason in the lane worktree; PR #4460 is open",
+        ),
+        (
+            "re-multi-hop",
+            {"refs/heads/feat/stop-reason"},
+            None,
+            "Branch feat/stop-reason in the lane worktree",
+        ),
+        ("re-retired-id-reused", set(), r"v?1\.8\.0", "release 1.8.0 not cut"),
+        ("re-skipped-rule", set(), r"v?2\.14\.0", "the v2.14.0 tag is not cut yet"),
+    ],
+)
+def test_remote_refs_follow_the_story(name, present, absent, story):
+    refs = set(resume_cases.load_case(EVALS / name)["seed"].get("remote_refs", []))
+    assert present <= refs, f"{name}: the story says {story}"
+    if absent:
+        assert not [ref for ref in refs if re.search(absent, ref)], (
+            f"{name}: the story says {story}"
+        )

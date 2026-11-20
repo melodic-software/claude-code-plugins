@@ -2020,3 +2020,115 @@ def test_a_seeded_script_with_a_shebang_is_executable(tmp_path):
     resume_eval.write_fixture(data, "# notes\n")
     assert os.access(script, os.X_OK)
     assert not os.access(data, os.X_OK)
+
+
+def _seed_with_refs(tmp_path, remote_refs):
+    """Seed re-late-event over a base repo that also carries a `stale` branch; returns
+    (run repo, its origin.git, a git runner)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    def git(cwd, *args):
+        return subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+        ).stdout
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-late-event"])[0]
+    case["seed"].pop("remote_refs", None)
+    if remote_refs is not None:
+        case["seed"]["remote_refs"] = remote_refs
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "README.md").write_text("base\n", encoding="utf-8")
+    git(base, "init", "-q", "-b", "main")
+    git(base, "add", "-A")
+    git(base, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "base")
+    git(base, "branch", "stale")
+    git(base, "remote", "add", "origin", str(base))
+    identity = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@e",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@e",
+    }
+
+    def call(cmd, cwd, env, stdin_text=None):
+        done = subprocess.run(
+            cmd, cwd=cwd, env={**env, **identity}, capture_output=True, text=True
+        )
+        return done.returncode, done.stdout, done.stderr
+
+    cfg = resume_eval.RunConfig(
+        root=tmp_path / "root",
+        tmpdir=str(tmp_path),
+        copies={"before": str(PLUGIN)},
+        codex_model="m",
+        call=call,
+        python=sys.executable,
+    )
+    old_home = os.environ.get("HOME")
+    os.environ["HOME"] = str(tmp_path / "home")
+    try:
+        run = resume_eval.seed_run(case, cfg.root / "r", base, cfg, "before")
+    finally:
+        os.environ["HOME"] = old_home or ""
+    return run["repo"], cfg.root / "r" / "origin.git", git
+
+
+def test_seeded_remote_refs_answer_locally_and_stale_base_refs_are_pruned(tmp_path):
+    repo, bare, git = _seed_with_refs(
+        tmp_path,
+        [
+            "refs/heads/release/2.8",
+            "refs/heads/feat/stop-reason",
+            "refs/tags/v1.7.2",
+            "refs/pull/4460/head",
+        ],
+    )
+    head = git(repo, "rev-parse", "HEAD").strip()
+    remote = git(repo, "branch", "-r", "--format=%(refname)").split()
+    assert sorted(remote) == [
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/feat/stop-reason",
+        "refs/remotes/origin/main",
+        "refs/remotes/origin/pull/4460/head",
+        "refs/remotes/origin/release/2.8",
+    ]
+    assert git(repo, "tag").split() == ["v1.7.2"]
+    for ref in (
+        "origin/release/2.8",
+        "origin/feat/stop-reason",
+        "origin/pull/4460/head",
+        "origin/main",
+        "v1.7.2^{commit}",
+    ):
+        assert git(repo, "rev-parse", ref).strip() == head, ref
+    assert (
+        git(repo, "symbolic-ref", "refs/remotes/origin/HEAD").strip()
+        == "refs/remotes/origin/main"
+    )
+    on_origin = git(bare, "for-each-ref", "--format=%(refname)").split()
+    assert sorted(on_origin) == [
+        "refs/heads/feat/stop-reason",
+        "refs/heads/main",
+        "refs/heads/release/2.8",
+        "refs/pull/4460/head",
+        "refs/tags/v1.7.2",
+    ]
+
+
+def test_a_seed_without_remote_refs_pushes_only_head(tmp_path):
+    repo, bare, git = _seed_with_refs(tmp_path, None)
+    head = git(repo, "rev-parse", "HEAD").strip()
+    assert git(bare, "for-each-ref", "--format=%(refname)").split() == [
+        "refs/heads/main"
+    ]
+    assert git(repo, "rev-parse", "origin/main").strip() == head
+    assert git(repo, "tag").split() == []
+
+
+def test_a_remote_ref_outside_heads_tags_and_pull_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="remote_refs"):
+        _seed_with_refs(tmp_path, ["release/2.8"])

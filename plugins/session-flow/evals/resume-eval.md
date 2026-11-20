@@ -78,7 +78,12 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   and the newest handoff's paths.
 - `seed.gh_fixture.responses`: the stub `gh` answers the first response whose `match`
   regex matches the argv line and whose `requires_prior` regex (if any) matched an earlier
-  logged call; else `default`.
+  logged call; else `default`. A `pr view` answer for an open PR carries `headRefName`.
+- `seed.remote_refs`: full ref names (`refs/heads/…`, `refs/tags/…` as annotated tags,
+  `refs/pull/<N>/head`) the story says exist on the remote, created at the seeded HEAD in the
+  run's local `origin`. The harness then fetches from it with `--prune`, so `git branch -r`,
+  `git tag` and `git rev-parse origin/<branch>` (`origin/pull/<N>/head` for a pull ref) answer
+  without a remote read. A ref the story says does not exist yet is never listed.
 - `seed.instruction_fixture`: text delivered by `--append-system-prompt` to the arm labels in
   `applies_to` (`after-promoted` in the restated-preference case).
 - `writer.interrupt.text`: the owner's last turn, sent identically in every arm as its own
