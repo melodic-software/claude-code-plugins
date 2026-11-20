@@ -8,7 +8,7 @@ its last 1.5 s faded into its start at equal power. Two recordings of each kind 
 
 `tv-on.wav`, `tv-off.wav` and `silence.wav` are made by code, with no recording. The storm's wind is made by code too.
 
-| File | From | Title | Author or agency | Page | Licence as stated on the page |
+| File | From | Title | Author or agency | Page | License as stated on the page |
 |---|---|---|---|---|---|
 | `cicadas-1.wav` | `BONUSNorthbrookCicadas.wav`, 28.25 to 49.75 s | Northbrook, IL, USA - Northbrook Cicadas | alexandrad17 (radio aporee) | <https://archive.org/details/aporee_30403_34990> | Public Domain Mark 1.0, applied by the recordist |
 | `cicadas-2.wav` | `07192019WesthuesCicadasLinnGrove.wav`, 45.25 to 66.75 s | River Rd. near Linn Grove, IN - Cicadas on the Wabash River | Kay Westhues (radio aporee) | <https://archive.org/details/aporee_45599_51781> | Public Domain Mark 1.0, applied by the recordist |
