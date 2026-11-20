@@ -528,9 +528,9 @@ After a failed write the other upstreams still run, and the run then exits nonze
   runs `npm install` or any other installer (firecrawl's and context7's) stays with a person.
   `driftIssue` in
   `.github/scripts/intake-triage/admit.mjs` is the rule's one home. An issue this workflow's token
-  opens starts no intake run, so the hourly triage sweep is its only way in: the sweep dispatches
-  intake for a trusted drift issue and still skips every other github-actions[bot] issue, since
-  some quote fork-controlled text. Admission accepts it as its author, and its done-when is a
+  opens starts no intake run, and the hourly triage sweep does not dispatch one: the lanes token
+  broker refuses a github-actions[bot] dispatch for an issue no listed human or lanes App wrote. A
+  person triages a drift issue. Admission accepts it as its author, and its done-when is a
   fixed template for its lead (`trustedDriftSpec`) built from the upstream id, never from the body;
   every other admission criterion applies unchanged. The hex-pin template re-audits the pinned
   pages and changes only them. The vendored-copy template finds the skill's update script from

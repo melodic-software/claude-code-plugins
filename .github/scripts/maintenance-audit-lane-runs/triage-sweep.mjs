@@ -19,19 +19,10 @@
 //   gate), including once a wait admission left on it has cleared.
 //
 // The needs-triage floor label is no triage label: it lands on open whether
-// or not intake runs. github-actions[bot] issues are left out (the lane
-// sweep's can quote fork-controlled log lines), but for a trusted
-// upstream-drift issue, whose shape is read from the listing (driftShaped).
-// While the token broker refuses this job's dispatch for an issue
-// github-actions[bot] wrote (untrusted-actor), such an issue is skipped
-// before any read, so no run spends the model on it and none counts toward
-// the hand-off. An issue a workflow's
-// GITHUB_TOKEN opens starts no intake run, so this dispatch is a drift
-// issue's only way in. The ci-workflows reusable hands the body to intake's
-// triage model, so the filer (scripts/upstream-drift-issues.sh) writes no
-// text the upstream repository chooses: only the upstream id, hex SHAs, our
-// own docs/upstream page and check-script paths, skill names and counts. The
-// issue lane and pr-verify read trustedDriftSpec, never the body
+// or not intake runs. github-actions[bot] issues are left out, upstream-drift
+// ones included: the token broker refuses this job's dispatch for an issue no
+// listed human or lanes App wrote (untrusted-actor), so a person triages a
+// drift issue
 // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Per issue, one comment holds the runs
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
@@ -62,7 +53,6 @@ import { pathToFileURL } from "node:url";
 import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
-import { driftShaped } from "../intake-triage/admit.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -146,7 +136,7 @@ export function selectCandidates({ issues, now, authorIds, statusLabels = new Ma
     return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
   };
   return issues
-    .filter((i) => !i.pull_request && (authorIds.has(String(i.user?.id)) || driftShaped(i)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
+    .filter((i) => !i.pull_request && authorIds.has(String(i.user?.id)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
 }
 
@@ -404,7 +394,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], refused: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
@@ -437,11 +427,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (result.dispatched.length >= MAX_DISPATCHES && result.handed.length >= MAX_HANDED) break;
     if (neverCommented(issue) && result.dispatched.length + result.failed.length >= MAX_DISPATCHES) continue;
     try {
-      if (!authorIds.has(String(issue.user?.id))) {
-        result.refused.push(number);
-        console.log(`triage-sweep: #${number} skipped: the token broker refuses intake for an issue github-actions[bot] wrote (untrusted-actor)`);
-        continue;
-      }
       const comments = [];
       let full = false;
       for (let page = 1; page <= COMMENT_PAGES; page += 1) {
@@ -637,7 +622,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Skipped as the broker refuses them: ${numbers(result.refused)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Left as is past triage: ${numbers(result.left)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),

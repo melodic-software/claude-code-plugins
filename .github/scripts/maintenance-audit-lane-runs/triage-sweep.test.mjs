@@ -526,53 +526,21 @@ test("a re-dispatch left for after the loop still stops when the budget cannot r
   assert.equal(left, 1, "the re-dispatch of #1 spends none of the call left");
 });
 
-// Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
-// filed reaches intake through this sweep, the only path for an issue a
-// GITHUB_TOKEN opens, when github-actions[bot] wrote it, nobody else last
-// edited it, and its title and first body line are the filer's.
-const DRIFT_TITLE_TEXT = "Upstream drift: mattpocock/sandcastle";
 const DRIFT_LEAD_TEXT = "Upstream `mattpocock/sandcastle` changed since the pin on its docs/upstream page.";
 const driftIssue = (number, over = {}) =>
-  issue(number, { user: { ...BOT, type: "Bot" }, title: DRIFT_TITLE_TEXT, body: `${DRIFT_LEAD_TEXT}\n\nRun: 2026-11-09, https://example.test/run\n`, ...over });
+  issue(number, { user: { ...BOT, type: "Bot" }, title: "Upstream drift: mattpocock/sandcastle", body: `${DRIFT_LEAD_TEXT}\n\nRun: 2026-11-09, https://example.test/run\n`, ...over });
 
-test("a drift-shaped github-actions issue is a candidate; any other github-actions issue is not", () => {
+test("no github-actions issue is a candidate, an upstream-drift one included", async () => {
   const issues = [
     driftIssue(1),
-    issue(2, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->" }),
-    driftIssue(3, { title: "Upstream drift: sandcastle" }),
-    driftIssue(4, { title: "Upstream drift: playwright/playwright", body: "Upstream `playwright/playwright` no longer matches the copy vendored here." }),
-    driftIssue(9, { title: "Upstream drift: firecrawl/update", body: "Upstream `firecrawl/update` no longer matches the copy vendored here." }),
-    driftIssue(5, { user: { id: OUTSIDER } }),
-    driftIssue(6, { body: `<!-- factory-monitor key=x -->\n${DRIFT_LEAD_TEXT}` }),
-    driftIssue(7, { body: "Upstream `other/repo` no longer matches the copy vendored here." }),
-    driftIssue(8, { user: { id: OUTSIDER }, body: "Upstream `mattpocock/sandcastle` no longer matches the copy vendored here." }),
+    driftIssue(2, { title: "Upstream drift: playwright/playwright", body: "Upstream `playwright/playwright` no longer matches the copy vendored here." }),
+    issue(3, { user: BOT, title: "Lane failures this week", body: "<!-- lane-sweep:fp=0123456789abcdef -->" }),
+    issue(4),
   ];
-  assert.deepEqual(
-    selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [1, 4],
-    "the hex-pin lead and a files-only row's vendored lead from github-actions[bot] are candidates; a package-installing row, another id or another author is not",
-  );
-});
-
-test("a drift candidate is skipped before any read, since the broker refuses its dispatch, and none is handed off", async () => {
-  const issues = [driftIssue(1), driftIssue(2), issue(3)];
-  const gh = fakeGitHub({
-    issues,
-    comments: { 2: [{ id: 5, user: BOT, body: renderState({ runs: [11, 12], filed: null, runUrl: "u" }) }] },
-    runs: { 11: { status: "completed", conclusion: "failure" }, 12: { status: "completed", conclusion: "failure" } },
-  });
-  const reads = [];
-  const call = (method, path, body) => {
-    reads.push(body?.variables?.number ?? path);
-    return gh.call(method, path, body);
-  };
-  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
-  assert.deepEqual(result.refused, [1, 2]);
-  assert.deepEqual(result.dispatched, [3]);
-  assert.deepEqual(result.handed, []);
-  assert.deepEqual(result.failed, []);
-  assert.ok(!reads.some((r) => r === 1 || r === 2 || /\/issues\/[12]\//.test(String(r))), "no edit-history, comment or run read for a drift issue");
-  assert.ok(!gh.writes.some((w) => /\/issues\/(comments|[12]\/)/.test(w.path)), "no state comment or Work status write");
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number), [4]);
+  const gh = fakeGitHub({ issues });
+  const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus });
+  assert.deepEqual(result.dispatched, [4]);
 });
 
 // Row S3: an intake comment with no verdict label left the issue untriaged.
