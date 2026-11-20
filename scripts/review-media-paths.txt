@@ -1,0 +1,8 @@
+# Folders whose media files the review lanes show by their diff header and
+# printable text instead of their bytes, read at the merge base
+# (ci-workflows pr-review-cli.yml `media-paths`). One glob per line. A file
+# under one still needs an audio, image, video or font extension that its
+# magic bytes match; every other file is reviewed as text. Test and eval
+# fixtures stay out: an opaque file there is reviewed as text.
+plugins/*/sounds/**
+plugins/*/examples/**

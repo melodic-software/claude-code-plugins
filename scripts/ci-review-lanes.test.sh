@@ -1062,7 +1062,7 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 export NOTES_9
 NOTES_9="$(notes "$(note failure '' 'claude-review: failure-class=partial: the review read only part of the pull request, so the head is not reviewed (read 65 of 81 changed file(s); 17 binary file(s) not reviewable as text: a.wav)')")"
 expect "a partial review names its files and the remedy" 1 \
-  "::error::'$CODE_CHECK' did not review all of $HEAD (https://github.com/o/r/actions/runs/10): the review read only part of the pull request, so the head is not reviewed (read 65 of 81 changed file(s); 17 binary file(s) not reviewable as text: a.wav). A re-run reads the same diff and stays partial. A file no review reads as text" "Re-run the lane"
+  "::error::'$CODE_CHECK' did not review all of $HEAD (https://github.com/o/r/actions/runs/10): the review read only part of the pull request, so the head is not reviewed (read 65 of 81 changed file(s); 17 binary file(s) not reviewable as text: a.wav). A re-run reads the same diff and stays partial. An audio, image, video or font file whose extension matches its content goes under a folder scripts/review-media-paths.txt names" "Re-run the lane"
 if grep -qxF "api repos/o/r/check-runs/9/annotations?per_page=100" "$TMP_ROOT/log"; then ok "a red status job's annotations are read"; else fail "a red status job's annotations were not read"; fi
 NOTES_9="$(notes "$(note failure '' 'claude-security-review: failure-class=partial: the review read only part')")"
 expect "another lane's partial note is not this lane's" 1 "'$CODE_CHECK' ended failure on $HEAD (https://github.com/o/r/actions/runs/10): the review did not complete. Re-run the lane."
