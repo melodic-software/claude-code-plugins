@@ -9,6 +9,9 @@ import { PATH_RULES, segments } from "./protected-paths.mjs";
 import { denyRules, main, PATTERNS } from "./deny-rules.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const REPO_ROOT = join(import.meta.dirname, "../../..");
 const ISSUE_REFUSE = loadRules(REPO_ROOT).issue.refuse;
 const refused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path)));

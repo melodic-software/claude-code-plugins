@@ -5,6 +5,7 @@
 # 92d436ba recorded in docs/upstream/good-css.md, which the vendored copies # spellchecker:disable-line
 # must still match.
 set -uo pipefail
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$TEST_DIR/../scripts/check-good-css-drift.sh"
