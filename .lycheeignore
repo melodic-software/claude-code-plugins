@@ -10,6 +10,8 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 
 ^https://github\.com/acme-example/widgets$
 
+^https://github\.com/example/[a-z-]+\.git$
+
 ^https://www\.iso\.org/standard/77520\.html$
 ^https://www\.iso\.org/standard/63500\.html$
 
