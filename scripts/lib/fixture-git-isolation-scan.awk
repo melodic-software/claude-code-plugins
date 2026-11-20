@@ -229,9 +229,15 @@ function pj_global(s, ln, js,   nm, rhs, cls, v, i, t) {
           if (LOOPN[v]) g_ev("U", ln, "N")
         }
     }
-    # A later update of a tracked env dict that names the variables.
+    # A later update of a tracked env dict that names the variables: a
+    # removal (`del ENV[...]`, `ENV.pop(...)`, `delete env.X`) clears the
+    # name it removes, any other write sets it.
     for (nm in ENVK)
-      if (index(s, nm ".update") || index(s, nm "[") || index(s, nm ".setdefault") || index(s, nm ".GIT_CONFIG")) {
+      if (s ~ /(^|[^A-Za-z0-9_])(del|delete)[ \t]/ && (index(s, nm "[") || index(s, nm ".GIT_CONFIG")) || index(s, nm ".pop")) {
+        if (index(s, "GIT_CONFIG_GLOBAL")) ENVG[nm] = 0
+        if (index(s, "GIT_CONFIG_NOSYSTEM")) ENVN[nm] = 0
+        if (s ~ /GIT_CONFIG_(GLOBAL|NOSYSTEM)/ && ENVK[nm] == "inherit") ENVK[nm] = "fresh"
+      } else if (index(s, nm ".update") || index(s, nm "[") || index(s, nm ".setdefault") || index(s, nm ".GIT_CONFIG")) {
         if (index(s, "GIT_CONFIG_GLOBAL")) ENVG[nm] = 1
         if (s ~ NOSYS_ON || s ~ ("GIT_CONFIG_NOSYSTEM" Q "?[ \t]*\\][ \t]*=[ \t]*" Q "?(1|true|yes)")) ENVN[nm] = 1
       }

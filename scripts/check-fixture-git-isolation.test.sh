@@ -1379,6 +1379,30 @@ test("x", () => {
   execFileSync("git", ["status"], { env: { PATH: process.env.PATH, HOME: process.env.HOME } });
 });
 JS
+global_case "python: deleting GIT_CONFIG_GLOBAL from a bound env dict fails" fail test_g_envdel.py <<'PY'
+import os, subprocess
+ENV = {"PATH": os.environ["PATH"], "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+del ENV["GIT_CONFIG_GLOBAL"]
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], env=ENV)
+PY
+global_case "python: popping GIT_CONFIG_GLOBAL from a bound env dict fails" fail test_g_envpop.py <<'PY'
+import os, subprocess
+ENV = {"PATH": os.environ["PATH"], "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+ENV.pop("GIT_CONFIG_GLOBAL", None)
+def check(d):
+    subprocess.run(["git", "-C", d, "status"], env=ENV)
+PY
+global_case "js: deleting GIT_CONFIG_GLOBAL from a copied env fails" fail g-envdel.test.mjs <<'JS'
+import { execFileSync } from "node:child_process";
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+const env = { ...process.env };
+delete env.GIT_CONFIG_GLOBAL;
+test("x", () => {
+  execFileSync("git", ["status"], { env });
+});
+JS
 global_case "js: a bound env dict naming both passes, even bound after its helper" pass g-bound.test.mjs <<'JS'
 import { execFileSync } from "node:child_process";
 const git = (...args) => execFileSync("git", args, { env, encoding: "utf8" });
