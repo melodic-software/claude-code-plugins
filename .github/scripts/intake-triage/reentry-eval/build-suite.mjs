@@ -5,8 +5,6 @@
 // instructions from the caller workflow, and fills each case with the prompt
 // it writes. `--no-instructions` builds the baseline with the instructions
 // input empty.
-//
-//   node build-suite.mjs --reusable <intake-triage.yml> --sha <commit> --out <dir> [--no-instructions]
 import {
   cpSync,
   existsSync,
@@ -86,7 +84,33 @@ export function composeScript(reusable) {
   return scripts[0];
 }
 
-// The caller job's `with:` block scalars the compose step reads.
+export function checkSchemaSteps(reusable) {
+  const lines = reusable.split("\n");
+  const legs = lines.filter((line) => /^\s+id: compose\s*$/u.test(line)).length;
+  let steps = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^\s+id: schema\s*$/u.test(lines[i])) continue;
+    const next = lines.findIndex((line, j) => j > i && /^\s+- /u.test(line));
+    const body = lines.slice(i + 1, next < 0 ? lines.length : next);
+    if (
+      !body.some((line) => /^\s+mode: schema\s*$/u.test(line)) ||
+      !body.some((line) =>
+        /^\s+verdict-schema: \$\{\{ inputs\.verdict-schema \}\}\s*$/u.test(
+          line,
+        ),
+      )
+    )
+      throw new Error(
+        "a schema step does not run schema mode on the caller's verdict-schema",
+      );
+    steps += 1;
+  }
+  if (steps !== legs)
+    throw new Error(
+      `the reusable has ${legs} compose steps but ${steps} schema steps`,
+    );
+}
+
 export function callerInputs(caller, job = "intake-triage") {
   const lines = caller.split("\n");
   const at = lines.findIndex((line) => line === `  ${job}:`);
@@ -98,16 +122,23 @@ export function callerInputs(caller, job = "intake-triage") {
         line,
       ),
     );
+  const verdictLine = lines
+    .slice(at)
+    .find((line) => /^\s+verdict-schema:/u.test(line));
+  const quoted = verdictLine?.match(/^\s+verdict-schema: '(.*)'\s*$/u);
+  if (verdictLine && !quoted)
+    throw new Error(
+      "the caller's verdict-schema is not one single-quoted line",
+    );
   return {
     ref: uses?.split("@")[1]?.split(/\s/u)[0] ?? "",
     allowedLabels: blockScalar(lines, /^\s+allowed-labels: \|\s*$/u, at).text,
     instructions: blockScalar(lines, /^\s+instructions: \|\s*$/u, at).text,
+    verdictSchema: quoted ? quoted[1].replaceAll("''", "'") : "",
   };
 }
 
-// Runs the compose script with GitHub stubbed and returns the prompt and
-// schema files it writes.
-export async function compose(script, env) {
+export async function compose(script, env, schemaMain, verdictSchema) {
   const outputs = {};
   const core = {
     setOutput: (name, value) => (outputs[name] = value),
@@ -156,11 +187,28 @@ export async function compose(script, env) {
   } finally {
     process.env = saved;
   }
+  const schemaFile = schemaMain({
+    INPUT_MODE: "schema",
+    INPUT_VERDICT_SCHEMA: verdictSchema,
+    INPUT_ALLOWED: outputs.allowed,
+    INPUT_TYPE_NAMES: outputs["type-names"],
+    INPUT_PROMPT_FILE: outputs["prompt-file"],
+  })?.outputs?.["schema-file"];
+  if (!schemaFile) throw new Error("the schema step wrote no schema file");
   return {
     prompt: readFileSync(outputs["prompt-file"], "utf8"),
-    schema: readFileSync(outputs["schema-file"], "utf8"),
+    schema: readFileSync(schemaFile, "utf8"),
     outputs,
   };
+}
+
+function loadSchemaMain(source, dir) {
+  const file = join(dir, "verdict.cjs");
+  writeFileSync(file, source);
+  const { main } = createRequire(import.meta.url)(file);
+  if (typeof main !== "function")
+    throw new Error("verdict.cjs exports no main function");
+  return main;
 }
 
 // One case's workspace: the issue files the reusable's fetch step writes, in
@@ -206,6 +254,7 @@ function workspace(caseDir, out) {
 
 export async function build({
   reusable,
+  verdict,
   sha,
   out,
   instructions = true,
@@ -213,6 +262,7 @@ export async function build({
   callerText = readFileSync(CALLER, "utf8"),
 }) {
   const script = composeScript(reusable);
+  checkSchemaSteps(reusable);
   const inputs = callerInputs(callerText);
   const evals = join(out, "evals");
   mkdirSync(join(out, ".claude-plugin"), { recursive: true });
@@ -229,6 +279,7 @@ export async function build({
     ),
   );
   const runnerTemp = mkdtempSync(join(tmpdir(), "reentry-eval-"));
+  const schemaMain = loadSchemaMain(verdict, runnerTemp);
   const names = readdirSync(casesDir, { withFileTypes: true })
     .filter((e) => e.isDirectory() && !e.name.startsWith("_"))
     .map((e) => e.name);
@@ -238,22 +289,27 @@ export async function build({
       const dst = join(evals, name);
       cpSync(src, dst, { recursive: true });
       const number = workspace(src, join(dst, "workspace"));
-      const { prompt, schema } = await compose(script, {
-        RUNNER_TEMP: runnerTemp,
-        ALLOWED_LABELS: inputs.allowedLabels,
-        ESCALATION_LABEL: "needs-human",
-        FLOOR_LABEL: "needs-triage",
-        BASE_ARGS: "",
-        CLI_VERSION: "latest",
-        REPOSITORY,
-        ISSUE_NUMBER: String(number),
-        ISSUE_FILE: `${WORKDIR}/issue.json`,
-        OPEN_ISSUES_FILE: `${WORKDIR}/open-issues.json`,
-        DUPLICATE_LIMIT: "200",
-        MERGED_PULLS_FILE: `${WORKDIR}/merged-pulls.json`,
-        MERGED_LIMIT: "100",
-        INSTRUCTIONS: instructions ? inputs.instructions : "",
-      });
+      const { prompt, schema } = await compose(
+        script,
+        {
+          RUNNER_TEMP: runnerTemp,
+          ALLOWED_LABELS: inputs.allowedLabels,
+          ESCALATION_LABEL: "needs-human",
+          FLOOR_LABEL: "needs-triage",
+          BASE_ARGS: "",
+          CLI_VERSION: "latest",
+          REPOSITORY,
+          ISSUE_NUMBER: String(number),
+          ISSUE_FILE: `${WORKDIR}/issue.json`,
+          OPEN_ISSUES_FILE: `${WORKDIR}/open-issues.json`,
+          DUPLICATE_LIMIT: "200",
+          MERGED_PULLS_FILE: `${WORKDIR}/merged-pulls.json`,
+          MERGED_LIMIT: "100",
+          INSTRUCTIONS: instructions ? inputs.instructions : "",
+        },
+        schemaMain,
+        inputs.verdictSchema,
+      );
       const full = `${prompt}\n${OUTPUT_LINE}\n\n${schema}\n`;
       const caseFile = join(dst, "case.yaml");
       writeFileSync(
@@ -279,6 +335,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { values } = parseArgs({
     options: {
       reusable: { type: "string" },
+      verdict: { type: "string" },
       sha: { type: "string" },
       out: { type: "string" },
       "no-instructions": { type: "boolean" },
@@ -286,16 +343,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   if (
     !values.reusable ||
+    !values.verdict ||
     !/^[0-9a-f]{40}$/u.test(values.sha ?? "") ||
     !values.out
   ) {
     console.error(
-      "usage: build-suite.mjs --reusable <intake-triage.yml> --sha <40-hex commit> --out <dir> [--no-instructions]",
+      "usage: build-suite.mjs --reusable <intake-triage.yml> --verdict <verdict.cjs> --sha <40-hex commit> --out <dir> [--no-instructions]",
     );
     process.exit(2);
   }
   const result = await build({
     reusable: readFileSync(values.reusable, "utf8"),
+    verdict: readFileSync(values.verdict, "utf8"),
     sha: values.sha,
     out: values.out,
     instructions: !values["no-instructions"],
