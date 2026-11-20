@@ -400,8 +400,6 @@ script exits 2 rather than guessing when it is missing.
 - **Pointer**: when deciding how a script receives a plugin path variable, fetch
   [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **Recheck trigger**: that section starts exporting the variable to commands run through the Bash
-  tool.
 
 The payload is exactly one JSON object with a `candidates` array, each entry carrying
 `id`, `candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or

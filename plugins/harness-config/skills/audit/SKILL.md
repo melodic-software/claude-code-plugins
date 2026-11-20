@@ -456,11 +456,11 @@ surface resolves, never that it is present. The four-part records live in
 ## Spoke paths
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command or writing it into a brief. Those
-files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
-tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
-Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+Put that path in place of the placeholder before running a command or writing it into a brief, so
+no command depends on a `${…}` token in a file this skill reads at run time.
+
+- **Pointer**: when deciding where a `${…}` token resolves, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
 ## Next
 

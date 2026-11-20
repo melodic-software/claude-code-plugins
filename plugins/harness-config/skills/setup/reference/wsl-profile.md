@@ -32,13 +32,12 @@ without a `//` prefix, so a profile you edit can be checked.
 
 ## Limits
 
-A deny rule is not an OS-level control. Per the same permissions page section:
+A deny rule is not an OS-level control, so the profile treats its denies as a guardrail against
+routine access. A path no tool may change gets an `Edit` deny of its own, as the Windows config rows
+do, and is never left to a `Read` deny alone.
 
-- Read and Edit denies cover the built-in file tools, the Bash file commands Claude Code recognizes
-  (`cat`, `head`, `tail`, `sed`, `tee`) and redirection targets.
-- They do not cover a command that reads files without naming them (`grep -r`), or a subprocess that
-  opens files itself, such as a script.
-- A `Read` deny does not cover NotebookEdit, so add an `Edit` deny for any path no tool may change.
+- **Pointer**: when deciding what a `Read` or `Edit` deny covers, fetch
+  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
 
 For OS-level enforcement that blocks all processes from a path, enable the
 [sandbox](https://code.claude.com/docs/en/sandboxing) and give it matching filesystem rules. The

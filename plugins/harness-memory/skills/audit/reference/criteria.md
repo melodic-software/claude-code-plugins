@@ -167,9 +167,11 @@ A **new** skill carries a second cost the compaction table does not show: the bo
 price the listing entry it adds as always in context: `name` plus the combined `description` and
 `when_to_use`, up to the per-entry cap the pointer below records. The saving is the body minus that entry rather than
 the whole body. Moving content into a skill that **already exists** adds no listing entry and does not carry
-this cost. Price the entry as zero only for a skill with `disable-model-invocation: true` (which
-also leaves it user-invocable only); never on the strength of `user-invocable: false`, or of a
-`skillOverrides` entry against a plugin skill. State the entry as a cost of the recommended move.
+this cost. Price the entry as zero only for a skill with `disable-model-invocation: true`, the one
+setting this check counts as taking the entry out of the listing; never on the strength of
+`user-invocable: false`, or of a `skillOverrides` entry against a plugin skill, since an unproven
+zero overstates the saving. What each setting does to the listing is read at the pointer below.
+State the entry as a cost of the recommended move.
 Whether the target's listing budget is oversubscribed is a separate question this check does not
 answer: `/harness-ops:audit-skill-visibility` answers it for a session's live listing, and
 `/skill-quality:check`'s `listing-budget` for a repository's authored skills.
@@ -224,14 +226,14 @@ compaction model and its pointer live in [official-guidance.md](official-guidanc
    manifests hold them. Exact build, test and lint commands stay (C9).
 5. WARN per instance
 
-**Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
-posture in the docs' include list, so the `update` action must not
-overwrite it.
+**Provenance**: the KEEP branch is a **repo extension, not doc-derived**, so the `update` action
+must not overwrite it.
 
-**Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
-work out from the code, and the stop-doing row on describing architecture and file layout. Step 4 is
-our decision; compare it with what the `/doctor` trim proposes through the pointer below. Steps 2 and 3
-are our judgment: no docs section lists them.
+**Why**: We flag what Claude can rebuild from the code, because an always-loaded line it could
+rebuild costs every session and teaches nothing; step 1's carve-out keeps a curated pointer,
+because Claude cannot cheaply rediscover what it routes to. Step 4 is our decision: the manifests
+own those facts. Steps 2 and 3 are our judgment. Compare step 1 with the docs' guidance on what
+CLAUDE.md holds, and step 4 with what the `/doctor` trim proposes, through the pointers below.
 
 - **Pointer**: for the test and the include list, see
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short); for
