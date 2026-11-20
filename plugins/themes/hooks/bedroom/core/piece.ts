@@ -31,6 +31,11 @@ export type Ctx = {
    * the change comes from a command, so the shader moves to it fast. stalled: the minute tick came late.
    */
   send: (cause: string, options?: { hurry?: boolean; stalled?: boolean }) => Promise<void>
+  /**
+   * Sends a cue: one event the shader runs once (CUES in core/signals.gen.js), as soon as world can move. Answers the
+   * milliseconds until it is sent; the shader shows it about 3 to 5 s after that.
+   */
+  cue: (id: number, cause: string) => Promise<number>
   /** A line in the debug log. */
   note: (line: string) => void
 }

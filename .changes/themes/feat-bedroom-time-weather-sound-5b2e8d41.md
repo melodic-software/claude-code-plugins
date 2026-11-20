@@ -13,6 +13,10 @@ bump: minor
 - `/bedroom sync` redraws every switch from what is saved, and `/bedroom <setting> default` makes a setting follow the plugin's settings again.
 - The settings card gains a row for the time of day, a row for the weather, and on/off buttons for the television's signal, the hallway, the shader and sound.
 - Plugin settings for the time of day, sunrise, sunset, weather, sound and its player, the signal, the hallway and the shader.
+- `/bedroom hall pass` and `/bedroom hall light` show a hallway pass or turn the hall light on (or off) now, and `/bedroom weather strike` brings one flash of lightning in a storm, each within about five seconds.
+- The window shows the dusk view at every hour, lit for it: by day shaded trees, the far treeline, the field and the utility pole with its wires; at night a deep blue sky with stars and the moon, never a black window.
+- Overcast covers the sky with cloud at every hour, and rain, a downpour and a storm differ in weight: how much falls, how fast and how long the streaks, the drops on the glass, the veil over the view and how dark the sky is; a storm also slants the rain in the wind.
+- The hall light lights the whole gap beside the door, brightest at the top, and lays a wedge of light on the floor; a passer-by's shadow crosses the gap.
 
 ### Changed
 
@@ -21,3 +25,4 @@ bump: minor
 - `/bedroom instant off` is kept across sessions, as the `shader` choice.
 - `/bedroom reset` also shows the room alone for seven seconds and puts the time, weather, signal, hallway, shader and sound choices back to the plugin's settings.
 - Settings saved by 0.2 under `bedroom:saved` load unchanged.
+- On an overcast or stormy day the room is lit less and flatter, and late at night the light low in the door's gap is fainter.

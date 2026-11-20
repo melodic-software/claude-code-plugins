@@ -1,9 +1,10 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
-// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=none
+// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=claude-tv.rough,hallway.edge
 import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
 const v = values({ tv: [0, 1], lava: [0, 1], pc: [0, 1], lamp: [0, 1], light: [0, 1], clock: [0, 719], screen: [0, 63], world: [0, 255] })
 const TAB_skyline = table([448.8,447,447.5,448.3,450.1,450.5,450.8,450.3,446.8,446.7,444,442.5,442.2,442,442.9,443,445.1,448.6,449.3,449.5,449.7,450.9,453.2,454.2,455,457.3,463.4,466,466.3,469.2,480.5,483,486.2,487.4,509.3,511.6,551,551.5,551.8,552,551.8,552.3,552.5,551.9,551.5,551.5,551.1,550.5,550.5,551.1,551.6,551.8,552.1,552.5,551.8,551.4,550.6,550.3,550.4,550.5,550.5,550.6,550.8,550.9,551.2,552,551.8,551.7,551.5,551.8,551.5,548.6,541.3,538.6,533.1,528.8,527.3,526,526.4,524.7,523.9,521,522.5,522.9,523.2,521.4,519.2,519.8,519.1,517.1,516.9,515,514.1,511.7,511.1,509.8,509.4,507.8,508.5,506.7,506.4,505.5,505.8,505.2,506.2,507,507,507])
+const TAB_near = table([448.8,447,447.5,448.3,450.1,450.5,450.8,450.3,446.8,446.7,444,442.5,442.2,442,442.9,443,445.1,448.6,449.3,449.5,449.7,450.9,453.2,454.2,455,457.3,463.4,466,466.3,469.2,480.5,483,486.2,487.4,509.3,511.6,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,554.6,548.6,541.3,538.6,533.1,528.8,527.3,526,526.4,524.7,523.9,521,522.5,522.9,523.2,521.4,519.2,519.8,519.1,517.1,516.9,515,514.1,511.7,511.1,509.8,509.4,507.8,508.5,506.7,506.4,505.5,505.8,505.2,506.2,507,507,507])
 // The switches that change without sending the room again. The room under this is drawn with the television and
 // the computer on, and the lava lamp and the desk lamp off. All positions are the room's own viewBox units.
 // Television: tv runs from 1 (on) to 0 (off) on the mod shader's own clock (build-lights.mjs), quick going off.
@@ -160,7 +161,8 @@ function pic(uv: vec2): vec4 {
   let gl = max(pane, open) * (1 - sbox(at, vec2(466.7, 460), vec2(1.2, 130), 0.4))
   let up = smoothstep(405, 452, at.y)
   let cc = vec3(mix(vec3(0, 0.01, 0.1) + vec3(0.05, 0.02, 0) * up, vec3(0, 0, 0.035) + vec3(0.03, 0.012, 0) * clamp((at.y - 505) / 40, 0, 1), open))
-  m = m + (mix(0.7 + 0.2 * up, 1, open) - m) * gl
+  // The glass keeps its dusk level at every l_keep, as the screens do: the night outside is the time piece's to paint.
+  m = m + (mix(0.7 + 0.2 * up, 1, open) / max(state.at(vec2(12, 0)).y, 0.5) - m) * gl
   dc = vec3(mix(dc, cc * fade, gl))
   }
   }
@@ -301,23 +303,22 @@ function pic(uv: vec2): vec4 {
   let hs = sbox(at, vec2(1460.5, 545), vec2(10.5, 311), 1)
   let wl = smoothstep(560, 760, at.y)
   m = mix(m, 0.12 + 0.12 * wl, hs)
-  dc = vec3(mix(dc, vec3(0.004, 0.006, 0.014) * night + vec3(0.06, 0.035, 0.012) * (wl * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y))) + vec3(0.36, 0.2, 0.06) * wf, hs))
-let hw_don = (state.at(vec2(15, 0)).x - 1) * (1 - 0.6 * state.at(vec2(15, 0)).y) * night
-let hw_edge = smoothstep(1469.6, 1470.6, at.x) * (1 - smoothstep(1470.8, 1472.4, at.x)) * smoothstep(250, 450, at.y)
-dc = vec3(dc + vec3(0.045, 0.027, 0.01) * (hw_don * hs * (1 - wl)) + vec3(0.07, 0.042, 0.015) * (hw_don * hw_edge))
+  dc = vec3(mix(dc, vec3(0.004, 0.006, 0.014) * night + vec3(0.06, 0.035, 0.012) * (wl * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))) + vec3(0.36, 0.2, 0.06) * wf, hs))
+let hw_src = 0
+let hw_don = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
+let hw_cast = 1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 7.5, abs(at.x - 1448 - 25 * state.at(vec2(15, 0)).z))) * hs
+dc = vec3((dc + vec3(0.34, 0.22, 0.10) * (hw_don * hs * (1 - 0.6 * smoothstep(0, 1, abs((at.y - 234) / 622 - hw_src))))) * hw_cast)
   }
   }
   }
-  // The hallway light through the gap, a faint warm wedge on the floor below it.
+  // The hallway light through the gap, a faint warm wedge on the floor below it, fainter late at night.
   if (at.y > 850.0 && abs(at.x - 1450.0) < 60.0) {
   let fy = at.y - 850
   let wedge = clamp(1 - abs(at.x - 1460 + 0.5 * fy) / (6 + 0.4 * fy), 0, 1) * (1 - smoothstep(850, 915, at.y))
-  dc = vec3(dc + vec3(0.045, 0.026, 0.008) * (wedge * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y))))
-let hw_fon = (state.at(vec2(15, 0)).x - 1) * (1 - 0.6 * state.at(vec2(15, 0)).y) * night
-let hw_ux = at.x - 1478.6
-let hw_uy = at.y - 860.2 + max(-0.42 * hw_ux, 0.057 * hw_ux)
-let hw_under = smoothstep(-8.6, -6.6, hw_ux) * (1 - smoothstep(4, 30, hw_ux)) * (clamp(1 - abs(hw_uy) / 2.2, 0, 1) + 0.35 * smoothstep(-1, 1.5, hw_uy) * (1 - smoothstep(1.5, 10, hw_uy)))
-dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * hw_under))
+  dc = vec3(dc + vec3(0.045, 0.026, 0.008) * (wedge * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))))
+let hw_fon = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
+let hw_fx = at.x - 1460 + 0.5 * fy
+dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / (4 + 0.45 * fy), 0, 1) * (1 - smoothstep(860, 935, at.y)) * (1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 9, abs(hw_fx + 12 - 25 * state.at(vec2(15, 0)).z))))))
   }
   let vr = vec2((at - vec2(800, 500)) * vec2(0.00104, 0.00163))
   m = m * (1 - 0.6 * clamp(dot(vr, vr) - 0.3, 0, 0.75))
@@ -330,44 +331,82 @@ dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * hw_under))
   let w_open = win_open(at)
   let w_sky = win_sky(at)
 let td_day = state.at(vec2(11, 0)).x
-let td_cloud = state.at(vec2(13, 0)).x
+let td_late = state.at(vec2(11, 0)).y
+let td_dawn = state.at(vec2(11, 0)).w
+let td_warm = state.at(vec2(11, 0)).z
+let td_clear = 1 - state.at(vec2(13, 0)).x
 let td_open = max(w_open, sbox(at, vec2(358, 512), vec2(3.5, 10.5), 0.5) * clamp(at.x - 354.1 - 0.45 * (at.y - 505), 0, 1))
-let td_sky = vec3(mix(vec3(0.36, 0.55, 0.82), vec3(0.70, 0.78, 0.86), clamp((at.y - 335) * 0.00455, 0, 1)))
-td_sky = vec3(mix(td_sky, vec3(0.85, 0.70, 0.60), 0.5 * state.at(vec2(11, 0)).w))
-td_sky = vec3(mix(td_sky, vec3(0.95, 0.66, 0.42), 0.6 * state.at(vec2(11, 0)).z * clamp((at.y - 420) * 0.0074, 0, 1)))
-td_sky = vec3(mix(td_sky, vec3(0.62, 0.64, 0.66), 0.8 * td_cloud))
-let td_glass = w_pane + td_open
-let td_a = mix(min(1, 1.6 * td_day) * td_glass, td_day * (0.92 * w_pane + 0.85 * td_open), w_sky)
-let td_col = vec3(mix(vec3(0.09, 0.13, 0.07), td_sky, w_sky))
+let td_v = clamp((at.y - 335) * 0.0045, 0, 1)
+// The day sky, pale toward the horizon; lavender over peach at dawn; warm low down at golden hour.
+let td_sky = vec3(mix(mix(vec3(0.33, 0.52, 0.81), vec3(0.72, 0.80, 0.87), td_v), mix(vec3(0.27, 0.33, 0.56), vec3(0.96, 0.72, 0.56), td_v), 0.85 * td_dawn))
+td_sky = vec3(mix(td_sky, mix(vec3(0.42, 0.54, 0.76), vec3(1, 0.68, 0.40), td_v * td_v), 0.85 * td_warm))
+// The night sky: deep blue, lighter toward the horizon and lavender there as dawn nears. It is laid thin high up, where
+// the room's own stars twinkle through, and thick low down, where it covers the dusk's afterglow. The moon, high in the
+// upper left pane with its halo, is hidden by cloud.
+let td_m = vec2(at - vec2(322, 361))
+let td_md = length(td_m)
+let td_disk = (1 - smoothstep(4.2, 5, td_md)) * td_clear
+let td_ns = vec3(mix(vec3(0.012, 0.022, 0.07), vec3(0.05, 0.065, 0.15) + vec3(0.16, 0.08, 0.12) * td_dawn, td_v * td_v) + vec3(0.19, 0.2, 0.26) * (exp(-td_md * td_md / 150) * td_clear))
+td_ns = vec3(mix(td_ns, vec3(0.95, 0.94, 0.86) * (0.35 + 0.65 * smoothstep(3.6, 5.4, length(td_m + vec2(1.9, 0.8)))), td_disk))
+let td_d = clamp(4 * td_day, 0, 1)
+// The pole's two wires against the day sky: the curves the room draws from the crossarm's ends.
+let td_wx = at.x - 424.25
+let td_wy = 441.4 + mix(0.163 * td_wx - 0.00126 * td_wx * td_wx, -0.262 * td_wx - 0.0004 * td_wx * td_wx, step(td_wx, 0))
+let td_wire = (1 - smoothstep(0.25, 0.25 + 0.7 / s, abs(at.y - td_wy))) * 0.8 * step(338, at.x) * td_d
+let td_sc = vec3(mix(mix(td_ns, td_sky, td_d), vec3(0.16, 0.16, 0.17), td_wire))
+// The land by day: the field below its line, the far treeline above it, the near trees in front with clumps of leaves
+// lit from above, and the pole in its own weathered wood. One noise read shades leaves, grass and treeline.
+let td_np = vec2(vec2(at.x * 0.2 + at.y * 0.08, at.y * 0.21 - at.x * 0.07))
+let td_nz = vn(td_np)
+let td_q = clamp((at.x - 292) * 0.5, 0, 106)
+let td_qi = floor(td_q)
+let td_top = mix(TAB_near.at(td_qi), TAB_near.at(td_qi + 1), td_q - td_qi)
+let td_near = smoothstep(-0.8, 0.8, at.y - td_top) * max(1 - smoothstep(550.5, 552, at.y), max(step(at.x, 308), step(425, at.x)))
+let td_land = vec3(mix(vec3(0.40, 0.49, 0.48) * (0.82 + 0.3 * td_nz), mix(vec3(0.43, 0.55, 0.26), vec3(0.30, 0.42, 0.17), clamp((at.y - 561.5) * 0.04, 0, 1)) * (0.9 + 0.18 * td_nz), smoothstep(560.5, 562.5, at.y)))
+td_land = vec3(mix(td_land, vec3(0.13, 0.23, 0.08) * (0.45 + 0.9 * td_nz) + vec3(0.17, 0.2, 0.06) * smoothstep(0.55, 0.95, td_nz) * clamp(1 - (at.y - td_top) * 0.015, 0, 1), td_near))
+let td_pole = max(sbox(at, vec2(424.4, 510), vec2(1.25 + 0.0018 * (at.y - 436), 74), 0.35), sbox(at, vec2(424.25, 442.2), vec2(5.75, 0.6), 0.35))
+td_land = vec3(mix(td_land, vec3(0.30, 0.26, 0.22) + vec3(0.09, 0.08, 0.06) * smoothstep(424.8, 423.4, at.x), td_pole))
+// The hour's light on the land: warm at golden hour, cool and dim at dawn. The open sash is seen through the insect screen.
+td_land = vec3(td_land * mix(vec3(1), vec3(1.2, 0.93, 0.66), td_warm) * mix(vec3(1), vec3(0.74, 0.68, 0.80), td_dawn) * (1 - 0.28 * td_open))
+// At night the land darkens under the darker sky, the room's own yard light and fireflies showing faintly through.
+td_land = vec3(mix(vec3(0.010, 0.013, 0.026), td_land, td_d))
+// One layer: by day the whole view, the land opaque from day 0.63; at night the sky, and the land in part. The glass
+// takes in, at night, the strip under the upper sash's bottom rail, which the base's pane mask leaves out.
+let td_a = mix(max(min(1, 1.6 * td_day), 0.62 * td_late), max(min(1, 1.3 * td_day), td_late * max(0.35 + 0.57 * td_v, td_disk)), w_sky) * max(w_pane + td_open, sbox(at, vec2(393.5, 417), vec2(96.5, 1.8), 0.5) * td_late)
+let td_col = vec3(mix(td_land, td_sc, w_sky))
 acc = vec4(vec4(acc.rgb * (1 - td_a) + td_col * td_a, acc.a * (1 - td_a) + td_a))
-let td_n = state.at(vec2(11, 0)).y * (0.95 + 0.05 * td_cloud) * td_glass
-acc = vec4(vec4(acc.rgb * (1 - td_n) + vec3(0.008, 0.010, 0.025) * td_n, acc.a * (1 - td_n) + td_n))
-// The veil greys the glass by dusk and night; by day the time piece's sky carries the cloud.
+let wx_wet = state.at(vec2(13, 0)).y
+let wx_storm = state.at(vec2(13, 0)).z
 let wx_glass = w_pane + w_open
-let wx_veil = 0.35 * state.at(vec2(13, 0)).x * (1 - state.at(vec2(11, 0)).x) * wx_glass
-acc = vec4(vec4(acc.rgb * (1 - wx_veil) + vec3(0.10, 0.10, 0.13) * wx_veil, acc.a * (1 - wx_veil) + wx_veil))
-// Beads on the panes (the open sash has no glass): a grid of 7-unit cells whose columns slide down at 2 to 6 units a
-// second, a bead in some cells, more as the rain grows. A bead shows the lighter sky below it upside down: light on top,
-// the sky's own grey under. The slide wraps every 256 cells and a cell's row is hashed modulo 256, so the pattern runs
-// on unbroken and the numbers stay small in float32 however long the shader runs.
-let wx_v = 2 + 4 * fract(floor(at.x / 7) * 0.618)
-let wx_q = vec2(vec2(at.x, at.y - mod(wx_v * time, 1792)) / 7)
+// The cloud: soft rolls drifting slowly, a dull gray at every hour, near black at night, darker with rain and a storm.
+let wx_n = 0.5 + 0.25 * sin(at.x * 0.045 + time * 0.03 + 2 * sin(at.y * 0.07)) + 0.25 * sin(at.y * 0.11 + at.x * 0.013 - time * 0.021)
+let wx_cc = vec3(mix(vec3(0.19, 0.17, 0.22), vec3(0.68, 0.70, 0.74), state.at(vec2(11, 0)).x) * (1 - 0.75 * state.at(vec2(11, 0)).y) * (1 - 0.3 * wx_wet - 0.25 * wx_storm))
+let wx_cv = min(1, 1.3 * state.at(vec2(13, 0)).x) * mix(0.3 + 0.4 * wx_wet, 1, w_sky) * wx_glass
+acc = vec4(vec4(acc.rgb * (1 - wx_cv) + wx_cc * (0.85 + 0.26 * wx_n) * wx_cv, acc.a * (1 - wx_cv) + wx_cv))
+// Beads on the panes (the open sash has no glass): a grid of 7-unit cells whose columns slide down each at its own
+// speed and wander a little side to side, a bead in some cells, each shown for its own share of its own cycle so they
+// come and go at different times; more and larger as the rain grows. A bead shows the lighter sky below it upside down.
+// The slide wraps every 256 cells and a cell's row is hashed modulo 256, so the pattern runs on unbroken.
+let wx_c = floor(at.x / 7)
+let wx_q = vec2(vec2(at.x + 1.4 * sin(at.y * 0.09 + wx_c * 2.1), at.y - mod((1.5 + 5 * fract(wx_c * 0.618)) * time, 1792)) / 7)
 let wx_id = vec2(floor(wx_q))
 let wx_h = hsh(vec2(wx_id.x, mod(wx_id.y, 256)))
 let wx_o = vec2((fract(wx_q) - vec2(0.3 + 0.4 * fract(wx_h * 7.31), 0.3 + 0.4 * fract(wx_h * 3.17))) * 7)
-let wx_r = 0.9 + 1.1 * fract(wx_h * 13.7)
-let wx_bead = clamp((1 - dot(wx_o, wx_o) / (wx_r * wx_r)) * 2, 0, 1) * step(1 - 0.55 * state.at(vec2(13, 0)).y, wx_h) * 0.25 * state.at(vec2(13, 0)).y * w_pane
-let wx_bc = vec3(mix(vec3(0.5, 0.5, 0.6), vec3(0.16, 0.16, 0.22), clamp(0.7 + wx_o.y / wx_r, 0, 1)))
-acc = vec4(vec4(acc.rgb * (1 - wx_bead) + wx_bc * wx_bead, acc.a * (1 - wx_bead) + wx_bead))
-// Rain beyond the glass: thin lines slanting a little, falling 140 units a second, one a 3-unit column in some columns,
-// each a run of about 18 units in every 45, drawn a pixel wide at any size. Time wraps at 9 s, 28 runs of 45, so the
-// fall is unbroken and stays exact in float32 however long the shader runs.
-let wx_s = vec2(vec2(at.x - 0.12 * at.y, at.y - 140 * mod(time, 9)))
-let wx_sh = thash(floor(wx_s.x / 3))
-let wx_line = clamp(1 + (0.3 - abs(fract(wx_s.x / 3) - 0.2 - 0.6 * wx_sh) * 3) * s, 0, 1)
-let wx_run = fract(wx_s.y / 45 + wx_sh * 5.3)
-let wx_streak = wx_line * clamp(min(wx_run, 0.4 - wx_run) * 10, 0, 1) * step(1 - 0.7 * state.at(vec2(13, 0)).y, fract(wx_sh * 9.7)) * 0.12 * state.at(vec2(13, 0)).y * wx_glass
-acc = vec4(vec4(acc.rgb * (1 - wx_streak) + vec3(0.55, 0.58, 0.68) * wx_streak, acc.a * (1 - wx_streak) + wx_streak))
+let wx_r = (0.9 + 1.4 * fract(wx_h * 13.7)) * (0.7 + 0.5 * wx_wet)
+let wx_bead = clamp((1 - dot(wx_o, wx_o) / (wx_r * wx_r)) * 2, 0, 1) * step(1 - 0.6 * wx_wet, wx_h) * step(fract(time * (0.04 + 0.07 * fract(wx_h * 5.1)) + wx_h * 9), 0.7) * 0.3 * wx_wet * w_pane
+acc = vec4(vec4(acc.rgb * (1 - wx_bead) + (wx_cc * (1.9 - wx_o.y / wx_r) + vec3(0.07, 0.07, 0.09)) * wx_bead, acc.a * (1 - wx_bead) + wx_bead))
+// Rain beyond the glass, drawn a pixel wide at any size, in 2.5-unit columns slanted by the storm's wind. Half the
+// columns are slow and short (160 units a second, a sixth of each 60-unit run) and half fast and long (300 a second,
+// nearly half the run). Rain shows a few of the slow ones; a downpour and a storm add the fast ones and more of both.
+// Each column keeps its own speed whatever the weather, and the fall wraps every 3 s (8 and 15 runs), so a change of
+// weather fades columns in and out and nothing jumps.
+let wx_heavy = clamp((wx_wet - 0.6) * 2.5 + wx_storm, 0, 1)
+let wx_u = (at.x - (0.1 + 0.36 * wx_storm) * at.y) / 2.5
+let wx_hs = thash(floor(wx_u))
+let wx_fast = step(0.5, wx_hs)
+let wx_run = fract((at.y - mix(160, 300, wx_fast) * mod(time, 3)) / 60 + wx_hs * 5.3)
+let wx_streak = clamp(1 + (0.3 - abs(fract(wx_u) - 0.2 - 0.6 * fract(wx_hs * 3.1)) * 2.5) * s, 0, 1) * clamp(min(wx_run, mix(0.17, 0.45, wx_fast) - wx_run) * 10, 0, 1) * step(fract(wx_hs * 9.7), mix(0.75 * wx_wet, 0.9 * wx_heavy, wx_fast)) * (0.12 * wx_wet + 0.06 * wx_heavy) * wx_glass
+acc = vec4(vec4(acc.rgb * (1 - wx_streak) + (wx_cc * 1.5 + vec3(0.12, 0.13, 0.16)) * wx_streak, acc.a * (1 - wx_streak) + wx_streak))
 // A strike lights the sky in the panes; the trees, the field and the pole stay dark against it.
 let wx_f = 0.15 * state.at(vec2(13, 0)).w * w_sky * wx_glass
 acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1 - wx_f) + wx_f))
@@ -609,12 +648,6 @@ let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * now_tv
 let ct_q = vec2(vec2(time * 2.5, 0))
 let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.025 * vn(ct_q))
 acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
-// As the context fills, a second soft band rolls down the glass once every 13 s, streaked along its length, at up to 8%.
-// It is off the glass at the turn of its 13 s (y 70 units from the center), so it never jumps in view.
-let ct_dy = c.y + 70 - 140 * fract(time / 13)
-let ct_streak = 0.55 + 0.45 * sin(at.x * 0.13 + time * 0.7) * sin(at.x * 0.047 + 1.3)
-let ct_b = ct_glass * state.at(vec2(14, 0)).y * 0.08 * exp(-ct_dy * ct_dy / 40) * ct_streak
-acc = vec4(vec4(acc.rgb * (1 - ct_b) + vec3(0.82, 0.86, 0.96) * ct_b, acc.a * (1 - ct_b) + ct_b))
   }
   if (abs(at.x - 1376.0) < 85.0 && abs(at.y - 530.0) < 112.0) {
   // l_glowDim lowers the lava lamp's and the desk lamp's light by day.
@@ -817,6 +850,9 @@ function advance(cell: vec2): vec4 {
     let hall = field(scr.x, 2, 2)
     let minute = state.at(vec2(8, 0)).x
     let beat = state.at(vec2(8, 1)).x
+    // A cue taken the frame before is 0 seconds old for exactly one frame: a piece runs its event when it reads that.
+    let cueNow = vec4(state.at(vec2(10, 1)))
+    let cue = cueNow.x * (1 - step(0.0001, cueNow.y)) * step(30, time)
     if (cell.x < 11.5) {
       // Column 11: the time piece.
       let p = vec4(state.at(vec2(11, 0)))
@@ -886,9 +922,9 @@ function advance(cell: vec2): vec4 {
       let m2 = q2
       let td_row = vec4(SUN.at(sun))
       let td_pace = paceOf(hurry, 0.000667)
-      a0 = toward(p0, 1 - 0.85 * td_row.x * (1 - 0.4 * state.at(vec2(13, 0)).x), td_pace)
+      a0 = toward(p0, 1 - 0.85 * td_row.x * (1 - 0.5 * state.at(vec2(13, 0)).x - 0.15 * state.at(vec2(13, 0)).z), td_pace)
       a1 = toward(p1, 1 - 0.45 * td_row.y, td_pace)
-      a2 = toward(p2, 1 - 0.6 * td_row.x, td_pace)
+      a2 = toward(p2, 1 - 0.6 * td_row.x * (1 - 0.3 * state.at(vec2(13, 0)).x), td_pace)
       a3 = 0
       // Every lane holds its default from a set-up until world is first accepted.
       if (fresh > 0.5 || world < -0.5) {
@@ -938,7 +974,8 @@ function advance(cell: vec2): vec4 {
       let wx_second = 8 + mod(wx_minute * 29 + 5, 41)
       let wx_due = step(mod(wx_minute * 73 + 17, 101), 34.5) * step(wx_second, beat) * (1 - step(wx_second, q2))
       let wx_rule = (1 - step(time, 30)) * (1 - step(0.0001, hurry))
-      let wx_go = wx_due * wx_rule * step(3.5, weather) * step(0.3, p2) * (1 - step(0.5, q0)) * step(0.5, abs(q1 - wx_minute - 1))
+      let wx_cue = step(2.5, cue) * (1 - step(3.5, cue))
+      let wx_go = max(wx_due * wx_rule * step(0.5, abs(q1 - wx_minute - 1)), wx_cue) * step(3.5, weather) * step(0.3, p2) * (1 - step(0.5, q0))
       if (q0 > 0.5) {
       m0 = q0 + min(dt, 0.03333333333333333)
       }
@@ -1045,13 +1082,16 @@ function advance(cell: vec2): vec4 {
       let hw_pass = (1 - hw_late) * (1 - step(2, mod(hw_code * 61 + 8.5, 127)))
       let hw_hash = mod(hw_code * 89 + 69.5, 211)
       let hw_light = (1 - step(1.5, sun)) * (1 - step(3, hw_hash)) + hw_late * (1 - step(1, hw_hash))
+      let hw_cueLight = step(1.5, cue) * (1 - step(2.5, cue)) * hall
+      let hw_cuePass = step(0.5, cue) * (1 - step(1.5, cue)) * hall * (1 - step(0.0001, q1))
       m0 = max(max(q0 - dt, 0) * hall, 180 * hw_go * hw_light * (1 - step(0.0001, q0)))
-      m1 = mix(max(q1 - dt, -100), 2.5, hw_go * hw_pass * step(q1, -99.99))
+      m0 = mix(m0, 180 * (1 - step(0.0001, q0)), hw_cueLight)
+      m1 = mix(max(q1 - dt, -100), 2.5, max(hw_go * hw_pass * step(q1, -99.99), hw_cuePass))
       m2 = beat
       let hw_into = 2.5 - m1
       a0 = toward(p0, 1 + 1.5 * step(0.0001, m0), paceOf(hurry, 2.5))
       a1 = smoothstep(0, 0.8, hw_into) * (1 - smoothstep(1.2, 2.5, hw_into)) * step(0.0001, m1)
-      a2 = 0
+      a2 = clamp(hw_into / 2.5, 0, 1) * step(0.0001, m1)
       a3 = 0
       // Every lane holds its default from a set-up until world is first accepted.
       if (fresh > 0.5 || world < -0.5) {
@@ -1104,6 +1144,31 @@ function advance(cell: vec2): vec4 {
         taken = minuteNow
       }
       return vec4(beat, taken, 0, 1)
+    }
+    if (cell.x > 9.5 && cell.x < 10.5) {
+      // A cue: world codes above 239 carry one event to run once (239 + id), never a state. The mod holds one
+      // for 2.5 s and more, then sends the atmosphere's code back. A cue held still as long as world needs is
+      // taken once: (cue id, seconds since it was taken, the code taken, 1). It is taken again only after world has
+      // left the cue's codes. Nothing else changes: world's own fields stay as they were.
+      let wt = vec4(state.at(vec2(10, 0)))
+      let k = floor(wt.y + 0.5)
+      let cue = was.x
+      let age = min(was.y + min(dt, 0.03333333333333333), 99)
+      let taken = was.z
+      if (k < 239.5) {
+        taken = 0
+      }
+      if (step(239.5, k) * (1 - step(0.3, abs(wt.y - k))) * step(2.5, wt.z) * step(0.5, abs(k - taken)) > 0.5) {
+        cue = k - 239
+        age = 0
+        taken = k
+      }
+      if (setup > 0.5) {
+        cue = 0
+        age = 99
+        taken = 0
+      }
+      return vec4(cue, age, taken, 1)
     }
     if (cell.x > 8.5 && cell.x < 9.5) {
       // The hurry timer is set to 30 s at a set-up and at each flip of screen's hurry bit, and counts
