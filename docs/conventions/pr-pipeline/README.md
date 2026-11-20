@@ -2738,8 +2738,8 @@ issues are its closing issues, or, when it closes none, the one `Refs:` issue
 [The pr-merge lane](#the-pr-merge-lane) reads. A closing issue is judged whole. A `Refs:` issue is
 judged as a partial slice (owner decision 2026-10-23, the recommended option): only the part the
 pull request body says it delivers, which must be in the issue's scope, correct and coherent on
-its own, with the body naming what remains; a body that names no delivered part or no remaining
-work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
+its own; a body that names no delivered part, or claims the whole issue, fails. What remains open
+is the issue's own done-when list, so the body need not restate it. The body only narrows what is judged, never adds a
 requirement, and the spec trust rules below are unchanged. The last pull request of an issue split
 across several can close it (owner decision 2026-11-03 on #12965): its body names the earlier ones
 on a plain `Siblings: #<a>, #<b>` line (first column, outside an HTML comment and a fenced code
