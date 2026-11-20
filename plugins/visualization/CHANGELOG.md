@@ -3,6 +3,13 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.3] - 2026-11-20
+
+### Changed
+
+- `present` states treating speaker notes as published as its own rule and refers to step 4's
+  sharing pointer, instead of restating who can read a deck.
+
 ## [1.3.2] - 2026-11-19
 
 ### Removed
