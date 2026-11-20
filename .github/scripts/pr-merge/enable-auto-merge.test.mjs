@@ -61,6 +61,7 @@ import {
   TRUST_REFUSALS,
   FILES_CAPPED_REASON,
   EMPTY_DIFF_REASON,
+  emptyDiffNote,
   UNARMED_OUTPUT,
   WAKE_OUTPUT,
   verifyClears,
@@ -258,6 +259,10 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
       notes.push({ method, path });
       return [];
+    }
+    if (method === "PATCH" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+$/.test(path)) {
+      notes.push({ method, path, body });
+      return {};
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
@@ -841,16 +846,24 @@ test("a listing past the page cap is a person's refusal; one that did not read i
   });
 });
 
-test("a pull request whose diff against main is empty is refused with the lane's note, never verified or armed", async () => {
+test("a pull request whose diff against main is empty is closed plainly, never verified, armed or restarted", async () => {
   const empty = await run([pull(1, { files: [] })]);
   assert.equal(empty.code, 0);
   assert.deepEqual(empty.writes, [], "an empty diff is not armed");
   assert.deepEqual(empty.verified, [], "an empty diff spends no verifier read");
-  assert.deepEqual(empty.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote("its diff against main is empty, so its changes are already on main") } }]);
+  assert.deepEqual(empty.closed, [], "no capped close, so no fresh attempt at its issue");
+  assert.deepEqual(empty.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: emptyDiffNote(HEAD) } },
+    { method: "PATCH", path: `${ISSUES}/1`, body: { state: "closed" } },
+  ]);
   const changed = await run([pull(1, { files: [{ filename: "plugins/work-items/README.md" }] })]);
   assert.deepEqual(changed.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "a non-empty diff arms as before");
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
-  assert.deepEqual(decide(pull(1, { autoMergeRequest: { enabledAt: NOW } }), options, { ...detail(), files: [], filesCapped: false, verify: PASSED }), { action: "disarm", reason: EMPTY_DIFF_REASON, clears: "lane" }, "an armed empty diff is disarmed");
+  assert.deepEqual(decide(pull(1, { autoMergeRequest: { enabledAt: NOW } }), options, { ...detail(), files: [], filesCapped: false, verify: PASSED }), { action: "close-empty", reason: EMPTY_DIFF_REASON });
+  const armed = await run([pull(1, { files: [], autoMergeRequest: { enabledAt: NOW } })]);
+  assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_1" }], "an armed empty diff is disarmed before the close");
+  const reportOnly = await run([pull(1, { files: [] })], { REPORT_ONLY: "true" });
+  assert.deepEqual(reportOnly.notes, [], "a report-only run closes nothing");
 });
 
 test("a changed-files list that is unread or capped never reads as an empty diff", async () => {
