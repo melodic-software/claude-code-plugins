@@ -415,6 +415,33 @@ test("a dispatch whose connection broke is not sent again when the run it starte
   assert.deepEqual(since, [["pr-unblock.yml", "2026-10-30T15:31:38Z"]]);
 });
 
+
+test("one run reads a head's check runs once for every check name, and by name past one page", async () => {
+  const urls = [];
+  const answer = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const run = (name) => ({ id: name.length, name, head_sha: HEAD });
+  const github = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example.test",
+    graphqlUrl: "https://api.example.test/graphql",
+    fetch: async (url) => {
+      urls.push(String(url));
+      const named = new URL(url).searchParams.get("check_name");
+      if (String(url).includes(OLD_HEAD)) {
+        return answer(named ? { total_count: 1, check_runs: [run(named)] } : { total_count: 101, check_runs: [run("other")] });
+      }
+      return answer({ total_count: 2, check_runs: [run("a"), run("b")] });
+    },
+  });
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.deepEqual((await github.listCheckRuns({ sha: HEAD, checkName: "b", appId: 1 })).map((r) => r.name), ["b"]);
+  assert.deepEqual(await github.listCheckRuns({ sha: HEAD, checkName: "c", appId: 1 }), []);
+  assert.equal(urls.length, 1);
+  assert.equal(new URL(urls[0]).searchParams.get("check_name"), null);
+  assert.deepEqual((await github.listCheckRuns({ sha: OLD_HEAD, checkName: "a", appId: 1 })).map((r) => r.name), ["a"]);
+  assert.equal(new URL(urls.at(-1)).searchParams.get("check_name"), "a");
+});
 test("a dispatch is sent at most twice, and an HTTP error answer never again", async () => {
   const twice = fakeApi();
   twice.listRecentRuns = async () => [];
