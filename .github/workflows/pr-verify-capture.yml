@@ -102,7 +102,7 @@ on:
 
 # The judges find this run by its title (find-capture.mjs runTitle): the
 # upstream run and the head it ran on.
-run-name: pr-verify-capture ${{ github.event.workflow_run.id }} ${{ github.event.workflow_run.head_sha }}
+run-name: PR Verify Capture ${{ github.event.workflow_run.id }} ${{ github.event.workflow_run.head_sha }}
 
 permissions: {}
 
