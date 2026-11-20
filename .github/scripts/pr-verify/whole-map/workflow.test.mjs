@@ -44,11 +44,10 @@ const scriptOf = (block) => /^ {8}run: \|\n((?: {10}.*\n?|\n)+)/m.exec(block)[1]
 const bare = (block) => block.replace(/^ *#.*\n?/gm, "").trim();
 const RUN_CLAUDE_CLI = /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /;
 
-/** What a shared step may differ in: the lane's name, the credit markers' names (gate.cjs names them from the workflow file and the job), and the commit the driven session's clone must be at. */
+/** What a shared step may differ in: the lane's name, the credit read's key job, and the commit the driven session's clone must be at. Both lanes run the pr-verify key, so their markers share one name. */
 const SUBSTITUTIONS = [
   ["lane: pr-verify-capture\n", "lane: maintenance-verify-whole-map\n"],
   ["lane-id: pr-verify-capture\n", "lane-id: maintenance-verify-whole-map\n"],
-  ["pr-verify-capture.yml-capture", "maintenance-verify-whole-map.yml-verify-map"],
   ["key-job: capture\n", "key-job: verify-map\n"],
   ["HEAD_SHA: ${{ steps.pr.outputs.head-sha }}", "HEAD_SHA: ${{ github.sha }}"],
 ];

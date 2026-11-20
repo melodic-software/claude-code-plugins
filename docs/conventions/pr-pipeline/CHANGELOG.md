@@ -1,5 +1,31 @@
 # Changelog for the PR pipeline convention
 
+## [10.19.1] - 2026-11-20
+
+### Changed
+
+- `dependency-fix-refused` now routes `fail` with `needs-session` instead of `hold` with owner reason `security` and `needs-human`. A commit other than Dependabot's on a dependency update comes from one of our own actors, so the hold it raised guarded only against them. That makes it friction, not a security stop (owner decision 2026-11-19, [owner-decisions.md line 248](https://github.com/melodic-software/architecture/blob/b571aa10b962ae6489dbac5520d1371162bf11f4/docs/owner-decisions.md#L248), #17569: only a token or secret leak, an account compromise or billing goes to the owner). A session builder drops or rebuilds the commit, for example with `@dependabot recreate`, and the new head starts clean. #17344 waited for a person from 04:20Z until a session removed the label, though the recreate at 06:14Z had already removed the commit. `dependency-escalate-security` still holds a HIGH or CRITICAL risk in the update for the owner.
+
+## [10.19.0] - 2026-11-20
+
+### Changed
+
+- Every job that reads a Claude secret names the main-only `claude-lanes` environment with `deployment: false`, so a workflow file changed on another branch never reaches one; `scripts/check-claude-secrets-environment.sh` fails a job that reads one outside it, or a job in it that a `pull_request`, `merge_group` or off-main push run starts. A call to another repository's reusable passes when it sets `with: environment: claude-lanes`. PR Run Plugin Evals now starts on `workflow_run` from main: the `eval: run` label runs the secret-free `pr-run-plugin-evals-label.yml`, and the eval legs re-read the pull request, its label event and its actors from the API.
+
+### Fixed
+
+- A merge group's two waits for a pool's reset share one budget, `WAIT_BUDGET_SECONDS.mergeGroup` (600 s), in place of 900 s each: Check Plugins' queued pull request read waits first, and ci-status's verdict reader waits only what that left, so both cannot run the group past the merge queue's 30-minute check timeout and eject it. With nothing left, the reader's `verify:unreadable` stands. Check Plugins' timeout drops to 19 minutes and ci-status's to 30.
+
+## [10.18.0] - 2026-11-19
+
+### Added
+
+- `limits.refire-budget-per-slot` (default 1). A work-unblock sweep re-fires issues whose lane run the start gate stopped on a low GITHUB_TOKEN budget, oldest run end first, only until the unfinished work-resolve-issue runs reach this value times the lane's `SLOTS`; those re-fires still count toward `limits.refire-queue-per-slot`'s room, and every other re-fire keeps two per slot. A budget-stopped run re-fired as the second run per slot often waited 20 to 47 minutes for a slot, past the 20-minute window after the reset, and the start gate stopped it again (owner decision, 2026-11-19).
+
+### Changed
+
+- The `api-routes` job-end notice keeps a workflow file name after `workflows/` (`repos/{repo}/actions/workflows/pr-verify.yml/runs`) instead of `{x}`, in `rate-guard.mjs` `routeOf` and `routeOk`, `api-budget.bash` `API_BUDGET_ROUTE` and pr-require-checks' generated copies. The calls a job spends listing runs can now be told apart by workflow. Only a lowercase `.yml` or `.yaml` file name is kept; a numeric workflow id stays `{n}`, any other segment stays `{x}`, and a route that would pass 80 characters keeps `{x}` there.
+
 ## [10.17.1] - 2026-11-19
 
 ### Changed

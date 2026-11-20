@@ -160,8 +160,8 @@ test("the model steps are read-only, on the maintenance key, then its token, the
   assert.match(step(propose, "Check the fallback token"), /if: steps\.next\.outputs\.next-leg == 'fallback'\n/);
   // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
   assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
-  assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-maintenance-measure-skill-edit\.yml-propose' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
-  assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}key-job: propose\n/);
+  assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: maintenance\n {10}key-job: propose\n/);
   for (const model of [key, leg, fallback]) {
     assert.match(model, /role: maintenance\n/);
     assert.match(model, /permission-mode: dontAsk\n/);

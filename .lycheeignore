@@ -81,4 +81,7 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://developer\.apple\.com/design/human-interface-guidelines/color#iOS-iPadOS$
 ^https://developer\.apple\.com/design/human-interface-guidelines/dark-mode#iOS-iPadOS$
 
+^https://doi\.org/10\.17226/25303$
+^https://www\.prnewswire\.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017\.html$
+
 ^https://github\.com/(%3C|<)owner(%3E|>)/(%3C|<)repo(%3E|>)$

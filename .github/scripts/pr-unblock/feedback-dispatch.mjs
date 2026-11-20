@@ -510,6 +510,7 @@ export async function dispatchFeedback({
   // The verifier reads this pass may still spend on PRs with no unresolved
   // thread (EARLIER_FAIL_READS); main shares one across the pass's sweeps.
   earlierFailReads = { left: EARLIER_FAIL_READS },
+  verifyReads = new Map(),
   // The sweep decides every PR before it sends any: the decision then
   // returns { number, send } and send() posts it.
   defer = false,
@@ -758,13 +759,17 @@ export async function dispatchFeedback({
   // inside one 10-minute job, so a pass reads at most EARLIER_FAIL_READS heads
   // that have no thread; the rest wait for a later pass inside
   // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
-  if (noThread) {
+  const readKey = `${number}:${head}:${pull.base?.sha}:${expected.join(",")}`;
+  if (noThread && !verifyReads.has(readKey)) {
     if (earlierFailReads.left <= 0) {
       return skip(`#${number} has no unresolved review thread, and this pass's ${EARLIER_FAIL_READS} verifier reads for an earlier FAIL are spent; the next pass reads it`);
     }
     earlierFailReads.left -= 1;
   }
-  const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  const read = owner ? null : verifyReads.get(readKey) ?? (await verifyCapped({ number, head, base: pull.base?.sha, expected }));
+  if (read !== null && typeof read === "object" && !read.readFailed) {
+    verifyReads.set(readKey, read);
+  }
   const { cap: capped, supersededAtHead, earlierFailHeads = [], readFailed = false } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (noThread && (readFailed || (capped && !capFinal(capped)))) {
     return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
@@ -1344,7 +1349,7 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   if (lost === null) {
     return null;
   }
-  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its ${DISPATCH_JOB} job started`);
+  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its Dispatch job started`);
   const context = { api, repository, appSenderId, log, settings, rest };
   // A round that ended before posting its check does not handle the head, and
   // the lost run stays in the window for a day, so each lost run sends at most
@@ -1714,6 +1719,7 @@ export async function main(env, { api, actions, github, resolveSlot, verifyCappe
     runId: env.GITHUB_RUN_ID,
     // One read budget for every dispatch this pass decides.
     earlierFailReads: { left: EARLIER_FAIL_READS },
+    verifyReads: new Map(),
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.

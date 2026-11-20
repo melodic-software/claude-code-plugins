@@ -45,6 +45,7 @@ for p in \
   plugins/alpha/skills/s/SKILL.md \
   scripts/check-shell-portability.sh \
   lib/x.sh \
+  .github/scripts/alpha/alpha.test.mjs \
   .github/workflows/pr-require-checks.yml; do
   if matches "$p"; then ok "starts lint-shell: $p"; else fail "should start lint-shell: $p"; fi
 done
@@ -54,6 +55,7 @@ for p in \
   README.md \
   .github/actionlint.yaml \
   src/App.cs \
+  .github/scripts/alpha/alpha.mjs \
   scripts/suite-seconds.txt; do
   if matches "$p"; then fail "should not start lint-shell: $p"; else ok "does not start lint-shell: $p"; fi
 done

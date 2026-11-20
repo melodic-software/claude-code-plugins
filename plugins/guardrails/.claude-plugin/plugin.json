@@ -112,6 +112,12 @@
       "description": "Blocks gh pr merge --disable-auto, or the disablePullRequestAutoMerge mutation through gh api graphql, on a pull request the lanes App opened, and says to hold it with the do-not-merge label instead. A target it cannot read is blocked. On by default.",
       "default": true
     },
+    "block_lane_pr_disable_auto_app": {
+      "type": "string",
+      "title": "Lanes app login",
+      "description": "The GitHub App login (slug, app/<slug> or <slug>[bot]) whose pull requests block-lane-pr-disable-auto protects. Empty, the default, blocks a disable on any pull request a GitHub App opened, since the guard cannot tell which App is the lanes App; a pull request a person opened passes.",
+      "default": ""
+    },
     "block_fix_request_post_enabled": {
       "type": "boolean",
       "title": "Block-fix-request-post guard",
@@ -240,5 +246,5 @@
       "default": ""
     }
   },
-  "version": "3.10.6"
+  "version": "3.11.0"
 }

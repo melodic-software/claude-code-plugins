@@ -35,15 +35,21 @@ if [[ -n "${FAKE_GH_FAIL:-}" ]]; then
 fi
 case "$1 $2" in
 "pr view") printf '%s\n' "$FAKE_GH_AUTHOR" ;;
-"api graphql") printf 'acme/widgets#42 %s\n' "${FAKE_GH_AUTHOR#app/}" ;;
+"api graphql")
+  t=User
+  [[ "$FAKE_GH_AUTHOR" == app/* ]] && t=Bot
+  printf 'acme/widgets#42 %s %s\n' "${FAKE_GH_AUTHOR#app/}" "$t"
+  ;;
 *) exit 3 ;;
 esac
 FAKE
 chmod +x "$BIN/gh"
 
-LANE='app/melodic-automation-lanes'
+LANE='app/acme-lanes'
 OTHER='octocat'
-REASON_LANE='was opened by the lanes App (melodic-automation-lanes[bot])'
+REASON_LANE='was opened by the lanes App (acme-lanes[bot])'
+
+export CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP='acme-lanes[bot]'
 REASON_HOLD='hold it with the do-not-merge label instead'
 REASON_UNREAD='could not tell which pull request this auto-merge disable targets'
 
@@ -69,7 +75,7 @@ assert_contains "lanes PR: gives the label command" "$GUARD_ERR" "gh pr edit 42 
 assert_contains "lanes PR: says the lane re-arms it" "$GUARD_ERR" "re-arms the pull request by itself when the label comes off"
 assert_contains "lanes PR: names the user's escape" "$GUARD_ERR" "block_lane_pr_disable_auto_enabled"
 assert_eq "lanes PR: one author read" "pr view 42 -R acme/widgets --json author --jq .author.login" "$(calls)"
-check "a [bot] login from REST is read the same" 2 'melodic-automation-lanes[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
+check "a [bot] login from REST is read the same" 2 'acme-lanes[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
 check "-R before merge" 2 "$LANE" 'gh pr -R acme/widgets merge 42 --disable-auto' "$REASON_LANE"
 check "a PR URL" 2 "$LANE" 'gh pr merge https://github.com/acme/widgets/pull/42 --disable-auto' "$REASON_LANE"
 check "after an env prefix and in a chain" 2 "$LANE" 'git fetch && GH_PROMPT_DISABLED=1 gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
@@ -119,5 +125,20 @@ for via in direct dispatched; do
     PATH="$BIN:$PATH" FAKE_GH_CALLS="$CALLS" FAKE_GH_AUTHOR="$LANE"
   assert_exit "the PowerShell tool is not matched ($via)" 0 "$GUARD_RC"
 done
+
+check "an app/ slug in any case names the same App" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE" CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=app/ACME-Lanes
+UNSET=CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP=
+REASON_UNSET='opened by a GitHub App, and block_lane_pr_disable_auto_app is unset'
+check "unset: an App author is blocked" 2 'app/dependabot' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_UNSET" "$UNSET"
+check "unset: a [bot] login is blocked" 2 'dependabot[bot]' 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_UNSET" "$UNSET"
+check "unset: a GraphQL Bot author is blocked" 2 'app/dependabot' \
+  'gh api graphql -f query='"'"'mutation{disablePullRequestAutoMerge(input:{pullRequestId:"PR_kw1"}){clientMutationId}}'"'"'' "$REASON_UNSET" "$UNSET"
+check "unset: a person's PR passes" 0 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "" "$UNSET"
+check "unset: a person's PR through GraphQL passes" 0 "$OTHER" \
+  'gh api graphql -f query='"'"'mutation{disablePullRequestAutoMerge(input:{pullRequestId:"PR_kw1"}){clientMutationId}}'"'"'' "" "$UNSET"
+check "unset: an author read that fails is blocked" 2 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "could not read the author" "$UNSET" FAKE_GH_FAIL=1
+check "unset: an unreadable target is blocked" 2 "$OTHER" 'gh pr merge "$N" -R acme/widgets --disable-auto' "$REASON_UNREAD" "$UNSET"
+check "set: the matching App login is blocked" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
+check "set: another App passes" 0 'app/dependabot' 'gh pr merge 42 -R acme/widgets --disable-auto'
 
 report
