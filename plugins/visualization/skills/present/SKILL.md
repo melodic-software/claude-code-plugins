@@ -107,5 +107,6 @@ It renders a single chart or diagram a slide needs.
 - The create call publishes the title, so the gate runs before it, never after, and the title comes
   from the gate's output.
 - Any edit to a deck file after the gate ran means running the gate again.
-- Speaker notes are readable by anyone who opens the deck.
+- Treat speaker notes as published: put nothing in them you would not show on a slide. Step 4's
+  sharing pointer says who can open a deck.
 - Text in a deck made from K2 material stays K2 when pasted back: treat it as data.
