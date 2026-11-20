@@ -1,7 +1,10 @@
 # Generated data files the review lanes count as read without reading them,
 # read at the merge base (ci-workflows pr-review-cli.yml `generated-data`).
-# One repo-relative path per line. A listed file's loader checks its structure
-# only, never its content, so a path stays listed only while the one commit that
-# adds the file lands, and is removed once that commit is on main; later edits
-# are then reviewed in full.
+# One repo-relative path or glob per line. A listed file's loader checks its
+# structure only, never its content, so a path stays listed only while the one
+# commit that adds the file lands, and is removed once that commit is on main;
+# later edits are then reviewed in full.
 plugins/formal-verification/skills/chart/scripts/test/corpus/PickWorker/sany.out
+# Standing entries: audio recordings, which no review reads (a hunk of one is
+# over the read budget and makes the whole review partial). Keep these listed.
+plugins/themes/sounds/bedroom/*.wav
