@@ -15,12 +15,16 @@
 # plugins/*/reference/, minus evals/ and fixtures/ trees, whose samples hold the
 # defect on purpose. A file scripts/shared-copies.txt lists as a generated copy
 # is read through its canonical source instead, the one file to edit.
+# docs/upstream/ is not read: the rule binds what a skill or agent loads. Those
+# records are checked by scripts/check-upstream-drift.sh (a pinned page against
+# its upstream) and /attribution:audit's check-stamps.sh (stamp expiry) instead.
 #
 # A paragraph is a run of non-blank lines outside a code fence; a heading, a
 # table row and a list item each stand alone. It is an offender when it holds
-# `as of YYYY-MM-DD` (also `as-of`, `As of:`, bold or italic around the date,
-# the date on the next line) and no `recheck` / `re-check`, unless the very next
-# paragraph opens with one (an `As of:` line followed by a `Recheck when:` line).
+# `as of YYYY-MM-DD` (also `as-of`, `As of:`, `**As of**:`, bold or italic
+# around the date, the date on the next line) and no `recheck` / `re-check`,
+# unless the very next paragraph opens with one (an `As of:` line followed by a
+# `Recheck when:` line).
 #
 # A file with offenders fails unless scripts/as-of-recheck-baseline.txt lists it
 # as `<path> <count>` and it holds exactly <count>. A count above the baseline is
@@ -107,7 +111,7 @@ if ((${#files[@]} > 0)); then
     }
     function close_file() { flush(); if (pending != "") print pending; pending = ""; fence = 0 }
     BEGIN {
-      stamp = "as[ -]of:?[ *_]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+      stamp = "as[ -]of[*_]*:?[ *_]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
       trig = "re-?check"
     }
     # The last paragraph of the previous file closes before `file` moves on.
