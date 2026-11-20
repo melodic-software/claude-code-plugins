@@ -73,8 +73,6 @@ bottom-left corner of the front of the dresser.
     between by ear: `/bedroom sound pick cicadas 2` (or `rain`, `downpour`, `storm`, `thunder`;
     `1` is the default). `sounds/bedroom/sources.md` lists each recording, its page and its
     license. The television's sounds are made by code.
-  - The sound files are not in this release yet: they arrive in the next one. Until then
-    `/bedroom sound on` plays nothing, and `/bedroom sound test` still reports whether a player runs.
   - On macOS the app plays the sounds. Elsewhere the mod runs a player it finds on `PATH`:
     `powershell.exe` under WSL or Windows, `ffplay`, `paplay` or `aplay`. Or it runs the command in
     the `soundPlayer` setting, with `{file}` where the file goes and `{volume}` for 0 to 100. The

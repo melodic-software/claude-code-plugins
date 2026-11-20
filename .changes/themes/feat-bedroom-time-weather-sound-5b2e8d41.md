@@ -10,7 +10,7 @@ bump: minor
 - The hallway: now and then someone passes the door, or the hall light comes on (`/bedroom hall on|off`).
 - `/bedroom shader off`, for diagnosis, shows the hand-drawn room alone for the rest of the session, now with the hour and the weather in its window; `/bedroom shader on` brings the shader back.
 - Sound, off by default: the television's click as it turns on and off, cicadas from dusk through night when it is dry, and in wet weather rain, a heavier downpour or a storm with wind, with thunder after each flash (`/bedroom sound on|off|test`; `test` plays a silent file). Nothing plays until it is turned on; off, and a change of weather or hour, stop what is playing at once.
-- The loops and the thunder are cut from public-domain and CC0 recordings, listed in `sounds/bedroom/sources.md`, two of each to choose between with `/bedroom sound pick <kind> 1|2`. The sound files themselves arrive in the next release; until then sound plays nothing when turned on.
+- The loops and the thunder are cut from public-domain and CC0 recordings, listed in `sounds/bedroom/sources.md`, two of each to choose between with `/bedroom sound pick <kind> 1|2`.
 - `/bedroom sound volume 0-100` sets the volume of every sound, kept with the other settings; the card steps it by ten.
 - `/bedroom sync` redraws every switch from what is saved, and `/bedroom <setting> default` makes a setting follow the plugin's settings again.
 - The settings card gains a row for the time of day, from the earliest light to night, a row for the weather, on/off buttons for the television's signal and the hallway, and sound with its volume.
