@@ -91,6 +91,24 @@ rc=0
 report=$("$lychee" --no-progress --config "$config" "$input" 2>&1) || rc=$?
 case $rc in
   0) echo "$me: ${#urls[@]} added or changed external link(s) resolve" ;;
-  2) printf '%s\n' "$report" >&2; exit 1 ;;
+  2)
+    printf '%s\n' "$report" >&2
+    broken=0
+    while IFS='|' read -r head reason; do
+      url=${head#*\[ERROR\] }
+      url=${url%"${url##*[![:space:]]}"}
+      at=$(grep -HnF -- "$url" "${files[@]}" 2>/dev/null | head -n 1)
+      file=${at%%:*} line=${at#*:} line=${line%%:*}
+      reason=${reason#"${reason%%[![:space:]]*}"}
+      if [[ -n $at ]]; then
+        echo "::error file=$file,line=$line::broken link $url: $reason" >&2
+      else
+        echo "::error::broken link $url: $reason" >&2
+      fi
+      broken=$((broken + 1))
+    done < <(grep -E '^\[ERROR\] ' <<<"$report")
+    echo "$me: $broken of ${#urls[@]} added or changed external link(s) broken" >&2
+    exit 1
+    ;;
   *) printf '%s\n' "$report" >&2; echo "$me: lychee failed (exit $rc)" >&2; exit 2 ;;
 esac

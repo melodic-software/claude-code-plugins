@@ -94,6 +94,10 @@ out="$(run STUB_EXIT=2 'STUB_REPORT=[ERROR] https://new.test/page#section | Cann
 rc=$?
 [[ $rc -eq 1 && -z $out ]] && grep -q 'Cannot find fragment' "$TMP_ROOT/err"
 check $? "a broken link exits 1 with the finding on stderr only" "rc=$rc out=$out err=$(cat "$TMP_ROOT/err")"
+grep -qE '^::error file=docs/a\.md,line=[0-9]+::broken link https://new\.test/page#section: Cannot find fragment$' "$TMP_ROOT/err"
+check $? "a broken link is annotated at the changed file and line that hold it" "$(cat "$TMP_ROOT/err")"
+tail -n 1 "$TMP_ROOT/err" | grep -q '1 of 3 added or changed external link(s) broken'
+check $? "a broken-link run ends with a count the aggregator's last lines show" "$(tail -n 2 "$TMP_ROOT/err")"
 
 run STUB_EXIT=3 -- "$base" >/dev/null 2>&1
 rc=$?
