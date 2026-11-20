@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "GATE: scripts/check-file-names.sh\nRULE-FILE: `/corrections:codify \"doc file names under docs/ are lower-kebab\"`",
+      "why": "names the call, no availability claim"
+    },
+    {
+      "answer": "If /corrections:codify were not available, the skill would propose the strongest mechanism itself and call it unproven.\n\nGATE: scripts/check-file-names.sh\nRULE-FILE: `/corrections:codify \"doc file names are lower-kebab\"`",
+      "why": "the fallback described outside the RULE-FILE line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "GATE: scripts/check-file-names.sh\nRULE-FILE: /corrections:codify is not available, so the gate alone is enough (unproven)",
+      "why": "claims codify is unavailable on the RULE-FILE line"
+    }
+  ]
+}
