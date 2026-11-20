@@ -28,13 +28,16 @@ sections that no longer matches this record.
 *Claim:* settings alone never evidence `L1` on native Windows. `sandbox.enabled` and
 `sandbox.failIfUnavailable` both default to `false`. With `sandbox.enabled: true` on an
 unsupported platform and `failIfUnavailable` at its default, commands run unsandboxed, which is the
-ladder's silent degrade whether or not a warning shows; with `failIfUnavailable: true`, Claude Code
-exits at startup instead. Setup records neither case as a boundary. *Basis:*
+ladder's silent degrade whether or not a warning shows; with `failIfUnavailable: true`, a local
+session exits at startup instead. A session in an Anthropic-hosted environment (Claude Code on the
+web, cloud scheduled tasks, Cowork cloud sessions) starts anyway and is not a local surface this
+file records. Setup records neither case as a boundary. *Basis:*
 [`sandbox.enabled`](https://code.claude.com/docs/en/settings-reference#sandbox-enabled) and
 [`sandbox.failIfUnavailable`](https://code.claude.com/docs/en/settings-reference#sandbox-failifunavailable),
 the sandboxing page's [Get started](https://code.claude.com/docs/en/sandboxing#get-started)
-warning, read as raw markdown, and the changelog entry that added `sandbox.failIfUnavailable`.
-*Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching sandbox platform
+warning, read as raw markdown, the changelog entry that added `sandbox.failIfUnavailable`, and the
+[2.1.325 entry](https://code.claude.com/docs/en/changelog#2-1-325) for the hosted exception.
+*Verified:* 2026-11-20. *Recheck trigger:* a Claude Code changelog entry touching sandbox platform
 support or `sandbox.failIfUnavailable`, or a read-time fetch of those sections that no longer
 matches this record.
 
