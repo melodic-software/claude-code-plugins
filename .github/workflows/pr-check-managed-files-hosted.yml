@@ -80,6 +80,7 @@ on:
       - docs/standards/README.md
       - docs/standards/bulk-mutation.md
       - docs/standards/concise-prose.md
+      - docs/standards/configuration-switch-naming.md
       - docs/standards/design-for-change.md
       - docs/standards/deterministic-work-execution.md
       - docs/standards/documentation-and-citations.md

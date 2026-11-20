@@ -7,6 +7,7 @@ It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in
 
 ```bash
 vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node scripts/lane-transcripts/pull.mjs pull
+vault-exec --env LANE_TRANSCRIPT_PRIVATE_KEY=lane-transcript-private-key -- node scripts/lane-transcripts/pull.mjs pull --run RUN_ID
 node scripts/lane-transcripts/pull.mjs status
 node scripts/lane-transcripts/pull.mjs query --lane pr-verify --model opus --outcome success --since 2026-11-01
 node scripts/lane-transcripts/pull.mjs prune
@@ -17,6 +18,7 @@ node scripts/lane-transcripts/pull.mjs backfill
 | Command | Does | Exit |
 |---|---|---|
 | `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too), or when a budget-stopped backlog is over 5 days old. A stale `pull-outcomes` prints its `ALERT:` here too but does not change this exit code, so a timer that chains the two still reaches it |
+| `pull --run RUN-ID` | Copies that one workflow run's `lane-transcript-*` artifacts, listed from the run itself, with the same checks and rows as `pull`; writes no pull state and prunes nothing, so the scheduled pull's cursors and resume point stay as they were | 0 done; 1 when an artifact was missed or the run's listing failed |
 | `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days, or a budget-stopped backlog is over 5 days old; the same two checks apply to `pull-outcomes` once it has run |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
