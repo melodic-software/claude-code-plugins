@@ -169,7 +169,7 @@ what the next session acts on: rules rewritten in place under their ids, prefere
 instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
 history. `new` copies questions and decisions off disk like rules: one changes only through `retire` or a rewrite in place ending `Rewritten h<N>: <why>` for this hop `N`, and `validate` fails any other change; `new` also folds trail lines 3 or more hops old behind one `- Folded:` line. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
-state the rules still in force under Current rules from there, never from memory.
+state the rules still in force under Current rules from there, never from memory. A security or design decision is tagged after its id and ends with its rationale, `- [D<n>] [security] <decision> (<reason>) buys: <gain>; surface: <exposed surface, or none>; cost: <measured cost so far, or none yet>` (`[design]` for a design decision); `validate` fails a tagged entry missing a field, and the next session re-checks the decision against the three before building on it (structure doc, "Shape 3").
 
 A rule or preference leaves the hot file only when retired or promoted, listed with its reason
 under `## Retired rules` in this hop's file, never to meet the size cap.

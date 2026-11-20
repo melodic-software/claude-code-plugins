@@ -183,6 +183,13 @@ DIRECTION_HOPS_KEPT = 3
 FOLD_PREFIX = "- Folded: "
 REWRITE_MARK = "Rewritten"
 REWRITE_MARK_RE = re.compile(rf"\b{REWRITE_MARK} h(\d+): \S")
+DECISION_TAG_RE = re.compile(r"^\[(security|design)\]")
+DECISION_FIELDS = ("buys", "surface", "cost")
+DECISION_TAG_SHAPE = (
+    "a security or design decision is tagged after its id and ends with its rationale, "
+    "'- [D<n>] [security|design] <decision> (<reason>) buys: <what it gains>; "
+    "surface: <the surface exposed today, or none>; cost: <measured cost so far, or none yet>'"
+)
 RETIRED_PREFIX = "Retired:"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 # Retire headings whose listings Review before you continue must point at.
@@ -1881,6 +1888,31 @@ def _dereferenced_goal(pred: Doc, root: str) -> list[str]:
     return lines
 
 
+def _check_decision_fields(doc: Doc, f: Findings) -> None:
+    """A `[security]` or `[design]` decision names a value for each of
+    `buys:`, `surface:` and `cost:`; an untagged decision needs none."""
+    spec = ID_SPECS[2]
+    for n, entry, title in _id_entries(doc, spec):
+        rest = _id_of(spec, entry.text)[1]
+        tag = DECISION_TAG_RE.match(rest)
+        if not tag:
+            continue
+        fields = rest.split(f" {REWRITE_MARK} h")[0]
+        labels = "|".join(DECISION_FIELDS)
+        missing = [
+            name
+            for name in DECISION_FIELDS
+            if not re.search(rf"\b{name}:\s*(?!(?:{labels}):)[^;\s]", fields)
+        ]
+        if missing:
+            ref = f"D{n}" if n is not None else repr(entry.text[:60])
+            f.fail(
+                f"{title}: [{tag.group(1)}] decision lacks "
+                f"{', '.join(name + ':' for name in missing)}; "
+                f"add buys:/surface:/cost: to {ref}"
+            )
+
+
 def _validate_shape3(
     doc: Doc,
     f: Findings,
@@ -1963,6 +1995,7 @@ def _validate_shape3(
                 f.fail(f"{title}: duplicate id [{spec.prefix}{n}]")
             else:
                 seen.add(n)
+    _check_decision_fields(doc, f)
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
@@ -3696,7 +3729,7 @@ def build_skeleton_3(
         ref = f"[{spec.prefix}<n>]"
         shape = {
             "Q": f"'- {ref} <question>' with its options, a recommendation and what it unblocks",
-            "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on",
+            "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on; {DECISION_TAG_SHAPE}",
         }[spec.prefix]
         return [
             *_section_lines(pred, title),
@@ -3769,7 +3802,7 @@ def build_skeleton_3(
         (
             "Decisions in force",
             "decisions",
-            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[2].retired_heading}'; settled history stays in the archive",
+            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; {DECISION_TAG_SHAPE}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[2].retired_heading}'; settled history stays in the archive",
         ),
         (
             "Suggested skills",
