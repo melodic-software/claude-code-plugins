@@ -5,6 +5,7 @@ c1d455ccdc, the base of this branch's shape-4 work."""
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -24,6 +25,9 @@ from test_save_point import (
     out,
     run,
 )
+
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 BASE = "c1d455ccdc"
 SCRIPTS = Path(__file__).resolve().parents[1]

@@ -70,6 +70,7 @@ def test_shape4_ids_and_retire_headings_match_shape3():
 
 def test_a_shape4_chain_validates(tmp_path):
     paths = s4_chain(make_repo(tmp_path), tmp_path, 3)
+    assert len(paths) == 3
     for path in paths:
         result = validate(path)
         assert result.returncode == 0, out(result)
