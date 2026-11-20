@@ -21,9 +21,9 @@ its last 1.5 s faded into its start at equal power. Two recordings of each kind 
 | `thunder-1-1.wav` | `361401_1481531-hq.mp3` (the page's preview), 20 to 28 s | Distant Thunder | richwise (freesound) | <https://freesound.org/people/richwise/sounds/361401/> | Creative Commons 0 |
 | `thunder-1-2.wav` | the same, 91.75 to 99.75 s | Distant Thunder | richwise (freesound) | <https://freesound.org/people/richwise/sounds/361401/> | Creative Commons 0 |
 | `thunder-1-3.wav` | the same, 239.5 to 247.5 s | Distant Thunder | richwise (freesound) | <https://freesound.org/people/richwise/sounds/361401/> | Creative Commons 0 |
-| `thunder-2-1.wav` | `romo-ThunderstormAmbientROMO52616BlackCanyonTrail1.mp3`, 6.25 to 14.25 s | Thunderstorm Soundscape from the Black Canyon Trail | National Park Service, Rocky Mountain National Park | <https://www.nps.gov/romo/learn/photosmultimedia/sounds-ambient-soundscapes.htm> | Public domain: "The recordings found here are in the public domain and may be downloaded and used without limitation; however, please credit the "National Park Service" where appropriate." (<https://www.nps.gov/romo/learn/photosmultimedia/soundlibrary.htm>) |
-| `thunder-2-2.wav` | the same, 241.25 to 249.25 s | as `thunder-2-1.wav` | National Park Service | as `thunder-2-1.wav` | as `thunder-2-1.wav` |
-| `thunder-2-3.wav` | the same, 520 to 528 s | as `thunder-2-1.wav` | National Park Service | as `thunder-2-1.wav` | as `thunder-2-1.wav` |
+| `thunder-2-1.wav` | `107518_43834-hq.mp3` (the page's preview), 13.5 to 21.5 s | 102610_distant_thunder_01 (the original file's name) | moxobna (freesound) | <https://freesound.org/people/moxobna/sounds/107518/> | Creative Commons 0 |
+| `thunder-2-2.wav` | the same, 84 to 92 s | 102610_distant_thunder_01 (the original file's name) | moxobna (freesound) | <https://freesound.org/people/moxobna/sounds/107518/> | Creative Commons 0 |
+| `thunder-2-3.wav` | the same, 117.75 to 125.75 s | 102610_distant_thunder_01 (the original file's name) | moxobna (freesound) | <https://freesound.org/people/moxobna/sounds/107518/> | Creative Commons 0 |
 
 The Public Domain Mark is shown on each archive.org item page as `Public Domain Mark 1.0`, linking
 <https://creativecommons.org/publicdomain/mark/1.0/>. Creative Commons 0 is shown on each freesound page, linking
