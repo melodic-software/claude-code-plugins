@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.9] - 2026-11-20
+
+### Added
+
+- `/autonomy:setup`'s guardrail slice now has a study of a container as the `L2` substrate for local lanes (`skills/setup/context/container-surfaces.md`), read at its detect step for a container candidate. It measures the reference dev container against each `L2` clause and finds four gaps: egress open past the allowlist on ports 22 and 53 and to the host subnet, a read-write workspace bind, lane tokens readable inside, and a container definition the lane can edit. It lists the acceptance tests any container picked must pass, drawn from the sandcastle upstream record's rows. It picks no instance.
+
 ## [5.2.8] - 2026-11-19
 
 ### Changed

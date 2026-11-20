@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/prototype/.claude-plugin/plugin.json
 # Browser check of note relocation (notes-bridge/relocate-note.mjs) on a test-local mockup with the
 # bundled switcher inlined, served by this plugin's notes-bridge copy and driven through
 # playwright-cli. A note taken on variant B, state empty, worst content re-locates in a fresh page

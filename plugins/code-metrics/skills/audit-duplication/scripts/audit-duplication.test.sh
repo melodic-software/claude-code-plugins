@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
+# test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 # Regression tests for the audit-duplication entry point
 # (audit-duplication.sh): the sanctioned-replication exclusion, the tunables it
 # exports for the collector adapters, option parsing, and exit codes.

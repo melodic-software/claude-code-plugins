@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/shared/schema/*.schema.json
 # The ui_page part of the interview surface's browser groups; the other surface-*.test.sh suites run the rest.
 #   bash surface-page.test.sh
 # test-scope: plugins/planning/surface/schema/* plugins/planning/surface/tests/fixtures/*

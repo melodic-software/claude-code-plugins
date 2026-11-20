@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: scripts/lib/* # fixture-tree.sh --lib copies the whole directory
 # Unit tests for scripts/lib/hook-configs.sh: one fixture tree per case, the
 # library sourced inside it, and the rows its callbacks receive compared whole.
 # shellcheck disable=SC2016  # fixture bodies are literal JSON/YAML; expansion is never wanted

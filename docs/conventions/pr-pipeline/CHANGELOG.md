@@ -1,5 +1,31 @@
 # Changelog for the PR pipeline convention
 
+## [10.19.0] - 2026-11-20
+
+### Changed
+
+- Every job that reads a Claude secret names the main-only `claude-lanes` environment with `deployment: false`, so a workflow file changed on another branch never reaches one; `scripts/check-claude-secrets-environment.sh` fails a job that reads one outside it, or a job in it that a `pull_request`, `merge_group` or off-main push run starts. A call to another repository's reusable passes when it sets `with: environment: claude-lanes`. PR Run Plugin Evals now starts on `workflow_run` from main: the `eval: run` label runs the secret-free `pr-run-plugin-evals-label.yml`, and the eval legs re-read the pull request, its label event and its actors from the API.
+
+### Fixed
+
+- A merge group's two waits for a pool's reset share one budget, `WAIT_BUDGET_SECONDS.mergeGroup` (600 s), in place of 900 s each: Check Plugins' queued pull request read waits first, and ci-status's verdict reader waits only what that left, so both cannot run the group past the merge queue's 30-minute check timeout and eject it. With nothing left, the reader's `verify:unreadable` stands. Check Plugins' timeout drops to 19 minutes and ci-status's to 30.
+
+## [10.18.0] - 2026-11-19
+
+### Added
+
+- `limits.refire-budget-per-slot` (default 1). A work-unblock sweep re-fires issues whose lane run the start gate stopped on a low GITHUB_TOKEN budget, oldest run end first, only until the unfinished work-resolve-issue runs reach this value times the lane's `SLOTS`; those re-fires still count toward `limits.refire-queue-per-slot`'s room, and every other re-fire keeps two per slot. A budget-stopped run re-fired as the second run per slot often waited 20 to 47 minutes for a slot, past the 20-minute window after the reset, and the start gate stopped it again (owner decision, 2026-11-19).
+
+### Changed
+
+- The `api-routes` job-end notice keeps a workflow file name after `workflows/` (`repos/{repo}/actions/workflows/pr-verify.yml/runs`) instead of `{x}`, in `rate-guard.mjs` `routeOf` and `routeOk`, `api-budget.bash` `API_BUDGET_ROUTE` and pr-require-checks' generated copies. The calls a job spends listing runs can now be told apart by workflow. Only a lowercase `.yml` or `.yaml` file name is kept; a numeric workflow id stays `{n}`, any other segment stays `{x}`, and a route that would pass 80 characters keeps `{x}` there.
+
+## [10.17.1] - 2026-11-19
+
+### Changed
+
+- `maintenance-reconcile-lost-runs` runs hourly at minute 4 instead of at minutes 4 and 34, and its dispatch gap (`MIN_GAP_MINUTES`) is 60. A pass costs about 90 GITHUB_TOKEN calls and the pool ran out in busy hours, so this halves the reconciler's share. fix-ci waits for the reconciler's one re-run of an infra-only failure for `RERUN_DUE_MINUTES`, now its backoff plus two hourly ticks (135 minutes). `pr-unblock-dispatch.yml` keeps its 9 and 39 ticks; the 9 tick still follows the reconciler's.
+
 ## [10.17.0] - 2026-11-19
 
 ### Changed

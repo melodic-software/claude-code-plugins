@@ -25,6 +25,7 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
   "refire-queue-per-slot": 2,
+  "refire-budget-per-slot": 1,
   "stale-queued-minutes": 60,
   "sweep-gap-minutes": 15,
   "readmit-per-run": 20,
