@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-20
+
+### Changed
+
+- The `names-both-candidates` grader in the `ck-unattended-tie-unresolved` eval case now passes a reply that names each test candidate by its file and target, in either order (`package.json` with its `test` script, `Makefile` with its `test` target), not only by the literal `npm test` and `make test` commands.
+
 ## [2.0.3] - 2026-11-20
 
 ### Fixed

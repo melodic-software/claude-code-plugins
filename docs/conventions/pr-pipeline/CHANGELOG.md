@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [11.1.1] - 2026-11-20
+
+### Changed
+
+- pr-verify no longer fails a `Refs:` pull request whose body names no remaining work. It still fails one whose body names no delivered part, claims the whole issue, or delivers a part outside the issue's scope. What stays open is the issue's own done-when list, so the body need not restate it.
+
 ## [11.1.0] - 2026-11-20
 
 ### Added
