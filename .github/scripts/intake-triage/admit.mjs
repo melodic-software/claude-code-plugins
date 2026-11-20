@@ -272,8 +272,8 @@ export function loadRules(path) {
     throw new Error(`${path}: \`task-list\` must be a string`);
   }
   const own = { ...OWN_AGENT_DEFAULTS, ...(rules["own-agents"] ?? {}) };
-  if (!Array.isArray(own.identities) || !own.identities.every((id) => id === LANES_APP_IDENTITY || (Number.isSafeInteger(id) && id > 0))) {
-    throw new Error(`${path}: \`own-agents.identities\` must list \`${LANES_APP_IDENTITY}\` or account ids`);
+  if (!Array.isArray(own.identities) || !own.identities.every((id) => id === LANES_APP_IDENTITY || (Number.isSafeInteger(id) && id > 0 && id !== ACTIONS_BOT_ID))) {
+    throw new Error(`${path}: \`own-agents.identities\` must list \`${LANES_APP_IDENTITY}\` or account ids other than github-actions[bot]'s`);
   }
   if (!Number.isSafeInteger(own["source-cap"]) || own["source-cap"] < 1) {
     throw new Error(`${path}: \`own-agents.source-cap\` must be a positive integer`);
@@ -295,7 +295,7 @@ export const sourceCapWait = (label, older, cap) => `${older} older open issue(s
 
 export function ownAgentIds(rules, appId) {
   const { identities } = rules?.["own-agents"] ?? OWN_AGENT_DEFAULTS;
-  return new Set(identities.map((id) => (id === LANES_APP_IDENTITY ? appId : id)).filter((id) => Number.isSafeInteger(id)));
+  return new Set(identities.map((id) => (id === LANES_APP_IDENTITY ? appId : id)).filter((id) => Number.isSafeInteger(id) && id !== ACTIONS_BOT_ID));
 }
 
 export const ownAgentText = (item, ids) =>
