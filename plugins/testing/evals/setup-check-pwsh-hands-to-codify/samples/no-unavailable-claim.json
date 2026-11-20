@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "PowerShell has no maintained rule; run `/corrections:codify \"Pester test with no assertion\"` to choose the mechanism.",
+      "why": "names the call"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "If `/corrections:codify` is not available, setup proposes the strongest mechanism itself; here it is loaded, so run it for the pwsh pattern.",
+      "why": "restates the gate as a condition"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposal: PSScriptAnalyzer rule. /corrections:codify was not available, so the proposal is unproven.",
+      "why": "fallback taken while codify is loaded"
+    },
+    {
+      "answer": "pwsh: no rule. corrections:codify is unavailable here.",
+      "why": "unavailable"
+    },
+    {
+      "answer": "Note that /corrections:codify isn't installed, so I suggest a CI job.",
+      "why": "isn't installed"
+    }
+  ]
+}

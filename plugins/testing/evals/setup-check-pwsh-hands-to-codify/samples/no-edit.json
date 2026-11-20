@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "tests/Calc.Tests.ps1"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "tests/Calc.Tests.ps1",
+            "old_string": "Should -Be 5",
+            "new_string": "Should -BeExactly 5"
+          }
+        }
+      ],
+      "why": "edits a test file"
+    }
+  ]
+}
