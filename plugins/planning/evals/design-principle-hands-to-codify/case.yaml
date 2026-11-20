@@ -9,7 +9,7 @@ graders:
     arm: both
   - name: route-writes-no-rules-file
     type: regex
-    pattern: '^[\s>*`_-]*ROUTE[*`_\s]*:[^\n]*(?:\brules?[ -]files?\b|CLAUDE\.md|AGENTS\.md|\.claude/rules|\bown rules\b)'
+    pattern: '^[\s>*`_-]*ROUTE[*`_\s]*:(?:[^\w\n''’-]*|[^\n]*?[^\w\n''’-](?:(?!(?:not|never|without|no|nor|cannot|\w*n[''’]t)(?![\w''’-])|(?:adds?|added|adding|writes?|writing|written|puts?|putting|touch(?:es|ing)?|edits?|editing|creat(?:e|es|ing)|updat(?:e|es|ing)|a|an|the|any|it|its|to|into|in|line|entry|rule|than|of)(?![\w''’-]))[\w''’-]+|(?!(?:rather|instead)(?![\w''’-]))[\w''’-]+[^\w\n''’-]+(?:than|of)(?![\w''’-]))[^\w\n''’-]+)(?:(?:adds?|added|adding|writes?|writing|written|puts?|putting|touch(?:es|ing)?|edits?|editing|creat(?:e|es|ing)|updat(?:e|es|ing)|a|an|the|any|it|its|to|into|in|line|entry|rule)(?![\w''’-])[^\w\n''’-]+)*(?:\brules?[ -]files?\b|CLAUDE\.md|AGENTS\.md|\.claude/rules|\bown rules\b)'
     flags: 'im'
     match: 'not_contains'
     target: 'last_message'

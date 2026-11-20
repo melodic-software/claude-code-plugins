@@ -1,5 +1,5 @@
 ---
-description: "Medium. design's 'Codify rules when discovered' key behavior (and Phase 5 step 4) with a corrections stand-in loaded: a project-wide principle surfaced in design discussion is handed to /corrections:codify, naming the call, and the skill writes no rules-file line for it and picks no mechanism itself. Read-only; no design session runs. Hard because the obvious answer is to add the principle to the project's rules files, which the changed text leaves to codify. Source: issue 17200's host step for issue 17174, in the shape of session-flow's re-mechanical-finding-check-proposal."
+description: "design's 'Codify rules when discovered' key behavior (and Phase 5 step 4) with a corrections stand-in loaded: a project-wide principle surfaced in design discussion is handed to /corrections:codify, naming the call, and the skill writes no rules-file line for it and picks no mechanism itself. Read-only; no design session runs. Hard because the obvious answer is to add the principle to the project's rules files, which the changed text leaves to codify. Source: issue 17200's host step for issue 17174, in the shape of session-flow's re-mechanical-finding-check-proposal."
 tags: [design, outcome, codify-handoff, hard]
 plugins: ["../..", "corrections-stub"]
 runs: 3
