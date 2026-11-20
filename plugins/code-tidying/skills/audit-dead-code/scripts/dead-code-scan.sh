@@ -10,6 +10,9 @@
 #   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
 #      audit must never fail its caller, so -e is omitted and no detector's
 #      exit code is ever propagated.
+#   2  a usage error (an unknown option, an option missing its value, a --max
+#      that is not a non-negative integer, a --lane outside the set, or a
+#      --root that is not a directory), or no temp directory could be created.
 #
 # Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
 # findings and hard errors; vulture exits 3 for findings and 1 for an input
