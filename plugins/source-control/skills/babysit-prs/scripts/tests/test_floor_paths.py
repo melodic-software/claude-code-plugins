@@ -53,6 +53,11 @@ REVIEW_SURFACE = (
     "docs/standards/**",
     "docs/review/**",
 )
+PROMPT_TEXT = (
+    ".github/scripts/intake-triage/triage-rubric.txt",
+    ".github/scripts/intake-triage/refine-schema.json",
+    ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+)
 
 
 def digest(items) -> str:
@@ -90,21 +95,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 150)
+        self.assertEqual(len(FLOOR.classes), 153)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "b29408ff6d76ff4f0366711843479ad7d25b27c3b4d15a154260535760f8a0ea",
+            "1eae4679d3b4014bdac1b13894384430c670072d37d9f0d0469acb2527aae94c",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "c4adf656da5ed5a2c34c515217a8802435358f94e678ccd461937df3bfa560dd",
+            FLOOR.high: "5100a7b58dc7e278786c01caee509a523f472285ed6e286c522d2c030b35591e",
             FLOOR.review: "3a4f09674325df7c18de2011f4933c02da302be76d69f38154de325c408374f1",
             FLOOR.author_review: "ee05c62fe22aff1975c0bf1c655310f7b6d234fb24061a1d3791cef3aeb4287f",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (86, 64, 19),
+            (89, 64, 19),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -170,7 +175,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 150 - 32)
+        self.assertEqual(len(ROWS), 153 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
@@ -194,23 +199,26 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
     """Owner decision Q11 (A): a person clears these whatever the author did."""
 
     def test_they_stay_gate_rows_marked_no_lift(self):
-        for glob in REVIEW_SURFACE:
+        for glob in REVIEW_SURFACE + PROMPT_TEXT:
             with self.subTest(glob):
                 self.assertIn((glob, "gate", False), ROWS)
                 self.assertNotIn(glob, FLOOR.author_review)
 
     def test_only_those_rows_refuse_the_lift(self):
-        self.assertEqual({g for g, _, lift in ROWS if not lift}, set(REVIEW_SURFACE))
+        self.assertEqual(
+            {g for g, _, lift in ROWS if not lift}, {*REVIEW_SURFACE, *PROMPT_TEXT}
+        )
 
     def test_an_author_reviewed_path_on_one_still_holds_for_a_person(self):
         for glob, sample in zip(
-            REVIEW_SURFACE,
+            REVIEW_SURFACE + PROMPT_TEXT,
             (
                 ".github/scripts/pr-review-main/record.mjs",
                 "docs/conventions/instruction-exception-register/README.md",
                 "docs/conventions/untrusted-content/README.md",
                 "docs/standards/REVIEW.md",
                 "docs/review/README.md",
+                *PROMPT_TEXT,
             ),
             strict=True,
         ):
