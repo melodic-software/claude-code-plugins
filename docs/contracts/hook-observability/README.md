@@ -278,8 +278,6 @@ carrying the exact text sent, so the debug log holds what the model read.
 
 - **Pointer**: for the debug log and the call, see the links above and
   <https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
-- **Recheck trigger**: one of those sections moves, or the mods API gains its own record of what a
-  mod sent Claude.
 
 ## What this convention is not
 

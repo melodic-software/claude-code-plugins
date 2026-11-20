@@ -390,10 +390,10 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 
 | Component (pointer) | Stance | Rationale and constraints | As of |
 |---|---|---|---|
-| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model`, which we use only as a per-turn override, including for a forked subagent. Pointer for `model`: the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck trigger: that row changes what `model` accepts, or auto mode stops keeping the session model. | 2026-09-29 |
+| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model`, which we use only as a per-turn override, including for a forked subagent. Pointer for `model`: the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). | 2026-09-29 |
 | [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
-| [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: plan gating and the user and organization off switches are upstream's, listed at [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (recheck when a switch or plan gate changes); so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. One ships: review's `fanout-sweep`, which `/review:fanout run-everything` launches and which keeps a main-thread fallback. Scripts follow the [workflow authoring convention](#workflow-authoring-convention). | 2026-10-02 |
+| [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: plan gating and the user and organization off switches are upstream's, listed at [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off); so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. One ships: review's `fanout-sweep`, which `/review:fanout run-everything` launches and which keeps a main-thread fallback. Scripts follow the [workflow authoring convention](#workflow-authoring-convention). | 2026-10-02 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](contracts/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing, unless its row sets `"onFailure": "block"`; see [hook budget](contracts/hook-budget/README.md#which-rows-set-onfailure-block)). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except harness-ops' node-notice SessionStart row (shell form with no `shell` field, so it runs under bash, or under PowerShell on Windows without Git Bash; [prerequisites convention](contracts/prerequisites/README.md#hook-notices)) and the harness-ops hook-failure-audit Stop row (shell form with `"shell": "bash"`), because they must work when `node` is missing, and each `SessionStart` row that needs `node`, which runs `lib/node-or-skip.sh` in the node-notice row's shape so it exits 0 when `node` is missing ([prerequisites convention](contracts/prerequisites/README.md#hook-notices)). `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Mods, the in-process hook form, are adopted in [ADR 0052](adr/0052-adopt-claude-code-mods.md): a guard may move into a mod when the mod matches every behavior of the hook it replaces, and a settings hook stays where it must run with mods off. See the mods row under [Recorded gate runs](#recorded-gate-runs). Text a hook or mod sends Claude or the user follows [hook-observability](contracts/hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing). | 2026-10-03 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
@@ -1334,7 +1334,6 @@ Four rules decide a lane's model, applied in this order:
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
   for rule 4,
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **Recheck trigger:** next model release, or any cited section changes.
 - **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
   subagent verdict and the work it checks is our reading, not a source statement. What counts as an
   objective failure signal under rule 4 (a build, a test run, a schema or exit-code check) is also
@@ -1391,8 +1390,7 @@ when a role may route to it and the effort it then runs at. The release evidence
   where the `sonnet` row's model fits against `opus`, see the
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
-  (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
-  recheck when those docs pages cover what the post adds).
+  (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>).
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 Row 1 is relative to the checked work by construction: a verdict on work done at the top tier runs
@@ -1427,8 +1425,6 @@ from the live roster, never from this file.
   [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking);
   for how Claude Code records the capability for a pinned model, see
   [model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities).
-- **Recheck trigger:** any new model on Claude Code's model page, or that section's per-model
-  statement changes.
 
 The dispatch consequence, phrased as capability rather than family name so it survives an alias
 moving under it: **require interleaving only where extended reasoning between tool results decides
@@ -1445,9 +1441,9 @@ The **dispatch-site** tier enforcement is structural at two binding sites:
 `plugins/implementation/agents/phase-verifier.md` (both bind the loop-lane convention's strong-tier
 current alias; raise the pair together, and note frontmatter binds a floor, since the per-phase
 raise above it stays a per-invocation override at the dispatch site). That pair is the binding, not the
-recheck list: the trigger above re-audits **every** agent-frontmatter `model` value in this
-repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
-list restated here. Outside the pair, `plugins/implementation/agents/scoped-implementer.md` binds
+recheck list: the tier table's recheck trigger re-audits **every** agent-frontmatter `model` value
+in this repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather
+than any list restated here. Outside the pair, `plugins/implementation/agents/scoped-implementer.md` binds
 the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
 well-scoped phases, dispatched with an explicit per-invocation `model`.
 
@@ -1762,8 +1758,6 @@ and the release.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what each alias resolves to per provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
-  which models support effort.
 
 ### Workflow authoring convention
 
@@ -1844,6 +1838,3 @@ for:
   naming-convention guidance this document deviates from deliberately.
 - [Agent Skills specification](https://agentskills.io/specification): `name` field constraints and
   directory matching.
-
-Recheck when the dependencies page changes how constraints resolve, the skills page changes the
-plugin skill namespace, or the specification changes the `name` constraints.

@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.0.2] - 2026-11-20
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Pointer records drop their recheck triggers (§3).** The capability-tier fixed rules and the
+  alias-binding pointer lose their triggers, and the `best` note loses its "recheck when" clause,
+  per the upstream-drift convention: a pointer record carries no trigger. The §Versioning rule
+  that a new model re-reads the alias binding still holds. The usage-credit consent record keeps
+  only its in-repo trigger, a lane changing its launch shape.
+
 ## [20.0.1] - 2026-11-19
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

@@ -786,7 +786,6 @@ pairings are valid); security-surface work routes to the frontier tier unconditi
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
   advisor pairing rule onto a reviewer subagent.
@@ -801,7 +800,6 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
 
@@ -813,10 +811,10 @@ The reasons behind each binding:
 
   *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
   `model` takes
-  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); recheck
-  when that list changes). A lane's frontier-tier Agent dispatch, the security-surface rule's
-  included, therefore names `opus` while the Fable rung waits on an owner decision and a per-week Fable
-  allowance, as the CI lane profiles' ladder paragraph under "Models" in
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). A
+  lane's frontier-tier Agent dispatch, the security-surface rule's included, therefore names `opus`
+  while the Fable rung waits on an owner decision and a per-week Fable allowance, as the CI lane
+  profiles' ladder paragraph under "Models" in
   `docs/conventions/pr-pipeline/README.md` records, and `fable` once both are set. The lane prompts follow this note.
   One exception: the explicit-`autopilot` pre-escalation resolver (babysit-loop's
   `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
@@ -882,8 +880,7 @@ here rather than left as an unstated assumption:
 - **Pointer:** when judging whether a lane can bill usage credits unasked, fetch
   [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits)
   live.
-- **Recheck trigger:** that section changes which session shapes hold or skip the consent prompt,
-  or a lane changes its launch shape.
+- **Recheck trigger:** a lane changes its launch shape.
 
 **Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
 a blocker in place of a human decision, the explicit-`autopilot` merge-authority exception (above),

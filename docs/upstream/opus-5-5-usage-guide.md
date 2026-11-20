@@ -45,7 +45,6 @@ Each row is an [upstream-drift](../contracts/upstream-drift/README.md#required-p
 **Verdict** are our decision. No row restates the guide. Shared for every row:
 
 - **Pointer**: the pages in [Source and verification](#source-and-verification).
-- **Recheck trigger**: the next Opus release.
 
 The guide's opening and closing summary sections map onto the rows below and carry no rows of
 their own.
