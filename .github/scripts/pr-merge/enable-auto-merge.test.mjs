@@ -913,6 +913,17 @@ test("an empty-diff close that fails posts no note, so the next sweep closes it 
   assert.ok(again.notes.some(({ method }) => method === "PATCH"), "the next sweep retries the close");
 });
 
+test("an empty-diff pull request whose head moved after its diff read is left open", async () => {
+  const moved = await run([pull(1, { files: [], freshHead: "e".repeat(40), autoMergeRequest: { enabledAt: NOW } })]);
+  assert.equal(moved.code, 0);
+  assert.deepEqual(moved.notes, [], "no close and no note at a head that moved");
+  assert.deepEqual(moved.writes, [], "nor a disarm");
+  assert.ok(moved.lines.some((line) => String(line).includes(`#1 left open: its head moved to ${"e".repeat(40)}`)));
+  const scoped = await run([pull(1), pull(2, { files: [], freshHead: "e".repeat(40) })], { EVENT_NAME: "workflow_dispatch", EVENT_PR: "2" });
+  assert.deepEqual(scoped.notes, [], "a PR-scoped run closes nothing at a moved head either");
+  assert.equal(scoped.outcome, `skipped: its head moved to ${"e".repeat(40)} after its diff read empty`);
+});
+
 test("a changed-files list that is unread or capped never reads as an empty diff", async () => {
   const unread = await run([pull(1, { files: [] })], {}, { filesError: new Error("GET files failed with status 502") });
   assert.deepEqual(unread.writes, []);
