@@ -2599,7 +2599,7 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 f"shape 1 handoff has no '## Resume prompt' section (legacy file, never rewritten): {_posix(path)}",
             )
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
-    if doc.shape in HOP_FILE_SHAPES:
+    if doc.shape in HOP_FILE_SHAPES and getattr(args, "notice", True):
         # The prompt is never withheld (save-point.md, "Three failed attempts
         # do not withhold the rails"); the notice says validate fails it.
         # An UNVALIDATED verdict is always under the Read cap, so only a FAIL
@@ -3124,7 +3124,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
     findings, code = validate_doc(written, None, False)
     _print_verdict(written, findings, code)
     sys.stdout.flush()
-    cmd_emit(argparse.Namespace(file=str(path), format="rails"))
+    cmd_emit(argparse.Namespace(file=str(path), format="rails", notice=False))
     return 0
 
 
@@ -3578,7 +3578,9 @@ def cmd_amend(args: argparse.Namespace) -> int:
     _print_verdict(built, findings, code)
     sys.stdout.flush()
     return cmd_emit(
-        argparse.Namespace(file=str(path), format=getattr(args, "format", "rails"))
+        argparse.Namespace(
+            file=str(path), format=getattr(args, "format", "rails"), notice=False
+        )
     )
 
 

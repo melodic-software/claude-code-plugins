@@ -1,7 +1,8 @@
-"""Contract tests for reading a chain's journey (PLAN.md AC10, AC13, D7): retro gets
+"""Contract tests for reading a chain's journey: retro gets
 every hop's Direction changes, This session and Observations from a shape-4 chain
 whose sections moved to hop files, and a finished chain shrunk by `clean --apply`
-keeps its newest hot file and every hop file, so every session id comes back.
+keeps its newest hot file, every hop file and every shape-2 hot file, so every
+session id comes back.
 Expected values are the per-hop slot values `shape4_chain.hop_values` writes."""
 
 from __future__ import annotations
@@ -115,3 +116,34 @@ def test_a_shrunk_finished_chain_gives_back_every_session_id(tmp_path):
         reversed(SIDS)
     )
     assert_hop_sections(parse_transcript.handoff_journey(paths[-1]), 5)
+
+
+def test_a_shrunk_2_to_3_to_4_chain_keeps_its_shape2_hot_files(tmp_path):
+    """No hop file holds a shape-2 hop's sections, so the shrink keeps every
+    shape-2 hot file and the journey still reaches each session id."""
+    from test_save_point import model_fill
+    from test_save_point_shape4_writer import hop, new
+
+    repo = make_repo(tmp_path)
+    paths: list[Path] = []
+    for k in (1, 2, 3):
+        made = new(repo, tmp_path, paths[-1] if paths else None, k=k, shape="2")
+        assert made.returncode == 0, made.stderr
+        path = Path(made.stdout.decode().strip())
+        text = model_fill(path.read_text(encoding="utf-8"))
+        path.write_text(
+            text + "\nNone. No command waits on the user.\n", encoding="utf-8"
+        )
+        paths.append(path)
+    paths.append(hop(repo, tmp_path, paths[-1], k=4, shape="3"))
+    paths.append(hop(repo, tmp_path, paths[-1], k=5, shape="4"))
+    result = shrink(tmp_path, paths)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [p.exists() for p in paths] == [True, True, True, False, True], result.stdout
+    base = tmp_path / "base"
+    base.mkdir()
+    assert parse_transcript.extract_chain_from_handoff(paths[-1], base) == list(
+        reversed(SIDS)
+    )
+    journey = parse_transcript.handoff_journey(paths[-1])
+    assert sorted(e["session_id"] for e in journey) == sorted(SIDS)

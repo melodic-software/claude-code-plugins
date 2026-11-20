@@ -1,6 +1,5 @@
-"""Contract tests for the shape-4 writer, shape-4 `amend` and the slot budgets
-(PLAN.md Phase 7: AC3, AC4, AC5, AC6). Expected values come from the Design's
-Writer contract and shape-4 table, the 24,600-byte cap (C4), the Read tool's
+"""Contract tests for the shape-4 writer, shape-4 `amend` and the slot budgets.
+Expected values come from reference/structure.md ("Shape 4"), the 24,600-byte cap, the Read tool's
 58,500-byte page cap, and the slot budgets: the 95th percentile of the Resumption
 brief (979 bytes) and of a non-empty below-the-rails note (281 bytes) over the
 143 shape-3 hot files dated in the 7-day audit window (2026-11-11T18:46Z to
@@ -213,8 +212,9 @@ def test_shape4_fill_over_cap_binding_writes_and_prints_one_over_cap_line(tmp_pa
         path, tmp_path, {"rules": rules(30_000), "observations": prose("o", 2_000)}
     )
     assert filled.returncode == 0, err(filled)
-    over = [line for line in out(filled).splitlines() if "OVER-CAP: " in line]
-    assert len(over) == 1, out(filled)
+    both = out(filled) + err(filled)
+    over = [line for line in both.splitlines() if "OVER-CAP: " in line]
+    assert len(over) == 1, both
     assert "OVER-CAP: Current rules holds" in over[0]
     assert "shrink Current rules" in over[0]
     assert "<!-- FILL" not in path.read_text(encoding="utf-8")

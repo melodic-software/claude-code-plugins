@@ -57,6 +57,8 @@ An item is in flight, and so kept, when any of these holds:
     - it is the newest hot file of a finished shape-3 or shape-4 chain: such a
       chain shrinks to that file and its hop files (the archive stays with
       it); a shape-2 chain is never shrunk and leaves by the rules here
+    - it is a shape-2 hot file of a finished chain that shrinks: no hop file
+      holds a shape-2 hop's sections
     - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
       (missing and unrecognized values count as not done)
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
@@ -432,8 +434,10 @@ def inventory(root: Path, label: str) -> list[Item]:
                 "running-retros": "running-retro",
             }.get(entry.name, "concern")
             for child in sorted(entry.iterdir()):
-                if entry.name == "handoffs" and child.name == save_point.ARCHIVE_DIR and (
-                    child.is_dir() and not child.is_symlink()
+                if (
+                    entry.name == "handoffs"
+                    and child.name == save_point.ARCHIVE_DIR
+                    and (child.is_dir() and not child.is_symlink())
                 ):
                     for chain in sorted(child.iterdir()):
                         if chain.is_dir() and not chain.is_symlink():
@@ -514,15 +518,21 @@ def keep_finished(members: list[Item], tip: Item, root: str) -> None:
     """A finished shape-3 or shape-4 chain shrinks without losing what retro
     reads: its newest hot file stays, and with it the chain's hop files, which
     hold every older hot file's sections; its older hot files are then judged
-    without the newest one's references to them. A shape-2 chain has no hop
-    files, so the shrink never applies to it."""
+    without the newest one's references to them. No hop file holds a shape-2
+    hop's sections, so a shape-2 chain never shrinks and a mixed chain keeps
+    its shape-2 hot files."""
     if tip.shape not in save_point.HOP_FILE_SHAPES:
         return
     tip.reasons.append(
         f"newest hot file of finished chain {root}: a shrink keeps it and every hop file"
     )
     for item in members:
-        item.shrinks = True
+        if item.shape in save_point.HOP_FILE_SHAPES:
+            item.shrinks = True
+        else:
+            item.reasons.append(
+                f"shape-2 hop of finished chain {root}: no hop file holds its sections"
+            )
 
 
 def mark_open_chains(items: list[Item]) -> None:
@@ -610,7 +620,8 @@ def mark_in_flight(
     for item in items:
         if item.kind == "archive":
             chain = [
-                i for i in items
+                i
+                for i in items
                 if i.kind == "handoff" and i.root == item.root and i.chain == item.chain
             ]
             kept = [i.path.name for i in chain if i.keep]
