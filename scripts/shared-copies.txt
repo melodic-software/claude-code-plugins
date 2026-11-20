@@ -133,6 +133,7 @@ docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scop
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-hygiene/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/docs-naming/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/harness-config/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/harness-memory/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/improvement/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/instruction-placement/reference/target-scope.md
