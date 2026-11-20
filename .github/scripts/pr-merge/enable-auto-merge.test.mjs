@@ -220,6 +220,9 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/${"3".repeat(40)}...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }
+    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/commits/${HEAD}/check-runs?check_name=PR%20Review%20Hosted%20Lane&filter=all&per_page=100`) {
+      return { total_count: 0, check_runs: [] };
+    }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
       return { jobs: [{ id: 90, name: "PR Review / review-status", completed_at: "2026-10-22T11:00:00Z" }] };
     }

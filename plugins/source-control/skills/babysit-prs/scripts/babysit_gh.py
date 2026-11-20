@@ -599,8 +599,8 @@ class ReadsFloored(RuntimeError):
 
 # Whole seconds a caller of a process under `READ_FLOOR_STOP_ENV` may wait for
 # a floored pool's reset before it judges again (`read_floor_refusals`), as
-# ci-status's verdict reader does: the job passes rate-guard.mjs's
-# WAIT_BUDGET_SECONDS.ciStatusVerify, which rate-guard.test.mjs pins
+# ci-status's verdict reader does: the job passes what is left of rate-guard.mjs's
+# WAIT_BUDGET_SECONDS.mergeGroup, which rate-guard.test.mjs pins
 # (https://github.com/melodic-software/claude-code-plugins/issues/16642).
 READ_FLOOR_WAIT_ENV = "BABYSIT_READ_FLOOR_WAIT_SECONDS"
 

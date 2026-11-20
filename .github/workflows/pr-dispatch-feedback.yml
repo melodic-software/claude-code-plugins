@@ -991,9 +991,15 @@ jobs:
           # review: the newest run an index check run named for its lane on the
           # head names whose own record binds it to #$PR_NUMBER at the head
           # (path, event workflow_run, head branch main, both repositories,
-          # run-name), else its newest pull_request run, or empty.
+          # run-name), else its newest pull_request run, or empty. Only a lane
+          # run's completion reads the index: the job holds no checks: read.
           newest_review() {
             local name index id one found=''
+            if [ -z "$lane_name" ]; then
+              file_runs "$1"
+              lane=$(newest "$1" <<<"$runs")
+              return 0
+            fi
             case $1 in
             pr-review-hosted.yml) name='PR Review Hosted Lane' ;;
             pr-review-security-hosted.yml) name='PR Review Security Hosted Lane' ;;
