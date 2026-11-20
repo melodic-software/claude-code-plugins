@@ -33,6 +33,7 @@ const SCRIPT = [
 ];
 // The schema step stub: like verdict.cjs, a non-empty verdict-schema adds its
 // fields to the schema and appends a verdict-fields block to the prompt file.
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/check-intake-triage-verdict/verdict.cjs
 const VERDICT = [
   'const fs = require("node:fs");',
   'const path = require("node:path");',
@@ -74,6 +75,7 @@ const CALLER = [
 ].join("\n");
 // The same caller with a verdict-schema, single-quoted as intake-triage.yml
 // writes it; `''` is YAML's escaped quote.
+// https://yaml.org/spec/1.2.2/
 const VERDICT_SCHEMA =
   '{"properties":{"size":{"type":"string"},"it\'s":{"type":"string"}},"required":["size"]}';
 const CALLER_WITH_SCHEMA = CALLER.replace(

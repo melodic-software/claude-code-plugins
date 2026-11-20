@@ -7,6 +7,7 @@
 // reusable does. `--no-instructions` builds the baseline with the instructions
 // input empty; `--no-verdict-schema` empties verdict-schema, for the
 // byte-identical comparison against a build from before ci-workflows febb1ed.
+// febb1ed: https://github.com/melodic-software/ci-workflows/commit/febb1ed
 import {
   cpSync,
   existsSync,
@@ -88,6 +89,7 @@ export function composeScript(reusable) {
 
 // A one-line `key: value` scalar, plain or single-quoted, as YAML reads it.
 // Any other style fails closed rather than pass the schema step a wrong value.
+// Scalar styles: https://yaml.org/spec/1.2.2/
 export function lineScalar(line) {
   const value = line.slice(line.indexOf(":") + 1).trim();
   if (value.includes("${{"))
@@ -105,6 +107,7 @@ export function lineScalar(line) {
 }
 
 // The caller job's `with:` inputs the compose and schema steps read.
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/intake-triage.yml
 export function callerInputs(caller, job = "intake-triage") {
   const lines = caller.split("\n");
   const at = lines.findIndex((line) => line === `  ${job}:`);
@@ -143,6 +146,7 @@ export function verdictModule(source) {
 // Runs the reusable's schema step. With a non-empty verdict-schema it also
 // appends the verdict-fields block to the prompt file, so read the prompt
 // only after this returns.
+// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/check-intake-triage-verdict/verdict.cjs
 export function schema(verdict, outputs, verdictSchema = "") {
   for (const name of ["allowed", "type-names", "prompt-file"])
     if (typeof outputs[name] !== "string")
@@ -312,6 +316,7 @@ export async function build({
       });
       // The schema step runs first: it appends the verdict-fields block to
       // the prompt file the case's prompt is read from.
+      // https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/check-intake-triage-verdict/verdict.cjs
       const schemaText = schema(
         verdict,
         outputs,
