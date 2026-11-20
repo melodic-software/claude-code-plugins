@@ -175,9 +175,10 @@ lines, band and contract file do not depend on it. Organization-admin features a
   `--bare`, `allowManagedHooksOnly`, and a Desktop session in WSL. Below 2.1.287 nothing is
   supported. A plugin managed settings force-enable keeps its settings hooks under
   `disableAllHooks` outside managed settings and under `allowManagedHooksOnly`, but its mod loads
-  there, and under `allowManagedModsOnly`, only when it counts as the organization's, which a
-  plugin Claude Code copies into its cache from a GitHub source, as this marketplace's are, does
-  not. Basis:
+  there, and under `allowManagedModsOnly`, only when it counts as the organization's. A plugin
+  from a remote marketplace, as this marketplace's are, counts once managed settings enable it,
+  declare its marketplace and list it in `prependPlugins` or `appendPlugins`; enabling it alone
+  does not make it count. Basis:
   [settings reference: `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#disableallhooks),
   [what runs under `allowManagedHooksOnly`](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly),
   [admin: install your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#install-your-organizations-mods).
