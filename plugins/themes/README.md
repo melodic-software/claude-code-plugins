@@ -53,37 +53,49 @@ bottom-left corner of the front of the dresser.
   is half full, a pale band rolls down it now and then. `/bedroom signal off` stops both.
 - **The hallway.** About once an hour someone passes the door, and now and then the hall light
   comes on for a few minutes. `/bedroom hall off` keeps the hallway still.
-- **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays the
-  television's click as it turns on and off, cicadas from dusk through the night when it is dry,
-  and in wet weather no cicadas but rain, a heavier downpour, or a storm (the downpour with wind),
-  with thunder after each flash. One loop plays at a time, and it changes as soon as the weather or
-  the hour does. `/bedroom sound off` stops what is playing at once.
+- **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays a
+  bed (cicadas from dusk through the night when it is dry; in wet weather no cicadas but rain on
+  the roof, the same rain heavier as a downpour, or a storm with wind), the television's click as
+  it turns on and off, the room's things, and thunder after each flash.
+  - The bed follows the picture: a change of weather fades the old bed out and the new one in over
+    the time the window takes, starting when the window starts to change (about 3 s after the
+    command, over about 6 s; when `auto` changes by itself, over about 90 s). A change of volume
+    fades, and `/bedroom sound off` fades everything out in 0.15 s.
+  - Thunder follows each lightning strike after 1 to 6 seconds: the longer the wait, the farther
+    the strike, the quieter the thunder and the more it rolls.
+  - The room's things: the desk lamp's and the wall light's switches, the monitor's button and
+    degauss, the console's fan and chime, the tape going in and coming out, and the cat's purr
+    when you click it. `/bedroom sound objects off` quiets them; the lava lamp is silent.
   - `/bedroom sound volume 0-100` sets the volume for every sound (70 unless you change it; 0
     plays nothing); the card steps it by ten.
-  - Each loop and the thunder come from public-domain or CC0 recordings, two of each to choose
-    between by ear: `/bedroom sound pick cicadas 2` (or `rain`, `downpour`, `storm`, `thunder`;
-    `1` is the default). `sounds/bedroom/SOURCES.md` lists each recording, its page and its
-    license. The television's sounds are made by code.
-  - On macOS the app plays the sounds. Elsewhere the mod runs a player it finds on `PATH`:
-    `powershell.exe` under WSL or Windows, `ffplay`, `paplay` or `aplay`. Or it runs the command in
-    the `soundPlayer` setting, with `{file}` where the file goes and `{volume}` for 0 to 100. The
-    Windows player and `ffplay` repeat a loop themselves and stop within a fifth of a second.
-    `paplay`, `aplay` and a `soundPlayer` command play a loop as a chain of plays. `aplay` has no
-    volume of its own.
-  - `/bedroom sound test` plays a silent file and says whether the player ran. `/bedroom sound`
-    alone says the volume, the recordings chosen and the player.
+  - A small bank of sounds: each kind has named entries and a default, chosen by
+    `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `chorus` (the default)
+    or `river`; rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
+    `distant` (rolls only); television: `tube`. `sounds/bedroom/SOURCES.md` lists each recording,
+    its page and its license. The television's and the room's sounds are made by code, the purr
+    excepted.
+  - On Windows, and under WSL through Windows, one player process runs for as long as sound is on
+    and mixes everything, so a sound plays within about a tenth of a second of its click; it ends
+    when sound goes off, the plugin unloads or the session ends. On macOS the app plays the
+    sounds. Elsewhere the mod runs a player it finds on `PATH` (`ffplay`, `paplay` or `aplay`), or
+    the command in the `soundPlayer` setting, with `{file}` where the file goes and `{volume}` for 0
+    to 100, once for each sound: there a bed changes with a cut, not a fade.
+  - `/bedroom sound test` checks the player. `/bedroom sound` alone says the volume, the bank's
+    choices and the player.
 
 Changing the time or the weather by command shows within a few seconds and eases over about six.
 
 ### The settings card
 
-`/bedroom` alone shows a card in the conversation, so you need not know the words. It is six rows,
-seven with the titles shown, so it fits without scrolling: the theme on or off, reset, calibrate,
-titles and Close; a button for each switch showing whether it is on; the time of day (auto, then
-each phase from the gray before dawn to night, the chosen one checked); the weather (auto and each
-kind); dim, glass and blur steps beside on/off buttons for the television's signal and the
-hallway; sound on or off with its volume, and the last press's answer; and, while titles is on,
-the four title fields on one row (Enter sets one; empty puts the default back). Each button runs the same `/bedroom`
+`/bedroom` alone shows a card in the conversation, so you need not know the words. It is six rows
+whatever is open, so it fits without scrolling: the theme on or off, reset, calibrate, titles and
+Close; a button for each switch showing whether it is on; the time of day (auto, then each phase
+from the gray before dawn to night, the chosen one checked) and the weather (auto and each kind);
+dim, glass and blur steps beside on/off buttons for the television's signal and the hallway; and
+sound on or off with its volume, the bed playing, a sounds button and the last press's answer.
+While titles is on, the four title fields show two to a row in place of the time and the weather
+(Enter sets one; empty puts the default back); while sounds is on, the bank's choices and the
+objects button show there instead. Each button runs the same `/bedroom`
 command you would type, so it costs what that command costs: a switch changes in the shader without
 the room being sent again. A switch's button draws dim, with `…` after its state, until the switch
 has finished changing, about a second (three for the console, which boots), and a press on it
@@ -109,9 +121,10 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom weather <auto\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; alone, says which |
 | `/bedroom signal [on\|off]` | The television reacting to Claude |
 | `/bedroom hall <on\|off>` | The hallway's passes and hall light |
-| `/bedroom sound <on\|off\|test>` | Sound, off by default; `test` plays a silent file |
+| `/bedroom sound <on\|off\|test>` | Sound, off by default; `test` checks the player |
 | `/bedroom sound volume <0-100>` | The volume of every sound |
-| `/bedroom sound pick <cicadas\|rain\|downpour\|storm\|thunder> <1\|2>` | Which of two recordings a kind plays |
+| `/bedroom sound pick <cicadas\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
+| `/bedroom sound objects <on\|off>` | The sounds of the lamp, light, monitor, console, tape and cat |
 | `/bedroom <time\|weather\|signal\|hall\|sound> default` | Follows the plugin's setting again |
 | `/bedroom sync` | Shows the room alone for seven seconds, then brings the shader back with every switch as saved |
 | `/bedroom dim <0-80>` | Lays a dark veil over the room |
@@ -120,7 +133,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom title pennant <text>`, `/bedroom title pennant-top <text>` | Writes your own team on the pennant's big line (up to 12 characters) or its small top line (up to 16), in capitals; with no text it goes back to the default |
 | `/bedroom stats` | Render counts and timings |
 | `/bedroom calibrate` | Fits clicks to your window's shape |
-| `/bedroom reset` | Every switch, dim, glass and blur back to its default, and time, weather, signal, hallway and sound back to the plugin's settings; titles, calibration, volume and recordings stay |
+| `/bedroom reset` | Every switch, dim, glass and blur back to its default, and time, weather, signal, hallway and sound back to the plugin's settings; titles, calibration, volume and the bank's choices stay |
 | `/bedroom on`, `/bedroom off` | Sets or clears the theme |
 
 For diagnosis, `/bedroom shader off` (or `instant off`) shows the hand-drawn room alone for the rest
@@ -160,7 +173,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `sunrise` | string | `"06:30"` | Local time of sunrise, HH:MM from 04:00 to 09:00. |
 | `sunset` | string | `"20:30"` | Local time of sunset, HH:MM from 16:00 to 22:00. |
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
-| `sound` | boolean | `false` | The television's click, cicadas, rain, a downpour, a storm and thunder. Off by default. |
+| `sound` | boolean | `false` | Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
 | `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100. |
 | `signal` | boolean | `true` | The screen flickers while Claude works, and a band rolls down it as the context fills. |
 | `hall` | boolean | `true` | Now and then someone passes the door, or the hall light comes on. |

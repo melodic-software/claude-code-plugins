@@ -38,7 +38,7 @@
     "sound": {
       "type": "boolean",
       "title": "Bedroom: sound",
-      "description": "The television's click, cicadas, rain, a downpour, a storm and thunder. Off by default.",
+      "description": "Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default.",
       "default": false
     },
     "soundPlayer": {
