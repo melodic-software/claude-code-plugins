@@ -30,16 +30,11 @@ overstates coverage in the opposite direction.
 
 ## A keyword count is a ceiling, never a frequency
 
-Observed on 2026-09-13 against this marketplace at merged main `49912c63`:
-`git log --oneline -E --grep='markdownlint|lint'` returns 1128 of 2202 commits, about 51 percent,
-and `git log --oneline -E --grep='secret|gitleaks'` returns 209, about 9 percent. Reading the first
-15 of those 209 shows dependency bumps, component syncs and CI pins. Not one is a leaked secret.
-
-Two gates read those numbers directly. **Zero incidents** treats a count as incidents that
-happened, and **YAGNI** treats a count as a frequency. A `--grep` count is neither: it is the number
-of commits whose message mentions a word, an upper bound on the incidents and usually a loose one.
-Cite a frequency only after reading a sample of the matching commits and saying how many of them
-were the concern.
+Two gates read a `git log --grep` count directly. **Zero incidents** treats a count as incidents
+that happened, and **YAGNI** treats a count as a frequency. A `--grep` count is neither: it is the
+number of commits whose message mentions a word, an upper bound on the incidents and usually a
+loose one. Cite a frequency only after reading a sample of the matching commits and saying how
+many of them were the concern.
 
 The asymmetry keeps this cheap. A ceiling already below the **YAGNI** threshold settles the gate on
 its own: if at most 4 percent of commits could be the
