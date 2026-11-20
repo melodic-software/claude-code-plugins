@@ -99,6 +99,7 @@ if command -v duckdb >/dev/null 2>&1; then
   {
     event s-1 "$ITEM_A" - user_prompt
     event s-1 "$ITEM_A" - user_prompt
+    event s-1 "$ITEM_A" - user_prompt '{"key":"delivery.mode","value":{"stringValue":"mid_turn"}}'
     event s-1 "$ITEM_A" - api_request '{"key":"cost_usd","value":{"doubleValue":6.789}}'
     event s-2 "$ITEM_B" - user_prompt
     event s-3 - cse_1 user_prompt
@@ -109,7 +110,7 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$main"
   assert_eq "a rollup exits 0" 0 "$rc"
   assert_contains "columns" "$flat" "item sessions cloud turns input output cacheRead cacheCreation tokens"
-  assert_contains "item A totals" "$flat" "$ITEM_A 1 0 2 100 20 1000 50 1170"
+  assert_contains "item A totals, its mid-turn message not a turn" "$flat" "$ITEM_A 1 0 2 100 20 1000 50 1170"
   assert_contains "item B totals, local only" "$flat" "$ITEM_B 1 0 1 10 5 0 0 15"
   assert_contains "an unmapped cloud session is unattributed" "$flat" "(no item) 1 1 2 7 3 0 30 40"
   assert_not_contains "no cost metric value" "$out" "1.2345"
