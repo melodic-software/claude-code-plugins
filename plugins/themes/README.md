@@ -130,6 +130,49 @@ built-in `plugin-authoring` skill tells a theme mod to copy unchanged. The bedro
 its render counts and timings are kept in memory for `/bedroom stats`, and its notes go to the debug
 log.
 
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `time` | string | `"auto"` | auto follows the clock; a phase holds that light all day. |
+| `sunrise` | string | `"06:30"` | Local time of sunrise, HH:MM from 04:00 to 09:00. |
+| `sunset` | string | `"20:30"` | Local time of sunset, HH:MM from 16:00 to 22:00. |
+| `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
+| `sound` | boolean | `false` | The television's click, cicadas, rain and thunder. Off by default. |
+| `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes. |
+| `signal` | boolean | `true` | The screen flickers while Claude works, and a band rolls down it as the context fills. |
+| `hall` | boolean | `true` | Now and then someone passes the door, or the hall light comes on. |
+| `shader` | boolean | `true` | Off: the hand-drawn room alone, sent again on every change. |
+
+### How to set these
+
+Set the options above for `themes@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).
