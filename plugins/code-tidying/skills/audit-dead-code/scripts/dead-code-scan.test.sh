@@ -514,6 +514,24 @@ assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findin
 # The referenced control: main is called literally, so a literal search saves it.
 assert_not_contains "the literally called function is not a candidate" "$grep_out" "Finding excerpt: main() {"
 
+# --root scans another repository from outside it: the report must be the one a
+# run inside that repository gives, so no evidence comes from the caller's tree.
+root_exit=0
+root_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$SH_REPO" 2>/dev/null)" || root_exit=$?
+assert_exit "--root scan exits 0" 0 "$root_exit"
+assert_equal "--root from outside gives the in-repository report" "$grep_out" "$root_out"
+# A second file that is a candidate on its own proves the target narrows the scan.
+ROOT_REPO="$TEST_TMPDIR/root-repo"
+init_repo "$ROOT_REPO"
+cp "$FIXTURES/dead-and-dynamic.sh" "$ROOT_REPO/"
+printf '#!/usr/bin/env bash\norphan_helper() {\n  :\n}\n' >"$ROOT_REPO/extra.sh"
+stage_repo "$ROOT_REPO"
+root_all_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$ROOT_REPO" 2>/dev/null)"
+assert_contains "--root untargeted scan reports the second file" "$root_all_out" "File: extra.sh"
+root_tgt_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$ROOT_REPO" dead-and-dynamic.sh 2>/dev/null)"
+assert_contains "--root resolves a relative target against the root" "$root_tgt_out" "File: dead-and-dynamic.sh"
+assert_not_contains "--root target narrows the candidates to that file" "$root_tgt_out" "File: extra.sh"
+
 # --- 6. Record protocol shape ------------------------------------------------------
 # The `Finding …:` prefixes are a contract with the SKILL.md body's grep. Exact
 # spelling is asserted here so a rename cannot pass silently.
@@ -581,6 +599,10 @@ assert_exit "non-numeric --max exits 2" 2 "$badmax_exit"
 missingval_exit=0
 timeout 30 bash "$SCAN" --lane >/dev/null 2>&1 || missingval_exit=$?
 assert_exit "--lane with no value exits 2" 2 "$missingval_exit"
+
+badroot_exit=0
+bash "$SCAN" --root "$TEST_TMPDIR/no-such-dir" >/dev/null 2>&1 || badroot_exit=$?
+assert_exit "--root that is not a directory exits 2" 2 "$badroot_exit"
 
 # --- 9. scanned-zero-files is distinguishable from clean ---------------------------
 # Both are what a detector otherwise reports as exit 0 with no output. One means
