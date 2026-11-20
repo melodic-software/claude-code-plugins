@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root ."}}], "why": "the bundled emitter"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".claude/rules/file-names.md", "content": "x"}}], "why": "wrote the rule and skipped the gate"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}
