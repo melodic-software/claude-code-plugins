@@ -454,6 +454,19 @@
         "Reports an I21 finding on the last run despite the opus-5 session target defaulting to `high`, because the reviewer subagent runs on haiku-5-5",
         "Judges the subagent pin against the model the subagent runs on, per the sub-agents model order, not only against the session's resolved target"
       ]
+    },
+    {
+      "id": 35,
+      "name": "other-repository-run-state-is-keyed-to-its-clone-root",
+      "prompt": "/harness-config:audit-instructions --repo ../web — I am in the api repository; web is a sibling clone.",
+      "expected_output": "Runs Phases A to D with the web clone's root as the project, walking the project paths under that root and handing the pre-scans files under it, and inventories user-scope surfaces as well. Run state stays per repository: run-state.sh paths, lib/state-key.sh and persist-report.sh are each called with --root set to the web clone's root, so web gets its own state key, run directory, lease and last-audit.md, never api's, and a later --resume resumes web under its own key. --persist-findings, if asked for, would write nothing into the web clone, since only the session's own repository's file is written; web's findings stay in the report, named as not persisted.",
+      "files": [],
+      "expectations": [
+        "Calls run-state.sh paths with --root set to the web clone's root",
+        "Calls lib/state-key.sh and persist-report.sh with --root set to the web clone's root, so last-audit.md lands under web's own state key rather than api's",
+        "Walks the project instruction surfaces under the web clone's root, not the api session's project",
+        "Does not write a persisted findings file into the web clone"
+      ]
     }
   ]
 }
