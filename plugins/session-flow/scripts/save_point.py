@@ -123,7 +123,7 @@ import sys
 import tempfile
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -2631,9 +2631,15 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
 # --- retire -----------------------------------------------------------------------
 
 
-def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None:
+def _locate_ref(
+    doc: Doc, m: re.Match[str], moved: dict[str, str] | None = None
+) -> tuple[str, int, int] | str | None:
     """`(retire heading, start, end)` of the `doc.lines` a retire ref names,
-    None when `doc` lacks it, or why the ref is ambiguous."""
+    None when `doc` lacks it, or why the ref is ambiguous. `moved` maps a
+    section to the heading its body moved to in `doc`, the only place then
+    searched for it."""
+    if moved is not None:
+        doc = _aliased(doc, moved)
     if m["prefix"]:
         spec = S3.id_spec(m["prefix"])
         for title in spec.sections:
@@ -2674,6 +2680,32 @@ def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None
     )
 
 
+def _aliased(doc: Doc, moved: dict[str, str]) -> Doc:
+    """`doc` with each moved heading read under its section's name and no
+    other section kept."""
+    names = {heading: title for title, heading in moved.items()}
+    return replace(
+        doc,
+        sections=[
+            (names[name], start, end)
+            for name, start, end in doc.sections
+            if name in names
+        ],
+    )
+
+
+def _moved_here(hot: Doc, rel: str) -> dict[str, str]:
+    """Each section of `hot` whose body is only a move pointer into the hop
+    file `rel`, to the heading it moved to."""
+    found: dict[str, str] = {}
+    for title, start, end in hot.sections:
+        held = [line for line in hot.lines[start + 1 : end] if line.strip()]
+        pointer = MovePointer.parse(held[0]) if len(held) == 1 else None
+        if pointer is not None and pointer.moves(title) and pointer.file == rel:
+            found[title] = pointer.heading
+    return found
+
+
 def _content_doc(raw: list[str]) -> Doc:
     return _doc_from_lines(Path(), [_line_parts(line)[0] for line in raw])
 
@@ -2695,17 +2727,25 @@ def _apply_retire(
     file `rel` under its retire heading, the entry verbatim then `Retired:
     <reason>`, drop them from the hot file, and point Review before you continue
     at each heading used. Both files are lists of lines with their own
-    terminators; returns the new lists, or why nothing can be written. A ref the
-    hot file no longer holds is copied from the predecessor's section in the hop
-    file."""
+    terminators; returns the new lists, or why nothing can be written. A ref in
+    a section moved to the hop file is dropped from its moved body there; a ref
+    the hot file no longer holds is copied from the predecessor's section in the
+    hop file."""
     hot_doc, hop_doc = _content_doc(hot), _content_doc(hop)
+    moved = _moved_here(hot_doc, rel)
     removals: list[tuple[int, int]] = []
+    hop_removals: list[tuple[int, int]] = []
     listings: dict[str, list[list[str]]] = {}
     for ref, reason in refs:
         m = RETIRE_REF_RE.match(ref)
         if not m:
             return f"retire ref {ref!r} is not [R<n>], [Q<n>], [D<n>], [h<k>]#<i> or amendment#<i>"
         source, found = hot_doc, _locate_ref(hot_doc, m)
+        if found is None and moved:
+            found = _locate_ref(hop_doc, m, moved)
+            if isinstance(found, tuple):
+                source = hop_doc
+                hop_removals.append(found[1:])
         if found is None:
             source, found = hop_doc, _locate_ref(hop_doc, m)
         if isinstance(found, str):
@@ -2738,6 +2778,8 @@ def _apply_retire(
         out.insert(end, f"- Retired entries: {rel} § {heading}{term}")
 
     new_hop = list(hop)
+    for a, b in sorted(hop_removals, reverse=True):
+        del new_hop[a:b]
     term = (_line_parts(new_hop[0])[1] if new_hop else "") or "\n"
     if new_hop and not _line_parts(new_hop[-1])[1]:
         new_hop[-1] += term

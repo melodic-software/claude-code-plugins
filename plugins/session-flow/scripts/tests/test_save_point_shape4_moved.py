@@ -148,3 +148,25 @@ def test_amend_refuses_an_unsettled_claim_appended_to_a_moved_body(tmp_path):
     assert result.returncode == 1, err(result) + out(result)
     assert "FAIL: Direction changes: " in err(result), err(result)
     assert (path.read_bytes(), own.read_bytes()) == before
+
+
+def test_amend_retires_a_trail_entry_from_a_moved_direction_changes_body(tmp_path):
+    path = moved_trail_hop(tmp_path)
+    pointer = body(path, "Direction changes")
+    own = hop_file(path.parent, path.name, 1, SIDS[0])
+
+    result = amend(
+        path,
+        tmp_path,
+        {"retire": [{"ref": "[h1]#1", "reason": "reverted by the owner"}]},
+    )
+
+    assert result.returncode == 0, err(result) + out(result)
+    assert body(path, "Direction changes") == pointer
+    read = run("read", str(path), "--section", "Direction changes")
+    assert out(read).strip("\n").split("\n") == TRAIL[1:]
+    assert body(own, "Retired direction changes").split("\n") == [
+        TRAIL[0],
+        "Retired: reverted by the owner",
+    ]
+    assert run("validate", str(path)).returncode == 0
