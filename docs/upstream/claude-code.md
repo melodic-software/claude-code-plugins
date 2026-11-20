@@ -118,6 +118,11 @@ with "Deferred" names the issue that tracks it.
 | Nested `.claude/skills` folders inside `~/.claude/plugins` no longer load; the detector counts them as non-loadable | 321-098 | harness-config audit-permission-grants `scripts/permission-rule-check.sh`, `reference/criteria.md` | [#15413](https://github.com/melodic-software/claude-code-plugins/pull/15413) |
 | Fast mode also covers Fable 5.2; the fast-tier note points at the fast mode page instead of naming Opus | 321-001, 322-001 | `docs/contracts/loop-lane/README.md` | [#15422](https://github.com/melodic-software/claude-code-plugins/pull/15422) |
 | The Sonnet 5.5 chapter's fast mode pointer still holds after Fable 5.2 fast mode; only its as-of date moved | 321-001 | playbooks model-adaptation `sonnet-5-5.md` | [#15414](https://github.com/melodic-software/claude-code-plugins/pull/15414) |
+| After removing its own worktree, the session runs later commands with `git -C` or an absolute path and re-issues a command that failed because its directory is gone | 325-010 | source-control worktree `context/cleanup.md` Step 4b | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
+| The sandbox auto-allow remedy names `sandbox.autoAllowBashIfSandboxed: true`, in the highest-ranked managed source under managed settings, and stays flag-only. [settings-reference, `sandbox.autoAllowBashIfSandboxed`](https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed) states the new default, so the docs-lag pair for these items is settled | 325-096, 325-097 | performance go-faster `reference/catalog/harness.md` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
+| A remote-marketplace plugin counts as the organization's once managed settings enable it, declare its marketplace and list it in `prependPlugins` or `appendPlugins`. [mods admin, Install your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#install-your-organizations-mods) states it, so the docs-lag pair is settled | 325-104 | `docs/adr/0052-adopt-claude-code-mods.md` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
+| The `CLAUDE_CODE_MAX_CONTEXT_TOKENS` rule assumes a recognized model ID; a gateway alias is pinned with `--context-window`, and the window arithmetic is unchanged. [model-config, Which IDs `CLAUDE_CODE_MAX_CONTEXT_TOKENS` applies to](https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to) states the `claude-` case, so the docs-lag pair is settled | 325-111 | harness-ops audit-skill-visibility `SKILL.md`, `scripts/audit_skill_visibility.py` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
+| The `sandbox.failIfUnavailable` startup exit holds for local sessions; Anthropic-hosted sessions start anyway | 325-117 | autonomy setup `context/windows-surfaces.md` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
 
 ## Nominated
 
@@ -255,3 +260,14 @@ and did not yet state the release's behavior; recheck the row when it does.
 | Topic | Items | Release | Page |
 |---|---|---|---|
 | Nested `.claude/skills` inside `~/.claude/plugins` | 321-098 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the plugins-directory exception |
+
+The `2.1.325` read, on 2026-11-20, recorded the topics below. Each page was fetched that day and did
+not yet state the release's behavior; recheck a row when its page does. The `failIfUnavailable` row
+is a disagreement between two docs pages: the settings reference already states the exception.
+
+| Topic | Items | Release | Page |
+|---|---|---|---|
+| A shell command after its working directory was deleted | 325-010 | [2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) | [tools-reference, Bash tool behavior](https://code.claude.com/docs/en/tools-reference#bash-tool-behavior); recheck when it states what a command does once its working directory is deleted |
+| `user_prompt` events for messages sent mid-turn (`delivery.mode`) | 325-060 | [2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) | [monitoring-usage, User prompt event](https://code.claude.com/docs/en/monitoring-usage#user-prompt-event); recheck when it names `delivery.mode` |
+| Nested `.claude/skills` inside `--plugin-dir` plugins | 325-106 | [2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the `--plugin-dir` exception |
+| Hosted sessions starting despite `sandbox.failIfUnavailable` | 325-117 | [2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) | [sandboxing, Enforce sandboxing with managed settings](https://code.claude.com/docs/en/sandboxing#enforce-sandboxing-with-managed-settings); [settings-reference, `sandbox.failIfUnavailable`](https://code.claude.com/docs/en/settings-reference#sandbox-failifunavailable) states it; recheck when the sandboxing page names the hosted exception |
