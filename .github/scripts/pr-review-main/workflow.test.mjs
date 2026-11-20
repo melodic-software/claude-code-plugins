@@ -1243,7 +1243,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
 // ci-workflows' scan-upload since it checks nothing out.
 test("the credit gate writes, scans and uploads the probing marker right after the gate", () => {
   // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
-  const probe = "key-credit-probing-pr-review-main.yml-review-handoffs";
+  const probe = "key-credit-probing-REVIEWS_CLAUDE_API_KEY";
   const names = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
   const [write, scan, upload] = names.map((name) => step(name, PROBE));
   assert.match(write, /^ {8}id: probe-marker$/m);
