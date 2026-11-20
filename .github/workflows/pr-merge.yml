@@ -98,8 +98,9 @@ on:
   # dispatch-post-merge-runs, merge, report-unarmed-status and the jobs after merge are
   # skipped; enable-auto-merge reads the last sweep's post-merge report for
   # the lane's room (last-report.mjs), or runs the check fresh when that
-  # report does not stand. Its run name, `pr-merge: arm #<pr>`
-  # (run-name below), marks it: no later run reads its artifacts
+  # report does not stand. Its run name, `PR Merge: arm #<pr>` (run-name
+  # below; https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#native-auto-merge),
+  # marks it: no later run reads its artifacts
   # (rotation.mjs trustedRun), and it never supersedes a sweep
   # (superseded.mjs).
   workflow_dispatch:
