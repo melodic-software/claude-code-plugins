@@ -1312,6 +1312,12 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh loop-lane-floor-drift {0}
         run: scripts/check-loop-lane-floor-drift.sh --check
 
+      - name: Check shipped plugin content names no unexcused organization repository
+        id: org_repo_tokens
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh org-repo-tokens {0}
+        run: scripts/check-org-repo-tokens.sh --check
+
       - name: Check the conformance registry resolves
         id: conformance_registry
         continue-on-error: true
@@ -1986,6 +1992,7 @@ jobs:
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
+            org-repo-tokens=${{ steps.org_repo_tokens.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
