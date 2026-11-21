@@ -58,7 +58,7 @@
       "properties": {
         "model": { "type": "string", "description": "Model slug passed to the CLI, from `agy models`. Unset: the run is skipped with a notice naming this key." },
         "effort": { "type": "string", "description": "Reasoning effort passed to the CLI. Unset: the CLI's own setting." },
-        "binary_path": { "type": "string", "description": "Absolute path to the CLI binary, tried before every other location." },
+        "binary_path": { "type": "string", "description": "Absolute path to the CLI binary, tried before every other location. Read from the personal layer only: a value in the committed team file is ignored, since it picks the executable that runs." },
         "timeout_seconds": { "type": "integer", "minimum": 1, "default": 1800, "description": "Seconds before a run is stopped and recorded timed-out." },
         "update_hint": { "type": "string", "description": "Text shown beside the daily check's line when the CLI is behind its latest release, such as how your machines update it." },
         "uses": {
