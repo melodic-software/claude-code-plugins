@@ -61,10 +61,27 @@ if (floor && range !== ">=" + floor) {
 
 mods=()
 invalid=0
+declare -A has_mod=()
+hooks_files=()
 for dir in plugins/*/hooks; do
-  hooks="$dir/hooks.json"
-  if [[ -f "$hooks" ]] && node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).modules;
-process.exit(Array.isArray(m) && m.length > 0 ? 0 : 1)' "$hooks" 2>/dev/null; then
+  [[ -f "$dir/hooks.json" ]] && hooks_files+=("$dir/hooks.json")
+done
+if ((${#hooks_files[@]} > 0)); then
+  while IFS= read -r mdir; do
+    mdir="${mdir%$'\r'}"
+    [[ -n "$mdir" ]] && has_mod["$mdir"]=1
+  done < <(node -e '
+    const fs = require("fs");
+    for (const f of process.argv.slice(1)) {
+      try {
+        const m = JSON.parse(fs.readFileSync(f, "utf8")).modules;
+        if (Array.isArray(m) && m.length > 0) console.log(f.slice(0, -"/hooks.json".length));
+      } catch {}
+    }
+  ' "${hooks_files[@]}")
+fi
+for dir in plugins/*/hooks; do
+  if [[ -n "${has_mod[$dir]:-}" ]]; then
     mods+=("${dir%/hooks}")
     why="$(engines_error "${dir%/hooks}")"
     if [[ -n "$why" ]]; then

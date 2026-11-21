@@ -117,3 +117,82 @@ test("every eval leg takes its cost ceiling from the checked max-cost-usd input,
     assert.ok(!passes(value), value);
   }
 });
+
+const compare = text.slice(text.indexOf("\n  compare-prepare:\n"));
+const job = (name) => {
+  const start = compare.indexOf(`\n  ${name}:\n`);
+  assert.ok(start >= 0, `job ${name}`);
+  const rest = compare.slice(start + 1);
+  const next = rest.slice(1).search(/\n {2}[a-z][a-z-]*:\n/);
+  return next < 0 ? rest : rest.slice(0, next + 1);
+};
+const armsScript = readFileSync(new URL("./compare-arms.sh", import.meta.url), "utf8");
+
+test("compare mode reads the pull request's commits only as git objects for the arm patches", () => {
+  assert.equal(text.match(/ref: \$\{\{ inputs\.head-sha \}\}/g).length, 1);
+  assert.match(job("compare-prepare"), /ref: \$\{\{ inputs\.head-sha \}\}\n {10}path: \.head\n {10}fetch-depth: 0\n {10}persist-credentials: false\n/);
+  assert.deepEqual(compare.match(/[^\n]*\.head(?![\w-])[^\n]*/g).map((line) => line.trim()), ["path: .head", "REPO: .head"]);
+  assert.doesNotMatch(compare, /working-directory|\.\/\.head|\.head\//);
+  const uses = armsScript.match(/[^\n]*\$REPO[^\n]*/g);
+  for (const line of uses) {
+    assert.match(line, /git -C "\$REPO" (?:merge-base|diff|ls-tree|read-tree|update-index|write-tree|rev-parse)(?: |$)|--repo "\$REPO"/, line);
+  }
+  assert.doesNotMatch(armsScript, /\b(?:source|\.)\s+"?\$REPO|bash "?\$REPO|node "?\$REPO|checkout|worktree|apply/);
+});
+
+test("compare mode runs both arms on the API key alone and stops without a cost cap", () => {
+  for (const name of ["compare-before", "compare-after"]) {
+    const arm = job(name);
+    assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
+    assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
+  }
+  assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
+  assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
+  const guard = /if ! \[\[ \$COST_CAP .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
+  const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
+  assert.ok(passes("1") && passes("12"));
+  for (const value of ["", "0", "13", "2.5"]) assert.ok(!passes(value), value);
+  const filter = /read -ra tags <<<"\$TAGS"\n\s+if \[ -z "\$CASE" \].*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
+  const selects = (env) => spawnSync("bash", ["-c", filter], { env }).status === 0;
+  assert.ok(!selects({ CASE: "", TAGS: "" }), "no case and no tag runs nothing");
+  assert.ok(selects({ CASE: "p1-*", TAGS: "" }) && selects({ CASE: "", TAGS: "interview" }));
+  assert.match(job("compare-record"), /if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then/);
+});
+
+test("only the compare record job writes, after the verdict and a fresh head check", () => {
+  assert.deepEqual(compare.match(/[a-z-]+: write/g), ["issues: write"]);
+  const record = job("compare-record");
+  assert.match(record, /issues: write/);
+  assert.match(record, /needs: \[compare-prepare, compare-verdict\]\n/);
+  assert.ok(record.indexOf("compare-head.sh") > 0 && record.indexOf("compare-head.sh") < record.indexOf("- name: Post the record"));
+  assert.doesNotMatch(record, /inputs\.head-sha \}\}\n {10}path/);
+  assert.match(job("compare-verdict"), /needs: \[compare-prepare, compare-before, compare-after\]\n/);
+  assert.doesNotMatch(job("compare-verdict"), /\n {4}if:/);
+  assert.doesNotMatch(record, /\n {4}if:/);
+});
+
+test("the record job's name is the one the release requires to have succeeded", async () => {
+  const { RECORD_JOB } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.match(job("compare-record"), new RegExp(`^ {2}compare-record:\\n {4}name: ${RECORD_JOB}\\n`));
+});
+
+test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
+  assert.match(text, /name: Check Key Credit\n {4}if: >-\n {6}\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
+  assert.match(job("compare-prepare"), /if: >-\n {6}github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
+  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
+  const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
+  const head = "d".repeat(40);
+  const run = {
+    path: ".github/workflows/pr-run-plugin-evals.yml",
+    event: "workflow_dispatch",
+    head_branch: "main",
+    status: "completed",
+    conclusion: "success",
+    run_attempt: 1,
+    head_sha: "f".repeat(40),
+    display_title: `eval-compare pr=12 head=${head}`,
+    repository: { full_name: "o/r" },
+    head_repository: { full_name: "o/r" },
+  };
+  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head });
+});

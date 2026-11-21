@@ -1,22 +1,11 @@
+skip_lfs: true
+
 pre-push:
   jobs:
-    - name: check-affected
-      run: |
-        if ! mb=$(git merge-base HEAD refs/remotes/origin/main 2>/dev/null); then
-          echo 'check-affected pre-push: skipped, no origin/main merge-base to take the check from; CI checks it.' >&2
-          exit 0
-        fi
-        if ! tmp=$(mktemp -d); then
-          echo 'check-affected pre-push: failed, nothing was checked: mktemp could not make a directory.' >&2
-          exit 1
-        fi
-        trap 'rm -rf $tmp' EXIT
-        git archive $mb -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh | tar -x -C $tmp
-        if [ ! -f $tmp/.claude/hooks/check-affected-pre-push.sh ]; then
-          echo 'check-affected pre-push: failed, nothing was checked: merge-base' $mb 'has no .claude/hooks/check-affected-pre-push.sh with lib/hook-utils.sh; rebase onto origin/main.' >&2
-          exit 1
-        fi
-        bash $tmp/.claude/hooks/check-affected-pre-push.sh --git-hook </dev/null
+    - name: guardrails-remote-reference-verify
+      script: guardrails-reference-verify.sh
+      skip:
+        - run: test -n "${MSYSTEM:-}${WINDIR:-}"
 
 remotes:
   - git_url: https://github.com/melodic-software/claude-code-plugins
