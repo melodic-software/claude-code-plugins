@@ -11,8 +11,10 @@ if (argv[0] === "--version") {
   process.exit(0);
 }
 if (argv.at(-1) === "--help") {
-  const file = scenario.help?.[argv.join(" ")];
-  if (file) process.stdout.write(readFileSync(file, "utf8"));
+  const asked = argv.join(" ");
+  if (scenario.help_empty?.includes(asked)) process.exit(0);
+  const file = scenario.help?.[asked];
+  if (file) (scenario.help_stderr?.includes(asked) ? process.stderr : process.stdout).write(readFileSync(file, "utf8"));
   process.exit(file ? 0 : 2);
 }
 if (scenario.stdout_file) process.stdout.write(readFileSync(scenario.stdout_file, "utf8"));

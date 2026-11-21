@@ -124,6 +124,23 @@ describe("update", () => {
     assert.ok(existsSync(join(facts, "exec.txt")));
   });
 
+  test("help a CLI prints on stderr with an empty stdout is cached", async () => {
+    const w = world({ help_stderr: ["--help"] });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
+    assert.equal(lines(got)[0], "codex: ready", got.stdout);
+    assert.equal(readFileSync(join(facts, "codex.txt"), "utf8"), readFileSync(realHelp["--help"], "utf8"));
+  });
+
+  test("a help command that prints nothing is named, leaves no file, and keeps update from reading plain ready", async () => {
+    const w = world({ help_empty: ["exec review --help"] });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
+    assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
+    assert.ok(lines(got).includes(`cli facts: ${facts} (exec-review: exec review --help printed nothing)`), got.stdout);
+    assert.ok(!existsSync(join(facts, "exec-review.txt")));
+  });
+
   test("a logged-out CLI is unavailable, and the breaker it opened stays open", async () => {
     const w = world({ login_exit: 1 });
     openBreaker(w.dataDir, "codex", { failureClass: "not-logged-in", reason: "not logged in", now: noon, cooldownHours: 24 });
