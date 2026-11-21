@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "/planning:prd with task description: Decisions: ... Source map: #610",
+      "why": "matches"
+    },
+    {
+      "answer": "Skill: planning:prd, args: \"Decisions from the closing comment ...\\nSource map: [#610](https://example.com/o/r/issues/610)\"",
+      "why": "linked number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/planning:prd with the closing comment's decisions as its task description.",
+      "why": "no Source map line"
+    },
+    {
+      "answer": "/planning:prd with task description: Decisions: ... Source map: #600",
+      "why": "names another map"
+    }
+  ]
+}

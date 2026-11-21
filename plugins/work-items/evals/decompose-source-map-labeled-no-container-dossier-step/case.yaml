@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-source-map-labeled-no-container-dossier-step
+graders:
+  - name: 'parent-map'
+    type: 'regex'
+    pattern: '--parent\W{1,3}(github:[\w./-]+)?#?520\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the attended /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Accepts the PLAN.md line Source map: #520 because item 520 carries the wayfind: map label, and treats the map as the source item ; (2) With the spec container declined, every published item''s create-item carries --parent naming item 520, written out on each call ; (3) Only after every item is published, runs the dossier-branch step for the map''s branch dossier/520-saved-searches ; (4) Before any delete, shows that the branch holds 2 commits the default branch cannot reach and that they change notes/research.md and notes/decisions.md, then asks once whether to delete it ; (5) Does not delete the branch or claim it was deleted, since the user has not yet said yes ; (6) Posts the dossier-branch step''s report as a comment on item 520 and names it in the Step 5 report. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
