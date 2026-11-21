@@ -5,6 +5,12 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.4] - 2026-11-21
+
+### Changed
+
+- `plugin.json` declares the mods floor as `engines["claude-code"]`, `">=2.1.287"`. Claude Code 2.1.323 and later read it and do not install, update or load the plugin outside that range; 2.1.76 through 2.1.322 ignore it, and 2.0.15 through 2.1.75 refuse to load a manifest that has it. `scripts/check-mod-load.sh` still checks the floor from `prerequisites.json`, because the builds below the floor do not read the field.
+
 ## [6.1.3] - 2026-11-21
 
 ### Changed
