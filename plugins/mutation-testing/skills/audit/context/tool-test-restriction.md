@@ -9,22 +9,26 @@ pitest and infection are not probed and use the manual protocol.
 | Tool | Option | Granularity | Coverage/dry-run interaction | Keeps no-coverage | Source | Fetched |
 |---|---|---|---|---|---|---|
 | stryker-js | `testFiles` (CLI `--testFiles "a.spec.js","b.spec.js"`) | file | Docs: "only tests from these files will be run". `coverageAnalysis` computes coverage in the initial test run and reports mutants without coverage as NoCoverage, but no page states that the initial run is restricted by `testFiles`, so the combination is inferred, not documented. | unknown | https://stryker-mutator.io/docs/stryker-js/configuration/#testfiles-string, https://stryker-mutator.io/docs/stryker-js/configuration/#coverageanalysis-string | 2026-10-01 |
-| stryker-net | `test-case-filter` (a `dotnet test --filter` expression, set in the config file: 5.0.0 has no CLI flag for it, though the page lists `--test-case-filter`; `test-projects` selects whole projects). Built and passed as [Running Stryker.NET on a test set](#running-strykernet-on-a-test-set) says | case | Probe #9687 (Stryker.NET 5.0.0, probed 2026-10-29 on Linux with .NET SDK 10.0.403, `coverage-analysis` `perTest`, the `dotnet-test-selection` fixture retargeted to net10.0): the filter applies in the initial coverage run (tests found fell from 5 to 2 with one test project and from 9 to 2 with both), and a mutant reached only by excluded tests reported NoCoverage, not Survived or Killed. With `test-projects` naming one of the two projects that reference the shared library, only that project's tests count for coverage and kills. The docs page does not state this; recheck on a new Stryker.NET release or a change to `test-case-filter` or `coverage-analysis` on that page. | yes | https://stryker-mutator.io/docs/stryker-net/configuration/#test-case-filter-string | 2026-10-29 |
+| stryker-net | `test-case-filter` (a `dotnet test --filter` expression, set in the config file: 5.0.0 has no CLI flag for it, though the page lists `--test-case-filter`; `test-projects` selects whole projects). Built and passed as [Running Stryker.NET on a test set](#running-strykernet-on-a-test-set) says | case | Probe #9687 (Stryker.NET 5.0.0, probed 2026-10-29 on Linux with .NET SDK 10.0.403, `coverage-analysis` `perTest`, the `dotnet-test-selection` fixture retargeted to net10.0): the filter applies in the initial coverage run (tests found fell from 5 to 2 with one test project and from 9 to 2 with both), and a mutant reached only by excluded tests reported NoCoverage, not Survived or Killed. With `test-projects` naming one of the two projects that reference the shared library, only that project's tests count for coverage and kills. The docs page does not state this; recheck on a new Stryker.NET release or a change to `test-case-filter` or `coverage-analysis` on that page. | yes | https://stryker-mutator.io/docs/stryker-net/configuration/#test-case-filter-string | 2026-10-29 <!-- portability-ok: measured p17737-au-strykernet-restriction --> |
 | mutmut | `pytest_add_cli_args_test_selection` (e.g. `["tests/test_a.py", "-k", "name"]`; mutmut 3.8.0) | file or case (any pytest selection argument) | Docs: mutmut runs the test suite once in the main process to collect stats, then forks one child per mutant; the selection arguments are the ones that choose and deselect tests. The README does not describe a NoCoverage state or how a restricted selection changes the stats run. | unknown | https://github.com/boxed/mutmut | 2026-10-01 |
 
 ## `test-command` filter forms
 
+A runner's kind decides whether `test-command` can carry `{tests}`:
+
+- **Path list**: the runner's command line takes test files as arguments. `test-command` is that
+  command with `{tests}` as a standalone word where the paths go.
+- **Name filter only**: the runner selects tests only by class, method or pattern name. It has no
+  `{tests}` form.
+
+Read the kind from the repository's own test configuration and the runner's own help output or
+documentation for the version the repository uses. When neither settles it, the kind is unknown and
+counts as name filter only. A runner a bundled script drives has its own form and kind, listed
+below, in place of these two.
+
 | Ecosystem | Runner | Form | Kind | Source |
 |---|---|---|---|---|
-| JavaScript/TypeScript | vitest | `npx vitest run {tests}` (positional filters match by path substring, not glob or regexp) | path list | https://vitest.dev/guide/cli.html |
-| JavaScript/TypeScript | jest | `npx jest --runTestsByPath {tests}` | path list | https://jestjs.io/docs/cli |
-| JavaScript/TypeScript | mocha | `npx mocha {tests}` | path list | https://mochajs.org/ |
 | .NET | dotnet test (VSTest runner) | `dotnet test {tests}`, run once per line `scripts/dotnet-test-selection.sh <test file>...` prints: the owning project, then `--filter 'FullyQualifiedName~<Namespace>.<Class>.\|...'` for each top-level class in that project's files, plus `<Class>+` for a class holding nested classes and no trailing dot for a generic one (`~` is contains, `\|` is or; there is no file path form). Keep `--filter` out of `test-command`. A baseline whose filter matches no test refuses: [Running a .NET test set](#running-a-net-test-set) | project and name filter | https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests, https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-vstest |
-| JVM | maven surefire | `mvn test -Dtest=<class or pattern>` | name filter only | https://maven.apache.org/surefire/maven-surefire-plugin/examples/single-test.html |
-| JVM | gradle | `gradle test --tests "<class or pattern>"` | name filter only | https://docs.gradle.org/current/userguide/java_testing.html |
-| PHP | phpunit | `vendor/bin/phpunit {tests}` | path list | https://docs.phpunit.de/en/12.0/textui.html |
-| Python | pytest | `python -m pytest {tests}` | path list | https://docs.pytest.org/en/stable/how-to/usage.html |
-| Python | unittest | `python -m unittest {tests}` (test modules may be given as file paths) | path list | https://docs.python.org/3/library/unittest.html |
 
 Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page. For the .NET row and [Running a .NET test set](#running-a-net-test-set): a change to the filter syntax on the selective-tests page, or to the project argument or the no-matching-tests exit code on the VSTest `dotnet test` page (both read 2026-10-26).
 

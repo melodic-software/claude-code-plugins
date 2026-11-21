@@ -1,13 +1,11 @@
 # Metrics: which number means what
 
-Four ecosystems invented the same two metrics under four names. This file reconciles them and says
-which to report.
+A mutation run yields two scores. This file defines them and says which to report.
 
 Sources: [Stryker mutant states and
 metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/);
-[Infection MSI](https://infection.github.io/guide/); [PIT](https://pitest.org/); Ojdanic et al.,
-*Mind the Gap: The Difference Between Coverage and Mutation Score Can Guide Testing Efforts*
-(<https://arxiv.org/abs/2309.02395>). Fetched 2026-08-10. Recheck when Stryker, PIT, or Infection renames or redefines a metric on its own docs page, or at the next fleet audit; the two cited papers are fixed.
+Ojdanic et al., *Mind the Gap: The Difference Between Coverage and Mutation Score Can Guide Testing
+Efforts* (<https://arxiv.org/abs/2309.02395>). Fetched 2026-08-10. Recheck when Stryker renames or redefines a metric on its own docs page, or at the next fleet audit; the cited paper is fixed.
 
 ## The aggregates
 
@@ -42,22 +40,6 @@ The difference is the denominator, and it is the whole point:
 **Report the covered-code score.** Report the plain score beside it only as context. The two
 together tell a story neither tells alone.
 
-## The same metric, four names
-
-| Ecosystem | "All mutants" | "Only covered mutants" |
-|---|---|---|
-| Stryker | Mutation score | Mutation score based on covered code |
-| PIT | Mutation coverage | **Test strength** |
-| Infection | **MSI** (Mutation Score Indicator) | **Covered Code MSI** |
-| Literature | Mutation score | Mutation adequacy over covered code |
-
-Infection also reports **Mutation Code Coverage** = `covered / total * 100`, which tracks ordinary
-line coverage closely and is mostly useful as a sanity check that the harness saw the tests it
-should have.
-
-Infection's own reading of the gap: when MSI and Covered Code MSI diverge widely, unit tests are
-"far less effective than Code Coverage alone could detect."
-
 ## The oracle gap
 
 The academic formalization of the same intuition:
@@ -90,14 +72,8 @@ score is lying to you.
 
 ## Reporting shape
 
-A useful report is per-file and ranked, not a single repository number:
-
-```text
-| File | Coverage | Covered-code score | Gap | Survivors |
-|---|---|---|---|---|
-| src/pricing.ts |  96% | 41% | −55 | 7 |
-| src/audit.ts   |  88% | 84% |  −4 | 2 |
-```
+A useful report is per-file and ranked, not a single repository number: one row per file with its
+coverage, covered-code score, gap and survivor count.
 
 Rank by gap, not by score. The top row is where a reader's belief about the suite is most wrong,
 which is the only thing a metric like this is good for.

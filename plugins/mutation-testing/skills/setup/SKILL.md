@@ -171,7 +171,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
    forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup`'s
    mutation gate, which runs through it. A name-filter-only runner (Maven `-Dtest`, Gradle
-   `--tests`), or one that table does not list, supports neither: `audit --exercised` refuses
+   `--tests`), or one whose kind that section leaves unknown, supports neither: `audit --exercised` refuses
    unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
    need a path-list `test-command`, so it can offer only its cannot-fail-only mode. The diff,
    `--full` and `--paths` scopes need no `test-command` and work for every runner the tool drives.
@@ -190,7 +190,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test project, with
    `{tests}` replaced by that project and a name filter for the test files' classes. Propose nothing
    for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`); step 2 already said
-   what that costs. The forms and their sources are in the
+   what that costs. The runner kinds and the `dotnet test` form are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** to `docs/conventions/mutation-testing.yaml`, the template's YAML block
    without its Markdown, following

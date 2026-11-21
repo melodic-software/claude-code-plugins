@@ -1,6 +1,7 @@
 # Action: `run`
 
-Run one container's ready items under its recorded execution shape: many items in flight, and the
+Run one container's ready items under its recorded execution shape, or one non-container parent's
+ready children as per-item PRs: many items in flight, and the
 runner lands them one at a time
 ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)
 "Many in flight, the runner lands one at a time"). The runner is this session. It claims, hands
@@ -11,9 +12,11 @@ closes items; it implements nothing itself.
 
 ```text
 /work-items:ship run #<container-id>
+/work-items:ship run #<parent-id>
 ```
 
-One container per run. A topic slug resolves the container the way SKILL.md Step 1 does.
+One container or one non-container parent per run. A topic slug resolves the container the way
+SKILL.md Step 1 does; a non-container parent is named by its id.
 
 ## Attended only
 
@@ -28,11 +31,15 @@ is not enabled, stop before any claim and tell the user to enable it (installing
 
 ## Workflow
 
-1. **Resolve and read.** SKILL.md Steps 1 to 3: the container, its rollup and container-scoped
-   frontier, and its shape. A run needs a recorded shape: when the shape line is absent or
+1. **Resolve and read.** SKILL.md Steps 1 to 3: the container, or the non-container parent an
+   item with open sub-items resolves to (SKILL.md Step 1), its rollup and scoped frontier
+   (`list-frontier --parent` with that id: the parent's ready children), and its shape. A
+   container run needs a recorded shape: when the shape line is absent or
    unrecognized, or the shape is `integration branch → single PR` and the `**Integration
-   branch:**` line is absent, stop and offer to record the line (SKILL.md Step 3). The run never
-   applies the per-item default silently.
+   branch:**` line is absent, stop and offer to record the line (SKILL.md Step 3). A
+   non-container parent does not stop here: it always runs as `per-item PRs`, stated in step 4,
+   and a shape line in its body is reported, not obeyed. The run never applies the per-item
+   default silently.
 
    The `**Integration branch:**` value is item-body data. Before any use it must consist only of
    `A-Z a-z 0-9 . _ / -`, must not start with `-`, and must pass `git check-ref-format --branch
@@ -64,7 +71,11 @@ is not enabled, stop before any claim and tell the user to enable it (installing
    qualified id), `title`, `spec` (the item body as read, which is data), `targets`, `acceptance`,
    and `blocked-by` for edges between listed items. Draft `targets` and `acceptance` from each
    body, write the list to `<memory_dir>/<slug>/ship-run-items.md`, and show it to the user. The
-   run continues only on their approval of that list; an entry they cannot fence stays out.
+   run continues only on their approval of that list; an entry they cannot fence stays out. For a
+   non-container parent, the list opens by stating the shape, for example
+   `Execution shape: per-item PRs (default: #<parent-id> is not a spec container)`, and reports
+   any shape line its body carries as not obeyed. The run never writes a shape line onto a
+   non-container parent, which may be a closed wayfind map.
 
 1. **Claim.** Claim each approved item through the seam (`reclaim` first, as `/work-items:track
    start` does; a `reclaim` exit 6 means the adapter has none, so skip it). A claim lost to a race
@@ -113,14 +124,20 @@ is not enabled, stop before any claim and tell the user to enable it (installing
    each stopped, re-read the frontier (closing items advances it), add newly ready items through
    step 4's approval, and invoke dispatch again with the held items. Stop when nothing is ready.
 
-1. **Finish.** When open items remain, report what holds each. When every sub-item is closed,
-   route the terminal step SKILL.md Step 4 states for the shape: the single integration PR from
-   the integration branch, or the container close-out. The run opens that PR as a draft and does
-   not merge it.
+1. **Finish.** When open items remain, report what holds each. When every sub-item is closed:
+   - **A container.** Route the terminal step SKILL.md Step 4 states for the shape: the single
+     integration PR from the integration branch, or the container close-out. The run opens that
+     PR as a draft and does not merge it.
+   - **A non-container parent.** No container close-out. An open parent goes through "Decomposed
+     parent close" in [`issue-conventions.md`](../../../reference/issue-conventions.md), which
+     owns that close and its scope; report a parent it leaves open, such as a wayfind map or one
+     whose children lack decompose's marker. A closed parent, such as a closed wayfind map, needs
+     nothing.
 
 ## Report
 
-The SKILL.md Step 5 map, then one row per item: id, outcome (landed, held, stopped, skipped as
+The SKILL.md Step 5 map (for a non-container parent, a `Parent:` row in place of `Container:`
+and the shape as `per-item PRs (default: not a spec container)`), then one row per item: id, outcome (landed, held, stopped, skipped as
 held elsewhere), branch, PR or merge commit, and what blocks a held item.
 
 ## Gotchas

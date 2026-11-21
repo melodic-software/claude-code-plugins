@@ -81,8 +81,6 @@ plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
 plugins/mcp-tools/skills/audit-posture/reference/checklist.md 2
 plugins/mcp-tools/skills/audit/SKILL.md 1
 plugins/mcp-tools/skills/audit/reference/checklist.md 1
-plugins/mutation-testing/skills/audit/SKILL.md 1
-plugins/mutation-testing/skills/audit/context/tool-test-restriction.md 5
 plugins/mutation-testing/skills/principles/reference/metrics.md 1
 plugins/mutation-testing/skills/principles/reference/operators-and-states.md 1
 plugins/mutation-testing/skills/principles/reference/scaling-and-suppression.md 2
@@ -122,7 +120,6 @@ plugins/source-control/skills/pull-request/reference/monitor.md 1
 plugins/source-control/skills/pull-request/reference/native-surfaces.md 1
 plugins/source-control/skills/worktree/reference/native-worktree.md 3
 plugins/tdd/skills/principles/reference/property-based-testing.md 4
-plugins/testing/skills/run-e2e/context/e2e.md 2
 plugins/testing/skills/setup/SKILL.md 4
 plugins/testing/skills/test-value/SKILL.md 1
 plugins/testing/skills/write/context/characterization.md 1

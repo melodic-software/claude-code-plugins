@@ -17,82 +17,17 @@ Three unit testing styles, output-based, state-based, and communication-based, e
 
 Feed an input to the SUT and check the output it produces. Only applicable to code that doesn't change global or internal state. The only result is the return value.
 
-```csharp
-// SUT — a mathematical function (no side effects)
-public class PriceEngine
-{
-    public decimal CalculateDiscount(params Product[] products)
-    {
-        decimal discount = products.Length * 0.01m;
-        return Math.Min(discount, 0.2m);
-    }
-}
-
-// Test — pure input/output verification
-[Fact]
-public void Discount_of_two_products()
-{
-    var product1 = new Product("Hand wash");
-    var product2 = new Product("Shampoo");
-    var sut = new PriceEngine();
-
-    decimal discount = sut.CalculateDiscount(product1, product2);
-
-    Assert.Equal(0.02m, discount);
-}
-```
-
 Also known as *functional* testing because it roots in functional programming's preference for side-effect-free code.
 
 ### State-Based Testing
 
 Verify the state of the system after an operation completes. "State" can refer to the SUT itself, one of its collaborators, or an out-of-process dependency (database, filesystem).
 
-```csharp
-public class Order
-{
-    private readonly List<Product> _products = new List<Product>();
-    public IReadOnlyList<Product> Products => _products.ToList();
-
-    public void AddProduct(Product product)
-    {
-        _products.Add(product);
-    }
-}
-
-[Fact]
-public void Adding_a_product_to_an_order()
-{
-    var product = new Product("Hand wash");
-    var sut = new Order();
-
-    sut.AddProduct(product);
-
-    Assert.Equal(1, sut.Products.Count);
-    Assert.Equal(product, sut.Products[0]);
-}
-```
-
-State-based assertion parts tend to be larger. Even this simplified test has four assertion lines. Mitigations: helper methods, value objects with equality comparison (via Fluent Assertions' `BeEquivalentTo`), but both are only occasionally applicable.
+State-based assertion parts tend to be larger. Mitigations: helper methods, value objects with equality comparison, but both are only occasionally applicable.
 
 ### Communication-Based Testing
 
 Uses mocks to verify interactions between the SUT and its collaborators.
-
-```csharp
-[Fact]
-public void Sending_a_greetings_email()
-{
-    var emailGatewayMock = new Mock<IEmailGateway>();
-    var sut = new Controller(emailGatewayMock.Object);
-
-    sut.GreetUser("user@email.com");
-
-    emailGatewayMock.Verify(
-        x => x.SendGreetingsEmail("user@email.com"),
-        Times.Once);
-}
-```
 
 > "The classical school of unit testing prefers the state-based style over the communication-based one. The London school makes the opposite choice. Both schools use output-based testing."
 
@@ -133,24 +68,13 @@ A *mathematical function* (pure function) has no hidden inputs or outputs. All i
 
 **Test for purity, referential transparency**: can you replace a call to the method with its return value without changing the program's behavior?
 
-```csharp
-// Mathematical function — referentially transparent
-public int Increment(int x) { return x + 1; }
-// int y = Increment(4); is equivalent to int y = 5;
-
-// NOT a mathematical function — hidden output (side effect)
-int x = 0;
-public int Increment() { x++; return x; }
-// Can't replace call with return value — side effect changes x
-```
-
 ### Hidden Inputs and Outputs
 
 Types that break mathematical function status:
 
 - **Side effects** (hidden output): mutating class state, writing files, updating databases
 - **Exceptions** (hidden output): creating an alternate return path not in the method signature
-- **Reference to internal/external state** (hidden input): `DateTime.Now`, database queries, private mutable fields
+- **Reference to internal/external state** (hidden input): the current time, database queries, private mutable fields
 
 > "Explicit inputs and outputs make mathematical functions extremely testable because the resulting tests are short, simple, and easy to understand and maintain. Mathematical functions are the only type of methods where you can apply output-based testing."
 
@@ -192,7 +116,7 @@ An audit system that tracks visitors in text files demonstrates the progression 
 
 ### Stage 1: Initial Implementation (Tightly Coupled)
 
-`AuditManager` directly reads/writes the filesystem via `Directory.GetFiles()` and `File.WriteAllText()`. Tests must work with actual files. The shared dependency makes them slow, non-parallelizable, and hard to maintain.
+`AuditManager` directly reads and writes the filesystem. Tests must work with actual files. The shared dependency makes them slow, non-parallelizable, and hard to maintain.
 
 | Pillar | Score |
 |--------|-------|
@@ -204,13 +128,6 @@ An audit system that tracks visitors in text files demonstrates the progression 
 ### Stage 2: With Mocks (IFileSystem Interface)
 
 Extract filesystem operations behind `IFileSystem` interface, inject via constructor. Tests mock the interface. No real filesystem needed.
-
-```csharp
-// Test uses mock to verify file write
-fileSystemMock.Verify(x => x.WriteAllText(
-    @"audits\audit_3.txt",
-    "Alice;2019-04-06T18:00:00"));
-```
 
 Improvement: fast feedback restored, maintainability improved. But mock setups are convoluted. Tests are less readable than pure input/output.
 
@@ -225,65 +142,7 @@ Improvement: fast feedback restored, maintainability improved. But mock setups a
 
 Move side effects *out of* `AuditManager` entirely. It becomes a functional core that accepts `FileContent[]` (inputs as values) and returns `FileUpdate` (decisions as values). A new `Persister` class (mutable shell) handles actual filesystem I/O. An `ApplicationService` glues them together.
 
-```csharp
-// Functional core — pure function, no side effects
-public class AuditManager
-{
-    public FileUpdate AddRecord(
-        FileContent[] files,
-        string visitorName,
-        DateTime timeOfVisit)
-    {
-        // ... sorting, decision logic ...
-        return new FileUpdate("audit_3.txt", newRecord);
-    }
-}
-
-// Mutable shell — trivial, no branching (no if statements)
-public class Persister
-{
-    public FileContent[] ReadDirectory(string directoryName) { ... }
-    public void ApplyUpdate(string directoryName, FileUpdate update) { ... }
-}
-
-// Application service — orchestration glue
-public class ApplicationService
-{
-    public void AddRecord(string visitorName, DateTime timeOfVisit)
-    {
-        FileContent[] files = _persister.ReadDirectory(_directoryName);
-        FileUpdate update = _auditManager.AddRecord(
-            files, visitorName, timeOfVisit);
-        _persister.ApplyUpdate(_directoryName, update);
-    }
-}
-```
-
-The test becomes pure input/output with plain values, no mocks and no filesystem:
-
-```csharp
-[Fact]
-public void A_new_file_is_created_when_the_current_file_overflows()
-{
-    var sut = new AuditManager(3);
-    var files = new FileContent[]
-    {
-        new FileContent("audit_1.txt", new string[0]),
-        new FileContent("audit_2.txt", new string[]
-        {
-            "Peter; 2019-04-06T16:30:00",
-            "Jane; 2019-04-06T16:40:00",
-            "Jack; 2019-04-06T17:00:00"
-        })
-    };
-
-    FileUpdate update = sut.AddRecord(
-        files, "Alice", DateTime.Parse("2019-04-06T18:00:00"));
-
-    Assert.Equal("audit_3.txt", update.FileName);
-    Assert.Equal("Alice;2019-04-06T18:00:00", update.NewContent);
-}
-```
+Tests of `AuditManager` become pure input/output with plain values, no mocks and no filesystem.
 
 | Pillar | Score |
 |--------|-------|
@@ -294,13 +153,7 @@ public void A_new_file_is_created_when_the_current_file_overflows()
 
 ### Key Insight: Values, Not Collaborators
 
-The functional core's output (`FileUpdate`) is a *value* (or set of values). Two instances are interchangeable if their contents match. Convert to `struct` or define custom equality for even cleaner assertions:
-
-```csharp
-Assert.Equal(
-    new FileUpdate("audit_3.txt", "Alice;2019-04-06T18:00:00"),
-    update);
-```
+The functional core's output (`FileUpdate`) is a *value* (or set of values). Two instances are interchangeable if their contents match. Give it value equality for even cleaner assertions: compare the whole returned value against an expected one.
 
 > "A class from the functional core should work not with a collaborator, but with the product of its work, a value."
 
@@ -310,20 +163,13 @@ More complex use cases still fit the pattern:
 
 - **Multiple operations** (e.g., `DeleteAllMentions`): return `FileUpdate[]` instead of `FileUpdate`
 - **Delete operations**: rename `FileUpdate` to `FileAction` with an `ActionType` enum
-- **Error handling**: embed errors in the return type, `public (FileUpdate update, Error error) AddRecord(...)`. The application service checks for errors and skips the persister call
+- **Error handling**: embed errors in the return type, returning an error beside the `FileUpdate`. The application service checks for errors and skips the persister call
 
 ## Drawbacks of Functional Architecture
 
 ### Applicability Limits
 
-Functional architecture works when the system can gather all inputs upfront, before making a decision. When intermediate decisions require additional data from out-of-process dependencies, the pattern breaks:
-
-```csharp
-// This BREAKS functional architecture — IDatabase is a hidden input
-public FileUpdate AddRecord(
-    FileContent[] files, string visitorName,
-    DateTime timeOfVisit, IDatabase database)
-```
+Functional architecture works when the system can gather all inputs upfront, before making a decision. When intermediate decisions require additional data from out-of-process dependencies, the pattern breaks: passing a database dependency into the core's `AddRecord` makes the database a hidden input.
 
 Two workarounds when intermediate dependencies are needed:
 

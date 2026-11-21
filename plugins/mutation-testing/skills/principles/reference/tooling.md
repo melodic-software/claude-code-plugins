@@ -24,7 +24,7 @@ behavior, when a new mutation tool appears for a listed ecosystem, or at the nex
 | PHP | Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none, fixed out-of-tree | **Covered Code MSI** |
 | Python | mutmut | changed-file selection | ≤2.x in-tree per-mutant; ≥3.0.0 out-of-tree, so the version is the regime | mutation score |
 
-Names differ; the metric is the same one. See [metrics.md](metrics.md).
+Names differ; the metric is the same one, the covered-code score [metrics.md](metrics.md) defines.
 
 **Diff-scoping flag** is what `/mutation-testing:audit` Phase 2 passes when the configured tool
 supports scoped generation. `none` means the tool has no git-diff scoping switch. Do not invent

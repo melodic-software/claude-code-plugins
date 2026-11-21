@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Contract tests for the disk-hygiene Python hook launcher (#1504).
-# test-scope: plugins/disk-hygiene/hooks/hooks.json
+# test-scope: plugins/disk-hygiene/hooks/hooks.json plugins/disk-hygiene/prerequisites.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

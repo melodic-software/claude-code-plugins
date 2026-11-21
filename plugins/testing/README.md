@@ -110,9 +110,10 @@ before. Under `auto` a run now drives through the repository's own
 harness when a spec covers the changed flow, and otherwise through the path it used before. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
-`browser_driver` (default `playwright-cli`) names the one browser tool a `playwright` drive uses. It
-sits in the same layers as `e2e_driver`, plus the `userConfig` option of the same name. When the
-driver for the run is `playwright`, pinned or picked by `auto`, `scripts/check-browser-driver.sh`
+`browser_driver` names the one browser tool a `playwright` drive uses: set it to the browser tool
+your project uses. It sits in the same layers as `e2e_driver`, plus the `userConfig` option of the
+same name. When the driver for the run is `playwright`, pinned or picked by `auto`,
+`scripts/check-browser-driver.sh`
 checks before the first drive that the command is on PATH; if it is not, the run stops, naming the
 setting, the value, where it came from, and the two ways forward (install the tool, or set
 `browser_driver` to one you have). It never substitutes another tool or switches mid-run.

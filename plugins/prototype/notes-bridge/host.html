@@ -97,6 +97,7 @@ edit the canonical source, then rerun the script. -->
 
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
+  const devOrigin = frame.dataset.devOrigin || null;
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
   let schema = null, cschema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
@@ -108,7 +109,7 @@ edit the canonical source, then rerun the script. -->
   let last = { listening: "idle", notes: [] };
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
-  const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, "*"); };
+  const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, devOrigin || "*"); };
   const live = () => ready && loads < 2;
   const QUOTE = () => schema.$defs.anchor.properties.textQuote;
 
@@ -182,7 +183,7 @@ edit the canonical source, then rerun the script. -->
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
-    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems, hold: true });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
       : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
       : "");
@@ -255,6 +256,7 @@ edit the canonical source, then rerun the script. -->
     text.focus();
   }
   function closeComposer() {
+    toFrame({ type: "release" });
     draft = editing = null;
     composer.hidden = true;
     (opener?.() || buttons.element).focus();
@@ -428,6 +430,11 @@ edit the canonical source, then rerun the script. -->
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
+    const pin = (m, n) => ({ n, selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    toFrame({ type: "pins", pins: [
+      ...mine.filter((m) => m.seq !== null).map((m) => pin(m, m.seq)),
+      ...drafts.map((m, i) => pin(m, `D${i + 1}`)),
+    ] });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
@@ -447,6 +454,7 @@ edit the canonical source, then rerun the script. -->
   }
 
   addEventListener("message", (e) => {
+    if (devOrigin && e.origin !== devOrigin) return;
     if (e.source !== frame.contentWindow || loads > 1) return; // the frame's first document only
     const m = e.data;
     if (!m || typeof m !== "object") return;
@@ -462,16 +470,16 @@ edit the canonical source, then rerun the script. -->
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
       if (note) openComposer(note, () => buttons.element);
-      else say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent.");
+      else { toFrame({ type: "release" }); say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent."); }
     } else if (m.type === "region" && picking === "region") {
       const note = noteFrom(m, "region");
       if (note) openComposer(note, () => buttons.region);
-      else say("That region cannot carry a note: the element around it is outside the note contract.");
+      else { toFrame({ type: "release" }); say("That region cannot carry a note: the element around it is outside the note contract."); }
     } else if (m.type === "selected" && wantText) {
       wantText = false;
       const note = m.none ? null : noteFrom(m, "text");
       if (note) openComposer(note, () => $("quote"));
-      else say("Select some text in the mockup first, then press Note on selected text (T).");
+      else { toFrame({ type: "release" }); say("Select some text in the mockup first, then press Note on selected text (T)."); }
     }
   });
 
@@ -522,9 +530,9 @@ edit the canonical source, then rerun the script. -->
       fetch("/note.schema.json").then((r) => r.json()),
       fetch("/controls.schema.json").then((r) => r.json()),
       fetch("/api/token").then((r) => r.json()),
-      fetch("/api/page"),
+      devOrigin ? null : fetch("/api/page"),
     ]);
-    if (!page.ok) throw new Error((await page.json()).error);
+    if (page && !page.ok) throw new Error((await page.json()).error);
     schema = s;
     cschema = cs;
     use(s, cs);
@@ -539,7 +547,8 @@ edit the canonical source, then rerun the script. -->
         $("controls-status").textContent = "The mockup loaded another page in its frame, so these controls no longer reach it. Reload to start again.";
       }
     });
-    frame.srcdoc = await page.text();
+    if (devOrigin) frame.src = `${devOrigin}/`;
+    else frame.srcdoc = await page.text();
     const events = new EventSource("/events");
     events.addEventListener("state", (e) => { last = JSON.parse(e.data); noSession = false; render(); });
     events.addEventListener("error", () => { noSession = true; render(); });

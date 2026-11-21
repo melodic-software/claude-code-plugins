@@ -21,6 +21,7 @@ git commit -q -am "feat: show the cart total"
 head_sha="$(git rev-parse HEAD)"
 
 bash "$here/../fixtures/gh-forge/install.sh" 655 feat/cart-total main "feat: show the cart total"
+bash "$here/../fixtures/ocr-stand-ins.sh" "$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge/bin"
 
 gate="$(git rev-parse --path-format=absolute --git-common-dir)/ready-verify"
 mkdir -p "$gate"

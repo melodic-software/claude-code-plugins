@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, failureOutcome, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
@@ -4056,4 +4056,14 @@ test("a comment edited after its round sends the head once more", async (t) => {
   const unedited = askApi({ asks: [{ ...ASK, updated_at: ASK.created_at }], checks: [answeredRound, answeredReply, round] });
   await requestMain(t, unedited);
   assert.deepEqual(unedited.calls.dispatch, []);
+});
+
+test("a lane run still going ends the event path green with a skip line; any other error stays red", async () => {
+  const { LaneRunPending } = await import("../lib/lane-binding.mjs");
+  const pending = failureOutcome(new LaneRunPending("lane run 7 is still running, so its comment record may not be uploaded yet"));
+  assert.equal(pending.code, 0);
+  assert.match(pending.line, /^skip: lane run 7 is still running.*next sweep tick/);
+  const other = failureOutcome(new Error("boom"), "tok");
+  assert.equal(other.code, 1);
+  assert.match(other.line, /^::error::pr-feedback dispatch failed: boom/);
 });

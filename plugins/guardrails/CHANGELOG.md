@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.1] - 2026-11-21
+
+### Changed
+
+- **The vendored git-hook installer renders a format and lint pair as one piped lefthook group.** `lib/git-hooks/install.mjs` now returns a plugin's pre-commit `format` and `lint` entries as one `lefthook-config` decision, carrying `entries`, so lint runs after format even under `parallel: true`. This plugin's own entries render as before ([#16911](https://github.com/melodic-software/claude-code-plugins/issues/16911)).
+
 ## [3.12.0] - 2026-11-20
 
 ### Changed

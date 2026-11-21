@@ -233,20 +233,24 @@ it in this order:
    `CLAUDE_PROJECT_DIR`, else the working directory. When git answers nothing, or the root is
    `$HOME` or an ancestor of it, the target is unavailable:
    `diagram_target: excalidraw-file unavailable (no repository); using auto`.
-2. Make a private run directory as under local-file placement below, and write the draft there with
+2. Start from the bundled shape palette, `${CLAUDE_PLUGIN_ROOT}/templates/shape-palette.excalidraw`:
+   read it and copy the elements the diagram needs. Give each copy a new id, rename every reference
+   to it (`frameId`, `containerId`, an arrow's bindings, `boundElements`) to match, then set its
+   position and label. Draw a shape the palette lacks by the rules above.
+3. Make a private run directory as under local-file placement below, and write the draft there with
    the Write tool as `<echoed dir>/<name>.excalidraw`, `<name>` a short kebab-case name for the
    diagram (`password-reset-flow`). When the shell cannot make that directory, skip it and write the
    draft with the Write tool to `<temp>/visualize-<name>/<name>.excalidraw`, `<temp>` being `$TMPDIR`,
    else `/tmp`; that path is then `<draft>` below. A failed shell command is no reason to fall back:
    the target is unavailable only when this write fails too.
-3. Run `node "${CLAUDE_PLUGIN_ROOT}/lib/diagram-file-check.mjs" "<draft>"`, `<draft>` being the
+4. Run `node "${CLAUDE_PLUGIN_ROOT}/lib/diagram-file-check.mjs" "<draft>"`, `<draft>` being the
    draft's path. It prints one JSON line; exit 1 lists the `problems`: fix the draft and run it again.
    When it still fails, or `node` is missing, write nothing into the repository and use auto, naming
    the reason in the one-line form.
-4. When `<root>/docs/diagrams/<name>.excalidraw` already exists, ask before replacing it, with a new
+5. When `<root>/docs/diagrams/<name>.excalidraw` already exists, ask before replacing it, with a new
    name as the alternative. Under `--unattended`, replace nothing: the target is unavailable
    (`<path> exists`).
-5. Write the checked content, unchanged, with the Write tool to
+6. Write the checked content, unchanged, with the Write tool to
    `<root>/docs/diagrams/<name>.excalidraw`. Never stage
    or commit it; the person decides. Report its absolute path and that it opens in an Excalidraw
    editor (the catalog names one).
