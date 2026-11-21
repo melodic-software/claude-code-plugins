@@ -1463,6 +1463,7 @@ def _install_in_cache(version_dir):
     scripts.mkdir(parents=True)
     for name in (
         "save_point.py",
+        "dialect.py",
         "io_streams.py",
         "handoff_chain.py",
         "handoff_fit.py",

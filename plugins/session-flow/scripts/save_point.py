@@ -157,6 +157,7 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     retired_listings,
     section_spans,
 )
+import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
@@ -377,6 +378,16 @@ FILL_MARK = "<!-- FILL"
 # swallows the first slot's `-->` plus the whole second slot. The separator is
 # U+2014.
 FILL_SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (.*?) -->")
+VERBATIM_SLOTS = frozenset(
+    {
+        "goal", "opening-ask", "intent", "vision", "amended", "goal-new",
+        "commands", "rules", "rules-new", "preferences", "preferences-new",
+        "goal-first", "goal-after", "below-rail",
+    }
+)
+VERBATIM_SECTIONS = frozenset(
+    {"Original goal", "Current rules", "Standing preferences", "Pending commands"}
+)
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 
 
@@ -2854,6 +2865,14 @@ def _retire_shape_ok(retire: object) -> bool:
     )
 
 
+def _american(value: str, path: Path, where: str) -> str:
+    """`value` in American spelling, each change named on stderr."""
+    fixed, applied = dialect.americanize(value, path.parent)
+    for typo, correction in applied:
+        print(f"NOTE: {where}: {typo!r} written as {correction!r} (American spelling)", file=sys.stderr)
+    return fixed
+
+
 def _write_atomic(path: Path, payload: bytes) -> OSError | None:
     """Write `payload` through a temporary file in `path`'s own directory, so an
     interrupted write leaves the file whole; `find-handoff` globs only `*.md`,
@@ -3022,6 +3041,12 @@ def cmd_fill(args: argparse.Namespace) -> int:
                 f"a {NEXT_CLOSED!r} value rewrites the line above the `next` slot, which must be exactly 'Next:' (got {above!r}); fix the file or pass headline lines instead",
             )
         closing = index
+
+    for key in values:
+        if key not in VERBATIM_SLOTS:
+            values[key] = _american(values[key], path, f"slot {key!r}")
+    for item in retire or []:
+        item["reason"] = _american(item["reason"], path, "retire reason")
 
     marker = handoff_fit.over_budget_marker(path)
     overruns = handoff_fit.slot_overruns(values) if shape in HOP_FILE_SHAPES else []
@@ -3334,6 +3359,16 @@ def cmd_amend(args: argparse.Namespace) -> int:
     ]
     if any(FILL_MARK in value for value in values):
         return _die(1, f"a value carries the literal {FILL_MARK!r}; rewrite it without")
+    for title in sections:
+        if title not in VERBATIM_SECTIONS:
+            sections[title] = _american(sections[title], path, f"section {title!r}")
+    for title in append:
+        if title not in VERBATIM_SECTIONS:
+            append[title] = [_american(line, path, f"section {title!r}") for line in append[title]]
+    if next_lines:
+        next_lines = [_american(line, path, "next") for line in next_lines]
+    for item in retire:
+        item["reason"] = _american(item["reason"], path, "retire reason")
     for title in sections:
         if title in S3.carried:
             return _die(
