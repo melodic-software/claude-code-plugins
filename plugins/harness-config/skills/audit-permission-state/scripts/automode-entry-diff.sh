@@ -3,13 +3,18 @@
 # set, per rule, with the drop reason named.
 #
 # "On entering auto mode, broad allow rules that grant arbitrary code execution
-# are dropped: Blanket Bash(*) or PowerShell(*); Wildcarded interpreters like
-# Bash(python*); Package-manager run commands; Agent allow rules; Monitor allow
-# rules, because Claude Code runs Monitor commands through the shell. Narrow
-# rules like Bash(npm test) carry over." This script classifies every effective
-# allow rule from the merge into exactly one of those documented classes or
-# `kept`, using the same shared vocabulary (lib/permission-patterns.sh) that
-# audit-permission-grants check P1 scans with — one definition, two consumers.
+# are dropped, including: Blanket Bash(*) or PowerShell(*); Wildcarded
+# interpreters like Bash(python*); A wrapper followed only by a wildcard, like
+# Bash(timeout *); Shell rules that start with a wildcard, like
+# Bash(* --version); Some wildcarded paths, like Bash($HOME/bin/*) or
+# PowerShell(C:\tools\x.exe *); Package-manager run commands; Agent allow
+# rules; Monitor allow rules, because Claude Code runs Monitor commands through
+# the shell. Narrow rules like Bash(npm test) stay in effect."
+# https://code.claude.com/docs/en/changelog 2.1.327 adds path and version forms
+# of package runners. This script classifies every
+# effective allow rule from the merge into exactly one of those documented
+# classes or `kept`, using the same shared vocabulary (lib/permission-patterns.sh)
+# that audit-permission-grants check P1 scans with — one definition, two consumers.
 # The two whole-tool classes (Agent, Monitor) carry no shell shape, so they are
 # tested on the tool token here rather than through that vocabulary.
 #
@@ -31,9 +36,11 @@
 #   entry-diff kept scopes=<a,b> <rule>                  one per carried-over allow rule
 #   entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 #
-#   class  blanket | interpreter-wildcard | package-manager-run | agent | monitor
-#          (the documented five; the vocabulary's script-glob alternative is an
-#          interpreter-wildcard shape and reports as that class)
+#   class  blanket | interpreter-wildcard | wrapper-wildcard | leading-wildcard |
+#          path-wildcard | package-manager-run | agent | monitor
+#          (the documented eight; the vocabulary's script-glob alternative is an
+#          interpreter-wildcard shape and reports as that class, and path-wildcard
+#          covers only the $HOME and Windows backslash forms upstream names)
 #
 # Only allow rules change on entry: deny and ask rules are evaluated before the
 # classifier in every mode and are not part of this diff.
@@ -254,6 +261,12 @@ while read -r rec kind scopes_field _basis rule; do
     verdict="dropped class=interpreter-wildcard"
   elif rule_matches "$rule" "$CCPERM_P1_RUNNER_ERE"; then
     verdict="dropped class=package-manager-run"
+  elif rule_matches "$rule" "$CCPERM_P1_WRAPPER_ERE"; then
+    verdict="dropped class=wrapper-wildcard"
+  elif rule_matches "$rule" "$CCPERM_P1_LEADING_ERE"; then
+    verdict="dropped class=leading-wildcard"
+  elif rule_matches "$rule" "$CCPERM_P1_PATH_ERE"; then
+    verdict="dropped class=path-wildcard"
   elif [[ "$cas_active" == 1 && ("$tool" == "Bash" || "$tool" == "PowerShell") ]]; then
     verdict="suspended reason=classifyAllShell"
   fi
