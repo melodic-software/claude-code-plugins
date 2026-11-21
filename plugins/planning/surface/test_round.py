@@ -5847,5 +5847,235 @@ class TestConstraintRecheck(DirCase):
         self.assertNotIn("stale::", " ".join(row[4] for row in parse_register(text)))
 
 
+ROUND_FULL = FIXTURES / "round-file" / "round-full.md"
+
+
+def run_bytes(*args):
+    """(exit code, stdout bytes, stderr text) of round.py run with no data dir."""
+    p = subprocess.run(
+        [sys.executable, str(ROUND), *args], capture_output=True, timeout=60
+    )
+    return p.returncode, p.stdout, p.stderr.decode("utf-8", "replace")
+
+
+HEADER = [
+    "**Round 3.** The retry budget is three tries, and a failed retry pages no one.",
+    "Scope check: 9 of 27 questions registered; round 2 added 4, settled 3; round 1 added 3, settled 3",
+    "Later: alert routing, the on-call rota",
+    "Held: Q12 (queue choice) until the queue lookup returns",
+]
+Q10_KEPT = [
+    "➡️ My recommendation: **yes, one entry per failed retry**. The log already takes one write per job, so a retry entry fits it (verified, `src/retry.ts:12`).",
+    "Second view: write only the final failure, to keep the log short.",
+    "Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+    "Flips if: the audit log starts dropping batched writes in production.",
+    "Commits you to:",
+    "- one log entry per failed retry",
+    "- keeping the retry count in the entry",
+]
+MINIMAL = [
+    *HEADER,
+    "",
+    "❓ Q10: **Should a failed retry write to the audit log?**",
+    "",
+    *Q10_KEPT,
+    "",
+    'Alternatives: 2 (say "more Q10")',
+    "",
+    "---",
+    "",
+    "❓ Q11: **Who reads the retry entries?**",
+    "",
+    "Discovery: who reads the entries settles whether they need a dashboard.",
+    "",
+    "---",
+    "",
+    "❓ Q13: **Which store holds the entries?**",
+    "",
+    "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+    "Flips if: the lookup finds the queue already persists jobs.",
+    "",
+    "You can answer in any order. Is there something else that would change these recommendations?",
+]
+STANDARD_DROPPED = [
+    "> One write per job. Extra writes are batched and may be dropped under load.",
+    "> Batches flush every five seconds.",
+    "Origin: drafted by the recommender from the audit guide",
+    "Basis: verified, `src/retry.ts:12` and the audit guide's Writes section",
+    "Checked against: the no-new-store constraint",
+]
+STANDARD_ALT_A = "- (a) Log only the final failure. The log stays short, but the retry history is lost."
+
+
+class TestRoundShow(unittest.TestCase):
+    """show prints a saved round at a detail level, per the plan's "What each level prints" table."""
+
+    def show(self, level, path=ROUND_FULL):
+        rc, out, err = run_bytes("show", "--level", level, str(path))
+        self.assertEqual(rc, 0, err)
+        return out
+
+    def test_full_prints_the_file_byte_for_byte(self):
+        self.assertEqual(self.show("full"), ROUND_FULL.read_bytes())
+
+    def test_standard_drops_the_evidence_lines_and_the_quote_body(self):
+        lines = ROUND_FULL.read_text(encoding="utf-8").splitlines()
+        want = [line for line in lines if line not in STANDARD_DROPPED]
+        at = want.index("- (a) Log only the final failure.")
+        want[at : at + 2] = [STANDARD_ALT_A]
+        self.assertEqual(self.show("standard").decode("utf-8").splitlines(), want)
+
+    def test_standard_keeps_the_source_link(self):
+        out = self.show("standard").decode("utf-8").splitlines()
+        self.assertIn(
+            "Source: [Audit log guide, Writes](https://example.com/audit#writes)", out
+        )
+
+    def test_minimal_keeps_the_answer_lines_and_counts_the_alternatives(self):
+        self.assertEqual(self.show("minimal").decode("utf-8").splitlines(), MINIMAL)
+
+    def test_no_level_hides_a_flips_if_or_commits_you_to_line(self):
+        lines = ROUND_FULL.read_text(encoding="utf-8").splitlines()
+        at = lines.index("Commits you to:")
+        must = [x for x in lines if x.startswith("Flips if:")] + lines[at : at + 3]
+        self.assertEqual(len(must), 5)
+        for level in ("full", "standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show(level).decode("utf-8").splitlines()
+                for line in must:
+                    self.assertIn(line, out)
+
+    def test_crlf_line_endings_are_kept(self):
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(ROUND_FULL.read_bytes().replace(b"\n", b"\r\n"))
+            self.assertEqual(self.show("full", path), path.read_bytes())
+            out = self.show("minimal", path)
+            self.assertEqual(out, ("\r\n".join(MINIMAL) + "\r\n").encode("utf-8"))
+
+    def test_an_unknown_level_is_refused(self):
+        rc, out, err = run_bytes("show", "--level", "brief", str(ROUND_FULL))
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--level", err)
+
+
+SCOPE_LEDGER = (
+    "# Interview ledger\n\n## Open-question register\n\n"
+    "- Q1 | answered | round 1 | One? | yes\n"
+    "- Q2 | answered | round 1 | Two? | yes\n"
+    "- Q3 | deferred | round 1 | Three? | later\n"
+    "- Q4 | answered | round 2 | Four? | yes\n"
+    "- Q5 | deferred | round 2 | Five? | later\n"
+    "- Q6 | withdrawn | round 2 | Six? | dropped\n"
+    "- Q7 | superseded-by-plan | round 2 | Seven? | plan proposes: x; was: y\n"
+    "- Q8 | discussing | round 3 | Eight? |\n"
+    "- Q9 | blocked | round 3 | Nine? | needs the owner\n"
+)
+
+
+class TestScopeCheck(unittest.TestCase):
+    """scope-check prints the counts half of the round header's Scope check: line."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-scope-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ledger = self.tmp / "interview-checklist.md"
+        self.ledger.write_bytes(SCOPE_LEDGER.encode("utf-8"))
+
+    def scope(self, *args):
+        rc, out, err = run_bytes(
+            "scope-check", "--ledger", str(self.ledger), "--limit", "12", *args
+        )
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").replace("\r\n", "\n")
+
+    def test_the_last_two_rounds_before_the_shown_one(self):
+        self.assertEqual(
+            self.scope("--round", "3"),
+            "9 of 12 questions registered; round 2 added 4, settled 3; "
+            "round 1 added 3, settled 3\n",
+        )
+
+    def test_round_two_has_one_earlier_round_and_round_one_none(self):
+        self.assertEqual(
+            self.scope("--round", "2"),
+            "9 of 12 questions registered; round 1 added 3, settled 3\n",
+        )
+        self.assertEqual(self.scope("--round", "1"), "9 of 12 questions registered\n")
+
+    def test_the_rounds_dir_names_the_rounds_that_were_shown(self):
+        rounds = self.tmp / "rounds"
+        rounds.mkdir()
+        for n in (1, 3, 5):
+            (rounds / f"round-{n}.md").write_bytes(b"Scope check: x\n")
+        self.assertEqual(
+            self.scope("--round", "5", "--rounds-dir", str(rounds)),
+            "9 of 12 questions registered; round 3 added 2, settled 1; "
+            "round 1 added 3, settled 3\n",
+        )
+
+    def test_a_round_below_one_is_refused(self):
+        rc, out, err = run_bytes(
+            "scope-check", "--ledger", str(self.ledger), "--limit", "12", "--round", "0"
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--round", err)
+
+
+class TestMeasures(unittest.TestCase):
+    """measures prints rounds, median lines per shown round, reopened rows and those reopened
+    after a lookup."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-measures-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.rounds = self.tmp / "slice"
+        self.rounds.mkdir()
+        self.ledger = self.rounds / "interview-checklist.md"
+        self.ledger.write_bytes(
+            (
+                SCOPE_LEDGER + "\n## Reopened answers\n\n"
+                "- Q2 | round 3 | was: yes | fact: the /discovery:research lookup found the "
+                "queue already persists jobs\n"
+                "- Q4 | round 3 | was: yes | fact: the user said the budget is four tries\n"
+            ).encode("utf-8")
+        )
+
+    def measures(self, level):
+        rc, out, err = run_bytes(
+            "measures",
+            "--ledger",
+            str(self.ledger),
+            "--rounds-dir",
+            str(self.rounds),
+            "--level",
+            level,
+        )
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").replace("\r\n", "\n")
+
+    def test_rounds_median_lines_and_reopened_rows(self):
+        for n, count in ((1, 4), (2, 10), (3, 7)):
+            text = "".join(f"line {k}\n" for k in range(count))
+            (self.rounds / f"round-{n}.md").write_bytes(text.encode("utf-8"))
+        (self.rounds / "round-notes.md").write_bytes(b"not a round\n")
+        self.assertEqual(
+            self.measures("full"),
+            "rounds=3 median_lines=7 reopened=2 after_lookup=1\n",
+        )
+
+    def test_median_lines_count_the_round_at_the_shown_level(self):
+        (self.rounds / "round-3.md").write_bytes(ROUND_FULL.read_bytes())
+        self.assertEqual(
+            self.measures("full"), "rounds=1 median_lines=51 reopened=2 after_lookup=1\n"
+        )
+        self.assertEqual(
+            self.measures("minimal"),
+            f"rounds=1 median_lines={len(MINIMAL)} reopened=2 after_lookup=1\n",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,17 @@
         "auto"
       ]
     },
+    "question_detail": {
+      "type": "string",
+      "title": "Interview question detail",
+      "description": "How much of each saved question /planning:interview prints: standard (default: drops Origin, Basis, Checked against and the source quote), full (the whole block) or minimal (the answer lines and a count of alternatives). The saved round file always holds the full block. A session request overrides it there; a repository's planning.yaml overrides this value.",
+      "default": "standard",
+      "options": [
+        "full",
+        "standard",
+        "minimal"
+      ]
+    },
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",

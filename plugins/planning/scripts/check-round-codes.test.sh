@@ -228,6 +228,23 @@ else
   fail "a named problem id passes ($out)"
 fi
 
+cat >"$TMP/fixture-ledger.md" <<'MD'
+## Open-question register
+
+- Q4 | answered | round 1 | One write per job? | yes
+- Q10 | open | round 3 | Audit a failed retry? |
+- Q11 | open | round 3 | Who reads the entries? | kind:: discovery
+- Q12 | open | round 3 | Which queue? |
+- Q13 | open | round 3 | Which store? |
+MD
+fixture="$SCRIPT_DIR/../surface/tests/fixtures/round-file/round-full.md"
+if out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$fixture" 2>&1)" &&
+  grep -q 'codes=5 bare=0 status=ok' <<<"$out"; then
+  pass "the shared round fixture names every code"
+else
+  fail "the shared round fixture names every code ($out)"
+fi
+
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
   exit 1

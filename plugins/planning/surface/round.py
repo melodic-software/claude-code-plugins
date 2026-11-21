@@ -52,6 +52,11 @@ ops, and supersede and resolve read their text from a file.
                   `## Reopened answers`, and add `recheck:: Q<N>` to every row whose `depends::`
                   reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
+  show            print a saved round file at --level full (byte for byte), standard or minimal
+  scope-check     print the counts half of a round header's Scope check: line from --ledger F
+  measures        print rounds, median lines per shown round, reopened rows and those after a
+                  lookup, from --ledger F and --rounds-dir D (show, scope-check and measures need no
+                  data dir)
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
@@ -2936,6 +2941,195 @@ def cmd_next_id(d, a):
     print("\n".join(f"Q{top + k}" for k in range(1, a.count + 1)))
 
 
+LEVELS = ("full", "standard", "minimal")
+ROUND_LABELS = (
+    "My recommendation",
+    "Strong answer",
+    "Withheld",
+    "Discovery",
+    "Second view",
+    "Departs from",
+    "Flips if",
+    "Commits you to",
+    "Checked against",
+    "Alternatives",
+    "Context",
+    "Source",
+    "Origin",
+    "Basis",
+)
+ROUND_LABEL = re.compile(
+    rf"^[^\x00-\x7f]*\s*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
+)
+QUESTION_LINE = re.compile(r"^[^A-Za-z0-9]*(Q[0-9]+)(?:[:)]|\.(?![A-Za-z0-9]))")
+ROUND_FENCE = re.compile(r"^\s*(```|~~~)")
+DROPPED = {
+    "full": (),
+    "standard": ("Origin", "Basis", "Checked against"),
+    "minimal": ("Origin", "Basis", "Checked against", "Context", "Source"),
+}
+MD_LINK = re.compile(r"\[[^\]]*\]\([^)\s]+\)|<?https?://[^\s)>]+>?")
+ROUND_FILE = re.compile(r"^round-([1-9][0-9]*)\.md$")
+SETTLED = ("answered", "deferred", "withdrawn", "blocked")
+REOPENED_ENTRY = re.compile(
+    r"^- Q[1-9][0-9]* \| round [1-9][0-9]* \| was: .* \| fact: (.*)$"
+)
+LOOKUP = re.compile(r"/[a-z0-9-]+:[a-z0-9-]+|\blookup\b", re.IGNORECASE)
+
+
+def round_segments(lines):
+    """[(label, qid, lines)] of a round file's lines: the header (label "header"), then per
+    question its title, each labelled field with the lines that continue it up to the next blank
+    line or label, and each blank or other line on its own. Fenced lines stay in their segment."""
+    segs, qid, fenced = [["header", None, []]], None, False
+    for line in lines:
+        bare = line.rstrip("\r\n")
+        if fenced or ROUND_FENCE.match(bare):
+            fenced = fenced != bool(ROUND_FENCE.match(bare))
+            segs[-1][2].append(line)
+            continue
+        q = QUESTION_LINE.match(bare)
+        label = ROUND_LABEL.match(bare)
+        if q:
+            qid = q.group(1)
+            segs.append(["title", qid, [line]])
+        elif segs[-1][0] == "header":
+            segs[-1][2].append(line)
+        elif not bare.strip():
+            segs.append(["blank", qid, [line]])
+        elif label:
+            segs.append([label.group(1), qid, [line]])
+        elif segs[-1][0] == "blank":
+            segs.append(["text", qid, [line]])
+        else:
+            segs[-1][2].append(line)
+    return segs
+
+
+def eol_of(line):
+    return line[len(line.rstrip("\r\n")) :]
+
+
+def render_round(text, level):
+    """The round file `text` at `level`: full is the text itself; standard drops Origin:,
+    Basis:, Checked against: and the Source: quote's body (keeping its links) and puts each
+    alternative on one line; minimal also drops Context: and Source: and replaces the
+    alternatives with their count and `say "more Q<N>"`. The header, every other line and the
+    blank lines are kept, a run of blanks a dropped field leaves collapsed to one."""
+    if level == "full":
+        return text
+    out = []
+    for label, qid, seg in round_segments(text.splitlines(keepends=True)):
+        eol = eol_of(seg[0])
+        if label in DROPPED[level]:
+            continue
+        if label == "Source":
+            links = MD_LINK.findall("".join(seg))
+            seg = [f"Source: {', '.join(links)}{eol}"] if links else []
+        elif label == "Alternatives":
+            items = []
+            for line in seg[1:]:
+                if line[:1].isspace() and items:
+                    items[-1] += " " + line.strip()
+                else:
+                    items.append(line.rstrip("\r\n"))
+            if level == "minimal":
+                seg = [f'Alternatives: {len(items)} (say "more {qid}"){eol}']
+            else:
+                seg = [seg[0], *(item + eol for item in items)]
+        for line in seg:
+            if not line.strip() and out and not out[-1].strip():
+                continue
+            out.append(line)
+    return "".join(out)
+
+
+def read_round(path):
+    try:
+        return Path(path).read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        sys.exit(f"refused: cannot read round file {path}: {e}")
+
+
+def write_raw(text):
+    sys.stdout.flush()
+    sys.stdout.buffer.write(text.encode("utf-8"))
+    sys.stdout.buffer.flush()
+
+
+def cmd_show(d, a):
+    write_raw(render_round(read_round(a.round_file), a.level))
+
+
+def shown_rounds(rounds_dir):
+    """{round number: path} of the round-<N>.md files in `rounds_dir`."""
+    try:
+        names = os.listdir(rounds_dir)
+    except OSError as e:
+        sys.exit(f"refused: cannot read --rounds-dir {rounds_dir}: {e}")
+    return {
+        int(m.group(1)): Path(rounds_dir) / name
+        for name in names
+        if (m := ROUND_FILE.match(name))
+    }
+
+
+def cmd_scope_check(d, a):
+    if a.round < 1:
+        sys.exit(f"refused: --round must be 1 or more, not {a.round}")
+    if a.limit < 0:
+        sys.exit(f"refused: --limit must be 0 or more, not {a.limit}")
+    text = read_input(a.ledger, "ledger")
+    exporters.check_ledger(text, a.ledger)
+    rows = exporters.parse_register(text)
+    if a.rounds_dir:
+        earlier = sorted((n for n in shown_rounds(a.rounds_dir) if n < a.round), reverse=True)
+    else:
+        earlier = range(a.round - 1, 0, -1)
+    parts = [f"{len(rows)} of {a.limit} questions registered"]
+    for n in list(earlier)[:2]:
+        mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
+        settled = sum(status in SETTLED for status in mine)
+        parts.append(f"round {n} added {len(mine)}, settled {settled}")
+    print("; ".join(parts))
+
+
+def reopened_facts(text):
+    """The fact of each `- Q<N> | round <N> | was: ... | fact: ...` entry under the ledger's
+    `## Reopened answers` heading."""
+    bare = text.splitlines()
+    heads = exporters.headings(bare)
+    facts = []
+    for h, _, title in heads:
+        if title == "reopened answers":
+            start, end = exporters.section_span(heads, h, len(bare))
+            facts += [m.group(1) for x in bare[start + 1 : end] if (m := REOPENED_ENTRY.match(x))]
+    return facts
+
+
+def cmd_measures(d, a):
+    text = read_input(a.ledger, "ledger")
+    exporters.check_ledger(text, a.ledger)
+    counts = sorted(
+        len(render_round(read_round(path), a.level).splitlines())
+        for path in shown_rounds(a.rounds_dir).values()
+    )
+    mid = len(counts) // 2
+    if not counts:
+        median = "0"
+    elif len(counts) % 2:
+        median = str(counts[mid])
+    else:
+        total = counts[mid - 1] + counts[mid]
+        median = str(total // 2) if total % 2 == 0 else f"{total / 2:.1f}"
+    facts = reopened_facts(text)
+    after = sum(bool(LOOKUP.search(f)) for f in facts)
+    print(
+        f"rounds={len(counts)} median_lines={median} reopened={len(facts)} "
+        f"after_lookup={after}"
+    )
+
+
 def cmd_import_ledger(d, a):
     text = read_input(a.ledger, "ledger")
     with sidecar_lock(d):
@@ -3447,6 +3641,52 @@ def main(argv=None):
     )
     s.set_defaults(fn=cmd_next_id)
 
+    s = sub.add_parser(
+        "show",
+        help="print a saved round file at a detail level; full prints it byte for byte (no data "
+        "dir needed)",
+    )
+    s.add_argument("--level", required=True, choices=LEVELS, help="detail level")
+    s.add_argument("round_file", metavar="ROUND", help="the saved round-<N>.md")
+    s.set_defaults(fn=cmd_show)
+
+    s = sub.add_parser(
+        "scope-check",
+        help="print the counts half of the round header's Scope check: line: every register row "
+        "against --limit, then for each of the two rounds before --round the rows whose round "
+        "cell is that round and how many of them are answered, deferred, withdrawn or blocked "
+        "(no data dir needed)",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument("--round", type=int, required=True, help="the round being shown")
+    s.add_argument(
+        "--limit",
+        type=int,
+        required=True,
+        help="the resolved wayfind_suggest_questions value",
+    )
+    s.add_argument(
+        "--rounds-dir",
+        dest="rounds_dir",
+        help="count the two highest rounds below --round that have a round-<N>.md here, "
+        "instead of the two numbers below it",
+    )
+    s.set_defaults(fn=cmd_scope_check)
+
+    s = sub.add_parser(
+        "measures",
+        help="print rounds (round-<N>.md files in --rounds-dir), the median lines of those "
+        "rounds shown at --level, the entries under the ledger's '## Reopened answers', and "
+        "those whose fact names a lookup (a /<plugin>:<skill> or the word lookup); no data dir "
+        "needed",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "--rounds-dir", dest="rounds_dir", required=True, help="dir holding round-<N>.md"
+    )
+    s.add_argument("--level", required=True, choices=LEVELS, help="detail level")
+    s.set_defaults(fn=cmd_measures)
+
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_import_ledger)
@@ -3597,7 +3837,14 @@ def main(argv=None):
         )
     if extra:
         p.error(f"unrecognized arguments: {' '.join(extra)}")
-    if a.fn in (cmd_supersede, cmd_resolve, cmd_reopen) or (
+    if a.fn in (
+        cmd_supersede,
+        cmd_resolve,
+        cmd_reopen,
+        cmd_show,
+        cmd_scope_check,
+        cmd_measures,
+    ) or (
         a.fn is cmd_next_id and not a.dir
     ):
         a.fn(None, a)
