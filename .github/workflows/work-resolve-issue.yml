@@ -241,7 +241,8 @@ jobs:
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
       skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
-      skip-key: ${{ steps.credit.outcome == 'success' && steps.credit.outputs.skip-key || '' }}
+      skip-key: ${{ steps.credit.outcome != 'skipped' && vars.CLAUDE_API_KEYS_DISABLED == 'true' && 'true' || steps.credit.outcome == 'success' && steps.credit.outputs.skip-key || '' }}
+      key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -667,7 +668,7 @@ jobs:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
-      fallback: ${{ needs.resolve-issue.result == 'skipped' && 'credit-stop' || 'handoff' }}
+      fallback: ${{ needs.resolve-issue.result == 'skipped' && (needs.pick-slot.outputs.key-off == 'true' && 'no-key' || 'credit-stop') || 'handoff' }}
       fallback-ready: ${{ needs.resolve-issue-handoff.outputs.fallback-ready }}
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip

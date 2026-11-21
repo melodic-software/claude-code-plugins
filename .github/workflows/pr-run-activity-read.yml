@@ -326,7 +326,7 @@ jobs:
       # resolve-config.mjs, whose packages only the resolve-config action
       # installs; this job does not run it.
       - name: Install resolve-config's packages
-        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop')
+        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key')
         timeout-minutes: 5
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
@@ -338,8 +338,8 @@ jobs:
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
           # A first call that starts new work also stops on a low GITHUB_TOKEN
           # budget; a handed-off or fallback leg checks the switches only.
-          budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
-          project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && 'true' || 'false' }}
+          budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && 'true' || 'false' }}
+          project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && 'true' || 'false' }}
 
       # work-unblock's sweep reads this step's name and conclusion from the
       # job listing (label-unblocked.mjs BUDGET_STEP): a stop on the
@@ -488,7 +488,7 @@ jobs:
       # first handed off.
       - name: Re-check the issue's blockers in the slot
         id: recheck-blockers
-        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop') && steps.lease.outputs.lease == 'held'
+        if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && steps.lease.outputs.lease == 'held'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -647,13 +647,13 @@ jobs:
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
-          # a fallback only as handoff, credit-stop or fallback; a later
+          # a fallback only as handoff, credit-stop, no-key or fallback; a later
           # assert step holds it to patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
-              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != credit-stop ] && [ "$FALLBACK" != fallback ]; }; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop or fallback"
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != credit-stop ] && [ "$FALLBACK" != no-key ] && [ "$FALLBACK" != fallback ]; }; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop, no-key or fallback"
               exit 1
             fi
           fi
@@ -1893,7 +1893,7 @@ jobs:
           lane: >-
             ${{ inputs.issue-number != '' && inputs.fallback == 'fallback'
             && format('{0} (token {1} handed off)', inputs.lane, steps.launch.outputs.token-name)
-            || inputs.issue-number != '' && (inputs.fallback == 'handoff' || inputs.fallback == 'credit-stop')
+            || inputs.issue-number != '' && (inputs.fallback == 'handoff' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key')
             && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
             || inputs.issue-number != '' && inputs.lane
             || inputs.fallback == 'credit-stop'
