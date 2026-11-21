@@ -84,7 +84,7 @@ An accepted or hedged decision with an unconfirmed commitment exports `open`, ke
 note and commitments; import restores that decision with those commitments unconfirmed.
 A superseded-by-plan row keeps that status under a defer, whose answer carries it. A deferred row
 seeded from a ledger keeps that ledger's arbiter (ARBITER_USER when its text says USER-RESERVED,
-else ARBITER_DESIGN when it says /planning:design, else ARBITER_PLAN); a deferral made on the page
+else ARBITER_DESIGN when it names DESIGN_ROUTE, else ARBITER_PLAN); a deferral made on the page
 is ARBITER_USER. A held row keeps a seeded superseded-by-plan status and a seeded deferral. It
 does not keep a seeded blocked status (a held row reads open, so it comes back deferred, still
 USER-RESERVED), nor the seeded text of a row
@@ -128,6 +128,7 @@ from interview_server import (
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 ARBITER_DESIGN = "**arbiter: /planning:design**"
+DESIGN_ROUTE = ARBITER_DESIGN.removeprefix("**arbiter: ").removesuffix("**")
 SEED_NOTE = "Seeded from ledger"
 # The note an accept made by an accept-audit event exports with (schema/event.schema.json).
 PENDING_NOTE = "pending agent validation"
@@ -695,7 +696,7 @@ def register(doc, resp, extra=(), gaps=False):
                 "readable": shown,
                 "note": note,
                 "reserved": reserved,
-                "design": "/planning:design" in res,
+                "design": DESIGN_ROUTE in res,
                 "confirmed": [c for ok, c in briefed if ok],
                 "unconfirmed": [c for ok, c in briefed if not ok],
                 # Accept and hedged carry the recommendation's commitments; an own answer or an
@@ -1053,7 +1054,7 @@ def restated_deferred(sections, rows):
     """The restated `deferred`, then `planningOwned`, bullets as Deferred questions entries, each
     as written (the restatement leads one with its source Q<N> where it has one) and tagged
     ARBITER_PLAN, or ARBITER_USER when its lead Q<N> is a user-reserved row or it says
-    USER-RESERVED itself, else ARBITER_DESIGN when that row or the bullet says /planning:design.
+    USER-RESERVED itself, else ARBITER_DESIGN when that row or the bullet names DESIGN_ROUTE.
     A bullet that only says `none` is no entry."""
     reserved = {r["n"] for r in rows if r["reserved"]}
     design = {r["n"] for r in rows if r.get("design")}
@@ -1064,7 +1065,7 @@ def restated_deferred(sections, rows):
         lead = LEAD_QN.match(b[2:])
         n = lead and f"Q{lead.group(1)}"
         user = n in reserved or "USER-RESERVED" in b
-        out.append(f"{b}; {arbiter_for(user, n in design or '/planning:design' in b)}")
+        out.append(f"{b}; {arbiter_for(user, n in design or DESIGN_ROUTE in b)}")
     return out
 
 
@@ -1229,7 +1230,7 @@ def ledger_row(n, qid, status, title, res):
         "readable": body,
         "note": note,
         "reserved": "USER-RESERVED" in body,
-        "design": "/planning:design" in body,
+        "design": DESIGN_ROUTE in body,
         "confirmed": [],
         "unconfirmed": [],
         "carries": False,
