@@ -45,6 +45,8 @@ TEMPLATE="$SCRIPT_DIR/../templates/docs-naming.json"
 # shellcheck source=../../../lib/layer-yaml.sh
 . "$SCRIPT_DIR/../../../lib/layer-yaml.sh"
 LEGACY_REL=".claude/docs-naming.json"
+# The resolver's additive class: a personal layer appends entries to these.
+ADDITIVE_KEYS='["roots","exempt_basenames","exempt_paths","exempt_extensions","tiers","sweep_exclude","sweep_exclude_sites"]'
 
 die() {
   printf 'setup-apply: %s\n' "$1" >&2
@@ -129,21 +131,36 @@ if [[ "$WANT_USER_VALUE" -eq 1 ]]; then
     found=1
     keys="$(jqr -c -e '.file_names // {} | if type == "object" then . else error("file_names is not an object") end' "$old" 2>/dev/null)" ||
       die "the old user file is not valid JSON with a file_names object: $old"
-    added="$(jqr -r -n --argjson v "$value" --argjson o "$keys" '[$o | keys_unsorted[] | select(. as $k | $v | has($k) | not)] | join(", ")')" ||
+    # A key the option lacks is copied whole. For an additive key both set as a
+    # list, the old entries the option's list lacks are appended, as the
+    # resolver's append_new does; a nearest-wins key the option sets keeps its value.
+    added="$(jqr -r -n --argjson v "$value" --argjson o "$keys" --argjson add "$ADDITIVE_KEYS" '
+      ($o | keys_unsorted) as $ok
+      | [$ok[] | select(. as $k | $v | has($k) | not)] as $new
+      | [$ok[] | select(. as $k
+          | ($add | index($k)) != null and ($v[$k] | type) == "array" and ($o[$k] | type) == "array"
+          and (([$o[$k][] | tojson] - [$v[$k][] | tojson]) | length) > 0)] as $lists
+      | [(if ($new | length) > 0 then "adds " + ($new | join(", ")) else empty end),
+         (if ($lists | length) > 0 then "adds entries to " + ($lists | join(", ")) else empty end)]
+      | join("; ")')" ||
       die "cannot compare $old with the option"
-    value="$(jqr -c -n --argjson v "$value" --argjson o "$keys" '$o + $v')" || die "cannot merge $old"
+    value="$(jqr -c -n --argjson v "$value" --argjson o "$keys" --argjson add "$ADDITIVE_KEYS" '
+      reduce $add[] as $k ($o + $v;
+        if ($v[$k] | type) == "array" and ($o[$k] | type) == "array" then
+          .[$k] = reduce $o[$k][] as $x ($v[$k]; if (map(tojson) | index($x | tojson)) != null then . else . + [$x] end)
+        else . end)')" || die "cannot merge $old"
     if [[ -n "$added" ]]; then
       added_any=1
-      printf 'from: %s adds %s%s\n' "$old" "$added" "$unread_note"
+      printf 'from: %s %s%s\n' "$old" "$added" "$unread_note"
     else
-      printf 'from: %s adds no key the option lacks\n' "$old"
+      printf 'from: %s adds no key or list entry the option lacks\n' "$old"
     fi
   done
   if [[ "$found" -eq 0 ]]; then
     printf 'nothing to copy: no old user file under %s/.claude\n' "$HOME_DIR"
     exit 0
   fi
-  [[ "$added_any" -eq 1 ]] || printf 'already copied: the file_names option sets every key the old files set\n'
+  [[ "$added_any" -eq 1 ]] || printf 'already copied: the file_names option carries every key and list entry the old files set\n'
   printf 'value: %s\n' "$value"
   printf 'values.json: %s\n' "$(jqr -c -n --arg v "$value" '{file_names: $v}')"
   exit 0

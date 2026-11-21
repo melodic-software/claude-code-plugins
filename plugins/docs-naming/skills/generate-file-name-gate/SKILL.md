@@ -42,9 +42,12 @@ ${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root <repo> --user-config '<option>' 
 ```
 
 - `--user-config` takes this plugin's `file_names` option,
-  `${user_config.file_names}`, as one single-quoted argument (escape any single
-  quote in it). A Bash command never sees the option otherwise, and an empty
-  value or the literal `${user_config.…}` placeholder means unset.
+  `${user_config.file_names}`, on every call, as one single-quoted argument
+  (escape any single quote in it). An empty value or the literal
+  `${user_config.…}` placeholder means unset. **Pointer**: when checking where a
+  saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 - `--out-dir` places the pair somewhere other than `scripts/`. The emitted
   checker resolves the repository from its own location, so any depth works.
 - `--rule` also writes `.claude/rules/file-names.md`.

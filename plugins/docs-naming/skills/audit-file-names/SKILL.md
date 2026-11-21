@@ -79,10 +79,13 @@ Three scripts produce the facts. Run them in order and build the plan on what
 they emit.
 
 The inventory and the sweep each take `--user-config` with this plugin's
-`file_names` option, `${user_config.file_names}`, as one single-quoted argument
-(escape any single quote in it). A Bash command never sees the option
-otherwise, and an empty value or the literal `${user_config.…}` placeholder
-means unset.
+`file_names` option, `${user_config.file_names}`, on every call, as one
+single-quoted argument (escape any single quote in it). An empty value or the
+literal `${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 
 1. **Inventory** the tree:
 

@@ -116,9 +116,12 @@ surfaced with the sites it named, not folded into a total.
 
 Every `apply-rename.sh` call, the recipe's included, takes `--user-config` with
 this plugin's `file_names` option, `${user_config.file_names}`, as one
-single-quoted argument (escape any single quote in it). A Bash command never
-sees the option otherwise, and an empty value or the literal
-`${user_config.…}` placeholder means unset.
+single-quoted argument (escape any single quote in it). An empty value or the
+literal `${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 
 When a run of several findings ends, run the closing pass once:
 

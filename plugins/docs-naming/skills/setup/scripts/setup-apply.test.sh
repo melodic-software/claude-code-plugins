@@ -205,8 +205,13 @@ assert_eq "user value: the old file is left in place" "$before_new" "$(cat "$uho
 out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$"}')"
 assert_eq "user value: the option's own key wins" "^mine$" "$(sed -n 's/^value: //p' <<<"$out" | jq -r '.regex')"
 assert_contains "user value: a key the option sets is not listed" "$out" "from: $uhome/.claude/docs-naming.json adds exempt_basenames"
-out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$", "exempt_basenames": [], "sweep_exclude": []}')"
+out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$", "exempt_basenames": ["A.md"], "sweep_exclude": []}')"
+assert_contains "user value: an old list entry the option's list lacks is listed" "$out" "from: $uhome/.claude/docs-naming.json adds entries to exempt_basenames"
+assert_eq "user value: the old list entry is appended after the option's own" '["A.md","OLD.md"]' "$(sed -n 's/^value: //p' <<<"$out" | jq -c '.exempt_basenames')"
+assert_eq "user value: a list missing an old entry is not called copied" "0" "$(grep -c 'already copied' <<<"$out")"
+out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$", "exempt_basenames": ["A.md", "OLD.md"], "sweep_exclude": ["docs/r/**"]}')"
 assert_contains "user value: nothing left to copy is said" "$out" "already copied"
+assert_eq "user value: an entry already carried is not repeated" '["A.md","OLD.md"]' "$(sed -n 's/^value: //p' <<<"$out" | jq -c '.exempt_basenames')"
 assert_eq "user value: an option that is not one object exits 2" "2" "$(
   bash "$SUT" --user-config-value --home "$uhome" --user-config '[1]' >/dev/null 2>&1
   printf '%s' "$?"

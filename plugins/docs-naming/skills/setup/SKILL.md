@@ -27,9 +27,13 @@ option is unset or invalid (the first that exists), each run warns about them,
 and `apply` previews copying their keys into the option.
 
 The option's current value is `${user_config.file_names}`. Pass it to both
-scripts as `--user-config '<that value>'`, one single-quoted argument (escape
-any single quote in it): a Bash command never sees the option otherwise. An
-empty value or the literal `${user_config.…}` placeholder means unset.
+scripts as `--user-config '<that value>'` on every call, one single-quoted
+argument (escape any single quote in it). An empty value or the literal
+`${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 
 This skill is the check-centric setup for that surface: `check` inspects and
 verifies, `apply` persists, and neither installs anything. Keys, defaults, layer
@@ -144,8 +148,10 @@ This plugin still reads, or reports as retired, the `.claude/` paths named here;
    ```
 
    It writes nothing. It prints a `from:` line per old file naming the keys it
-   would add (only keys the option does not already set; `docs-naming.json`
-   before `docs-hygiene.json`), the merged `value:`, and a `values.json:` line.
+   would add (keys the option does not already set, and the additive keys whose
+   list in the option lacks some of the old file's entries, which it appends;
+   `docs-naming.json` before `docs-hygiene.json`), the merged `value:`, and a
+   `values.json:` line.
    Show that preview and ask whether to copy. On a yes, the operator saves it
    through Claude Code's native flow, `/plugin configure docs-naming@<marketplace>`
    interactively; this skill never writes user settings or `pluginConfigs`, and
