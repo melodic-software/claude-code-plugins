@@ -78,7 +78,6 @@ PAGE_CSP = (
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
     "img-src data:; font-src data:; base-uri 'none'; form-action 'none'"
 )
-# Anchored on the frame's tag, so the attribute quoted in host.html's header comment never matches.
 FRAME = b'<iframe id="page"'
 SANDBOX = FRAME + b' sandbox="allow-scripts"'
 PAGE_CSP_META = (
