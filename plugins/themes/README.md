@@ -74,8 +74,8 @@ bottom-left corner of the front of the dresser.
   context fills a faint band rolls down the glass. `/bedroom signal off` stops both.
 - **The hallway.** The gap beside the door looks into a hall with a ceiling light. With it off, a
   faint light spills low in the gap, fainter late at night. About once an hour someone passes the
-  door: with the hall light on you see them walk across the gap, head and shoulders and then
-  their legs in stride, and their legs cut the light on the floor. Now and then the hall light
+  door: with the hall light on, the light in the gap and on the floor dims as they go by, the
+  dimming moving across the gap the way they walk. Now and then the hall light
   comes on for three minutes, lighting the whole gap, brightest at the top, and laying a wedge of
   light on the floor, with a thin line of light at the door's edge and under it.
   `/bedroom hall pass` and `/bedroom hall light` show one now (the light turns off again if it is

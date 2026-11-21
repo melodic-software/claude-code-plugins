@@ -143,28 +143,10 @@ function win_land(p: vec2, top: number, rn: number): vec4 {
   }
   return vec4(vec4(near, far, (1 - max(near, far)) * (1 - pole), pole))
 }
-// The distance from p to the segment a to b.
-function hw_seg(p: vec2, a: vec2, b: vec2): number {
-  let ab = vec2(b - a)
-  return length(p - a - ab * clamp(dot(p - a, ab) / dot(ab, ab), 0, 1))
-}
-// A walker seen side on, facing +x, in room units: q.x along the walk from the body's middle, q.y above the floor; st
-// the stride, how far each foot is from the middle (the arms swing against the legs). 1 inside, 0 outside, with soft
-// edges, since the walker is beyond the gap and out of focus. The head's top is at 541 (the gap's at 622).
-function hw_body(q: vec2, st: number): number {
-  let d = (length((q - vec2(5, 505)) / vec2(30, 36)) - 1) * 30
-  d = min(d, max(abs(q.x - 2) - 11, abs(q.y - 462) - 18))
-  let tq = vec2(abs(q - vec2(0, 380)) - vec2(22, 60))
-  let torso = length(max(tq, vec2(0))) + min(max(tq.x, tq.y), 0) - 18
-  let lh = clamp(q.y / 300, 0, 1)
-  let lc = st * (1 - lh)
-  let legs = max(min(abs(q.x - lc), abs(q.x + lc)) - mix(9, 25, lh * lh), q.y - 320)
-  legs = min(legs, min(hw_seg(q, vec2(lc - 6, 6), vec2(lc + 20, 4)), hw_seg(q, vec2(-lc - 6, 6), vec2(-lc + 20, 4))) - 6)
-  let k = clamp(0.5 + 0.5 * (legs - torso) / 20, 0, 1)
-  d = min(d, mix(legs, torso, k) - 20 * k * (1 - k))
-  let sa = 0.7 * st
-  d = min(d, min(hw_seg(q, vec2(0, 440), vec2(-sa, 300)), hw_seg(q, vec2(0, 440), vec2(sa, 300))) - 10)
-  return 1 - smoothstep(-4, 4, d)
+// How much of the light a passer-by holds back at x, room units along the hall from where they are: none beyond 75
+// units, all from -25 to 25, a smooth ramp between, so there is no edge to see.
+function hw_hold(x: number): number {
+  return smoothstep(-75, -25, x) * (1 - smoothstep(25, 75, x))
 }
 function pic(uv: vec2): vec4 {
   let now_tv = state.at(vec2(0, 0)).x
@@ -355,11 +337,14 @@ let hw_src = 0
 let hw_don = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
 let hw_go = step(0.0001, state.at(vec2(15, 0)).y)
 let hw_b = (state.at(vec2(15, 0)).z - 0.5) * 625
-let hw_occ = hw_go * hw_body(vec2((at.x - 1460.5) * 1.3 - hw_b, 856 - at.y), 36 * sin(hw_b * 0.0175))
-let hw_cast = 1 - hs * (0.7 * hw_occ + 0.2 * hw_go * exp(-hw_b * hw_b / 50000))
+let hw_h = 856 - at.y
+let hw_low = 1 - smoothstep(0, 140, hw_h)
+let hw_dim = hw_go * hw_hold((at.x - 1460.5) * 1.3 - hw_b) * (0.52 * mix(0.85, 1, smoothstep(0, 150, hw_h)) * (1 - smoothstep(380, 640, hw_h)) + 0.08 * hw_low * cos(hw_b * 0.06))
+let hw_lead = 0.15 * hw_go * exp(-hw_b * hw_b / 30000)
+let hw_cast = (1 - hs * hw_dim) * (1 - hs * hw_lead)
 dc = vec3((dc + vec3(0.34, 0.22, 0.10) * (hw_don * hs * (1 - 0.6 * smoothstep(0, 1, abs((at.y - 234) / 622 - hw_src))))) * hw_cast)
 let hw_edge = smoothstep(1469.6, 1470.6, at.x) * (1 - smoothstep(1470.8, 1472.4, at.x)) * smoothstep(250, 450, at.y)
-dc = vec3(dc + vec3(0.07, 0.042, 0.015) * (hw_don * 1.5 * (1 - 0.7 * hw_occ) * hw_edge))
+dc = vec3(dc + vec3(0.07, 0.042, 0.015) * (hw_don * 1.5 * (1 - hw_dim) * (1 - hw_lead) * hw_edge))
   }
   }
   }
@@ -373,12 +358,14 @@ let hw_fx = at.x - 1460 + 0.5 * fy
 let hw_fw = 4 + 0.45 * fy
 let hw_fgo = step(0.0001, state.at(vec2(15, 0)).y)
 let hw_fb = (state.at(vec2(15, 0)).z - 0.5) * 625
-let hw_fo = hw_fgo * hw_body(vec2(hw_fx / hw_fw * 13.6 - hw_fb, 30 + 2.5 * fy), 36 * sin(hw_fb * 0.0175))
-dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / hw_fw, 0, 1) * (1 - smoothstep(860, 935, at.y)) * (1 - 0.75 * hw_fo - 0.2 * hw_fgo * exp(-hw_fb * hw_fb / 50000))))
+let hw_flead = 1 - 0.15 * hw_fgo * exp(-hw_fb * hw_fb / 30000)
+let hw_fdim = (1 - 0.47 * hw_fgo * hw_hold(hw_fx / hw_fw * 13.6 - hw_fb)) * hw_flead
+dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / hw_fw, 0, 1) * (1 - smoothstep(860, 935, at.y)) * hw_fdim))
 let hw_ux = at.x - 1478.6
 let hw_uy = at.y - 860.2 + max(-0.42 * hw_ux, 0.057 * hw_ux)
 let hw_under = smoothstep(-8.6, -6.6, hw_ux) * (1 - smoothstep(4, 30, hw_ux)) * (clamp(1 - abs(hw_uy) / 2.2, 0, 1) + 0.35 * smoothstep(-1, 1.5, hw_uy) * (1 - smoothstep(1.5, 10, hw_uy)))
-dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * 1.5 * (1 - 0.6 * state.at(vec2(15, 0)).y) * hw_under))
+let hw_udim = (1 - 0.47 * hw_fgo * hw_hold((at.x - 1460.5) * 1.3 - hw_fb)) * hw_flead
+dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * 1.5 * hw_udim * hw_under))
   }
   let vr = vec2((at - vec2(800, 500)) * vec2(0.00104, 0.00163))
   m = m * (1 - 0.6 * clamp(dot(vr, vr) - 0.3, 0, 0.75))
