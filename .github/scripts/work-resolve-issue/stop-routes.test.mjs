@@ -265,16 +265,25 @@ test("an ending reason that names a token or credential only in a technical sens
     "host-only: it requires the token-spending admission and dispatch workflows",
     "host-only: the `merge` job, whose token has no `statuses: read`, cannot read it",
     "host-only: the token's permissions do not cover the workflow write",
+    "manual-external: this lane has no gh and no token.",
+    "host-only: the lane has no Azure token",
+    "host-only: this lane has no gh or no secret",
   ]) {
-    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(runCode(reason), reason.split(":")[0], reason);
     assert.equal(securityWord(reason), "", reason);
   }
+  assert.equal(runCode("the token leaked into the log"), "security-risk");
   // A secret value, an exposure or a credential path still holds beside a technical sense.
   for (const reason of [
     "host-only: the subscription token was pasted into the log",
     "host-only: a write token leaked in the fixture",
     "host-only: the per-token pricing note sits beside an exposed API key",
     "host-only: has no credentials, and the secret is in ~/.aws/credentials",
+    "manual-external: this lane has no gh and no token; the token leaked into the log",
+    "manual-external: the token leaked into the log",
+    "host-only: the lane has no token and the old token sits in the issue body",
+    "host-only: the step has no masked secret",
+    "host-only: the job had no masked credentials",
     "host-only: the token is ghp_ in the commit",
     "host-only: the OAuth token is in the public run log",
     "host-only: the session token sits in the issue body",
