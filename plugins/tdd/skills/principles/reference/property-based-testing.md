@@ -38,9 +38,9 @@ Generating many inputs does not repair it: every input passes for the same reaso
 | Round-trip | `decode(encode(x)) == x` for a codec, parser and printer, serializer | MEDIUM |
 | Algebraic | Idempotence, commutativity and similar laws | MEDIUM |
 
-The two HIGH rows are each documented by several independent publishers. The two MEDIUM rows have
-fewer independent sources, so treat them as common practice rather than as an equally sourced
-catalog.
+The grades are the ones the 2026-10-06 research gave. Not every source it counted is listed in
+[Sources](#sources), so the list does not show the HIGH and MEDIUM split by itself. Treat the
+MEDIUM rows as common practice rather than as an equally sourced catalog.
 
 ## Properties Alongside Example Tests
 
