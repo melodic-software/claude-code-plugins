@@ -3219,6 +3219,8 @@ describe("unrunnable-rules.json", () => {
     assert.equal(first("Before/after triggers are recorded on Bedrock; the eval run is out of scope."), PAID_EVAL);
     assert.equal(first("A before-and-after eval-gated run on Bedrock is recorded; the eval run is not part of this work."), PAID_EVAL);
     assert.equal(first("The eval run is out of scope, but show no loss on Amazon Bedrock."), PAID_EVAL);
+    assert.equal(first("The before-and-after eval run is not part of this work, but run the full benchmark on Amazon Bedrock."), PAID_EVAL);
+    assert.equal(first("The before-and-after eval run on Vertex is not part of this work; the PR is held by eval-gated."), PAID_EVAL, "an exclusion never clears a billed eval");
     const result = decide(facts({ issue: doneWhen(line) }));
     assert.equal(result.hold, true);
     assert.equal(result.hostRun, undefined);
@@ -3331,6 +3333,8 @@ describe("unrunnable-rules.json", () => {
       [JSON.stringify({ rules: [{ kind: "k", match: "x" }] }), /rules\[0\] `unless` must be a pattern/],
       [JSON.stringify({ rules: [{ kind: "k", match: "(", unless: null }] }), /Invalid regular expression/],
       [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: "[" }] }), /Invalid regular expression/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: null, excluded: "" }] }), /rules\[0\] `excluded` must be a pattern/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: null, excluded: "[" }] }), /Invalid regular expression/],
     ]) {
       writeFileSync(path, text);
       assert.throws(() => unrunnableRulesOf(path), why, text);
