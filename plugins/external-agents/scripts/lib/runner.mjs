@@ -332,7 +332,7 @@ export async function review(opts) {
     for (const prefix of record.review.config_paths ?? []) {
       const hits = changed.filter((path) => path.startsWith(prefix)).length;
       if (!hits) continue;
-      const notice = `the reviewed change touches ${prefix} (${plural(hits, "file")}): ${record.product} configuration there, MCP servers included, runs outside the read-only sandbox`;
+      const notice = `the reviewed change touches ${prefix} (${plural(hits, "file")}): ${record.product} configuration there (hooks and MCP servers) runs outside the read-only sandbox`;
       state.notices.push(notice);
       state.announced.push(notice);
       ctx.warn(`notice: ${notice}\n`);

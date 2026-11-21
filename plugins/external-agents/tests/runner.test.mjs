@@ -427,7 +427,7 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     const w = world({ envelope: { status: "SUCCESS", response: "it is slow because", conversation_id: "conv-1" } });
     const got = await run(agy(w, { use: "investigate", prompt: "why is it slow?" }));
     const folder = join(w.dataDir, "jobs", "no-repo", got.job.id);
-    assert.deepEqual(cliArgs(got.job), ["--output-format", "json", "--settings", join(folder, "settings.json"), "--model", "m1", `-p=${preface}\n\nwhy is it slow?`]);
+    assert.deepEqual(cliArgs(got.job), ["--output-format", "json", "--disable-slash-commands", "--settings", join(folder, "settings.json"), "--model", "m1", `-p=${preface}\n\nwhy is it slow?`]);
     assert.deepEqual(JSON.parse(readFileSync(join(folder, "settings.json"), "utf8")), { agentMode: "", allowNonWorkspaceAccess: false });
     assert.equal(got.job.status, "ok");
     assert.equal(got.job.thread_id, "conv-1");
