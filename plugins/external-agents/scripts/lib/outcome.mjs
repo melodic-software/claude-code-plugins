@@ -48,7 +48,7 @@ function unavailable(record, text, now) {
     let resetAt = null;
     const stated = rule.reset_pattern && new RegExp(rule.reset_pattern).exec(text)?.[1];
     if (stated) {
-      const at = Date.parse(stated.replace(/(\d)(st|nd|rd|th)\b/g, "$1"));
+      const at = Date.parse(stated.replace(/(\d)(st|nd|rd|th)\b/g, "$1")); // spellchecker:disable-line
       if (Number.isFinite(at) && at > now) resetAt = new Date(at).toISOString();
     }
     return { class: rule.class, reset_at: resetAt };
