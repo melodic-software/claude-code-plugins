@@ -915,9 +915,11 @@ class PipelineConfig:
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
-    # one pull request at which it holds, never to merge unattended, whatever
-    # a later pass says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
-    # but a whole number of at least 1 is 1, so any earlier FAIL holds.
+    # one pull request at which it holds, never to merge unattended, when one
+    # that is not superseded stands at its head (`babysit_verify_evidence`,
+    # https://github.com/melodic-software/claude-code-plugins/issues/17646).
+    # Absent is `MAX_VERIFY_FAILS`; anything but a whole number of at least 1
+    # is 1, so any FAIL standing at the head caps.
     max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.verify-cap-attempts`: fresh attempts one issue gets after the
     # pr-merge lane closes its pull request at the FAIL cap or as too old

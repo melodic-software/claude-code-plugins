@@ -1480,13 +1480,13 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     DISPATCH_RECORD: path,
   };
   // A recorded head no open PR carries any more is dropped.
-  writeFileSync(path, JSON.stringify({ version: 6, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
+  writeFileSync(path, JSON.stringify({ version: 7, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
   const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "listed=true\nrecord-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 6, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 7, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "listed=true\n");
