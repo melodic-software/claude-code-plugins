@@ -71,49 +71,26 @@ TOKEN_KEYS = (
 )
 
 
-_GIT = ("git", "git -C *")
-_REMOTE_URL_FORMS = {"ls-remote": ("*://*", "*@*", "*:*"), "fetch": ("*://*", "*@*")}
-_GIT_EXEC_OVERRIDES = {
-    "ls-remote": ("*--upload-pack*", "*--exec*", "-u*", "* -u*"),
-    "fetch": ("*--upload-pack*", "*::*"),
-}
-NETWORK_DENY = (
-    "Bash(curl:*)",
-    "Bash(curl *)",
-    "Bash(wget:*)",
-    "Bash(wget *)",
-    *(
-        f"Bash({g} {cmd} {form})"
-        for g in _GIT
-        for cmd, forms in _REMOTE_URL_FORMS.items()
-        for form in forms
-    ),
-    *(
-        f"Bash({g} {cmd} {form})"
-        for g in _GIT
-        for cmd, forms in _GIT_EXEC_OVERRIDES.items()
-        for form in forms
-    ),
-    "Bash(git -C * -c *)",
-    *(f"Bash({g} remote {verb} *)" for g in _GIT for verb in ("add", "set-url")),
-    *(f"Bash({g} config *remote.*)" for g in _GIT),
-    "WebFetch",
-    "WebSearch",
-)
-REMOTE_REF_ALLOW = tuple(
-    f"Bash({g} {cmd}{tail})"
-    for g in _GIT
-    for cmd in ("ls-remote", "fetch")
-    for tail in ("", " *")
-)
+NETWORK_DENY = ("WebFetch", "WebSearch")
 
 
-def run_settings(plugin_configs: dict | None = None) -> dict:
+def run_settings(
+    plugin_configs: dict | None = None, writable: list[str] | tuple[str, ...] = ()
+) -> dict:
     """`--settings` for a real-setup run: the installed session-flow off, so only the copy
-    under test loads (probes.md P7), the network denied, and any option a case sets."""
+    under test loads (probes.md P7); every shell command in the OS sandbox with no network
+    host allowed and no unsandboxed retry, writable beyond the working directory only at
+    `writable`; the web tools denied; and any option a case sets."""
     doc: dict = {
         "enabledPlugins": {"session-flow@melodic-software": False},
-        "permissions": {"allow": list(REMOTE_REF_ALLOW), "deny": list(NETWORK_DENY)},
+        "sandbox": {
+            "enabled": True,
+            "autoAllowBashIfSandboxed": True,
+            "allowUnsandboxedCommands": False,
+            "network": {"allowedDomains": [], "strictAllowlist": True},
+            "filesystem": {"allowWrite": list(writable)},
+        },
+        "permissions": {"deny": list(NETWORK_DENY)},
     }
     if plugin_configs:
         doc["pluginConfigs"] = plugin_configs
@@ -1041,7 +1018,8 @@ def seed_run(
     (run_dir / "gh-calls.log").write_text("", encoding="utf-8")
     plugin_configs = case["seed"].get("plugin_configs")
     (run_dir / "settings.json").write_text(
-        json.dumps(run_settings(plugin_configs)), encoding="utf-8"
+        json.dumps(run_settings(plugin_configs, [str(run_dir), cfg.tmpdir])),
+        encoding="utf-8",
     )
     (run_dir / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
     sid = str(uuid.uuid4())

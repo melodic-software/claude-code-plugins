@@ -199,75 +199,24 @@ def test_codex_command_pins_the_model_and_stays_ephemeral():
     assert cmd[-1] == "resume now"
 
 
-def test_settings_disable_the_installed_plugin_and_deny_the_network():
+def test_settings_disable_the_installed_plugin_and_sandbox_the_network():
     doc = resume_eval.run_settings(
-        plugin_configs={"planning@inline": {"options": {"x": True}}}
+        plugin_configs={"planning@inline": {"options": {"x": True}}},
+        writable=["/r/run"],
     )
     assert doc["enabledPlugins"] == {"session-flow@melodic-software": False}
-    deny = doc["permissions"]["deny"]
-    allow = doc["permissions"]["allow"]
-    assert "Bash(curl *)" in deny and "Bash(wget *)" in deny
-    from fnmatch import fnmatchcase
-
-    def matches(rules, command):
-        return any(
-            r.startswith("Bash(") and fnmatchcase(command, r[5:-1]) for r in rules
-        )
-
-    for remote in (
-        "git ls-remote http://h/x",
-        "git ls-remote --heads https://h/x",
-        "git ls-remote ssh://h/x",
-        "git ls-remote h:org/repo",
-        "git ls-remote git@h:x",
-        "git -C /any/repo ls-remote https://h/x",
-        "git -C /any/repo ls-remote --tags git@h:x",
-        "git fetch git://h/x",
-        "git fetch -q https://h/x",
-        "git fetch git@h:x",
-        "git -C /any/repo fetch https://h/x",
-    ):
-        assert matches(deny, remote), remote
-    for exec_override in (
-        "git ls-remote --upload-pack='nc h 80; git-upload-pack' origin",
-        "git ls-remote --exec=/bin/sh origin",
-        "git ls-remote -u /bin/sh origin",
-        "git ls-remote --heads -u /bin/sh origin",
-        "git -C /any/repo ls-remote --upload-pack=x origin",
-        "git fetch --upload-pack=x origin",
-        "git -C /any/repo fetch --upload-pack x origin",
-        "git fetch 'ext::sh -c id' main",
-        "git -C /any/repo fetch ext::sh main",
-        "git -C /any/repo -c core.sshCommand=x ls-remote origin",
-        "git -C /any/repo -c protocol.ext.allow=always fetch origin",
-    ):
-        assert matches(deny, exec_override), exec_override
-    for repoint in (
-        "git remote set-url origin https://h/x",
-        "git remote add up https://h/x",
-        "git -C /any/repo remote set-url origin /elsewhere",
-        "git config remote.origin.url https://h/x",
-        "git -C /any/repo config --replace-all remote.origin.url h:x",
-    ):
-        assert matches(deny, repoint), repoint
-    for local in (
-        "git ls-remote",
-        "git ls-remote origin",
-        "git ls-remote --heads --tags origin release/2.8",
-        "git -C /any/repo ls-remote origin",
-        "git -C /any/repo ls-remote --symref origin HEAD",
-        "git fetch origin",
-        "git fetch --prune origin",
-        "git -C /any/repo fetch -q origin",
-        "git fetch origin refs/pull/4460/head:review-4460",
-        "git -C /any/repo fetch origin refs/pull/4460/head:refs/remotes/origin/pr/4460",
-    ):
-        assert not matches(deny, local), local
-        assert matches(allow, local), local
-    assert not any("/home/" in r or "ccp-" in r for r in (*allow, *deny))
-    assert "WebFetch" in deny
+    assert doc["sandbox"] == {
+        "enabled": True,
+        "autoAllowBashIfSandboxed": True,
+        "allowUnsandboxedCommands": False,
+        "network": {"allowedDomains": [], "strictAllowlist": True},
+        "filesystem": {"allowWrite": ["/r/run"]},
+    }
+    assert doc["permissions"] == {"deny": ["WebFetch", "WebSearch"]}
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
-    assert "pluginConfigs" not in resume_eval.run_settings()
+    plain = resume_eval.run_settings()
+    assert "pluginConfigs" not in plain
+    assert plain["sandbox"]["filesystem"] == {"allowWrite": []}
 
 
 def test_worktree_isolated_session_is_found_in_an_ancestor_claude_argv():
