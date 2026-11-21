@@ -1,4 +1,5 @@
 # Fixture: the personal override (docs/conventions/code-metrics.local.yaml). One
-# operator's exclusion, additive over the team file.
+# operator's exclusion, additive over the team file. Layers:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers
 scope:
   exclude: ["vendor/**"]

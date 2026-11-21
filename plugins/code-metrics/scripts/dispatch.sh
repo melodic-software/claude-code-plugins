@@ -35,7 +35,8 @@
 # the home directory the old user-global file is read from. `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the
 # resolved document supplies the references, `scope.exclude`, the per-lane
-# collector overrides, and the ecosystem globs and opt-outs.
+# collector overrides, and the ecosystem globs and opt-outs. Layers:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers
 #
 # Exit: 0 the document was produced (including an `empty` run); 2 usage or
 # environment error; 3 a resolved collector ran and produced no parseable

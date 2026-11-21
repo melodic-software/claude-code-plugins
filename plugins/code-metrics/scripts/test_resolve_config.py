@@ -637,7 +637,7 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_warnings"],
             )
 
-    def test_an_unparseable_new_personal_file_leaves_the_old_one_applied(self) -> None:
+    def test_an_unparsable_new_personal_file_leaves_the_old_one_applied(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d, _, paths = self._personal(
                 tmp, "size: { file_lines: 610 }\n", "size:\n  file_lines: 620\n", None

@@ -3,7 +3,8 @@
 # key keeps the bundled default. Written in the YAML subset the plugin reads:
 # block mappings, block sequences, flow sequences of scalars, scalars, and
 # comments (no flow mappings, anchors, tags, or block scalars). Layers:
-# this file, then docs/conventions/code-metrics.local.yaml, merged per key.
+# this file, then docs/conventions/code-metrics.local.yaml, merged per key
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers).
 # Keys and provenance: the plugin's reference/config.md.
 
 scope:
