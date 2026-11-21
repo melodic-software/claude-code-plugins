@@ -111,6 +111,8 @@ Phase 2 proposes no interfaces. Once the report is written, the reply opens with
 
 When the user has chosen a candidate, work through its decision tree in three groups: what the deepened module looks like (its shape, and what the seam hides), what it has to work within (its dependencies and constraints), and what will prove it (the tests that remain). When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The exception is a candidate that depends on another selected one, because it changes the same module or needs the other's interface first: interview those as one tree, the candidate the others depend on first, and say at the start which candidates are being treated as one tree and why. Each still gets its own `agreed-shape` entry. The skill still stops at the handoff and implements none of them.
 
+The loop and the Handoff step below stay in this lens, not in `/planning:interview`: they write `agreed-shape` and `graft-record`, fields only this lens uses and the `/planning:interview` Brief has no place for, so reusing that skill would mean forking it.
+
 Side effects inline as decisions crystallize:
 
 - **New concept or sharpened term?** Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool immediately
