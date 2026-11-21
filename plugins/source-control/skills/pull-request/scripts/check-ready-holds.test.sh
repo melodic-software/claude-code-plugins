@@ -54,6 +54,20 @@ assert_exit "an unheld pull request with an open linked issue exits 0" 0 "$?"
 assert_silent "an unheld pull request prints nothing" "$out"
 assert_contains "the issue state is read over REST" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/issues/10 --jq .state"
 
+REAL_JQ=$(command -v jq)
+CRLF_DIR="$TEST_TMPDIR/crlf"
+mkdir -p "$CRLF_DIR"
+printf '#!/usr/bin/env bash
+"%s" "$@" | sed "s/$/\r/"
+' "$REAL_JQ" >"$CRLF_DIR/jq"
+chmod +x "$CRLF_DIR/jq"
+pr "feat(x): add a thing" "Closes #10, closes #11" "[]" "[$(ref 10),$(ref 11)]"
+echo open >"$TEST_TMPDIR/issue-11"
+: >"$TEST_TMPDIR/calls"
+out=$(PATH="$CRLF_DIR:$STUB_DIR:$PATH" bash "$SCRIPT" 7)
+assert_exit "two closing issues read through CRLF jq output exit 0" 0 "$?"
+assert_contains "the first issue is read without a stray carriage return" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/issues/10 --jq .state"
+
 pr "feat(x): add a thing" "" '[{"name":"do-not-merge"}]'
 out=$(run 7)
 assert_exit "the do-not-merge label holds the flip" 3 "$?"

@@ -10,7 +10,15 @@
       "detect": {
         "any": [
           "playwright-cli"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+(?:\\.[0-9]+)+)",
+          "min": "0",
+          "latest": "npm:@playwright/cli"
+        }
       },
       "degrade": "Without playwright-cli, /playwright:playwright cannot drive a browser; it stops and asks for the install instead of substituting another surface.",
       "install": {

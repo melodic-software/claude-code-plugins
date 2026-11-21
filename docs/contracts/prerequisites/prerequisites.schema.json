@@ -125,6 +125,11 @@
                         "type": "string",
                         "pattern": "^\\d+(\\.\\d+)*$",
                         "description": "An exclusive upper bound: a detected version at or above it is outdated. Must be greater than min."
+                      },
+                      "latest": {
+                        "type": "string",
+                        "pattern": "^(npm:(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*|github:[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*)$",
+                        "description": "Where the latest release is read for the once-a-day check that the latest mode runs: npm:<package> or github:<owner>/<repo>."
                       }
                     }
                   }
