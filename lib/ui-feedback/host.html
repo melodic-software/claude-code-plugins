@@ -49,6 +49,7 @@
 <iframe id="page" sandbox="allow-scripts" title="The mockup"></iframe>
 <aside aria-label="Notes">
   <button type="button" id="dock" aria-expanded="true" aria-controls="panel">Hide notes (N)</button>
+  <button type="button" id="markers">Hide markers (M)</button>
   <div id="panel">
   <div role="tablist" aria-label="Dock">
     <button type="button" role="tab" id="tab-notes" aria-controls="notes-panel" aria-selected="true">Notes</button>
@@ -359,6 +360,18 @@
     else $("dock").focus();
   }
 
+  // Whether the frame draws the note markers. It is kept for this tab's run, so a reload keeps it; it never touches a pick.
+  const MARKERS = "ui-feedback-markers-hidden";
+  let markersShown = true;
+  try { markersShown = sessionStorage.getItem(MARKERS) !== "1"; } catch { /* no storage: markers start shown */ }
+  function setMarkers(on) {
+    markersShown = on;
+    try { sessionStorage.setItem(MARKERS, on ? "0" : "1"); } catch { /* no storage: the choice lasts this load only */ }
+    $("markers").textContent = on ? "Hide markers (M)" : "Show markers (M)";
+    toFrame({ type: "markers", on });
+  }
+  setMarkers(markersShown);
+
   /** One prototype-notes block holding every note written on this page; a backtick is escaped, so no
    *  note can end the fence. The session imports it with notes-bridge.sh import. */
   function copyAll() {
@@ -461,6 +474,7 @@
       ready = true;
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
       takeControls(m);
+      setMarkers(markersShown);
       say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
     else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
@@ -488,6 +502,7 @@
   $("save").addEventListener("click", save);
   $("sendall").addEventListener("click", () => sendDrafts(mine.filter((m) => m.draft)));
   $("dock").addEventListener("click", () => setPanel($("panel").hidden));
+  $("markers").addEventListener("click", () => setMarkers(!markersShown));
   $("cancel").addEventListener("click", closeComposer);
   $("copy").addEventListener("click", copyAll);
   $("copy-config").addEventListener("click", copyConfig);
@@ -517,6 +532,7 @@
     }
     const key = e.key.toLowerCase();
     if (key === "n") { e.preventDefault(); return setPanel($("panel").hidden); }
+    if (key === "m") { e.preventDefault(); return setMarkers(!markersShown); }
     if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
