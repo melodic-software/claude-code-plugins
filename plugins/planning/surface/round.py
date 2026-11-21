@@ -47,6 +47,11 @@ ops, and supersede and resolve read their text from a file.
                   with an optional note read from --note-file N) or restore (the row as it was
                   before supersede); both back the ledger up and print the check-open-questions
                   verdict
+  reopen          set an answered row of --ledger F back to open with `reopened:: round <n>`
+                  (--round n), move its answer and the fact read from --fact-file P to
+                  `## Reopened answers`, and add `recheck:: Q<N>` to every row whose `depends::`
+                  reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
+                  from those rows. Needs no data dir; backs up and prints the verdict as supersede
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
@@ -2755,7 +2760,7 @@ def cmd_export_ledger(d, a):
         if d is not None and text is not None:
             report_notes(exporters.merged_register(d, text)[2], ("conflict",))
         return
-    write_text(a.out, exporters.export_ledger(d, text))
+    write_text(a.out, exporters.export_ledger(d, text, a.ledger))
     print(f"wrote {a.out}")
     if text is not None:
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
@@ -2894,6 +2899,32 @@ def cmd_resolve(d, a):
         a,
         lambda text, where: exporters.resolve_row(text, a.qid, a.how, note, where),
     )
+
+
+def cmd_reopen(d, a):
+    if a.rechecked:
+        if a.qid or a.round is not None or a.fact_file:
+            sys.exit("refused: --rechecked takes the rows to clear and --ledger, nothing else")
+        a.qid = ", ".join(a.rechecked)
+        edit_ledger(
+            a, lambda text, where: exporters.clear_recheck(text, a.rechecked, where)
+        )
+        return
+    if not a.qid or a.round is None or not a.fact_file:
+        sys.exit("refused: reopen needs Q<N>, --round and --fact-file, or --rechecked Q<N>...")
+    if a.round < 1:
+        sys.exit(f"refused: --round must be 1 or more, not {a.round}")
+    fact = read_input(a.fact_file, "fact file")
+    marked = []
+
+    def edit(text, where):
+        new, ids = exporters.reopen_row(text, a.qid, a.round, fact, where)
+        marked.extend(ids)
+        return new
+
+    edit_ledger(a, edit)
+    for qid in marked:
+        print(f"marked {qid}")
 
 
 def cmd_next_id(d, a):
@@ -3475,6 +3506,34 @@ def main(argv=None):
     s.set_defaults(fn=cmd_resolve)
 
     s = sub.add_parser(
+        "reopen",
+        help="set an answered register row back to open under its own number, keep its answer and "
+        "the fact in '## Reopened answers', and flag every row built on it with recheck:: "
+        "(no data dir needed)",
+        allow_abbrev=False,
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "qid",
+        metavar="Q",
+        nargs="?",
+        help="the row: Q<N>, or the [<id>] a renumbered row leads with",
+    )
+    s.add_argument("--round", type=int, help="the round the contradicting fact arrived in")
+    s.add_argument(
+        "--fact-file",
+        dest="fact_file",
+        help="file holding the fact and its source (UTF-8 text; whitespace runs made one space)",
+    )
+    s.add_argument(
+        "--rechecked",
+        nargs="+",
+        metavar="Q",
+        help="clear recheck:: from these rows once the user has reconfirmed or changed each",
+    )
+    s.set_defaults(fn=cmd_reopen)
+
+    s = sub.add_parser(
         "ensure-running",
         help="start the server for the data dir or reuse it; prints the URL",
     )
@@ -3538,7 +3597,9 @@ def main(argv=None):
         )
     if extra:
         p.error(f"unrecognized arguments: {' '.join(extra)}")
-    if a.fn in (cmd_supersede, cmd_resolve) or (a.fn is cmd_next_id and not a.dir):
+    if a.fn in (cmd_supersede, cmd_resolve, cmd_reopen) or (
+        a.fn is cmd_next_id and not a.dir
+    ):
         a.fn(None, a)
         return
     if (

@@ -244,7 +244,9 @@ rows_outside() {
   awk -v lo="$1" -v hi="$2" "$fence_awk"'
     fence_line($0) { next }
     fenced { next }
+    /^#+[[:space:]]/ { reopened = (tolower($0) ~ /^#+[[:space:]]+reopened answers[[:space:]]*$/) }
     NR >= lo && NR <= hi { next }
+    reopened { next }
     /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
   ' "$3"
 }
@@ -746,7 +748,13 @@ fi
 registered=0
 open_count=0
 stale_count=0
-stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
+recheck_count=0
+stale_list='stale:: C[0-9]+(, C[0-9]+)*'
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )'"$stale_list"'$'
+qlist='Q[1-9][0-9]*(, Q[1-9][0-9]*)*'
+tag_re='(kind:: discovery|problem:: P[1-9][0-9]*|depends:: '"$qlist"'|reopened:: round [1-9][0-9]*|recheck:: '"$qlist"')'
+recheck_tail_re='(^|\] |(^|[^\\])(\\\\)*; )('"$tag_re"'; )*recheck:: '"$qlist"'(; '"$tag_re"')*(; '"$stale_list"')?$'
+tags_only_re='^(\[[^]]*\][[:space:]]*)?'"$tag_re"'(; '"$tag_re"')*(; '"$stale_list"')?$'
 answered=0
 deferred=0
 withdrawn=0
@@ -885,6 +893,8 @@ while IFS= read -r line; do
   trim_into "$resolution"
   resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
+  [[ "$resolution" =~ $recheck_tail_re ]] && recheck_count=$((recheck_count + 1))
+  [[ "$resolution" =~ $tags_only_re ]] && resolution=""
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
@@ -1165,8 +1175,9 @@ fi
 
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 [[ "$stale_count" -gt 0 ]] && verdict="$verdict stale=$stale_count"
+[[ "$recheck_count" -gt 0 ]] && verdict="$verdict recheck=$recheck_count"
 
-if [[ $((open_count + superseded + stale_count)) -gt 0 ]]; then
+if [[ $((open_count + superseded + stale_count + recheck_count)) -gt 0 ]]; then
   echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi

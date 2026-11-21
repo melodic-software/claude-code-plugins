@@ -199,6 +199,35 @@ else
   fail "a scenario id shown with nothing beside it is bare ($out)"
 fi
 
+cat >"$TMP/problem-ledger.md" <<'MD'
+## Problems
+
+- P1 | staff cannot find the queue | agreed
+
+## Open-question register
+
+- Q1 | open | round 1 | Which queue? | problem:: P1
+MD
+round problem-bare.md \
+  'Q2: Does the alert fix it?' \
+  'Context: this serves P1 and Q1 (the queue question).'
+out="$(bash "$SUT" --ledger "$TMP/problem-ledger.md" "$TMP/problem-bare.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 1 ]] && grep -q '^bare=2:P1$' <<<"$out" && grep -q 'codes=3 bare=1 status=fail' <<<"$out"; then
+  pass "a bare problem id fails"
+else
+  fail "a bare problem id fails ($out)"
+fi
+round problem-named.md \
+  'Q2: Does the alert fix it?' \
+  'Context: this serves P1, staff cannot find the queue, and Q1 (the queue question).'
+if out="$(bash "$SUT" --ledger "$TMP/problem-ledger.md" "$TMP/problem-named.md" 2>&1)" &&
+  grep -q 'bare=0 status=ok' <<<"$out"; then
+  pass "a named problem id passes"
+else
+  fail "a named problem id passes ($out)"
+fi
+
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
   exit 1

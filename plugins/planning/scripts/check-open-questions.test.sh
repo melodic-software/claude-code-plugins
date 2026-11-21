@@ -114,6 +114,62 @@ EOF
 expect_exit "a mark after an escaped backslash still blocks -> 1" 1 --ledger "$stale_backslash"
 expect_stdout "open verdict counts the open row" "open=1" --ledger "$one_open"
 
+tagged="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | free-text: x; y; kind:: discovery; problem:: P1
+- Q2 | answered | round 1 | b | answer:: accepted: yes; depends:: Q1; reopened:: round 2
+- Q3 | answered | round 2 | c | [J1] accepted: yes; depends:: Q1, Q2; stale:: C1
+
+## Problems
+
+- P1 | staff cannot find the queue | agreed
+
+## Reopened answers
+
+- Q2 | round 2 | was: accepted: no | fact: ops.md:3 says yes
+EOF
+)"
+expect_exit "tags, Problems rows and Reopened answers rows -> 1 only for the stale row" 1 --ledger "$tagged"
+expect_stdout "tags are not counted as recheck" "superseded=0 brief=unchecked stale=1 status=open" --ledger "$tagged"
+recheck_row="$(
+  mkledger <<'EOF'
+- Q1 | open | round 1 | a | reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1; recheck:: Q1
+- Q3 | answered | round 1 | c | answer:: free-text: C:\\; recheck:: Q1; stale:: C2
+- Q4 | answered | round 1 | d | answer:: said\; recheck:: Q1
+EOF
+)"
+expect_stdout "recheck rows are counted beside stale" "stale=1 recheck=2 status=open" --ledger "$recheck_row"
+rechecked="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes; reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1; recheck:: Q1
+EOF
+)"
+expect_exit "a recheck row on an answered register blocks -> 1" 1 --ledger "$rechecked"
+cleared="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes; reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1
+EOF
+)"
+expect_exit "once recheck:: is cleared the register is clean -> 0" 0 --ledger "$cleared"
+tags_only="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | depends:: Q2
+- Q2 | answered | round 1 | b | [J1] kind:: discovery
+- Q3 | answered | round 1 | c | yes; kind:: discovery
+EOF
+)"
+tags_only_err="$(stderr_of --ledger "$tags_only" --procedure)"
+if [[ "$tags_only_err" == *"Q1: answered row has an empty resolution"* &&
+  "$tags_only_err" == *"Q2: answered row has an empty resolution"* &&
+  "$tags_only_err" != *"Q3: answered"* ]]; then
+  pass "a resolution of tags alone is empty under --procedure"
+else
+  fail "a resolution of tags alone is empty under --procedure ($tags_only_err)"
+fi
+
 # 8. Mixed terminal statuses all count as resolved.
 mixed="$(
   mkledger <<'EOF'

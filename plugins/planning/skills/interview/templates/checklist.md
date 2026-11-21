@@ -28,6 +28,12 @@ One line: what the user disclosed at intake about where they start (SKILL.md Sta
 
 - <the user's starting-point disclosure>
 
+## Problems
+
+One row per problem the questions serve, `- P<n> | <one-line problem> | proposed|agreed`, numbered from P1; a question names its row with `problem:: P<n>`. Replace the example row with this run's problems.
+
+- P1 | instructors cannot see which comments need a reply | agreed
+
 ## Terminology matrix
 
 One row per sourced term the rounds rely on, built and agreed with the user before the first decision question (a definition the session coins gets no row and is agreed in a withheld question); a later round that adds a sourced term adds a `proposed` row and gets it agreed. Status: `proposed` | `agreed`. With no such term, replace the table with `none`. Rules: `context/loop.md` "Terminology matrix". Replace the example row with this run's terms.
@@ -38,7 +44,7 @@ One row per sourced term the rounds rely on, built and agreed with the user befo
 
 ## Open-question register
 
-**Write a row the moment a round is asked, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `discussing` (the user asked to talk it through; blocks like `open`; `context/loop.md` "Discussing") | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds; an intended gap needs a hand-written `- gap | Q<a>-Q<b> | <why these ids have no row>` line in this section.
+**Write a row the moment a round is asked, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `discussing` (the user asked to talk it through; blocks like `open`; `context/loop.md` "Discussing") | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds; an intended gap needs a hand-written `- gap | Q<a>-Q<b> | <why these ids have no row>` line in this section. A resolution may end in tags, in this order: `kind:: discovery`, `problem:: P<n>`, `depends:: Q<a>, Q<b>`, `reopened:: round <N>` and `recheck:: Q<a>` (`round.sh reopen` writes the last two; rules: `context/loop.md`).
 
 Each `Commits you to:` part of a recommendation is a row of its own with `(part of Q<N>)` in the question field, numbered right after its headline when asked with it, and at the next free id when registered after later ids exist. Resolution rules: `context/loop.md` "Commitment rows"; late numbering: "Commitment rows written after later ids exist". On the page surface, the parts are the question's `commits` entries instead (see `context/loop.md` "Commitment parts on the page"). The page exports each row's resolution as named fields and every older grammar still imports (`context/surface.md` "Start and stop").
 
@@ -67,6 +73,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <memory_dir>/<topic-slug>/PLAN.md
 ```
+
+## Reopened answers
+
+`round.sh reopen` adds one line per answer a later fact reopened, `- Q<N> | round <N> | was: <old answer> | fact: <the fact and its source>`; never write one by hand.
 
 ## Self-answered facts
 

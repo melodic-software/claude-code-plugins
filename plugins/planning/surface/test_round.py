@@ -4795,6 +4795,145 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
 
 
+class TestReopen(DirCase):
+    """reopen sets an answered row back to open under its own number, moves its answer and the
+    fact to `## Reopened answers`, and flags every row built on it; --rechecked clears the flag."""
+
+    HEAD = "# Interview ledger\n\n## Open-question register\n\n"
+    ROWS = [
+        "- Q1 | answered | round 1 | Which store? | accepted: Postgres; kind:: discovery",
+        "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+        "depends:: Q1, Q4",
+        "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2",
+        "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; recheck:: Q5",
+        "- Q5 | answered | round 2 | Which log? | stdout",
+    ]
+    TAIL = "\n## Notes\n\nkept as written\n"
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        self.write("\n".join(self.ROWS) + "\n")
+
+    def write(self, rows, eol="\n"):
+        text = self.HEAD + rows + self.TAIL
+        self.ledger.write_bytes(text.replace("\n", eol).encode("utf-8"))
+
+    def cmd(self, *args):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "reopen", "--ledger", str(self.ledger), *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def fact(self, text):
+        path = self.tmp / f"fact-{len(list(self.tmp.iterdir()))}.txt"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def reopen(self, qid, rnd, fact):
+        rc, out, err = self.cmd(qid, "--round", str(rnd), "--fact-file", self.fact(fact))
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def text(self):
+        return self.ledger.read_bytes().decode("utf-8")
+
+    def test_a_reopen_flags_every_row_built_on_it_three_deep(self):
+        out = self.reopen("Q1", 3, "the host has no Postgres (ops.md:3)\n")
+        self.assertEqual(
+            self.text(),
+            self.HEAD
+            + "- Q1 | open | round 1 | Which store? | kind:: discovery; reopened:: round 3\n"
+            "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+            "depends:: Q1, Q4; recheck:: Q1\n"
+            "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2; "
+            "recheck:: Q1\n"
+            "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; "
+            "recheck:: Q5, Q1\n"
+            "- Q5 | answered | round 2 | Which log? | stdout\n"
+            "\n## Reopened answers\n\n"
+            "- Q1 | round 3 | was: accepted: Postgres | fact: the host has no Postgres "
+            "(ops.md:3)\n" + self.TAIL,
+        )
+        self.assertEqual(re.findall(r"^marked (Q\d+)$", out, re.M), ["Q2", "Q3", "Q4"])
+
+    def test_rechecked_clears_only_the_named_rows(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        rc, out, err = self.cmd("--rechecked", "Q2", "Q3")
+        self.assertEqual(rc, 0, out + err)
+        rows = [x for x in self.text().splitlines() if re.match(r"^- Q[234] \| answered", x)]
+        self.assertEqual(
+            rows,
+            [
+                "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+                "depends:: Q1, Q4",
+                "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2",
+                "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; "
+                "recheck:: Q5, Q1",
+            ],
+        )
+        before = self.text()
+        rc, out, err = self.cmd("--rechecked", "Q2")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("refused: Q2 carries no recheck::", err)
+        self.assertEqual(self.text(), before)
+
+    def test_a_second_reopen_adds_to_the_reopened_answers_section(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        self.cmd("--rechecked", "Q2", "Q3", "Q4")
+        out = self.reopen("Q4", 4, "a cache is required")
+        self.assertEqual(re.findall(r"^marked (Q\d+)$", out, re.M), ["Q2", "Q3"])
+        section = self.text().split("## Reopened answers\n\n")[1].split("\n\n")[0]
+        self.assertEqual(
+            section.splitlines(),
+            [
+                "- Q1 | round 3 | was: accepted: Postgres | fact: the host has no Postgres",
+                "- Q4 | round 4 | was: accepted: none | fact: a cache is required",
+            ],
+        )
+        self.assertIn(
+            "- Q4 | open | round 2 | Which cache? | depends:: Q3; reopened:: round 4\n",
+            self.text(),
+        )
+
+    def test_only_an_answered_row_reopens(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        before = self.text()
+        rc, out, err = self.cmd("Q1", "--round", "4", "--fact-file", self.fact("again"))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("refused: Q1 is open", err)
+        rc, out, err = self.cmd("Q5", "--round", "4", "--fact-file", self.fact("  \n"))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("fact", err)
+        self.assertEqual(self.text(), before)
+
+    def test_a_reopen_lists_its_entry_under_the_sections_own_text(self):
+        intro = "\n## Reopened answers\n\nOne line per reopened answer.\n"
+        self.TAIL = intro + TestReopen.TAIL
+        self.write("\n".join(self.ROWS) + "\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        self.assertIn(
+            "One line per reopened answer.\n\n- Q5 | round 2 | was: stdout | fact: logs go to "
+            "a file\n\n## Notes",
+            self.text(),
+        )
+        self.assertEqual(self.text().count("## Reopened answers"), 1)
+
+    def test_a_reopen_keeps_crlf_line_endings(self):
+        self.write("\n".join(self.ROWS) + "\n", eol="\r\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        data = self.ledger.read_bytes()
+        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+        self.assertIn(
+            b"\r\n## Reopened answers\r\n\r\n- Q5 | round 2 | was: stdout | fact: logs go to "
+            b"a file\r\n\r\n## Notes",
+            data,
+        )
+
+
 class TestLedgerCheck(DirCase):
     """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
 

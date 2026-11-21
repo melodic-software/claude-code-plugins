@@ -168,7 +168,7 @@ LC_ALL=C awk '
     if (fence($0) || in_fence) next
   }
   FILENAME == ledger_file {
-    if ($0 ~ /^[ \t]*- [QCFS][0-9]+[ \t]*\|/) {
+    if ($0 ~ /^[ \t]*- [QCFSP][0-9]+[ \t]*\|/) {
       c = $0
       sub(/^[ \t]*- /, "", c)
       sub(/[ \t]*\|.*/, "", c)
