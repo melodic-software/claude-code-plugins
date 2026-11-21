@@ -47,6 +47,8 @@
     z-index: 2147483647;
     display: flex;
     align-items: center;
+    inline-size: max-content;
+    white-space: nowrap;
     gap: 2px;
     padding: 4px;
     border-radius: 999px;
@@ -98,6 +100,24 @@
   .vs-item[aria-current="true"], .vs-item[aria-pressed="true"] { color: #fff; }
   .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
   .vs-state { color: #fff; }
+  .vs-speed::after, .vs-replay::after {
+    content: attr(aria-label);
+    position: absolute;
+    inset-block-end: calc(100% + 10px);
+    inset-inline-end: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgb(10 10 10 / 0.92);
+    color: #fff;
+    font-size: 12px;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .vs[data-position="top"] .vs-speed::after, .vs[data-position="top"] .vs-replay::after { inset-block-end: auto; inset-block-start: calc(100% + 10px); }
+  .vs-speed:focus-visible::after, .vs-replay:focus-visible::after { visibility: visible; }
+  @media (hover: hover) and (pointer: fine) {
+    .vs-speed:hover::after, .vs-replay:hover::after { visibility: visible; }
+  }
   [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
   :root:not([data-vs-content="worst"]) [data-content-set="worst"],
   :root[data-vs-content="worst"] [data-content-set="demo"] { display: none !important; }
