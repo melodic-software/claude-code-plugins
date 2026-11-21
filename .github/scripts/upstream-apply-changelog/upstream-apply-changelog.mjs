@@ -434,7 +434,7 @@ export function validatePlan(plan, { release, baseSha }) {
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);
     if (typeof h.body !== "string" || h.body.length > 60000) fail(`${at}.body is bad`);
     const sentence = h.required_sentence;
-    if (sentence !== undefined && (typeof sentence !== "string" || sentence.length > SENTENCE_MAX || /[\r\n]/.test(sentence))) {
+    if (sentence != null && (typeof sentence !== "string" || sentence.length > SENTENCE_MAX || /[\r\n]/.test(sentence))) {
       fail(`${at}.required_sentence is not one line of at most ${SENTENCE_MAX} characters`);
     }
   });

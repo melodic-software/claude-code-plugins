@@ -1146,6 +1146,8 @@ test("a handoff body keeps its item ids and required sentence and drops any othe
   for (const required_sentence of [7, "two\nlines", "s".repeat(501)]) {
     assert.throws(() => validatePlan(plan({ handoffs: [{ ...row, required_sentence }] }), ctx), /handoffs\[0\]\.required_sentence/);
   }
+  const [none] = validatePlan(plan({ handoffs: [{ ...row, required_sentence: null, body: "2.1.300-003\nfree text" }] }), ctx).handoffs;
+  assert.equal(none.body, "2.1.300-003");
 });
 
 test("a native-drift body keeps its script-built lines and drops other text; other lenses keep none of them", () => {
