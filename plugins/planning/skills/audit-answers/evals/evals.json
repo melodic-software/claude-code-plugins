@@ -5,10 +5,11 @@
       "id": 1,
       "name": "accepts-then-validates-with-fresh-agents",
       "prompt": "/planning:audit-answers — I finished the interview but I'm overloaded; accept the recommendations and have agents check them instead of me answering every round.",
-      "expected_output": "The skill accepts each open question's recommended answer into the ledger, then dispatches fresh-context (non-fork) validator subagents that receive the accepted answers with the rationale withheld and return a per-answer verdict (CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN). It does NOT invent answers via subagents.",
+      "expected_output": "The skill accepts each open question's recommended answer into the ledger, skipping any `kind:: discovery` row (it has no recommendation, so it goes to the human), then dispatches fresh-context (non-fork) validator subagents that receive the accepted answers with the rationale withheld and return a per-answer verdict (CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN). It does NOT invent answers via subagents.",
       "files": [],
       "expectations": [
         "Output accepts the recommended answers first, then validates them — it does not derive/invent answers with subagents",
+        "A `kind:: discovery` row is not auto-accepted: it is held out and routed to the human as a question",
         "Validators are described as fresh-context (non-fork) subagents that receive the decisions with the persuasive rationale withheld",
         "Each accepted answer gets a per-answer verdict: CONFIRMED, CHALLENGED (with a reason), or RECLASSIFIED-TO-HUMAN"
       ]

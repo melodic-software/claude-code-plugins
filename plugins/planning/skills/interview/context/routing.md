@@ -2,7 +2,7 @@
 
 Reference detail for the `## Routing by size and fog` section of `SKILL.md`. Read it at entry
 and at every round boundary: it owns the entry gate's thresholds, the round-1 wayfind question,
-the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
+the problems list, the round header's scope-check line, the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
 is small, ship it" exit.
 
 ## Entry: diff size and retry cost, not behavior change
@@ -33,7 +33,9 @@ stays the entry either way:
 - Ask it as a registered round-1 question in the full layout, worded so yes accepts ("Should this
   effort move to `/planning:wayfind chart` now?"), its Context naming each unknown area in the
   user's words. Round 1's other questions go out in the same message; never hold them for this
-  answer, and never switch on your own.
+  answer, and never switch on your own. In an intake round it is the one question with a
+  recommendation, since it routes the work rather than answering for the user
+  ([`lookups.md`](lookups.md) "The intake round").
 - Accepted: write the ledger as "The handoff to wayfind" below says, and name
   `/planning:wayfind chart` with the ledger path for the user to run.
 - Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind
@@ -44,6 +46,31 @@ stays the entry either way:
 
 Unknowns in two areas or fewer, or unknowns the request does not state, are not this trigger: fog
 that surfaces during the rounds is the fog trigger's.
+
+## Problems
+
+The problems the work serves are agreed in round 1: from the intake answers, or from the request
+when it states them. Write each to the ledger's `## Problems` section as
+`- P<n> | <one-line problem> | proposed`, numbered from P1 in the order they were given, restate
+them at the top of the next round, and mark each `agreed` once the user confirms it. Each question
+registered after that carries `problem:: P<n>` for the problem it serves (loop.md "Register tags"),
+and every line the user reads pairs the code with its words (`problem P2 (late invoices)`).
+
+A problem set that will not fit one session goes to `/planning:wayfind chart` only through the
+triggers below, which stay too big AND too foggy: the problem count is evidence for them, never a
+trigger of its own.
+
+## The scope-check line
+
+Every round header, the intake round's included, carries one `Scope check:` line. Before writing
+round `<N>`'s file, run
+`bash "<plugin-root>/surface/round.sh" scope-check --ledger <memory_dir>/<topic-slug>/interview-checklist.md --round <N> --limit <wayfind_suggest_questions> --rounds-dir <memory_dir>/<topic-slug>`,
+`<wayfind_suggest_questions>` being the value resolved below, and put its output on that line:
+the questions registered against the limit, and what each of the last two rounds added and
+settled. Those counts are the measured half of the question-count pointer and the fog trigger
+below; the fog trigger still counts the branches the next round would add. With no Bash, count the
+same from the ledger by the rules of `scope-check` in
+[`../../../surface/README.md`](../../../surface/README.md) and write the line yourself.
 
 ## Bigger than you thought? Check at every round boundary
 

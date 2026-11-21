@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "e059b8a9bdadf3a44593745098d9365d46b80fe2e2e9bdb3d449ab124d0481b0"
+  "7d7f2372cef7aaa76d271c3e57e6a9a6208727c94b4dce3c6d33357f2d2926e4"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -587,7 +587,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "e44127457a9cf37557b903698e15949a28c723a1ed32049c53c5b1fa861c45bf"
+  "17235dec719241d850f2ed32efecce845e4d4eac28df159c58c0cead6a05ca81"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -776,7 +776,7 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "f332b13eda79cde79825d912827e70b18971870c60accde42f0ff5c79ca3bcea"
+  "d9c84aac832447d47e2f50d5008a449d378bfa3282291d0334c9bd65129a8744"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -807,7 +807,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "d91d5185a66e75854f16198128e991ce047bc6129c947a435078d12dca083df0"
+  "cd3481b6f2d547f82f33ee14cc69e22b38a5c936f857461f9e8538e18cdfd3d1"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -829,7 +829,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "493b9e062228d39672b85ea3256e8a3c360fce9df183d08de9ea081666e20076"
+  "53ad96eee9dc6133be50f497d4228b725006506df953ad9d24bedbc087ea9c9d"
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
@@ -845,7 +845,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "4d1a6e8c8789645fb58bbae26822fc34d2fdcefda674e0d7210247dcccc8f0f3"
+  "19473131cf19c03e6f3f17d95c9012b143b505435d0d0eb8a21239774b4b6c0a"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -872,12 +872,12 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "d1141bf7988e5cca6c1f9566d2b61ee48d7d627d8ebe5fe1855799d6fb539b71"
+  "fcd7f1b010811f56cc798884acb234563423896cec52d507c8a6d2520686195f"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
   "### Step 5. Human confirmation" \
-  "58e23f0911f4ee7a3cc0ff33cf3ccadf7a539cc2b680e1dc7f1344fe0fb40240"
+  "bdbde2c21e6f1c7bc05b752b25541ce15d59f703ba6d83a936d64842e0c1fd44"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \

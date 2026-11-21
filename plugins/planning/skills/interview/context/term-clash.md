@@ -35,16 +35,17 @@ registered question in the full layout:
   never meet in one sentence.
 
 Add the qualified name to the ledger's `## Terminology matrix` as a `proposed` row in the same
-round, citing the clash as its source; it becomes `agreed` on the user's answer. Until then, no
-other question uses the qualified name as settled.
+round, citing the clash as its source; it becomes `agreed` once the user confirms its
+restatement (SKILL.md "Agree a term where it first appears"). Until then, no other question uses
+the qualified name as settled.
 
 ## Write the agreed name
 
-Once the user agrees, write it through the route SKILL.md already names for a resolved term, the
-inline vocabulary update (`/domain-driven-design:ubiquitous-language curate` when that plugin is
-enabled; otherwise the term and its definition go in the resolution field of the register row that
-resolved it), under the resolved `domain_docs` value: `auto` writes it, `ask` asks once before
-writing, `off` records it in the register row only. Hand the writer the qualified name, its
+Once it is `agreed`, write it with the other agreed terms, through the route SKILL.md names for
+an agreed term, the inline vocabulary update (`/domain-driven-design:ubiquitous-language curate`
+when that plugin is enabled; otherwise the ledger's `## Terminology matrix` keeps it), under the
+resolved `domain_docs` value: `auto` writes it, `ask` asks once before
+writing, `off` keeps it in the matrix only. Hand the writer the qualified name, its
 definition, the existing concept it is distinguished from with that concept's source, and the bare
 term as the ambiguous form to avoid. A general session writes nothing to the repository and keeps
-the agreed name in the register row and the shared-understanding summary.
+the agreed name in the matrix and the shared-understanding summary.
