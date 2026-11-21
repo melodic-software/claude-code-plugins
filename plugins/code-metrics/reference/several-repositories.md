@@ -29,8 +29,8 @@ With no target form, nothing here applies: each skill runs exactly as its own bo
 - **Paths stay relative.** A path given with a target form (a scope path, `--artifacts`,
   `--registry`, `--memory-dir`) must be relative, and is read from each root; refuse an absolute
   one before the fan-out, since it would point every repository at one file or one directory. A
-  repository that lacks a named path, or a registry its resolved configuration names (the
-  user-global layer applies to every repository), reports the usage error as that repository's
+  repository that lacks a named path, or a registry its resolved configuration names (an old
+  user-global file, still read, applies to every repository), reports the usage error as that repository's
   failure, and the others still run.
 - **Every other argument** (`--json`, `--keep`, `--findings`) passes to each repository's run
   unchanged.

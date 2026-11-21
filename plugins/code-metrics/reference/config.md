@@ -2,22 +2,34 @@
 
 Every tunable value in this plugin resolves through one set of config layers. This document is their
 contract: the layers, the merge form, the YAML subset, and every key with its default and
-provenance. `/code-metrics:setup` writes the team layer; every audit skill reads the resolved
+provenance. `/code-metrics:setup` writes the team layer, and the personal override only when it
+copies old files there; every audit skill reads the resolved
 document at run time and prints the layer that supplied any value a personal layer changed. The
 JSON Schema for every layer's keys is [`schemas/code-metrics.schema.json`](../schemas/code-metrics.schema.json).
 
 ## Layers and merge form
 
-The surface follows the marketplace's config-cascade convention. Three layers, each optional,
-resolved in this order over the bundled defaults (`scripts/config-defaults.json`):
+The surface follows the marketplace's config-cascade convention ([config locations](config-locations.md)).
+The layers, each optional, resolve in this order over the bundled defaults
+(`scripts/config-defaults.json`):
 
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
-| 1 | user-global | `~/.claude/code-metrics.yaml` | the operator, across repositories |
+| 1 | `userConfig` | none: the plugin declares no `userConfig` option | the operator, across repositories |
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
-| 3 | personal override | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
+| 3 | personal override | `<repo>/docs/conventions/code-metrics.local.yaml` | one operator in one repository, gitignored |
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+**Dual-read window.** Two old paths are still read, and each run prints one warning naming the
+old file and where its keys go:
+
+| Old path | Read as | When |
+|---|---|---|
+| `~/.claude/code-metrics.yaml` | layer `user-global`, below the team file | while it exists, since no file supplies the `userConfig` layer |
+| `<repo>/.claude/code-metrics.local.yaml` | layer `local` | only while `docs/conventions/code-metrics.local.yaml` is absent or outside the YAML subset; with both present the new file wins and the warning names both |
+
+`/code-metrics:setup check` names each old file it finds, and `/code-metrics:setup apply`
+offers to copy their keys into `docs/conventions/code-metrics.local.yaml`, leaving the old files in
+place. A later release stops reading the old paths.
 
 The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
 from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`
@@ -37,11 +49,12 @@ holding a newline, carriage return or tab, a `scope.exclude` glob the matcher ca
 A later layer replaces an earlier layer's value key by key; a key absent from a later layer keeps
 the earlier value; a list (`scope.exclude`, `lanes.<lane>.collectors.<measure>`) is a closed value
 and is replaced whole, never concatenated. Unknown keys are inert. All three layers absent is
-valid. The recommended consumer `.gitignore` line for the personal override is `.claude/**/*.local.*`; the
-plugin never edits your `.gitignore`.
+valid. The recommended consumer `.gitignore` line for the personal override is
+`docs/conventions/**/*.local.*`; the plugin never edits your `.gitignore`.
 
 The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
-through the same three layers for their `globs` (which replace the bundled extension map for that
+through that convention's own layers (`~/.claude/ecosystems/<lane>.yaml`, then the repository's
+`<lane>.yaml` and `<lane>.local.yaml`) for their `globs` (which replace the bundled extension map for that
 lane) and `enabled` (a resolved `false` opts the lane out). Only a lane named under `lanes` reads
 its file: the bundled lanes, plus any extra id a layer lists there. A record whose id is not listed
 creates no lane, because a record need not describe a programming language (a lint-only
@@ -67,10 +80,10 @@ warning. The files the globs match form the `rust` lane. With no shipped collect
 measure on that lane reads `unavailable` with the reason `no shipped collector for the rust lane`,
 except `file_lines`, which walks the `other` lane's collectors so the files keep their line count.
 
-The user-global layer is looked up under `$HOME`; `CODE_METRICS_HOME`, when set, replaces that
-directory for one run (the plugin's own suites use it to point at a scratch home, and a consumer
-can use it the same way to try a personal layer without touching `~/.claude`). It is the only
-environment variable the cascade reads; no key is settable from the environment.
+The old user-global file and the ecosystem files' home layer are looked up under `$HOME`;
+`CODE_METRICS_HOME`, when set, replaces that directory for one run (the plugin's own suites use it
+to point at a scratch home). It is the only environment variable the cascade reads; no key is
+settable from the environment.
 
 ## The YAML subset
 

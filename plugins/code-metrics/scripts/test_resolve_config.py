@@ -585,6 +585,85 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_files"], [f"{root.as_posix()}/docs/conventions/code-metrics.yaml"]
             )
 
+    def _personal(self, tmp: str, new: str | None, old: str | None, user: str | None):
+        home = Path(tmp) / "home"
+        root = Path(tmp) / "repo"
+        (root / "docs" / "conventions").mkdir(parents=True)
+        paths = {
+            "new": root / "docs" / "conventions" / "code-metrics.local.yaml",
+            "old": root / ".claude" / "code-metrics.local.yaml",
+            "user": home / ".claude" / "code-metrics.yaml",
+        }
+        for name, text in (("new", new), ("old", old), ("user", user)):
+            if text is not None:
+                paths[name].parent.mkdir(parents=True, exist_ok=True)
+                paths[name].write_text(text, encoding="utf-8")
+        result = run("--home", str(home), "--repo-root", str(root))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout), result.stderr, paths
+
+    def test_the_personal_layer_reads_the_docs_conventions_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(tmp, "size:\n  file_lines: 610\n", None, None)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 610, "layer": "local"}
+            )
+            self.assertEqual(d["_files"], [paths["new"].as_posix()])
+            self.assertEqual(err, "")
+
+    def test_an_old_personal_file_alone_applies_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(tmp, None, "size:\n  file_lines: 620\n", None)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 620, "layer": "local"}
+            )
+            warnings = [w for w in d["_warnings"] if str(paths["old"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn(str(paths["new"]), warnings[0])
+            self.assertEqual(err.count(str(paths["old"])), 1)
+
+    def test_with_both_personal_files_the_new_one_wins_and_both_are_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp, "size:\n  file_lines: 610\n", "size:\n  file_lines: 620\n", None
+            )
+            self.assertEqual(d["size"]["file_lines"], 610)
+            self.assertNotIn(paths["old"].as_posix(), d["_files"])
+            self.assertTrue(
+                any(
+                    str(paths["old"]) in w and str(paths["new"]) in w
+                    for w in d["_warnings"]
+                ),
+                d["_warnings"],
+            )
+
+    def test_an_unparseable_new_personal_file_leaves_the_old_one_applied(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp, "size: { file_lines: 610 }\n", "size:\n  file_lines: 620\n", None
+            )
+            self.assertEqual(d["size"]["file_lines"], 620)
+            self.assertTrue(
+                any(
+                    str(paths["old"]) in w and "outside the YAML subset" in w
+                    for w in d["_warnings"]
+                ),
+                d["_warnings"],
+            )
+
+    def test_an_old_user_global_file_applies_below_team_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp, None, None, "size:\n  file_lines: 700\n  mode: iso-8.2.115\n"
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"],
+                {"value": 700, "layer": "user-global"},
+            )
+            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn("userConfig", warnings[0])
+
     def test_all_layers_absent_is_the_bundled_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = run("--home", tmp, "--repo-root", tmp)

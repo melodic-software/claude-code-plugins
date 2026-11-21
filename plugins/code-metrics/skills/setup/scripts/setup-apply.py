@@ -2,6 +2,16 @@
 """Write or update the consumer's team configuration file, idempotently.
 
   setup-apply.py [--dir <repo-root> | --file <path>] [<key>=<value>...]
+  setup-apply.py --copy-old [--preview] [--dir <repo-root>] [--home <dir>]
+
+`--copy-old` copies the old personal files into the personal override,
+`<repo-root>/docs/conventions/code-metrics.local.yaml`: every key of
+`<repo-root>/.claude/code-metrics.local.yaml`, and each key of the old
+user-global `<home>/.claude/code-metrics.yaml` the team file does not set
+(`--home` defaults to $CODE_METRICS_HOME, else $HOME). A key the personal
+override already sets is kept. Each key copied or not copied is printed with
+its file; `--preview` prints the result and writes nothing. The old files are
+left in place.
 
 The target is `<repo-root>/docs/conventions/code-metrics.yaml` (or `--file`);
 with neither option the root is what `git rev-parse --show-toplevel` reports
@@ -43,7 +53,10 @@ import sys
 from typing import Any, Callable
 
 MIN_PYTHON = (3, 9)
-USAGE = "  setup-apply.py [--dir <repo-root> | --file <path>] [<key>=<value>...]"
+USAGE = (
+    "  setup-apply.py [--dir <repo-root> | --file <path>] [<key>=<value>...]\n"
+    "  setup-apply.py --copy-old [--preview] [--dir <repo-root>] [--home <dir>]"
+)
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN_ROOT, "scripts")
@@ -58,10 +71,15 @@ _spec.loader.exec_module(yaml_subset)
 HEADER = (
     "# code-metrics configuration (team layer). Contract: the plugin's reference/config.md;\n"
     "# schema: the plugin's schemas/code-metrics.schema.json.\n"
-    "# Layers: ~/.claude/code-metrics.yaml, this file, .claude/code-metrics.local.yaml (per-key override).\n"
+    "# Layers: this file, then docs/conventions/code-metrics.local.yaml (per-key override).\n"
+)
+PERSONAL_HEADER = (
+    "# code-metrics personal override (gitignored). Contract: the plugin's reference/config.md.\n"
+    "# Layers: docs/conventions/code-metrics.yaml, then this file (per-key override).\n"
 )
 TEAM_PARTS = ["docs", "conventions"]
 TEAM_FILE = os.path.join(*TEAM_PARTS, "code-metrics.yaml")
+PERSONAL_NAME = "code-metrics.local.yaml"
 LEGACY_FILE = os.path.join(".claude", "code-metrics.yaml")
 NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
@@ -286,13 +304,145 @@ def write_file(target: str, text: str, recheck: Callable[[], bool]) -> None:
         raise
 
 
+def _leaves(node: Any, prefix: str = "") -> dict[str, Any]:
+    """Every leaf of a mapping by dotted key; a list is one closed value."""
+    out: dict[str, Any] = {}
+    for key, value in (node or {}).items():
+        dotted = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(value, dict) and value:
+            out.update(_leaves(value, dotted))
+        else:
+            out[dotted] = value
+    return out
+
+
+def _git_root() -> str:
+    try:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        top = probe.stdout.strip() if probe.returncode == 0 else ""
+    except OSError:
+        top = ""
+    return top or os.getcwd()
+
+
+def copy_old(root: str, home: str, preview: bool) -> int:
+    """Copy the old user-global and personal files into the personal override.
+
+    The old `.claude/code-metrics.local.yaml` keys are copied whole. A key of
+    the old user-global file is copied unless the team file sets it, since the
+    team layer already wins over that file and the personal override would
+    win over the team. Keys the personal override already sets are kept. The
+    old files are left in place. With `preview`, nothing is written.
+    """
+    real_root = os.path.realpath(root)
+    old_user = os.path.join(home, ".claude", "code-metrics.yaml")
+    old_local = os.path.join(root, ".claude", PERSONAL_NAME)
+    target = os.path.join(root, *TEAM_PARTS, PERSONAL_NAME)
+
+    def check_target() -> bool:
+        return check_chain(root, real_root, TEAM_PARTS, PERSONAL_NAME)
+
+    try:
+        user_doc = (
+            read_mapping(old_user)[1] if check_file(old_user, old_user, None) else None
+        )
+        local_doc = (
+            read_mapping(old_local)[1]
+            if check_chain(root, real_root, [".claude"], PERSONAL_NAME)
+            else None
+        )
+        team_doc = (
+            read_mapping(os.path.join(root, TEAM_FILE))[1]
+            if check_chain(root, real_root, TEAM_PARTS, "code-metrics.yaml")
+            else {}
+        )
+        existing_text, existing = read_mapping(target) if check_target() else ("", {})
+    except (UnsafePath, OSError) as exc:
+        print(f"setup-apply.py: {exc}; nothing written", file=sys.stderr)
+        return 1
+    except ValueError_ as exc:
+        print(f"setup-apply.py: {exc}", file=sys.stderr)
+        return 2
+    if user_doc is None and local_doc is None:
+        print(f"no old file found ({old_user}, {old_local}); nothing to copy")
+        return 0
+    def setter(keys: dict[str, Any], key: str) -> str | None:
+        return next((k for k in keys if key == k or key.startswith(k + ".")), None)
+
+    team_keys = _leaves(team_doc)
+    kept = _leaves(existing)
+    doc: dict[str, Any] = {}
+    lines: list[str] = []
+    for source, layer_doc in ((old_user, user_doc), (old_local, local_doc)):
+        for key, value in _leaves(layer_doc).items():
+            shadow = setter(team_keys, key) if source == old_user else None
+            if shadow is not None:
+                lines.append(
+                    f"not copied: {key} from {source}: the team file sets {shadow}, "
+                    "which already wins over the user-global file"
+                )
+            elif setter(kept, key) is not None:
+                lines.append(f"not copied: {key} from {source}: {target} already sets it")
+            else:
+                set_dotted(doc, key, value)
+                lines.append(f"copy: {key} from {source}")
+    for key, value in kept.items():
+        set_dotted(doc, key, value)
+    if lines:
+        print("\n".join(lines))
+    if existing_text and yaml_subset.parse(existing_text) == doc:
+        print(f"already configured: {target}")
+        return 0
+    if not doc:
+        print("nothing to copy")
+        return 0
+    body = "\n".join(dump(doc)) + "\n"
+    if preview:
+        print(f"preview, nothing written: {target} would read:\n{PERSONAL_HEADER}{body}")
+        return 0
+    try:
+        for depth in range(1, len(TEAM_PARTS) + 1):
+            rel = os.path.join(*TEAM_PARTS[:depth])
+            if not check_dir(os.path.join(root, rel), rel, real_root):
+                os.mkdir(os.path.join(root, rel))
+        check_target()
+        write_file(target, PERSONAL_HEADER + body, check_target)
+    except (UnsafePath, OSError) as exc:
+        print(f"setup-apply.py: {exc}; nothing written", file=sys.stderr)
+        return 1
+    print(f"written: {target}")
+    for old in (old_user, old_local):
+        if os.path.isfile(old):
+            print(f"left in place: {old}; delete it once check shows the values you expect")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     target = None
     root: str | None = None
+    home = os.environ.get("CODE_METRICS_HOME") or os.environ.get("HOME") or "/"
+    copy_mode = preview = False
     assignments: list[str] = []
     i = 0
     while i < len(argv):
         arg = argv[i]
+        if arg in ("--copy-old", "--preview"):
+            copy_mode = copy_mode or arg == "--copy-old"
+            preview = preview or arg == "--preview"
+            i += 1
+            continue
+        if arg == "--home":
+            if i + 1 >= len(argv):
+                print("setup-apply.py: --home needs a value", file=sys.stderr)
+                return 2
+            home = argv[i + 1]
+            i += 2
+            continue
         if arg in ("--dir", "--file"):
             if i + 1 >= len(argv):
                 print(f"setup-apply.py: {arg} needs a value", file=sys.stderr)
@@ -316,20 +466,22 @@ def main(argv: list[str]) -> int:
             return 2
         assignments.append(arg)
         i += 1
+    if copy_mode or preview:
+        file_given = target is not None and (
+            root is None
+            or os.path.abspath(target) != os.path.abspath(os.path.join(root, TEAM_FILE))
+        )
+        if not copy_mode or assignments or file_given:
+            print(
+                "setup-apply.py: --copy-old [--preview] takes only --dir and --home",
+                file=sys.stderr,
+            )
+            return 2
+        return copy_old(root or _git_root(), home, preview)
     if target is None:
         # No --dir: the repository root when git resolves one, else the cwd,
         # so the skill needs no command substitution in its allowed command.
-        try:
-            probe = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            top = probe.stdout.strip() if probe.returncode == 0 else ""
-        except OSError:
-            top = ""
-        root = top or os.getcwd()
+        root = _git_root()
         target = os.path.join(root, TEAM_FILE)
     real_root = os.path.realpath(root) if root is not None else ""
     team = root is not None and os.path.abspath(target) == os.path.abspath(

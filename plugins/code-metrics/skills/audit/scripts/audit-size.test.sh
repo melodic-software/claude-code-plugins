@@ -116,12 +116,26 @@ out="$(gate --check --all)"
 assert_eq "--check over --all cannot decide (exit 2)" 2 "$?"
 assert_contains "--check over --all says it needs the change scope" "$out" "needs the change scope"
 
-printf '.claude/\n' >"$GATE/.gitignore"
-printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
+printf '.claude/\ndocs/conventions/**/*.local.*\n' >"$GATE/.gitignore"
+printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.yaml"
 out="$(gate --check)"
 assert_eq "a personal override of report wins over the team rule (exit 0)" 0 "$?"
 assert_contains "the report names the personal layer" "$out" "\`size.check\` is \`report\` (local)"
-rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/.gitignore"
+case "$out" in
+*"old personal override"*) fail "the new personal file alone prints no old-path warning" "no warning" "$out" ;;
+*) pass "the new personal file alone prints no old-path warning" ;;
+esac
+rm -f "$GATE/docs/conventions/code-metrics.local.yaml"
+printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
+out="$(gate --check)"
+assert_eq "an old personal file alone still applies (exit 0)" 0 "$?"
+assert_contains "an old personal file alone is named with its new location" "$out" "/.claude/code-metrics.local.yaml is the old personal override, still read as the personal layer; move it to "
+printf 'size:\n  check: crossing-or-growth\n' >"$GATE/.claude/code-metrics.local.yaml"
+printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.yaml"
+out="$(gate --check)"
+assert_eq "with both personal files the new one wins (exit 0)" 0 "$?"
+assert_contains "with both personal files the warning names both" "$out" "/docs/conventions/code-metrics.local.yaml exists"
+rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/docs/conventions/code-metrics.local.yaml" "$GATE/.gitignore"
 
 team $'  file_lines: 50\n  check: crossing\n'
 gate --check >/dev/null

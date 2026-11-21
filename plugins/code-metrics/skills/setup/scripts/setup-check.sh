@@ -98,13 +98,22 @@ check_layer() {
   elif git -C "$REPO_ROOT" check-ignore -q "$rel" 2>/dev/null; then
     row PASS "layer $name ignored" "the personal override is gitignored"
   else
-    row WARN "layer $name ignored" "the personal override is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
+    local line="docs/conventions/**/*.local.*"
+    [[ "$rel" == .claude/* ]] && line=".claude/**/*.local.*"
+    row WARN "layer $name ignored" "the personal override is NOT gitignored; recommended consumer .gitignore line: $line (the plugin never edits your .gitignore)"
   fi
 }
-check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
+old_user="$HOME_DIR/.claude/code-metrics.yaml"
+old_local="$REPO_ROOT/.claude/code-metrics.local.yaml"
+personal_file="$REPO_ROOT/docs/conventions/code-metrics.local.yaml"
+row INFO "layer userConfig" "none: the plugin declares no userConfig option"
+if [[ -f "$old_user" ]]; then
+  row WARN "layer user-global location" "$old_user is the old user-global file, still read below the team layer during the dual-read window; /code-metrics:setup apply --copy-old copies the keys this repository needs to $personal_file"
+  check_layer "user-global" "$old_user" n/a
+fi
 team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
 retired_file="$REPO_ROOT/.claude/code-metrics.yaml"
-if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metrics.yaml" ]]; then
+if [[ -f "$retired_file" && ! "$retired_file" -ef "$old_user" ]]; then
   if [[ -f "$team_file" ]]; then
     row WARN "layer team location" "$retired_file is the retired team file and is not read; delete it"
   else
@@ -112,7 +121,15 @@ if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metric
   fi
 fi
 check_layer "team" "$team_file" yes
-check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
+if [[ -f "$old_local" && -f "$personal_file" ]]; then
+  row WARN "layer local location" "$old_local is the old personal override and is not read because $personal_file exists; delete it once its keys are there"
+  check_layer "local" "$personal_file" no
+elif [[ -f "$old_local" ]]; then
+  row WARN "layer local location" "$old_local is the old personal override, still read during the dual-read window; /code-metrics:setup apply --copy-old copies its keys to $personal_file"
+  check_layer "local" "$old_local" no
+else
+  check_layer "local" "$personal_file" no
+fi
 
 # The resolver reads an ecosystem record only for a lane in the resolved
 # `lanes` mapping whose id matches its LANE_ID pattern, so the configuration

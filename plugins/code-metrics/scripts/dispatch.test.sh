@@ -474,6 +474,42 @@ assert_doc "ecosystem globs redefine the bash lane" "$out" \
   'any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and not any(r["file"]=="plain.sh" for r in d["measures"])'
 assert_doc "lanes.dotnet.enabled false opts the lane out" "$out" \
   'not any(r["lane"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
+
+# 10b. The personal layer: docs/conventions/code-metrics.local.yaml beats the
+#      team file; the old .claude/code-metrics.local.yaml applies only while it
+#      is absent, and each run names the old file on stderr.
+personal="$repo/docs/conventions/code-metrics.local.yaml"
+old_personal="$repo/.claude/code-metrics.local.yaml"
+file_lines_is() {
+  printf 'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==%s and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="local"' "$1"
+}
+stderr_has() {
+  case "$(cat "$err_file")" in
+  *"$2"*) pass "$1" ;;
+  *) fail "$1" "stderr contains: $2" "$(head -c 600 "$err_file")" ;;
+  esac
+}
+err_file="$(mktemp)"
+printf 'size:\n  file_lines: 3\n' >"$personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "the new personal file alone supplies the reference" "$out" "$(file_lines_is 3)"
+if grep -q 'old personal override' "$err_file"; then
+  fail "the new personal file alone prints no old-path warning" "no old personal override warning" "$(head -c 600 "$err_file")"
+else
+  pass "the new personal file alone prints no old-path warning"
+fi
+rm -f "$personal"
+printf 'size:\n  file_lines: 4\n' >"$old_personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "an old personal file alone still applies" "$out" "$(file_lines_is 4)"
+stderr_has "an old personal file alone is named with its new location" "/.claude/code-metrics.local.yaml is the old personal override, still read as the personal layer; move it to "
+stderr_has "the old-path warning names the new location" "/docs/conventions/code-metrics.local.yaml (/code-metrics:setup apply --copy-old)"
+printf 'size:\n  file_lines: 3\n' >"$personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "with both personal files the new one wins" "$out" "$(file_lines_is 3)"
+stderr_has "with both personal files the warning names both" "/.claude/code-metrics.local.yaml is the old personal override and is not read because "
+stderr_has "the both-files warning names the new file" "/docs/conventions/code-metrics.local.yaml exists"
+rm -f "$err_file"
 rm -rf "$repo" "$home"
 
 # 11. --config with a pre-resolved document: the collector override narrows the

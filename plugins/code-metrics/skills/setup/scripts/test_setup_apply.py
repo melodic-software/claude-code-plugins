@@ -261,6 +261,95 @@ class SetupApplyTests(unittest.TestCase):
             self.assertIn("size.bogus", result.stderr)
             self.assertNotIn("gho_example", target.read_text(encoding="utf-8"))
 
+    def _old_layout(self, tmp: str) -> tuple[Path, Path, Path]:
+        home = Path(tmp) / "home"
+        root = Path(tmp) / "repo"
+        (home / ".claude").mkdir(parents=True)
+        (root / ".claude").mkdir(parents=True)
+        (root / "docs" / "conventions").mkdir(parents=True)
+        return home, root, root / "docs" / "conventions" / "code-metrics.local.yaml"
+
+    def _resolve(self, home: Path, root: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(RESOLVER), "--home", str(home), "--repo-root", str(root)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    def test_copy_old_previews_then_copies_and_leaves_the_old_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, personal = self._old_layout(tmp)
+            old_user = home / ".claude" / "code-metrics.yaml"
+            old_local = root / ".claude" / "code-metrics.local.yaml"
+            old_user.write_text(
+                "size:\n  file_lines: 700\ncomplexity:\n  cyclomatic:\n    reference: 9\n",
+                encoding="utf-8",
+            )
+            old_local.write_text("size:\n  file_lines: 650\n", encoding="utf-8")
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
+                "complexity:\n  cyclomatic:\n    reference: 12\n", encoding="utf-8"
+            )
+            before = self._resolve(home, root)
+            self.assertIn(str(old_user), before.stderr)
+            self.assertIn(str(old_local), before.stderr)
+
+            preview = run("--copy-old", "--preview", "--dir", str(root), "--home", str(home))
+            self.assertEqual(preview.returncode, 0, preview.stderr)
+            self.assertIn("preview, nothing written", preview.stdout)
+            self.assertFalse(personal.exists())
+
+            result = run("--copy-old", "--dir", str(root), "--home", str(home))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                yaml_subset.parse(personal.read_text(encoding="utf-8")),
+                {"size": {"file_lines": 650}},
+            )
+            self.assertIn(
+                f"not copied: complexity.cyclomatic.reference from {old_user}",
+                result.stdout,
+            )
+            self.assertTrue(old_user.is_file() and old_local.is_file())
+            self.assertIn("left in place", result.stdout)
+
+            after = self._resolve(home, root)
+
+            def strip(out: str) -> dict:
+                return {k: v for k, v in json.loads(out).items() if not k.startswith("_")}
+
+            self.assertEqual(strip(after.stdout), strip(before.stdout))
+            self.assertIn(str(personal), after.stderr)
+            self.assertIn("is not read because", after.stderr)
+
+            again = run("--copy-old", "--dir", str(root), "--home", str(home))
+            self.assertIn("already configured", again.stdout)
+
+    def test_copy_old_keeps_keys_the_personal_override_sets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, personal = self._old_layout(tmp)
+            (root / ".claude" / "code-metrics.local.yaml").write_text(
+                "size:\n  file_lines: 650\n  mode: iso-8.2.115\n", encoding="utf-8"
+            )
+            personal.write_text("size:\n  file_lines: 600\n", encoding="utf-8")
+            result = run("--copy-old", "--dir", str(root), "--home", str(home))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                yaml_subset.parse(personal.read_text(encoding="utf-8")),
+                {"size": {"file_lines": 600, "mode": "iso-8.2.115"}},
+            )
+            self.assertIn("size.file_lines", result.stdout)
+            self.assertIn("already sets it", result.stdout)
+
+    def test_copy_old_with_no_old_file_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, personal = self._old_layout(tmp)
+            result = run("--copy-old", "--dir", str(root), "--home", str(home))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("no old file found", result.stdout)
+            self.assertFalse(personal.exists())
+            self.assertEqual(run("--copy-old", "size.file_lines=1").returncode, 2)
+            self.assertEqual(run("--preview", "--dir", str(root)).returncode, 2)
+
     def test_help_prints_usage_even_with_docstrings_stripped(self) -> None:
         # python -OO drops __doc__, which --help printed.
         result = subprocess.run(

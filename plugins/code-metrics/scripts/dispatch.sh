@@ -27,10 +27,12 @@
 # scope as cwd-relative `lane<TAB>path` rows and stops, producing no document.
 #
 # Configuration: without `--config`, the cascade is resolved here through
-# scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
-# docs/conventions/code-metrics.yaml, .claude/code-metrics.local.yaml, plus the
-# consumer's .claude/ecosystems/<lane>.yaml files); CODE_METRICS_HOME overrides
-# the home directory the user-global layer is read from. `--config` takes a
+# scripts/resolve-config.py (bundled defaults, then
+# docs/conventions/code-metrics.yaml and docs/conventions/code-metrics.local.yaml,
+# plus the consumer's .claude/ecosystems/<lane>.yaml files). The old
+# ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml are still read,
+# each with a warning, during the dual-read window; CODE_METRICS_HOME overrides
+# the home directory the old user-global file is read from. `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the
 # resolved document supplies the references, `scope.exclude`, the per-lane
 # collector overrides, and the ecosystem globs and opt-outs.

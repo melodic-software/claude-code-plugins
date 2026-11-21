@@ -7,9 +7,19 @@ later layer keeps the earlier value; a list is a closed value and is replaced
 whole):
 
   0. bundled defaults           scripts/config-defaults.json
-  1. user-global                ~/.claude/code-metrics.yaml
+  1. userConfig                 none: the plugin declares no userConfig option
   2. team                       <repo>/docs/conventions/code-metrics.yaml
-  3. personal override          <repo>/.claude/code-metrics.local.yaml
+  3. personal override          <repo>/docs/conventions/code-metrics.local.yaml
+
+Dual-read window: two old paths are still read, each with one warning per run
+naming the old file and where its keys go.
+
+  ~/.claude/code-metrics.yaml         read as layer `user-global`, below team,
+                                      since no file supplies the userConfig layer
+  <repo>/.claude/code-metrics.local.yaml
+                                      read as layer `local` only while the
+                                      docs/conventions personal file is absent
+                                      or outside the YAML subset
 
 The team file earlier releases read from the repository's .claude directory
 is not read; /code-metrics:setup check reports it and apply moves its keys.
@@ -22,8 +32,10 @@ and dropped: the key resolves from a valid higher layer, else the bundled
 default, never from a lower layer.
 
 The consumer's ecosystem files (`.claude/ecosystems/<lane>.yaml`, the
-marketplace-wide ecosystem-commands convention) resolve through the same three
-layers for their `globs` and `enabled` keys. Only a lane in the resolved
+marketplace-wide ecosystem-commands convention) resolve through that
+convention's three layers (`~/.claude/ecosystems/<lane>.yaml`, then the
+repository's `<lane>.yaml` and `<lane>.local.yaml`) for their `globs` and
+`enabled` keys. Only a lane in the resolved
 `lanes` mapping reads its ecosystem file: the bundled lanes, plus any id a
 layer lists under `lanes`. A record whose id no layer lists creates no lane.
 
@@ -252,14 +264,60 @@ def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
     ]
 
 
-def surface_layer_paths(home: str, root: str) -> list[tuple[str, str]]:
-    """The plugin's own three layers; the team layer is the docs file alone.
+def old_layer_paths(home: str, root: str) -> dict[str, str]:
+    """The pre-cascade user-global and personal override paths, by layer."""
+    return {
+        "user-global": os.path.join(home, ".claude", f"{SURFACE}.yaml"),
+        "local": os.path.join(root, ".claude", f"{SURFACE}.local.yaml"),
+    }
 
-    `docs/conventions/code-metrics.yaml` is the team layer (ADR 0064). The
-    older team file in the repository's `.claude` directory is never read.
+
+def surface_layer_paths(
+    home: str, root: str, warnings: list[str] | None = None
+) -> list[tuple[str, str]]:
+    """The plugin's file layers, with the old paths the dual-read window keeps.
+
+    The team and personal override files sit in `docs/conventions/`
+    (config-cascade, "The layers"). The older team file in the repository's
+    `.claude` directory is never read. An old user-global or personal file is
+    read in its layer's place and named in one warning each.
     """
-    paths = layer_paths(home, root, SURFACE)
-    paths[1] = ("team", os.path.join(root, "docs", "conventions", f"{SURFACE}.yaml"))
+    warnings = [] if warnings is None else warnings
+    conventions = os.path.join(root, "docs", "conventions")
+    personal = os.path.join(conventions, f"{SURFACE}.local.yaml")
+    old = old_layer_paths(home, root)
+    paths = [("team", os.path.join(conventions, f"{SURFACE}.yaml"))]
+    if os.path.isfile(old["user-global"]):
+        paths.insert(0, ("user-global", old["user-global"]))
+        warnings.append(
+            f"{old['user-global']} is the old user-global file, still read below the "
+            "team layer; the plugin has no userConfig option, so copy the keys this "
+            f"repository needs to {personal} (/code-metrics:setup apply --copy-old) "
+            "and delete the old file"
+        )
+    if os.path.isfile(personal) and os.path.isfile(old["local"]):
+        if _load_layer(personal, []) is None:
+            paths.extend([("local", old["local"]), ("local", personal)])
+            warnings.append(
+                f"{old['local']} is the old personal override, still read as the "
+                f"personal layer because {personal} is outside the YAML subset; fix "
+                f"{personal}, then delete the old file"
+            )
+        else:
+            paths.append(("local", personal))
+            warnings.append(
+                f"{old['local']} is the old personal override and is not read because "
+                f"{personal} exists; move any key it still holds to {personal} and "
+                "delete the old file"
+            )
+    elif os.path.isfile(personal):
+        paths.append(("local", personal))
+    elif os.path.isfile(old["local"]):
+        paths.append(("local", old["local"]))
+        warnings.append(
+            f"{old['local']} is the old personal override, still read as the personal "
+            f"layer; move it to {personal} (/code-metrics:setup apply --copy-old)"
+        )
     return paths
 
 
@@ -571,7 +629,7 @@ def main(argv: list[str]) -> int:
                 )
                 return 2
     else:
-        layer_files = surface_layer_paths(args.home, root)
+        layer_files = surface_layer_paths(args.home, root, warnings)
 
     def discovered(lane: str) -> list[tuple[str, str]]:
         return layer_paths(args.home, root, os.path.join("ecosystems", lane))

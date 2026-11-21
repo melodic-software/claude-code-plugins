@@ -73,11 +73,15 @@ run continues.
 
 ## Configuration
 
-This plugin has no `userConfig`. Everything tunable lives in three layers: user-global
-(`~/.claude/code-metrics.yaml`), team (`docs/conventions/code-metrics.yaml`, tracked, checked by
+This plugin has no `userConfig`. Everything tunable lives in two file layers: team
+(`docs/conventions/code-metrics.yaml`, tracked, checked by
 [`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json); the retired team file
-under `.claude/` is not read, and `/code-metrics:setup apply` moves its keys), and personal override (`.claude/code-metrics.local.yaml`, gitignored; recommended line
-`.claude/**/*.local.*`) with per-key override, and every key has a bundled default
+under `.claude/` is not read, and `/code-metrics:setup apply` moves its keys) and personal override
+(`docs/conventions/code-metrics.local.yaml`, gitignored; recommended line
+`docs/conventions/**/*.local.*`) with per-key override. The old `~/.claude/code-metrics.yaml` and
+`.claude/code-metrics.local.yaml` are still read, each with a warning, until a later release
+([dual-read window](reference/config.md#layers-and-merge-form)); `/code-metrics:setup apply`
+copies their keys. Every key has a bundled default
 (`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
 directories at any depth and reports what it dropped, and a team file that sets the key replaces
@@ -86,9 +90,9 @@ the list whole. The consumer's
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
-`reference/config.md`; `/code-metrics:setup` writes the team layer and probes the collectors.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+`reference/config.md`; `/code-metrics:setup` writes the team layer, copies old personal files into
+the personal override, and probes the collectors. Where each layer lives across this marketplace's
+plugins: [config locations](reference/config-locations.md).
 
 ## The report
 

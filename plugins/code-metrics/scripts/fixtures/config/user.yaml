@@ -1,4 +1,4 @@
-# Fixture: the user-global layer (~/.claude/code-metrics.yaml). Sets two
+# Fixture: the old user-global file (~/.claude/code-metrics.yaml). Sets two
 # references that the team layer then overrides one of.
 complexity:
   cyclomatic:

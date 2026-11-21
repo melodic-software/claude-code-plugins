@@ -146,8 +146,8 @@ does not land on one of the well-known names.
 
 ## Configuration
 
-Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
+Everything tunable resolves through the code-metrics layers (team
+`docs/conventions/code-metrics.yaml`, personal override `docs/conventions/code-metrics.local.yaml`; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 
 | Key | Default | Effect |
 |---|---|---|
