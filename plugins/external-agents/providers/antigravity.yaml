@@ -1,0 +1,58 @@
+schema: 1
+product: antigravity
+docs_index: https://antigravity.google/docs/cli
+binary:
+  name: agy
+  candidates:
+    win32:
+      - "{LOCALAPPDATA}/agy/bin/agy.exe"
+    linux:
+      - "{HOME}/.local/bin/agy"
+    darwin:
+      - "{HOME}/.local/bin/agy"
+version:
+  args: [--version]
+  sources:
+    standalone: github:google-antigravity/antigravity-cli
+unset_model: skip-with-notice
+model_flag: --model
+effort_flag: --effort
+always_args: [--output-format, json]
+prompt:
+  form: "-p={prompt}"
+resume:
+  args: [--conversation, "{thread}"]
+output:
+  kind: json_envelope
+  status_field: status
+  success_value: SUCCESS
+  message_field: response
+  thread_field: conversation_id
+  error_field: error
+review:
+  kind: diff_file
+  dir_arg: --add-dir
+modes:
+  read-only:
+    enforcement: approval-denial
+    settings:
+      agentMode: ""
+      allowNonWorkspaceAccess: false
+    settings_arg: --settings
+    prompt_preface: "This run is read-only: shell commands and file writes are refused, so use only your file-reading tools."
+  write:
+    enforcement: sandbox
+    args:
+      run: [--mode, auto]
+      resume: [--mode, auto]
+    settings:
+      allowNonWorkspaceAccess: false
+    settings_arg: --settings
+    fallback_warning:
+      pattern: "--mode auto is not available"
+      severity: notice
+soft_deny:
+  - kind: json_array_nonempty
+    field: denied_actions
+  - kind: stderr_substring
+    text: "permission that headless mode cannot prompt for"
