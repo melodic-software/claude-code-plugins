@@ -928,6 +928,8 @@ lane. A skill runs its `resolve` command and never reads the files itself.
   chain). Each lane registers once in the medium registry with its view kinds, whether it is
   hosted-capable, and its default.
 
+  Where plugin config belongs: [config locations](../config-cascade/locations.md). A `.claude/` path named here is a plugin's current or retired location, a declared deviation until it migrates.
+
 ## Template vendoring posture
 
 **Decision.** Do not vendor the 31 html-effectiveness corpus templates (20 gallery +

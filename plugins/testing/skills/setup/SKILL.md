@@ -28,6 +28,8 @@ with `*` must be single-quoted. `docs/conventions/testing.yaml` also holds `/tes
 `map_report_order`, `file_findings` and `file_findings_floor`, and `/testing:write`'s
 `tdd_refactor_step` and `first_test`, which the scan ignores.
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 The keys:
 
 ```yaml

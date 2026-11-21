@@ -14,6 +14,8 @@ metadata:
 Exec-bit backstop: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --probe 2>/dev/null || echo "unavailable — run the check manually"`
 Config layer (user-global): !`test -f "$HOME/.claude/source-control.md" && echo present || echo absent`
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

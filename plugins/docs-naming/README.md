@@ -51,6 +51,8 @@ into it. A user-global file still at the retired `docs-hygiene` name
 (`~/.claude/docs-hygiene.json`) is read, with a warning from the resolver; rename
 it to retire the warning.
 
+Where plugin config belongs: [config locations](reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 ## Renames are gated per file
 
 `realign-file-names` accepts one file at a time. The findings artifact does not

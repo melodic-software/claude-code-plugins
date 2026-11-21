@@ -53,3 +53,5 @@ substitutes the root at all. This matches the root-resolution requirement
 [`config-resolution.md`](../../../reference/config-resolution.md)
 already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
 anchors itself the same way.
+
+Where plugin config belongs: [config locations](../../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.

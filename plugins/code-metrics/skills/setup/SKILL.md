@@ -20,6 +20,8 @@ surface and for the external collectors the audits probe: `check` inspects and v
 persists, and neither installs anything. Keys, defaults, and provenance:
 `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 persists. `apply` is non-interactive when complete `<key>=<value>` arguments are supplied
 (automation and headless use pass them and are never prompted); with none, it interviews one key

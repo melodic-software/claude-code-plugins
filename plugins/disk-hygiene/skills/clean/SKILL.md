@@ -233,6 +233,8 @@ and `elevation`; none can weaken hard guards. The [overlay schema](reference/pol
 lists every field; version 1 files load unchanged. The scan output names its `policy_sources` and
 the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
 report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring the managed-state

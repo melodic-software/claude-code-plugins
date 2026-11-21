@@ -25,6 +25,8 @@ earlier layer's and example-claims concatenate, **except** that a later layer de
 with empty source lists is an explicit opt-out that *removes* that inherited dimension. This skill
 writes only the **team** file; changes to the user-global layer or the personal override are the user's to make.
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 ## `check` (read-only)
 
 Inspect the effective merged config and report a PASS/FAIL/INFO table with one remediation line per

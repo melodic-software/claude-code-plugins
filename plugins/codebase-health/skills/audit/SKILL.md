@@ -113,6 +113,8 @@ pass). Come from the consuming repo's tracked config, resolved additively across
 2. `.claude/codebase-health.md` (team, tracked)
 3. `.claude/codebase-health.local.md` (personal override, gitignored)
 
+   Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 The four bundled dimensions are `documentation`, `configuration`, `code-quality`, and
 `architecture`; the config may tune their globs, remove a dimension, or add custom ones.
 

@@ -313,6 +313,8 @@ layer supplying every effective value. The accuracy dials (`nomination_passes`,
 tunable per repo; the gates bind fix eligibility and release readiness only, and never filter
 what the report shows.
 
+Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 When `deep_research_on_exhaustion` is on and a research-capable skill is enabled, a
 budget-exhausted candidate may escalate to `/discovery:research` (if that plugin is enabled).
 When it is not enabled, the run says so once and takes the ordinary neutral disposition

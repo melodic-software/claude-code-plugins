@@ -35,6 +35,8 @@ Three layers, resolved in this order:
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` |
 | 3 | personal override (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.local.md` |
 
+Where plugin config belongs: [config locations](config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 **Merge form: per-key override**, declared here as the cascade convention requires. Entries merge per
 `finding_id`: a later layer's entry for one id wins for that id only, and every id it does not
 mention keeps the earlier layer's entry. Wholesale replacement is forbidden, because a layer

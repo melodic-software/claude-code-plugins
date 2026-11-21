@@ -160,6 +160,8 @@ because a spawn's `model` takes an alias only
 ([sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). With no such layer, or without `multi-agent`, the
 pins apply. The rule: `reference/parent-contract.md`, "The worker's model is the parent's call".
 
+Where plugin config belongs: [config locations](reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

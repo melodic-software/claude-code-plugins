@@ -79,6 +79,8 @@ against that contract rather than restating it.
 6. **Sink reachability**. For the effective sink: `gh-issues` → covered by step 1;
    `markdown-dir` → the directory exists and is writable; `local-fallback` → nothing to check.
 
+   Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+
 ## `apply` (writes the pointer region + topic doc, on explicit request)
 
 Converge, in order, each write individually gated on operator confirmation:
