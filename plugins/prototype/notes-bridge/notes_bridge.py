@@ -3,11 +3,11 @@
 """notes-bridge: the session-bridge app that carries in-page notes on a non-final UI. Python 3 stdlib.
 
 Usage: python notes_bridge.py --dir DATA_DIR <command>
-  ensure-running [--page NAME] [--port P] [--idle-seconds S]
+  ensure-running [--page NAME] [--port P] [--idle-seconds S] [--dev-origin ORIGIN]
                              start the server on the data dir (or reuse it, unless it started
                              from another plugin build or frames another page: then restart
                              it); print its JSON
-  serve --port P --nonce N [--page NAME] [--idle-seconds S]
+  serve --port P --nonce N [--page NAME] [--idle-seconds S] [--dev-origin ORIGIN]
                              run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
   import --file F            append the notes of one copy-out block in F (Copy all notes on the
@@ -28,9 +28,14 @@ note to `POST /api/note`, which takes one note that note.schema.json accepts. No
 session's replies into `replies.json`, so this app reuses the view app's hub, token route, expiry and
 apply (lib/session-bridge/README.md, "The view app"). Nothing here acts on a note: the watcher
 prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts/ui-feedback).
+
+With --dev-origin, the host page frames a real-stack route on the app's dev server instead: the
+origin must be exactly what `new URL(input).origin` makes of it (dev-origin.mjs, run with node),
+the frame has no sandbox attribute, and the host page's policy adds frame-src for that origin.
 """
 
 import argparse
+import html
 import json
 import math
 import os
@@ -39,6 +44,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -72,6 +78,8 @@ PAGE_CSP = (
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
     "img-src data:; font-src data:; base-uri 'none'; form-action 'none'"
 )
+FRAME = b'<iframe id="page"'
+SANDBOX = FRAME + b' sandbox="allow-scripts"'
 PAGE_CSP_META = (
     f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
 )
@@ -217,12 +225,26 @@ def problems(value, node=None, at="note", doc=None):
 class NotesHub(view.ViewHub):
     name = NAME
 
-    def __init__(self, port, data_dir, page="page.html", idle=view.IDLE_SECONDS):
+    def __init__(
+        self, port, data_dir, page="page.html", idle=view.IDLE_SECONDS, dev_origin=None
+    ):
         super().__init__(port, data_dir, idle)
         self.page = self.dir / page
+        self.dev_origin = dev_origin
 
     def identity(self):
-        return {"app": NAME, "page": self.page.name}
+        found = {"app": NAME, "page": self.page.name}
+        return {**found, "devOrigin": self.dev_origin} if self.dev_origin else found
+
+    def host_page(self):
+        """host.html and its policy; a real-stack session's frame loses its sandbox and gains frame-src."""
+        raw = (HERE / "host.html").read_bytes()
+        if not self.dev_origin:
+            return raw, HOST_CSP
+        if raw.count(SANDBOX) != 1:
+            raise RuntimeError(f"host.html must hold {SANDBOX.decode()} exactly once")
+        mark = FRAME + f' data-dev-origin="{html.escape(self.dev_origin)}"'.encode()
+        return raw.replace(SANDBOX, mark), f"{HOST_CSP}; frame-src {self.dev_origin}"
 
     def read_state(self):
         """The host page's frame: whether the session listens, and each note's progress and reply."""
@@ -270,9 +292,8 @@ class NotesHandler(view.ViewHandler):
 
     def route_get(self, url, query):
         if url.path in ("/", "/index.html"):
-            return self.send(
-                200, (HERE / "host.html").read_bytes(), "text/html", HOST_CSP
-            )
+            body, csp = self.hub.host_page()
+            return self.send(200, body, "text/html", csp)
         if url.path in STATIC:
             file, ctype = STATIC[url.path]
             return self.send(200, (HERE / file).read_bytes(), ctype)
@@ -395,7 +416,7 @@ def cmd_import(d, a):
 def cmd_serve(d, a):
     httpd, hub = bridge.start(
         NotesHandler,
-        lambda port: NotesHub(port, d, a.page, a.idle_seconds),
+        lambda port: NotesHub(port, d, a.page, a.idle_seconds, a.dev_origin),
         a.port,
         a.nonce,
     )
@@ -427,10 +448,15 @@ def end_server(d, s):
     bridge.clear_session(d, NAME)
 
 
-def other_page(s, page):
-    """Why the running server `s` frames another page than `page`, or None when it frames `page`."""
-    served = (bridge.ping(s["port"]) or {}).get("page")
-    return None if served == page else f"it frames {served}, not {page}"
+def other_page(s, page, dev_origin=None):
+    """Why the running server `s` frames another page or dev origin, or None when it frames these."""
+    ping = bridge.ping(s["port"]) or {}
+    served, origin = ping.get("page"), ping.get("devOrigin")
+    if served != page:
+        return f"it frames {served}, not {page}"
+    if origin != dev_origin:
+        return f"it frames dev origin {origin}, not {dev_origin}"
+    return None
 
 
 def cmd_ensure_running(d, a):
@@ -439,7 +465,7 @@ def cmd_ensure_running(d, a):
     view.private_dir(d)
     s = bridge.read_session(d, NAME)
     live = bool(s and bridge.running(d, s))
-    stale = live and (bridge.stale_build(s) or other_page(s, a.page))
+    stale = live and (bridge.stale_build(s) or other_page(s, a.page, a.dev_origin))
     if stale:
         end_server(d, s)
         print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
@@ -451,6 +477,8 @@ def cmd_ensure_running(d, a):
         cmd = [bridge.interpreter(), str(HERE / "notes_bridge.py"), "--dir", str(d)]
         cmd += ["serve", "--port", str(port), "--nonce", nonce, "--page", a.page]
         cmd += ["--idle-seconds", str(a.idle_seconds)]
+        if a.dev_origin:
+            cmd += ["--dev-origin", a.dev_origin]
         with bridge.open_server_log(d, NAME) as log:
             proc = bridge.spawn(cmd, stderr=log)
         s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
@@ -506,6 +534,25 @@ def page_name(value):
     return value
 
 
+def dev_origin(value):
+    """`value` when `new URL(value).origin` is `value` (dev-origin.mjs decides); refused otherwise."""
+    node = shutil.which("node")
+    if not node:
+        raise argparse.ArgumentTypeError("needs node on PATH to check the origin")
+    try:
+        done = subprocess.run(
+            [node, str(HERE / "dev-origin.mjs"), value],
+            capture_output=True,
+            text=True,
+            timeout=START_SECONDS,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        raise argparse.ArgumentTypeError(f"could not check the origin: {e}") from None
+    if done.returncode != 0:
+        raise argparse.ArgumentTypeError(done.stderr.strip() or "refused")
+    return done.stdout.strip()
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--dir", required=True, help="the data dir, holding the page")
@@ -517,6 +564,7 @@ def main(argv=None):
         )
         s.add_argument("--page", type=page_name, default="page.html")
         s.add_argument("--idle-seconds", type=float, default=view.IDLE_SECONDS)
+        s.add_argument("--dev-origin", type=dev_origin, default=None)
         if name == "serve":
             s.add_argument("--nonce", default="")
     for name in ("apply", "import"):
