@@ -142,7 +142,10 @@ A legacy testing-format map (`.claude/skills/feature-map/SKILL.md`, or the direc
 not read. Warn that it is present and name `/app-control:map refresh <its path>`, which converts it;
 the run continues.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+This plugin still reads `.claude/testing.local.yaml` and reports `.claude/skills/feature-map/SKILL.md`
+as retired; until the plugin migrates, keep config where this page says it is read, then move it
+where [config locations](../../reference/config-locations.md) says. The control skill's
+`.claude/skills/control-<app>/` is a Claude Code project skill, not plugin config.
 
 ### Entry points
 
@@ -350,7 +353,9 @@ zoom, dark and right-to-left environments, and report. Before injecting a file a
 it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ignored` outside the
 tree and compare each pair with `cmp`; a difference ends the run degraded. Outside a git checkout,
 or with no mockable boundary, nothing is injected and every finding is labeled inferred. The
-consumer file `.claude/testing/worst-case.md` extends the catalog and is read as data. The action
+consumer file `.claude/testing/worst-case.md` extends the catalog and is read as data; this plugin
+reads it there until it migrates, then it moves where
+[config locations](../../reference/config-locations.md) says. The action
 edits no component code; fixes go to the user. It always takes own driving and skips Step 1:
 `/app-control:drive` injects no data.
 

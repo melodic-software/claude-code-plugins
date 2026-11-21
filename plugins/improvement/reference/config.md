@@ -111,7 +111,9 @@ hard error and never a fabricated reading.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the personal override here and every other cascade config file:
+This recursive line ignores the personal override this plugin reads today,
+`.claude/improvement.local.md`. A personal override at `<home>` needs `<home>/**/*.local.*`
+instead; see [config locations](config-locations.md).
 
 ```gitignore
 .claude/**/*.local.*

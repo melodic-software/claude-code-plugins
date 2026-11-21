@@ -124,7 +124,9 @@ one entry were absent. Do not discard the whole layer.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the personal override here and every other cascade config file:
+This recursive line ignores the personal override this plugin reads today, `.claude/bugs.local.md`.
+A personal override at `<home>` needs `<home>/**/*.local.*` instead; see
+[config locations](config-locations.md).
 
 ```gitignore
 .claude/**/*.local.*
