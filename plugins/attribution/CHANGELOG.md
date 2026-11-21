@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.1] - 2026-11-21
+
+### Fixed
+
+- The dispositions reference spells relabeled in American English.
+
 ## [0.21.0] - 2026-11-20
 
 ### Added

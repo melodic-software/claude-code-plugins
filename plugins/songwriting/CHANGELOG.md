@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.15] - 2026-11-21
+
+### Fixed
+
+- The Pattison research notes, their quoted passages and the audit checklist template spell gray
+  in American English. In-place correction to the released 0.8.4 entry that called "got" an
+  unclear-stress syllable: it now spells the term gray-area.
+
 ## [2.0.14] - 2026-11-19
 
 ### Changed
