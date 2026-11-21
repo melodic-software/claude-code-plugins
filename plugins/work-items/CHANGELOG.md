@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.12.2] - 2026-11-21
+
+### Fixed
+
+- `work-loop` standing mode says a `/loop` created on Claude Code 2.1.330 or later runs up to 30 days and an older one still ends at 7 days, and points at the 2.1.330 changelog entry beside the scheduled-tasks section. The restart-request handling on an expiry hit is unchanged ([#17833](https://github.com/melodic-software/claude-code-plugins/issues/17833)).
+
+## [15.12.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [15.12.0] - 2026-11-21
 
 ### Added

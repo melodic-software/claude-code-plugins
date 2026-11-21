@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.4] - 2026-11-21
+
+### Fixed
+
+- `babysit-loop` and its evals say a `/loop` created on Claude Code 2.1.330 or later runs up to 30 days and an older one still ends at 7 days, where they said seven days for every loop. The restart-request handling on an expiry hit is unchanged ([#17833](https://github.com/melodic-software/claude-code-plugins/issues/17833)).
+
+## [13.3.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+### Fixed
+
+- `ready` no longer refuses on Windows when a pull request closes more than one issue: the hold check stripped no carriage return from the issue list, so every issue but the last failed to read.
+
+## [13.3.2] - 2026-11-21
+
+### Changed
+
+- The merge and enable-auto-merge jobs read the demotion recoveries the post-merge job kept, so their merge gate answers a cleared record without listing green full runs.
+
+## [13.3.1] - 2026-11-21
+
+### Changed
+
+- The post-merge check keeps each demotion record's proven recovery between runs, so a record already cleared is answered without listing green full runs again.
+
 ## [13.3.0] - 2026-11-21
 
 ### Changed

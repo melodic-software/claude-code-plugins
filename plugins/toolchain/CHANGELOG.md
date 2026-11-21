@@ -3,6 +3,25 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [2.1.0] - 2026-11-21
+
+### Security
+
+- **`/toolchain:lint` owns the secret scan.** With a `.gitleaks.toml` at the repository root, a
+  check-mode run runs `gitleaks detect` from the skill itself and reports it as a `secret-scan`
+  row, with or without an ecosystem record, when no ecosystem runs, and in unattended runs, where
+  the bundled cross-cutting default never ran. It runs even when a cross-cutting command already
+  ran `gitleaks`, since a compound command's exit status can hide a finding. A repository with no
+  `.gitleaks.toml` sees the row as `skip (opt-in unmet: ...)`. A new eval case,
+  `ln-secret-scan-no-record`, freezes this floor before the bundled ecosystem files are removed.
+  ([#16031](https://github.com/melodic-software/claude-code-plugins/issues/16031))
+
 ## [2.0.6] - 2026-11-20
 
 ### Added

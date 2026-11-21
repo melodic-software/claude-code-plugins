@@ -1599,7 +1599,7 @@ def classify_if_gate(rule: object) -> dict:
     the rule can match fewer files than every file of that extension (a directory prefix other
     than a bare `**/`, a multi-dot suffix such as `*.Tests.ps1`, or an upper-case letter), so the projection can
     count it at the extension's ceiling without presenting it as known to fire. Everything
-    wider stays unclassified and is counted as firing, so an unmodelled rule over-counts the
+    wider stays unclassified and is counted as firing, so an unmodeled rule over-counts the
     fan-out rather than hiding a spawn.
     """
     if rule is None or str(rule).strip() == "":

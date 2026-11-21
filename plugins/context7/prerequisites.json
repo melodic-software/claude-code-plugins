@@ -11,7 +11,15 @@
       "detect": {
         "any": [
           "ctx7"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+(?:\\.[0-9]+)+)",
+          "min": "0",
+          "latest": "npm:ctx7"
+        }
       },
       "degrade": "Without ctx7, /context7:lookup falls back to the Context7 MCP server when one is configured and otherwise cannot look anything up.",
       "install": {

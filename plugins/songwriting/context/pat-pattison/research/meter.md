@@ -257,7 +257,7 @@ I asked you to throw the ball, not him.
 Pat's frame around those three: these are the only times unstressed
 one-syllable words are stressed to show their importance.
 
-Grey areas are normal, especially in strings of one-syllable words. Start with
+Gray areas are normal, especially in strings of one-syllable words. Start with
 the obvious meaning carriers, then fit weaker syllables around them.
 
 ## Scansion
@@ -268,29 +268,29 @@ force a pattern onto the phrase.
 Pat works his example in two stages, and the staging is the teaching. The first
 figure marks only "home / house / dark" and the two weak syllables between them,
 leaving "When I got" bare: "Some parts are totally clear. Start with those."
-The second figure fills the grey area in with the most likely reading:
+The second figure fills the gray area in with the most likely reading:
 
 ```text
 When I got home the house was dark.
 u    u  u   /   u    /    u   /
 ```
 
-Three stresses, not four. "When," "I," and "got" are all grey-area syllables
+Three stresses, not four. "When," "I," and "got" are all gray-area syllables
 that could take stress under contrast, "got" if the lights came up a moment
 later, "I" if someone else had been expected home, but the natural reading
 leaves all three unstressed and gives the weight to "home," "house," and "dark."
 
 That asymmetry is Pat's, stated outright:
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991) -->
+<!-- ai-slop-ignore-start: quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991), American spelling -->
 > Although it may not be perfectly clear what the first three syllables are, it
 > is very clear what they are not. They are not the most important syllables in
-> the phrase — typical for words in grey areas. There would be no problem setting
+> the phrase — typical for words in gray areas. There would be no problem setting
 > this phrase to music — just save the important places in the measures for the
 > most important words.
 <!-- ai-slop-ignore-end -->
 
-What the grey syllables *are* stays arguable, and
+What the gray syllables *are* stays arguable, and
 what they are *not* does not. They are not the most important syllables in the
 phrase. Start from the syllables that are unarguable and let the rest settle
 around them. Save musically strong positions for the weight-bearing words.
@@ -390,13 +390,13 @@ position refuses to give it, and "Oh" does not.
 Pattern-matching checklist:
 
 - Match stress to stress.
-- Match grey areas with similar grey areas.
+- Match gray areas with similar gray areas.
 - Put important words in important positions.
 - Keep connector words from stealing strong beats.
 
 Those four are Chapter 3's Exercise 13 instruction restated: scan ten given
 phrases, then write your own phrases to match the stress patterns of the
-originals; where you run into grey areas, create grey areas of your own to match
+originals; where you run into gray areas, create gray areas of your own to match
 them; and put your most important words in the same position as the most
 important words in the example. Two of its ten phrases, to show the range Pat
 asks a writer to match:
@@ -1395,7 +1395,7 @@ where the natural language contradicts the intended form.
 1. Divide words into syllables.
 2. Mark conventional stress in multi-syllable words.
 3. Mark meaning-carrier stress in one-syllable words.
-4. Identify grey areas without forcing them.
+4. Identify gray areas without forcing them.
 5. Scan the first verse naturally.
 6. Match stress pattern and importance pattern in later verses.
 7. Decide whether the section should be through-written or fragmented.
@@ -1706,7 +1706,7 @@ by one row.
 1. **Transcribe the sung line from the recording, not from the lyric sheet.** A
    lyric sheet records the words; only the recording records where the weight
    fell.
-2. **Scan it by importance.** Mark the meaning carriers first and let the grey
+2. **Scan it by importance.** Mark the meaning carriers first and let the gray
    areas settle around them, per [scansion](#scansion) above. Road signs, the
    prepositions, articles, conjunctions, auxiliaries, and pronouns, are unstressed
    unless the singer pushes them, which is step 6.

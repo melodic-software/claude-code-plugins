@@ -163,7 +163,7 @@ recording comes back at a size this table does not predict.
 | `open`, then bare `video-start` | 800×450, the default viewport fitted into an 800 box |
 | `open`, `resize <w> <h>`, then bare `video-start` | still 800×450. **`resize` does not change the video frame size** |
 | `PLAYWRIGHT_MCP_VIEWPORT_SIZE=1920x1200 open`, bare `video-start` | 800×500, a bigger viewport is still fitted into 800 |
-| `open`, `video-start --size "1920x1200"` | a 1920×1200 file, but the 1280×720 render sits in the top-left corner and the rest is padded grey |
+| `open`, `video-start --size "1920x1200"` | a 1920×1200 file, but the 1280×720 render sits in the top-left corner and the rest is padded gray |
 | both levers, matched | the size you asked for |
 
 `resize` is for exercising responsive layout; it is not a video lever. If a recording came back

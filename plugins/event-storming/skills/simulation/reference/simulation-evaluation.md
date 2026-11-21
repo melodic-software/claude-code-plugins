@@ -34,7 +34,7 @@ point the tooling at wherever your copy lives (any path you choose):
 |-----------|----------|---------|---------------|-------|
 | chap00 | Preface | Scope, formats, audience | 95% | All formats listed; Blink Modeling in glossary |
 | chap01 | Ch. 1 | What does ES look like? (4 stories) | 90% | Core patterns from all stories captured |
-| chap03 | Ch. 2 | Problem space: silos, pretending to know | 85% | Captured in persona DEEP/GREY/PRETEND zones |
+| chap03 | Ch. 2 | Problem space: silos, pretending to know | 85% | Captured in persona DEEP/GRAY/PRETEND zones |
 | chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
 | chap05 | **Ch. 4** | **Running Big Picture** (core chapter) | **98%** | Fully captured: all phases, facilitator behavior, metrics |
 | chap06 | Ch. 5 | Playing with value: currencies, purpose | 95% | All 5 sub-rounds captured |
@@ -87,7 +87,7 @@ Run these checks before starting any simulation:
 - [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, create the extract directory with the temp primitive and echo its path in the same call (`mktemp -d "${TMPDIR:-/tmp}/eventstorming-epub-XXXXXX"`), then extract into that literal path: `unzip -d "<echoed path>" /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
-- [ ] **Persona count validated:** 4-7 for simulation, with three-zone knowledge (DEEP/GREY/PRETEND) defined for each
+- [ ] **Persona count validated:** 4-7 for simulation, with three-zone knowledge (DEEP/GRAY/PRETEND) defined for each
 - [ ] **Shared focal moments defined:** 5 moments all personas will name differently
 
 ---
@@ -206,7 +206,7 @@ trusting this line.
 | Participant mode (no explaining) | #6 Expert/Teacher | Agents place stickies and react, not write explanations | Check agent output for paragraphs of explanation vs sticky-format events | Medium |
 | Disagreements preserved | #7 Consensus | Near-duplicate events placed side-by-side, not synthesized | Visual check: divergent phrasings still visible | High |
 | Asymmetric output | #10 Balanced | Domain Expert produced 2x+ events compared to New Hire | Count events per persona | Medium |
-| Grey-zone wrong events | #9 Gap-filling | At least 2-3 events that are plausible but wrong (from grey/pretend zones) | Manual check: do any events contradict expert knowledge? | High |
+| Gray-zone wrong events | #9 Gap-filling | At least 2-3 events that are plausible but wrong (from gray/pretend zones) | Manual check: do any events contradict expert knowledge? | High |
 
 **Scoring:** Weight the verdicts Critical=3, High=2, Medium=1. This table's nine rows give a maximum
 of 19; healthy is 18 or more. If you add or remove a row, recompute the maximum from the rows rather
@@ -311,7 +311,7 @@ After every simulation run, answer these questions:
 6. Did any agent **explain** instead of placing stickies? (#6)
 7. Were near-duplicate events **preserved** or merged/synthesized? (#7)
 8. Was output **asymmetric** (Expert: 12-15, New Hire: 4-6) or balanced? (#10)
-9. Did grey-zone agents produce **plausible-but-wrong** events? (#9)
+9. Did gray-zone agents produce **plausible-but-wrong** events? (#9)
 
 ### Improvement Identification
 

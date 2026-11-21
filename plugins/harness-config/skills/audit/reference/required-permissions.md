@@ -98,7 +98,7 @@ sandbox.
 | Setting | Why it matters | What a boundary requires |
 | --- | --- | --- |
 | `allowUnsandboxedCommands` | A command that fails under the sandbox may be retried with `dangerouslyDisableSandbox`, which runs it outside | set to `false` |
-| `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
+| `failIfUnavailable` | A missing dependency or an unsupported platform leaves commands with no sandbox. From v2.1.328 the next sandboxed Bash command is refused with a message that the sandbox is off for the session ([changelog 2.1.328](https://code.claude.com/docs/en/changelog#2-1-328)); the sandboxing page still says commands run unsandboxed. Before v2.1.328, it warned and then ran commands unsandboxed | set to `true` |
 | `excludedCommands` | Anything listed runs outside the sandbox. Which scopes' entries still apply when the sandbox is admin-required is in the pointer below the table | kept narrow, and reviewed in every scope that still applies |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
 | `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |

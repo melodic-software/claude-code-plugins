@@ -3,6 +3,36 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.2] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [0.44.1] - 2026-11-21
+
+### Fixed
+
+- Notes host: P, R, A, M and N now work while focus is inside the mockup. Before, the frame passed only Escape and T up to the host, so the shortcuts did nothing after a click into the mockup. A key the mockup handles and cancels with `preventDefault`, as the switcher does, stays in the mockup, so on a variant with motion R inside the mockup replays; keys typed in a field, or held with Ctrl, Alt or Meta, stay in the mockup ([#17917](https://github.com/melodic-software/claude-code-plugins/issues/17917)).
+
+## [0.44.0] - 2026-11-21
+
+### Added
+
+- **explore-directions says how to mount the notes harness on a real-stack route, and step 5
+  removes it.** `reference/real-stack.md` gains "The notes harness": start the notes bridge with
+  `--dev-origin`, keep every harness file in one `prototype-harness/` directory (copies of the
+  frame helper, `harness-fence.mjs` and the `dev-origin.mjs` it imports), load the helper behind
+  the switcher's environment gate, mount the fence as dev-server middleware, and add only whole
+  lines to a kept file, each marked `data-prototype-harness`. Step 5 deletes the harness and confirms
+  `git grep -n data-prototype-harness` prints nothing. The new eval case
+  `ed-real-stack-harness-removed` grades that removal on a scaffolded Vite app
+  ([#17751](https://github.com/melodic-software/claude-code-plugins/issues/17751)).
+
+### Fixed
+
+- Notes host: the move arrow's shortcut is now A. It shared M with the marker toggle, which caught the key first, so the arrow could not be started from the keyboard ([#17883](https://github.com/melodic-software/claude-code-plugins/issues/17883)).
+
 ## [0.43.0] - 2026-11-21
 
 ### Added

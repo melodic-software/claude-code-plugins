@@ -27,18 +27,25 @@ sections that no longer matches this record.
 
 *Claim:* settings alone never evidence `L1` on native Windows. `sandbox.enabled` and
 `sandbox.failIfUnavailable` both default to `false`. With `sandbox.enabled: true` on an
-unsupported platform and `failIfUnavailable` at its default, commands run unsandboxed, which is the
-ladder's silent degrade whether or not a warning shows. What `failIfUnavailable: true` does at
-startup, locally and in an Anthropic-hosted environment, is read live from its section below; a
-hosted session is not a local surface this file records. Setup records neither case as a boundary.
+unsupported platform the sandbox cannot start (the Get started warning treats an unsupported
+platform as that case). From Claude Code 2.1.328, with `failIfUnavailable` not `true`, the next
+sandboxed Bash command is refused with a message that the sandbox is off for the session. That
+changelog entry does not say what later commands do, and the Get started warning still says
+commands run unsandboxed. Either reading leaves no OS boundary: the refusal adds none, and a
+reported degrade is still a degrade, so with no `L2` substrate the ladder's fail-closed rule
+blocks autonomous dispatch. What `failIfUnavailable: true` does at startup, locally and in an
+Anthropic-hosted environment, is read live from its section below; a hosted session is not a
+local surface this file records. Setup records neither the default nor `failIfUnavailable: true`
+as a boundary.
 *Basis:*
 [`sandbox.enabled`](https://code.claude.com/docs/en/settings-reference#sandbox-enabled) and
 [`sandbox.failIfUnavailable`](https://code.claude.com/docs/en/settings-reference#sandbox-failifunavailable),
 the sandboxing page's [Get started](https://code.claude.com/docs/en/sandboxing#get-started)
-warning, read as raw markdown, and the changelog entry that added `sandbox.failIfUnavailable`.
-*Verified:* 2026-11-20. *Recheck trigger:* a Claude Code changelog entry touching sandbox platform
-support or `sandbox.failIfUnavailable`, or a read-time fetch of those sections that no longer
-matches this record.
+warning, read as raw markdown, the changelog entry that added `sandbox.failIfUnavailable`, and
+[changelog 2.1.328](https://code.claude.com/docs/en/changelog#2-1-328), which changed how a sandbox
+that cannot start is reported. *Verified:* 2026-11-21. *Recheck trigger:* a Claude Code changelog
+entry touching sandbox platform support, `sandbox.failIfUnavailable`, or what runs after the
+refusal, or a read-time fetch of those sections that no longer matches this record.
 
 ## WSL2 distribution
 

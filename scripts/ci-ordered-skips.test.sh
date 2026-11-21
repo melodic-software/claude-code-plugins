@@ -97,9 +97,31 @@ expect "check-tests skipped behind a failed scope stays skipped" 0 "failure succ
 expect "check-plugins does not borrow a row" 0 "success skipped success" \
   "$(check_tests success false skipped skipped | sed 's/"check-tests":{"result":"skipped"/"check-tests":{"result":"success"/; s/"run_tests"/"run_plugins":"false","run_check_plugins":"false","run_tests"/')"
 
+selection() {
+  printf '{"select-tests":{"result":"%s","outputs":{"run_selection":"%s"}},"test-selection":{"result":"%s","outputs":{}}}' "$1" "$2" "$3"
+}
+expect "test-selection skipped on a change with no suite passes" 0 "success success" \
+  "$(selection success false skipped)"
+expect "test-selection skipped where suites changed stays skipped" 0 "success skipped" \
+  "$(selection success true skipped)"
+expect "test-selection that found a gap keeps its failure" 0 "success failure" \
+  "$(selection success true failure)"
+
 for line in "      run_check_tests: \${{ steps.base.outputs.ref == '' }}" \
-  "&& needs.select-tests.outputs.run_check_tests == 'true' }}"; do
+  "&& needs.select-tests.outputs.run_check_tests == 'true' }}" \
+  "&& needs.select-tests.outputs.run_selection == 'true' }}"; do
   if grep -qF -- "$line" "$WORKFLOW"; then ok "the workflow carries '$line'"; else fail "the workflow lost '$line'"; fi
 done
+
+trace_step="$(awk '/^      - name: Trace the changed suites$/ { on = 1; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+if grep -qE 'selection-audit\.sh trace --strict .*--budget [0-9]+' <<<"$trace_step" &&
+  [[ "$(grep -v '^[[:space:]]*$' <<<"$trace_step" | tail -n1)" == "          exit \"\$rc\"" ]] &&
+  ! grep -qE 'exit 0|\|\| true' <<<"$trace_step"; then
+  ok "test-selection traces with --strict and a --budget, and exits with the trace's own status"
+else
+  fail "test-selection's trace step lost --strict, its --budget or its closing exit \"\$rc\": [$trace_step]"
+fi
 
 test_harness::report

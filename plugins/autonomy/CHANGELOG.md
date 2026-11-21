@@ -3,6 +3,21 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.12] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [5.2.11] - 2026-11-21
+
+### Fixed
+
+- setup's Windows surfaces record now matches Claude Code 2.1.328: when the sandbox cannot start
+  and `sandbox.failIfUnavailable` is not `true`, the next sandboxed Bash command is refused with a
+  message that the sandbox is off for the session. The record used to say commands run
+  unsandboxed. Setup still records no boundary there (#17915).
+
 ## [5.2.10] - 2026-11-20
 
 ### Fixed

@@ -17,7 +17,7 @@ const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./b
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const CTX = { view: "focus", device: "computer", browser: "chrome", viewport: { w: 1440, h: 900 }, errors: [] };
 const DISCARD = "Ann asks one the host discards", CANCEL = "Ann asks one the host cancels", FAILS = "Ann asks one Claude fails";
-const REPORT = "The Send button stays grey on Q1.", IDEA = "Put the summary in a sticky right column";
+const REPORT = "The Send button stays gray on Q1.", IDEA = "Put the summary in a sticky right column";
 const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpage").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpage").hidden); };
 const showTab = async (page, k) => { await openInbox(page); await page.click(`.vf-ixtabs [data-k=${k}]`); return until(page, x => document.querySelector(`.vf-ixtabs [data-k=${x}]`)?.getAttribute("aria-pressed") === "true", k); };
 const closed = page => until(page, () => document.querySelector(".vf-inboxpage").hidden);

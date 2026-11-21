@@ -60,7 +60,7 @@ surviving suite still names (a co-located test left behind, a suite that
 references the dead path) keeps selecting those suites, which are exactly what
 fails loudly if the deletion broke something.
 
-The runner is sequential: parallelising it measured sublinear (the suites are
+The runner is sequential: parallelizing it measured sublinear (the suites are
 spawn-bound), and several guardrails suites assert wall-clock ceilings that fail
 spuriously under concurrency. Selection is what shortens a run. CI still runs
 everything.

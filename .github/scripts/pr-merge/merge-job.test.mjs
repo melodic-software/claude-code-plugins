@@ -982,6 +982,20 @@ test("the merge gate answers a carried attempt from the file the merge job's che
   assert.ok(step("Run the merge gate on each candidate", merge).includes(file));
 });
 
+test("only dispatch-post-merge-runs writes the demotion recoveries; the merge job's check and gate read its kept file", () => {
+  const dpmr = step("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")));
+  assert.ok(dpmr.includes("BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json\n"));
+  assert.ok(dpmr.includes("BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED: 'true'\n"));
+  assert.ok(dpmr.includes('[ ! -f "$last/demotion-recoveries.json" ] || cp "$last/demotion-recoveries.json" "$RUNNER_TEMP/demotion-recoveries.json"'));
+  assert.ok(dpmr.includes('[ ! -f "$RUNNER_TEMP/demotion-recoveries.json" ] || cp "$RUNNER_TEMP/demotion-recoveries.json" "$kept/demotion-recoveries.json"'));
+  const merge = stepsOf(jobBlock("merge"));
+  const file = "BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/post-merge-kept/demotion-recoveries.json\n";
+  for (const name of ["Check earlier lane merges", "Run the merge gate on each candidate"]) {
+    assert.ok(step(name, merge).includes(file), name);
+    assert.ok(!step(name, merge).includes("BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED"), `${name} only reads`);
+  }
+});
+
 test("dispatch-post-merge-runs hands the last run's attempts to the check and keeps them", () => {
   const file = "${{ runner.temp }}/post-merge-attempts.json";
   assert.ok(step("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs"))).includes(`BABYSIT_POSTMERGE_ATTEMPTS: ${file}\n`));
