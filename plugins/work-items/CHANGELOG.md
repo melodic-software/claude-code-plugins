@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.0] - 2026-11-21
+
+### Added
+
+- `/work-items:track add --session-owned`: the ownership choice for a session filing work it will do itself. It applies the session-owned role label, resolved from `config.role_labels["session-owned"]` (default `session-owned`) as the human-gated role label is, so the software-factory lanes skip the item, and it leaves off the `needs-triage` floor. It cannot be combined with `--agent-ready`, and a label missing from the live set stops the action before anything is created.
+
+## [15.13.0] - 2026-11-21
+
+### Added
+
+- A fifth canonical role, `session-owned` (default label `session-owned`, remapped through `config.role_labels["session-owned"]`): a local Claude Code session owns the item and does it itself. `list-frontier --autonomous` excludes an item carrying it, so `/work-items:work-loop` never admits one; the interactive frontier keeps it for the owning session. The binding exports it as `WIT_SESSION_OWNED_LABEL`, and the label taxonomy, tracker seam, schema and CONTRACT name it.
+
+### Changed
+
+- `decompose`: an item's `## Decisions` lines carry the options the source records as rejected, each with its reason, so a picker does not reopen a settled choice. Only recorded options are listed.
+
 ## [15.12.3] - 2026-11-21
 
 ### Fixed

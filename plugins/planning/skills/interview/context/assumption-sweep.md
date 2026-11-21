@@ -8,8 +8,8 @@ is asked, stated, or blocked before the confirmation gate.
 - `me` and `auto` runs with a register, once no open question remains on the frontier and before
   the Step 3 register gate and confirmation gate. The `auto` Mixed path runs it after its residue round.
 - Skipped when the run asked no question (no register exists) and in `lock`.
-- After the answers to sweep rows land, sweep again over what those answers changed. Step 3 starts
-  when a sweep adds no `open` row.
+- After the answers to sweep rows land, sweep again, scoped to the rows the last sweep's answers
+  changed ("Follow-up sweep scope" under "Dispatch"). Step 3 starts when a sweep adds no `open` row.
 
 ## Dispatch
 
@@ -33,6 +33,13 @@ why it was recommended.
 
 Ask it for every finding, with no severity, confidence or blocking cut: it reports, and the
 disposition pass below filters.
+
+**Follow-up sweep scope.** The first sweep covers the whole ledger. Each later sweep covers only the
+rows the last sweep's answers changed: the rows that sweep added, and each earlier row whose
+resolution, recommendation or `Commits you to:` parts those answers revised. Hand it those rows,
+the `answered` rows and constraint rows they name as dependencies, and the parts of the Brief draft
+they changed. It looks for items in the changed rows only, read against those dependencies. When
+the last sweep's answers changed no row, there is nothing to sweep and Step 3 starts.
 
 ## What it looks for
 
@@ -108,7 +115,13 @@ results, not the sub-agent, each new row taking the next id from `round.sh next-
   `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
   `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
-  `### Deferred questions` with its arbiter tag.
+  `### Deferred questions` with its arbiter tag. A `decision` item below this skill's level (how
+  the work is built, not what it must do; never while a `confirmed` constraint row settles
+  mechanism decisions in this interview), or one a quoted prior owner ruling already routed to
+  design, is not asked: its row is written `deferred` with `arbiter: /planning:design` in its
+  resolution (and the quoted ruling, when one routed it), and goes to the Brief's
+  `### Deferred questions` under its `Q<N>` with that arbiter. It counts for the register gate like
+  any `deferred` row, and the `--brief` cross-check needs it in the Brief.
 - **contradiction:** one row naming both sides, asked as a choice between them; the question
   names each side's row by id and plain name (`Q2 (who may export)`) and says why both cannot hold.
 - **hedged:** no new row. The rows go to the confirmation restate.

@@ -869,6 +869,44 @@ EOT
 )"
 expect_exit "--procedure malformed round field -> 1" 1 --ledger "$proc_badround" --procedure
 
+proc_added="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 2 | What format? | html
+- Q3 | answered | round 1 (added in round 2) | Retention window? | 30 days
+EOT
+)"
+expect_exit "--procedure page-synced 'added in round' row -> 0" 0 --ledger "$proc_added" --procedure
+expect_stdout "--procedure page-synced 'added in round' row reports procedure=ok" "status=clean procedure=ok" --ledger "$proc_added" --procedure
+for cell in 'round 1 (added in round 2) extra' 'round 1 (sweep) (added in round 2)' 'round 1 (added in round two)' 'round 1 (added)' 'round 1 extra'; do
+  proc_extra="$(
+    mkledger <<EOT
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | $cell | What format? | html
+EOT
+  )"
+  expect_exit "--procedure round field '$cell' -> 1" 1 --ledger "$proc_extra" --procedure
+  if [[ "$(stderr_of --ledger "$proc_extra" --procedure)" == *"Q2: round field is not 'round <N>'"* ]]; then pass "--procedure names the round field '$cell'"; else fail "--procedure names the round field '$cell'"; fi
+done
+
+proc_reask="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | What format? | html, answered when re-asked
+- Q3 | answered | round 2 | Retention window? | 30 days
+EOT
+)"
+expect_exit "--procedure re-ask-only round with no round number -> 0" 0 --ledger "$proc_reask" --procedure
+proc_reask_numbered="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | What format? | html, answered when re-asked
+- Q3 | answered | round 3 | Retention window? | 30 days
+EOT
+)"
+expect_exit "--procedure re-ask-only round that took a round number -> 1" 1 --ledger "$proc_reask_numbered" --procedure
+if [[ "$(stderr_of --ledger "$proc_reask_numbered" --procedure)" == *"round 2 has no register row"* ]]; then pass "--procedure names the round a re-ask-only round left empty"; else fail "--procedure names the round a re-ask-only round left empty"; fi
+
 # 51. An empty resolution fails for every retired status, missing field included.
 for retired in answered deferred withdrawn blocked; do
   proc_empty="$(
@@ -1341,6 +1379,53 @@ stray_sweep_row="$(sweep_ledger '- [x] Step 2 exit: Assumption sweep SKIPPED: lo
 printf '%s\n' '- S1 | sweep 1 | undecided | decision | Q2 | Q2' >>"$stray_sweep_row"
 expect_exit "a sweep row outside the sweep section -> 1" 1 --ledger "$stray_sweep_row" --procedure
 if [[ "$(stderr_of --ledger "$stray_sweep_row" --procedure)" == *"sweep row outside the '## Assumption sweep' section"* ]]; then pass "the stray sweep row is named"; else fail "the stray sweep row is named"; fi
+
+design_deferred="$TMP/design-deferred.md"
+cat >"$design_deferred" <<'EOF'
+# /interview Checklist
+
+## Steps
+
+- [x] Step 2 exit: Assumption sweep
+
+## Open-question register
+
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | deferred | round 2 | Which queue backs the retry step? | a design choice below this interview; defer until design; arbiter: /planning:design
+- Q3 | deferred | round 2 | Cache key layout? | answered-from-decision: "the cache key layout goes to design". Basis: owner, round 1; arbiter: /planning:design
+
+## Assumption sweep
+
+- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, retry queue | Q2
+- S2 | sweep 1 | hidden-default | decision | Q1 recommendation, cache key layout | Q3
+EOF
+expect_exit "decision items deferred to /planning:design as register rows -> 0" 0 --ledger "$design_deferred" --procedure
+expect_stdout "the register gate counts the /planning:design rows" "registered=3 open=0 deferred=2 blocked=0 withdrawn=0 answered=1 superseded=0 brief=unchecked status=clean procedure=ok" --ledger "$design_deferred" --procedure
+design_brief="$TMP/design-brief.md"
+cat >"$design_brief" <<'EOF'
+## Brief
+
+### Deferred questions
+
+- Q2: Which queue backs the retry step? Defer until design; **arbiter: /planning:design**
+- Q3: Cache key layout? Routed by the owner; **arbiter: /planning:design**
+
+## Plan
+EOF
+expect_stdout "the Brief lists the /planning:design rows -> brief=ok" "brief=ok status=clean" --ledger "$design_deferred" --brief "$design_brief"
+design_brief_missing="$TMP/design-brief-missing.md"
+cat >"$design_brief_missing" <<'EOF'
+## Brief
+
+### Deferred questions
+
+- Q2: Which queue backs the retry step? Defer until design; **arbiter: /planning:design**
+
+## Plan
+EOF
+expect_exit "a /planning:design row absent from the Brief -> 2" 2 --ledger "$design_deferred" --brief "$design_brief_missing"
+if [[ "$(stderr_of --ledger "$design_deferred" --brief "$design_brief_missing")" == *"absent from the Brief's deferred questions: Q3"* ]]; then pass "the /planning:design row absent from the Brief is named"; else fail "the /planning:design row absent from the Brief is named"; fi
 
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2

@@ -233,13 +233,20 @@ run of `inert` records.
 ## The auto-mode entry diff
 
 The diff reports these allow rules as dropped on entering auto mode and restored on leaving it:
-blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(<interpreter>*)`, rules
-letting a package manager run project scripts, any `Agent` allow rule, and any `Monitor` allow
-rule (from v2.1.236; before that version a `Monitor` allow rule stayed in effect in auto mode). A
-narrow rule such as `Bash(git status)` carries over.
+blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(<interpreter>*)`, a
+process wrapper followed only by a wildcard (`Bash(timeout *)`), shell rules that start with a
+wildcard (`Bash(* --version)`), wildcarded paths that start with `$HOME` or name a Windows
+backslash program other than a `.\` path, rules that run a package (path and version forms such as
+`Bash(/usr/bin/npm run:*)` and `Bash(pnpm@9 dlx *)` included), any `Agent` allow rule, and any
+`Monitor` allow rule (from v2.1.236; before that version a `Monitor` allow rule stayed in effect in
+auto mode). A narrow rule such as `Bash(git status)` carries over.
+
+The page lists "some wildcarded paths" and names only the `$HOME` and Windows backslash examples, so
+the diff reports other path forms as kept. The package-runner path and version forms come from
+[changelog 2.1.327](https://code.claude.com/docs/en/changelog), which the page does not reflect yet.
 
 - **Pointer**: [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
-- **As of**: 2026-08-26
+- **As of**: 2026-11-21
 - **Recheck trigger**: a release note or that section adds, removes or narrows a dropped class.
 
 ### The precondition: which sessions enter auto mode at all
@@ -254,8 +261,9 @@ mode it never enters.
   [Which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   (correlate with [the announcement](https://claude.com/blog/auto-mode-default-in-claude-code), 2026-08-14).
 
-Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
-`interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
+Eight documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
+`interpreter-wildcard`, `wrapper-wildcard`, `leading-wildcard`, `path-wildcard`,
+`package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
 defined here: they live in `lib/permission-patterns.sh`, shared with `audit-permission-grants` check
 P1, so a class change lands once. `agent` and `monitor` are whole-tool classes with no shell pattern
 to share, so the diff driver tests them on the tool token instead.
@@ -326,7 +334,7 @@ to share, so the diff driver tests them on the tool token instead.
 
 ## The permission-plane lint
 
-Eleven checks over one question: the operator wrote something believing it takes effect, and it does
+Twelve checks over one question: the operator wrote something believing it takes effect, and it does
 not. Several also emit a startup warning upstream; the added value here is reading every scope at
 once, before a session, and naming the file the dead entry is in.
 
@@ -347,6 +355,7 @@ fixed all three.
 | `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Ambiguous form:** in a deny or ask rule a mid-pattern `:*` with no space after it, as in `Bash(git:*push)`, does not fire this error; unless its tool and prefix are a known parameter, it is reported as the warning `C6-colonStarAmbiguous`, asking the author to say which they meant. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
 | `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. |
 | `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing |
+| `C6-assignStar` | Fires, as a warning, on a Bash **allow** rule with a `*` in the value of a leading variable assignment, as in `Bash(PORT=* npm run dev)` or `Bash(CI=1 PORT=3* npm start)`, since Claude Code warns at startup on that shape from v2.1.323. The changelog states the warning and not what the rule then matches, so the finding claims only the warning. Silent on a deny or ask rule, on PowerShell, on an `=` after the command name (`--port=*`), on a bare variable name with no `=` (`Bash(NODE_ENV*)`), and on a trailing `:*`, which is the end-of-pattern prefix syntax and not part of the value (`Bash(NODE_ENV=production:*)`); a `*` before it still fires (`Bash(PORT=3*:*)`). **Pointer**: the [2.1.323 changelog entry](https://code.claude.com/docs/en/changelog#2-1-323). **As of** 2026-11-21. **Recheck when** that entry changes, or the [Bash wrappers](https://code.claude.com/docs/en/permissions#process-wrappers) section starts documenting how an allow rule's assignment wildcard matches |
 
 The version boundaries and field lists a row names are the ones its script emits; before acting
 on one, read it at the row's pointer.

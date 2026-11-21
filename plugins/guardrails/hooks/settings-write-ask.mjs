@@ -2,6 +2,7 @@
 // PreToolUse checkpoint: any Write/Edit/NotebookEdit aimed at a Claude Code settings
 // surface returns permissionDecision "ask", forcing a prompt even in
 // auto mode (the classifier may still deny; it cannot silently approve).
+// Unattended or unwatched it denies: https://github.com/melodic-software/claude-code-plugins/blob/main/AGENTS.md#unattended-lanes
 //
 // This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
 // modes decide what happens to its ask. README "Settings-write ask" holds the pointer record
@@ -93,16 +94,21 @@ process.stdin.on('end', () => {
         || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd))));
     if (!live) process.exit(0);
 
+    const asks = process.env.CLAUDE_CODE_SESSION_ATTENDED === '1'
+      && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
     // The permission prompt already shows the target path.
-    const reason = 'guardrails: this edit changes settings for every future session. Check the diff; '
-      + (userGlobal
-        ? '/context-budget:audit fix never writes user-global settings, so this write is not from it.'
-        : 'from /context-budget:audit fix, it should match the config you approved.');
+    const reason = 'guardrails: this edit changes settings for every future session. '
+      + (!asks
+        ? 'Nobody can answer a prompt in this session (unattended, or GUARDRAILS_SESSION_UNWATCHED=1), '
+          + 'so it was refused. Do not retry it another way; report the change for a person to make.'
+        : userGlobal
+          ? 'Check the diff; /context-budget:audit fix never writes user-global settings, so this write is not from it.'
+          : 'Check the diff; from /context-budget:audit fix, it should match the config you approved.');
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'ask',
+        permissionDecision: asks ? 'ask' : 'deny',
         permissionDecisionReason: reason,
       },
     }));

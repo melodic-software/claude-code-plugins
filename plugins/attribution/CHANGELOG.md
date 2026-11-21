@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.3] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
 ## [0.21.2] - 2026-11-21
 
 ### Changed

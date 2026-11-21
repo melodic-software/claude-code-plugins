@@ -169,7 +169,7 @@ page with synthetic data and an in-page switcher. Assemble one per task:
 3. **A copy-out terminator**, a small control that lifts the winning-variant key, notes and the
    proposed test ids back out as text you can paste into your durable answer. It lists the test
    ids per variant, read from the page's `data-testid` attributes rather than typed out, so the
-   list matches the markup.
+   list matches the markup. Build its text as [reference/feedback.md](reference/feedback.md#the-copy-out-function) says.
 
 Constraints:
 

@@ -15,7 +15,10 @@
   run's token, never on the server, so a reload of the same run lists it again. The run's sent notes come
   back from /api/notes, the token in the request's header, each kept only as note.schema.json admits
   it. A region note, a draft or sent, can be moved or resized from the editor or its row; a sent one's
-  new anchor, rect and elements go to /api/note/change, which tells the session that note changed. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
+  new anchor, rect and elements go to /api/note/change, which tells the session that note changed. A sent
+  note's Edit sends its new text to /api/note/edit and its Withdraw to /api/note/withdraw, each naming
+  the note's seq; a withdrawn note is listed as withdrawn, with no marker and no actions, and left out
+  of Copy all notes. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
   note's view and keeps the box drawn; the frame gets keys, a path and a box, never note text. The Controls tab renders the framed page's
   controls manifest, kept only when controls.schema.json admits it, through the registry in
   controls.js, beside the content sets the page marks, and the Sample data menu lists the data
@@ -161,6 +164,8 @@
   .st { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-block-start: 6px; font-size: 12px; color: var(--uif-ink-2); }
   .st .s-draft { color: var(--uif-draft); font-weight: 600; }
   .st .s-handled { color: var(--uif-ok); font-weight: 600; }
+  .st .s-withdrawn { color: var(--uif-ink-2); font-weight: 600; }
+  .note.withdrawn .text { color: var(--uif-ink-2); text-decoration: line-through; }
   .reply {
     margin-block: 8px 0; margin-inline: 0; padding-block: 6px; padding-inline: 10px; border-inline-start: 3px solid var(--uif-accent);
     background: var(--uif-sunk); border-radius: 0 var(--uif-r-s) var(--uif-r-s) 0; font-size: 13px; overflow-wrap: anywhere;
@@ -193,8 +198,16 @@
   #controls-panel .btn { min-block-size: 32px; }
 
   @media (max-width: 1180px) { .bar .lbl { display: none; } .vname { min-inline-size: 0; } }
+  @media (min-width: 701px) { .bar .edge { display: none; } }
   @media (max-width: 700px) {
-    .bar { inset-inline: 8px; inset-block-end: 8px; transform: none; overflow-x: auto; max-inline-size: none; }
+    .bar { inset-inline: 8px; inset-block-end: 8px; transform: none; overflow-x: auto; max-inline-size: none; scroll-padding-inline: 48px; }
+    .bar .edge {
+      position: fixed; z-index: 1; inset-block-end: 9px; block-size: 42px; inline-size: 48px; padding-inline: 8px;
+      color: var(--uif-accent-text); border: 0; border-radius: var(--uif-r-l);
+    }
+    .bar .edge[data-edge="end"] { inset-inline-end: 9px; justify-content: flex-end; background: linear-gradient(to right, transparent, var(--uif-surface) 45%); }
+    .bar .edge[data-edge="start"] { inset-inline-start: 9px; justify-content: flex-start; background: linear-gradient(to left, transparent, var(--uif-surface) 45%); }
+    .bar .edge svg { stroke-width: 2.5; }
     #panel, #panel[data-side="start"], .menu { position: fixed; inset-inline: 8px; inset-block-end: 64px; inline-size: auto; }
   }
 </style>
@@ -226,12 +239,15 @@
     <button type="button" class="btn" id="copy-button" aria-label="Copy" aria-expanded="false" aria-controls="copy-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg><span class="lbl">Copy</span></button>
     <div class="menu surface" id="copy-menu" role="group" aria-label="Copy out" hidden>
       <button type="button" class="btn" id="copy">Copy all notes <span class="aside" id="copy-count"></span></button>
+      <button type="button" class="btn" id="copy-chosen" disabled>Copy chosen design</button>
       <button type="button" class="btn" id="copy-values" disabled>Copy control values</button>
       <p class="hint">Paste what you copy to Claude in the terminal.</p>
     </div>
   </div>
   <span class="sep"></span>
   <button type="button" class="btn" id="dock" aria-keyshortcuts="N" aria-label="Notes" aria-expanded="true" aria-controls="panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><span class="lbl">Notes</span> <b class="count" id="count">0</b><kbd aria-hidden="true">N</kbd></button>
+  <button type="button" class="btn edge" data-edge="start" tabindex="-1" aria-hidden="true" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button type="button" class="btn edge" data-edge="end" tabindex="-1" aria-hidden="true" hidden><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
   <p class="sr-only" id="said" aria-live="polite"></p>
 </nav>
 <section class="surface" id="panel" aria-label="Notes to Claude">

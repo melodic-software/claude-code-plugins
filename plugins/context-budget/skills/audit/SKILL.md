@@ -366,7 +366,8 @@ Write posture splits by scope, and the split is not negotiable:
   with a file-editing tool (`Edit` or `Write`), never through the shell. Where the guardrails
   plugin is enabled, its `settings-write-ask` PreToolUse checkpoint returns
   `permissionDecision: "ask"` for a file-editing tool call that targets a settings file, so even
-  in auto mode the write prompts rather than sliding through. It does not see a settings write
+  in auto mode the write prompts rather than sliding through; in a session nobody can answer it
+  returns `deny`. It does not see a settings write
   made through `Bash` or `PowerShell`, or one rendered into place by another program such as a
   dotfile manager (the guardrails README's "Settings-write ask" section names each route and
   records why the hook is not widened). **A checkpoint, not a guarantee**: other hooks,

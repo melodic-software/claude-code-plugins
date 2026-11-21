@@ -71,8 +71,8 @@ Say so in the report rather than reporting those files as clean: a file nothing 
 a file with nothing to fix.
 
 **`.ps1` and `.psm1` prove through PowerShell's own parser, not a grammar.** `change-shape.py`
-spawns `pwsh` once per verdict; the maintained tree-sitter PowerShell grammar was measured and
-rejected (see [tooling.md](tooling.md)). Consequences worth knowing:
+spawns `pwsh` once per verdict; the maintained tree-sitter PowerShell grammar is not used as a
+backend (see [tooling.md](tooling.md), What no tool covers). Consequences worth knowing:
 
 - `#Requires` and a line-1 shebang tokenize as comments and are kept as their own leaves, so
   deleting either reads CODE-CHANGED.
@@ -110,9 +110,9 @@ proposals only. No knob applies an edit its tier's proof did not pass.
 
 ## The test net (tiers 2 and 3)
 
-1. **Discover** a runnable test command for the touched code: the repo's declared conventions
-   (`CLAUDE.md`, rules, a `test` script in the package manifest, `Makefile`/`justfile` targets,
-   the ecosystem default: `dotnet test`, `npm test`, `pytest`, `go test ./...`, `bats`).
+1. **Discover** a runnable test command for the touched code by the steps in the plugin's
+   [ecosystem resolution](../../../reference/ecosystem-resolution.md). The skill ships no test
+   command of its own: when none resolves, step 4 applies.
 2. **Scope-check**: the discovered suite must plausibly exercise the touched code (same package/
    project/module). A repo-wide suite that cannot reach the touched file is not a net for it.
 3. **Run before and after** the move. Red before the move → stop, report (the skill never fixes
@@ -136,19 +136,15 @@ one that only restates its signature. Unit, sentinel and ordering annotations ar
 `explanatory` only: `none` deletes them with a reshape flag to a type, and so does `necessary`
 unless the resolved keep list keeps them. The list:
 
-- Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
-  JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
-  `<# ... #>` or `#` run carrying `.SYNOPSIS`, `.DESCRIPTION`, `.PARAMETER`, `.EXAMPLE` and the rest
-  of the keyword set) is exempt whether or not the function is exported: what a module exports lives
-  in `Export-ModuleMember` or a `.psd1` manifest, which the proof does not read, and the token proof
-  reports deleting a help block as COMMENT-ONLY honestly. The exemption is this list's job, not the
-  proof's. A language with no doc-comment form,
-  shell and make among them, has no exempt surface here: a header block there is an ordinary comment
-  and takes the ordinary triage. Python
-  has no export keyword, so the rule there is the leading underscore: a module docstring, and the
-  docstring of any module, class, function, method, or attribute whose name does not start with an
-  underscore, is public and exempt. A leading underscore marks it private, and a private docstring
-  gets the ordinary three-way triage. A name in a module's `__all__` is public whatever its spelling
+- Public-API doc comments: a comment in the language's own structured doc-comment form, on an
+  exported or public surface. What counts as public follows the language's own rule: its export
+  keyword or visibility modifier, else its naming convention for private names. A name the module
+  lists as exported is public whatever its spelling. Where a language marks visibility with none of
+  an export keyword, a visibility modifier or a private-name convention, and lists its exports
+  elsewhere (in the module body or a manifest), a doc comment in that form is exempt whether or not
+  its surface is exported. Where the doc-comment form is a comment token, the token proof does not
+  protect it; keeping it is this list's job. A language with no doc-comment form has no exempt
+  surface here: a header block there is an ordinary comment and takes the ordinary triage
 - Legal and license headers
 - Machine-read directives: shebangs, lint pragmas (`# noqa`, `// eslint-disable`,
   `#pragma warning`), region markers, editor folds, encoding cookies. In PowerShell that also covers

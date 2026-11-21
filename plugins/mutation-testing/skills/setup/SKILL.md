@@ -28,6 +28,8 @@ The config resolves across three layers, lowest first: the user layer (`userConf
 `${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → personal override
 (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
 layer. While it exists, `check` probe 6 reports it as INFO, which gates nothing, naming `apply` as the move, or, once
 the YAML file exists, deleting it; `apply` step 7 carries its keys over.

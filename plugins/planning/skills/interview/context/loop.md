@@ -377,7 +377,8 @@ Fields: `Q<N> | status | round | question | resolution`; `question` is the quest
 
 **Write each row in the shape the gate grades.** In the terminal lane, write each row this way when you register it, so the gate passes without a repair:
 
-- The round field reads `round <N>` and nothing else, `<N>` being the round in which the row was first written. Asking the question again (unanswered from last round, after a discussion, after a correction) leaves the field as it is. `--procedure` fails any other text in the field, and needs a row in every round from 1 to the highest round a row names.
+- The round field reads `round <N>` and nothing else, `<N>` being the round in which the row was first written. Asking the question again (unanswered from last round, after a discussion, after a correction) leaves the field as it is. `--procedure` fails any other text in the field, apart from the page export's `round <N> (added in round <M>)`, and needs a row in every round from 1 to the highest round a row names.
+- A round that only re-asks earlier rows writes no row, so it takes no new round number: write its draft below the round it follows, in that round's `round-<N>.md`. The next round that writes a new row takes the number after the highest round a row names.
 - Append each new row at the end of the register, a late commitment row and a sweep item's row included ("Commitment rows written after later ids exist"); never insert one between existing rows. A row whose `Q<N>` is lower than the row above it makes the register ungradeable (exit 2) with or without `--procedure`.
 
 **Free-text flag, a resolution-field convention.** When a reply RESOLVES its question but arrives as free text rather than a pick from the authored options, whether through the escape hatch, a complete answer in the user's own words, or an explicit "you pick" (which resolves to the recommendation), lead the resolution field with `free-text:` before the answer. Downstream passes (answer audits, plan formulation) treat flagged rows as deserving scrutiny rather than as settled picks: a free-text answer is where a misread lands silently. The flag never launders a non-answer into `answered`: a partial or non-resolving reply keeps its row `open` under the drift check below, exactly as if the reply had changed the subject. This lives inside the free-form resolution field; `check-open-questions.sh` grades statuses, not resolutions, so the flag is invisible to the gate and downstream passes read it from the row text.
@@ -578,7 +579,7 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 - Q<N> <decision in a few words>: <verdict>; <the admission-test part it passes or fails, or why it was never handed over>
 
 ### Deferred questions
-- Q<N>: <question>, defer until <when>; **arbiter: /planning:plan** (the default, where /planning:plan resolves unilaterally during planning) or **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
+- Q<N>: <question>, defer until <when>; **arbiter: /planning:plan** (the default, where /planning:plan resolves unilaterally during planning) or **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves) or **arbiter: /planning:design** (a sweep decision item below this skill's level, or one a quoted owner ruling routed to design; [`assumption-sweep.md`](assumption-sweep.md) "Disposition")
 
 ## Plan
 <empty, populated by /planning:plan>
@@ -598,4 +599,4 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 
 **The criteria bullet stays a plain bullet, never a checkbox,** in the shape [`ears.md`](ears.md) sets for each format. `AC<n>` is the criterion's id, numbered from `AC1` in order and never reused: `/planning:plan` maps each id to the phases that satisfy it and `/work-items:decompose` to the slices that carry it.
 
-**The arbiter tag decides who resolves the question.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.
+**The arbiter tag decides who resolves the question.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time. `/planning:design` marks a design-level choice the sweep routed to the design step instead of asking it.

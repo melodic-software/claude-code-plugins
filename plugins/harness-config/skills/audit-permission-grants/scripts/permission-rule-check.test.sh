@@ -63,7 +63,9 @@ jq -n '{permissions:{allow:[
   "Bash(npx *)","Bash(npm:*)","Bash(pnpm:*)","Bash(yarn:*)","Bash(npm *)",
   "Bash(npm run *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)",
   "Bash(.venv/bin/python *)","Bash(/usr/bin/python3 *)",
-  "Bash(python3.11 *)","Bash(/usr/bin/python3.12:*)"
+  "Bash(python3.11 *)","Bash(/usr/bin/python3.12:*)",
+  "Bash(/usr/bin/npm run:*)","Bash(pnpm@9 dlx *)","Bash(timeout *)",
+  "Bash(* --version)","Bash($HOME/bin/*)"
 ]}}' >"$D2/.claude/settings.json"
 rc=0
 OUT=$(run "$D2") || rc=$?
@@ -84,6 +86,11 @@ assert_contains "flags absolute path-prefixed interpreter" "$OUT" "Bash(/usr/bin
 assert_contains "flags version-suffixed interpreter" "$OUT" "Bash(python3.11 *)"
 assert_contains "flags path-prefixed version-suffixed interpreter" "$OUT" "Bash(/usr/bin/python3.12:*)"
 assert_contains "flags PowerShell(*)" "$OUT" "PowerShell(*)"
+assert_contains "flags path-prefixed runner" "$OUT" "Bash(/usr/bin/npm run:*)"
+assert_contains "flags version-suffixed runner" "$OUT" "Bash(pnpm@9 dlx *)"
+assert_contains "flags wrapper followed only by a wildcard" "$OUT" "Bash(timeout *)"
+assert_contains "flags leading-wildcard rule" "$OUT" "Bash(* --version)"
+assert_contains "flags \$HOME-led wildcard path" "$OUT" "Bash(\$HOME/bin/*)"
 assert_contains "flags bare Bash allow" "$OUT" "bare 'Bash'"
 assert_contains "flags Agent allow rule" "$OUT" "Agent allow rules are dropped"
 assert_contains "P1 findings tagged" "$OUT" "[P1]"
@@ -109,7 +116,9 @@ jq -n '{permissions:{allow:[
   "Bash(echo Agent)","Bash(find *Agent*)",
   "Bash(echo Bash)","Bash(grep PowerShell *)",
   "Bash(node-gyp:*)","Bash(ruby-lsp:*)","Bash(npm-check-updates:*)",
-  "Bash(echo $(date) Agent)","Bash(node -e \"console.log()\" PowerShell)"
+  "Bash(echo $(date) Agent)","Bash(node -e \"console.log()\" PowerShell)",
+  "Bash(/usr/bin/npm test)","Bash(pnpm@9 install)","Bash(timeout 30 git status)",
+  "Bash(git log *)","Bash($HOME/bin/deploy.sh)"
 ]}}' >"$D3/.claude/settings.json"
 OUT=$(run "$D3")
 assert_contains "clean narrow ruleset reports none" "$OUT" "No fragile permission grants"
@@ -127,7 +136,7 @@ assert_contains "flags POSIX-normalized machine path" "$OUT" "[P2]"
 assert_contains "P2 detail names the portability break" "$OUT" "breaks on other machines"
 assert_not_contains "P2 detail does not assert a blanket no-expansion rule" "$OUT" "no ~/\$HOME"
 assert_not_contains "P2 detail does not scope its rationale to Bash rules" "$OUT" "Bash rules match literally"
-assert_eq "two machine-path findings" "2" "$(run "$D4" --count)"
+assert_eq "two machine-path findings plus the Windows path's P1" "3" "$(run "$D4" --count)"
 
 # P2 fires on Read/Edit rules too, and those rule classes DO resolve `~/`
 # (permissions.md: "`~/path` | Path from home directory"). One message string serves

@@ -1,7 +1,8 @@
 // GENERATED from lib/ui-feedback/host.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
 import { draftStore, problems, readerName, use } from "/note-model.mjs";
-import { awaitReady, frameTarget, fromFrame, namesFrom, READY_MS, viewFrom } from "/frame-channel.mjs";
+import { awaitReady, chosenFrom, frameTarget, fromFrame, namesFrom, READY_MS, viewFrom } from "/frame-channel.mjs";
+import { edges } from "/bar-edges.mjs";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("page"), composer = $("composer"), text = $("text");
@@ -45,6 +46,7 @@ function takeControls(m) {
     : m.controls === false ? "The mockup's controls manifest is not JSON, so only its built-in controls are here."
     : m.controls == null ? "The mockup has no controls manifest." : `${controls.length} control(s) from the mockup's manifest.`;
   for (const b of [$("copy-config"), $("reset-controls"), $("copy-values")]) b.disabled = !controls.length;
+  $("copy-chosen").disabled = m.copyOut !== true;
   renderControls();
   renderSteps();
 }
@@ -234,6 +236,8 @@ function viewWords(n) {
   return `On ${v ? `${n.variant.key} ${v}` : `variant ${n.variant.key}`}${s ? `, ${s.toLowerCase()}` : ""}`;
 }
 
+/** Whether a sent note was withdrawn, here or, after a reload, as the bridge reports. */
+const gone = (m) => Boolean(m && (m.withdrawn || last.notes.some((n) => n.seq === m.seq && n.withdrawn)));
 /** A row's number, as its marker shows it: the seq once sent, D1, D2... for drafts, null for a note no marker shows. */
 const numberOf = (m) => m.seq ?? (m.draft ? `D${mine.filter((x) => x.draft).indexOf(m) + 1}` : null);
 /** What the frame needs to find a note's box and restore its view: contract keys, a path and a box, never its text. */
@@ -308,9 +312,11 @@ function openComposer(note, from, entry = null) {
   setPick(null);
   if ($("panel").hidden) setPanel(true);
   selectTab(tabs[0], false);
-  $("composer-label").textContent = entry ? `Edit draft ${numberOf(entry)}` : "New note";
+  const sent = entry?.seq != null;
+  $("composer-label").textContent = entry ? `Edit ${sent ? "note" : "draft"} ${numberOf(entry)}` : "New note";
   $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked", move: "Arrow" }[note.kind]}: ${where(note)}`;
-  $("reshape").hidden = note.kind !== "region";
+  $("reshape").hidden = note.kind !== "region" || sent;
+  $("save").hidden = sent;
   composer.hidden = false;
   text.value = entry ? entry.note.text : "";
   text.focus();
@@ -365,6 +371,7 @@ async function send() {
   if (!draft || sending) return;
   const note = written("sent");
   if (!note) return;
+  if (editing?.seq != null) return edited(editing, note.text);
   const entry = editing || { id: ++ids };
   Object.assign(entry, { note, where: where(note), seq: null, parts: null, asked: null });
   const got = await deliver(entry);
@@ -398,7 +405,7 @@ async function sendDrafts(list) {
     sent.push(entry.seq);
   }
   const refusal = got === "refused" ? ` ${$("status").textContent}` : "";
-  if (editing && !editing.draft) closeComposer();
+  if (editing && !editing.draft && list.includes(editing)) closeComposer();
   render();
   if (noSession) say(OFFLINE);
   else if (sent.length) say((sent.length === 1 ? `Note ${sent[0]} sent.` : `Notes ${sent.join(", ")} sent.`) + refusal);
@@ -438,7 +445,7 @@ async function reshaped(note) {
     return;
   }
   toFrame({ type: "release" });
-  if (target.seq !== null && (await deliverChange(target.seq, moved)) !== "sent") return;
+  if (target.seq !== null && (await deliverNaming("change", { change: target.seq, ...moved }, "moved", "keeps its region")) !== "sent") return;
   target.note = { ...target.note, ...moved };
   target.where = where(target.note);
   target.parts = target.asked = null;
@@ -447,26 +454,45 @@ async function reshaped(note) {
   document.querySelector(`[data-key="reshape-${target.id}"]`)?.focus();
   say(target.seq !== null ? `Note ${target.seq}'s region moved; Claude is told.` : "The region moved.");
 }
-/** Post a sent region note's new anchor, rect and elements; "sent" once the session's log has the change. */
-async function deliverChange(seq, moved) {
+/** Post an event naming a sent note to /api/note/<path>: a region's change, an edit or a withdraw;
+ *  "sent" once the session's log has it. */
+async function deliverNaming(path, msg, verb, kept) {
   if (sending) return "busy";
   sending = true;
   let r, body;
   try {
-    r = await fetch("/api/note/change", {
+    r = await fetch(`/api/note/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Notes-Token": token },
-      body: JSON.stringify({ change: seq, ...moved }),
+      body: JSON.stringify(msg),
     });
     body = await r.json();
   } catch {
-    say(`Not moved: no session is answering, so note ${seq} keeps its region.`);
+    say(`Not ${verb}: no session is answering, so note ${msg[path]} ${kept}.`);
     return "offline";
   } finally {
     sending = false;
   }
-  if (!r.ok) { say(`Not moved: ${body.error || r.status}.`); return "refused"; }
+  if (!r.ok) { say(`Not ${verb}: ${body.error || r.status}.`); return "refused"; }
   return "sent";
+}
+/** A sent note's new text replaces its own here and in the session's log, under the same seq. */
+async function edited(entry, words) {
+  if ((await deliverNaming("edit", { edit: entry.seq, text: words }, "edited", "keeps its text")) !== "sent") return;
+  entry.note = { ...entry.note, text: words };
+  render();
+  closeComposer();
+  say(`Note ${entry.seq} edited; Claude is told.`);
+}
+/** Take a sent note back: the session is told, and the list shows it withdrawn, not pending. */
+async function withdraw(entry) {
+  if ((await deliverNaming("withdraw", { withdraw: entry.seq }, "withdrawn", "stays sent")) !== "sent") return;
+  entry.withdrawn = true;
+  if (editing === entry) closeComposer();
+  if (chosen === entry) unchoose(true);
+  render();
+  $("notes-title").focus();
+  say(`Note ${entry.seq} withdrawn; Claude is told.`);
 }
 
 /** Show or hide the notes popover over the mockup; the frame keeps its size. The Notes button stays, and gets the focus back when the popover closes. */
@@ -496,6 +522,29 @@ setSide(side);
 placePanel();
 addEventListener("resize", placePanel);
 if (window.ResizeObserver) new ResizeObserver(placePanel).observe($("bar"));
+const bar = $("bar"), cues = bar.querySelectorAll("[data-edge]");
+/** Show a chevron at each end of the bar that hides tools; a tap on one scrolls the bar a screen that way. */
+function showEdges() {
+  const hides = edges(bar.scrollLeft, bar.scrollWidth, bar.clientWidth);
+  for (const c of cues) c.hidden = !hides[c.dataset.edge];
+}
+for (const c of cues) {
+  c.addEventListener("click", () => bar.scrollBy({
+    left: (c.dataset.edge === "end" ? 1 : -1) * Math.max(bar.clientWidth - 96, 40),
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+  }));
+}
+bar.addEventListener("scroll", showEdges, { passive: true });
+bar.addEventListener("focusin", (e) => {
+  e.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  showEdges();
+});
+addEventListener("resize", showEdges);
+if (window.ResizeObserver) {
+  const sized = new ResizeObserver(showEdges);
+  for (const c of bar.children) sized.observe(c);
+}
+showEdges();
 
 const MARKERS = "ui-feedback-markers-hidden";
 let markersShown = true;
@@ -516,7 +565,7 @@ function copyAll() {
   $("copy-button").focus();
   if ($("panel").hidden) setPanel(true);
   selectTab(tabs[0], false);
-  const notes = mine.filter((m) => !m.draft);
+  const notes = mine.filter((m) => !m.draft && !gone(m));
   if (!notes.length) return say("No notes on this page yet; a draft goes in once it is sent.");
   const body = JSON.stringify({ notes: notes.map((m) => m.note) }, null, 1).replace(/`/g, "\\u0060");
   const block = "```prototype-notes\n" + body + "\n```\n";
@@ -529,6 +578,30 @@ function copyAll() {
   else manual();
 }
 
+/** The mockup's copy-out terminator text, asked of the frame; only the one reply to an ask is copied, as text. */
+let wantChosen = false;
+function askChosen() {
+  closeMenus();
+  $("copy-button").focus();
+  wantChosen = true;
+  toFrame({ type: "copy-out" });
+}
+function copyChosen(m) {
+  wantChosen = false;
+  if ($("panel").hidden) setPanel(true);
+  selectTab(tabs[0], false);
+  if (typeof m.text !== "string") return say("The mockup's copy-out function gave nothing, so nothing was copied; see the mockup's console.");
+  const text = chosenFrom(m);
+  if (text === null) return say("The mockup's chosen design is not plain text of at most 8000 characters, so nothing was copied.");
+  $("block").value = text;
+  $("copyout").hidden = false;
+  $("block").select();
+  const done = () => say("Copied the chosen design. Paste it to Claude.");
+  const manual = () => say("Select the text below and copy it, then paste it to Claude.");
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, manual);
+  else manual();
+}
+
 function render() {
   const listening = noSession
     ? "No session: the notes server is not answering. Your notes stay on this page; Copy all notes makes a block to paste to Claude."
@@ -538,12 +611,12 @@ function render() {
   const byseq = new Map(last.notes.map((n) => [n.seq, n]));
   const ours = new Map(mine.filter((m) => m.seq !== null).map((m) => [m.seq, m]));
   const seqs = [...new Set([...ours.keys(), ...byseq.keys()])].sort((a, b) => a - b);
-  const statusOf = (st) => (st.handled ? "Handled" : st.delivered ? "Claude has it" : "Sent") + (st.reply ? ", with a reply" : "");
+  const statusOf = (st) => (st.withdrawn ? "Withdrawn" : st.handled ? "Handled" : st.delivered ? "Claude has it" : "Sent") + (st.reply ? ", with a reply" : "");
   const changed = [];
   for (const seq of ours.keys()) {
     const st = byseq.get(seq);
     if (!st) continue;
-    const now = statusOf(st);
+    const now = statusOf({ ...st, withdrawn: gone(ours.get(seq)) });
     if (shown.has(seq) && shown.get(seq) !== now) changed.push(`Note ${seq}: ${now}`);
     shown.set(seq, now);
   }
@@ -593,17 +666,20 @@ function render() {
   const reshapes = (m) => (m?.note.kind === "region" ? [button("Move or resize", `reshape-${m.id}`, () => reshape(m))] : []);
   const drafts = mine.filter((m) => m.draft);
   draftsKept?.save(drafts.map((m) => m.note));
-  const pin =(m) => ({
-    n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 },
-    ...(m.note.variant && { variant: m.note.variant.key }), ...(m.note.state && { state: m.note.state.key }),
-  });
-  toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
+  toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null && !gone(m)), ...drafts].map(noteTarget) });
   askNames();
   const sentRows = seqs.map((seq) => {
     const m = ours.get(seq);
-    const st = byseq.get(seq) || {};
-    const status = [statusOf(st), st.handled ? "s-handled" : ""];
-    return item(seq, m ? readerName(m.note, m.parts) : "Sent earlier", m ? m.note.text : "", status, m ? viewWords(m.note) : "", st.reply, reshapes(m), m);
+    const st = { ...byseq.get(seq), ...(gone(m) && { withdrawn: true }) };
+    const status = [statusOf(st), st.withdrawn ? "s-withdrawn" : st.handled ? "s-handled" : ""];
+    const acts = !m || st.withdrawn ? [] : [
+      button("Edit", `edit-${m.id}`, () => openComposer(m.note, control(`edit-${m.id}`), m)),
+      button("Withdraw", `withdraw-${m.id}`, () => withdraw(m)),
+      ...reshapes(m),
+    ];
+    const li = item(seq, m ? readerName(m.note, m.parts) : "Sent earlier", m ? m.note.text : "", status, m ? viewWords(m.note) : "", st.reply, acts, m);
+    li.classList.toggle("withdrawn", Boolean(st.withdrawn));
+    return li;
   });
   const unsent = mine.filter((m) => m.seq === null).map((m) => (m.draft
     ? item(numberOf(m), readerName(m.note, m.parts), m.note.text, ["Draft, not sent", "s-draft"], viewWords(m.note), null, [
@@ -622,7 +698,7 @@ function render() {
   $("notes").replaceChildren(...(filter === "draft" ? draftRows : filter === "sent" ? sentRows : [...sentRows, ...unsent]));
   $("empty").hidden = counts.all > 0;
   $("count").textContent = String(counts.all);
-  $("copy-count").textContent = String(counts.sent + unsent.length - drafts.length);
+  $("copy-count").textContent = String(counts.sent + unsent.length - drafts.length - mine.filter((m) => m.seq !== null && gone(m)).length);
   $("dock").setAttribute("aria-label", `Notes, ${counts.all}`);
   $("drafts").textContent = drafts.length ? `${drafts.length} draft${drafts.length > 1 ? "s" : ""} not sent.` : "";
   $("sendall").hidden = !drafts.length;
@@ -664,6 +740,7 @@ addEventListener("message", (e) => {
   else if (m.type === "shown" && m.found === false && chosen) say("That note's place is not on the mockup now, so no box is drawn.");
   else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
   else if (m.type === "want-text") askText();
+  else if (m.type === "chosen" && wantChosen) copyChosen(m);
   else if (m.type === "key" && FRAME_KEYS.has(m.key)) shortcut(m.key);
   else if (m.type === "pinned" && picking === "element") {
     const note = noteFrom(m, "element");
@@ -701,6 +778,7 @@ $("dock").addEventListener("click", () => setPanel($("panel").hidden));
 $("markers").addEventListener("click", () => setMarkers(!markersShown));
 $("cancel").addEventListener("click", closeComposer);
 $("copy").addEventListener("click", copyAll);
+$("copy-chosen").addEventListener("click", askChosen);
 $("copy-config").addEventListener("click", copyConfig);
 $("copy-values").addEventListener("click", () => { closeMenus(); $("copy-button").focus(); if ($("panel").hidden) setPanel(true); selectTab(tabs[1], false); copyConfig(); });
 $("side").addEventListener("click", () => setSide($("panel").dataset.side === "start" ? "end" : "start"));
@@ -776,7 +854,7 @@ try {
     if (loads > 1) {
       ready = false;
       picking = null;
-      for (const b of [...Object.values(buttons), $("quote"), $("controls-fields"), $("copy-config"), $("reset-controls"), $("copy-values"), $("vprev"), $("vnext")]) b.disabled = true;
+      for (const b of [...Object.values(buttons), $("quote"), $("controls-fields"), $("copy-config"), $("reset-controls"), $("copy-values"), $("copy-chosen"), $("vprev"), $("vnext")]) b.disabled = true;
       for (const b of $("data-list").children) b.disabled = true;
       say("The mockup loaded another page in its frame, so this page stopped listening to it. Reload to start again.");
       $("controls-status").textContent = "The mockup loaded another page in its frame, so these controls no longer reach it. Reload to start again.";

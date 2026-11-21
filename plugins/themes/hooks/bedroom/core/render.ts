@@ -45,15 +45,27 @@ export function lookOf(ctx: Ctx): ThemeSetArgs {
 }
 
 let isThemeSet = false
+let coveredBy: string | undefined
 /** Whether the theme is set: the card's theme button shows it. A set stands for the session whether or not a surface draws it. */
 export function isThemeOn(): boolean {
   return isThemeSet
+}
+
+/** The plugin whose theme replaced the room's while the room was on, until the room is set or cleared again. */
+export function coveringPlugin(): string | undefined {
+  return isThemeSet ? coveredBy : undefined
+}
+
+/** Another plugin set its theme over the room's: the session has one theme, so the room no longer shows. */
+export function markCovered(plugin: string): void {
+  coveredBy = plugin
 }
 
 /** Sets the bedroom's look and notes that the theme is on. */
 export async function setLook($: EngineInterface, ctx: Ctx): Promise<Awaited<ReturnType<EngineInterface['theme']['set']>>> {
   const set = await $.theme.set(lookOf(ctx))
   isThemeSet = true
+  coveredBy = undefined
   return set
 }
 
@@ -61,6 +73,7 @@ export async function setLook($: EngineInterface, ctx: Ctx): Promise<Awaited<Ret
 export async function clearLook($: EngineInterface): Promise<Awaited<ReturnType<EngineInterface['theme']['clear']>>> {
   const cleared = await $.theme.clear()
   isThemeSet = false
+  coveredBy = undefined
   return cleared
 }
 
